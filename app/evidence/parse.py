@@ -16,7 +16,7 @@ from bs4 import BeautifulSoup, Comment, NavigableString, Tag, XMLParsedAsHTMLWar
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
-PARSER_VERSION = "1.1.0"
+PARSER_VERSION = "1.2.0"
 MAX_SECTION_CHARS = 20_000
 
 BLOCK_TAGS = {"p", "div", "table", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6",
