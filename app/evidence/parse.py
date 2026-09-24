@@ -30,6 +30,7 @@ SUBCLAUSE = re.compile(r"^\d+(\.\d+)+\.?\s")  # "3.2. Business Account. You agre
 STATEMENT_HEADING = re.compile(
     r"(Consolidated|Condensed).{0,40}(Balance Sheets?|Statements? of)|^Notes to .{0,60}Financial Statements"
     r"|^Report of Independent Registered", re.I)
+FILING_PART_HEADING = re.compile(r"^(Item \d+[A-C]?\s*\.|PART [IVX]+\b)", re.I)  # resets the path
 NOTE_HEADING = re.compile(r"^Note \d+\s*[—–-]\s*.{3,100}$")
 UNIT_HINT = re.compile(r"in (thousands|millions)|\(\s*in [^)]*\)|U\.?S\.? dollars|USD|\$|%", re.I)
 
@@ -77,7 +78,8 @@ def _classify(text: str, bold_share: float) -> Block | None:
         return Block("para", text)
     letters = re.sub(r"[^A-Za-z]", "", text)
     if letters and len(text) <= 300 and bold_share >= 0.9:
-        top = (letters.isupper() and len(text) <= 120) or STATEMENT_HEADING.search(text)
+        top = ((letters.isupper() and len(text) <= 120) or STATEMENT_HEADING.search(text)
+               or FILING_PART_HEADING.match(text))
         level = 1 if top else 2
         return Block("heading", text, level=level)
     return Block("para", text)

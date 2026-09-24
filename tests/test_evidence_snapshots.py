@@ -102,6 +102,16 @@ def test_financial_table_headers_align_with_values(built):
     assert by_label["Common stock / Shares"] == "89,889,074"
 
 
+def test_mdna_is_not_labelled_as_financial_statement_notes(built):
+    _, _, stores = built
+    hits = [h for h in stores["barfresh_20241025"].search("Liquidity and Capital Resources", source_ids=["brfh_2024q3_10q"])
+            if h["kind"] == "section" and h["heading_path"][-1] == "Liquidity and Capital Resources"]
+    assert hits
+    for h in hits:
+        path = " > ".join(h["heading_path"])
+        assert "Item 2" in path and "Notes to" not in path
+
+
 def test_catalog_inconsistency_and_hash_mismatch_stop_the_build(monkeypatch, tmp_path):
     catalog = json.loads(snapshot.SOURCES_JSON.read_text())
     s1a = next(s for s in catalog["sources"] if s["source_id"] == "synergy_s1a_20240813")
