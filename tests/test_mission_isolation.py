@@ -18,8 +18,10 @@ def test_projection_is_whitelist_only(case_id):
 
     text = json.dumps(mission)
     private = json.loads((CONTRACTS / "case_eval_private.json").read_text())
-    # Later counterparty identity and answer-bearing source IDs must not leak.
-    for forbidden in ["Vitabest", "case_eval_private", *private["cases"].get(case_id, {}).get("outcome_source_ids", [])]:
+    # 2025-only counterparty identity, evaluator labels and answer-bearing source IDs must not leak.
+    forbidden_terms = ["Vitabest Nutrition", "Vitabest Settlement Agreement", "VitBest", "case_eval_private",
+                 *private["cases"].get(case_id, {}).get("outcome_source_ids", [])]
+    for forbidden in forbidden_terms:
         assert forbidden not in text
 
 

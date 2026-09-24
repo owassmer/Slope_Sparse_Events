@@ -112,8 +112,15 @@ bridge=['Amount scheduled for H2 2024 as measured June 30; NOT verified still un
 fact('synergy_hvl_h2_2024_payment',2000000,'USD',S,'Note 11, December 28, 2023 Loan, future payment table','2024','2024-06-30',bridge)
 fact('synergy_hvl_2025_payment',2000000,'USD',S,'Note 11, December 28, 2023 Loan, future payment table','2025','2024-06-30')
 fact('synergy_hvl_2026_payment',802445,'USD',S,'Note 11, December 28, 2023 Loan, future payment table','2026','2024-06-30')
-fact('synergy_supplier_march_settlement_date','2024-03-27','date',S,'Note 11, $3,020,824 March 27, 2024 Loan','March 27, 2024 Loan','2024-03-27',['Counterparty unnamed in decision-date source; do not backfill later Vitabest identification into this run.','A settlement does not independently prove a filed lawsuit.'])
+supplier_identity=['The March 27, 2024 Loan note describes the counterparty only as "a supplier".',
+                   'The June 30 notes-payable table labels the same $2,920,824 balance "VitBest" (fact synergy_supplier_march_table_label_20240630). Linking that label to this settlement is an inference from the matching balance; report it as a cited inference, not as a stated fact.',
+                   'The full legal entity (Vitabest Nutrition, Inc.), the named settlement agreement and every other fact from the May 2025 credit agreement are outcome evidence; do not backfill them into this run.']
+fact('synergy_supplier_march_settlement_date','2024-03-27','date',S,'Note 11, $3,020,824 March 27, 2024 Loan','March 27, 2024 Loan','2024-03-27',supplier_identity+['A settlement does not independently prove a filed lawsuit.'])
 fact('synergy_supplier_march_balance_20240630',2920824,'USD',S,'Note 11, March 27, 2024 Loan','outstanding loan balance','2024-06-30')
+fact('synergy_supplier_march_table_label_20240630','VitBest','text',S,'Note 11, Notes Payable, summary table (June 30, 2024 and December 31, 2023)','VitBest','2024-06-30',
+     ['Row label as printed in the decision-date filing: $2,920,824 at June 30, 2024 and none at December 31, 2023.',
+      'The table does not say which note the row belongs to. Its balance equals the March 27, 2024 settlement loan balance, so the link is an inference from matching amounts that must cite both passages.',
+      'The label is not a verified legal-entity name. The full legal entity appears only in 2025 outcome evidence.'])
 fact('synergy_supplier_march_paid_h1_2024',100000,'USD',S,'Note 11, March 27, 2024 Loan','payments of $100,000','2024-06-30')
 fact('synergy_supplier_march_h2_2024_payment',600000,'USD',S,'Note 11, March 27, 2024 Loan, future payment table','2024','2024-06-30',bridge)
 fact('synergy_supplier_march_2025_payment',1460412,'USD',S,'Note 11, March 27, 2024 Loan, future payment table','2025','2024-06-30')
@@ -155,7 +162,7 @@ unknowns=[
  {'unknown_id':'synergy_shopify_account_mapping','required_for':'Interaction of May 1 and May 22 loans.','resolution':'Account/store IDs and servicing agreement.','rule':'Do not automatically apply 50% aggregate deduction to one receipts stream.'},
  {'unknown_id':'synergy_liens_and_new_borrowing_permissions','required_for':'Eligibility of incremental secured financing.','resolution':'Existing debt contracts, lien search and any waivers.','rule':'No invented first-lien status or available new debt permission.'},
  {'unknown_id':'synergy_full_existing_debt_calendar','required_for':'Complete borrower cash-availability model.','resolution':'Reconcile Note 11 to executed agreements and current borrower debt schedule.','rule':'Do not model settlement obligations alone while ignoring other existing payments.'},
- {'unknown_id':'synergy_supplier_march_identity_at_cutoff','required_for':'Counterparty identification, if relevant to operating mechanism.','resolution':'Decision-date settlement agreement.','rule':'Later 2025 identification is outcome evidence only.'},
+ {'unknown_id':'synergy_supplier_march_identity_at_cutoff','required_for':'Confirmed legal identity of the March 2024 settlement counterparty, if relevant to the operating mechanism.','resolution':'Decision-date settlement agreement.','rule':'At the cutoff the evidence gives only the notes-payable label "VitBest" and its balance-matched link to the March settlement, which is an inference. The full legal entity and confirmation of the link come from 2025 documents and are outcome evidence only.'},
  {'unknown_id':'synergy_proposed_slope_offer','required_for':'Candidate advance comparisons.','resolution':'Explicit analyst-selected amount, term, price and policy parameters.','rule':'This is a modeled offer; no historical Slope application or relationship is established.'},
 ]
 payload={'schema_version':'1.0','case_id':'synergy_chc_2024','mission_id':'synergy_20240813',

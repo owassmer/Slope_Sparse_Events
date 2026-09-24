@@ -58,12 +58,29 @@ def test_excluded_source_ids_are_absent_and_unreadable(built):
     assert reasons["synergy_annual_2024"] == "membership_outcome"
 
 
-def test_future_document_content_is_not_searchable(built):
+# Facts established only by the May 2025 credit agreement (an outcome source for 13 Aug 2024):
+# the supplier's full legal entity, the named settlement agreement, and the delayed-draw loan
+# that refinances the Atrium and Vitabest settlements.
+FUTURE_ONLY_FACTS = ["Vitabest Nutrition, Inc.", "Vitabest Settlement Agreement", "Delayed Draw Term Loan"]
+
+
+def test_2025_only_facts_are_absent_but_the_admissible_label_is_kept(built):
     out, _, stores = built
-    # "Delayed Draw" (the settlement-financing facility) appears only in the May 2025 credit
-    # agreement, an outcome source for 13 Aug 2024. Neither its text nor a search hit may surface.
-    assert b"delayed draw" not in (out / "synergy_20240813.sqlite").read_bytes().lower()
-    assert not any("Delayed" in r["snippet"] for r in stores["synergy_20240813"].search("Delayed Draw Term Loan"))
+    store = stores["synergy_20240813"]
+    catalog = {s["source_id"]: s for s in json.loads(snapshot.SOURCES_JSON.read_text())["sources"]}
+    later = (snapshot.KIT / catalog["synergy_credit_agreement_20250530"]["package_relative_path"]).read_text(
+        errors="ignore")
+    raw = (out / "synergy_20240813.sqlite").read_bytes().lower()
+    for fact in FUTURE_ONLY_FACTS:
+        assert " ".join(fact.split()) in " ".join(later.split()), f"probe {fact!r} is not in the 2025 source"
+        assert fact.lower().encode() not in raw
+        assert not any(fact.split()[0] in r["snippet"] and fact.split()[-1] in r["snippet"]
+                       for r in store.search(fact))
+
+    # The decision-date filing's own table label stays: the agent may cite it and infer the link.
+    hit = next(h for h in store.search("VitBest") if h["kind"] == "table")
+    row = next(r for r in store.read(hit["id"])["rows"] if r[0] == "VitBest")
+    assert row[1] == "2,920,824"
 
 
 def test_settlement_schedule_table_keeps_its_original_context(built):

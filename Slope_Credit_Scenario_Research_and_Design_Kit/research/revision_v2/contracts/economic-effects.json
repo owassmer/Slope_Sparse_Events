@@ -810,7 +810,7 @@
       "event_id": "march_supplier_settlement",
       "borrower_id": "synergy_chc_corp",
       "mechanism": "existing_liability_payment_timing",
-      "finding": "Supplier unnamed in the August information set: June 30 remaining 2024 contractual payment bucket. Amount is already part of settlement debt; exact installment dates and payments since June 30 require a bridge.",
+      "finding": "March 2024 settlement supplier (labelled \"VitBest\" in the June 30 notes-payable table; linking that label to this settlement is a balance-match inference, and the full legal entity is not in the August information set): June 30 remaining 2024 contractual payment bucket. Amount is already part of settlement debt; exact installment dates and payments since June 30 require a bridge.",
       "target_stream_ids": [
         "synergy_explicit_threshold_inputs_v1:E_unnamed_supplier_calendar:existing_debt_cash"
       ],
