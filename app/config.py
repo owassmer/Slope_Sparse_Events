@@ -108,5 +108,13 @@ def metered_overrides_present() -> list[str]:
     return [n for n in METERED_OVERRIDES if os.environ.get(n) or _dotenv().get(n)]
 
 
+# Env for the agent's CLI subprocess. Without this the CLI makes background calls (e.g. session
+# titles) on a small model, so the run would not be served exclusively by the pinned model.
+AGENT_PROCESS_ENV = {"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
+
+# The SDK implements json_schema output as this tool; it is exposed alongside the scoped MCP tools.
+SDK_OUTPUT_TOOL = "StructuredOutput"
+
+
 def main_agent_settings() -> dict:
     return agent_config()["runtime"]["main_agent"]

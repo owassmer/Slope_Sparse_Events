@@ -31,7 +31,9 @@ from pydantic import BaseModel
 from app.agent.jev import JevAdapter
 from app.agent.mission import project_mission
 from app.config import (
+    AGENT_PROCESS_ENV,
     ROOT,
+    SDK_OUTPUT_TOOL,
     ConfigurationError,
     agent_config,
     main_agent_settings,
@@ -101,6 +103,7 @@ async def run_claude_smoke() -> dict[str, Any]:
         permission_mode=sdk_opts["permission_mode"],
         max_turns=4,
         cwd=str(cwd),
+        env=AGENT_PROCESS_ENV,
         system_prompt=(
             "You are running a runtime smoke test. Call the get_mission tool exactly once, then "
             "return the structured report. List in tools_available the exact names of every tool "
@@ -130,14 +133,14 @@ async def run_claude_smoke() -> dict[str, Any]:
     mission = project_mission(SMOKE_CASE)
     init_tools = sorted(init.get("tools") or [])
     checks["api_key_source_is_subscription"] = init.get("apiKeySource") == "none"
-    checks["only_scoped_tool_exposed"] = init_tools == [SMOKE_TOOL]
+    checks["only_scoped_tool_exposed"] = init_tools == sorted([SMOKE_TOOL, SDK_OUTPUT_TOOL])
     checks["custom_tool_called"] = len(calls) == 1
     checks["structured_output_valid"] = True  # model_validate above raises otherwise
     checks["structured_output_matches_tool"] = (report.borrower, report.as_of) == (
         mission["borrower"], mission["as_of"])
+    # Every model that consumed tokens in the run, not just those that produced assistant turns.
     returned_models = sorted(models_seen | set(result.model_usage or {}))
-    checks["requested_model_served"] = bool(returned_models) and all(
-        m.startswith(settings["model"]) for m in returned_models)
+    checks["requested_model_served"] = returned_models == [settings["model"]]
 
     return {
         "requested_model": settings["model"],
