@@ -1,0 +1,22 @@
+{
+  "case_id": "synergy_chc_2024",
+  "runtime_use": "Evaluator only after decision is locked; excluded from August 13 agent context.",
+  "conflicts_to_preserve": [
+    {
+      "subject": "May 1 loan December 31, 2024 carrying balance",
+      "source_values": [
+        {
+          "source_id": "synergy_annual_2024",
+          "value": 269488
+        },
+        {
+          "source_id": "synergy_quarterly_20250630",
+          "value": 280732
+        }
+      ],
+      "unit": "USD",
+      "locator": "Note 11, May 1, 2024 Loan",
+      "rule": "Do not silently reconcile or infer exact payment timing/default from this conflict."
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+
+EDGAR Filing Documents for 0001493152-24-032201
+This page uses Javascript. Your browser either doesn't support Javascript or you have it turned off. To see this page as it is meant to appear please use a Javascript enabled browser.
+               SEC.gov
+            EDGAR
+			Latest Filings 
+            Filings search tools
+Filing Detail
+      SEC Home »
+      Company Search »
+      Current Page
+         Form 10-Q - Quarterly report [Sections 13 or 15(d)]: 
+         SEC Accession No. 0001493152-24-032201
+Filing Date
+2024-08-14
+Accepted
+2024-08-14 16:10:46
+Documents
+53
+Period of Report
+2024-06-30
+       Interactive Data
+Document Format Files
+            Seq
+            Description
+            Document
+            Type
+            Size
+             | 1
+             | 
+             | form10-q.htm   iXBRL
+             | 10-Q
+             | 548667
+             | 2
+             | 
+             | ex31-1.htm
+             | EX-31.1
+             | 12203
+             | 3
+             | 
+             | ex31-2.htm
+             | EX-31.2
+             | 12491
+             | 4
+             | 
+             | ex32-1.htm
+             | EX-32.1
+             | 9250
+             |  
+             | Complete submission text file
+             | 0001493152-24-032201.txt
+             |  
+             | 3299838
+Data Files
+            Seq
+            Description
+            Document
+            Type
+            Size
+             | 5
+             | XBRL SCHEMA FILE
+             | brfh-20240630.xsd
+             | EX-101.SCH
+             | 25199
+             | 6
+             | XBRL CALCULATION FILE
+             | brfh-20240630_cal.xml
+             | EX-101.CAL
+             | 37831
+             | 7
+             | XBRL DEFINITION FILE
+             | brfh-20240630_def.xml
+             | EX-101.DEF
+             | 79653
+             | 8
+             | XBRL LABEL FILE
+             | brfh-20240630_lab.xml
+             | EX-101.LAB
+             | 228424
+             | 9
+             | XBRL PRESENTATION FILE
+             | brfh-20240630_pre.xml
+             | EX-101.PRE
+             | 178275
+             | 55
+             | EXTRACTED XBRL INSTANCE DOCUMENT
+             | form10-q_htm.xml
+             | XML
+             | 446108
+Mailing Address
+      3600 WILSHIRE SUITE 1720
+LOS ANGELES       CA
+90005      
+Business Address
+      3600 WILSHIRE SUITE 1720
+LOS ANGELES       CA
+90005      
+      310-598-7110
+  BARFRESH FOOD GROUP INC. (Filer)
+ CIK: 0001487197 (see all company filings)
+EIN.: 271994359 | State of Incorp.: DE | Fiscal Year End: 1231Type: 10-Q | Act: 34 | File No.: 001-41228 | Film No.: 241207786SIC: 2030 Canned, Frozen & Preservd Fruit, Veg & Food Specialties(CF Office: 04 Manufacturing)

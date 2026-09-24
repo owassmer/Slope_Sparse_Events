@@ -1,0 +1,1489 @@
+
+UNITED
+STATES
+SECURITIES
+AND EXCHANGE COMMISSION
+Washington,
+D.C. 20549
+FORM
+10-Q
+     | ☒
+     | QUARTERLY
+    REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934
+For
+the quarterly period ended March 31, 2025
+     | ☐
+     | TRANSITION
+    REPORT PURSUANT TO SECTION 13 OR 15(d) OF THE SECURITIES EXCHANGE ACT OF 1934
+For
+the transition period from ________________ to ___________________
+Commission
+File Number: 001-41228
+BARFRESH
+FOOD GROUP INC.
+(Exact
+name of registrant as specified in its charter)
+     | Delaware
+     |  
+     | 27-1994406
+     | 
+(State
+    or other jurisdiction of
+incorporation
+    or organization)
+     |  
+     | 
+(I.R.S.
+    Employer
+Identification
+    No.)
+     |  
+     |  
+     |  
+     | 
+3600
+    Wilshire Blvd., Suite 1720,
+Los
+    Angeles, California
+     |  
+     | 90010
+     | (Address
+    of principal executive offices)
+     |  
+     | (Zip
+    Code)
+310-598-7113
+(Registrant’s
+telephone number, including area code)
+Not
+Applicable
+(Former
+name, former address and former fiscal year, if changed since last report)
+Securities
+registered pursuant to Section 12(b) of the Act:
+     | Title
+    of each class
+     |  
+     | Trading
+    Symbol(s)
+     |  
+     | Name
+    of each exchange on which registered
+     | Common
+    stock, $0.000001 par value 
+     |  
+     | BRFH
+     |  
+     | The
+    Nasdaq Capital Market 
+Indicate
+by check mark whether the registrant (1) has filed all reports required to be filed by Section 13 or 15(d) of the Securities Exchange
+Act of 1934 during the preceding 12 months (or for such shorter period that the registrant was required to file such reports), and (2)
+has been subject to such filing requirements for the past 90 days. Yes ☒ No ☐
+Indicate
+by check mark whether the registrant has submitted electronically every Interactive Data File required to be submitted pursuant to Rule
+405 of Regulation S-T during the preceding 12 months (or for such shorter period that the registrant was required to submit such files).
+Yes ☒ No ☐
+Indicate
+by check mark whether the registrant is a large accelerated filer, an accelerated filer, a non-accelerated filer, a smaller reporting
+company, or an emerging growth company. See the definitions of “large accelerated filer,” “accelerated filer,”
+“smaller reporting company,” and “emerging growth company” in Rule 12b-2 of the Exchange Act.
+     | Large
+    accelerated filer ☐
+     | Accelerated
+    filer ☐
+     | Non-accelerated
+    filer ☐
+     | Smaller
+    reporting company ☒
+     |  
+     | Emerging
+    growth company ☐
+If
+an emerging growth company, indicate by the check mark if the registrant has elected not to use the extended transition period for complying
+with any new or revised financial accounting standards provided pursuant to Section 13(a) of the Exchange Act. ☐
+Indicate
+by check mark whether the registrant is a shell company (as defined in Rule 12b-2 of the Exchange Act). Yes ☐ No ☒
+Indicate
+the number of shares outstanding of each of the issuer’s classes of common stock, as of the latest practicable date: 15,920,047
+shares as of April 28, 2025.
+ |  
+ |  
+TABLE
+OF CONTENTS
+     |  
+     |  
+     | Page
+    Number
+     | PART I – FINANCIAL INFORMATION
+     |  
+     |  
+     |  
+     |  
+     | Item
+    1.
+     | Financial Statements.
+     | 3
+     | Item
+    2.
+     | Management’s Discussion and Analysis of Financial Condition and Results of Operations.
+     | 14
+     | Item
+    3.
+     | Quantitative and Qualitative Disclosures About Market Risk.
+     | 16
+     | Item
+    4.
+     | Controls and Procedures.
+     | 17
+     |  
+     |  
+     |  
+     | PART II – OTHER INFORMATION
+     | 17
+     |  
+     |  
+     |  
+     | Item
+    1.
+     | Legal Proceedings.
+     | 17
+     | Item
+    1A.
+     | Risk Factors.
+     | 17
+     | Item
+    2.
+     | Unregistered Sales of Equity Securities and Use of Proceeds.
+     | 17
+     | Item
+    3.
+     | Defaults Upon Senior Securities.
+     | 17
+     | Item
+    4.
+     | Mine Safety Disclosures.
+     | 17
+     | Item
+    5.
+     | Other Information.
+     | 17
+     | Item
+    6.
+     | Exhibits.
+     | 18
+     |  
+     |  
+     |  
+     | SIGNATURES
+     | 19
+ |  
+Item
+1. Financial Statements.
+Barfresh
+Food Group Inc.
+Condensed
+Consolidated Balance Sheets
+     |   |  
+     | March 31, 2025 |   |  
+     | December 31, 2024 |  
+     |   |  
+     | (unaudited) |   |  
+     | (audited) |  
+     | Assets |  
+     |   |   |   |  
+     |   |   |  
+     | Current assets: |  
+     |   |   |   |  
+     |   |   |  
+     | Cash |  
+     | $ | 1,872,000 |   |  
+     | $ | 235,000 |  
+     | Trade accounts receivable, net |  
+     |   | 1,499,000 |   |  
+     |   | 829,000 |  
+     | Other receivables |  
+     |   | 112,000 |   |  
+     |   | 55,000 |  
+     | Inventory, net |  
+     |   | 1,128,000 |   |  
+     |   | 1,500,000 |  
+     | Prepaid expenses and other current assets |  
+     |   | 189,000 |   |  
+     |   | 104,000 |  
+     | Total current assets |  
+     |   | 4,800,000 |   |  
+     |   | 2,723,000 |  
+     | Property, plant and equipment, net of depreciation |  
+     |   | 308,000 |   |  
+     |   | 333,000 |  
+     | Intangible assets, net of amortization |  
+     |   | 157,000 |   |  
+     |   | 178,000 |  
+     | Other non-current assets |  
+     |   | 72,000 |   |  
+     |   | 84,000 |  
+     | Total assets |  
+     | $ | 5,337,000 |   |  
+     | $ | 3,318,000 |  
+     |   |  
+     |   |   |   |  
+     |   |   |  
+     | Liabilities and Stockholders’ Equity |  
+     |   |   |   |  
+     |   |   |  
+     | Current liabilities: |  
+     |   |   |   |  
+     |   |   |  
+     | Line of credit |  
+     | $ | - |   |  
+     | $ | 609,000 |  
+     | Accounts payable |  
+     |   | 1,422,000 |   |  
+     |   | 1,200,000 |  
+     | Disputed co-manufacturer accounts payable (Note 4) |  
+     |   | 499,000 |   |  
+     |   | 499,000 |  
+     | Accrued expenses |  
+     |   | 188,000 |   |  
+     |   | 142,000 |  
+     | Accrued payroll and employee related expenses |  
+     |   | 239,000 |   |  
+     |   | 67,000 |  
+     | Financing agreements - current |  
+     |   | 103,000 |   |  
+     |   | 99,000 |  
+     | Total current liabilities |  
+     |   | 2,451,000 |   |  
+     |   | 2,616,000 |  
+     | Financing agreements |  
+     |   | 97,000 |   |  
+     |   | 124,000 |  
+     | Total liabilities |  
+     |   | 2,548,000 |   |  
+     |   | 2,740,000 |  
+     |   |  
+     |   |   |   |  
+     |   |   |  
+     | Commitments and contingencies |  
+     |   | - |   |  
+     |   | - |  
+     |   |  
+     |   |   |   |  
+     |   |   |  
+     | Stockholders’ equity: |  
+     |   |   |   |  
+     |   |   |  
+     | Preferred stock, $0.000001 par value, 400,000 shares authorized, none issued or outstanding |  
+     |   | - |   |  
+     |   | - |  
+     | Common stock, $0.000001 par value; 23,000,000 shares authorized; 15,920,047 and 14,746,172 shares issued and outstanding at March 31, 2025 and December 31, 2024, respectively |  
+     |   | - |   |  
+     |   | - |  
+     | Additional paid in capital |  
+     |   | 67,171,000 |   |  
+     |   | 64,199,000 |  
+     | Accumulated deficit |  
+     |   | (64,382,000 | ) |  
+     |   | (63,621,000 | )
+     | Total stockholders’ equity |  
+     |   | 2,789,000 |   |  
+     |   | 578,000 |  
+     | Total liabilities and stockholders’ equity |  
+     | $ | 5,337,000 |   |  
+     | $ | 3,318,000 |  
+See
+the accompanying notes to the condensed consolidated financial statements
+ | 3
+Barfresh
+Food Group Inc.
+Condensed
+Consolidated Statements of Operations
+For
+the three months ended March 31, 2025 and 2024
+(Unaudited)
+     |   |  
+     | 2025 |   |  
+     | 2024 |  
+     | Revenue |  
+     | $ | 2,930,000 |   |  
+     | $ | 2,829,000 |  
+     | Cost of revenue |  
+     |   | 2,030,000 |   |  
+     |   | 1,659,000 |  
+     | Gross profit |  
+     |   | 900,000 |   |  
+     |   | 1,170,000 |  
+     | Operating expenses: |  
+     |   |   |   |  
+     |   |   |  
+     | Selling, marketing and distribution |  
+     |   | 824,000 |   |  
+     |   | 694,000 |  
+     | General and administrative |  
+     |   | 747,000 |   |  
+     |   | 855,000 |  
+     | Depreciation and amortization |  
+     |   | 67,000 |   |  
+     |   | 67,000 |  
+     | Total operating expenses |  
+     |   | 1,638,000 |   |  
+     |   | 1,616,000 |  
+     | Loss from operations |  
+     |   | (738,000 | ) |  
+     |   | (446,000 | )
+     | Interest expense |  
+     |   | 23,000 |   |  
+     |   | 3,000 |  
+     | Net loss |  
+     | $ | (761,000 | ) |  
+     | $ | (449,000 | )
+     |   |  
+     |   |   |   |  
+     |   |   |  
+     | Per share information - basic and fully diluted: |  
+     |   |   |   |  
+     |   |   |  
+     | Weighted average shares outstanding |  
+     |   | 15,387,665 |   |  
+     |   | 14,500,863 |  
+     | Net loss per share |  
+     | $ | (0.05 | ) |  
+     | $ | (0.03 | )
+See
+the accompanying notes to the condensed consolidated financial statements
+ | 4
+Barfresh
+Food Group Inc.
+Consolidated
+Statements of Cash Flows
+For
+the three months ended March 31, 2025 and 2024
+(Unaudited)
+     |   |  
+     | 2025 |   |  
+     | 2024 |  
+     | Net loss |  
+     | $ | (761,000 | ) |  
+     | $ | (449,000 | )
+     | Adjustments to reconcile net loss to net cash used in operating activities |  
+     |   |   |   |  
+     |   |   |  
+     |   |  
+     |   |   |   |  
+     |   |   |  
+     | Stock-based compensation |  
+     |   | 158,000 |   |  
+     |   | 366,000 |  
+     | Depreciation and amortization |  
+     |   | 74,000 |   |  
+     |   | 74,000 |  
+     | Gain on asset disposal |  
+     |   | - |   |  
+     |   | - |  
+     | Amortization of line of credit discount |  
+     |   | 4,000 |   |  
+     |   | - |  
+     | Changes in assets and liabilities |  
+     |   |   |   |  
+     |   |   |  
+     | Accounts receivable |  
+     |   | (670,000 | ) |  
+     |   | (545,000 | )
+     | Other receivables |  
+     |   | (57,000 | ) |  
+     |   | 140,000 |  
+     | Inventories |  
+     |   | 372,000 |   |  
+     |   | (70,000 | )
+     | Prepaid expenses and other assets |  
+     |   | (66,000 | ) |  
+     |   | (107,000 | )
+     | Accounts payable |  
+     |   | 222,000 |   |  
+     |   | (271,000 | )
+     | Accrued expenses |  
+     |   | 218,000 |   |  
+     |   | 93,000 |  
+     | Net cash used in operating activities |  
+     |   | (506,000 | ) |  
+     |   | (769,000 | )
+     |   |  
+     |   |   |   |  
+     |   |   |  
+     | Investing activities |  
+     |   |   |   |  
+     |   |   |  
+     | Purchase of property and equipment |  
+     |   | (28,000 | ) |  
+     |   | - |  
+     | Net cash used in investing activities |  
+     |   | (28,000 | ) |  
+     |   | - |  
+     |   |  
+     |   |   |   |  
+     |   |   |  
+     | Financing activities |  
+     |   |   |   |  
+     |   |   |  
+     | Borrowings under line of credit |  
+     |   | 782,000 |   |  
+     |   | - |  
+     | Repayment of line of credit |  
+     |   | (1,402,000 | ) |  
+     |   | - |  
+     | Issuance of convertible debt |  
+     |   | - |   |  
+     |   | 65,000 |  
+     | Financing agreement payments |  
+     |   | (23,000 | ) |  
+     |   | - |  
+     | Issuance of common stock, net of $26,000 issuance cost |  
+     |   | 2,974,000 |   |  
+     |   | - |  
+     | Shares repurchased for income tax withholding under stock compensation program |  
+     |   | (160,000 | ) |  
+     |   | (20,000 | )
+     | Net cash provided by financing activities |  
+     |   | 2,171,000 |   |  
+     |   | 45,000 |  
+     |   |  
+     |   |   |   |  
+     |   |   |  
+     | Net increase (decrease) in cash |  
+     |   | 1,637,000 |   |  
+     |   | (724,000 | )
+     | Cash, beginning of period |  
+     |   | 235,000 |   |  
+     |   | 1,891,000 |  
+     | Cash, end of period |  
+     | $ | 1,872,000 |   |  
+     | $ | 1,167,000 |  
+     |   |  
+     |   |   |   |  
+     |   |   |  
+     | Non-cash financing and investing activities: |  
+     |   |   |   |  
+     |   |   |  
+     | Convertible notes issued in exchange for trade payables |  
+     | $ | - |   |  
+     | $ | 71,000 |  
+     | Conversion of debt and interest to equity |  
+     | $ | - |   |  
+     | $ | 136,000 |  
+     | Financed acquisition of long-term assets |  
+     | $ | - |   |  
+     | $ | 154,000 |  
+     |   |  
+     |   |   |   |  
+     |   |   |  
+     | Cash paid for interest |  
+     | $ | 19,000 |   |  
+     | $ | - |  
+See
+the accompanying notes to the condensed consolidated financial statements
+ | 5
+Barfresh
+Food Group Inc.
+Notes
+to Condensed Consolidated Financial Statements
+March
+31, 2025
+(Unaudited)
+Note
+1. Description of the Business, Basis of Presentation, and Summary of Significant Accounting Policies
+Barfresh
+Food Group Inc., (“we,” “us,” “our,” and the “Company”) was incorporated on February
+25, 2010 in the State of Delaware. The Company is engaged in the manufacturing and distribution of ready-to-drink and ready-to-blend
+beverages, particularly, smoothies, shakes and frappes.
+Basis
+of Presentation
+The
+accompanying condensed consolidated financial statements are unaudited, except for the condensed balance sheet as of December 31, 2024.
+These unaudited interim condensed consolidated financial statements have been prepared in conformity with accounting principles generally
+accepted in the United States of America (“GAAP”) and applicable rules and regulations of the U.S. Securities and Exchange
+Commission (“SEC”) regarding interim financial reporting. Certain information and footnote disclosures normally included
+in the financial statements prepared in accordance with GAAP have been condensed or omitted pursuant to such rules and regulations. Accordingly,
+these interim condensed consolidated financial statements should be read in conjunction with the audited consolidated financial statements
+for the fiscal year ended December 31, 2024 included in the Company’s Annual Report on Form 10-K, as filed with the SEC on March
+27, 2025. In management’s opinion, the unaudited interim condensed consolidated financial statements reflect all adjustments, which
+are of a normal and recurring nature, that are necessary for a fair presentation of financial results for the interim periods presented.
+Operating results for any quarter are not necessarily indicative of the results for the full fiscal year.
+Principles
+of Consolidation
+The
+consolidated financial statements include the financial statements of the Company and our wholly owned subsidiaries, Barfresh Inc. and
+Barfresh Corporation Inc. (formerly known as Smoothie, Inc.). All inter-company balances and transactions among the companies have been
+eliminated upon consolidation.
+Use
+of Estimates
+The
+preparation of financial statements in accordance with GAAP requires management to make estimates and assumptions that affect the reported
+amounts of assets and liabilities in the balance sheets and revenues and expenses during the years reported. Actual results may differ
+from these estimates.
+Vendor
+Concentrations
+The
+Company is exposed to supply risk as a result of concentration in its vendor base resulting from the use of a limited number of contract
+manufacturers. Purchases from the Company’s significant contract manufacturers as a percentage of all finished goods purchased
+were as follows:
+Schedule of Contract Manufacturers Percentage of Finished Goods
+     |   |  
+     | 2025 |   |  
+     | 2024 |  
+     |   |  
+     | For the three months ended March 31, |  
+     |   |  
+     | 2025 |   |  
+     | 2024 |  
+     | Manufacturer A |  
+     |   | 52 | % |  
+     |   | 36 | %
+     | Manufacturer B |  
+     |   | 38 | % |  
+     |   | 63 | %
+     | Other Manufacturers |  
+     |   | 10 | % |  
+     |   | 1 | %
+ | 6
+Summary
+of Significant Accounting Policies
+There
+have been no changes to our significant accounting policies described in our Annual Report on Form 10-K for the year ended December 31,
+2024, as filed with the SEC on March 27, 2025 that have had a material impact on our condensed consolidated financial statements and
+related notes.
+Financial
+Instruments
+The
+Company’s financial instruments consist of cash, accounts receivable, accounts payable, the line of credit and financing agreements.
+The carrying value of the Company’s financial instruments approximates their fair value.
+Accounts
+Receivable and Allowances
+Accounts
+receivable are recorded and carried at the original invoiced amount less allowances for credits and for any potential uncollectible amounts
+due to credit losses. We make estimates of the expected credit and collectability trends for the allowance for credit losses based on
+our assessment of various factors, including historical experience, the age of the accounts receivable balances, credit quality of our
+customers, current economic conditions, and other factors that may affect our ability to collect from our customers. Expected credit
+losses are recorded as general and administrative expenses on our condensed consolidated statements of operations. As of March 31, 2025
+and December 31, 2024, there was no allowance for credit losses. There was no credit loss expense for the three months ended March 31,
+2025 and 2024.
+Revenue
+Recognition
+In
+accordance with ASC 606, Revenue from Contracts with Customers, revenue is recognized when a customer obtains ownership of promised goods.
+The amount of revenue recognized reflects the consideration to which the Company expects to be entitled to receive in exchange for these
+goods. The Company applies the following five steps:
+     |  
+     | 1)
+     | Identify
+    the contract with a customer
+     |  
+     |  
+     |  
+     |  
+     |  
+     | A
+    contract with a customer exists when (i) the Company enters into an enforceable contract with a customer that defines each party’s
+    rights, (ii) the contract has commercial substance and, (iii) the Company determines that collection of substantially all consideration
+    for goods or services that are transferred is probable. For the Company, the contract is the approved sales order, which may also
+    be supplemented by other agreements that formalize various terms and conditions with customers.
+     |  
+     | 2)
+     | Identify
+    the performance obligation in the contract
+     |  
+     |  
+     |  
+     |  
+     |  
+     | Performance
+    obligations promised in a contract are identified based on the goods or services that will be transferred to the customer. For the
+    Company, this consists of the delivery of frozen beverages, which provide immediate benefit to the customer.
+     |  
+     |  
+     |  
+     |  
+     | 3)
+     | Determine
+    the transaction price
+     |  
+     |  
+     |  
+     |  
+     |  
+     | The
+    transaction price is determined based on the consideration to which the Company will be entitled in exchange for transferring goods
+    and is generally stated on the approved sales order. Variable consideration, which typically includes rebates or discounts, are estimated
+    utilizing the most likely amount method. Provisions for refunds are generally provided for in the period the related sales are recorded,
+    based on management’s assessment of historical and projected trends.
+ | 7
+     |  
+     | 4)
+     | 
+Allocate
+    the transaction price to performance obligations in the contract
+Since
+    the Company’s contracts contain a single performance obligation, delivery of frozen beverages, the transaction price is allocated
+    to that single performance obligation.
+     |  
+     |  
+     |  
+     |  
+     | 5)
+     | Recognize
+    revenue when or as the Company satisfies a performance obligation
+     |  
+     |  
+     |  
+     |  
+     |  
+     | 
+The
+    Company recognizes revenue from the sale of frozen beverages when title and risk of loss passes and the customer accepts the goods,
+    which generally occurs at the time of delivery to a customer warehouse. Customer sales incentives such as volume-based rebates or
+    discounts are treated as a reduction of sales at the time the sale is recognized. Shipping and handling costs are treated as fulfilment
+    costs and presented in distribution, selling and administrative costs.
+Payments
+    that are received before performance obligations are recorded are shown as current liabilities.
+     |  
+     |  
+     |  
+     |  
+     |  
+     | The
+    Company evaluated the requirement to disaggregate revenue and concluded that substantially all of its revenue comes from a single
+    product, frozen beverages.
+Storage
+and Shipping Costs
+Storage
+and outbound freight costs are included in selling, marketing and distribution expense. For the three months ending March 31, 2025 and
+2024, storage and outbound freight totaled approximately $391,000 and $364,000, respectively.
+Research
+and Development
+Expenditures
+for research activities relating to product development and improvement are charged to expense as incurred. The Company incurred approximately
+$18,000 and $30,000 in research and development expense for the three months ended March 31, 2025 and 2024, respectively.
+Loss
+Per Share
+For
+the three months ended March 31, 2025 and 2024, common stock equivalents have not been included in the calculation of net loss per share
+as their effect is anti-dilutive as a result of losses incurred.
+Recent
+Pronouncements
+From
+time to time, new accounting pronouncements are issued that we adopt as of the specified effective date. We have not determined if the
+impact of recently issued standards that are not yet effective will have an impact on our results of operations and financial position.
+Note
+2. Inventory
+Inventory
+consists of the following:
+ Schedule of Inventory
+     |   |  
+     | March 31, 2025 |   |  
+     | December 31, 2024 |  
+     | Raw materials and packaging |  
+     | $ | 519,000 |   |  
+     | $ | 505,000 |  
+     | Finished goods |  
+     |   | 609,000 |   |  
+     |   | 995,000 |  
+     | Inventory, net |  
+     | $ | 1,128,000 |   |  
+     | $ | 1,500,000 |  
+ | 8
+Note
+3. Property Plant and Equipment
+Property
+and equipment, net consist of the following:
+ Schedule of Property and Equipment, Net
+     |   |  
+     | March 31, 2025 |   |  
+     | December 31, 2024 |  
+     | Manufacturing equipment |  
+     | $ | 1,556,000 |   |  
+     | $ | 1,376,000 |  
+     | Customer equipment |  
+     |   | 1,398,000 |   |  
+     |   | 1,398,000 |  
+     | Construction in progress |  
+     |   | - |   |  
+     |   | 152,000 |  
+     |  Property and equipment, gross |  
+     |   | 2,954,000 |   |  
+     |   | 2,926,000 |  
+     | Less: accumulated depreciation |  
+     |   | (2,646,000 | ) |  
+     |   | (2,593,000 | )
+     | Property and equipment, net of depreciation |  
+     | $ | 308,000 |   |  
+     | $ | 333,000 |  
+Depreciation
+expense related to these assets was approximately $53,000 and $59,000 for the three-months periods ending March 31, 2025 and 2024, respectively.
+Depreciation expense in cost of revenue was $7,000 for each of the three-month periods ending March 31, 2025 and 2024.
+Note
+4. Commitments and Contingencies
+Lease
+Commitments
+The
+Company leases office space under a non-cancellable operating lease which expired on March 31, 2023, and was extended in a series of
+amendments through September 30, 2025. The Company’s periodic lease cost was approximately $20,000 for each of the three-month
+periods ending March 31, 2025 and 2024.
+Legal
+Proceedings
+Schreiber
+Dispute
+The
+Company’s products are produced to its specifications through several contract manufacturers. One of the Company’s contract
+manufacturers (the “Manufacturer”) provided approximately 52% and 42% of the Company’s products in the years ended
+December 31, 2022 and 2021, respectively, under a Supply Agreement with an initial term through September 2025.
+Over
+the course of 2022, the Company experienced numerous quality issues with the case packaging utilized by the Manufacturer. In addition,
+in July of 2022, the Company began receiving customer complaints about the texture of the Company’s smoothie products produced
+by the Manufacturer. In response, the Company withdrew product from the market and destroyed on-hand inventory, withholding $499,000
+in payments due to the Manufacturer.
+The
+Company attempted to resolve the issues based on the contractual procedures described in the Supply Agreement. However, on November 4,
+2022, in response to a formal proposal of alternate resolutions, the Company received notification from the Manufacturer that it was
+denying any responsibility for the defective manufacture of the product. In response, on November 10, 2022, the Company filed a complaint
+in the United States District Court for the Central District of California, Western Division (the “Complaint”), claiming
+that the Manufacturer had not met its obligations under the Supply Agreement, and seeking economic damages. In response, the Manufacturer
+terminated the Supply Agreement. On January 20, 2023, the Company filed a voluntary dismissal of the Complaint which allowed the parties
+to reach a potential resolution outside of the court system. However, as the parties were once again unable to come to an agreement,
+the Company re-filed the Complaint in California State Court in August 2023 and continues to progress through the court system.
+In
+May 2024, the Company entered into a non-recourse litigation financing arrangement which is expected to be adequate to pursue the Complaint
+to conclusion.
+ | 9
+Due
+to the uncertainties surrounding the claim, the Company is not able to predict either the outcome or a range of reasonably possible recoveries
+that could result from its actions against the Manufacturer, and no gain contingencies have been recorded. The disruption in its supply
+resulting from the dispute has and will continue to adversely impact the Company’s results of operations and cash flow until a
+suitable resolution is reached or new sources of reliable supply at sufficient volume can be identified and developed, the timing of
+which is uncertain. The Company has mitigated the impact of the supply disruption with the introduction of its single-serve smoothie
+cartons; however the product format has not been accepted by some customers or as a substitute for the bottle product in all use cases.
+Other
+Legal Matters
+From
+time to time, various lawsuits and legal proceedings may arise in the ordinary course of business. However, litigation is subject to
+inherent uncertainties and an adverse result in these or other matters may arise from time to time that may harm our business. We are
+currently the defendant in one legal proceeding for an amount less than $100,000. Our legal counsel and management believe the probability
+of a material unfavorable outcome is remote.
+Note
+5. Debt
+Line
+of Credit
+In
+August 2024, the Company secured receivables financing of $1,500,000 (the “Facility”). Under the Facility, the Company may
+borrow up to 90% of eligible customer account balances. Amounts outstanding bear interest at a rate prime plus 1.2% and collateral fees
+of 0.15% and are secured by accounts receivable and inventory. The Facility expires on September 5, 2025, and renews automatically, unless
+notice is given or received. As of March 31, 2025, there were no borrowings under the Facility. Unamortized deferred financing cost amounted
+to $7,000 and are included in prepaid expenses and other current assets on the accompanying March 31, 2025 consolidated balance sheet.
+Financing
+Agreements
+In
+2024, the Company entered into financing agreements to purchase equipment and software as a service, with imputed or stated interest
+of 15-19%. Amounts due under the agreements are as follows as of March 31, 2025:
+ Schedule of Financing Agreements
+     |   |  
+     |   |   |  
+     | 2025 (9 months) |  
+     | $ | 96,000 |  
+     | 2026 |  
+     |   | 136,000 |  
+     | Total payments due |  
+     |   | 232,000 |  
+     | Less: interest |  
+     |   | (32,000 | )
+     |  Financing agreements |  
+     |   | 200,000 |  
+     | Less: current portion |  
+     |   | (103,000 | )
+     | Financing agreements |  
+     | $ | 97,000 |  
+     | Financing agreements non current |  
+     | $ | 97,000 |  
+Convertible
+Notes
+From
+July 2023 to March 2024, the Company executed subscription agreements for substantially all of a $2,000,000 privately placed convertible
+debt offering. The debt was available to be drawn in 25% increments, maturing on the anniversary of the draw, bearing interest at 10%
+per annum for the term, regardless of earlier payment or conversion, and was mandatorily convertible as to principal and interest into
+shares of the Company’s common stock at any time prior to maturity at the greater of $1.20 or 85% of the volume-weighted average
+price of the common stock for the ten trading days immediately preceding the written notice of the conversion (the “Conversion
+Price”). If the Company had not exercised the mandatory conversion, the holder of the debt had the option after six months and
+on up to four occasions to convert all or any portion of the principal and interest into shares of the Company’s common stock at
+the Conversion Price.
+ | 10
+On
+October 23, 2023, the Company drew down $1,390,000 in convertible debt and converted a total of $1,207,000 of principal into 820,160
+shares of common stock. Additionally, on December 19, 2023, the Company drew down $470,000 in convertible debt and converted a total
+of $653,000 of principal and $4,000 of accrued interest into 495,331 shares of common stock. Finally, on March 27 and 29, 2024 the Company
+drew down $136,000 in convertible debt and converted the total drawn into 124,208 shares, settling all debt. Debt drawdowns included
+the non-cash settlement of $30,000 and $71,000 in 2023 and 2024, respectively.
+Note
+6. Stockholders’ Equity
+The
+following are changes in stockholders’ equity for the three months ended March 31, 2024 and 2025:
+ Schedule of Changes in Stockholders’ Equity
+     |   |  
+     | Shares |   |  
+     | Amount |   |  
+     | Capital |   |  
+     | (Deficit) |   |  
+     | Total |  
+     |   |  
+     |   |   |  
+     | Additional |   |  
+     |   |   |  
+     |   |  
+     |   |  
+     | Common Stock |   |  
+     | paid in |   |  
+     | Accumulated |   |  
+     |   |  
+     |   |  
+     | Shares |   |  
+     | Amount |   |  
+     | Capital |   |  
+     | (Deficit) |   |  
+     | Total |  
+     |   |  
+     |   |   |  
+     |   |   |  
+     |   |   |  
+     |   |   |  
+     |   |  
+     | Balance December 31, 2023  |  
+     |   | 14,420,105 |   |  
+     | $ |       - |   |  
+     | $ | 63,299,000 |   |  
+     | $ | (60,796,000 | ) |  
+     | $ | 2,503,000 |  
+     | Issuance of common stock for equity compensation, net of shares repurchased for income tax withholding |  
+     |   | 175,562 |   |  
+     |   | - |   |  
+     |   | (20,000 | ) |  
+     |   | - |   |  
+     |   | (20,000 | )
+     | Equity-based compensation expense  |  
+     |   | - |   |  
+     |   | - |   |  
+     |   | 366,000 |   |  
+     |   | - |   |  
+     |   | 366,000 |  
+     | Conversion of debt and interest (Note 5) |  
+     |   | 124,208 |   |  
+     |   | - |   |  
+     |   | 136,000 |   |  
+     |   | - |   |  
+     |   | 136,000 |  
+     | Registered issuance of common stock |  
+     |   |   |   |  
+     |   |   |   |  
+     |   |   |   |  
+     |   |   |   |  
+     |   |   |  
+     | Registered issuance of common stock, shares |  
+     |   |   |   |  
+     |   |   |   |  
+     |   |   |   |  
+     |   |   |   |  
+     |   |   |  
+     | Net loss  |  
+     |   | - |   |  
+     |   | - |   |  
+     |   | - |   |  
+     |   | (449,000 | ) |  
+     |   | (449,000 | )
+     | Balance March 31, 2024 |  
+     |   | 14,719,875 |   |  
+     | $ | - |   |  
+     | $ | 63,781,000 |   |  
+     | $ | (61,245,000 | ) |  
+     | $ | 2,536,000 |  
+     |   |  
+     |   |   |  
+     | Additional |   |  
+     |   |   |  
+     |   |  
+     |   |  
+     | Common Stock |   |  
+     | paid in |   |  
+     | Accumulated |   |  
+     |   |  
+     |   |  
+     | Shares |   |  
+     | Amount |   |  
+     | Capital |   |  
+     | (Deficit) |   |  
+     | Total |  
+     |   |  
+     |   |   |  
+     |   |   |  
+     |   |   |  
+     |   |   |  
+     |   |  
+     | Balance December 31, 2024 |  
+     |   | 14,746,172 |   |  
+     | $ |       - |   |  
+     | $ | 64,199,000 |   |  
+     | $ | (63,621,000 | ) |  
+     | $ | 578,000 |  
+     | Balance |  
+     |   | 14,746,172 |   |  
+     | $ |       - |   |  
+     | $ | 64,199,000 |   |  
+     | $ | (63,621,000 | ) |  
+     | $ | 578,000 |  
+     | Issuance of common stock for equity compensation, net of shares repurchased for income tax withholding |  
+     |   | 121,082 |   |  
+     |   | - |   |  
+     |   | (160,000 | ) |  
+     |   | - |   |  
+     |   | (160,000 | )
+     | Equity-based compensation expense |  
+     |   | - |   |  
+     |   | - |   |  
+     |   | 158,000 |   |  
+     |   | - |   |  
+     |   | 158,000 |  
+     | Registered issuance of common stock |  
+     |   | 1,052,793 |   |  
+     |   |   |   |  
+     |   | 2,974,000 |   |  
+     |   |   |   |  
+     |   | 2,974,000 |  
+     | Net loss |  
+     |   | - |   |  
+     |   | - |   |  
+     |   | - |   |  
+     |   | (761,000 | ) |  
+     |   | (761,000 | )
+     | Balance March 31, 2025 |  
+     |   | 15,920,047 |   |  
+     | $ | - |   |  
+     | $ | 67,171,000 |   |  
+     | $ | (64,382,000 | ) |  
+     | $ | 2,789,000 |  
+     | Balance |  
+     |   | 15,920,047 |   |  
+     | $ | - |   |  
+     | $ | 67,171,000 |   |  
+     | $ | (64,382,000 | ) |  
+     | $ | 2,789,000 |  
+On
+February 5, 2025, the Company entered into securities purchase agreements with several investors, pursuant to which the Company sold
+an aggregate of 1,052,793 shares of common stock at a price of $2.85 per share in a registered direct offering.
+Warrants
+During
+the three months ended March 31, 2025, 121,076 warrants at a weighted average exercise price of $3.51 per share expired. There are no
+warrants outstanding as of March 31, 2025.
+Equity
+Incentive Plan
+As
+of March 31, 2025, the Company has $409,000 of total unrecognized share-based compensation expense relative to unvested options, stock
+awards and stock units, which is expected to be recognized over the remaining weighted average period of 3.0 years.
+ | 11
+Stock
+Options
+The
+following is a summary of stock option activity for the three months ended March 31, 2025:
+Summary of Stock Options Activity
+     |   |  
+     | Number of Options |   |  
+     | Weighted average exercise price per share |   |  
+     | Remaining  term in years |  
+     | Outstanding on December 31, 2024 |  
+     |   | 710,323 |   |  
+     | $ | 5.04 |   |  
+     |   | 5.5 |  
+     | Issued |  
+     |   | 40,071 |   |  
+     | $ | 2.74 |   |  
+     |   |   |  
+     | Forfeited |  
+     |   | - |   |  
+     |   |   |   |  
+     |   |   |  
+     | Expired |  
+     |   | (3,102 | ) |  
+     | $ | 10.01 |   |  
+     |   |   |  
+     | Outstanding on March 31, 2025 |  
+     |   | 747,292 |   |  
+     | $ | 4.89 |   |  
+     |   | 5.5 |  
+     |   |  
+     |   |   |   |  
+     |   |   |   |  
+     |   |   |  
+     | Exercisable, March 31, 2025 |  
+     |   | 520,874 |   |  
+     | $ | 5.73 |   |  
+     |   | 3.9 |  
+The
+fair value of the options issued was calculated using the Black-Scholes option pricing model, based on the following:
+ Summary of Fair Value of Options Using Black-Sholes Option Pricing Model
+     |   |  
+     | 2025 |  
+     | Expected term (in years) |  
+     |   | 8.0 |  
+     | Expected volatility |  
+     |   | 97.4 | %
+     | Risk-free interest rate |  
+     |   | 4.4 | %
+     | Expected dividends |  
+     | $ | - |  
+     | Weighted average grant date fair value per share |  
+     | $ | 2.36 |  
+Restricted
+Stock
+The
+following is a summary of restricted stock award and restricted stock unit activity for the three months ended March 31, 2025:
+ Schedule of Restricted Stock Award and Restricted Stock Unit Activity
+     |   |  
+     | Number of shares |   |  
+     | Weighted average grant date fair value |  
+     | Unvested at January 1, 2025 |  
+     |   | 61,873 |   |  
+     | $ | 2.72 |  
+     | Granted |  
+     |   | 44,880 |   |  
+     | $ | 2.69 |  
+     | Forfeited |  
+     |   | (9,960 | ) |  
+     | $ | (2.51 | )
+     | Vested |  
+     |   | (18,873 | ) |  
+     | $ | (4.80 | )
+     | Unvested at March 31, 2025 |  
+     |   | 77,920 |   |  
+     | $ | 2.23 |  
+Performance
+Share Units
+The
+Company issues performance share units (“PSUs”) that represent shares potentially issuable based upon Company and individual
+performance in the years of issuance.
+ | 12
+The
+following table summarizes the activity for the Company’s unvested PSUs for the three months ended March 31, 2025:
+ Schedule of Performance Stock Unit Activity
+     |   |  
+     | Number of shares |   |  
+     | Weighted average grant date fair value |  
+     | Unvested January 1, 2025 |  
+     |   | 157,694 |   |  
+     | $ | 1.20 |  
+     | Vested |  
+     |   | (157,694 | ) |  
+     |   |   |  
+     | Unvested at March 31, 2025 |  
+     |   | - |   |  
+     | $ | - |  
+Note
+7. Income Taxes
+ASC
+740 requires a valuation allowance to reduce the deferred tax assets reported if, based on the weight of evidence, it is more than likely
+than not that some portion or all the deferred tax assets will not be recognized. Accordingly, at this time the Company has placed a
+valuation allowance on all tax assets. As of March 31, 2025, the estimated effective tax rate for 2025 was zero.
+There
+are open statutes of limitations for taxing authorities in federal and state jurisdictions to audit our tax returns from 2019 through
+the current period. Our policy is to account for income tax related interest and penalties in income tax expense in the statement of
+operations.
+For
+the three months ending March 31, 2025 and 2024, the Company did not incur any interest and penalties associated with tax positions.
+As of March 31, 2025, the Company did not have any significant unrecognized uncertain tax positions.
+Note
+8. Liquidity
+During
+the three months ending March 31, 2025, the Company used cash in operations of $506,000. As of March 31, 2025, the Company had $1,872,000
+of cash.
+The
+Company has a history of operating losses and negative cash flow, which are expected to improve with growth. As described more fully
+in Note 4, the dispute and subsequent contract termination with the Manufacturer has resulted in limitations in the Company’s ability
+to procure certain products necessary to achieve our growth projections and in elevated legal costs.
+To
+mitigate the impact of procurement constraints, the Company builds inventory in anticipation of third quarter seasonal requirements,
+and has invested in materials necessary to carry out trials and initial production runs at new co-manufacturers. The Company secured
+a receivables-based line of credit in August 2024 of $1,500,000,
+with no
+outstanding borrowing as of March 31, 2025. Management expects that the cash cycle will shorten as additional contracted capacity
+improves production volume and efficiency in 2025. Additionally, in May 2024, the Company obtained non-recourse litigation financing
+to allow vigorous pursuit of the complaint against the Manufacturer without further expense to the Company. Finally, as described in
+Note 6, the Company raised $3,000,000
+through the sale of the Company’s common stock in February 2025.
+The
+financial position at March 31, 2025 and historical results raise substantial doubt about the Company’s ability to continue as
+a going concern. As described, the Company has completed steps to mitigate dispute related issues and raise capital. The actions taken
+have resulted in the alleviation of the substantial doubt about the Company’s ability to continue as a going concern.
+ | 13
+Item
+2. Management’s Discussion and Analysis of Financial Condition and Results of Operations.
+The
+following discussion should be read in conjunction with the financial information included elsewhere in this Quarterly Report on Form
+10-Q (this “Report”), including our unaudited condensed consolidated financial statements and the related notes and with
+our audited consolidated financial statements and related notes included in our Annual Report on Form 10-K for the year ended December
+31, 2024, as filed with the SEC on March 27, 2025, and other reports that we file with the SEC from time to time.
+References
+in this Quarterly Report on Form 10-Q to “us”, “we”, “our” and similar terms refer to Barfresh Food
+Group Inc.
+Cautionary
+Note Regarding Forward-Looking Statements
+This
+discussion includes forward-looking statements, as that term is defined in the federal securities laws, based upon current expectations
+that involve risks and uncertainties, such as plans, objectives, expectations, and intentions. Actual results and the timing of events
+could differ materially from those anticipated in these forward-looking statements as a result of a number of factors. Words such as
+“anticipate”, “estimate”, “plan”, “continuing”, “ongoing”, “expect”,
+“believe”, “intend”, “may”, “will”, “should”, “could” and similar
+expressions are used to identify forward-looking statements.
+We
+caution you that these statements are not guarantees of future performance or events and are subject to a number of uncertainties, risks
+and other influences, many of which are beyond our control, which may influence the accuracy of the statements and the projections upon
+which the statements are based. Any one or more of these uncertainties, risks and other influences could materially affect our results
+of operations and whether forward-looking statements made by us ultimately prove to be accurate. Our actual results, performance and
+achievements could differ materially from those expressed or implied in these forward-looking statements. We undertake no obligation
+to publicly update or revise any forward-looking statements, whether from new information, future events or otherwise.
+Critical
+Accounting Policies
+Our
+consolidated financial statements have been prepared in conformity with accounting principles generally accepted in the United States
+of America (“GAAP”).
+Results
+of Operations
+Results
+of Operation for the Three Months Ended March 31, 2025 as Compared to the Three Months Ended March 31, 2024
+Revenue
+and cost of revenue
+Revenue
+increased $101,000, or 4%, to $2,930,000 in 2025 as compared to $2,829,000 in 2024. Our revenue in 2025 benefited from increased sales
+of our bottled Twist & Go smoothies.
+We
+have been able to expand our capacity on a limited basis at our existing smoothie bottle manufacturer and have been developing an additional
+manufacturer relationship since the fourth quarter of 2024, after the candidate we contracted with in July 2024 was unable to successfully
+produce product at scale. We expect expanded capacity to become available in the second half of 2025, subject to the risks and uncertainties
+associated with pre-production activities.
+Cost
+of revenue increased $371,000, or 22%, to $2,030,000 in 2025 as compared to $1,659,000 in 2024. Cost of revenue increased at a higher
+rate compared to revenue due to trial costs at our new manufacturer and elevated costs to supply product in a sub-optimal manner while
+the production process at our new manufacturer is under development. The increase was partially offset by the non-recurrence of costs
+to relocate our single-serve manufacturing line, which amounted to $45,000 in 2024.
+Our
+gross profit was $900,000 (31%) and $1,170,000 (41%) for 2025 and 2024, respectively. Excluding production relocation costs, our gross
+profit was $1,215,000 in 2024 (43%). The reduction in gross margin is a result of product mix and new manufacturer trial and developments
+costs.
+ | 14
+Selling,
+marketing and distribution expense
+     |   |  
+     | Three months
+ ended |   |  
+     | Three months
+ ended |   |  
+     |   |   |  
+     |   |  
+     |   |  
+     | March 31, 2025 |   |  
+     | March 31, 2024 |   |  
+     | Change |   |  
+     | Percent |  
+     | Sales and marketing |  
+     | $ | 433,000 |   |  
+     | $ | 330,000 |   |  
+     | $ | 103,000 |   |  
+     |   | 31 | %
+     | Storage and outbound freight |  
+     |   | 391,000 |   |  
+     |   | 364,000 |   |  
+     |   | 27,000 |   |  
+     |   | 7 | %
+     |   |  
+     | $ | 824,000 |   |  
+     | $ | 694,000 |   |  
+     | $ | 130,000 |   |  
+     |   | 19 | %
+Our
+operations in 2025 were primarily directed towards increasing sales and expanding our distribution network.
+Selling,
+marketing and distribution expense increased approximately $130,000 (19%) from approximately $694,000 in 2024 to $824,000 in 2025.
+Sales
+and marketing expense increased approximately $103,000 (31%) from approximately $330,000 in 2024 to $433,000 in 2025. The increase is
+a result of higher personnel costs and broker commissions due to expansion of the broker network, as well as an increase in sample expense
+due to the introduction of our Pop & Go freeze pops.
+Storage
+and outbound freight expense increased approximately $27,000 (7%) from approximately $364,000 in 2024 to $391,000 in 2024, slightly higher
+than the 4% rate of increase in revenue primarily because of freight inefficiencies resulting from supply constraints.
+General
+and administrative expense
+     |   |  
+     | Three months ended |   |  
+     | Three months ended |   |  
+     |   |   |  
+     |   |  
+     |   |  
+     | March 31, 2025 |   |  
+     | March 31, 2024 |   |  
+     | Change |   |  
+     | Percent |  
+     | Personnel costs |  
+     | $ | 372,000 |   |  
+     | $ | 262,000 |   |  
+     | $ | 110,000 |   |  
+     |   | 42 | %
+     | Stock-based compensation |  
+     |   | 158,000 |   |  
+     |   | 303,000 |   |  
+     |   | (145,000 | ) |  
+     |   | -48 | %
+     | Legal, professional and consulting fees |  
+     |   | 81,000 |   |  
+     |   | 157,000 |   |  
+     |   | (76,000 | ) |  
+     |   | -48 | %
+     | Research and development |  
+     |   | 19,000 |   |  
+     |   | 30,000 |   |  
+     |   | (11,000 | ) |  
+     |   | -37 | %
+     | Other general and administrative expenses |  
+     |   | 117,000 |   |  
+     |   | 103,000 |   |  
+     |   | 14,000 |   |  
+     |   | 14 | %
+     |   |  
+     | $ | 747,000 |   |  
+     | $ | 855,000 |   |  
+     | $ | (108,000 | ) |  
+     |   | -13 | %
+General
+and administrative expenses decreased approximately $108,000 (13%) from approximately $855,000 in 2024 to $747,000 in 2025.
+Personnel
+cost represents the cost of employees including salaries, bonuses, employee benefits and employment taxes. Personnel cost increased by
+approximately $110,000 (42%) from approximately $262,000 in 2024 to $372,000 in 2025. The increase in personnel cost resulted from increased
+head count, and acceleration of employer payroll taxes due to vesting of stock-based compensation.
+Stock-based
+compensation decreased by approximately $145,000 (48%) from $303,000 in 2024 to $158,000 in 2025 as a result of lower expected attainment
+under our performance stock unit program.
+Legal,
+professional and consulting fees decreased by approximately $76,000 (48%) from $157,000 in 2024 to $81,000 in 2025 due to a reduction
+in dispute related legal costs that are paid through non-recourse litigation financing that was arranged in May 2024.
+Other
+general and administrative expenses increased by approximately $14,000 (14%) due to increased information technology costs.
+ | 15
+Net
+loss
+We
+had net losses of approximately $761,000 and $449,000 for the three-month periods ending March 31, 2025 and 2024, respectively. The increase
+in net loss of approximately $312,000 was primarily due to the 10.7 percentage point reduction in gross margin, from 41.4% to 30.7%,
+resulting in a reduction in gross profit of $270,000. We expect our gross margin to normalize in the second half of 2025 as new co-manufacturers
+are operating at full capacity and capability, improving our supply and cost structure.
+Liquidity
+and Capital Resources
+From
+July 2023 to March 2024, we executed subscription agreements for substantially all of a $2,000,000 privately placed convertible debt
+offering. The debt was available to be drawn in 25% increments, maturing on the anniversary of the draw, bearing interest at 10% per
+annum for the term, regardless of earlier payment or conversion, and was mandatorily convertible as to principal and interest into shares
+of our common stock at any time prior to maturity at the greater of $1.20 or 85% of the volume-weighted average price of the common stock
+for the ten trading days immediately preceding the written notice of the conversion (the “Conversion Price”). If we had not
+exercised the mandatory conversion, the holder of the debt had the option after six months and on up to four occasions to convert all
+or any portion of the principal and interest into shares of our common stock at the Conversion Price. On October 23, 2023, we issued
+$1,390,000 of convertible notes pursuant to the subscription agreements, and immediately converted $1,207,000 of principal and interest
+into approximately 820,000 shares of common stock. Additionally, on December 19, 2023, we drew down $470,000 in convertible debt and
+converted a total of $653,000 of principal and $4,000 of accrued interest into 495,331 shares of common stock. Finally, on March 27 and
+29, 2024, we drew down $136,000 in convertible debt and converted the total drawn into 124,208 shares, settling all debt.
+On
+February 5, 2025, we entered into securities purchase agreements with several investors, pursuant to which we sold an aggregate of 1,052,793
+shares of common stock at a price of $2.85 per share in a registered direct offering.
+During
+the three months ended March 31, 2025, we used $506,000 in operations. Our net loss adjusted for non-cash operating expenses was a loss
+of $525,000, while changes in current assets and liabilities generated $19,000 primarily because of a reduction of $372,000 in inventory
+and increases in accounts payable and accrued expense of $222,000 and $218,000, respectively, partially offset by an increase in accounts
+receivable of $670,000.
+As
+of March 31, 2025, we had working capital of $2,848,000 compared with $606,000 at December 31, 2024, both excluding disputed accounts
+payable of $499,000 resulting from our dispute with the Manufacturer. The increase in working capital is primarily due to capital raised
+in the three months ended March 31, 2025 through the sale of common stock, partially offset by losses incurred in the three months ended
+March 31, 2025.
+Our
+liquidity needs will depend on how quickly we are able to profitably ramp up sales, as well as our ability to control and reduce variable
+operating expenses, and to continue to control fixed overhead expense.
+Our
+operations to date have been financed by the sale of securities, the issuance of convertible debt and the issuance of short-term debt.
+If we are unable to generate sufficient cash flow from operations with the capital raised we will be required to raise additional funds
+either in the form of equity or in the form of debt. There are no assurances that we will be able to generate the necessary capital to
+carry out our current plan of operations.
+Off-Balance
+Sheet Arrangements
+We
+have no off-balance sheet arrangements that have or are reasonably likely to have a current or future effect on our financial condition,
+changes in financial condition, revenues or expense, results of operations, liquidity, capital expenditures or capital resources that
+are material to stockholders.
+Item
+3. Quantitative and Qualitative Disclosures About Market Risk.
+Not
+required because we are a smaller reporting company.
+ | 16
+Item
+4. Controls and Procedures.
+Evaluation
+of Disclosure Controls and Procedures
+Under
+the supervision and with the participation of our management, including our Chief Executive Officer and our Chief Financial Officer,
+we conducted an evaluation of our disclosure controls and procedures, as such term is defined under Securities and Exchange Act of 1934
+Rule 13(a)-15(e). Disclosure controls and procedures are designed to provide reasonable assurance that the information required to be
+disclosed in the reports that we file or submit under the Exchange Act has been appropriately recorded, processed, summarized, and reported
+on a timely basis and are effective in ensuring that such information is accumulated and communicated to the Company’s management,
+as appropriate to allow timely decisions regarding required disclosure. Based on the evaluation of our disclosure controls and procedures
+as of March 31, 2025, our Chief Executive Officer and Chief Financial Officer concluded that, as of such date, our disclosure controls
+and procedures were effective at the reasonable assurance level.
+Changes
+in Internal Control over Financial Reporting
+None.
+PART
+II- OTHER INFORMATION
+Item
+1. Legal Proceedings.
+As
+described in Note 4, the Company has an on-going dispute with the Manufacturer, the outcome of which cannot be predicted at this time.
+From
+time to time, various lawsuits and legal proceedings may arise in the ordinary course of business. However, litigation is subject to
+inherent uncertainties and an adverse result in these or other matters may arise from time to time that may harm our business. We are
+currently the defendant in one legal proceeding for an amount less than $100,000. Our legal counsel and management believe a material
+unfavorable outcome to be remote.
+Item
+1A. Risk Factors.
+Not
+required because we are a smaller reporting company.
+Item
+2. Unregistered Sales of Equity Securities and Use of Proceeds
+None.
+Item
+3. Defaults Upon Senior Securities.
+None.
+Item
+4. Mine Safety Disclosures.
+Not
+applicable.
+Item
+5. Other Information.
+None.
+ | 17
+Item
+6. Exhibits.
+     | Exhibit
+    No.
+     |  
+     | Description
+     |  
+     |  
+     |  
+     | 10.1
+     |  
+     | 
+Form of Securities Purchase Agreement (incorporated by reference to Exhibit 10.1 from the Current Report on Form 8-K filed February 6, 2025)
+     | 31.1
+     |  
+     | Certification of Principal Executive Officer pursuant to Rule 13a-14(a) (filed herewith)
+     |  
+     |  
+     |  
+     | 31.2
+     |  
+     | Certification of Principal Financial Officer pursuant to Rule 13a-14(a) (filed herewith)
+     |  
+     |  
+     |  
+     | 32.1
+     |  
+     | Certification pursuant to 18 U.S.C. Section 1350 (furnished herewith)
+     |  
+     |  
+     |  
+     | 101.INS
+     |  
+     | Inline
+    XBRL Instance Document*
+     | 101.SCH
+     |  
+     | Inline
+    XBRL Taxonomy Extension Schema Document*
+     | 101.CAL
+     |  
+     | Inline
+    XBRL Taxonomy Extension Calculation Linkbase Document*
+     | 101.DEF
+     |  
+     | Inline
+    XBRL Taxonomy Extension Definition Linkbase Document*
+     | 101.LAB
+     |  
+     | Inline
+    XBRL Taxonomy Extension Label Linkbase Document*
+     | 101.PRE
+     |  
+     | Inline
+    XBRL Taxonomy Extension Presentation Linkbase Document*
+     | 104
+     |  
+     | Cover
+    Page Interactive Data File (embedded within the Inline XBRL document)
+     |  
+     |  
+     |  
+     |  
+     |  
+     | *XBRL
+    (Extensible Business Reporting Language) information is furnished and not filed or a part of a registration statement or prospectus
+    for purposes of Sections 11 or 12 of the Securities Act of 1933, as amended, is deemed not filed for purposes of Section 18 of the
+    Securities Exchange Act of 1934, as amended, and otherwise is not subject to liability under these sections.
+     |  
+     |  
+     |  
+     |  
+     |  
+     | In
+    accordance with SEC Release 33-8238, Exhibit 32.1 is furnished and not filed.
+ | 18
+SIGNATURES
+Pursuant
+to the requirements of the Securities Exchange Act of 1934, the registrant has duly caused this report to be signed on its behalf by
+the undersigned thereunto duly authorized.
+     |  
+     | BARFRESH
+    FOOD GROUP INC.
+     |  
+     |  
+     |  
+     | Date:
+    May 1, 2025
+     | By:
+     | /s/
+    Riccardo Delle Coste
+     |  
+     |  
+     | Riccardo
+    Delle Coste
+     |  
+     |  
+     | Chief
+    Executive Officer
+     |  
+     |  
+     | (Principal
+    Executive Officer)
+     |  
+     |  
+     |  
+     | Date:
+    May 1, 2025
+     | By:
+     | /s/
+    Lisa Roger
+     |  
+     |  
+     | Chief
+    Financial Officer
+     |  
+     |  
+     | (Principal
+    Financial Officer)
+ | 19

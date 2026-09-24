@@ -1,0 +1,35 @@
+{
+  "artifact_id": "case_eval_private",
+  "version": "2.0.1-design",
+  "access_class": "host_evaluator_only",
+  "exposure_policy": "Never mount this file, serialize these fields into model context, include them in evidence search results, or expose them to either investigative agent or blind reviewer. The offline scorer reads it only after a result packet is locked.",
+  "cases": {
+    "synergy_chc_2024": {
+      "expected_findings_and_error_checks": [
+        "Connect the HVL/Atrium manufacturing lawsuit to its December 2023 settlement and the existing supplier-loan payment schedule. This is the legal-to-cash-flow mechanism, not a new liability added on top of debt already recorded.",
+        "The June 30 disclosure places USD 2 million of remaining 2024 Atrium payments in H2. Bridge payments potentially made between July 1 and August 12 before applying the August 12 cash update; do not automatically assume all USD 2 million remains unpaid on August 13. Preserve any unobserved payments as explicit scenario parameters and do not invent exact installment days.",
+        "The separate March 2024 supplier settlement has USD 600000 scheduled for H2 at June 30. Reconcile the same post-June payment bridge before forecasting remaining August exposure. Do not use the Vitabest counterparty name from the 2025 agreement as information available at the August 2024 cutoff.",
+        "Recognize that the separate L.O.D.C. Texas settlement was reported paid in May 2024, so its old claim headline does not generate another future payment.",
+        "Remove the USD 2235986 noncash settlement gain from normalized FY2023 operating performance when that year informs the baseline. Do not remove it again from H1 2024 results or treat it as cash received.",
+        "Distinguish the approximate August 12 cash update from June 30 unrestricted cash and restricted credit-card collateral. Retain the debt load, shareholder deficit and going-concern evidence in both baseline and enriched views.",
+        "Model existing Shopify/WebBank collections from the contractually defined account credits, not consolidated revenue. Do not sum multiple loan remittance percentages without mapping loans to the affected account or store.",
+        "Keep expected future IPO, refinancing or litigation recoveries outside available funding unless the initial snapshot establishes a commitment that satisfies its conditions.",
+        "Compare genuinely feasible fixed-installment new-loan amounts and terms under explicit collection and settlement-timing inputs. If all tested structures fail, say so; do not force an approval-to-decline reversal or an approved alternative.",
+        "Model the operating consequences of different financed purchase sizes; declining or shrinking inventory funding can also change future receipts."
+      ],
+      "outcome_source_ids": [
+        "synergy_annual_2024",
+        "synergy_credit_agreement_20250530",
+        "synergy_quarterly_20250630"
+      ]
+    },
+    "barfresh_schreiber_2024": {
+      "transfer_tests": [
+        "Supplier-dispute effects must change specific production, inventory-conversion, receipts or expense assumptions, not a generic risk score.",
+        "Planned replacement capacity is distinct from completed production and resulting cash collection.",
+        "Nonrecourse litigation-expense funding does not imply unrestricted cash or guaranteed damages proceeds.",
+        "Existing disputed payables and receivables-facility conditions are represented exactly once."
+      ]
+    }
+  }
+}

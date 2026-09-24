@@ -1,0 +1,517 @@
+{
+  "schema_version": "1.0",
+  "case_selection": {
+    "lead": "synergy_chc_2024",
+    "transfer": "barfresh_schreiber_2024"
+  },
+  "missions": {
+    "synergy_20240813": {
+      "cutoff": "2024-08-13T23:59:59-04:00",
+      "financial_measurement": "2024-06-30",
+      "latest_cash_measurement": "2024-08-12"
+    },
+    "barfresh_20240815": {
+      "cutoff": "2024-08-15T23:59:59-04:00"
+    },
+    "barfresh_20241025": {
+      "cutoff": "2024-10-25T23:59:59-04:00",
+      "financial_measurement": "2024-09-30"
+    }
+  },
+  "rules": [
+    "Event, agreement, measurement and public-availability dates are different fields.",
+    "Outcome is a relationship to a mission cutoff, never a permanent property of a document.",
+    "Other-case records are excluded regardless of chronological eligibility.",
+    "Indexes and metadata must not expose later filing contents to a historical agent.",
+    "Original and package relative paths are relative to the research-kit root; preserve this directory layout."
+  ],
+  "sources": [
+    {
+      "source_id": "synergy_s1a_20240813",
+      "case_id": "synergy_chc_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390024068424/ea0208324-04.htm",
+      "original_relative_path": "research/recent_cases/synergy_chc/2024_s1a.html",
+      "package_relative_path": "research/recent_cases/synergy_chc/2024_s1a.html",
+      "sha256": "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816",
+      "bytes": 5986591,
+      "availability": {
+        "date": "2024-08-13",
+        "precision": "day",
+        "basis": "Cover expressly says filed August 13, 2024. Intraday SEC index retrieval failed; date is verified from document.",
+        "verification_url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390024068424/ea0208324-04.htm",
+        "accepted_at_as_displayed": null,
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York; do not invent an acceptance time."
+      },
+      "event_dates": [
+        {
+          "type": "interim_measurement",
+          "date": "2024-06-30"
+        },
+        {
+          "type": "updated_cash_measurement",
+          "date": "2024-08-12"
+        },
+        {
+          "type": "employee_measurement",
+          "date": "2024-08-07"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "eligible",
+        "barfresh_20241025": "out_of_case"
+      }
+    },
+    {
+      "source_id": "synergy_merchant_agreement_20240501",
+      "case_id": "synergy_chc_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390024056991/ea020832401ex10-32_synergy.htm",
+      "original_relative_path": "research/recent_cases/synergy_chc/2024_05_01_webbank_shopify_loan.html",
+      "package_relative_path": "research/recent_cases/synergy_chc/2024_05_01_webbank_shopify_loan.html",
+      "sha256": "ac8e4d3a6bb05cb51ed876299199acb7e7536f817a350209cb8298dd2b404ada",
+      "bytes": 120450,
+      "availability": {
+        "date": "2024-06-28",
+        "precision": "day",
+        "basis": "SEC filing index lists agreement as Exhibit 10.32 within June 28, 2024 S-1.",
+        "verification_url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390024056991/0001213900-24-056991-index.htm",
+        "accepted_at_as_displayed": "2024-06-28 11:32:30",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York; do not invent an acceptance time."
+      },
+      "event_dates": [
+        {
+          "type": "agreement_date",
+          "date": "2024-05-01"
+        },
+        {
+          "type": "effective_funding_date",
+          "date": null,
+          "precision": "unknown"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "eligible",
+        "barfresh_20241025": "out_of_case"
+      }
+    },
+    {
+      "source_id": "synergy_court_20230227",
+      "case_id": "synergy_chc_2024",
+      "primary_url": "https://www.govinfo.gov/content/pkg/USCOURTS-med-2_22-cv-00301/pdf/USCOURTS-med-2_22-cv-00301-0.pdf",
+      "original_relative_path": "research/recent_cases/synergy_chc/2023_02_27_court_order.pdf",
+      "package_relative_path": "research/recent_cases/synergy_chc/2023_02_27_court_order.pdf",
+      "sha256": "ccdfc38167a2abf3cb18ae0c7a4c5a041bf37fe36c2057a2be9859a2148a8b21",
+      "bytes": 306804,
+      "availability": {
+        "date": "2023-02-27",
+        "precision": "day",
+        "basis": "Public court document 31 bears Filed 02/27/23 on page 1. This is court filing availability; GovInfo upload date is not established.",
+        "verification_url": "https://www.govinfo.gov/content/pkg/USCOURTS-med-2_22-cv-00301/pdf/USCOURTS-med-2_22-cv-00301-0.pdf",
+        "accepted_at_as_displayed": null,
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York; do not invent an acceptance time."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2023-02-27"
+        },
+        {
+          "type": "alleged_operational_events",
+          "date_range": [
+            "2020",
+            "2021"
+          ],
+          "precision": "year"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "eligible",
+        "barfresh_20241025": "out_of_case"
+      }
+    },
+    {
+      "source_id": "synergy_annual_2024",
+      "case_id": "synergy_chc_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390025026254/ea0235758-10k_synergy.htm",
+      "original_relative_path": "research/recent_cases/synergy_chc/2024_annual_report.html",
+      "package_relative_path": "research/recent_cases/synergy_chc/2024_annual_report.html",
+      "sha256": "6c4f8cc39339564be8e7c82ec8948595371673a9d0e5bd66c36751eea09d4e2d",
+      "bytes": 1222707,
+      "availability": {
+        "date": "2025-03-31",
+        "precision": "day",
+        "basis": "SEC filing index.",
+        "verification_url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390025026254/0001213900-25-026254-index.htm",
+        "accepted_at_as_displayed": "2025-03-31 16:10:25",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York; do not invent an acceptance time."
+      },
+      "event_dates": [
+        {
+          "type": "financial_year_end",
+          "date": "2024-12-31"
+        }
+      ],
+      "relative_to_lead_cutoff": "outcome",
+      "mission_membership": {
+        "synergy_20240813": "outcome",
+        "barfresh_20241025": "out_of_case"
+      }
+    },
+    {
+      "source_id": "synergy_credit_agreement_20250530",
+      "case_id": "synergy_chc_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390025050984/ea024464201ex10-1_synergy.htm",
+      "original_relative_path": "research/recent_cases/synergy_chc/2025_05_30_credit_agreement.html",
+      "package_relative_path": "research/recent_cases/synergy_chc/2025_05_30_credit_agreement.html",
+      "sha256": "cbc7ed0f2be1252f9ec42c3015fc42c07871671053b1f14ac52d54ca24f7a8a5",
+      "bytes": 882701,
+      "availability": {
+        "date": "2025-06-04",
+        "precision": "day",
+        "basis": "SEC June 4, 2025 8-K index identifies agreement as Exhibit 10.1.",
+        "verification_url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390025050984/0001213900-25-050984-index.htm",
+        "accepted_at_as_displayed": "2025-06-04 08:37:50",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York; do not invent an acceptance time."
+      },
+      "event_dates": [
+        {
+          "type": "agreement_date",
+          "date": "2025-05-30"
+        }
+      ],
+      "relative_to_lead_cutoff": "outcome",
+      "mission_membership": {
+        "synergy_20240813": "outcome",
+        "barfresh_20241025": "out_of_case"
+      }
+    },
+    {
+      "source_id": "synergy_quarterly_20250630",
+      "case_id": "synergy_chc_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390025076060/ea0252562-10q_synergy.htm",
+      "original_relative_path": "research/recent_cases/synergy_chc/2025_06_30_quarterly_report.html",
+      "package_relative_path": "research/recent_cases/synergy_chc/2025_06_30_quarterly_report.html",
+      "sha256": "0afa58e9c3c40fb32039b10c9b53761a143250f4b73dfb81763b972d4c7b936c",
+      "bytes": 988860,
+      "availability": {
+        "date": "2025-08-14",
+        "precision": "day",
+        "basis": "SEC filing index.",
+        "verification_url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390025076060/0001213900-25-076060-index.htm",
+        "accepted_at_as_displayed": "2025-08-14 08:05:51",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York; do not invent an acceptance time."
+      },
+      "event_dates": [
+        {
+          "type": "quarter_end",
+          "date": "2025-06-30"
+        }
+      ],
+      "relative_to_lead_cutoff": "outcome",
+      "mission_membership": {
+        "synergy_20240813": "outcome",
+        "barfresh_20241025": "out_of_case"
+      }
+    },
+    {
+      "source_id": "brfh_2024q2_10q",
+      "case_id": "barfresh_schreiber_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224032201/form10-q.htm",
+      "original_relative_path": "research/barfresh_case/brfh_2024q2_10q.html",
+      "package_relative_path": "research/barfresh_case/brfh_2024q2_10q.html",
+      "sha256": "9b90c4e187879d31e359ea38679341c6724316a8c59b7cfafd9d739e78d9b192",
+      "bytes": 548779,
+      "availability": {
+        "date": "2024-08-14",
+        "precision": "second",
+        "accepted_at": "2024-08-14T20:10:46.000Z",
+        "basis": "SEC submissions JSON",
+        "verification_metadata": "research/barfresh_case/brfh_sec_submissions.json"
+      },
+      "event_dates": [
+        {
+          "type": "financial_period_end",
+          "date": "2024-06-30"
+        }
+      ],
+      "relative_to_lead_cutoff": "outcome",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "eligible",
+        "barfresh_20241025": "eligible"
+      }
+    },
+    {
+      "source_id": "brfh_2024q2_index",
+      "case_id": "barfresh_schreiber_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224032201/0001493152-24-032201-index.htm",
+      "original_relative_path": "research/barfresh_case/brfh_2024q2_index.html",
+      "package_relative_path": "research/barfresh_case/brfh_2024q2_index.html",
+      "sha256": "493036d6f61e136ec147827b3eb13eca33b9e5444b7dc2ac44164a1de8238ff5",
+      "bytes": 10956,
+      "availability": {
+        "date": "2024-08-14",
+        "precision": "second",
+        "accepted_at": "2024-08-14T20:10:46.000Z",
+        "basis": "SEC submissions JSON",
+        "verification_metadata": "research/barfresh_case/brfh_sec_submissions.json"
+      },
+      "event_dates": [],
+      "relative_to_lead_cutoff": "metadata_only",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "metadata_only",
+        "barfresh_20241025": "metadata_only"
+      }
+    },
+    {
+      "source_id": "brfh_2024q2_release",
+      "case_id": "barfresh_schreiber_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224032163/ex99-1.htm",
+      "original_relative_path": "research/barfresh_case/brfh_2024q2_release.html",
+      "package_relative_path": "research/barfresh_case/brfh_2024q2_release.html",
+      "sha256": "f1e36a87dd8c85d5b3052bc2e6717edb9f778775b11b88f73057db1c28df70be",
+      "bytes": 40380,
+      "availability": {
+        "date": "2024-08-14",
+        "precision": "second",
+        "accepted_at": "2024-08-14T20:05:50.000Z",
+        "basis": "SEC submissions JSON",
+        "verification_metadata": "research/barfresh_case/brfh_sec_submissions.json"
+      },
+      "event_dates": [
+        {
+          "type": "financial_period_end",
+          "date": "2024-06-30"
+        }
+      ],
+      "relative_to_lead_cutoff": "outcome",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "eligible",
+        "barfresh_20241025": "eligible"
+      }
+    },
+    {
+      "source_id": "brfh_2024q1_10q",
+      "case_id": "barfresh_schreiber_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224019816/form10-q.htm",
+      "original_relative_path": "research/barfresh_case/brfh_2024q1_10q.html",
+      "package_relative_path": "research/barfresh_case/brfh_2024q1_10q.html",
+      "sha256": "f833d614bd0e417ea8ec0effeb7f94b8f329ff4225c6fd445fd25b97a86eb8cb",
+      "bytes": 477753,
+      "availability": {
+        "date": "2024-05-15",
+        "precision": "second",
+        "accepted_at": "2024-05-15T20:06:06.000Z",
+        "basis": "SEC submissions JSON",
+        "verification_metadata": "research/barfresh_case/brfh_sec_submissions.json"
+      },
+      "event_dates": [
+        {
+          "type": "financial_period_end",
+          "date": "2024-03-31"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "eligible",
+        "barfresh_20241025": "eligible"
+      }
+    },
+    {
+      "source_id": "brfh_2023_10k",
+      "case_id": "barfresh_schreiber_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224010975/form10-k.htm",
+      "original_relative_path": "research/barfresh_case/brfh_2023_10k.html",
+      "package_relative_path": "research/barfresh_case/brfh_2023_10k.html",
+      "sha256": "8f9262c0b9dd8567504b1337f3e86b863430817b5c66d748cddcfc8549f9c192",
+      "bytes": 915929,
+      "availability": {
+        "date": "2024-03-22",
+        "precision": "second",
+        "accepted_at": "2024-03-22T20:05:41.000Z",
+        "basis": "SEC submissions JSON",
+        "verification_metadata": "research/barfresh_case/brfh_sec_submissions.json"
+      },
+      "event_dates": [
+        {
+          "type": "financial_period_end",
+          "date": "2023-12-31"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "eligible",
+        "barfresh_20241025": "eligible"
+      }
+    },
+    {
+      "source_id": "brfh_2024q3_10q",
+      "case_id": "barfresh_schreiber_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224042368/form10-q.htm",
+      "original_relative_path": "research/barfresh_case/brfh_2024q3_10q.html",
+      "package_relative_path": "research/barfresh_case/brfh_2024q3_10q.html",
+      "sha256": "b59c1e4ef795f546bde5131dc7f374477c11942ffce86a6f85c7cf08ef9feebc",
+      "bytes": 532146,
+      "availability": {
+        "date": "2024-10-24",
+        "precision": "second",
+        "accepted_at": "2024-10-24T20:10:34.000Z",
+        "basis": "SEC submissions JSON",
+        "verification_metadata": "research/barfresh_case/brfh_sec_submissions.json"
+      },
+      "event_dates": [
+        {
+          "type": "financial_period_end",
+          "date": "2024-09-30"
+        }
+      ],
+      "relative_to_lead_cutoff": "outcome",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "outcome",
+        "barfresh_20241025": "eligible"
+      }
+    },
+    {
+      "source_id": "brfh_2024q3_release",
+      "case_id": "barfresh_schreiber_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224042365/ex99-1.htm",
+      "original_relative_path": "research/barfresh_case/brfh_2024q3_release.html",
+      "package_relative_path": "research/barfresh_case/brfh_2024q3_release.html",
+      "sha256": "15988a4b0c115b9bbc624ac35415771251e643d306aeef05af67841bd8a1a551",
+      "bytes": 52123,
+      "availability": {
+        "date": "2024-10-24",
+        "precision": "second",
+        "accepted_at": "2024-10-24T20:05:17.000Z",
+        "basis": "SEC submissions JSON",
+        "verification_metadata": "research/barfresh_case/brfh_sec_submissions.json"
+      },
+      "event_dates": [
+        {
+          "type": "financial_period_end",
+          "date": "2024-09-30"
+        }
+      ],
+      "relative_to_lead_cutoff": "outcome",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "outcome",
+        "barfresh_20241025": "eligible"
+      }
+    },
+    {
+      "source_id": "brfh_2024_10k",
+      "case_id": "barfresh_schreiber_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1487197/000164117225000931/form10-k.htm",
+      "original_relative_path": "research/barfresh_case/brfh_2024_10k.html",
+      "package_relative_path": "research/barfresh_case/brfh_2024_10k.html",
+      "sha256": "b2365818887a9c00eb41fd0b0248eac096a2e2a14fe6be328de32009dd4eafb3",
+      "bytes": 869484,
+      "availability": {
+        "date": "2025-03-27",
+        "precision": "second",
+        "accepted_at": "2025-03-27T20:10:21.000Z",
+        "basis": "SEC submissions JSON",
+        "verification_metadata": "research/barfresh_case/brfh_sec_submissions.json"
+      },
+      "event_dates": [
+        {
+          "type": "financial_period_end",
+          "date": "2024-12-31"
+        }
+      ],
+      "relative_to_lead_cutoff": "outcome",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "outcome",
+        "barfresh_20241025": "outcome"
+      }
+    },
+    {
+      "source_id": "brfh_2025q1_10q",
+      "case_id": "barfresh_schreiber_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1487197/000164117225008101/form10-q.htm",
+      "original_relative_path": "research/barfresh_case/brfh_2025q1_10q.html",
+      "package_relative_path": "research/barfresh_case/brfh_2025q1_10q.html",
+      "sha256": "04a109bf49cbc33010fa4bc0753ed64a8519c1afb11879ec624153e1a2afe8c1",
+      "bytes": 444910,
+      "availability": {
+        "date": "2025-05-01",
+        "precision": "second",
+        "accepted_at": "2025-05-01T20:10:19.000Z",
+        "basis": "SEC submissions JSON",
+        "verification_metadata": "research/barfresh_case/brfh_sec_submissions.json"
+      },
+      "event_dates": [
+        {
+          "type": "financial_period_end",
+          "date": "2025-03-31"
+        }
+      ],
+      "relative_to_lead_cutoff": "outcome",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "outcome",
+        "barfresh_20241025": "outcome"
+      }
+    },
+    {
+      "source_id": "brfh_sec_submissions",
+      "case_id": "barfresh_schreiber_2024",
+      "primary_url": "https://data.sec.gov/submissions/CIK0001487197.json",
+      "original_relative_path": "research/barfresh_case/brfh_sec_submissions.json",
+      "package_relative_path": "research/barfresh_case/brfh_sec_submissions.json",
+      "sha256": "05b4922b44ffdaf1717d38599a912bf602ba36eb8cdb37566f50a3194142c51f",
+      "bytes": 81830,
+      "availability": {
+        "date": null,
+        "precision": "unknown",
+        "accepted_at": null,
+        "basis": "title/signature except metadata; verify index before runtime",
+        "verification_metadata": null
+      },
+      "event_dates": [],
+      "relative_to_lead_cutoff": "metadata_only",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "metadata_only",
+        "barfresh_20241025": "metadata_only"
+      }
+    },
+    {
+      "source_id": "brfh_2024_08_13_litigation_funding",
+      "case_id": "barfresh_schreiber_2024",
+      "primary_url": "https://www.globenewswire.com/news-release/2024/08/13/2929191/35326/en/barfresh-announces-non-recourse-non-dilutive-litigation-financing.html",
+      "original_relative_path": "research/barfresh_case/brfh_2024_08_13_litigation_funding.html",
+      "package_relative_path": "research/barfresh_case/brfh_2024_08_13_litigation_funding.html",
+      "sha256": "f127e0364cd367eab1b3fde47e577dc032dff1683eab231a11a5c3958ad5cea3",
+      "bytes": 60086,
+      "availability": {
+        "date": "2024-08-13",
+        "precision": "day",
+        "accepted_at": null,
+        "basis": "Issuer release dated in URL and document.",
+        "verification_metadata": null
+      },
+      "event_dates": [
+        {
+          "type": "financing_announcement",
+          "date": "2024-08-13"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "eligible",
+        "barfresh_20241025": "eligible"
+      }
+    }
+  ]
+}

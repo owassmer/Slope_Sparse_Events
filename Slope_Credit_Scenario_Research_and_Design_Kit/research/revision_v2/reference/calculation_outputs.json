@@ -1,0 +1,128 @@
+{
+  "scope": "Offline deterministic reference arithmetic; no actual borrower forecast or credit decision",
+  "currency": "USD",
+  "numeric_encoding": "Decimal-derived base-10 strings; displayed monetary values rounded to cents",
+  "sources": {
+    "synergy_merchant_agreement_20240501": {
+      "url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390024056991/ea020832401ex10-32_synergy.htm",
+      "locator": "Exhibit 10.32; cover, definitions, Sections 4.1.1, 4.1.2 and 4.2.1(b)",
+      "description": "May 1, 2024 WebBank / Synergy CHC merchant loan agreement"
+    },
+    "synergy_s1a_20240813": {
+      "url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390024068424/ea0208324-04.htm",
+      "locator": "Liquidity discussion; Note 11, F-24 to F-25; legal proceedings pp. 59-60",
+      "description": "Filed August 13, 2024; June 30 financials and approximately $2m cash on August 12"
+    }
+  },
+  "synergy_contract_thresholds": {
+    "source_id": "synergy_merchant_agreement_20240501",
+    "evidence_class": "source-derived contractual arithmetic",
+    "advance_usd": "370000.00",
+    "fixed_cost_usd": "48100.00",
+    "total_payment_usd": "418100.00",
+    "remittance_fraction": "0.25",
+    "fixed_cost_as_fraction_of_advance_not_apr": "0.13",
+    "checkpoints": [
+      {
+        "month_from_effective_funding_date": 6,
+        "cumulative_lender_payment_floor_usd": "125430.00",
+        "cumulative_qualifying_shopify_credits_if_no_manual_top_ups_usd": "501720.00",
+        "check_scope": "cumulative threshold"
+      },
+      {
+        "month_from_effective_funding_date": 12,
+        "cumulative_lender_payment_floor_usd": "250860.00",
+        "cumulative_qualifying_shopify_credits_if_no_manual_top_ups_usd": "1003440.00",
+        "check_scope": "necessary cumulative threshold only; separate six-month window test also applies"
+      },
+      {
+        "month_from_effective_funding_date": 18,
+        "cumulative_lender_payment_floor_usd": "418100.00",
+        "cumulative_qualifying_shopify_credits_if_no_manual_top_ups_usd": "1672400.00",
+        "check_scope": "cumulative threshold"
+      }
+    ],
+    "six_month_window_requirement": {
+      "windows": [
+        "effective funding through month 6",
+        "beginning of month 7 through month 12"
+      ],
+      "payment_floor_each_window_usd": "125430.00",
+      "qualifying_shopify_credits_each_window_without_manual_top_ups_usd": "501720.00",
+      "mechanics": "Compute current-window daily payments plus confirmed applicable manual credit; do not carry first-window excess automatically; cap top-up at remaining total payment obligation."
+    },
+    "window_counterexample": {
+      "evidence_class": "contract arithmetic fixture, not observed payments",
+      "first_window_daily_payments_usd": "209050.00",
+      "second_window_daily_payments_usd": "41810.00",
+      "confirmed_second_window_manual_credit_usd": "0.00",
+      "cumulative_fraction_received": "0.60",
+      "cumulative_shortfall_only_usd": "0.00",
+      "second_window_top_up_required_usd": "83620.00",
+      "explanation": "50% paid in the first six months and 10% in months 7-12 reaches 60% cumulatively, but the second window still needs another 20% ($83,620)."
+    },
+    "qualifiers": [
+      "Apply 25% to the contract-defined Shopify Account Credits, not company-wide sales or net cash receipts.",
+      "These credit thresholds assume full collection of remittances by checkpoint and no manual top-ups.",
+      "Manual payment can satisfy a floor when remittances are insufficient; threshold shortfall alone is not observed default.",
+      "60% cumulative at month 12 is necessary but insufficient: each six-month window has its own 30% payment requirement.",
+      "Manual-credit treatment must be confirmed for the applicable window; receipt, reversal and anti-duplication rules apply.",
+      "Calendar months run from effective funding date, which is not assumed equal to the agreement date.",
+      "No fee/principal allocation, APR, prepayment rebate, actual payment calendar or actual sales is inferred.",
+      "The separate May 22 loan is excluded; overlapping channel sweeps need account mapping."
+    ]
+  },
+  "synergy_conditional_cash_budget": {
+    "source_id": "synergy_s1a_20240813",
+    "evidence_class": "conditional identity using dated source anchors and unresolved operator inputs",
+    "information_cutoff": "2024-08-13",
+    "opening_cash_measurement_date": "2024-08-12",
+    "opening_cash_usd_approximate": "2000000.00",
+    "opening_cash_availability": "not verified fully unrestricted or available; unavailable portion is an explicit unknown input",
+    "horizon_end": "2024-12-31",
+    "settlement_schedule_measurement_date": "2024-06-30",
+    "h2_settlements_remaining_at_june30_usd": "2600000.00",
+    "settlement_components_usd": {
+      "HVL_Atrium": "2000000.00",
+      "second_supplier_name_unknown_at_cutoff": "600000.00"
+    },
+    "unknown_inputs": {
+      "unavailable_portion_of_opening_cash": null,
+      "settlements_paid_july1_through_august12": null,
+      "future_customer_cash_collections": null,
+      "future_committed_financing_draws": null,
+      "future_other_confirmed_cash_inflows": null,
+      "future_operating_cash_outflows_excluding_settlements_and_debt": null,
+      "future_other_debt_service_excluding_settlements": null,
+      "required_cash_reserve": null
+    },
+    "horizon_residual_before_new_facility_usd": null,
+    "status": "unresolved_required_inputs; no actual August 13 funding gap asserted",
+    "identity": "residual = ~2000000 - unavailable_opening_cash + future_customer_cash + future_committed_financing + future_other_confirmed_inflows - (2600000 - settlement_payments_Jul1_Aug12) - future_other_operating_outflows - future_other_debt_service - reserve",
+    "conditional_break_even": "settlement_payments_Jul1_Aug12 + future_customer_cash + future_committed_financing + future_other_confirmed_inflows >= ~600000 + unavailable_opening_cash + future_other_operating_outflows + future_other_debt_service + reserve",
+    "qualifiers": [
+      "The ~600000 algebraic difference is not an observed cash shortfall.",
+      "Existing settlement liabilities are scheduled once; do not add them again to balance-sheet debt.",
+      "Cash collected and costs paid after August 12 must be separately supplied; EBITDA is not a substitute.",
+      "Exclude the hypothetical new facility from committed financing; 2025 refinancing was not committed at this cutoff.",
+      "A nonnegative year-end residual does not establish interim liquidity or eligibility; dated cash flows are needed."
+    ]
+  },
+  "timing_mechanics_fixture": {
+    "evidence_class": "explicit arithmetic fixture, not Synergy or any borrower's payment schedule",
+    "principal_only_usd": "100000.00",
+    "original_receipt_day": 90,
+    "delayed_receipt_day": 120,
+    "effective_annual_discount_rate_assumption": "0.12",
+    "discount_day_count_assumption": "ACT/365",
+    "principal_received_original_usd": "100000.00",
+    "principal_received_delayed_usd": "100000.00",
+    "principal_loss_usd": "0.00",
+    "pv_original_usd": "97244.28",
+    "pv_delayed_usd": "96342.68",
+    "pv_change_usd": "-901.59",
+    "extra_principal_exposure_days": 30,
+    "extra_principal_exposure_dollar_days": "3000000",
+    "note": "A pure delay changes PV and exposure duration without creating a principal loss. No extra interest or late fee is added. PV change is computed before cent rounding, so displayed PV subtraction can differ by one cent."
+  }
+}

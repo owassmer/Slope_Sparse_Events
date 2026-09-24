@@ -1,0 +1,1677 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/slope-demo/build-contracts-0.1.0.schema.json",
+  "title": "Prototype external-event loan scenario contracts",
+  "description": "Design contract only; example.invalid is an identifier, not a service. Application validation must check evidence cutoffs, units by field, cross-references, Decimal bounds, weight totals, source facts, and financial conservation. Explicit-assumption models may compute conditional thresholds and curves when every nonobserved input is labeled. A current observed baseline is not required to show an honestly labeled sensitivity.",
+  "$ref": "#/$defs/CasePacket",
+  "$defs": {
+    "Provenance": {
+      "type": "object",
+      "properties": {
+        "basis": {
+          "enum": [
+            "documented_evidence",
+            "operator_assumption",
+            "model_derived",
+            "unknown"
+          ]
+        },
+        "source_fact_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "assumption_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "derivation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "basis",
+        "source_fact_ids",
+        "assumption_id",
+        "derivation",
+        "note"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "documented_evidence"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_fact_ids": {
+                "minItems": 1
+              },
+              "assumption_id": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "operator_assumption"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "assumption_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "basis": {
+                "const": "model_derived"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "derivation": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "EvidenceValue": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "exact",
+            "range",
+            "unknown"
+          ]
+        },
+        "unit": {
+          "enum": [
+            "USD_cents",
+            "decimal_rate",
+            "decimal_fraction",
+            "days",
+            "date"
+          ]
+        },
+        "value": {
+          "type": [
+            "integer",
+            "string",
+            "null"
+          ]
+        },
+        "lower": {
+          "type": [
+            "integer",
+            "string",
+            "null"
+          ]
+        },
+        "upper": {
+          "type": [
+            "integer",
+            "string",
+            "null"
+          ]
+        },
+        "observed_on": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "status",
+        "unit",
+        "value",
+        "lower",
+        "upper",
+        "observed_on",
+        "provenance"
+      ],
+      "additionalProperties": false,
+      "description": "USD amounts are integer cents. Decimal rates/fractions are strings for Decimal parsing. Unknown is not zero; exact means the source provides a number, not that the source is infallible.",
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "exact"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "lower": {
+                "type": "null"
+              },
+              "upper": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "range"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "lower": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "upper": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "unknown"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "lower": {
+                "type": "null"
+              },
+              "upper": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "unit": {
+                "enum": [
+                  "USD_cents",
+                  "days"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "lower": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "upper": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "unit": {
+                "enum": [
+                  "decimal_rate",
+                  "decimal_fraction"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lower": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "upper": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "unit": {
+                "const": "date"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lower": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "upper": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "DecisionContext": {
+      "type": "object",
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mission_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "borrower_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "borrower_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "as_of": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decision_timezone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_type": {
+          "enum": [
+            "new_draw",
+            "exposure_increase",
+            "existing_loan_review"
+          ]
+        },
+        "transaction_basis": {
+          "enum": [
+            "documented_transaction",
+            "analytical_candidate"
+          ]
+        },
+        "slope_relationship": {
+          "enum": [
+            "documented",
+            "not_established"
+          ]
+        },
+        "stakeholder_scope": {
+          "enum": [
+            "loan_asset_holder",
+            "platform_net",
+            "warehouse_equity"
+          ]
+        },
+        "currency": {
+          "const": "USD"
+        },
+        "requested_amount": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "requested_term_months": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "use_of_proceeds": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseline_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "baseline_status": {
+          "enum": [
+            "complete",
+            "historical_observations_only",
+            "missing",
+            "explicit_assumption_model"
+          ]
+        },
+        "available_actions": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "requested_offer",
+              "smaller_feasible_purchase",
+              "alternative_term",
+              "conditional_offer",
+              "decline_new_exposure"
+            ]
+          },
+          "minItems": 0
+        },
+        "missing_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "decision_id",
+        "mission_id",
+        "borrower_id",
+        "borrower_name",
+        "as_of",
+        "decision_timezone",
+        "decision_type",
+        "transaction_basis",
+        "slope_relationship",
+        "stakeholder_scope",
+        "currency",
+        "requested_amount",
+        "requested_term_months",
+        "use_of_proceeds",
+        "baseline_id",
+        "baseline_status",
+        "available_actions",
+        "missing_inputs",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "Observation": {
+      "type": "object",
+      "properties": {
+        "observation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metric": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "period_start": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "period_end": {
+          "type": "string",
+          "format": "date"
+        },
+        "available_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "is_current_bank_observation": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "observation_id",
+        "metric",
+        "value",
+        "period_start",
+        "period_end",
+        "available_at",
+        "is_current_bank_observation"
+      ],
+      "additionalProperties": false
+    },
+    "PaymentRow": {
+      "type": "object",
+      "properties": {
+        "due_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "principal_cents": {
+          "type": "integer"
+        },
+        "interest_cents": {
+          "type": "integer"
+        },
+        "fee_cents": {
+          "type": "integer"
+        },
+        "source_fact_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "assumption_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "due_date",
+        "principal_cents",
+        "interest_cents",
+        "fee_cents",
+        "source_fact_ids",
+        "assumption_id"
+      ],
+      "additionalProperties": false
+    },
+    "FeeTerm": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rate": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "frequency": {
+          "enum": [
+            "one_time",
+            "annual",
+            "monthly",
+            "daily",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "rate",
+        "basis",
+        "frequency"
+      ],
+      "additionalProperties": false
+    },
+    "LoanTerms": {
+      "type": "object",
+      "properties": {
+        "loan_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "borrower_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "terms_basis": {
+          "enum": [
+            "executed_contract",
+            "public_disclosure",
+            "operator_candidate"
+          ]
+        },
+        "product_type": {
+          "enum": [
+            "receivables_revolver",
+            "fixed_installment_draw",
+            "net_terms",
+            "other",
+            "revenue_share_merchant_loan"
+          ]
+        },
+        "facility_limit": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "principal_outstanding": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "interest_index": {
+          "enum": [
+            "US_prime",
+            "fixed",
+            "unknown"
+          ]
+        },
+        "annual_spread": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "reported_all_in_annual_rate": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "advance_rate": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "eligible_receivables_amount": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "reported_undrawn_availability": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "maturity": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "automatic_renewal_reported": {
+          "type": "boolean"
+        },
+        "fees": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FeeTerm"
+          },
+          "minItems": 0
+        },
+        "schedule_status": {
+          "enum": [
+            "documented",
+            "generated_from_complete_terms",
+            "unknown",
+            "documented_rules_with_unknown_dates"
+          ]
+        },
+        "contractual_schedule": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PaymentRow"
+          },
+          "minItems": 0
+        },
+        "payment_allocation_rule": {
+          "enum": [
+            "contract_documented",
+            "operator_assumption",
+            "unknown"
+          ]
+        },
+        "collateral_summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "missing_terms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "source_fact_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "merchant_repayment_rules": {
+          "$ref": "#/$defs/MerchantRepaymentRules"
+        }
+      },
+      "required": [
+        "loan_id",
+        "borrower_id",
+        "terms_basis",
+        "product_type",
+        "facility_limit",
+        "principal_outstanding",
+        "interest_index",
+        "annual_spread",
+        "reported_all_in_annual_rate",
+        "advance_rate",
+        "eligible_receivables_amount",
+        "reported_undrawn_availability",
+        "maturity",
+        "automatic_renewal_reported",
+        "fees",
+        "schedule_status",
+        "contractual_schedule",
+        "payment_allocation_rule",
+        "collateral_summary",
+        "missing_terms",
+        "source_fact_ids"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schedule_status": {
+                "const": "unknown"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "contractual_schedule": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schedule_status": {
+                "enum": [
+                  "documented",
+                  "generated_from_complete_terms"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "contractual_schedule": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Parameter": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "enum": [
+            "source_anchor",
+            "model_input",
+            "sensitivity_input"
+          ]
+        },
+        "value": {
+          "$ref": "#/$defs/EvidenceValue"
+        }
+      },
+      "required": [
+        "name",
+        "role",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "Effect": {
+      "type": "object",
+      "properties": {
+        "effect_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "borrower_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mechanism": {
+          "enum": [
+            "existing_liability_payment_timing",
+            "expense_funding_change",
+            "receipt_timing_change",
+            "receipt_impairment",
+            "cash_restriction",
+            "collateral_posting",
+            "reimbursement",
+            "financing_capacity_change",
+            "inventory_conversion",
+            "historical_non_cash_normalization",
+            "resolved_obligation_exclusion"
+          ]
+        },
+        "finding": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_stream_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "source_fact_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          },
+          "minItems": 0
+        },
+        "baseline_reflection": {
+          "enum": [
+            "already_in_historical_balance",
+            "already_in_historical_cashflow",
+            "partly_reflected",
+            "not_reflected",
+            "unknown"
+          ]
+        },
+        "proposed_operation": {
+          "enum": [
+            "reclassify_timing",
+            "replace_future_forecast",
+            "shift_cash_receipts",
+            "reduce_cash_receipts",
+            "transfer_cash_pool",
+            "modify_available_funding",
+            "convert_inventory_to_receipts",
+            "normalize_historical_metric",
+            "exclude_already_paid_obligation"
+          ]
+        },
+        "application_status": {
+          "enum": [
+            "ready_after_baseline_match",
+            "requires_parameters",
+            "research_only"
+          ]
+        },
+        "activation_condition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cash_direction": {
+          "enum": [
+            "outflow",
+            "inflow",
+            "timing_only",
+            "mixed",
+            "unknown",
+            "none"
+          ]
+        },
+        "double_count_guard": {
+          "type": "string",
+          "minLength": 1
+        },
+        "missing_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "effect_id",
+        "event_id",
+        "borrower_id",
+        "mechanism",
+        "finding",
+        "target_stream_ids",
+        "source_fact_ids",
+        "parameters",
+        "baseline_reflection",
+        "proposed_operation",
+        "application_status",
+        "activation_condition",
+        "cash_direction",
+        "double_count_guard",
+        "missing_inputs"
+      ],
+      "additionalProperties": false
+    },
+    "Scenario": {
+      "type": "object",
+      "properties": {
+        "scenario_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseline_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "effect_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "parameter_overrides": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          },
+          "minItems": 0
+        },
+        "probability": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "payment_behavior": {
+          "enum": [
+            "contractual_if_feasible_with_documented_allocation",
+            "operator_assumption",
+            "unknown"
+          ]
+        },
+        "forecast_status": {
+          "enum": [
+            "ready",
+            "requires_inputs",
+            "not_run"
+          ]
+        },
+        "is_realized_outcome": {
+          "type": "boolean"
+        },
+        "analysis_scope": {
+          "enum": [
+            "economic_thresholds",
+            "loan_cashflow"
+          ]
+        }
+      },
+      "required": [
+        "scenario_id",
+        "decision_id",
+        "baseline_id",
+        "label",
+        "conditions",
+        "effect_ids",
+        "parameter_overrides",
+        "probability",
+        "payment_behavior",
+        "forecast_status",
+        "is_realized_outcome"
+      ],
+      "additionalProperties": false
+    },
+    "ActionResult": {
+      "type": "object",
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "feasible",
+            "infeasible",
+            "conditional",
+            "not_computable"
+          ]
+        },
+        "amount": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "term_months": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "npv": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "binding_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "action_id",
+        "status",
+        "amount",
+        "term_months",
+        "npv",
+        "binding_conditions"
+      ],
+      "additionalProperties": false
+    },
+    "DecisionResult": {
+      "type": "object",
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result_status": {
+          "enum": [
+            "recommendation",
+            "conditional_recommendation",
+            "decision_boundary",
+            "insufficient_inputs",
+            "incomplete_review"
+          ]
+        },
+        "preferred_action_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "action_results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ActionResult"
+          },
+          "minItems": 0
+        },
+        "policy_basis": {
+          "enum": [
+            "provided_policy",
+            "operator_demo_policy",
+            "none"
+          ]
+        },
+        "policy_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "required_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "decisive_missing_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "threshold_results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThresholdResult"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "decision_id",
+        "result_status",
+        "preferred_action_id",
+        "action_results",
+        "policy_basis",
+        "policy_id",
+        "required_conditions",
+        "decisive_missing_inputs",
+        "summary"
+      ],
+      "additionalProperties": false
+    },
+    "CollectionRow": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "disbursement_cents": {
+          "type": "integer"
+        },
+        "principal_collected_cents": {
+          "type": "integer"
+        },
+        "interest_collected_cents": {
+          "type": "integer"
+        },
+        "fees_collected_cents": {
+          "type": "integer"
+        },
+        "net_recovery_cents": {
+          "type": "integer"
+        },
+        "explicit_cost_cents": {
+          "type": "integer"
+        },
+        "principal_outstanding_cents": {
+          "type": "integer"
+        },
+        "calculation_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "date",
+        "disbursement_cents",
+        "principal_collected_cents",
+        "interest_collected_cents",
+        "fees_collected_cents",
+        "net_recovery_cents",
+        "explicit_cost_cents",
+        "principal_outstanding_cents",
+        "calculation_id"
+      ],
+      "additionalProperties": false
+    },
+    "ScenarioWeight": {
+      "type": "object",
+      "properties": {
+        "scenario_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "weight": {
+          "type": "string",
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+        },
+        "basis": {
+          "enum": [
+            "provided_empirical_model",
+            "operator_scenario_view"
+          ]
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "scenario_id",
+        "weight",
+        "basis",
+        "source_id"
+      ],
+      "additionalProperties": false
+    },
+    "LoanCashflowExport": {
+      "type": "object",
+      "properties": {
+        "export_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "loan_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "borrower_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "as_of": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "currency": {
+          "const": "USD"
+        },
+        "cashflow_type": {
+          "enum": [
+            "contractual",
+            "conditional",
+            "expected",
+            "realized"
+          ]
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "partial",
+            "not_computable",
+            "not_run"
+          ]
+        },
+        "scenario_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "baseline_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scenario_weights": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScenarioWeight"
+          },
+          "minItems": 0
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CollectionRow"
+          },
+          "minItems": 0
+        },
+        "terminal_unresolved_principal": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "missing_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "stakeholder_scope": {
+          "enum": [
+            "loan_asset_holder",
+            "platform_net",
+            "warehouse_equity"
+          ]
+        }
+      },
+      "required": [
+        "export_id",
+        "loan_id",
+        "borrower_id",
+        "decision_id",
+        "as_of",
+        "currency",
+        "cashflow_type",
+        "status",
+        "scenario_id",
+        "baseline_id",
+        "scenario_weights",
+        "rows",
+        "terminal_unresolved_principal",
+        "missing_inputs",
+        "stakeholder_scope"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "cashflow_type": {
+                "const": "expected"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "scenario_weights": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cashflow_type": {
+                "const": "conditional"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "scenario_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "scenario_weights": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "not_computable"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "rows": {
+                "maxItems": 0
+              },
+              "missing_inputs": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "SourceFactReference": {
+      "type": "object",
+      "properties": {
+        "fact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "document_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "section": {
+          "type": "string",
+          "minLength": 1
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "fact_id",
+        "document_id",
+        "section",
+        "note"
+      ],
+      "additionalProperties": false,
+      "description": "A source-fact reference. Main Synergy IDs resolve in ../data/facts_synergy.json; Barfresh IDs resolve to the named source document and inspected section in ../data/sources.json. "
+    },
+    "CasePacket": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "0.1.0"
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_status": {
+          "const": "prototype_design_not_running_model"
+        },
+        "source_fact_references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceFactReference"
+          },
+          "minItems": 0
+        },
+        "decision_context": {
+          "$ref": "#/$defs/DecisionContext"
+        },
+        "historical_observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Observation"
+          },
+          "minItems": 0
+        },
+        "loan_terms": {
+          "$ref": "#/$defs/LoanTerms"
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Effect"
+          },
+          "minItems": 0
+        },
+        "scenarios": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Scenario"
+          },
+          "minItems": 0
+        },
+        "decision_result": {
+          "$ref": "#/$defs/DecisionResult"
+        },
+        "loan_cashflow_export": {
+          "$ref": "#/$defs/LoanCashflowExport"
+        },
+        "operator_assumptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "schema_version",
+        "case_id",
+        "artifact_status",
+        "source_fact_references",
+        "decision_context",
+        "historical_observations",
+        "loan_terms",
+        "effects",
+        "scenarios",
+        "decision_result",
+        "loan_cashflow_export"
+      ],
+      "additionalProperties": false
+    },
+    "MinimumCheckpoint": {
+      "type": "object",
+      "properties": {
+        "months_from_funding": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minimum_cumulative_fraction": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "minimum_cumulative_repayment": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "window_start_month": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "window_minimum_fraction": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "cap_at_outstanding_total_repayment": {
+          "const": true
+        },
+        "manual_payment_credit_rule": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "months_from_funding",
+        "minimum_cumulative_fraction",
+        "minimum_cumulative_repayment",
+        "window_start_month",
+        "window_minimum_fraction",
+        "cap_at_outstanding_total_repayment",
+        "manual_payment_credit_rule"
+      ],
+      "additionalProperties": false
+    },
+    "MerchantRepaymentRules": {
+      "type": "object",
+      "properties": {
+        "advance": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "total_repayment": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "fixed_financing_cost": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "receipts_fraction": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "receipt_base_definition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "funding_date": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "term_months": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minimum_checkpoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MinimumCheckpoint"
+          },
+          "minItems": 1
+        },
+        "remittance_calendar": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prepayment_treatment": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "advance",
+        "total_repayment",
+        "fixed_financing_cost",
+        "receipts_fraction",
+        "receipt_base_definition",
+        "funding_date",
+        "term_months",
+        "minimum_checkpoints",
+        "remittance_calendar",
+        "prepayment_treatment"
+      ],
+      "additionalProperties": false
+    },
+    "ThresholdResult": {
+      "type": "object",
+      "properties": {
+        "threshold_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "enum": [
+            "cumulative_period_necessary_condition",
+            "contractual_channel_receipts_threshold",
+            "historical_metric_normalization"
+          ]
+        },
+        "formula": {
+          "type": "string",
+          "minLength": 1
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          },
+          "minItems": 1
+        },
+        "result": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "interpretation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "threshold_id",
+        "label",
+        "scope",
+        "formula",
+        "inputs",
+        "result",
+        "interpretation",
+        "limitations"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,901 @@
+{
+  "schema_version": "1.0",
+  "case_id": "synergy_chc_2024",
+  "mission_id": "synergy_20240813",
+  "as_of": "2024-08-13T23:59:59-04:00",
+  "currency": "USD",
+  "source_index": "sources.json",
+  "scope": "Decision-date factual anchors and unresolved inputs, not a full historical transaction ledger or live lender underwriting output.",
+  "facts": [
+    {
+      "fact_id": "synergy_cash_20240630_unrestricted",
+      "value": 87293,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Condensed consolidated balance sheets, F-2; Liquidity and Capital Resources",
+        "anchor": "Cash and cash equivalents"
+      },
+      "notes": [
+        "June 30 financial statement measurement; do not use as fresh August cash."
+      ]
+    },
+    {
+      "fact_id": "synergy_cash_20240630_restricted",
+      "value": 100000,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Condensed consolidated balance sheets, F-2; Liquidity and Capital Resources",
+        "anchor": "Restricted cash"
+      },
+      "notes": [
+        "Credit-card collateral, excluded from freely available cash."
+      ]
+    },
+    {
+      "fact_id": "synergy_cash_20240812_approx",
+      "value": 2000000,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "approximate",
+      "measurement_date": "2024-08-12",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Prospectus summary and Liquidity and Capital Resources",
+        "anchor": "As of August 12, 2024"
+      },
+      "notes": [
+        "Management reports approximate cash; restricted/unrestricted composition is not reconciled here.",
+        "Bridge settlement and other debt payments since June 30 before forecasting from this cash observation."
+      ]
+    },
+    {
+      "fact_id": "synergy_receivables_20240630",
+      "value": 3268086,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Condensed consolidated balance sheets, F-2",
+        "anchor": "Accounts receivable, net"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_inventory_20240630",
+      "value": 1920290,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Condensed consolidated balance sheets, F-2",
+        "anchor": "Inventory, net"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_related_party_receivable_20240630",
+      "value": 4424547,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Condensed consolidated balance sheets, F-2",
+        "anchor": "Loan receivable (related party)"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_equity_20240630",
+      "value": -25878273,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Condensed consolidated balance sheets, F-2",
+        "anchor": "Total stockholders\u2019 deficit"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_current_assets_20240630",
+      "value": 10873698,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Condensed consolidated balance sheets, F-2",
+        "anchor": "Total Current Assets"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_current_liabilities_20240630",
+      "value": 14711896,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Condensed consolidated balance sheets, F-2",
+        "anchor": "Total Current Liabilities"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_debt_carrying_20240630",
+      "value": 31458899,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, Notes Payable, summary table",
+        "anchor": "31,458,899"
+      },
+      "notes": [
+        "Carrying amount includes accounting discounts; not interchangeable with gross contractual cash owed.",
+        "Includes settlement obligations; do not add them again to balance-sheet debt."
+      ]
+    },
+    {
+      "fact_id": "synergy_revenue_2023",
+      "value": 42777633,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2023-12-31",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Consolidated statements of operations, F-31",
+        "anchor": "Revenue"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_revenue_h1_2024",
+      "value": 17436703,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Condensed consolidated statements of income, F-3",
+        "anchor": "Revenue"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_operating_income_h1_2024",
+      "value": 3391921,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Condensed consolidated statements of income, F-3",
+        "anchor": "Income from operations"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_ebitda_h1_2024",
+      "value": 3463701,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Summary financial data; Non-GAAP financial measures",
+        "anchor": "EBITDA"
+      },
+      "notes": [
+        "Non-GAAP EBITDA is not cash available for debt service."
+      ]
+    },
+    {
+      "fact_id": "synergy_operating_cashflow_h1_2024",
+      "value": -1140005,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Condensed consolidated statements of cash flows, F-5",
+        "anchor": "Net cash used by operating activities"
+      },
+      "notes": [
+        "Includes working-capital movements; do not extrapolate as constant recurring burn."
+      ]
+    },
+    {
+      "fact_id": "synergy_employee_count",
+      "value": 25,
+      "unit": "people",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-08-07",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Human Capital Management",
+        "anchor": "25 full"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_hvl_lawsuit_identity",
+      "value": "Synergy CHC Corp. v. HVL, LLC d/b/a Atrium Innovations, 2:22-cv-00301-JAW",
+      "unit": "text",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 13, Commitments and Contingencies, Litigation",
+        "anchor": "Atrium Innovations"
+      },
+      "notes": [
+        "Note 13 explicitly links this lawsuit to the December 2023 settlement loan in Note 11."
+      ]
+    },
+    {
+      "fact_id": "synergy_hvl_settlement_date",
+      "value": "2023-12-28",
+      "unit": "date",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2023-12-28",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, $5,450,000 December 28, 2023 Loan",
+        "anchor": "confidential settlement agreement"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_hvl_2023_noncash_gain",
+      "value": 2235986,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2023-12-31",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, December 28, 2023 Loan; Note 13, Litigation",
+        "anchor": "reduction of cost of sales"
+      },
+      "notes": [
+        "Accounting gain from settlement, not cash received.",
+        "Normalize FY2023 historical profitability if used; do not remove from H1 2024 income where it is not included."
+      ]
+    },
+    {
+      "fact_id": "synergy_hvl_balance_20240630",
+      "value": 4802445,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, December 28, 2023 Loan",
+        "anchor": "outstanding loan balance at both June"
+      },
+      "notes": [
+        "Includes 352445 interest; do not add that amount twice."
+      ]
+    },
+    {
+      "fact_id": "synergy_hvl_interest_included",
+      "value": 352445,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, December 28, 2023 Loan",
+        "anchor": "including interest"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_hvl_stated_interest_rate",
+      "value": 0.05,
+      "unit": "fraction_per_year",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, December 28, 2023 Loan",
+        "anchor": "5% per annum"
+      },
+      "notes": [
+        "Source says interest payable with last payment; exact settlement contract not acquired."
+      ]
+    },
+    {
+      "fact_id": "synergy_hvl_h2_2024_payment",
+      "value": 2000000,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, December 28, 2023 Loan, future payment table",
+        "anchor": "2024"
+      },
+      "notes": [
+        "Amount scheduled for H2 2024 as measured June 30; NOT verified still unpaid on August 13.",
+        "Subtract actual July 1\u2013August 12 settlement payments in a bridge before using August 12 cash.",
+        "Exact installment dates unknown; choose explicit timing scenarios, not invented historical dates."
+      ]
+    },
+    {
+      "fact_id": "synergy_hvl_2025_payment",
+      "value": 2000000,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, December 28, 2023 Loan, future payment table",
+        "anchor": "2025"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_hvl_2026_payment",
+      "value": 802445,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, December 28, 2023 Loan, future payment table",
+        "anchor": "2026"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_supplier_march_settlement_date",
+      "value": "2024-03-27",
+      "unit": "date",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-03-27",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, $3,020,824 March 27, 2024 Loan",
+        "anchor": "March 27, 2024 Loan"
+      },
+      "notes": [
+        "Counterparty unnamed in decision-date source; do not backfill later Vitabest identification into this run.",
+        "A settlement does not independently prove a filed lawsuit."
+      ]
+    },
+    {
+      "fact_id": "synergy_supplier_march_balance_20240630",
+      "value": 2920824,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, March 27, 2024 Loan",
+        "anchor": "outstanding loan balance"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_supplier_march_paid_h1_2024",
+      "value": 100000,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, March 27, 2024 Loan",
+        "anchor": "payments of $100,000"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_supplier_march_h2_2024_payment",
+      "value": 600000,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, March 27, 2024 Loan, future payment table",
+        "anchor": "2024"
+      },
+      "notes": [
+        "Amount scheduled for H2 2024 as measured June 30; NOT verified still unpaid on August 13.",
+        "Subtract actual July 1\u2013August 12 settlement payments in a bridge before using August 12 cash.",
+        "Exact installment dates unknown; choose explicit timing scenarios, not invented historical dates."
+      ]
+    },
+    {
+      "fact_id": "synergy_supplier_march_2025_payment",
+      "value": 1460412,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, March 27, 2024 Loan, future payment table",
+        "anchor": "2025"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_supplier_march_2026_payment",
+      "value": 860412,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, March 27, 2024 Loan, future payment table",
+        "anchor": "2026"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_lodc_paid_may_2024",
+      "value": true,
+      "unit": "boolean",
+      "kind": "disclosed",
+      "value_precision": "month",
+      "measurement_date": "2024-05",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 13, Litigation, L.O.D.C. Group paragraph",
+        "anchor": "During May 2024"
+      },
+      "notes": [
+        "Distinct Texas lawsuit 4:23-cv-691.",
+        "Settlement amount is undisclosed; allegation over $1m is not settlement amount.",
+        "No incremental future payment for this settled obligation in the August run."
+      ]
+    },
+    {
+      "fact_id": "synergy_webbank_advance",
+      "value": 370000,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Cover; section 2.3",
+        "anchor": "Loan Amount"
+      },
+      "notes": [
+        "Agreement date is not confirmed effective funding date.",
+        "Daily percentage applies to defined Shopify Account Credits, not consolidated sales."
+      ]
+    },
+    {
+      "fact_id": "synergy_webbank_total_repayment",
+      "value": 418100,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Cover; section 1",
+        "anchor": "Total Payment Amount"
+      },
+      "notes": [
+        "Agreement date is not confirmed effective funding date.",
+        "Daily percentage applies to defined Shopify Account Credits, not consolidated sales."
+      ]
+    },
+    {
+      "fact_id": "synergy_webbank_cost_of_funds",
+      "value": 48100,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Cover",
+        "anchor": "Cost of Funds"
+      },
+      "notes": [
+        "Agreement date is not confirmed effective funding date.",
+        "Daily percentage applies to defined Shopify Account Credits, not consolidated sales."
+      ]
+    },
+    {
+      "fact_id": "synergy_webbank_receipts_fraction",
+      "value": 0.25,
+      "unit": "fraction",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Section 1, Daily Payment and Daily Payment Percentage",
+        "anchor": "Daily Payment Percentage"
+      },
+      "notes": [
+        "Agreement date is not confirmed effective funding date.",
+        "Daily percentage applies to defined Shopify Account Credits, not consolidated sales."
+      ]
+    },
+    {
+      "fact_id": "synergy_webbank_term_months",
+      "value": 18,
+      "unit": "months",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Section 1, Term",
+        "anchor": "eighteen (18)"
+      },
+      "notes": [
+        "Agreement date is not confirmed effective funding date.",
+        "Daily percentage applies to defined Shopify Account Credits, not consolidated sales."
+      ]
+    },
+    {
+      "fact_id": "synergy_webbank_6m_min_fraction",
+      "value": 0.3,
+      "unit": "fraction_of_total_repayment",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Section 1, Minimum Payment; section 4.1.1",
+        "anchor": "thirty (30)"
+      },
+      "notes": [
+        "Agreement date is not confirmed effective funding date.",
+        "Daily percentage applies to defined Shopify Account Credits, not consolidated sales."
+      ]
+    },
+    {
+      "fact_id": "synergy_webbank_12m_min_fraction",
+      "value": 0.6,
+      "unit": "fraction_of_total_repayment",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Section 4.1.1; section 4.2.1(b)",
+        "anchor": "at least 60 percent"
+      },
+      "notes": [
+        "Agreement date is not confirmed effective funding date.",
+        "Daily percentage applies to defined Shopify Account Credits, not consolidated sales.",
+        "The 60% cumulative amount is a necessary floor, not the complete second-period minimum rule.",
+        "Section 4.2.1(b) measures the second Minimum Payment against Month 7\u201312 Daily Payments. Excess paid during Months 1\u20136 does not offset that period minimum unless the entire loan is paid off."
+      ]
+    },
+    {
+      "fact_id": "synergy_webbank_second_window_min_fraction",
+      "value": 0.3,
+      "unit": "fraction_of_total_repayment",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Section 4.1.1; section 4.2.1(b)",
+        "anchor": "beginning of Month seven"
+      },
+      "notes": [
+        "Agreement date is not confirmed effective funding date.",
+        "Daily percentage applies to defined Shopify Account Credits, not consolidated sales.",
+        "Track a separate Month 7\u201312 payment ledger. The second six-month period requires an additional 30% of Total Payment Amount; cap obligations by the outstanding total amount and stop after full payoff."
+      ]
+    },
+    {
+      "fact_id": "synergy_webbank_lender",
+      "value": "WebBank",
+      "unit": "text",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Opening paragraph",
+        "anchor": "Utah-chartered industrial bank"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_webbank_effective_date_rule",
+      "value": "date lender delivers funding",
+      "unit": "text",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Section 1, Effective Date; section 2.3",
+        "anchor": "Effective Date"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_webbank_gross_receipts_rule",
+      "value": "Apply the percentage to defined gross Shopify Account Credits; refunds, returns and cancellations do not reduce Daily Payments.",
+      "unit": "text",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Section 1, Shopify Account Credits; section 4.1.1",
+        "anchor": "gross sales"
+      },
+      "notes": [
+        "This account-specific contract definition is not equivalent to net sales or consolidated company revenue."
+      ]
+    },
+    {
+      "fact_id": "synergy_webbank_minimum_payment_ledger_rule",
+      "value": "Maintain separate Month 1\u20136 and Month 7\u201312 minimum-payment ledgers. The second period resets its Daily Payment measurement; prior-period excess does not offset its 30% requirement unless the total loan is already paid in full.",
+      "unit": "text",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Section 4.1.1; section 4.2.1(b)",
+        "anchor": "beginning of Month seven"
+      },
+      "notes": [
+        "A cumulative-only 30%/60%/100% implementation is incomplete.",
+        "Cap any collection by the remaining Total Payment Amount; full repayment extinguishes further payment obligations."
+      ]
+    },
+    {
+      "fact_id": "synergy_webbank_nonbusiness_payment_rule",
+      "value": "Amounts due on non-business days transfer on the following business day.",
+      "unit": "text",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Section 4.2.1(a)",
+        "anchor": "non-Business Day"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_webbank_voluntary_payment_rule",
+      "value": "Manual payments reduce outstanding total payment amount; no assumed pro-rata fee rebate.",
+      "unit": "text",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-01",
+      "source_id": "synergy_merchant_agreement_20240501",
+      "locator": {
+        "section": "Section 4.1.2",
+        "anchor": "Manual Payments"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_webbank_carrying_balance_20240630",
+      "value": 333454,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, $418,100 May 1, 2024 Loan",
+        "anchor": "outstanding loan balance"
+      },
+      "notes": [
+        "Accounting balance is not the verified remaining contractual total payment amount.",
+        "Actual remittances through August 13 require borrower/servicer ledger."
+      ]
+    },
+    {
+      "fact_id": "synergy_other_shopify_may22_advance",
+      "value": 105000,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-22",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, $118,650 May 22, 2024 Loan",
+        "anchor": "received $105,000"
+      },
+      "notes": [
+        "Separate obligation; do not sum two 25% remittance rates without mapping the accounts/stores."
+      ]
+    },
+    {
+      "fact_id": "synergy_other_shopify_may22_total_repayment",
+      "value": 118650,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-05-22",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, $118,650 May 22, 2024 Loan",
+        "anchor": "total payments"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_other_shopify_may22_carrying_balance_20240630",
+      "value": 93736,
+      "unit": "USD",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, $118,650 May 22, 2024 Loan",
+        "anchor": "outstanding loan balance"
+      },
+      "notes": []
+    },
+    {
+      "fact_id": "synergy_shopify_january_loan_repaid_20240630",
+      "value": true,
+      "unit": "boolean",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, $141,250 January 29, 2024 Loan",
+        "anchor": "outstanding loan balance at June"
+      },
+      "notes": [
+        "Note narrative says January 21 but heading says January 29; do not infer a new loan from this typo."
+      ]
+    }
+  ],
+  "known_unknowns": [
+    {
+      "unknown_id": "synergy_hvl_paid_20240701_20240812",
+      "unit": "USD",
+      "required_for": "Bridge June 30 settlement liability to August decision date.",
+      "allocation_bounds_for_2024_bucket_only": [
+        0,
+        2000000
+      ],
+      "resolution": "Borrower bank transactions and settlement payment ledger.",
+      "rule": "Do not hardcode zero historical payments. Any prepayment of later-year obligations needs a separate bridge; the bucket allocation cap is not a cap on possible actual payments."
+    },
+    {
+      "unknown_id": "synergy_supplier_march_paid_20240701_20240812",
+      "unit": "USD",
+      "required_for": "Bridge June 30 settlement liability to August decision date.",
+      "allocation_bounds_for_2024_bucket_only": [
+        0,
+        600000
+      ],
+      "resolution": "Borrower bank transactions and settlement payment ledger.",
+      "rule": "No additional August outflow for payments already reflected in August cash. Any prepayment of later-year obligations needs a separate bridge."
+    },
+    {
+      "unknown_id": "synergy_exact_settlement_installment_dates",
+      "required_for": "Payment calendar within disclosed annual buckets.",
+      "resolution": "Executed settlement agreements or borrower schedules.",
+      "rule": "Show conditional timing scenarios until obtained."
+    },
+    {
+      "unknown_id": "synergy_august_cash_composition",
+      "required_for": "Unrestricted cash available at August 13 decision.",
+      "resolution": "Latest bank balances and restriction documentation.",
+      "rule": "Approximately $2m cash is not a verified $2m unrestricted balance."
+    },
+    {
+      "unknown_id": "synergy_shopify_account_credits_daily",
+      "required_for": "Actual daily merchant loan remittances.",
+      "resolution": "Eligible store/account transaction history.",
+      "rule": "Do not substitute consolidated revenue or brand revenue."
+    },
+    {
+      "unknown_id": "synergy_shopify_effective_funding_date",
+      "required_for": "Calendar dates of 6-, 12- and 18-month milestones.",
+      "resolution": "Funding receipt/servicer record.",
+      "rule": "May 1 agreement date is not automatically the funding date."
+    },
+    {
+      "unknown_id": "synergy_shopify_remittances_to_cutoff",
+      "required_for": "Remaining contractual repayment balance and milestone headroom.",
+      "resolution": "Servicer ledger plus bank reconciliation.",
+      "rule": "Do not treat accounting carrying balance as remaining gross contractual repayment."
+    },
+    {
+      "unknown_id": "synergy_shopify_account_mapping",
+      "required_for": "Interaction of May 1 and May 22 loans.",
+      "resolution": "Account/store IDs and servicing agreement.",
+      "rule": "Do not automatically apply 50% aggregate deduction to one receipts stream."
+    },
+    {
+      "unknown_id": "synergy_liens_and_new_borrowing_permissions",
+      "required_for": "Eligibility of incremental secured financing.",
+      "resolution": "Existing debt contracts, lien search and any waivers.",
+      "rule": "No invented first-lien status or available new debt permission."
+    },
+    {
+      "unknown_id": "synergy_full_existing_debt_calendar",
+      "required_for": "Complete borrower cash-availability model.",
+      "resolution": "Reconcile Note 11 to executed agreements and current borrower debt schedule.",
+      "rule": "Do not model settlement obligations alone while ignoring other existing payments."
+    },
+    {
+      "unknown_id": "synergy_supplier_march_identity_at_cutoff",
+      "required_for": "Counterparty identification, if relevant to operating mechanism.",
+      "resolution": "Decision-date settlement agreement.",
+      "rule": "Later 2025 identification is outcome evidence only."
+    },
+    {
+      "unknown_id": "synergy_proposed_slope_offer",
+      "required_for": "Candidate advance comparisons.",
+      "resolution": "Explicit analyst-selected amount, term, price and policy parameters.",
+      "rule": "This is a modeled offer; no historical Slope application or relationship is established."
+    }
+  ],
+  "modeling_rules": [
+    "Record legal settlements as payment schedules for existing liabilities, not new duplicate liabilities.",
+    "Merchant-loan 30%/60%/100% cumulative milestones alone do not implement the contract: the second six-month period has an additional 30% minimum measured against its own period payments, subject to remaining total repayment and full payoff.",
+    "Use defined gross Shopify Account Credits without deducting refunds, returns or cancellations; never substitute consolidated revenue.",
+    "June 30 amounts and August 12 cash require a bridge; $2.6m cannot be called verified remaining August debt service.",
+    "Treat a settlement gain as an accounting normalization, not a cash inflow.",
+    "Conditional scenario probabilities and candidate-loan economics are assumptions unless separately supported.",
+    "No 2025 refinancing proceeds are committed August 2024 funding.",
+    "The February 2023 court document is a recommended decision on a motion to dismiss, not a merits judgment."
+  ],
+  "outcome_source_ids": [
+    "synergy_annual_2024",
+    "synergy_credit_agreement_20250530",
+    "synergy_quarterly_20250630"
+  ]
+}

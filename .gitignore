@@ -1,0 +1,20 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
+.env
+.env.*
+
+# Generated per-snapshot evidence stores and run workspaces (rebuildable from the kit)
+var/
+*.sqlite
+*.sqlite3
+*.db
+
+# Recorded runs are committed deliberately under runs/recorded/; scratch runs are not
+runs/scratch/
+
+# Claude Code worktrees
+.claude/worktrees/

@@ -1,0 +1,53 @@
+[project]
+name = "slope-sparse-events"
+version = "0.1.0"
+description = "External-event credit scenario module: agent + Jev research into loan cash flows and financing decisions"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # Agent runtime (native Claude subscription auth; no API key path)
+    "claude-agent-sdk==0.2.159",
+    # Jev (TypeSafe) — separately billed service
+    "typesafe-sdk==0.7.1",
+    # Domain + contracts
+    "pydantic>=2.9,<3",
+    "jsonschema>=4.26,<5",
+    # Evidence ingestion
+    "beautifulsoup4>=4.12",
+    "lxml>=5.3",
+    # Viewer
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "jinja2>=3.1",
+    # CLI
+    "typer>=0.12",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[project.scripts]
+slope = "app.cli:main"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["Slope_Credit_Scenario_Research_and_Design_Kit"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

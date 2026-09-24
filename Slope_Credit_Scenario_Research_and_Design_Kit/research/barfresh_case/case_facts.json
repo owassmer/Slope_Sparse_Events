@@ -1,0 +1,114 @@
+{
+  "case_id": "barfresh_schreiber_2024",
+  "decision_date": "2024-10-25",
+  "financial_observation_date": "2024-09-30",
+  "earlier_research_checkpoint": "2024-08-15",
+  "status": "ready_for_bounded_scenario_demo",
+  "source_count": 14,
+  "failed_acquisition_attempt_count": 13,
+  "gap_severity_counts": {
+    "high": 3,
+    "medium": 3
+  },
+  "currency": "USD",
+  "cash_snapshots": {
+    "2024-06-30": {
+      "cash": 383000,
+      "trade_receivables": 671000,
+      "inventory": 1534000,
+      "source_id": "brfh_2024q2_10q"
+    },
+    "2024-09-30": {
+      "cash": 401000,
+      "trade_receivables": 1663000,
+      "inventory": 770000,
+      "current_assets": 3090000,
+      "current_liabilities": 2218000,
+      "balance_sheet_working_capital_derived": 872000,
+      "management_working_capital_excluding_disputed_AP": 1371000,
+      "disputed_AP": 499000,
+      "line_debt_gross": 100000,
+      "line_debt_net": 86000,
+      "deferred_financing_cost": 14000,
+      "source_id": "brfh_2024q3_10q"
+    },
+    "2024-12-31": {
+      "cash": 235000,
+      "trade_receivables": 829000,
+      "inventory": 1500000,
+      "line_debt_gross": 620000,
+      "line_debt_net": 609000,
+      "source_id": "brfh_2024_10k"
+    },
+    "2025-03-31": {
+      "cash": 1872000,
+      "trade_receivables": 1499000,
+      "inventory": 1128000,
+      "line_debt_gross": 0,
+      "source_id": "brfh_2025q1_10q"
+    }
+  },
+  "existing_facility_terms": {
+    "known_from": "2024-10-24",
+    "cap": 1500000,
+    "advance_rate_max_eligible_receivables": 0.9,
+    "annual_interest_spread_over_prime": 0.012,
+    "annual_interest_rate_at_2024_09_30": 0.092,
+    "collateral_fee_quoted": 0.0015,
+    "collateral_fee_basis_and_period": null,
+    "security": [
+      "accounts_receivable",
+      "inventory"
+    ],
+    "scheduled_expiration": "2025-09-05",
+    "automatic_renewal": true,
+    "lender_name": null,
+    "executed_contract_acquired": false,
+    "source_id": "brfh_2024q3_10q"
+  },
+  "period_cashflows": {
+    "2024Q3": {
+      "operating_cashflow_derived": 5000,
+      "line_borrowings_cash": 930000,
+      "line_repayments_cash": 847000,
+      "source_ids": [
+        "brfh_2024q2_10q",
+        "brfh_2024q3_10q"
+      ]
+    },
+    "2024Q4": {
+      "operating_cashflow_derived": -685000,
+      "line_borrowings_cash_derived": 1881000,
+      "line_repayments_cash_derived": 1361000,
+      "source_ids": [
+        "brfh_2024q3_10q",
+        "brfh_2024_10k"
+      ]
+    },
+    "2025Q1": {
+      "operating_cashflow": -506000,
+      "line_borrowings_cash": 782000,
+      "line_repayments_cash": 1402000,
+      "equity_cash_net": 2974000,
+      "source_ids": [
+        "brfh_2025q1_10q"
+      ]
+    }
+  },
+  "scenario_rules": [
+    "No lawsuit recoveries in base repayment cash.",
+    "Do not infer legal win probability from model confidence.",
+    "Do not assume supply delay delays already accepted invoice collections.",
+    "Do not use 2022 manufacturer product share as a 2024 revenue haircut.",
+    "Do not double count disputed accounts payable.",
+    "Do not assume new lender first priority over already pledged AR and inventory.",
+    "Do not backfill Q3 facility terms into August replay.",
+    "Do not treat fiscal snapshot cash as fresh decision-date cash.",
+    "Do not attribute Q1 facility paydown to litigation or operations alone; equity was raised.",
+    "Proposed Slope-style offer is a scenario, not a historical Slope application."
+  ],
+  "data_reconciliation_notes": [
+    "Reported H1 plus Q3 revenue exceeds reported nine-month revenue by USD 1000; retain reported values.",
+    "Q3 facility cash borrowing minus repayment equals USD 83000, gross principal USD 100000, net carrying value USD 86000; preserve separate fields and do not invent fee allocation."
+  ]
+}

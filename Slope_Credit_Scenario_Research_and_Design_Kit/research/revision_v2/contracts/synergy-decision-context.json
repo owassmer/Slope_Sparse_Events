@@ -1,0 +1,47 @@
+{
+  "decision_id": "synergy_2024-08-13_external_event_review",
+  "mission_id": "synergy_20240813",
+  "borrower_id": "synergy_chc_corp",
+  "borrower_name": "Synergy CHC Corp.",
+  "as_of": "2024-08-13T23:59:59-04:00",
+  "decision_timezone": "America/New_York",
+  "decision_type": "new_draw",
+  "transaction_basis": "analytical_candidate",
+  "slope_relationship": "not_established",
+  "stakeholder_scope": "loan_asset_holder",
+  "currency": "USD",
+  "requested_amount": {
+    "status": "unknown",
+    "unit": "USD_cents",
+    "value": null,
+    "lower": null,
+    "upper": null,
+    "observed_on": null,
+    "provenance": {
+      "basis": "unknown",
+      "source_fact_ids": [],
+      "assumption_id": null,
+      "derivation": null,
+      "note": "A proposed incremental financing amount is an operator choice, not a disclosed Slope application."
+    }
+  },
+  "requested_term_months": null,
+  "use_of_proceeds": "Evaluate incremental inventory or working-capital financing alongside an actual merchant loan and dated supplier-settlement obligations.",
+  "baseline_id": "synergy_explicit_threshold_inputs_v1",
+  "baseline_status": "explicit_assumption_model",
+  "available_actions": [
+    "requested_offer",
+    "smaller_feasible_purchase",
+    "alternative_term",
+    "conditional_offer",
+    "decline_new_exposure"
+  ],
+  "missing_inputs": [
+    "Settlement payments actually made July 1 through August 13",
+    "Updated unrestricted cash and other debt-service calendar",
+    "Daily credits and remittances for the specific Shopify account",
+    "Actual May merchant-loan effective funding date",
+    "Proposed incremental amount, pricing, term and funded operating plan"
+  ],
+  "note": "The example computes useful conditional thresholds from real obligations plus named assumptions. It does not fabricate historical bank transactions, channel receipts, a complete borrower forecast, or a Slope relationship."
+}

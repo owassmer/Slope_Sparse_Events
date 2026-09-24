@@ -1,0 +1,27 @@
+{
+  "artifact_status": "contract_shape_checks_only_not_model_validation",
+  "schema_draft": "2020-12",
+  "schema_valid": true,
+  "example_packet_valid": true,
+  "secondary_barfresh_packet_valid": true,
+  "conditional_threshold_arithmetic_checked": true,
+  "synergy_fact_ids_resolved_in_registry": true,
+  "proposal_fixtures_valid_and_conserve_payments": true,
+  "merchant_separate_window_cap_and_recognized_manual_credit_examples_checked": true,
+  "negative_checks_passed": [
+    "fractional-cent money",
+    "floating-point rate instead of decimal string",
+    "unknown amount silently changed to zero",
+    "expected curve without scenario weights",
+    "future evidence at August 2024 cutoff",
+    "remittance fraction outside zero to one",
+    "numerical collection curve without a baseline",
+    "incorrect settlement threshold calculation"
+  ],
+  "not_checked": [
+    "Independent truth verification beyond the supplied source/facts registry",
+    "General loan cash-flow engine (not implemented)",
+    "Actual borrower creditworthiness",
+    "Any real model or agent inference"
+  ]
+}

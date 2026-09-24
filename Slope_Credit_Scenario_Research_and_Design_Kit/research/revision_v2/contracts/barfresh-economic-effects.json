@@ -1,0 +1,1002 @@
+{
+  "schema_version": "0.1.0",
+  "case_id": "barfresh_schreiber_2024",
+  "artifact_status": "prototype_design_not_running_model",
+  "source_fact_references": [
+    {
+      "fact_id": "barfresh:brfh_2024q2_10q:balance_sheet",
+      "document_id": "brfh_2024q2_10q",
+      "section": "balance_sheet",
+      "note": "Source-section reference resolved to the named archived SEC document in ../data/sources.json; section identifies the inspected financial table or note."
+    },
+    {
+      "fact_id": "barfresh:brfh_2024q2_10q:note4_litigation",
+      "document_id": "brfh_2024q2_10q",
+      "section": "note4_litigation",
+      "note": "Source-section reference resolved to the named archived SEC document in ../data/sources.json; section identifies the inspected financial table or note."
+    },
+    {
+      "fact_id": "barfresh:brfh_2024q2_10q:note9_inventory_build",
+      "document_id": "brfh_2024q2_10q",
+      "section": "note9_inventory_build",
+      "note": "Source-section reference resolved to the named archived SEC document in ../data/sources.json; section identifies the inspected financial table or note."
+    },
+    {
+      "fact_id": "barfresh:brfh_2024q3_10q:balance_sheet",
+      "document_id": "brfh_2024q3_10q",
+      "section": "balance_sheet",
+      "note": "Source-section reference resolved to the named archived SEC document in ../data/sources.json; section identifies the inspected financial table or note."
+    },
+    {
+      "fact_id": "barfresh:brfh_2024q3_10q:note4_litigation",
+      "document_id": "brfh_2024q3_10q",
+      "section": "note4_litigation",
+      "note": "Source-section reference resolved to the named archived SEC document in ../data/sources.json; section identifies the inspected financial table or note."
+    },
+    {
+      "fact_id": "barfresh:brfh_2024q3_10q:note5_line_of_credit",
+      "document_id": "brfh_2024q3_10q",
+      "section": "note5_line_of_credit",
+      "note": "Source-section reference resolved to the named archived SEC document in ../data/sources.json; section identifies the inspected financial table or note."
+    },
+    {
+      "fact_id": "barfresh:brfh_2024q3_10q:note8_capacity",
+      "document_id": "brfh_2024q3_10q",
+      "section": "note8_capacity",
+      "note": "Source-section reference resolved to the named archived SEC document in ../data/sources.json; section identifies the inspected financial table or note."
+    },
+    {
+      "fact_id": "barfresh:brfh_2024q3_10q:cash_flow_statement",
+      "document_id": "brfh_2024q3_10q",
+      "section": "cash_flow_statement",
+      "note": "Source-section reference resolved to the named archived SEC document in ../data/sources.json; section identifies the inspected financial table or note."
+    }
+  ],
+  "decision_context": {
+    "decision_id": "brfh_2024-10-25_external_event_review",
+    "mission_id": "barfresh_20241025",
+    "borrower_id": "barfresh_food_group_inc",
+    "borrower_name": "Barfresh Food Group Inc.",
+    "as_of": "2024-10-25T23:59:59-04:00",
+    "decision_timezone": "America/New_York",
+    "decision_type": "new_draw",
+    "transaction_basis": "analytical_candidate",
+    "slope_relationship": "not_established",
+    "stakeholder_scope": "loan_asset_holder",
+    "currency": "USD",
+    "requested_amount": {
+      "status": "unknown",
+      "unit": "USD_cents",
+      "value": null,
+      "lower": null,
+      "upper": null,
+      "observed_on": null,
+      "provenance": {
+        "basis": "unknown",
+        "source_fact_ids": [],
+        "assumption_id": null,
+        "derivation": null,
+        "note": "No actual October 25 loan request is public; choose an analysis amount only as a separately recorded operator assumption."
+      }
+    },
+    "requested_term_months": null,
+    "use_of_proceeds": "Analyze funding inventory and receivables conversion while replacement manufacturing capacity ramps. The actual receivables facility is the financing anchor; this is not a documented Slope application.",
+    "baseline_id": null,
+    "baseline_status": "historical_observations_only",
+    "available_actions": [
+      "requested_offer",
+      "smaller_feasible_purchase",
+      "alternative_term",
+      "conditional_offer",
+      "decline_new_exposure"
+    ],
+    "missing_inputs": [
+      "Current unrestricted bank balance on decision date",
+      "Invoice-level receivables aging, eligibility and payment dates",
+      "Dated operating cash forecast and inventory purchase plan",
+      "Requested amount and offer/payment terms",
+      "Current competing debt/payment obligations and payment allocation"
+    ],
+    "note": "June 30 and September 30 are archived financial observation dates; neither is an October 25 bank-feed observation. No modeled baseline or exact collections is fabricated."
+  },
+  "historical_observations": [
+    {
+      "observation_id": "barfresh_food_group_inc:2024-06-30:cash_and_cash_equivalents",
+      "metric": "cash_and_cash_equivalents",
+      "value": {
+        "status": "exact",
+        "unit": "USD_cents",
+        "value": 38300000,
+        "lower": null,
+        "upper": null,
+        "observed_on": "2024-06-30",
+        "provenance": {
+          "basis": "documented_evidence",
+          "source_fact_ids": [
+            "barfresh:brfh_2024q2_10q:balance_sheet"
+          ],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "Reported balance at period end, not current bank/invoice data."
+        }
+      },
+      "period_start": null,
+      "period_end": "2024-06-30",
+      "available_at": "2024-08-14T20:10:46Z",
+      "is_current_bank_observation": false
+    },
+    {
+      "observation_id": "barfresh_food_group_inc:2024-06-30:trade_receivables_net",
+      "metric": "trade_receivables_net",
+      "value": {
+        "status": "exact",
+        "unit": "USD_cents",
+        "value": 67100000,
+        "lower": null,
+        "upper": null,
+        "observed_on": "2024-06-30",
+        "provenance": {
+          "basis": "documented_evidence",
+          "source_fact_ids": [
+            "barfresh:brfh_2024q2_10q:balance_sheet"
+          ],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "Reported balance at period end, not current bank/invoice data."
+        }
+      },
+      "period_start": null,
+      "period_end": "2024-06-30",
+      "available_at": "2024-08-14T20:10:46Z",
+      "is_current_bank_observation": false
+    },
+    {
+      "observation_id": "barfresh_food_group_inc:2024-06-30:inventory_net",
+      "metric": "inventory_net",
+      "value": {
+        "status": "exact",
+        "unit": "USD_cents",
+        "value": 153400000,
+        "lower": null,
+        "upper": null,
+        "observed_on": "2024-06-30",
+        "provenance": {
+          "basis": "documented_evidence",
+          "source_fact_ids": [
+            "barfresh:brfh_2024q2_10q:balance_sheet"
+          ],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "Reported balance at period end, not current bank/invoice data."
+        }
+      },
+      "period_start": null,
+      "period_end": "2024-06-30",
+      "available_at": "2024-08-14T20:10:46Z",
+      "is_current_bank_observation": false
+    },
+    {
+      "observation_id": "barfresh_food_group_inc:2024-06-30:disputed_supplier_payable",
+      "metric": "disputed_supplier_payable",
+      "value": {
+        "status": "exact",
+        "unit": "USD_cents",
+        "value": 49900000,
+        "lower": null,
+        "upper": null,
+        "observed_on": "2024-06-30",
+        "provenance": {
+          "basis": "documented_evidence",
+          "source_fact_ids": [
+            "barfresh:brfh_2024q2_10q:balance_sheet"
+          ],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "Reported balance at period end, not current bank/invoice data."
+        }
+      },
+      "period_start": null,
+      "period_end": "2024-06-30",
+      "available_at": "2024-08-14T20:10:46Z",
+      "is_current_bank_observation": false
+    },
+    {
+      "observation_id": "barfresh_food_group_inc:2024-09-30:cash_and_cash_equivalents",
+      "metric": "cash_and_cash_equivalents",
+      "value": {
+        "status": "exact",
+        "unit": "USD_cents",
+        "value": 40100000,
+        "lower": null,
+        "upper": null,
+        "observed_on": "2024-09-30",
+        "provenance": {
+          "basis": "documented_evidence",
+          "source_fact_ids": [
+            "barfresh:brfh_2024q3_10q:balance_sheet"
+          ],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "Reported balance at period end, not current bank/invoice data."
+        }
+      },
+      "period_start": null,
+      "period_end": "2024-09-30",
+      "available_at": "2024-10-24T20:10:34Z",
+      "is_current_bank_observation": false
+    },
+    {
+      "observation_id": "barfresh_food_group_inc:2024-09-30:trade_receivables_net",
+      "metric": "trade_receivables_net",
+      "value": {
+        "status": "exact",
+        "unit": "USD_cents",
+        "value": 166300000,
+        "lower": null,
+        "upper": null,
+        "observed_on": "2024-09-30",
+        "provenance": {
+          "basis": "documented_evidence",
+          "source_fact_ids": [
+            "barfresh:brfh_2024q3_10q:balance_sheet"
+          ],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "Reported balance at period end, not current bank/invoice data."
+        }
+      },
+      "period_start": null,
+      "period_end": "2024-09-30",
+      "available_at": "2024-10-24T20:10:34Z",
+      "is_current_bank_observation": false
+    },
+    {
+      "observation_id": "barfresh_food_group_inc:2024-09-30:inventory_net",
+      "metric": "inventory_net",
+      "value": {
+        "status": "exact",
+        "unit": "USD_cents",
+        "value": 77000000,
+        "lower": null,
+        "upper": null,
+        "observed_on": "2024-09-30",
+        "provenance": {
+          "basis": "documented_evidence",
+          "source_fact_ids": [
+            "barfresh:brfh_2024q3_10q:balance_sheet"
+          ],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "Reported balance at period end, not current bank/invoice data."
+        }
+      },
+      "period_start": null,
+      "period_end": "2024-09-30",
+      "available_at": "2024-10-24T20:10:34Z",
+      "is_current_bank_observation": false
+    },
+    {
+      "observation_id": "barfresh_food_group_inc:2024-09-30:disputed_supplier_payable",
+      "metric": "disputed_supplier_payable",
+      "value": {
+        "status": "exact",
+        "unit": "USD_cents",
+        "value": 49900000,
+        "lower": null,
+        "upper": null,
+        "observed_on": "2024-09-30",
+        "provenance": {
+          "basis": "documented_evidence",
+          "source_fact_ids": [
+            "barfresh:brfh_2024q3_10q:balance_sheet"
+          ],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "Reported balance at period end, not current bank/invoice data."
+        }
+      },
+      "period_start": null,
+      "period_end": "2024-09-30",
+      "available_at": "2024-10-24T20:10:34Z",
+      "is_current_bank_observation": false
+    },
+    {
+      "observation_id": "barfresh_food_group_inc:2024-09-30:line_of_credit_cash_borrowings",
+      "metric": "line_of_credit_cash_borrowings",
+      "value": {
+        "status": "exact",
+        "unit": "USD_cents",
+        "value": 93000000,
+        "lower": null,
+        "upper": null,
+        "observed_on": "2024-09-30",
+        "provenance": {
+          "basis": "documented_evidence",
+          "source_fact_ids": [
+            "barfresh:brfh_2024q3_10q:cash_flow_statement"
+          ],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "Reported nine-month cash-flow total; facility originated in August. Individual draw/repayment dates are not disclosed."
+        }
+      },
+      "period_start": "2024-01-01",
+      "period_end": "2024-09-30",
+      "available_at": "2024-10-24T20:10:34Z",
+      "is_current_bank_observation": false
+    },
+    {
+      "observation_id": "barfresh_food_group_inc:2024-09-30:line_of_credit_cash_repayments",
+      "metric": "line_of_credit_cash_repayments",
+      "value": {
+        "status": "exact",
+        "unit": "USD_cents",
+        "value": 84700000,
+        "lower": null,
+        "upper": null,
+        "observed_on": "2024-09-30",
+        "provenance": {
+          "basis": "documented_evidence",
+          "source_fact_ids": [
+            "barfresh:brfh_2024q3_10q:cash_flow_statement"
+          ],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "Reported nine-month cash-flow total; facility originated in August. Individual draw/repayment dates are not disclosed."
+        }
+      },
+      "period_start": "2024-01-01",
+      "period_end": "2024-09-30",
+      "available_at": "2024-10-24T20:10:34Z",
+      "is_current_bank_observation": false
+    }
+  ],
+  "loan_terms": {
+    "loan_id": "barfresh_receivables_facility_2024",
+    "borrower_id": "barfresh_food_group_inc",
+    "terms_basis": "public_disclosure",
+    "product_type": "receivables_revolver",
+    "facility_limit": {
+      "status": "exact",
+      "unit": "USD_cents",
+      "value": 150000000,
+      "lower": null,
+      "upper": null,
+      "observed_on": "2024-09-30",
+      "provenance": {
+        "basis": "documented_evidence",
+        "source_fact_ids": [
+          "barfresh:brfh_2024q3_10q:note5_line_of_credit"
+        ],
+        "assumption_id": null,
+        "derivation": null,
+        "note": "Facility commitment; not automatically drawable cash."
+      }
+    },
+    "principal_outstanding": {
+      "status": "exact",
+      "unit": "USD_cents",
+      "value": 10000000,
+      "lower": null,
+      "upper": null,
+      "observed_on": "2024-09-30",
+      "provenance": {
+        "basis": "model_derived",
+        "source_fact_ids": [
+          "barfresh:brfh_2024q3_10q:note5_line_of_credit"
+        ],
+        "assumption_id": null,
+        "derivation": "8600000 + 1400000 = 10000000 cents",
+        "note": "Gross amount inferred from $86,000 carrying amount net of $14,000 deferred financing cost; reconcile separately to cash-flow totals."
+      }
+    },
+    "interest_index": "US_prime",
+    "annual_spread": {
+      "status": "exact",
+      "unit": "decimal_rate",
+      "value": "0.012",
+      "lower": null,
+      "upper": null,
+      "observed_on": "2024-09-30",
+      "provenance": {
+        "basis": "documented_evidence",
+        "source_fact_ids": [
+          "barfresh:brfh_2024q3_10q:note5_line_of_credit"
+        ],
+        "assumption_id": null,
+        "derivation": null,
+        "note": "Reported annual spread over prime."
+      }
+    },
+    "reported_all_in_annual_rate": {
+      "status": "exact",
+      "unit": "decimal_rate",
+      "value": "0.092",
+      "lower": null,
+      "upper": null,
+      "observed_on": "2024-09-30",
+      "provenance": {
+        "basis": "documented_evidence",
+        "source_fact_ids": [
+          "barfresh:brfh_2024q3_10q:note5_line_of_credit"
+        ],
+        "assumption_id": null,
+        "derivation": null,
+        "note": "Reported rate at September 30 only; not automatically the October 25 rate."
+      }
+    },
+    "advance_rate": {
+      "status": "exact",
+      "unit": "decimal_fraction",
+      "value": "0.90",
+      "lower": null,
+      "upper": null,
+      "observed_on": "2024-09-30",
+      "provenance": {
+        "basis": "documented_evidence",
+        "source_fact_ids": [
+          "barfresh:brfh_2024q3_10q:note5_line_of_credit"
+        ],
+        "assumption_id": null,
+        "derivation": null,
+        "note": "Up to 90% of eligible customer account balances."
+      }
+    },
+    "eligible_receivables_amount": {
+      "status": "unknown",
+      "unit": "USD_cents",
+      "value": null,
+      "lower": null,
+      "upper": null,
+      "observed_on": null,
+      "provenance": {
+        "basis": "unknown",
+        "source_fact_ids": [],
+        "assumption_id": null,
+        "derivation": null,
+        "note": "Net reported receivables are not an invoice eligibility certificate."
+      }
+    },
+    "reported_undrawn_availability": {
+      "status": "exact",
+      "unit": "USD_cents",
+      "value": 140000000,
+      "lower": null,
+      "upper": null,
+      "observed_on": "2024-09-30",
+      "provenance": {
+        "basis": "documented_evidence",
+        "source_fact_ids": [
+          "barfresh:brfh_2024q3_10q:note5_line_of_credit"
+        ],
+        "assumption_id": null,
+        "derivation": null,
+        "note": "Reported as available on September 30; not a verified borrowing base at October 25."
+      }
+    },
+    "maturity": {
+      "status": "exact",
+      "unit": "date",
+      "value": "2025-09-05",
+      "lower": null,
+      "upper": null,
+      "observed_on": "2024-09-30",
+      "provenance": {
+        "basis": "documented_evidence",
+        "source_fact_ids": [
+          "barfresh:brfh_2024q3_10q:note5_line_of_credit"
+        ],
+        "assumption_id": null,
+        "derivation": null,
+        "note": "Reported termination date with automatic renewal absent notice."
+      }
+    },
+    "automatic_renewal_reported": true,
+    "fees": [
+      {
+        "name": "collateral_fee",
+        "rate": {
+          "status": "exact",
+          "unit": "decimal_rate",
+          "value": "0.0015",
+          "lower": null,
+          "upper": null,
+          "observed_on": "2024-09-30",
+          "provenance": {
+            "basis": "documented_evidence",
+            "source_fact_ids": [
+              "barfresh:brfh_2024q3_10q:note5_line_of_credit"
+            ],
+            "assumption_id": null,
+            "derivation": null,
+            "note": "0.15% reported; fee base and frequency are not specified in this disclosure."
+          }
+        },
+        "basis": "unknown",
+        "frequency": "unknown"
+      }
+    ],
+    "schedule_status": "unknown",
+    "contractual_schedule": [],
+    "payment_allocation_rule": "unknown",
+    "collateral_summary": "Accounts receivable and inventory per public disclosure; full priority and control terms not supplied.",
+    "missing_terms": [
+      "Executed agreement and payment/sweep conventions",
+      "Current rate reset and contractual day count",
+      "Collateral fee basis/frequency",
+      "Invoice-level eligibility and current draws",
+      "Cash-flow-to-gross-principal reconciliation"
+    ],
+    "source_fact_ids": [
+      "barfresh:brfh_2024q3_10q:note5_line_of_credit"
+    ]
+  },
+  "effects": [
+    {
+      "effect_id": "E1_disputed_payable_timing",
+      "event_id": "schreiber_dispute",
+      "borrower_id": "barfresh_food_group_inc",
+      "mechanism": "existing_liability_payment_timing",
+      "finding": "$499,000 owed to the former manufacturer is withheld and remains a separately reported disputed payable. The litigation record does not establish an immediate payment date.",
+      "target_stream_ids": [
+        "pending:baseline:disputed_supplier_payable"
+      ],
+      "source_fact_ids": [
+        "barfresh:brfh_2024q3_10q:balance_sheet",
+        "barfresh:brfh_2024q3_10q:note4_litigation"
+      ],
+      "parameters": [
+        {
+          "name": "reported_disputed_balance",
+          "role": "source_anchor",
+          "value": {
+            "status": "exact",
+            "unit": "USD_cents",
+            "value": 49900000,
+            "lower": null,
+            "upper": null,
+            "observed_on": "2024-09-30",
+            "provenance": {
+              "basis": "documented_evidence",
+              "source_fact_ids": [
+                "barfresh:brfh_2024q3_10q:balance_sheet"
+              ],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Existing balance, not an incremental cash outflow."
+            }
+          }
+        },
+        {
+          "name": "conditional_payment_date",
+          "role": "model_input",
+          "value": {
+            "status": "unknown",
+            "unit": "date",
+            "value": null,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "unknown",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Not publicly established."
+            }
+          }
+        },
+        {
+          "name": "conditional_payment_amount",
+          "role": "model_input",
+          "value": {
+            "status": "unknown",
+            "unit": "USD_cents",
+            "value": null,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "unknown",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Not publicly established."
+            }
+          }
+        }
+      ],
+      "baseline_reflection": "already_in_historical_balance",
+      "proposed_operation": "reclassify_timing",
+      "application_status": "requires_parameters",
+      "activation_condition": "A sourced payment obligation or separately declared settlement sensitivity supplies amount and date.",
+      "cash_direction": "outflow",
+      "double_count_guard": "Match and replace existing payable timing; do not add the liability twice or charge a new expense.",
+      "missing_inputs": [
+        "Payment timing and amount under an operative settlement or supported scenario",
+        "Existing baseline payable cash schedule"
+      ]
+    },
+    {
+      "effect_id": "E2_legal_cost_funding",
+      "event_id": "schreiber_dispute",
+      "borrower_id": "barfresh_food_group_inc",
+      "mechanism": "expense_funding_change",
+      "finding": "Company reports nonrecourse litigation financing entered in May 2024, expected to fund pursuit of its complaint. This changes who funds future case costs; it does not establish a recovery amount or unrestricted cash advance.",
+      "target_stream_ids": [
+        "pending:baseline:future_schreiber_legal_cash_spend"
+      ],
+      "source_fact_ids": [
+        "barfresh:brfh_2024q2_10q:note4_litigation",
+        "barfresh:brfh_2024q3_10q:note4_litigation"
+      ],
+      "parameters": [
+        {
+          "name": "covered_future_legal_cash_spend",
+          "role": "model_input",
+          "value": {
+            "status": "unknown",
+            "unit": "USD_cents",
+            "value": null,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "unknown",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Not publicly established."
+            }
+          }
+        },
+        {
+          "name": "remaining_unfunded_case_cost",
+          "role": "model_input",
+          "value": {
+            "status": "unknown",
+            "unit": "USD_cents",
+            "value": null,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "unknown",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Not publicly established."
+            }
+          }
+        }
+      ],
+      "baseline_reflection": "partly_reflected",
+      "proposed_operation": "replace_future_forecast",
+      "application_status": "requires_parameters",
+      "activation_condition": "Match the baseline case-cost forecast and establish financing coverage; historical costs before May remain historical.",
+      "cash_direction": "mixed",
+      "double_count_guard": "Do not extrapolate pre-funding case expense then charge it again; do not eliminate unrelated legal expenses or book lawsuit proceeds.",
+      "missing_inputs": [
+        "Baseline future case-cost forecast",
+        "Coverage limits and cash-payment mechanics of litigation financing"
+      ]
+    },
+    {
+      "effect_id": "E3_capacity_receipt_timing",
+      "event_id": "schreiber_dispute",
+      "borrower_id": "barfresh_food_group_inc",
+      "mechanism": "receipt_timing_change",
+      "finding": "The supplier dispute constrained bottle supply; company expects additional contracted capacity to start in Q4 2024. Expected capacity is not completed production or collected sales.",
+      "target_stream_ids": [
+        "pending:baseline:affected_bottle_sales_receipts"
+      ],
+      "source_fact_ids": [
+        "barfresh:brfh_2024q3_10q:note4_litigation",
+        "barfresh:brfh_2024q3_10q:note8_capacity"
+      ],
+      "parameters": [
+        {
+          "name": "affected_receipts",
+          "role": "model_input",
+          "value": {
+            "status": "unknown",
+            "unit": "USD_cents",
+            "value": null,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "unknown",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Not publicly established."
+            }
+          }
+        },
+        {
+          "name": "ramp_delay_days",
+          "role": "sensitivity_input",
+          "value": {
+            "status": "unknown",
+            "unit": "days",
+            "value": null,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "unknown",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Not publicly established."
+            }
+          }
+        },
+        {
+          "name": "affected_sales_share",
+          "role": "model_input",
+          "value": {
+            "status": "unknown",
+            "unit": "decimal_fraction",
+            "value": null,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "unknown",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Not publicly established."
+            }
+          }
+        }
+      ],
+      "baseline_reflection": "partly_reflected",
+      "proposed_operation": "shift_cash_receipts",
+      "application_status": "requires_parameters",
+      "activation_condition": "A funded purchase plan and receipt forecast identify which cash flows depend on replacement manufacturing and their expected dates.",
+      "cash_direction": "timing_only",
+      "double_count_guard": "Move delayed receipts rather than deleting them and adding new receipts; no blanket haircut from the supplier's historical production share.",
+      "missing_inputs": [
+        "Affected product/channel sales and customer payment terms",
+        "Actual production milestones",
+        "Baseline receipt schedule"
+      ]
+    },
+    {
+      "effect_id": "E4_inventory_conversion",
+      "event_id": "schreiber_dispute",
+      "borrower_id": "barfresh_food_group_inc",
+      "mechanism": "inventory_conversion",
+      "finding": "H1 cash use included $320,000 inventory build. Inventory was $1.534m at June 30 and $770k at September 30; these are dated stock balances and cannot directly establish current cash receipts.",
+      "target_stream_ids": [
+        "pending:baseline:inventory_purchase_and_conversion"
+      ],
+      "source_fact_ids": [
+        "barfresh:brfh_2024q2_10q:note9_inventory_build",
+        "barfresh:brfh_2024q2_10q:balance_sheet",
+        "barfresh:brfh_2024q3_10q:balance_sheet"
+      ],
+      "parameters": [
+        {
+          "name": "historical_h1_inventory_build_cash",
+          "role": "source_anchor",
+          "value": {
+            "status": "exact",
+            "unit": "USD_cents",
+            "value": 32000000,
+            "lower": null,
+            "upper": null,
+            "observed_on": "2024-06-30",
+            "provenance": {
+              "basis": "documented_evidence",
+              "source_fact_ids": [
+                "barfresh:brfh_2024q2_10q:note9_inventory_build"
+              ],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Already included in historical operating cash flow."
+            }
+          }
+        },
+        {
+          "name": "inventory_at_last_reported_date",
+          "role": "source_anchor",
+          "value": {
+            "status": "exact",
+            "unit": "USD_cents",
+            "value": 77000000,
+            "lower": null,
+            "upper": null,
+            "observed_on": "2024-09-30",
+            "provenance": {
+              "basis": "documented_evidence",
+              "source_fact_ids": [
+                "barfresh:brfh_2024q3_10q:balance_sheet"
+              ],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "September balance, not October stock count."
+            }
+          }
+        },
+        {
+          "name": "current_saleable_inventory",
+          "role": "model_input",
+          "value": {
+            "status": "unknown",
+            "unit": "USD_cents",
+            "value": null,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "unknown",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Not publicly established."
+            }
+          }
+        },
+        {
+          "name": "inventory_conversion_days",
+          "role": "sensitivity_input",
+          "value": {
+            "status": "unknown",
+            "unit": "days",
+            "value": null,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "unknown",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Not publicly established."
+            }
+          }
+        }
+      ],
+      "baseline_reflection": "already_in_historical_cashflow",
+      "proposed_operation": "convert_inventory_to_receipts",
+      "application_status": "requires_parameters",
+      "activation_condition": "Identify saleable units, their cost, expected sales, customer collection timing, and incremental inventory to be financed.",
+      "cash_direction": "mixed",
+      "double_count_guard": "Do not re-spend the historical $320,000 or treat inventory decrease as identical cash receipts.",
+      "missing_inputs": [
+        "Current inventory composition and saleability",
+        "Purchase plan, sales margins and collection timing"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "S1_documented_ramp_conditions",
+      "decision_id": "brfh_2024-10-25_external_event_review",
+      "baseline_id": null,
+      "label": "Replacement capacity comes online within the supported operating plan",
+      "conditions": [
+        "Borrower-specific operating inputs must establish actual ramp and collection dates.",
+        "No litigation recovery is assumed as a repayment source."
+      ],
+      "effect_ids": [
+        "E1_disputed_payable_timing",
+        "E2_legal_cost_funding",
+        "E3_capacity_receipt_timing",
+        "E4_inventory_conversion"
+      ],
+      "parameter_overrides": [],
+      "probability": {
+        "status": "unknown",
+        "unit": "decimal_fraction",
+        "value": null,
+        "lower": null,
+        "upper": null,
+        "observed_on": null,
+        "provenance": {
+          "basis": "unknown",
+          "source_fact_ids": [],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "No calibrated or operator-supplied scenario weight. Jev confidence cannot supply it."
+        }
+      },
+      "payment_behavior": "unknown",
+      "forecast_status": "requires_inputs",
+      "is_realized_outcome": false
+    },
+    {
+      "scenario_id": "S2_delayed_ramp_sensitivity",
+      "decision_id": "brfh_2024-10-25_external_event_review",
+      "baseline_id": null,
+      "label": "Capacity-dependent receipts arrive later",
+      "conditions": [
+        "Operator must specify an explicit delay sensitivity; no delay number is silently inferred from legal severity.",
+        "Costs and financed purchase size must be updated consistently with the delayed operating plan."
+      ],
+      "effect_ids": [
+        "E1_disputed_payable_timing",
+        "E2_legal_cost_funding",
+        "E3_capacity_receipt_timing",
+        "E4_inventory_conversion"
+      ],
+      "parameter_overrides": [],
+      "probability": {
+        "status": "unknown",
+        "unit": "decimal_fraction",
+        "value": null,
+        "lower": null,
+        "upper": null,
+        "observed_on": null,
+        "provenance": {
+          "basis": "unknown",
+          "source_fact_ids": [],
+          "assumption_id": null,
+          "derivation": null,
+          "note": "No calibrated or operator-supplied scenario weight. Jev confidence cannot supply it."
+        }
+      },
+      "payment_behavior": "unknown",
+      "forecast_status": "requires_inputs",
+      "is_realized_outcome": false
+    }
+  ],
+  "decision_result": {
+    "decision_id": "brfh_2024-10-25_external_event_review",
+    "result_status": "insufficient_inputs",
+    "preferred_action_id": null,
+    "action_results": [],
+    "policy_basis": "none",
+    "policy_id": null,
+    "required_conditions": [],
+    "decisive_missing_inputs": [
+      "Current unrestricted bank balance on decision date",
+      "Invoice-level receivables aging, eligibility and payment dates",
+      "Dated operating cash forecast and inventory purchase plan",
+      "Requested amount and offer/payment terms",
+      "Current competing debt/payment obligations and payment allocation"
+    ],
+    "summary": "Research packet identifies model adjustments and known financing terms. It does not yet establish a current baseline or an actual requested draw, so no lending verdict, payment curve, or exact safe limit has been calculated."
+  },
+  "loan_cashflow_export": {
+    "export_id": "brfh_placeholder_export",
+    "loan_id": "barfresh_receivables_facility_2024",
+    "borrower_id": "barfresh_food_group_inc",
+    "decision_id": "brfh_2024-10-25_external_event_review",
+    "as_of": "2024-10-25T23:59:59-04:00",
+    "currency": "USD",
+    "cashflow_type": "conditional",
+    "status": "not_computable",
+    "scenario_id": "S1_documented_ramp_conditions",
+    "baseline_id": null,
+    "scenario_weights": [],
+    "rows": [],
+    "terminal_unresolved_principal": {
+      "status": "unknown",
+      "unit": "USD_cents",
+      "value": null,
+      "lower": null,
+      "upper": null,
+      "observed_on": null,
+      "provenance": {
+        "basis": "unknown",
+        "source_fact_ids": [],
+        "assumption_id": null,
+        "derivation": null,
+        "note": "No current-dated exposure and collection simulation has run."
+      }
+    },
+    "missing_inputs": [
+      "Current unrestricted bank balance on decision date",
+      "Invoice-level receivables aging, eligibility and payment dates",
+      "Dated operating cash forecast and inventory purchase plan",
+      "Requested amount and offer/payment terms",
+      "Current competing debt/payment obligations and payment allocation"
+    ],
+    "stakeholder_scope": "loan_asset_holder"
+  }
+}

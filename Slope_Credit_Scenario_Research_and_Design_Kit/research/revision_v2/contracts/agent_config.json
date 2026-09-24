@@ -1,0 +1,426 @@
+{
+  "configuration_id": "slope_external_event_cashflow_investigation",
+  "configuration_version": "2.0.1-design",
+  "status": "design_template_not_implemented_or_live_validated",
+  "scope": "One local investigation of a real borrower and a proposed new discretionary advance, followed by loan cash-flow scenario comparison and independent review. Analysis candidates are not claims of actual Slope offers or customers.",
+  "default_mission": {
+    "case_id": "synergy_chc_2024",
+    "borrower": "Synergy CHC Corp.",
+    "decision_date": "2024-08-13",
+    "as_of": "2024-08-13T23:59:59-04:00",
+    "decision_timezone": "America/New_York",
+    "cutoff_precision": "Conservative end of the disclosed filing date; not an asserted intraday SEC acceptance timestamp or actual loan-decision time.",
+    "financial_measurement_date": "2024-06-30",
+    "updated_cash_measurement_date": "2024-08-12",
+    "updated_cash_precision": "Approximately USD 2 million, as disclosed by management; not an exact current bank balance or a reconciliation of every post-June cash movement.",
+    "financial_filing_publication_date": "2024-08-13",
+    "source_ids": [
+      "synergy_s1a_20240813",
+      "synergy_merchant_agreement_20240501",
+      "synergy_court_20230227"
+    ],
+    "mission_type": "new_discretionary_advance",
+    "loan_terms_basis": "analysis_candidate",
+    "relationship_claim": "No claim that Synergy is or was a Slope customer, applied to Slope, received this offer, or qualified for a particular partner program.",
+    "product_selection": "Compare explicitly modeled fixed-installment working-capital offers compatible with Slope's product family. Do not describe current partner marketing terms as an offer available to Synergy in August 2024. Store the actual existing merchant loan under its own sales-linked contract logic.",
+    "existing_merchant_loan_role": "The May 1 WebBank loan, described by the issuer as Shopify Capital, is an existing obligation and a contract-engine test: USD 370000 advanced, USD 418100 total contractual repayment, remittance from 25 percent of defined Shopify Account Credits. Section 4.1.1 requires a 30 percent Minimum Payment in months 1-6 and an additional 30 percent Minimum Payment in months 7-12, with total repayment at least 60 percent by month 12 and full payment by the end of month 18. Section 4.2(b) computes each period top-up from Daily Payments in that six-month period; do not replace the second-period rule with a cumulative 60 percent test that credits first-period excess. All dates run from the effective funding date, not automatically the agreement date. This sales-linked existing loan is not the proposed Slope-style fixed-installment loan.",
+    "mission_id": "synergy_chc_2024_working_capital_advance"
+  },
+  "transfer_mission": {
+    "case_id": "barfresh_schreiber_2024",
+    "borrower": "Barfresh Food Group Inc.",
+    "as_of": "2024-10-25T23:59:59-04:00",
+    "decision_timezone": "America/New_York",
+    "financial_measurement_date": "2024-09-30",
+    "financial_filing_publication_date": "2024-10-24",
+    "source_id": "brfh_2024q3_10q",
+    "source_accepted_at": "2024-10-24T20:10:34Z",
+    "financing_basis": "Analysis candidate for new inventory funding alongside the documented receivables facility; no actual Slope relationship asserted.",
+    "mission_type": "new_discretionary_advance",
+    "loan_terms_basis": "analysis_candidate",
+    "mission_id": "barfresh_2024_inventory_advance"
+  },
+  "runtime": {
+    "python": "3.12",
+    "dependency_manager": "uv",
+    "lock_policy": "Create and retain uv.lock after a local authentication and custom-tool smoke test; do not claim package compatibility merely from this design file.",
+    "source_verified_versions": {
+      "verified_on": "2026-09-24",
+      "claude_model_ids": {
+        "values": [
+          "claude-opus-5-5",
+          "claude-sonnet-5"
+        ],
+        "source": "https://platform.claude.com/docs/en/models/overview",
+        "scope": "The official provider lists these IDs. This does not establish their availability in the user's authenticated subscription runtime, and an ID is not proof of immutable underlying weights."
+      },
+      "claude_agent_sdk": {
+        "value": "0.2.159",
+        "source": "https://pypi.org/project/claude-agent-sdk/0.2.159/"
+      },
+      "typesafe_sdk": {
+        "value": "0.7.1",
+        "source": "https://pypi.org/project/typesafe-sdk/0.7.1/"
+      },
+      "jev": {
+        "value": "jev-1.13.0",
+        "source": "https://docs.typesafe.ai/models"
+      }
+    },
+    "local_smoke_test_gate": {
+      "status": "not_run",
+      "reason": "This deliverable is a design contract. No subscription session, model request or SDK installation was performed.",
+      "must_pass_before_case_execution": [
+        "Install the exact requested SDK versions and freeze resolved dependencies; record SDK and bundled CLI versions.",
+        "Verify native subscription authentication with no unintended API-provider overrides and confirm the requested main model is available.",
+        "Invoke a harmless scoped MCP tool through ClaudeSDKClient and receive valid schema-constrained output; verify built-in and ambient tools are unavailable.",
+        "Make one focused Jev request using the pinned model and preserve its returned model, typed answer and raw response.",
+        "Confirm the chosen reviewer can read the complete eligible evidence bundle and cannot read outcome or answer files."
+      ],
+      "failure_behavior": "Stop before case execution with FAILED_CONFIGURATION. Select any runtime/model change explicitly and record a revised configuration; never silently switch to metered inference."
+    },
+    "main_agent": {
+      "provider_runtime": "official_claude_agent_sdk",
+      "package_pin": "claude-agent-sdk==0.2.159",
+      "authentication": "native_claude_subscription",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "paid_api_fallback": false,
+      "model_substitution_policy": "If the specified model is unavailable, stop for explicit local configuration selection. Record the actual model used; do not silently substitute a different model or metered provider.",
+      "native_sdk_options": {
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "tools": [],
+        "strict_mcp_config": true,
+        "allowed_tools": [
+          "mcp__credit__get_mission",
+          "mcp__credit__read_baseline_profile",
+          "mcp__credit__read_loan_terms",
+          "mcp__credit__search_evidence",
+          "mcp__credit__read_source_section",
+          "mcp__credit__judge_evidence",
+          "mcp__credit__record_finding",
+          "mcp__credit__record_gap",
+          "mcp__credit__propose_patch",
+          "mcp__credit__run_scenarios",
+          "mcp__credit__compare_offers",
+          "mcp__credit__request_missing_fact",
+          "mcp__credit__submit_decision_packet"
+        ],
+        "permission_mode": "dontAsk",
+        "setting_sources": [],
+        "max_turns": 40
+      },
+      "runtime_bindings_required": {
+        "mcp_servers": "Inject exactly one scoped credit MCP server into ClaudeAgentOptions.mcp_servers. No ambient MCP servers.",
+        "cwd": "Create an empty per-run working directory containing no acquired corpus, prior output, outcome evidence or evaluation answers.",
+        "system_prompt": "Combine the role instruction and explicit invariants below into a custom system prompt. Do not load the coding-agent default prompt.",
+        "output_format": "Inject a concrete Pydantic-generated JSON Schema for the decision packet using the SDK's json_schema output format; no unresolved schema path is passed as a schema."
+      },
+      "prohibited_auth_paths": [
+        "ANTHROPIC_API_KEY inference",
+        "OpenAI API inference",
+        "custom OAuth token extraction or proxy",
+        "--bare",
+        "automatic paid overflow"
+      ],
+      "auth_preflight": "Confirm official subscription sign-in and detect provider/key overrides without printing values. Refuse unintended metered inference. Include the installed runtime version and chosen model in the run record."
+    },
+    "jev": {
+      "provider": "TypeSafe",
+      "package_pin": "typesafe-sdk==0.7.1",
+      "model_pin": "jev-1.13.0",
+      "integration": "direct_SDK_through_scoped_judge_evidence_tool",
+      "registry_file": "question_registry.json",
+      "authentication": "TYPESAFE_API_KEY available only to the host-side tool handler",
+      "subscription_coverage": "Separate service; Claude and ChatGPT subscriptions do not include Jev usage.",
+      "generative_model_fallback": false,
+      "version_policy": "Verify the actual returned model ID equals the pinned version and retain the raw response. Reject unexpected version changes for evaluation comparability.",
+      "retry_policy": "Use the SDK's bounded retry behavior and host deadline. Do not add a second general-purpose retry wrapper.",
+      "target_state_tokens": 6000,
+      "max_state_plus_longest_question_tokens": 32000,
+      "max_entire_request_tokens": 64000,
+      "provider_price_usd_per_million_input_tokens_at_design": "0.042",
+      "spend_cap_usd_per_run": "0.10",
+      "spend_cap_policy": "Host reserves a conservative estimated input-token charge before dispatch and reconciles actual usage. This caps Jev service spend only, not Claude/Codex subscription usage."
+    },
+    "reviewer": {
+      "preferred_runtime": "official_codex_cli_exec",
+      "authentication": "saved_ChatGPT_sign_in",
+      "model_policy": "Select an available reasoning model through the installed Codex subscription configuration; freeze that model choice for an evaluation set and record the actual identifier. No fabricated model pin.",
+      "session": "fresh",
+      "structured_output": "JSONL event log plus --output-schema with a concrete reviewer-report schema",
+      "access": "Candidate packet plus the complete admissible source interface, not just quotations chosen by the main agent.",
+      "isolation": "Use only scoped tools, or an OS-isolated directory containing the eligible review bundle. A read-only filesystem sandbox alone is not a proof of read isolation.",
+      "paid_api_fallback": false,
+      "initial_integration_alternative": "A fresh separately scoped Claude subscription session with model claude-sonnet-5 may review the first milestone. Configure this choice explicitly before the run; it is not a silent failure fallback.",
+      "max_repair_cycles": 1
+    }
+  },
+  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Select the next research action adaptively. Establish the relevant repayment mechanism, translate supported facts into explicit scenario patches, and compare the permitted offers using the financial engine. Jev supplies focused evidence judgments; you reconcile them and reason about the business. Code computes dates, money, schedules and cash flows. Finish with a concrete recommended action or the exact unresolved input that prevents choosing one. Do not claim to send an offer, change an account, or know Slope's private policy.",
+  "invariants": [
+    "Start with the same baseline profile, existing obligations, decision date and candidate financing request for the before/after comparison.",
+    "Keep borrower cash flows, contractual loan payments, scenario collections and funding-facility cash flows distinct.",
+    "Use only evidence admitted by the host's snapshot rules. Do not use remembered future outcomes.",
+    "All amounts, dates and parameter values have reported, derived or operator-assumption basis; unknown remains unknown.",
+    "Use source-supported ranges or named scenario parameters where exact values are unavailable. Never silently interpolate financial statements into daily historical facts.",
+    "Do not turn Jev confidence or lawsuit severity into default probabilities or dollar adjustments.",
+    "Track legal-entity, asset, product, channel and period scope for every adjustment.",
+    "Reconcile every patch with baseline entries to prevent double counting; preserve associated avoided costs, recoveries and delayed receipts.",
+    "Do not automatically rewrite existing contractual payments, assume new creditor seniority, or freeze committed credit.",
+    "Do not label loan principal collections or all interest as Slope corporate revenue; use the selected stakeholder accounting scope.",
+    "Do not assume lower principal is always safer; financed inventory and resulting receipts must respond to the action chosen.",
+    "A missing incidental fact need not block the decision. A pivotal missing fact requires its exact question and the action consequences of alternative answers.",
+    "Runtime or quota failure means incomplete investigation, not an adverse borrower recommendation."
+  ],
+  "tools": {
+    "host_scope": [
+      "run_id",
+      "case_id",
+      "snapshot_id",
+      "evidence_manifest_hash",
+      "baseline_version",
+      "policy_version"
+    ],
+    "scope_enforcement": "The host binds scope at run creation. Tools do not accept arbitrary filesystem paths, database names, network endpoints, case IDs or later cutoffs from the model.",
+    "read_tools": {
+      "get_mission": "Construct a fresh mission object using mission_projection.allowed_case_fields and allowed_run_input_fields only. Never return the raw mission/configuration object. Return the financing question, use of proceeds, allowed policy/product references and cutoff without evaluator expectations or future hints.",
+      "read_baseline_profile": "Read source-backed opening balances, receipts, operating expenses, existing financing and explicit assumptions by field or stream ID.",
+      "read_loan_terms": "Return existing contractual schedules and permitted analysis-candidate schedules, with exact pricing/convention basis.",
+      "search_evidence": "Search only eligible records with source/category filters and return dated snippets and IDs. Do not reveal answer keys or future documents.",
+      "read_source_section": "Return a selected section with surrounding definitions, table headers/units and qualifications, plus source metadata."
+    },
+    "analysis_tools": {
+      "judge_evidence": "Validate selected registry entries and narrow state; call the direct TypeSafe SDK, or return a clearly identified eligible interpretation-cache hit.",
+      "record_finding": "Write a run-scoped factual or computed finding with source references, measurement dates and disposition. This is internal analysis state only.",
+      "record_gap": "Write one unresolved premise, its decision dependency, feasible next actions and whether sensitivity shows it can change the chosen offer.",
+      "propose_patch": "Validate a proposed EconomicEffect against target streams, evidence basis, existing adjustments and known double-count rules; do not silently activate an invalid effect.",
+      "run_scenarios": "Apply explicit validated effects and parameter realizations, calculate borrower capacity and loan cash flows, and return calculation references.",
+      "compare_offers": "Evaluate the permitted action menu under explicit policy and operating assumptions; return feasible actions, economics and break-even conditions.",
+      "request_missing_fact": "Record the exact requested fact/document and the action consequences. This tool sends no communication.",
+      "submit_decision_packet": "Validate and lock the candidate evidence, patch, scenario, offer and calculation versions; then enqueue independent review. No actual lending action."
+    },
+    "disallowed_capabilities": [
+      "unscoped shell or code execution by the agent",
+      "generic filesystem access",
+      "unrestricted browser or network search during historical runs",
+      "reading outcome stores, old reports, goldens or another run's mutable facts",
+      "posting messages, email or borrower requests",
+      "writing to Slope, bank, marketplace or servicing systems",
+      "making offers, moving funds, changing limits or editing existing contracts",
+      "changing model/provider/auth configuration during the run"
+    ]
+  },
+  "budgets": {
+    "main_agent_max_turns": 40,
+    "jev_max_requests_including_retries": 30,
+    "main_investigation_wall_clock_seconds": 600,
+    "review_wall_clock_seconds": 300,
+    "total_wall_clock_seconds_including_one_repair": 1200,
+    "consecutive_no_progress_actions": 3,
+    "no_progress_definition": "An action produces no new eligible evidence, no corrected finding, no resolved/narrowed gap, no new valid patch and no changed sensitivity result. Repeating the same query alone is not progress.",
+    "budget_policy": "Ceilings, not targets. Record actual elapsed time, token usage, requests and spend. Finish early when further accessible evidence cannot change the action across the stated sensitivity range."
+  },
+  "completion_and_decisions": {
+    "execution_states": [
+      "CREATED",
+      "RUNNING",
+      "CANDIDATE_READY",
+      "REVIEWING",
+      "COMPLETE_REVIEWED",
+      "INCOMPLETE_REVIEW",
+      "FAILED_CONFIGURATION"
+    ],
+    "lending_recommendation_values": [
+      "APPROVE_REQUESTED_STRUCTURE",
+      "OFFER_ALTERNATIVE_STRUCTURE",
+      "CONDITIONAL_OFFER",
+      "DECLINE_REQUEST",
+      "UNDETERMINED"
+    ],
+    "review_dispositions": [
+      "PASS",
+      "REPAIR_REQUIRED",
+      "UNRESOLVED_MATERIAL_ERROR"
+    ],
+    "failure_mapping": {
+      "missing_subscription_auth_or_unintended_api_provider": "FAILED_CONFIGURATION",
+      "missing_required_jev_credential_before_agent_plus_jev_run": "FAILED_CONFIGURATION",
+      "quota_or_deadline_exhaustion": "INCOMPLETE_REVIEW",
+      "unrecoverable_source_or_model_service_failure": "INCOMPLETE_REVIEW",
+      "unresolved_material_review_error_after_one_repair": "INCOMPLETE_REVIEW"
+    },
+    "failure_recommendation_policy": "Keep any prior provisional recommendation in the trace, but do not publish it as a completed result. Set final lending recommendation UNDETERMINED unless an independently completed supported decision packet exists. Execution failure itself is never a reason for DECLINE_REQUEST.",
+    "complete_with_pivotal_gap": "A reviewed packet may finish with UNDETERMINED and a precise borrower question plus action map. It must not claim that the financing decision has been resolved.",
+    "conditional_offer_requirement": "Specify the exact condition, acceptable resolving evidence, deadline if supported, and the amount/term/schedule offered when the condition is satisfied. Generic monitoring is not a condition.",
+    "submission_requirement": "Every final action must reference the source-supported mechanisms, explicit assumptions, considered offers and financial results that justify it."
+  },
+  "state_and_replay": {
+    "run_isolation": "Facts, gaps, patches, calculations and outputs are scoped by run_id; snapshot_id alone is insufficient because repeated evaluations must not share mutable state.",
+    "final_packet": "Immutable graph of source versions, accepted findings, effects, assumption set, scenarios, calculation versions, chosen action and review report.",
+    "date_update": "Create a fresh mission/snapshot. Reuse eligible immutable observations while retaining original measurement dates; recompute time-dependent applicability and resulting cash flows.",
+    "comparison_modes": [
+      "agent_plus_jev",
+      "agent_only"
+    ],
+    "agent_only_policy": "Use the same primary model, admissible evidence, research tools, financial tools, review treatment and comparable total budgets. Remove mcp__credit__judge_evidence from exposed and allowed tools, omit the Jev registry from model context, and replace the role instruction with the agent-only override. This is an explicitly selected evaluation arm, never a service-failure fallback."
+  },
+  "cache": {
+    "algorithm": "SHA-256 over canonical JSON; preserve numeric units and string values",
+    "immutable_interpretation": {
+      "key_fields": [
+        "returned_model_id",
+        "question_id",
+        "question_version",
+        "registry_version",
+        "exact_source_content_hashes",
+        "passage_and_definition_hash",
+        "target_scope",
+        "atomic_claim",
+        "proposed_finding_if_used",
+        "all_other_semantically_used_state_values"
+      ],
+      "exclusions": [
+        "run_id",
+        "snapshot_id",
+        "as_of only if the question genuinely does not depend on it"
+      ],
+      "eligibility_on_every_reuse": "Verify all source versions are admitted in the current snapshot and the exact relevant semantic state matches. Return original creation time and a cache-hit marker.",
+      "restriction": "Interpretations whose instructions depend on current applicability, date or active document set belong in the dated cache, not this cache."
+    },
+    "dated_application": {
+      "key_fields": [
+        "interpretation_hashes",
+        "as_of",
+        "evidence_manifest_hash",
+        "active_evidence_versions",
+        "effective_intervals",
+        "supersession_links",
+        "baseline_version",
+        "existing_loan_terms_versions",
+        "effect_versions",
+        "scenario_parameters",
+        "action_candidate_version",
+        "policy_version",
+        "calculation_engine_version"
+      ],
+      "restriction": "Never reuse across a changed key. New time alone can change applicability, debt service and funding needs even without a new document."
+    },
+    "failed_call_policy": "Never substitute a stale or ineligible cache result because a live request failed. An already eligible exact cache hit remains a normal logged operation."
+  },
+  "validation_before_live_use": [
+    "Enforce the selected case's stored source IDs and conservative date cutoffs; preserve date-only precision where no intraday acceptance timestamp is asserted.",
+    "Confirm package installation, official subscription auth, custom MCP access and JSON-schema output in the user's local runtime.",
+    "Validate every Choice criteria boundary against source-labeled examples, including unknown and combined-claim cases.",
+    "Exercise cross-run isolation, future-document exclusion and dated-cache invalidation.",
+    "Validate scenario conservation, baseline double counting and separation of contractual schedule from collection paths.",
+    "Make one actual Jev request and retain its raw versioned result before claiming a live Jev integration.",
+    "Do not publish the existing historical case's known outcome as proof that the modeled counterfactual offer was optimal.",
+    "Build the get_mission response from the explicit whitelist and assert that evaluator-only fields, future identities and expected findings cannot appear in initial agent context.",
+    "Verify case_eval_private.json is absent from both investigator and blind-reviewer filesystems and source interfaces.",
+    "For the actual merchant contract, test the second six-month Minimum Payment independently: excess first-period collections do not replace the second-period requirement under Section 4.2(b).",
+    "Verify the agent-only comparison arm removes both the Jev tool and registry-specific prompt requirements while preserving the research and financial tool set."
+  ],
+  "configuration_sources": [
+    "https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan",
+    "https://code.claude.com/docs/en/agent-sdk/python",
+    "https://learn.chatgpt.com/docs/non-interactive-mode",
+    "https://docs.typesafe.ai/models",
+    "https://docs.typesafe.ai/primitives",
+    "https://slopepay.com/blog/agents-platform",
+    "https://help.slopepay.com/en/articles/4357633",
+    "https://slopepay.com/blog/slope-amazon-sellers"
+  ],
+  "case_source_references": [
+    {
+      "source_id": "synergy_s1a_20240813",
+      "url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390024068424/ea0208324-04.htm",
+      "publication_date": "2024-08-13",
+      "sha256": "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+    },
+    {
+      "source_id": "synergy_merchant_agreement_20240501",
+      "url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390024056991/ea020832401ex10-32_synergy.htm",
+      "agreement_date": "2024-05-01",
+      "publication_date": "2024-06-28",
+      "accepted_at": "2024-06-28T15:32:30Z",
+      "filing_index_url": "https://www.sec.gov/Archives/edgar/data/1562733/000121390024056991/0001213900-24-056991-index.htm",
+      "date_note": "The agreement was publicly filed June 28 and is eligible on August 13. Its May 1 agreement date is not automatically the loan's effective funding date.",
+      "sha256": "ac8e4d3a6bb05cb51ed876299199acb7e7536f817a350209cb8298dd2b404ada"
+    },
+    {
+      "source_id": "synergy_court_20230227",
+      "url": "https://www.govinfo.gov/content/pkg/USCOURTS-med-2_22-cv-00301/pdf/USCOURTS-med-2_22-cv-00301-0.pdf",
+      "document_date": "2023-02-27",
+      "sha256": "ccdfc38167a2abf3cb18ae0c7a4c5a041bf37fe36c2057a2be9859a2148a8b21"
+    },
+    {
+      "source_id": "brfh_2024q3_10q",
+      "url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224042368/form10-q.htm",
+      "publication_date": "2024-10-24",
+      "accepted_at": "2024-10-24T20:10:34Z",
+      "sha256": "b59c1e4ef795f546bde5131dc7f374477c11942ffce86a6f85c7cf08ef9feebc"
+    }
+  ],
+  "mission_projection": {
+    "enforcement": "get_mission constructs a fresh object from the explicit whitelist below. It must not serialize the mission dictionary or the full agent configuration wholesale. Extra keys are denied by default.",
+    "allowed_case_fields": [
+      "case_id",
+      "mission_id",
+      "borrower",
+      "as_of",
+      "decision_timezone",
+      "mission_type",
+      "loan_terms_basis",
+      "relationship_claim",
+      "product_selection",
+      "financing_basis"
+    ],
+    "allowed_run_input_fields": [
+      "mission_id",
+      "requested_use",
+      "requested_amount",
+      "requested_term",
+      "requested_pricing",
+      "baseline_profile_id",
+      "existing_loan_record_ids",
+      "permitted_offer_set_id",
+      "policy_config_id",
+      "initial_event_seed"
+    ],
+    "run_input_policy": "Read these fields only from the locked operator request and ordinary baseline. Missing values remain typed unknown. An event seed may identify the borrower and disputed matter, but contains no expected conclusion, future identity, answer-bearing document order or extracted answer key. If mission_id is present in both case template and locked run inputs, they must match; a runtime override cannot switch cases.",
+    "excluded_fields": [
+      "case_specific_investigation_priorities",
+      "expected_findings_and_error_checks",
+      "transfer_tests",
+      "outcome_source_ids",
+      "outcome_source_ids_excluded_from_initial_snapshot",
+      "existing_merchant_loan_role",
+      "source_ids",
+      "source_id",
+      "case_source_references",
+      "source_accepted_at",
+      "updated_cash_precision"
+    ],
+    "financial_input_policy": "The agent obtains sourced financial observations and documented existing-loan terms through read_baseline_profile and read_loan_terms. These tools may return ordinary baseline facts with source references; they do not return evaluator conclusions or the expected event adjustments.",
+    "private_evaluation_file": "case_eval_private.json",
+    "private_evaluation_file_visibility": "host_offline_scorer_only",
+    "blind_reviewer_policy": "The reviewer sees the candidate packet and the same complete admissible evidence interface, but not this private evaluator file, answer keys, future outcomes, experimental arm labels or a predetermined preferred offer."
+  },
+  "comparison_mode_overrides": {
+    "agent_only": {
+      "remove_allowed_and_exposed_tools": [
+        "mcp__credit__judge_evidence"
+      ],
+      "expose_jev_registry": false,
+      "require_typesafe_credential": false,
+      "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Select the next research action adaptively. Establish the relevant repayment mechanism, make focused evidence judgments yourself, reconcile contradictions, translate supported facts into explicit scenario patches, and compare permitted offers using the financial engine. Code computes dates, money, schedules and cash flows. Finish with a concrete recommended action or the exact unresolved input that prevents choosing one. Do not claim to send an offer, change an account, or know Slope private policy.",
+      "evaluation_metadata_visibility": "Host scorer only; do not reveal arm labels or expected findings to the blind reviewer."
+    },
+    "agent_plus_jev": {
+      "expose_jev_registry": true,
+      "require_typesafe_credential": true,
+      "use_configured_role_instruction": true
+    }
+  }
+}

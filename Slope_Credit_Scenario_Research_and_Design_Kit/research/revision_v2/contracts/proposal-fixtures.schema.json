@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Analytical proposal fixtures",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "case_id",
+    "mission_id",
+    "artifact_status",
+    "currency",
+    "timing_basis",
+    "actual_existing_loan_id",
+    "calendar_date_rule",
+    "pricing_rule",
+    "rounding_rule",
+    "cross_year_calendar_rule",
+    "existing_debt_rule",
+    "offers"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "case_id": {
+      "type": "string"
+    },
+    "mission_id": {
+      "type": "string"
+    },
+    "artifact_status": {
+      "const": "analytical_proposals_not_historical_applications_or_slope_quotes"
+    },
+    "currency": {
+      "const": "USD"
+    },
+    "timing_basis": {
+      "type": "string"
+    },
+    "actual_existing_loan_id": {
+      "type": "string"
+    },
+    "calendar_date_rule": {
+      "type": "string"
+    },
+    "pricing_rule": {
+      "type": "string"
+    },
+    "rounding_rule": {
+      "type": "string"
+    },
+    "cross_year_calendar_rule": {
+      "type": "string"
+    },
+    "existing_debt_rule": {
+      "type": "string"
+    },
+    "offers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "proposal_id",
+          "basis",
+          "advance_cents",
+          "term_months",
+          "fixed_total_fee_fraction",
+          "fixed_total_fee_cents",
+          "total_repayment_cents",
+          "funding_month_index",
+          "capacity_condition",
+          "operating_plan_condition",
+          "payment_rows"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "proposal_id": {
+            "type": "string"
+          },
+          "basis": {
+            "const": "operator_assumption"
+          },
+          "advance_cents": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "term_months": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "fixed_total_fee_fraction": {
+            "type": "string",
+            "pattern": "^0\\.[0-9]+$"
+          },
+          "fixed_total_fee_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_repayment_cents": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "funding_month_index": {
+            "const": 0
+          },
+          "capacity_condition": {
+            "type": "string"
+          },
+          "operating_plan_condition": {
+            "type": "string"
+          },
+          "payment_rows": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "month_index",
+                "borrower_payment_cents"
+              ],
+              "properties": {
+                "month_index": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "borrower_payment_cents": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

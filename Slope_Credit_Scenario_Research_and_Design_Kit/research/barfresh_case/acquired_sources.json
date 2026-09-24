@@ -1,0 +1,206 @@
+[
+  {
+    "id": "brfh_2024q2_10q",
+    "url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224032201/form10-q.htm",
+    "publication_date": "2024-08-14",
+    "date_verification": "SEC submissions JSON",
+    "role": "decision",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/brfh_2024q2_10q.html",
+    "bytes": 548779,
+    "sha256": "9b90c4e187879d31e359ea38679341c6724316a8c59b7cfafd9d739e78d9b192",
+    "acquired_at": "2026-09-24T21:31:05.512272+00:00",
+    "accepted_at": "2024-08-14T20:10:46.000Z",
+    "cutoff_membership": {
+      "2024-08-15": true,
+      "2024-10-25": true
+    }
+  },
+  {
+    "id": "brfh_2024q2_index",
+    "url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224032201/0001493152-24-032201-index.htm",
+    "publication_date": "2024-08-14",
+    "date_verification": "SEC submissions JSON",
+    "role": "metadata",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/brfh_2024q2_index.html",
+    "bytes": 10956,
+    "sha256": "493036d6f61e136ec147827b3eb13eca33b9e5444b7dc2ac44164a1de8238ff5",
+    "acquired_at": "2026-09-24T21:31:05.497092+00:00",
+    "accepted_at": "2024-08-14T20:10:46.000Z",
+    "cutoff_membership": {
+      "2024-08-15": true,
+      "2024-10-25": true
+    }
+  },
+  {
+    "id": "brfh_2024q2_release",
+    "url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224032163/ex99-1.htm",
+    "publication_date": "2024-08-14",
+    "date_verification": "SEC submissions JSON",
+    "role": "decision",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/brfh_2024q2_release.html",
+    "bytes": 40380,
+    "sha256": "f1e36a87dd8c85d5b3052bc2e6717edb9f778775b11b88f73057db1c28df70be",
+    "acquired_at": "2026-09-24T21:31:10.820979+00:00",
+    "accepted_at": "2024-08-14T20:05:50.000Z",
+    "cutoff_membership": {
+      "2024-08-15": true,
+      "2024-10-25": true
+    }
+  },
+  {
+    "id": "brfh_2024q1_10q",
+    "url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224019816/form10-q.htm",
+    "publication_date": "2024-05-15",
+    "date_verification": "SEC submissions JSON",
+    "role": "baseline",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/brfh_2024q1_10q.html",
+    "bytes": 477753,
+    "sha256": "f833d614bd0e417ea8ec0effeb7f94b8f329ff4225c6fd445fd25b97a86eb8cb",
+    "acquired_at": "2026-09-24T21:31:11.012376+00:00",
+    "accepted_at": "2024-05-15T20:06:06.000Z",
+    "cutoff_membership": {
+      "2024-08-15": true,
+      "2024-10-25": true
+    }
+  },
+  {
+    "id": "brfh_2023_10k",
+    "url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224010975/form10-k.htm",
+    "publication_date": "2024-03-22",
+    "date_verification": "SEC submissions JSON",
+    "role": "baseline",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/brfh_2023_10k.html",
+    "bytes": 915929,
+    "sha256": "8f9262c0b9dd8567504b1337f3e86b863430817b5c66d748cddcfc8549f9c192",
+    "acquired_at": "2026-09-24T21:31:15.003013+00:00",
+    "accepted_at": "2024-03-22T20:05:41.000Z",
+    "cutoff_membership": {
+      "2024-08-15": true,
+      "2024-10-25": true
+    }
+  },
+  {
+    "id": "brfh_2024q3_10q",
+    "url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224042368/form10-q.htm",
+    "publication_date": "2024-10-24",
+    "date_verification": "SEC submissions JSON",
+    "role": "outcome",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/brfh_2024q3_10q.html",
+    "bytes": 532146,
+    "sha256": "b59c1e4ef795f546bde5131dc7f374477c11942ffce86a6f85c7cf08ef9feebc",
+    "acquired_at": "2026-09-24T21:31:15.014960+00:00",
+    "accepted_at": "2024-10-24T20:10:34.000Z",
+    "cutoff_membership": {
+      "2024-08-15": false,
+      "2024-10-25": true
+    }
+  },
+  {
+    "id": "brfh_2024q3_release",
+    "url": "https://www.sec.gov/Archives/edgar/data/1487197/000149315224042365/ex99-1.htm",
+    "publication_date": "2024-10-24",
+    "date_verification": "SEC submissions JSON",
+    "role": "outcome",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/brfh_2024q3_release.html",
+    "bytes": 52123,
+    "sha256": "15988a4b0c115b9bbc624ac35415771251e643d306aeef05af67841bd8a1a551",
+    "acquired_at": "2026-09-24T21:31:40.061693+00:00",
+    "accepted_at": "2024-10-24T20:05:17.000Z",
+    "cutoff_membership": {
+      "2024-08-15": false,
+      "2024-10-25": true
+    }
+  },
+  {
+    "id": "brfh_2024_10k",
+    "url": "https://www.sec.gov/Archives/edgar/data/1487197/000164117225000931/form10-k.htm",
+    "publication_date": "2025-03-27",
+    "date_verification": "SEC submissions JSON",
+    "role": "outcome",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/brfh_2024_10k.html",
+    "bytes": 869484,
+    "sha256": "b2365818887a9c00eb41fd0b0248eac096a2e2a14fe6be328de32009dd4eafb3",
+    "acquired_at": "2026-09-24T21:31:20.597946+00:00",
+    "accepted_at": "2025-03-27T20:10:21.000Z",
+    "cutoff_membership": {
+      "2024-08-15": false,
+      "2024-10-25": false
+    }
+  },
+  {
+    "id": "brfh_2025q1_10q",
+    "url": "https://www.sec.gov/Archives/edgar/data/1487197/000164117225008101/form10-q.htm",
+    "publication_date": "2025-05-01",
+    "date_verification": "SEC submissions JSON",
+    "role": "outcome",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/brfh_2025q1_10q.html",
+    "bytes": 444910,
+    "sha256": "04a109bf49cbc33010fa4bc0753ed64a8519c1afb11879ec624153e1a2afe8c1",
+    "acquired_at": "2026-09-24T21:31:35.297915+00:00",
+    "accepted_at": "2025-05-01T20:10:19.000Z",
+    "cutoff_membership": {
+      "2024-08-15": false,
+      "2024-10-25": false
+    }
+  },
+  {
+    "id": "brfh_sec_submissions",
+    "url": "https://data.sec.gov/submissions/CIK0001487197.json",
+    "publication_date": null,
+    "date_verification": "title/signature except metadata; verify index before runtime",
+    "role": "metadata",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/brfh_sec_submissions.json",
+    "bytes": 81830,
+    "sha256": "05b4922b44ffdaf1717d38599a912bf602ba36eb8cdb37566f50a3194142c51f",
+    "acquired_at": "2026-09-24T21:31:40.125332+00:00",
+    "cutoff_membership": {},
+    "runtime_use": "Provenance/date metadata only, never credit evidence"
+  },
+  {
+    "id": "jctc_2023q3_10q",
+    "url": "https://www.sec.gov/Archives/edgar/data/885307/000107997323000950/jctc_10q-053123.htm",
+    "publication_date": "2023-07-14",
+    "date_verification": "title/signature except metadata; verify index before runtime",
+    "role": "backup_baseline",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/jctc_2023q3_10q.html",
+    "bytes": 510695,
+    "sha256": "66bd746e4e3b7b6b87a3bf9552fea5003b25c4fcf06a662c98a30379fc70658d",
+    "acquired_at": "2026-09-24T21:31:44.466105+00:00"
+  },
+  {
+    "id": "jctc_2023_10k",
+    "url": "https://www.sec.gov/Archives/edgar/data/885307/000107997323001665/jctcf_10k-083123.htm",
+    "publication_date": "2023-11-29",
+    "date_verification": "title/signature except metadata; verify index before runtime",
+    "role": "backup_outcome",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/jctc_2023_10k.html",
+    "bytes": 868577,
+    "sha256": "802548be37a4a1c500fd4ae007da455ddede9114597db0484d0aa154d1ed55c2",
+    "acquired_at": "2026-09-24T21:31:45.497406+00:00"
+  },
+  {
+    "id": "jctc_2024_10k",
+    "url": "https://www.sec.gov/Archives/edgar/data/885307/000107997324001598/jctcf_10k-083124.htm",
+    "publication_date": "2024-11-21",
+    "date_verification": "title/signature except metadata; verify index before runtime",
+    "role": "backup_outcome",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/jctc_2024_10k.html",
+    "bytes": 902753,
+    "sha256": "a17a9d432c84e6d3e598bfa571d619060d6d983aed71a1ba15ce79a321ba7900",
+    "acquired_at": "2026-09-24T21:31:48.613418+00:00"
+  },
+  {
+    "id": "brfh_2024_08_13_litigation_funding",
+    "url": "https://www.globenewswire.com/news-release/2024/08/13/2929191/35326/en/barfresh-announces-non-recourse-non-dilutive-litigation-financing.html",
+    "publication_date": "2024-08-13",
+    "role": "decision",
+    "path": "/workspace/scratch/e858ce687100/research/barfresh_case/brfh_2024_08_13_litigation_funding.html",
+    "bytes": 60086,
+    "sha256": "f127e0364cd367eab1b3fde47e577dc032dff1683eab231a11a5c3958ad5cea3",
+    "acquired_at": "2026-09-24T21:34:03.645606+00:00",
+    "cutoff_membership": {
+      "2024-08-15": true,
+      "2024-10-25": true
+    }
+  }
+]
