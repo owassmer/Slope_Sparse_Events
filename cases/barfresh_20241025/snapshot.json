@@ -1,0 +1,47 @@
+{
+  "snapshot_id": "barfresh_20241025",
+  "case_id": "barfresh_schreiber_2024",
+  "note": "Cutoff and source membership come from the kit's data/sources.json (mission barfresh_20241025). This file only supplies neutral display metadata for admissible sources.",
+  "source_display": {
+    "brfh_2023_10k": {
+      "title": "Barfresh Food Group Inc. Form 10-K for fiscal year 2023",
+      "document_kind": "sec_annual_report",
+      "publisher": "SEC EDGAR"
+    },
+    "brfh_2024q1_10q": {
+      "title": "Barfresh Food Group Inc. Form 10-Q for the quarter ended March 31, 2024",
+      "document_kind": "sec_quarterly_report",
+      "publisher": "SEC EDGAR"
+    },
+    "brfh_2024q2_10q": {
+      "title": "Barfresh Food Group Inc. Form 10-Q for the quarter ended June 30, 2024",
+      "document_kind": "sec_quarterly_report",
+      "publisher": "SEC EDGAR"
+    },
+    "brfh_2024q2_index": {
+      "title": "SEC EDGAR filing index for the Barfresh Q2 2024 Form 10-Q",
+      "document_kind": "sec_filing_index",
+      "publisher": "SEC EDGAR"
+    },
+    "brfh_2024q2_release": {
+      "title": "Barfresh second quarter 2024 results press release",
+      "document_kind": "press_release",
+      "publisher": "Barfresh Food Group Inc."
+    },
+    "brfh_2024_08_13_litigation_funding": {
+      "title": "Barfresh announces non-recourse non-dilutive litigation financing",
+      "document_kind": "press_release",
+      "publisher": "GlobeNewswire"
+    },
+    "brfh_2024q3_10q": {
+      "title": "Barfresh Food Group Inc. Form 10-Q for the quarter ended September 30, 2024",
+      "document_kind": "sec_quarterly_report",
+      "publisher": "SEC EDGAR"
+    },
+    "brfh_2024q3_release": {
+      "title": "Barfresh third quarter 2024 results press release",
+      "document_kind": "press_release",
+      "publisher": "Barfresh Food Group Inc."
+    }
+  }
+}

@@ -21,6 +21,7 @@ dependencies = [
     "jinja2>=3.1",
     # CLI
     "typer>=0.12",
+    "pypdf>=6.19.0",
 ]
 
 [dependency-groups]

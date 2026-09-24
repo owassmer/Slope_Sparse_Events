@@ -10,4 +10,6 @@ Start with `Slope_Coding_Agent_Context_and_Alignment.md`, then `Slope_Credit_Sce
 ```sh
 uv sync
 uv run slope --help
+uv run slope evidence build                     # dated evidence DBs in var/evidence/
+uv run slope evidence search synergy_20240813 "future payments settlement"
 ```

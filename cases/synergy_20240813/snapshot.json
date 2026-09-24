@@ -1,0 +1,22 @@
+{
+  "snapshot_id": "synergy_20240813",
+  "case_id": "synergy_chc_2024",
+  "note": "Cutoff and source membership come from the kit's data/sources.json (mission synergy_20240813). This file only supplies neutral display metadata for admissible sources.",
+  "source_display": {
+    "synergy_s1a_20240813": {
+      "title": "Synergy CHC Corp. Form S-1/A registration statement (Amendment No. 2)",
+      "document_kind": "sec_registration_statement",
+      "publisher": "SEC EDGAR"
+    },
+    "synergy_merchant_agreement_20240501": {
+      "title": "Merchant Loan Agreement between WebBank and Synergy CHC Corp. (S-1 Exhibit 10.32)",
+      "document_kind": "loan_agreement",
+      "publisher": "SEC EDGAR"
+    },
+    "synergy_court_20230227": {
+      "title": "Synergy CHC Corp. v. HVL, LLC d/b/a Atrium Innovations, D. Me. No. 2:22-cv-00301: Recommended Decision on Motion to Dismiss",
+      "document_kind": "court_decision",
+      "publisher": "U.S. District Court, District of Maine (GovInfo)"
+    }
+  }
+}

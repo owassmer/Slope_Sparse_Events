@@ -397,7 +397,9 @@
         "anchor": "March 27, 2024 Loan"
       },
       "notes": [
-        "Counterparty unnamed in decision-date source; do not backfill later Vitabest identification into this run.",
+        "The March 27, 2024 Loan note describes the counterparty only as \"a supplier\".",
+        "The June 30 notes-payable table labels the same $2,920,824 balance \"VitBest\" (fact synergy_supplier_march_table_label_20240630). Linking that label to this settlement is an inference from the matching balance; report it as a cited inference, not as a stated fact.",
+        "The full legal entity (Vitabest Nutrition, Inc.), the named settlement agreement and every other fact from the May 2025 credit agreement are outcome evidence; do not backfill them into this run.",
         "A settlement does not independently prove a filed lawsuit."
       ]
     },
@@ -414,6 +416,24 @@
         "anchor": "outstanding loan balance"
       },
       "notes": []
+    },
+    {
+      "fact_id": "synergy_supplier_march_table_label_20240630",
+      "value": "VitBest",
+      "unit": "text",
+      "kind": "disclosed",
+      "value_precision": "exact",
+      "measurement_date": "2024-06-30",
+      "source_id": "synergy_s1a_20240813",
+      "locator": {
+        "section": "Note 11, Notes Payable, summary table (June 30, 2024 and December 31, 2023)",
+        "anchor": "VitBest"
+      },
+      "notes": [
+        "Row label as printed in the decision-date filing: $2,920,824 at June 30, 2024 and none at December 31, 2023.",
+        "The table does not say which note the row belongs to. Its balance equals the March 27, 2024 settlement loan balance, so the link is an inference from matching amounts that must cite both passages.",
+        "The label is not a verified legal-entity name. The full legal entity appears only in 2025 outcome evidence."
+      ]
     },
     {
       "fact_id": "synergy_supplier_march_paid_h1_2024",
@@ -872,9 +892,9 @@
     },
     {
       "unknown_id": "synergy_supplier_march_identity_at_cutoff",
-      "required_for": "Counterparty identification, if relevant to operating mechanism.",
+      "required_for": "Confirmed legal identity of the March 2024 settlement counterparty, if relevant to the operating mechanism.",
       "resolution": "Decision-date settlement agreement.",
-      "rule": "Later 2025 identification is outcome evidence only."
+      "rule": "At the cutoff the evidence gives only the notes-payable label \"VitBest\" and its balance-matched link to the March settlement, which is an inference. The full legal entity and confirmation of the link come from 2025 documents and are outcome evidence only."
     },
     {
       "unknown_id": "synergy_proposed_slope_offer",

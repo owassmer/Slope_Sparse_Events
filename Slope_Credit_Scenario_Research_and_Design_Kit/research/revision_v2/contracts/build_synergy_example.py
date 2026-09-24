@@ -144,7 +144,7 @@ for months, fraction, amount, fid in [(6, "0.30", 12543000, F["six"]), (12, "0.6
 effects = []
 for eid, fid, amount, borrowerlabel, payment_assumption in [
     ("E_HVL_settlement_calendar", F["hvl"], 200000000, "HVL / Atrium", operator[0]),
-    ("E_unnamed_supplier_calendar", F["supplier"], 60000000, "Supplier unnamed in the August information set", operator[1]),
+    ("E_unnamed_supplier_calendar", F["supplier"], 60000000, "March 2024 settlement supplier (labelled \"VitBest\" in the June 30 notes-payable table; linking that label to this settlement is a balance-match inference, and the full legal entity is not in the August information set)", operator[1]),
 ]:
     effects.append({"effect_id": eid, "event_id": "hvl_maine_litigation" if "HVL" in eid else "march_supplier_settlement", "borrower_id": BID,
                     "mechanism": "existing_liability_payment_timing",

@@ -192,18 +192,18 @@
     },
     {
       "path": "research/revision_v2/contracts/build_synergy_example.py",
-      "bytes": 24608,
-      "sha256": "149f6f93a2627663bd76a94fd7eb3c2188028720d3185be6752b0681da30140f"
+      "bytes": 24782,
+      "sha256": "deb38a1bbdf66ef07341a5738c0c9513257773e272ca7fa3e68c71c5af81ef03"
     },
     {
       "path": "research/revision_v2/contracts/case_eval_private.json",
-      "bytes": 3544,
-      "sha256": "ea2e83ad4945342496cbbec2685c7b9de9532afb566454eaefdb2882217448df"
+      "bytes": 4199,
+      "sha256": "c5e9c50e87fc392cbe048d3cdedf1baff5d9989032bf3615c92677379c748b71"
     },
     {
       "path": "research/revision_v2/contracts/economic-effects.json",
-      "bytes": 62446,
-      "sha256": "e5c79464e5577ea6e189f1582c8255df74ce26a0d5af766a38ddfd49257b87c6"
+      "bytes": 62620,
+      "sha256": "9c390d6447650c8f632a804f5a7d0707c365a66350d048e10ec738efc39e1977"
     },
     {
       "path": "research/revision_v2/contracts/proposal-fixtures.json",
@@ -237,13 +237,13 @@
     },
     {
       "path": "research/revision_v2/data/build_case_index.py",
-      "bytes": 23551,
-      "sha256": "20e37fcae795deba49afb7317bd0e66ee8f4ba8298620d780275678b2f5c7dc6"
+      "bytes": 24924,
+      "sha256": "be33ebde72ddde6dba62ea4dfa6c3e385789e179b93a6ac65db58da034d32b0e"
     },
     {
       "path": "research/revision_v2/data/facts_synergy.json",
-      "bytes": 31964,
-      "sha256": "fb2520fc513d610682e33dba7e0e64dc97c96b7173a5e85a82647cc39f0ccac0"
+      "bytes": 33563,
+      "sha256": "c152830382c740b37861386b3910256792fa8c2ea17cfa5d61ba325fa50bc000"
     },
     {
       "path": "research/revision_v2/data/outcome_checks_synergy.json",
@@ -257,8 +257,8 @@
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
-      "bytes": 43158,
-      "sha256": "70994055fc8fd15cb97bd2c4d007285237c333cf4f9867e6a56568c3d7dd57a2"
+      "bytes": 43959,
+      "sha256": "7db7dd71c42bc38366654c7d63d05e34e492c8f3d77fe51fc6dc5b7589b529f6"
     },
     {
       "path": "research/revision_v2/package_kit.py",
