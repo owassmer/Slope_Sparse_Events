@@ -1,0 +1,201 @@
+{
+  "run_id": "smoke-20260924T225507Z",
+  "started_at": "2026-09-24T22:55:07.694951+00:00",
+  "configuration_version": "2.0.1-design",
+  "git_commit": "c5e64756741831830332cdf20ad3553adca65311",
+  "runtime": {
+    "python": "3.12.13",
+    "claude_agent_sdk": "0.2.159",
+    "bundled_claude_cli": "2.1.281",
+    "typesafe_sdk": "0.7.1",
+    "platform": "macOS-26.2-arm64-arm-64bit"
+  },
+  "paid_api_fallback": false,
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "claude": {
+    "requested_model": "claude-opus-5-5",
+    "requested_effort": "high",
+    "returned_models": [
+      "claude-opus-5-5"
+    ],
+    "api_key_source": "none",
+    "cli_version_reported": "2.1.281",
+    "init_tools": [
+      "StructuredOutput",
+      "mcp__credit__get_mission"
+    ],
+    "init_mcp_servers": [
+      {
+        "name": "credit",
+        "status": "connected",
+        "source": "sdk"
+      }
+    ],
+    "permission_mode": "dontAsk",
+    "tool_calls": [
+      {
+        "tool": "get_mission",
+        "returned_keys": [
+          "as_of",
+          "baseline_profile_id",
+          "borrower",
+          "case_id",
+          "decision_timezone",
+          "existing_loan_record_ids",
+          "initial_event_seed",
+          "loan_terms_basis",
+          "mission_id",
+          "mission_type",
+          "permitted_offer_set_id",
+          "policy_config_id",
+          "product_selection",
+          "relationship_claim",
+          "requested_amount",
+          "requested_pricing",
+          "requested_term",
+          "requested_use"
+        ]
+      }
+    ],
+    "structured_output": {
+      "borrower": "Synergy CHC Corp.",
+      "as_of": "2024-08-13T23:59:59-04:00",
+      "mission_type": "new_discretionary_advance",
+      "tools_available": [
+        "StructuredOutput",
+        "mcp__credit__get_mission"
+      ]
+    },
+    "num_turns": 3,
+    "duration_ms": 3695,
+    "usage": {
+      "input_tokens": 4,
+      "cache_creation_input_tokens": 1213,
+      "cache_read_input_tokens": 1975,
+      "output_tokens": 213,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 1213,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 179,
+          "cache_read_input_tokens": 1257,
+          "cache_creation_input_tokens": 674,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 674
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 0.014375,
+    "notional_cost_note": "SDK-reported list-price estimate; subscription auth is not billed per token.",
+    "checks": {
+      "api_key_source_is_subscription": true,
+      "only_scoped_tool_exposed": true,
+      "custom_tool_called": true,
+      "structured_output_valid": true,
+      "structured_output_matches_tool": true,
+      "requested_model_served": true
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests_used": 1,
+    "request_ceiling": 30,
+    "reserved_usd": "0.000051828",
+    "spend_cap_usd": "0.10",
+    "judgment": {
+      "run_id": "smoke-20260924T225507Z",
+      "case_id": "synergy_chc_2024",
+      "snapshot_id": "smoke_no_snapshot",
+      "question_id": "claim_posture",
+      "question_version": "2.0.0",
+      "registry_version": "2.0.1-design",
+      "provider": "openrouter",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "pinned_build": "jev-1.13.0",
+      "state_sha256": "807f2f81cfb407df62c08e94bbe25565b2977a4b36ec69922701e536277bf418",
+      "source_content_hashes": [
+        "ac8e4d3a6bb05cb51ed876299199acb7e7536f817a350209cb8298dd2b404ada"
+      ],
+      "selected_choice": "agreed_requirement",
+      "probabilities": {
+        "unknown": 0.0,
+        "allegation_or_request": 0.0,
+        "reported_completed_event": 0.0,
+        "agreed_requirement": 1.0,
+        "expectation_or_plan": 0.0,
+        "court_imposed_requirement": 0.0
+      },
+      "confidence": 1.0,
+      "usage": {
+        "input_tokens": 1131,
+        "output_tokens": 84,
+        "cost": 4.7502e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "claim_posture": {
+            "type": "choice",
+            "choice": "agreed_requirement",
+            "probabilities": {
+              "unknown": 0,
+              "allegation_or_request": 0,
+              "reported_completed_event": 0,
+              "agreed_requirement": 1,
+              "expectation_or_plan": 0,
+              "court_imposed_requirement": 0
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 1131,
+          "output_tokens": 84,
+          "cost": 4.7502e-05
+        },
+        "id": "gen-dec-1790290513-miiL6BzYYTk1s1ZmJZiX",
+        "provider": "TypeSafe"
+      },
+      "agent_disposition": null,
+      "created_at": "2026-09-24T22:55:13.684768+00:00"
+    },
+    "checks": {
+      "returned_model_matches_pinned_build": true,
+      "typed_choice_returned": true
+    }
+  },
+  "reviewer": {
+    "codex_version": "codex-cli 0.155.1",
+    "login_status": "Logged in using ChatGPT",
+    "checks": {
+      "chatgpt_sign_in": true
+    },
+    "note": "Reviewer isolation over the admissible evidence bundle is verified in step 6."
+  },
+  "failed_checks": [],
+  "status": "PASS",
+  "finished_at": "2026-09-24T22:55:13.933890+00:00"
+}
