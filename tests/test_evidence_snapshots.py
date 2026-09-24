@@ -2,6 +2,7 @@
 future and other-case source IDs are inaccessible, and original table context is retrievable."""
 
 import json
+from datetime import datetime
 
 import pytest
 
@@ -27,8 +28,17 @@ def test_only_admissible_sources_enter_each_snapshot(built):
                     and s["availability"].get("date")}
         assert set(present) == set(expected)
         assert all((acc == "full") == (expected[k] == "eligible") for k, acc in present.items())
-        assert all(s["available_at"] <= manifests[sid]["cutoff"] or "Z" in s["available_at"]
-                   or "+00:00" in s["available_at"] for s in store.list_sources())
+        limit = datetime.fromisoformat(manifests[sid]["cutoff"])
+        assert all(datetime.fromisoformat(s["available_at"]) <= limit for s in store.list_sources())
+
+
+def test_catalog_research_annotations_stay_out_of_the_agent_db(built):
+    out, _, _ = built
+    for sid in SNAPSHOTS:
+        raw = (out / f"{sid}.sqlite").read_bytes()
+        for hint in (b"event_dates", b"updated_cash_measurement", b"effective_funding_date",
+                     b"alleged_operational_events", b"mission_membership"):
+            assert hint not in raw
 
 
 def test_excluded_source_ids_are_absent_and_unreadable(built):
@@ -49,9 +59,11 @@ def test_excluded_source_ids_are_absent_and_unreadable(built):
 
 
 def test_future_document_content_is_not_searchable(built):
-    _, _, stores = built
-    # "Vitabest" appears only in the May 2025 credit agreement, an outcome source for 13 Aug 2024.
-    assert stores["synergy_20240813"].search("Vitabest") == []
+    out, _, stores = built
+    # "Delayed Draw" (the settlement-financing facility) appears only in the May 2025 credit
+    # agreement, an outcome source for 13 Aug 2024. Neither its text nor a search hit may surface.
+    assert b"delayed draw" not in (out / "synergy_20240813.sqlite").read_bytes().lower()
+    assert not any("Delayed" in r["snippet"] for r in stores["synergy_20240813"].search("Delayed Draw Term Loan"))
 
 
 def test_settlement_schedule_table_keeps_its_original_context(built):
@@ -77,6 +89,17 @@ def test_financial_table_headers_align_with_values(built):
     rows = store.read(hit["id"])["rows"]
     assert rows[0] == ["", "June 30, 2024", "December 31, 2023"]
     assert ["Atrium", "4,802,445", "4,802,445"] in rows
+
+    # Multi-row header with a spanning "Common stock" cell: each value sits under its own label.
+    hit = next(h for h in store.search("Statement of Stockholders Deficit Balance as of June 30, 2023")
+               if h["kind"] == "table")
+    t = store.read(hit["id"])
+    labels = [" / ".join(dict.fromkeys(col)) for col in zip(*t["rows"][:t["header_rows"]], strict=True)]
+    row = next(r for r in t["rows"] if r[0] == "Balance as of December 31, 2022")
+    by_label = dict(zip(labels, row, strict=True))
+    assert by_label["Accumulated Deficit"] == "$(52,691,039)"
+    assert by_label["Total Stockholders’ Deficit"] == "$(33,519,867)"
+    assert by_label["Common stock / Shares"] == "89,889,074"
 
 
 def test_catalog_inconsistency_and_hash_mismatch_stop_the_build(monkeypatch, tmp_path):

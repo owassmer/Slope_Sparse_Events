@@ -12,23 +12,24 @@ import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from bs4 import BeautifulSoup, NavigableString, Tag, XMLParsedAsHTMLWarning
+from bs4 import BeautifulSoup, Comment, NavigableString, Tag, XMLParsedAsHTMLWarning
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
-PARSER_VERSION = "1.0.0"
+PARSER_VERSION = "1.1.0"
 MAX_SECTION_CHARS = 20_000
 
 BLOCK_TAGS = {"p", "div", "table", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6",
               "section", "article", "blockquote", "center", "tr", "td", "th"}
 SKIP_TAGS = {"script", "style", "head", "title", "noscript", "ix:header", "svg", "button", "nav"}
-NUMBER = re.compile(r"\(?\$?\s?\d[\d,]*(\.\d+)?\)?%?")
+NUMBER = re.compile(r"\(?\s?\$?\s?\(?\s?\d[\d,]*(\.\d+)?\s?\)?%?")
 YEARLIKE = re.compile(r"^(19|20)\d\d$|^[A-Z][a-z]+\.? \d{1,2},? (19|20)\d\d$")
 PAGE_FURNITURE = re.compile(r"^(F-\d{1,3}|\d{1,3}|Table of Contents|Page \d+ of \d+)$|^Field: ", re.I)
 ARTICLE_HEADING = re.compile(r"^\d{1,2}\.\s+[A-Z][^.:]{2,80}$")  # "4. Repayment of the Loan; Authorizations"
 SUBCLAUSE = re.compile(r"^\d+(\.\d+)+\.?\s")  # "3.2. Business Account. You agree ..." is body text
 STATEMENT_HEADING = re.compile(
-    r"(Consolidated|Condensed).{0,40}(Balance Sheets?|Statements? of)", re.I)
+    r"(Consolidated|Condensed).{0,40}(Balance Sheets?|Statements? of)|^Notes to .{0,60}Financial Statements"
+    r"|^Report of Independent Registered", re.I)
 NOTE_HEADING = re.compile(r"^Note \d+\s*[—–-]\s*.{3,100}$")
 UNIT_HINT = re.compile(r"in (thousands|millions)|\(\s*in [^)]*\)|U\.?S\.? dollars|USD|\$|%", re.I)
 
@@ -83,26 +84,77 @@ def _classify(text: str, bold_share: float) -> Block | None:
 
 
 def _paragraph(tag: Tag) -> Block | None:
-    strings = [s for s in tag.find_all(string=True) if norm(s)]
+    strings = [s for s in tag.find_all(string=True) if norm(s) and not isinstance(s, Comment)]
     total = sum(len(norm(s)) for s in strings)
     bold = sum(len(norm(s)) for s in strings if _is_bold(s, tag))
     return _classify(norm(" ".join(strings)), bold / total if total else 0.0)
 
 
+def _cell_text(cell: Tag) -> str:
+    # Join without separators so inline spans inside a number ("87,2<span>66</span>") stay intact.
+    for br in cell.find_all("br"):
+        br.replace_with(" ")
+    return norm("".join(s for s in cell.find_all(string=True) if not isinstance(s, Comment)))
+
+
+def _is_number(v: str) -> bool:
+    return bool(v) and bool(NUMBER.fullmatch(v)) and not YEARLIKE.match(v)
+
+
+def _span(cell: Tag, attr: str) -> int:
+    span = str(cell.get(attr) or "1")
+    return int(span) if span.isdigit() and int(span) > 0 else 1
+
+
 def _table(tag: Tag) -> list[Block]:
-    grid: list[list[str]] = []
+    raw: list[list[tuple[str, int, int]]] = []
     for tr in tag.find_all("tr"):
+        cells = [(_cell_text(c), _span(c, "colspan"), _span(c, "rowspan"))
+                 for c in tr.find_all(["td", "th"], recursive=False)]
+        if any(t for t, _, _ in cells):
+            raw.append(cells)
+    if not raw:
+        return []
+    values = [[t for t, _, _ in cells if t] for cells in raw]
+    if len(raw) < 2 or not any(_is_number(t) for v in values for t in v[1:]):
+        # Layout table (bullets, clause numbers, signature blocks): keep as paragraphs.
+        return [b for v in values if (b := _classify(" ".join(v), 0.0))]
+
+    # Header rows: leading rows until the first row with a label and a numeric value.
+    header = 0
+    for cells in raw:
+        texts = [t for t, _, _ in cells if t]
+        if cells[0][0] and any(_is_number(t) for t in texts[1:]):
+            break
+        header += 1
+    header = min(header, len(raw))
+
+    # A header cell labels every column it spans; a data cell sits in the first column of its span.
+    # Cells spanning rows reserve their columns in the rows below so later cells stay aligned.
+    grid: list[list[str]] = []
+    carry: dict[int, tuple[str, int]] = {}  # column -> (text, rows still covered)
+    for i, cells in enumerate(raw):
         row: list[str] = []
-        for cell in tr.find_all(["td", "th"], recursive=False):
-            span = str(cell.get("colspan") or "1")
-            row.append(norm(cell.get_text(" ")))
-            row.extend([""] * (int(span) - 1 if span.isdigit() else 0))
+        queue = list(cells)
+        while queue or len(row) in carry:
+            col = len(row)
+            if col in carry:
+                text, left = carry.pop(col)
+                row.append(text if i < header else "")
+                if left > 1:
+                    carry[col] = (text, left - 1)
+                continue
+            text, cs, rs = queue.pop(0)
+            for k in range(cs):
+                row.append(text if i < header or k == 0 else "")
+                if rs > 1:
+                    carry[len(row) - 1] = (text, rs - 1)
         grid.append(row)
-    width = max((len(r) for r in grid), default=0)
+    width = max(len(r) for r in grid)
     grid = [r + [""] * (width - len(r)) for r in grid]
 
-    # Merge currency and closing-paren/percent cells into the number they belong to.
-    for r in grid:
+    # Merge currency and closing-paren/percent cells into the number they belong to (data rows).
+    for r in grid[header:]:
         for i, v in enumerate(r):
             if v in ("$", "US$") and i + 1 < width:
                 j = next((k for k in range(i + 1, width) if r[k]), None)
@@ -112,43 +164,26 @@ def _table(tag: Tag) -> list[Block]:
                 j = next((k for k in range(i - 1, -1, -1) if r[k]), None)
                 if j is not None:
                     r[j], r[i] = r[j] + v, ""
-    keep = [c for c in range(width) if any(r[c] for r in grid)]
-    rows = [[r[c] for c in keep] for r in grid if any(r[c] for c in keep)]
 
-    data = len(rows) >= 2 and len(keep) >= 2 and any(
-        NUMBER.fullmatch(v) and not YEARLIKE.match(v) for r in rows for v in r[1:])
-    if not data:  # layout table (bullets, signature blocks, footnote grids): keep as paragraphs
-        texts = (" ".join(v for v in r if v) for r in rows)
-        return [b for t in texts if (b := _classify(t, 0.0))]
-
-    header = 0
-    for r in rows:
-        numeric = [v for v in r[1:] if v and NUMBER.fullmatch(v) and not YEARLIKE.match(v)]
-        if r[0] and numeric:
-            break
-        header += 1
-    header = min(header, len(rows))
-
-    # A spanning header ("June 30, 2024" over the $ and amount cells) lands one column away from
-    # its values. Merge two adjacent value columns when no row fills both and one of them holds
-    # only header text. The label column is never merged.
-    c = 1
-    while c + 1 < len(rows[0]):
-        a = [r[c] for r in rows]
-        b = [r[c + 1] for r in rows]
-        disjoint = not any(x and y for x, y in zip(a, b, strict=True))
-        header_only = not any(a[header:]) or not any(b[header:])
-        if disjoint and header_only:
-            for r in rows:
-                r[c] = r[c] or r[c + 1]
-                del r[c + 1]
-        else:
-            c += 1
-    return [Block("table", rows=rows, header_rows=header)]
+    data_rows = grid[header:]
+    keep = [c for c in range(width) if (c == 0 and any(r[0] for r in grid)) or any(r[c] for r in data_rows)]
+    # A single-column header placed over a spacer or "$" column moves to the next kept column,
+    # but only when that column has no header text of its own in that row.
+    for r in grid[:header]:
+        for c in range(width):
+            if r[c] and c not in keep:
+                nxt = next((k for k in keep if k > c), None)
+                if nxt is not None and not r[nxt]:
+                    r[nxt] = r[c]
+    rows = [[r[c] for c in keep] for r in grid]
+    rows = [r for r in rows if any(r)]
+    return [Block("table", rows=rows, header_rows=min(header, len(rows)))]
 
 
 def _walk(node: Tag, out: list[Block]) -> None:
     for child in node.children:
+        if isinstance(child, Comment):
+            continue
         if isinstance(child, NavigableString):
             if norm(child) and node.name not in SKIP_TAGS:
                 out.append(Block("para", norm(child)))
@@ -245,7 +280,7 @@ class ParsedSection:
 
 def sectionize(blocks: list[Block]) -> list[ParsedSection]:
     sections: list[ParsedSection] = []
-    top: str | None = None  # current level-1 heading
+    top_path: list[str] = []  # current level-1 heading, plus any heading stacked directly above it
     current = ParsedSection(0, "Document start", [], None)
     table_n = 0
 
@@ -255,11 +290,15 @@ def sectionize(blocks: list[Block]) -> list[ParsedSection]:
 
     for i, b in enumerate(blocks):
         if b.kind == "heading":
+            # A heading directly followed by another heading stays in the path, not discarded.
+            stacked = [] if current.items else current.heading_path
             if current.items:
                 flush()
             if b.level == 1:
-                top = b.text
-            path = [b.text] if b.level == 1 else [p for p in (top, b.text) if p]
+                top_path = [*stacked, b.text][-2:]
+                path = top_path
+            else:
+                path = [*stacked, b.text][-3:] if stacked else [*top_path, b.text]
             current = ParsedSection(len(sections), b.text, path, b.page)
             continue
         if b.kind == "para":

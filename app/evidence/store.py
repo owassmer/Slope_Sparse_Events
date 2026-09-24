@@ -39,16 +39,14 @@ class EvidenceStore:
         row = self.con.execute("SELECT * FROM sources WHERE source_id = ?", (source_id,)).fetchone()
         if row is None:
             raise EvidenceAccessError(f"{source_id!r} is not available in this snapshot")
-        d = dict(row)
-        d["event_dates"] = json.loads(d["event_dates"])
-        return d
+        return dict(row)
 
     def list_sources(self) -> list[dict[str, Any]]:
         rows = self.con.execute(
             "SELECT s.*, (SELECT count(*) FROM sections x WHERE x.source_id = s.source_id) AS n_sections, "
             "(SELECT count(*) FROM tables t WHERE t.source_id = s.source_id) AS n_tables "
             "FROM sources s ORDER BY available_at").fetchall()
-        return [{**dict(r), "event_dates": json.loads(r["event_dates"])} for r in rows]
+        return [dict(r) for r in rows]
 
     def snapshot_info(self) -> dict[str, str]:
         return {k: self.meta[k] for k in ("snapshot_id", "case_id", "cutoff", "evidence_manifest_hash")}
@@ -64,6 +62,7 @@ class EvidenceStore:
     def search(self, query: str, *, source_ids: list[str] | None = None, limit: int = 8) -> list[dict[str, Any]]:
         """Full-text search over sections and tables. All terms must match; if nothing does,
         any term may match. Results carry IDs, heading path, source date and a snippet."""
+        limit = max(1, min(int(limit), 20))
         for sid in source_ids or []:
             self._source(sid)  # rejects IDs outside the snapshot
         results: list[dict[str, Any]] = []

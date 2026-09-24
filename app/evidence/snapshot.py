@@ -32,7 +32,7 @@ CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE sources (
   source_id TEXT PRIMARY KEY, title TEXT NOT NULL, document_kind TEXT, publisher TEXT,
   primary_url TEXT, sha256 TEXT NOT NULL, available_at TEXT NOT NULL, availability_precision TEXT,
-  access TEXT NOT NULL CHECK (access IN ('full', 'metadata_only')), event_dates TEXT NOT NULL);
+  access TEXT NOT NULL CHECK (access IN ('full', 'metadata_only')));
 CREATE TABLE sections (
   section_id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources, ordinal INTEGER NOT NULL,
   heading TEXT NOT NULL, heading_path TEXT NOT NULL, page INTEGER, part INTEGER NOT NULL,
@@ -113,6 +113,10 @@ def admission(snapshot_id: str) -> tuple[list[dict], list[dict]]:
 
 
 def db_path(snapshot_id: str) -> Path:
+    from app.evidence import SNAPSHOTS
+
+    if snapshot_id not in SNAPSHOTS:
+        raise ConfigurationError(f"Unknown snapshot {snapshot_id!r}")
     return EVIDENCE_DIR / f"{snapshot_id}.sqlite"
 
 
@@ -132,10 +136,12 @@ def build_snapshot(snapshot_id: str, out_dir: Path | None = None) -> dict[str, A
     for src in admitted:
         sid = src["source_id"]
         meta = display.get(sid, {})
-        con.execute("INSERT INTO sources VALUES (?,?,?,?,?,?,?,?,?,?)", (
+        # Catalog annotations (event_dates, availability basis, membership) are curated research
+        # hints, not source text; they stay in the host manifest and never enter the agent's DB.
+        con.execute("INSERT INTO sources VALUES (?,?,?,?,?,?,?,?,?)", (
             sid, meta.get("title", sid), meta.get("document_kind"), meta.get("publisher"),
             src.get("primary_url"), src["sha256"], src["available_at"],
-            src["availability"].get("precision"), src["access"], json.dumps(src.get("event_dates", []))))
+            src["availability"].get("precision"), src["access"]))
         if src["access"] != "full":
             counts[sid] = {"sections": 0, "tables": 0}
             continue
@@ -172,6 +178,7 @@ def build_snapshot(snapshot_id: str, out_dir: Path | None = None) -> dict[str, A
     con.close()
 
     manifest = {**manifest_core, "evidence_manifest_hash": manifest_hash, "counts": counts,
+                "catalog_event_dates": {s["source_id"]: s.get("event_dates", []) for s in admitted},
                 "excluded": excluded, "database": db.name}
     (out_dir / f"{snapshot_id}.manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return manifest
