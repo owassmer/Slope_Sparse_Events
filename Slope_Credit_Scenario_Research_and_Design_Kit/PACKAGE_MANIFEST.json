@@ -121,6 +121,116 @@
       "sha256": "5367bbc5f01536b9b98587a89b73f55422c080bf7938472cf49b67efdd45d1ca"
     },
     {
+      "path": "research/recent_cases/chromadex/acquire.py",
+      "bytes": 9680,
+      "sha256": "56a185b378b305b60b5283488b218b148d5065b9268fbed30e8875ae7b10ca10"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cacd_16cv2277_d001_complaint.pdf",
+      "bytes": 4244615,
+      "sha256": "9b35cf684540c89dafd777055881b386c84560885d6dbc0ca8d5ae509bdd4ab0"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cacd_16cv2277_d065_counterclaim.pdf",
+      "bytes": 448494,
+      "sha256": "f80688752a9370c04c0a20b08346c00288037d66abfc7d5e32f1dae526d45749"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cacd_16cv2277_d560_verdict_minutes.pdf",
+      "bytes": 141198,
+      "sha256": "4fd2d5ed1dfdfc45c763a8daba55d7a726c06583c962a2f523dd7077241f77d4"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cacd_16cv2277_d579_bench_order.pdf",
+      "bytes": 132890,
+      "sha256": "c235d2576828f5f07dec3a74938712bb978017e031e36819b74d7d9964a5af14"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cacd_16cv2277_d594_stay.pdf",
+      "bytes": 189519,
+      "sha256": "6c35bcbebeb6cccc0cb63b3052eb9807ebbe80baf7cf76fee02e0427f42406b6"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cacd_16cv2277_d618_judgment.pdf",
+      "bytes": 542212,
+      "sha256": "4bae70e92295ba37efa087833a38aacbc0c354f74b709cccd7d87c4f39134c59"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cacd_16cv2277_d671_amended_judgment.pdf",
+      "bytes": 127972,
+      "sha256": "002123467d251bd4389fd716c25abb7422dbd84d576232130a5f2d11ad6ade7e"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cdxc_2023_10k.html",
+      "bytes": 1810209,
+      "sha256": "0dbbf7c9dcedfe213ac562b6e1856b0017481d4e26cabeb2b6166ca6bb261493"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cdxc_2023_12_credit_8k.html",
+      "bytes": 29855,
+      "sha256": "44a58da63394a9528d1f1fce3df9db004ea57bc3dff724fe8c4ad7cb59314342"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cdxc_2024_10k.html",
+      "bytes": 1950923,
+      "sha256": "5419a9dc9e72cec530a274bbb4a14b7e9b4774fb09a65dc4724cad091722600d"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cdxc_2024_11_8k.html",
+      "bytes": 26506,
+      "sha256": "1257d6effa48b8f339d81258a0b414744e3376d8c13a47b46d6105625a2cd187"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cdxc_2024_12_8k.html",
+      "bytes": 21023,
+      "sha256": "5162d1a3695a9c845687e9093d690292e824eebebf17e036b8e73cadd3900815"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cdxc_2024q1_10q.html",
+      "bytes": 1083642,
+      "sha256": "e7e0c686139383f46a903e97631410a2591b932b085d24c805831acb878da897"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cdxc_2024q2_10q.html",
+      "bytes": 1445255,
+      "sha256": "9c7e4fef8400c41d14260d89bf937fd9425b633141b08a365de4075f038c9f30"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cdxc_2024q2_release.html",
+      "bytes": 122625,
+      "sha256": "89ef52e191a8a202d7d7314864288731b97424b60441b7b48115c14573665a4d"
+    },
+    {
+      "path": "research/recent_cases/chromadex/cdxc_2024q3_10q.html",
+      "bytes": 1525657,
+      "sha256": "6f13a124f3694997283074c7f504a85c95b0e6ff0a4088b5db50466831958b99"
+    },
+    {
+      "path": "research/recent_cases/chromadex/ded_18cv1434_d001_complaint.pdf",
+      "bytes": 78437,
+      "sha256": "bcebe2f21ea0e41c37ef704be93099bb33ca2d40763552321b30a80de0fbe49d"
+    },
+    {
+      "path": "research/recent_cases/chromadex/ded_18cv1434_d369_opinion.pdf",
+      "bytes": 739769,
+      "sha256": "1c781b70ebb0459420f29bb83c104b9ec5a6745d717a148835fa49c24f866189"
+    },
+    {
+      "path": "research/recent_cases/chromadex/ded_18cv1434_d399_fee_order.pdf",
+      "bytes": 300457,
+      "sha256": "bc244da38b13bb46137bb2c31f3a3704b56787123021068e05a7919cdc949626"
+    },
+    {
+      "path": "research/recent_cases/chromadex/display.json",
+      "bytes": 4262,
+      "sha256": "cd9700562a17d2b1e2033c12efb79a6609900113d6ae8b0bce4c6474200d0a0a"
+    },
+    {
+      "path": "research/recent_cases/chromadex/niagen_2026q2_10q.html",
+      "bytes": 1625849,
+      "sha256": "13c002e5d56991c5225040a672a7fb7cabb148bc0d203dd3aaf21d577aabc52e"
+    },
+    {
       "path": "research/recent_cases/synergy_chc/2023_02_27_court_order.pdf",
       "bytes": 306804,
       "sha256": "ccdfc38167a2abf3cb18ae0c7a4c5a041bf37fe36c2057a2be9859a2148a8b21"
@@ -167,8 +277,8 @@
     },
     {
       "path": "research/revision_v2/contracts/agent_config.json",
-      "bytes": 33689,
-      "sha256": "d3cf156a31ad743f03bac687de864819b5184b3f3e4e44ab7166169469f40154"
+      "bytes": 35007,
+      "sha256": "0b37c8854c9ea6ad51a445c8acb644909fee0b97257ea9cfc26cda9c1ead7703"
     },
     {
       "path": "research/revision_v2/contracts/barfresh-economic-effects.json",
@@ -252,13 +362,13 @@
     },
     {
       "path": "research/revision_v2/data/sources.json",
-      "bytes": 20825,
-      "sha256": "40f11ed88ae3652593a04fa3f37d4848bff2e656951a19cb646aac7c1b171cd8"
+      "bytes": 44207,
+      "sha256": "ada8c6172349672e4ffdf021fb7760505d6dd2b2a8d0092778e366ffdf70aaad"
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
-      "bytes": 55519,
-      "sha256": "b14595552847797e9dcbf804f7633dbb755befd2ceaa9bd4ceec82ee81321473"
+      "bytes": 62861,
+      "sha256": "2479eb1bed6f082d9deda602b7b1a7a2364aac54069807d8aa73e266b33bd8de"
     },
     {
       "path": "research/revision_v2/package_kit.py",

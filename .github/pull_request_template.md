@@ -12,7 +12,7 @@ Step N — <name> (spec §9)
 ## Intent check
 - How this helps the reviewer decide what to fund / understand the cash that comes back:
 - Relevant acceptance criteria (spec §10) touched:
-- Critical-error risks considered (entity, leakage, fabricated dates, double counts, unknown→0, invented policy):
+- Critical-error risks considered (entity, leakage, fabricated dates, double counts, unknown→0, Jev branch weight shown as an observed frequency):
 
 ## Not done / not verified
 -

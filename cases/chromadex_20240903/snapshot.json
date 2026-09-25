@@ -1,0 +1,77 @@
+{
+  "snapshot_id": "chromadex_20240903",
+  "case_id": "chromadex_elysium_2024",
+  "note": "Cutoff and source membership come from the kit's data/sources.json (mission chromadex_20240903). This file only supplies neutral display metadata for admissible sources.",
+  "source_display": {
+    "cdxc_2023_10k": {
+      "title": "ChromaDex Corp. Form 10-K for fiscal year 2023",
+      "document_kind": "sec_annual_report",
+      "publisher": "SEC EDGAR"
+    },
+    "cdxc_2023_12_credit_8k": {
+      "title": "ChromaDex Corp. Form 8-K, December 2023 (Items 1.01, 2.03)",
+      "document_kind": "sec_current_report",
+      "publisher": "SEC EDGAR"
+    },
+    "cdxc_2024q1_10q": {
+      "title": "ChromaDex Corp. Form 10-Q for the quarter ended March 31, 2024",
+      "document_kind": "sec_quarterly_report",
+      "publisher": "SEC EDGAR"
+    },
+    "cdxc_2024q2_10q": {
+      "title": "ChromaDex Corp. Form 10-Q for the quarter ended June 30, 2024",
+      "document_kind": "sec_quarterly_report",
+      "publisher": "SEC EDGAR"
+    },
+    "cdxc_2024q2_release": {
+      "title": "ChromaDex second quarter 2024 results press release (Form 8-K Exhibit 99.1)",
+      "document_kind": "press_release",
+      "publisher": "SEC EDGAR"
+    },
+    "ded_18cv1434_d001_complaint": {
+      "title": "ChromaDex v. Elysium Health (D. Del. 1:18-cv-01434), Complaint for patent infringement (Dkt. 1)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_18cv1434_d369_opinion": {
+      "title": "ChromaDex v. Elysium Health (D. Del. 1:18-cv-01434), Memorandum Opinion (Dkt. 369)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_18cv1434_d399_fee_order": {
+      "title": "ChromaDex v. Elysium Health (D. Del. 1:18-cv-01434), Memorandum Order granting attorney fees and costs (Dkt. 399)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "cacd_16cv2277_d001_complaint": {
+      "title": "ChromaDex v. Elysium Health (C.D. Cal. 8:16-cv-02277), Complaint (Dkt. 1)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "cacd_16cv2277_d065_counterclaim": {
+      "title": "ChromaDex v. Elysium Health (C.D. Cal. 8:16-cv-02277), Second Amended Counterclaim (Dkt. 65)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "cacd_16cv2277_d560_verdict_minutes": {
+      "title": "ChromaDex v. Elysium Health (C.D. Cal. 8:16-cv-02277), Minutes of jury trial, day 5 (Dkt. 560)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "cacd_16cv2277_d579_bench_order": {
+      "title": "ChromaDex v. Elysium Health (C.D. Cal. 8:16-cv-02277), Order on remaining bench-trial counterclaims and post-trial briefing (Dkt. 579)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "cacd_16cv2277_d594_stay": {
+      "title": "ChromaDex v. Elysium Health (C.D. Cal. 8:16-cv-02277), Joint status report and stipulation regarding stay (Dkt. 594)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "cacd_16cv2277_d618_judgment": {
+      "title": "ChromaDex v. Elysium Health (C.D. Cal. 8:16-cv-02277), Judgment (Dkt. 618)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    }
+  }
+}
