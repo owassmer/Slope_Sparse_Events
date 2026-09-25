@@ -1,6 +1,6 @@
 # Slope credit-event scenario module — definitive build specification
 
-Prepared 24 September 2026. Revision 2 replaces the Trinity/A10 implementation direction. Status: researched and designed; evidence and design contracts supplied; application and live model evaluation remain to be built.
+Prepared 24 September 2026. Revision 2 replaced the Trinity/A10 implementation direction. **Revision 3 (25 September 2026):** the lead case is ChromaDex at 19 August 2024, whose disputes are live on the decision date; Synergy becomes the secondary case. Jev judges the branches of a live dispute, and Slope's product, pricing, policy and the connected-bank baseline are reconstructed as closely as public information allows.
 
 ## 1. The product to build
 
@@ -18,20 +18,29 @@ Use **exception review before a new discretionary advance or increase in exposur
 
 The recommendation addresses controls Slope actually describes: business limit, maximum order/draw amount, available terms and pricing. Public product terms vary by program. Slope’s Amazon program describes fixed repayment schedules with 2–12-month draw terms; its invoice Pay Later materials describe different terms. Select one product configuration; never blend them. [S3–S5]
 
-For this demonstration, use a **generic Slope-style fixed-installment working-capital draw**, with operator-supplied permitted amounts, terms and fee schedules. It is a current product-design analogy applied to historical evidence, not a claim that a particular Slope program existed or was available to this borrower in 2024. Actual historical Shopify financing is a separate existing obligation and contractual reference.
+For this demonstration, **reconstruct Slope's actual product as closely as public information allows**: bill-pay financing, where Slope pays the supplier and the business repays on net terms or in monthly installments of up to about 120 days, priced by risk tier from connected bank data. The reconstructed price card, credit policy and the synthetic connected-bank data are each labelled once, at their source, and are otherwise used plainly. The case is reconstructed as if the borrower applied to Slope on the decision date; there is no claim that it did. A borrower's actual existing financing (a bank revolver, a merchant loan) stays a separate existing obligation with its own contract logic.
 
 The first financial viewpoint is the **loan asset holder**. Lead Bank origination, Slope servicing and external capital support do not mean every borrower payment is Slope corporate revenue. Platform fees, asset ownership and warehouse cash flows require separate accounting scopes. [S4]
 
-## 2. Case selection: Synergy CHC first, Barfresh second
+## 2. Case selection: ChromaDex first, Synergy second
 
-**Lead: Synergy CHC, using information available by the end of 13 August 2024.** It is a real consumer-products business with 25 employees, approximately $42.8 million of 2023 sales and an actual $370,000 merchant advance. We acquired a court opinion, financial disclosures, its executed merchant-loan contract, later repayment disclosures and a later credit agreement that expressly financed the settlement obligations. [C1–C6]
+**Why the lead changed.** A lawsuit carries the most lender-relevant signal while it is unresolved: bank data shows nothing about a pending ruling, an appeal bond or whether a judgment debtor will pay, and those are branching, forward-looking questions. By 13 August 2024 Synergy's dispute had already become ordinary settlement debt, which turns the investigation into document archaeology. The lead case must therefore have a dispute that is live on the decision date, a federal docket with public filings before that date, public financials, a Slope-shaped business and a known later outcome.
+
+**Lead: ChromaDex Corporation, using information available by the end of 19 August 2024.** A consumer supplement brand (Tru Niagen) that buys finished goods from contract manufacturers and sells online, on Amazon and in retail; about $84 million of 2023 net sales, $27.9 million of cash at 30 June 2024, an undrawn $10.0 million Western Alliance Bank revolver with liquidity covenants. Two disputes with Elysium Health, a former customer, move money in opposite directions on the decision date: in Delaware the court has granted Elysium its attorney fees, against ChromaDex, Inc. (the operating subsidiary) and the Trustees of Dartmouth College, and the amount (about $9.8 million with interest, by ChromaDex's estimate, reported as the Company's contingent liability) awaits a ruling that ChromaDex intends to appeal; in California a 13 August 2024 judgment orders Elysium to pay ChromaDex $2.5 million, with no payment date. Most resolution events (the fee judgment, the appeal bond, Elysium's appeal) fall inside a 90–120-day financing's life; the December settlement payment lands just after a 120-day term. Evidence: the 10-K, both 2024 10-Qs, the Q2 results release, the revolver amendment and nine federal court filings (CourtListener RECAP copies of PACER documents). The date is 19 August because on 20 August the Delaware court issued an order on the fee-amount dispute; by early September that branch was largely decided.
+
+**Secondary: Synergy CHC at 13 August 2024** (below): a resolved dispute whose obligations hide inside aggregate debt; its recorded runs stay as the hidden-obligation example.
+
+**Barfresh is deferred:** its live dispute is in California state court with no docket we could access, so the dispute cannot be modelled from court records.
+
+**Synergy CHC (secondary), using information available by the end of 13 August 2024.** It is a real consumer-products business with 25 employees, approximately $42.8 million of 2023 sales and an actual $370,000 merchant advance. We acquired a court opinion, financial disclosures, its executed merchant-loan contract, later repayment disclosures and a later credit agreement that expressly financed the settlement obligations. [C1–C6]
 
 The dispute is older than the underwriting snapshot: supplier litigation began in 2022, the main settlement occurred in December 2023, and the relevant payment obligations and financing decisions run through 2024–2025. Describe that chronology accurately. This is much more recent and economically applicable than the decade-old public-company cases, while remaining a historical demonstration with observable financing outcomes.
 
 | Candidate | Fit and evidence | Role |
 |---|---|---|
-| **Synergy CHC** | Small employee base, actual sub-$400,000 merchant advance, executed repayment terms, lawsuit settlement schedule, later settlement-financing contract | Lead: legal obligations → payment calendar → loan capacity and collections |
-| **Barfresh** | Roughly ten employees, small beverage supplier, production dispute, real receivables facility; incomplete executed financing contracts | Second case: production/inventory disruption → receipts and draw feasibility |
+| **ChromaDex** | Consumer supplement brand buying from contract manufacturers; live fee award and judgment receivable on the decision date; two federal dockets with filed orders; public financials; public outcome | Lead: live dispute branches → dated cash consequences → loan collections |
+| **Synergy CHC** | Small employee base, actual sub-$400,000 merchant advance, executed repayment terms, lawsuit settlement schedule, later settlement-financing contract | Secondary: resolved dispute → hidden settlement obligations → loan capacity |
+| **Barfresh** | Roughly ten employees, small beverage supplier, production dispute, real receivables facility; live case in state court with no public docket | Deferred |
 | Ya Ya Creations | Strong public evidence of Shopify/Stripe disruption and restored receipts; key financial declarations sealed, insufficient pre-outcome loan terms | Optional receipt-delay mechanism test, not the quantitative lead |
 | Kin Social Tonics | Recent financial disclosure and vendor finance; severe pre-existing distress, several paid or non-filed disputes | Optional negative control: do not attribute an ordinary financial rejection to a new lawsuit signal |
 | True Made Foods | Recent litigation/bankruptcy but inadequate contemporaneous public financial baseline | Exclude from first build |
@@ -41,11 +50,26 @@ Synergy is already highly leveraged. That does not disqualify a real financing a
 
 ### Exact lead mission
 
+> As of 19 August 2024, assess Slope financing of a USD 2.0 million contract-manufacturer invoice for ChromaDex Corporation. ChromaDex's public filings describe long-running litigation with Elysium Health, a former customer, in several federal courts.
+
+The request is reconstructed (Slope bill-pay financing of a real borrower's supplier invoice). The mission names the borrower and the counterparty but no expected finding.
+
+### Secondary mission (Synergy)
+
 > As of 13 August 2024, assess a proposed incremental working-capital draw for Synergy CHC. Reconcile existing merchant financing and supplier-settlement obligations. Compare the requested structure with permitted alternatives, identify the binding cash requirements and export conditional loan collections.
 
 There is no claim Synergy applied to Slope. The proposed request is a **scenario input attached to a real borrower**, not a fabricated historical loan. The actual May merchant advance provides real contract mechanics and existing obligations. Its historical funding decision cannot be reconstructed from later August information.
 
 ## 3. What the evidence actually establishes
+
+### ChromaDex: two live disputes, money moving both ways (as of 19 August 2024)
+
+- **Delaware fee award (D. Del. 1:18-cv-01434).** ChromaDex's patents were held invalid (2021), affirmed on appeal (February 2023), and certiorari was denied (October 2023). On 25 March 2024 the court granted Elysium's motion for attorney fees and costs (Dkt. 399) against ChromaDex, Inc. and the Trustees of Dartmouth College; ChromaDex Corporation reports it as its own contingent liability. The amount was fully briefed by 13 June 2024 and awaits a ruling. ChromaDex states it intends to appeal, treats the loss as reasonably possible (not accrued), and estimates the amount sought, with post-judgment interest, at about $9.8 million. An appeal normally requires a bond or other security to stay execution, which ties up cash or credit capacity.
+- **California judgment (C.D. Cal. 8:16-cv-02277).** A 2021 jury found Elysium owed about $3.0 million for unpaid ingredient purchases and ChromaDex owed smaller amounts on counterclaims. A 2022 settlement, enforced over Elysium's objection and affirmed by the Second Circuit in 2023, led to a 13 August 2024 judgment (Dkt. 618): Elysium shall pay ChromaDex $2,500,000; no post-trial motions or appeals on the jury claims; the court keeps jurisdiction to enforce for 120 days. The judgment sets no payment date, and Elysium has contested this settlement before.
+- **Existing lender.** Western Alliance Bank revolver of up to $10.0 million, maturing 12 November 2025, undrawn at the December 2023 amendment, with covenants on cash kept at the lender, the quick ratio and minimum liquidity.
+- **Baseline (30 June 2024).** Cash $27.9 million; trade receivables $7.8 million (including $3.5 million from a related party); inventory $11.5 million; payables $8.1 million; accrued expenses $8.6 million; Q2 net sales $22.7 million at a 60.2% gross margin; operating cash flow about breakeven for the half year.
+
+**Later outcomes, hidden until the decision is locked:** on 20 August 2024 the Delaware court ruled on the fee-amount dispute (Dkt. 415); ChromaDex moved for its own fees in California on 3 September 2024; the fee judgment was fixed on 28 October 2024 (about $9.2 million plus interest); ChromaDex appealed and secured an appeal bond (December 2024), with a related letter of credit; Elysium appealed the California judgment on 11 September 2024 despite its terms, and the parties settled in December 2024 for $2.65 million paid in two instalments (27 December 2024 and by 31 March 2025); the fee appeal was still undecided in August 2026. These sources are outcome-only for the mission and never reach the investigation.
 
 ### Synergy: three obligations that must remain separate
 
@@ -115,7 +139,7 @@ The detail below serves the drill-down and the decision's calculations:
 
 The leading result should read like: “The requested schedule breaches the selected cash buffer under the early settlement scenario. This alternative clears the modeled payment constraints if the documented payment calendar and opening cash reconcile.” The completed engine fills the actual amount, dates, binding condition and calculations. Do not hard-code a favorable or adverse result into the UI.
 
-For the public-data demonstration, default to **conditional thresholds and an editable assumptions panel**, not fabricated daily bank transactions. A fuller borrower cash-flow object can later replace assumptions without changing the product.
+Slope underwrites on **connected bank data**. The demonstration supplies a synthetic connected-bank feed for the borrower up to the decision date, anchored to the public financial statements and labelled synthetic once, at its source; an editable assumptions panel remains available. A fuller borrower cash-flow object can later replace assumptions without changing the product.
 
 ## 5. From evidence to a modeled adjustment
 
@@ -132,7 +156,7 @@ Every accepted `EconomicEffect` needs: entity and affected activity/obligation; 
 | Collateral/funding constraint | Apply documented limit or condition to available financing | Nominal commitment, reported availability and liquidation recovery are distinct |
 | Resolved obligation | Remove an obsolete prospective charge | Do not refund historical cash into today’s opening balance |
 
-The lawsuit itself does not supply a generic default-probability increment. It supplies evidence about an economic mechanism. Jev’s confidence is not the probability of that mechanism occurring and never becomes a loan-loss assumption.
+The lawsuit itself does not supply a generic default-probability increment. It supplies evidence about an economic mechanism. Jev’s confidence never becomes a borrower default probability or a loan-loss assumption: default probability comes from the labelled risk tier. At a decision node of a live dispute, Jev's branch distribution may weight the branches (labelled model judgment); that changes which cash path is expected, not the borrower's default rate.
 
 ### A useful worked threshold without fictional accounts
 
@@ -197,11 +221,11 @@ Include three **analytical offer fixtures**, explicitly labeled as proposed comp
 | Requested six-month draw | $250,000 | 6 | 6% / $15,000 | $44,166.67 | $44,166.65 |
 | Shorter draw | $250,000 | 3 | 3% / $7,500 | $85,833.33 | $85,833.34 |
 
-Start with month indices, not invented historical funding dates. Activate dated schedules when the user chooses funding date and business-day convention. These fixed-fee percentages are not APRs. Show the minimum residual payment capacity required for each fixture, then apply the event calendar and action-dependent financed purchase plan. No fixture receives an automatic approval. A six-month offer extending into 2025 must include the relevant 2025 settlement timing uncertainty; stopping the legal cash obligations at December would overstate capacity.
+These fixtures remain as reference arithmetic for the Synergy case; the lead case's offers come from the reconstructed Slope menu and price card. Default funding to the next business day after the decision date (Slope pays the supplier at once); the operator can change it. Show each structure's APR equivalent beside its fee, and apply Slope's proration of fees on early repayment. Show the minimum residual payment capacity required for each fixture, then apply the event calendar and action-dependent financed purchase plan. No fixture receives an automatic approval. A six-month offer extending into 2025 must include the relevant 2025 settlement timing uncertainty; stopping the legal cash obligations at December would overstate capacity.
 
 ### Loan economics and portfolio output
 
-Keep three series separate: contractual amounts owed, conditional cash collected and probability-weighted expected collections. V1 requires the first two. Expected collections are optional only when weights are supplied with provenance and sum to one; retain coherent joint scenarios when aggregating loans.
+Keep three series separate: contractual amounts owed, conditional cash collected and probability-weighted expected collections. V1 requires the first two. Expected collections use explicit weights that sum to one and carry their basis: a labelled risk tier from bank data (probability of default), or Jev's branch distribution at a decision node of a live dispute (labelled once as model judgment; TypeSafe calibrates Jev to frontier-model consensus, not to observed litigation outcomes). The conditional series always sits beside the expected one; retain coherent joint scenarios when aggregating loans.
 
 `asset_cash_flow[t] = principal + interest + retained_fees + net_recoveries − disbursements − explicit_asset_costs`
 
@@ -253,7 +277,7 @@ Only whitelisted operational mission fields reach the agent. Case-specific expec
 
 ### Jev as the semantic judgment layer
 
-Jev is a typed, narrow semantic sensor placed where retrieved text becomes a finding, a finding becomes an economic effect, or evidence conflicts. Its value is preventing category errors before they become financial inputs: an allegation treated as a liability, a paid matter treated as a future outflow, a noncash gain treated as cash, the wrong entity, a disputed demand treated as an agreed payment. It never determines amounts, dates, probabilities or the credit decision, and a Jev answer never activates a cash-flow adjustment on its own.
+Jev is a typed, narrow semantic sensor placed where retrieved text becomes a finding, a finding becomes an economic effect, or evidence conflicts. Its value is preventing category errors before they become financial inputs: an allegation treated as a liability, a paid matter treated as a future outflow, a noncash gain treated as cash, the wrong entity, a disputed demand treated as an agreed payment. Jev also **models the decision process of a live dispute**: at each decision node (for example the amount a court will fix, whether an appeal needs a bond, whether a judgment debtor pays and when), it judges which branch the record supports, and its distribution becomes that branch's weight, labelled model judgment. It never determines amounts, dates or the credit decision: each branch's amounts and dates come from the record or from code, and a Jev answer never activates a cash-flow adjustment on its own.
 
 The agent requests a **judgment profile** with object IDs; the host resolves the immutable objects, builds the smallest necessary state, selects the versioned questions, makes the call, logs the physical request once and returns typed semantic observations. Independent questions on the same state go in one request.
 
@@ -334,8 +358,9 @@ app/
   exports/            # dated loan vectors and immutable packets
   web/                # FastAPI routes and Jinja/HTMX views
 cases/
-  synergy_20240813/   # admissible manifest and scenario inputs
-  barfresh_20241025/  # transfer case
+  chromadex_20240819/ # lead case: admissible manifest and scenario inputs
+  synergy_20240813/   # secondary case
+  barfresh_20241025/  # deferred
 outcomes/             # separate, excluded from investigation tools
 evals/                # gold premises, contradictions, isolation tests
 ```
@@ -348,11 +373,12 @@ evals/                # gold premises, contradictions, isolation tests
 | 4a. Semantic layer | Investigation graph and run store, Jev adapter (Choice and Noul) with host-owned judgment profiles, question registry v3, labelled semantic eval cases | Jev state is built only from admissible snapshot objects; every observation is traceable to a versioned question and physical call; Jev output cannot create a cash stream; labelled cases run live |
 | 4b. Investigation | Scoped MCP tools, adaptive runner, recorded Synergy run, thin read-only investigation viewer | From only the admissible dated snapshot and locked baseline, the agent identifies decision-relevant gaps; Jev systematically screens retrieved evidence and checks narrow semantic claims; every accepted finding is atomic and traceable to source spans and semantic observations; every proposed economic effect names its mechanism, target, parameter requirements and baseline treatment; dates and arithmetic remain deterministic; pivotal unresolved facts remain typed unknowns; the full investigation is observable; and no answer-bearing document order or evaluator information reaches the run |
 | 4c. Jev at scale | Snapshot sweep reading list of atomic units, cited-paragraph gate, category-error guard on effects, statement-support checks, automatic relation checks, screen reliance attribution | No packet can be submitted with a cited paragraph or table row whose payment, obligation, restriction, covenant, default term or earnings items its findings do not state, an unsupported consequence or conclusion, an effect whose supporting findings fail its category rule, or an open reconciliation, unless each exception is resolved or escalated; an escalated cash-moving effect leaves the run INCOMPLETE_REVIEW, and coverage escalations and flagged units no finding cites go to the independent reviewer's checklist; the coverage prompt rule is removed; a recorded Synergy run shows these checks at work |
-| 5. Decision comparison | Matched baseline/event-adjusted scenario pairs (only effect IDs differ), Account Credits linked to operating receipts, payment capacity with an explicit allocation rule, action-conditioned operating streams, distinct result series, conditional collections, conditional offers stated as fact + acceptable evidence + threshold branches, marginal funding export | Before/after has identical common inputs; result explains the binding constraint |
+| 5a. Lead case evidence | ChromaDex sources registered (mission `chromadex_20240819`), dated snapshot with federal court filings and SEC filings, locked run inputs, lead mission, reframed spec and builder context | Outcome sources and post-decision facts are absent from the snapshot; every baseline observation cites verbatim admissible text |
+| 5b. Decision model and cash flows | Synthetic connected-bank baseline and reconstructed Slope menu, price card and policy (each labelled once); dispute decision nodes judged by Jev with labelled branch weights; bank-only vs event-adjusted scenario pairs (only effect IDs differ); payment capacity with an explicit allocation rule; lender economics (fee, APR equivalent, yield, NPV at cost of funds, capital tied up, expected loss); affordability coverage; security and conditions; conditional and expected collections; marginal funding export; recorded ChromaDex run | Before/after has identical common inputs; each structure's collections and economics are shown per branch; the result explains the binding constraint and the recommended structure |
 | 6. Review gate and decision-first workbench | Independent review of the locked graph packet as a quality gate, starting from the packet's reviewer checklist (escalations and flagged units no accepted finding cites) (issues point to nodes or edges; one repair pass; objections are not shown on the front page), decision-first workbench (decision with conditions as actions, dated loan collections beside borrower monthly cash before/after, 2–3 drivers with source click-through, "How we know" drill-down), outcome reveal after lock | Front page shows one decision, its conditions as actions and dated cash flows, with no unknown lists or disagreement logs; reviewer can trace claims and a material issue is repaired or the run is INCOMPLETE_REVIEW; outcome reveal cannot contaminate the run |
-| 7. Transfer/evaluation | Same engine on Barfresh; agent-with-Jev vs agent-alone runs measured on critical semantic errors, finding and effect quality, pivotal-gap discovery, research efficiency, the Jev contribution ledger, agent/Jev disagreement, cost and decision consistency | Differences reported honestly, including failures and cases where Jev adds no value |
+| 7. Transfer/evaluation | Same engine on Synergy (secondary); agent-with-Jev vs agent-alone runs measured on critical semantic errors, finding and effect quality, pivotal-gap discovery, research efficiency, the Jev contribution ledger, agent/Jev disagreement, cost and decision consistency | Differences reported honestly, including failures and cases where Jev adds no value |
 
-The first demonstrable milestone is the Synergy financial core plus an agent-produced evidence adjustment. Do not spend the first build phase on a polished legal dashboard or a warehouse model. Conversely, do not substitute a canned report for the adaptive investigation Russell explicitly mentioned.
+The first demonstrable milestone was the Synergy financial core plus an agent-produced evidence adjustment; the lead demonstration is ChromaDex. Do not spend the first build phase on a polished legal dashboard or a warehouse model. Conversely, do not substitute a canned report for the adaptive investigation Russell explicitly mentioned.
 
 ## 10. Acceptance criteria and evaluation
 
@@ -375,7 +401,7 @@ Agent acceptance includes identifying the three separate Synergy matters; respec
 
 Evaluate agent-alone and agent-plus-Jev using the same corpus, mission, primary model, research/financial tools and budgets. The agent-alone arm omits the `judge` tool, the screening fields on search results, the automatic finding check and the Jev registry; it retains the same retrieval and financial calculation capabilities. Final-decision agreement is insufficient on its own: also measure critical semantic errors (wrong entity, allegation treated as liability, paid treated as future payment, noncash treated as cash), supported-finding and effect quality, pivotal-gap discovery, research efficiency, which Jev observations changed research or corrected a finding (the contribution ledger), how often and how justifiably the agent overrode Jev, and cost. Jev may leave the recommendation unchanged on a borrower while still improving evidence discipline; that is a legitimate result. Record evidence support, economic-effect accuracy, double-count prevention, decision consistency, research efficiency, latency and Jev usage. Keep blind reviewer context and retain failures. Run multiple seeds/sessions, but do not claim a statistically meaningful production improvement from two borrowers.
 
-Critical errors—wrong entity, future leakage, fabricated payment date, demanded amount treated as paid, invented Slope policy, cash overstated or duplicate obligation—block a publishable demo result even if a blended score is high.
+Critical errors—wrong entity, future leakage, fabricated payment date, demanded amount treated as paid, a Jev branch weight presented as an observed frequency, cash overstated or duplicate obligation—block a publishable demo result even if a blended score is high.
 
 The included schema checks and reference calculations validate design contracts and selected arithmetic only. They are not evidence of a built agent, a tested underwriting engine or a calibrated default model.
 
@@ -383,7 +409,7 @@ The included schema checks and reference calculations validate design contracts 
 
 The central demonstration is a traceable chain: **a sourced legal fact changes a specific financial input; the changed input alters a loan’s cash-flow path or feasible offer; the resulting cash-flow vector changes capital needs.**
 
-Synergy supplies a real contract and a later documented financing connection. Barfresh tests a different causal mechanism. Jev has a visible, bounded role in both. The output is an instrument Russell could recognize in a credit or portfolio workflow, while the design keeps the public-data demonstration honest about what requires connected borrower data.
+ChromaDex shows a live dispute turned into branches whose dated cash consequences fall inside the loan's life. Synergy shows hidden settlement obligations from a resolved dispute. Jev judges the dispute's branches and guards the category errors in both. The output is an instrument Russell could recognize in a credit or portfolio workflow, while the design keeps the public-data demonstration honest about what requires connected borrower data.
 
 ## Sources
 

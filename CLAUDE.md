@@ -1,7 +1,9 @@
 # Slope Sparse Events — builder instructions
 
 ## What this is
-A proof-of-concept demo for Russell (Slope). A credit reviewer is deciding on a new discretionary working-capital draw. An agent (Claude Agent SDK) investigates an unusual external event (a lawsuit), with Jev (TypeSafe) making focused judgments along the way. Deterministic code turns the sourced economic effects into borrower cash capacity, loan collections, a feasible offer set, and the capital impact. Lead case: Synergy CHC at 13 Aug 2024. Transfer case: Barfresh at 25 Oct 2024.
+A proof-of-concept demo for Russell (Slope). A credit reviewer is deciding on a new discretionary working-capital draw. An agent (Claude Agent SDK) investigates an unusual external event (a lawsuit), with Jev (TypeSafe) making focused judgments along the way. Deterministic code turns the sourced economic effects into borrower cash capacity, loan collections, a feasible offer set, and the capital impact. Lead case: ChromaDex at 19 Aug 2024 (live disputes with Elysium Health: a fee award being fixed and a judgment receivable). Secondary case: Synergy CHC at 13 Aug 2024 (resolved dispute, hidden settlement obligations). Barfresh is deferred (no accessible docket for its live case).
+
+The demo reconstructs Slope as closely as public information allows: Slope's bill-pay product, a reconstructed price card and credit policy, and synthetic connected-bank data, each labelled once at its source and otherwise used plainly (this is a proof of concept for Russell, not a hedged research note).
 
 The deliverable is a **financing decision plus the loan's dated cash flows**. A litigation summary is not the deliverable.
 
@@ -19,7 +21,7 @@ The deliverable is a **financing decision plus the loan's dated cash flows**. A 
 **Isolation (non-negotiable):** `case_eval_private.json`, `outcome_checks_synergy.json`, the facts registry, and any source whose `mission_membership` is `outcome` must never reach the investigating agent or the blind reviewer. They reach the agent only through scoped MCP handlers built from the dated snapshot DB. This document, the alignment doc and `Jev_Pivot.md` are builder context, and they must not be injected into agent prompts either.
 
 ## Critical errors (they block a demo result)
-Wrong entity. Future-information leakage. A fabricated payment date. A demanded amount treated as paid. Invented Slope policy. Overstated cash. A duplicated obligation. Unknown values silently becoming 0 or 1. Jev confidence used as a probability.
+Wrong entity. Future-information leakage. A fabricated payment date. A demanded amount treated as paid. Overstated cash. A duplicated obligation. Unknown values silently becoming 0 or 1. A Jev branch weight presented as an observed frequency (it is labelled model judgment).
 
 ## Stack
 Python 3.12 (`uv`), Pydantic, integer cents plus `Decimal` rates, SQLite FTS5, FastAPI + Jinja2 + HTMX + Pico.css, `claude-agent-sdk==0.2.159` (subscription auth, never `--bare`, never an API key), `typesafe-sdk==0.7.1` (`TYPESAFE_API_KEY`, host-side only), and the Codex CLI (ChatGPT sign-in) for the app's independent reviewer.
@@ -39,4 +41,4 @@ Commands: `uv sync`, `uv run slope ...`, `uv run pytest`, `uv run ruff check .`
 This is a proof-of-concept demo. **Do not spend significant time on non-essential tests, checks, or verification.** Write tests only where they protect financial correctness (the spec §10 invariants and the reference thresholds) or isolation (no future or evaluator leakage). No coverage targets, no exhaustive edge-case suites, no polishing checks. This speed allowance does not permit careless implementation: the economics, provenance, and the decision logic must still be right, and the demo must be coherent and intuitive.
 
 ## Product judgment
-Ask: *does this help the reviewer decide what to fund and understand the cash that comes back?* Keep contractual, conditional, and expected series distinct. Unknown is a typed state, never zero. Deterministic code does the arithmetic. The agent and Jev interpret evidence: the agent thinks broadly, Jev judges narrowly through host-owned judgment profiles, code computes exactly, the host controls everything, and the reviewer sees the causal chain in one investigation graph. A Jev answer never sets an amount, a date or a decision, and never activates a cash adjustment on its own.
+Ask: *does this help the reviewer decide what to fund and understand the cash that comes back?* Keep contractual, conditional, and expected series distinct. Unknown is a typed state, never zero. Deterministic code does the arithmetic. The agent and Jev interpret evidence: the agent thinks broadly, Jev judges narrowly through host-owned judgment profiles (including which branch of a live dispute the record supports, its distribution weighting that branch), code computes exactly, the host controls everything, and the reviewer sees the causal chain in one investigation graph. A Jev answer never sets an amount, a date or a decision, and never activates a cash adjustment on its own.

@@ -106,9 +106,13 @@ Later events belong in a separate outcome view. First establish what the system 
 
 Owen wants the demonstration grounded in actual businesses, actual legal events, public evidence and observable financing outcomes. The research package supplies that foundation.
 
-### Synergy CHC: lead demonstration
+### ChromaDex: lead demonstration
 
-The lead decision date is **13 August 2024**. Synergy is a consumer-products business with an actual merchant-financing agreement and disclosed supplier-settlement obligations.
+The lead decision date is **19 August 2024**. ChromaDex is a consumer supplement brand that buys finished goods from contract manufacturers. On that date its disputes with Elysium Health, a former customer, are live and move money both ways: a Delaware fee award whose amount awaits a ruling (about $9.8 million sought, and ChromaDex intends to appeal, which needs a bond), and a California judgment ordering Elysium to pay ChromaDex $2.5 million with no payment date. These are the forward-looking, branching questions that bank data cannot answer. The request is reconstructed as Slope bill-pay financing of a contract-manufacturer invoice, and most resolution events fall inside that financing's life (the December settlement payment lands just after a 120-day term).
+
+### Synergy CHC: secondary demonstration
+
+The secondary decision date is **13 August 2024**. Synergy is a consumer-products business with an actual merchant-financing agreement and disclosed supplier-settlement obligations.
 
 Its strength is the connection between the evidence and the cash model. The research links a supplier lawsuit to settlement debt, establishes payment requirements, supplies actual merchant-loan mechanics and provides later evidence of financing directed toward the settlement obligations.
 
@@ -118,9 +122,11 @@ The historical merchant loan is an existing obligation and a real contractual re
 
 The public evidence supports meaningful thresholds and scenario analysis. Inputs such as exact current bank cash, intervening payments, store-level receipts and private payment calendars are handled through identified parameters. The user should be able to supply an assumption or actual data and see the consequences immediately.
 
-### Barfresh: transfer demonstration
+### Barfresh: deferred
 
-The second decision date is **25 October 2024**. Barfresh is a small beverage business with a supplier dispute, production considerations and a real receivables facility.
+Barfresh (25 October 2024) is deferred: its live dispute is in state court with no docket we could access. The original rationale follows.
+
+The second decision date was **25 October 2024**. Barfresh is a small beverage business with a supplier dispute, production considerations and a real receivables facility.
 
 This case tests a different path from evidence to repayment: manufacturing and inventory affect deliveries, receipts and the cash-conversion cycle. Its purpose is to establish that the same product can handle operating effects as well as settlement payments.
 

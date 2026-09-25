@@ -1,0 +1,192 @@
+{
+  "mission_id": "chromadex_2024_supplier_bill_financing",
+  "case_id": "chromadex_elysium_2024",
+  "snapshot_id": "chromadex_20240819",
+  "status": "locked_operator_inputs",
+  "note": "Operator request and ordinary baseline for the 19 August 2024 review, reconstructed as if ChromaDex applied to Slope to finance a contract-manufacturer invoice. The baseline holds only ordinary underwriting facts; the litigation is for the investigation to establish.",
+  "run_inputs": {
+    "mission_id": "chromadex_2024_supplier_bill_financing",
+    "requested_use": {
+      "value": "Pay a contract manufacturer's invoice for Tru Niagen finished goods",
+      "basis": "operator_request"
+    },
+    "requested_amount": {
+      "value": 200000000,
+      "unit": "USD_cents",
+      "basis": "operator_request"
+    },
+    "requested_term": {
+      "value": "120 days, monthly installments",
+      "basis": "operator_request"
+    },
+    "requested_pricing": {
+      "value": "Slope price card for the borrower's risk tier",
+      "basis": "operator_request"
+    },
+    "baseline_profile_id": "chromadex_ordinary_baseline_v1",
+    "existing_loan_record_ids": [
+      "chromadex_western_alliance_revolver"
+    ],
+    "permitted_offer_set_id": "slope_menu_v1",
+    "policy_config_id": "slope_policy_v1",
+    "initial_event_seed": "As of 19 August 2024, assess Slope financing of a USD 2.0 million contract-manufacturer invoice for ChromaDex Corporation. ChromaDex's public filings describe long-running litigation with Elysium Health, a former customer, in several federal courts."
+  },
+  "baseline_profile": {
+    "baseline_profile_id": "chromadex_ordinary_baseline_v1",
+    "borrower": "ChromaDex Corporation",
+    "opening_cash_observation_id": "cash_20240630",
+    "observations": [
+      {
+        "observation_id": "cash_20240630",
+        "label": "Cash and cash equivalents, including $152 thousand restricted",
+        "value": 2788500000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "cdxc_2024q2_10q",
+          "item_id": "cdxc_2024q2_10q#s0003",
+          "quote": "| Cash and cash equivalents, including restricted cash of $152 for both periods presented |  | $27,885 |  | $27,325 |"
+        }
+      },
+      {
+        "observation_id": "restricted_cash_20240630",
+        "label": "Restricted cash (included in cash above)",
+        "value": 15200000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "cdxc_2024q2_10q",
+          "item_id": "cdxc_2024q2_10q#s0003",
+          "quote": "| Cash and cash equivalents, including restricted cash of $152 for both periods presented |  | $27,885 |  | $27,325 |"
+        }
+      },
+      {
+        "observation_id": "trade_receivables_20240630",
+        "label": "Trade receivables, net (including $3.5 million from a related party)",
+        "value": 781800000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "cdxc_2024q2_10q",
+          "item_id": "cdxc_2024q2_10q#s0003",
+          "quote": "| Trade receivables, net of allowances of $85 and $68, respectively; Including receivables from Related Party of $3.5 million and $2.8 million, respectively | 7,818 |  | 5,234 |  |"
+        }
+      },
+      {
+        "observation_id": "inventories_20240630",
+        "label": "Inventories",
+        "value": 1151100000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "cdxc_2024q2_10q",
+          "item_id": "cdxc_2024q2_10q#s0003",
+          "quote": "| Inventories | 11,511 |  | 14,525 |  |"
+        }
+      },
+      {
+        "observation_id": "accounts_payable_20240630",
+        "label": "Accounts payable",
+        "value": 810500000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "cdxc_2024q2_10q",
+          "item_id": "cdxc_2024q2_10q#s0003",
+          "quote": "| Accounts payable |  | $8,105 |  | $10,232 |"
+        }
+      },
+      {
+        "observation_id": "accrued_expenses_20240630",
+        "label": "Accrued expenses",
+        "value": 862100000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "cdxc_2024q2_10q",
+          "item_id": "cdxc_2024q2_10q#s0003",
+          "quote": "| Accrued expenses | 8,621 |  | 9,493 |  |"
+        }
+      },
+      {
+        "observation_id": "operating_cash_flow_h1_2024",
+        "label": "Net cash provided by operating activities, six months to June 30, 2024",
+        "value": 3100000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "cdxc_2024q2_10q",
+          "item_id": "cdxc_2024q2_10q#s0007",
+          "quote": "| Net cash provided by operating activities | 31 |  | 6,072 |  |"
+        }
+      },
+      {
+        "observation_id": "net_sales_q2_2024",
+        "label": "Total net sales, three months to June 30, 2024",
+        "value": 2270000000,
+        "unit": "USD_cents",
+        "precision": "approximate",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "cdxc_2024q2_release",
+          "item_id": "cdxc_2024q2_release#s0002",
+          "quote": "• Total net sales were $22.7 million, with $18.6 million from Tru Niagen®, up 12%, and 10%, respectively, from the prior year quarter."
+        }
+      }
+    ],
+    "existing_loans": [
+      {
+        "loan_id": "chromadex_western_alliance_revolver",
+        "basis": "executed_contract",
+        "lender": "Western Alliance Bank",
+        "cover_terms": [
+          {
+            "label": "Facility size",
+            "citation": {
+              "item_id": "cdxc_2023_12_credit_8k#s0002",
+              "quote": "The Credit Agreement provides for a revolving credit line of up to $10.0 million."
+            }
+          },
+          {
+            "label": "Maturity",
+            "citation": {
+              "item_id": "cdxc_2023_12_credit_8k#s0002",
+              "quote": "The Amendment extended the maturity date of the revolving credit line under the Credit Agreement to November 12, 2025"
+            }
+          },
+          {
+            "label": "Balance at amendment",
+            "citation": {
+              "item_id": "cdxc_2023_12_credit_8k#s0002",
+              "quote": "There are no amounts outstanding under the Credit Agreement, as amended, as of the date of this Current Report on Form 8-K."
+            }
+          }
+        ],
+        "note": "Existing lender. The amendment also sets covenants on cash kept at the lender, the quick ratio and minimum liquidity (read the source for the terms that are disclosed)."
+      }
+    ]
+  }
+}
