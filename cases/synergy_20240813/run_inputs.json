@@ -1,0 +1,192 @@
+{
+  "mission_id": "synergy_chc_2024_working_capital_advance",
+  "case_id": "synergy_chc_2024",
+  "snapshot_id": "synergy_20240813",
+  "status": "locked_operator_inputs",
+  "note": "Operator request and ordinary baseline for the 13 Aug 2024 review. Offers are analytical fixtures, not Slope pricing or a historical application. The baseline holds only ordinary underwriting facts; event mechanisms are for the investigation to establish.",
+  "run_inputs": {
+    "mission_id": "synergy_chc_2024_working_capital_advance",
+    "requested_use": {
+      "value": "Inventory purchase for existing product lines",
+      "basis": "operator_assumption"
+    },
+    "requested_amount": {
+      "value": 25000000,
+      "unit": "USD_cents",
+      "basis": "operator_assumption"
+    },
+    "requested_term": {
+      "value": 6,
+      "unit": "months",
+      "basis": "operator_assumption"
+    },
+    "requested_pricing": {
+      "value": "fixed total fee of 6% of the advance, equal monthly payments",
+      "basis": "operator_assumption",
+      "note": "Analytical fixture; not an APR and not Slope pricing."
+    },
+    "baseline_profile_id": "synergy_ordinary_baseline_v1",
+    "existing_loan_record_ids": [
+      "synergy_webbank_shopify_2024-05-01"
+    ],
+    "permitted_offer_set_id": "synergy_analytical_offers_v1",
+    "policy_config_id": "demo_policy_reserve_v1",
+    "initial_event_seed": "Synergy CHC Corp.'s public filings describe litigation with a former contract manufacturer and related settlements. Establish whether and how these matters affect cash available to repay an incremental draw."
+  },
+  "baseline_profile": {
+    "baseline_profile_id": "synergy_ordinary_baseline_v1",
+    "borrower": "Synergy CHC Corp.",
+    "observations": [
+      {
+        "observation_id": "cash_20240630",
+        "label": "Cash and cash equivalents",
+        "value": 8729300,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "synergy_s1a_20240813",
+          "item_id": "synergy_s1a_20240813#s0183",
+          "quote": "| Cash and cash equivalents | $87,293 | $632,534 |"
+        }
+      },
+      {
+        "observation_id": "restricted_cash_20240630",
+        "label": "Restricted cash",
+        "value": 10000000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "synergy_s1a_20240813",
+          "item_id": "synergy_s1a_20240813#s0183",
+          "quote": "| Restricted cash | 100,000 | 100,000 |"
+        }
+      },
+      {
+        "observation_id": "cash_20240812_reported",
+        "label": "Cash reported by management",
+        "value": 200000000,
+        "unit": "USD_cents",
+        "precision": "approximate",
+        "observed_on": "2024-08-12",
+        "basis": "documented_evidence",
+        "note": "Management's approximate figure; not a bank statement.",
+        "citation": {
+          "source_id": "synergy_s1a_20240813",
+          "item_id": "synergy_s1a_20240813#s0009",
+          "quote": "As of August 12, 2024, we have approximately $2.0 million of cash."
+        }
+      },
+      {
+        "observation_id": "revenue_h1_2024",
+        "label": "Revenue, six months ended June 30, 2024",
+        "value": 1743670300,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "synergy_s1a_20240813",
+          "item_id": "synergy_s1a_20240813#s0178",
+          "quote": "| Revenue | $17,436,703 | $18,753,705 |"
+        }
+      },
+      {
+        "observation_id": "notes_payable_20240630",
+        "label": "Total notes payable (gross)",
+        "value": 3151443400,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-06-30",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "synergy_s1a_20240813",
+          "item_id": "synergy_s1a_20240813#s0201",
+          "quote": "| Total notes payable | $31,514,434 | $27,630,420 |"
+        }
+      },
+      {
+        "observation_id": "debt_due_2024",
+        "label": "Outstanding indebtedness coming due in the year ending December 31, 2024",
+        "value": 410000000,
+        "unit": "USD_cents",
+        "precision": "approximate",
+        "observed_on": "2024-08-13",
+        "basis": "documented_evidence",
+        "note": "Aggregate figure; the component obligations and dates are not itemized here.",
+        "citation": {
+          "source_id": "synergy_s1a_20240813",
+          "item_id": "synergy_s1a_20240813#s0009",
+          "quote": "Approximately $4.1 million of our outstanding indebtedness comes due in the year ending December 31, 2024"
+        }
+      }
+    ],
+    "existing_loans": [
+      {
+        "loan_id": "synergy_webbank_shopify_2024-05-01",
+        "basis": "executed_contract",
+        "lender": "WebBank",
+        "cover_terms": [
+          {
+            "label": "Total Payment Amount, Loan Amount, Cost of Funds",
+            "citation": {
+              "item_id": "synergy_merchant_agreement_20240501#s0000",
+              "quote": "$418,100.00 $370,000.00 USD $48,100.00 USD"
+            }
+          },
+          {
+            "label": "Repayment rate and Term",
+            "citation": {
+              "item_id": "synergy_merchant_agreement_20240501#s0000",
+              "quote": "USD 25% of daily sales 18 Months"
+            }
+          }
+        ],
+        "note": "Existing obligation. The full agreement is in the evidence (source synergy_merchant_agreement_20240501); read it for the payment rules."
+      }
+    ]
+  },
+  "permitted_offers": {
+    "permitted_offer_set_id": "synergy_analytical_offers_v1",
+    "requested_proposal_id": "analysis_250k_6m",
+    "offers": [
+      {
+        "proposal_id": "analysis_100k_6m",
+        "advance_cents": 10000000,
+        "term_months": 6,
+        "fixed_total_fee_fraction": "0.06",
+        "basis": "operator_assumption"
+      },
+      {
+        "proposal_id": "analysis_250k_6m",
+        "advance_cents": 25000000,
+        "term_months": 6,
+        "fixed_total_fee_fraction": "0.06",
+        "basis": "operator_assumption"
+      },
+      {
+        "proposal_id": "analysis_250k_3m",
+        "advance_cents": 25000000,
+        "term_months": 3,
+        "fixed_total_fee_fraction": "0.03",
+        "basis": "operator_assumption"
+      }
+    ]
+  },
+  "policy": {
+    "policy_config_id": "demo_policy_reserve_v1",
+    "required_cash_reserve": {
+      "value": 20000000,
+      "unit": "USD_cents",
+      "basis": "operator_assumption",
+      "note": "Illustrative $200,000 liquidity reserve; not Slope policy."
+    }
+  }
+}

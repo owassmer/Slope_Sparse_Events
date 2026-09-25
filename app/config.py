@@ -18,6 +18,7 @@ KIT = ROOT / "Slope_Credit_Scenario_Research_and_Design_Kit"
 CONTRACTS = KIT / "research/revision_v2/contracts"
 VAR = ROOT / "var"
 RECORDED = ROOT / "runs/recorded"
+CASES_DIR = ROOT / "cases"
 
 
 class ConfigurationError(RuntimeError):

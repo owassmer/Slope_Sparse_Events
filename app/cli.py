@@ -102,5 +102,21 @@ def jev_check_cases() -> None:
     typer.echo(f"{report['agreement']}/{report['cases']} agree  ->  {report['path']}")
 
 
+@cli.command()
+def investigate(
+    snapshot: str = typer.Option("synergy_20240813", help="Dated evidence snapshot / case."),
+    arm: str = typer.Option("agent_plus_jev", help="agent_plus_jev or agent_only."),
+) -> None:
+    """Run one recorded investigation (Claude subscription + separately billed Jev)."""
+    import json as _json
+
+    from app.agent.investigation import investigate as run
+
+    record = run(snapshot, arm)
+    keys = ("run_id", "status", "failure", "incomplete_reasons", "returned_models", "tool_calls", "graph_counts", "jev", "recorded_at")
+    typer.echo(_json.dumps({k: record.get(k) for k in keys}, indent=2, default=str))
+    raise typer.Exit(0 if record["status"] == "CANDIDATE_READY" else 1)
+
+
 def main() -> None:
     cli()

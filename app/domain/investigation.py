@@ -58,6 +58,7 @@ class DecisionDependency(Frozen):
     premises: tuple[str, ...] = ()  # assumptions embedded in the question (screened for conflict)
     affects: str  # the financial quantity or action that could change
     resolvable_by: str = ""  # evidence that could resolve it
+    target: str = ""  # entity plus the specific obligation, counterparty, asset or activity (named precisely)
 
 
 class CandidateScreen(Frozen):
