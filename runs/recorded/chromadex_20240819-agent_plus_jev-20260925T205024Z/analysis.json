@@ -2426,7 +2426,7 @@
    "metrics": {
     "lender_pv_cents": 4722554.242819487,
     "dollar_days": 123333333.94000006,
-    "full_collection_by_maturity_p": 1.0000000000000016,
+    "full_collection_by_maturity_p": 1.0,
     "uncollected_maturity_cents": 0.0,
     "uncollected_horizon_cents": 0.0,
     "min_cash_mean_cents": 2135438257.0959976,
@@ -4630,7 +4630,7 @@
  "delta": {
   "lender_pv_cents": -9.313225746154785e-10,
   "dollar_days": 2.2351741790771484e-07,
-  "full_collection_by_maturity_p": 1.5543122344752192e-15,
+  "full_collection_by_maturity_p": 0.0,
   "uncollected_maturity_cents": 0.0,
   "uncollected_horizon_cents": 0.0,
   "min_cash_mean_cents": -335005501.3727524,
@@ -11417,7 +11417,7 @@
       "context": "* * * * NOW THEREFORE, at Wilmington on this Twenty-fifth day of March in 2024, it is HEREBY ORRDERED that: 1. Elysium's Motion for Attorneys' Fees and Costs (D.I. 380) is GRANTED. 2. The Parties are directed to meet and confer regarding a schedule to resolve the amount of the fees award. They shall submit a proposed schedule to the Court within two weeks. CHIEF JUDGE 8 Case 1:18-cv-01434-CFC-JLH Document 399 Filed 03/25/24 Page 8 of 8 PageID #: 23815"
      }
     ],
-    "observation_id": "obs_947f2cb191"
+    "observation_id": "obs_7e06c97edd"
    },
    "dispute_001:amount_fixed": {
     "key": "dispute_001:amount_fixed",
@@ -11509,7 +11509,7 @@
       "context": "* * * * NOW THEREFORE, at Wilmington on this Twenty-fifth day of March in 2024, it is HEREBY ORRDERED that: 1. Elysium's Motion for Attorneys' Fees and Costs (D.I. 380) is GRANTED. 2. The Parties are directed to meet and confer regarding a schedule to resolve the amount of the fees award. They shall submit a proposed schedule to the Court within two weeks. CHIEF JUDGE 8 Case 1:18-cv-01434-CFC-JLH Document 399 Filed 03/25/24 Page 8 of 8 PageID #: 23815"
      }
     ],
-    "observation_id": "obs_f9ede30c6c"
+    "observation_id": "obs_e36020e6fa"
    },
    "dispute_001:settle_after_judgment": {
     "key": "dispute_001:settle_after_judgment",
@@ -11602,7 +11602,7 @@
       "context": "* * * * NOW THEREFORE, at Wilmington on this Twenty-fifth day of March in 2024, it is HEREBY ORRDERED that: 1. Elysium's Motion for Attorneys' Fees and Costs (D.I. 380) is GRANTED. 2. The Parties are directed to meet and confer regarding a schedule to resolve the amount of the fees award. They shall submit a proposed schedule to the Court within two weeks. CHIEF JUDGE 8 Case 1:18-cv-01434-CFC-JLH Document 399 Filed 03/25/24 Page 8 of 8 PageID #: 23815"
      }
     ],
-    "observation_id": "obs_9322141c2c"
+    "observation_id": "obs_7fba648529"
    },
    "dispute_001:appeal": {
     "key": "dispute_001:appeal",
@@ -11718,7 +11718,7 @@
       "context": "* * * * NOW THEREFORE, at Wilmington on this Twenty-fifth day of March in 2024, it is HEREBY ORRDERED that: 1. Elysium's Motion for Attorneys' Fees and Costs (D.I. 380) is GRANTED. 2. The Parties are directed to meet and confer regarding a schedule to resolve the amount of the fees award. They shall submit a proposed schedule to the Court within two weeks. CHIEF JUDGE 8 Case 1:18-cv-01434-CFC-JLH Document 399 Filed 03/25/24 Page 8 of 8 PageID #: 23815"
      }
     ],
-    "observation_id": "obs_798cc42d29"
+    "observation_id": "obs_bc7e561871"
    },
    "dispute_001:secured_stay": {
     "key": "dispute_001:secured_stay",
@@ -11823,7 +11823,7 @@
       "context": "* * * * NOW THEREFORE, at Wilmington on this Twenty-fifth day of March in 2024, it is HEREBY ORRDERED that: 1. Elysium's Motion for Attorneys' Fees and Costs (D.I. 380) is GRANTED. 2. The Parties are directed to meet and confer regarding a schedule to resolve the amount of the fees award. They shall submit a proposed schedule to the Court within two weeks. CHIEF JUDGE 8 Case 1:18-cv-01434-CFC-JLH Document 399 Filed 03/25/24 Page 8 of 8 PageID #: 23815"
      }
     ],
-    "observation_id": "obs_8fa5e68cef"
+    "observation_id": "obs_046de82bb4"
    },
    "dispute_001:security_form": {
     "key": "dispute_001:security_form",
@@ -11920,7 +11920,7 @@
       "context": "* * * * NOW THEREFORE, at Wilmington on this Twenty-fifth day of March in 2024, it is HEREBY ORRDERED that: 1. Elysium's Motion for Attorneys' Fees and Costs (D.I. 380) is GRANTED. 2. The Parties are directed to meet and confer regarding a schedule to resolve the amount of the fees award. They shall submit a proposed schedule to the Court within two weeks. CHIEF JUDGE 8 Case 1:18-cv-01434-CFC-JLH Document 399 Filed 03/25/24 Page 8 of 8 PageID #: 23815"
      }
     ],
-    "observation_id": "obs_84111f0289"
+    "observation_id": "obs_9dd5ba85d9"
    },
    "dispute_001:settle_during_appeal": {
     "key": "dispute_001:settle_during_appeal",
@@ -12006,7 +12006,7 @@
       "context": "* * * * NOW THEREFORE, at Wilmington on this Twenty-fifth day of March in 2024, it is HEREBY ORRDERED that: 1. Elysium's Motion for Attorneys' Fees and Costs (D.I. 380) is GRANTED. 2. The Parties are directed to meet and confer regarding a schedule to resolve the amount of the fees award. They shall submit a proposed schedule to the Court within two weeks. CHIEF JUDGE 8 Case 1:18-cv-01434-CFC-JLH Document 399 Filed 03/25/24 Page 8 of 8 PageID #: 23815"
      }
     ],
-    "observation_id": "obs_576f2ee179"
+    "observation_id": "obs_0c26256055"
    },
    "dispute_001:voluntary_payment|appeal_unsecured": {
     "key": "dispute_001:voluntary_payment|appeal_unsecured",
@@ -12121,7 +12121,7 @@
       "context": "* * * * NOW THEREFORE, at Wilmington on this Twenty-fifth day of March in 2024, it is HEREBY ORRDERED that: 1. Elysium's Motion for Attorneys' Fees and Costs (D.I. 380) is GRANTED. 2. The Parties are directed to meet and confer regarding a schedule to resolve the amount of the fees award. They shall submit a proposed schedule to the Court within two weeks. CHIEF JUDGE 8 Case 1:18-cv-01434-CFC-JLH Document 399 Filed 03/25/24 Page 8 of 8 PageID #: 23815"
      }
     ],
-    "observation_id": "obs_e5ae9ef0c7"
+    "observation_id": "obs_b583892c55"
    },
    "dispute_001:enforcement|appeal_unsecured": {
     "key": "dispute_001:enforcement|appeal_unsecured",
@@ -12227,7 +12227,7 @@
       "context": "* * * * NOW THEREFORE, at Wilmington on this Twenty-fifth day of March in 2024, it is HEREBY ORRDERED that: 1. Elysium's Motion for Attorneys' Fees and Costs (D.I. 380) is GRANTED. 2. The Parties are directed to meet and confer regarding a schedule to resolve the amount of the fees award. They shall submit a proposed schedule to the Court within two weeks. CHIEF JUDGE 8 Case 1:18-cv-01434-CFC-JLH Document 399 Filed 03/25/24 Page 8 of 8 PageID #: 23815"
      }
     ],
-    "observation_id": "obs_dfc9122772"
+    "observation_id": "obs_804fa967d6"
    },
    "dispute_001:voluntary_payment|no_appeal": {
     "key": "dispute_001:voluntary_payment|no_appeal",
@@ -12341,7 +12341,7 @@
       "context": "* * * * NOW THEREFORE, at Wilmington on this Twenty-fifth day of March in 2024, it is HEREBY ORRDERED that: 1. Elysium's Motion for Attorneys' Fees and Costs (D.I. 380) is GRANTED. 2. The Parties are directed to meet and confer regarding a schedule to resolve the amount of the fees award. They shall submit a proposed schedule to the Court within two weeks. CHIEF JUDGE 8 Case 1:18-cv-01434-CFC-JLH Document 399 Filed 03/25/24 Page 8 of 8 PageID #: 23815"
      }
     ],
-    "observation_id": "obs_88cc3d3988"
+    "observation_id": "obs_42fc710a46"
    },
    "dispute_001:enforcement|no_appeal": {
     "key": "dispute_001:enforcement|no_appeal",
@@ -12446,7 +12446,7 @@
       "context": "* * * * NOW THEREFORE, at Wilmington on this Twenty-fifth day of March in 2024, it is HEREBY ORRDERED that: 1. Elysium's Motion for Attorneys' Fees and Costs (D.I. 380) is GRANTED. 2. The Parties are directed to meet and confer regarding a schedule to resolve the amount of the fees award. They shall submit a proposed schedule to the Court within two weeks. CHIEF JUDGE 8 Case 1:18-cv-01434-CFC-JLH Document 399 Filed 03/25/24 Page 8 of 8 PageID #: 23815"
      }
     ],
-    "observation_id": "obs_22ccc2223e"
+    "observation_id": "obs_f140580d2a"
    },
    "dispute_002:settle_after_judgment|cls=counterparty_receives": {
     "key": "dispute_002:settle_after_judgment|cls=counterparty_receives",
@@ -12502,7 +12502,7 @@
       "context": "\u2026 ttlement agreement calls for judgment to be entered on the terms stated as to all outstanding issues with respect to the Jury Claims; WHEREAS, all claims other than the Jury Clai ms have been dismissed from this case; WHEREAS, the settlement agreement therefore provides the terms for final judgment as to all remaining claims in this case; WHEREAS, the court recently granted ChromaDex, Inc.\u2019s motion for entry of final judgment; THEREFORE, IT IS HEREBY ORDERED, ADJUDGED, AND DECREED THAT: 1. Elysium shall pay to ChromaDex the sum total of $2,500,000 to resolve any outstanding issues that existed as of February 3, 2022 with respect to the Jury Claims, including the issue of prejudgment in terest, as well as the litigation between ChromaDex and Elysium in the U.S. District Court for the Southern District of New York captioned In re Elysium Health-ChromaDex Litigation, No. 17-cv-7394-LJL. 2. Any outstanding issues that existed as of February 3, 2022, with respect to the Jury Claims, including prejudgment interest, are DISMISSED WITH PREJUDICE. 3. All parties shall bear their own attorn ey\u2019s fees and costs arising from the Jury Claims. 4. The parties shall not file any post-tria l motions or appeals related to the Jury Claims. IT IS FURTHER ORDERED, ADJUDGED, AND DECREED that this Court shall retain jurisdiction of th is matter for the purposes of enforcing the terms of this final judgment for 120 days, or until further order of the court. The Clerk is ordered to enter this final judgment forthwith and without further notice. Dated: August 13, 2024 Hon. Fred W. Slaughter United States District Court Judge 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 Case 8:16-cv-02277-FWS-DFM Document 618 Filed 08/13/24 Page 3 of 3 Page ID #:31103"
      }
     ],
-    "observation_id": "obs_a6fe0e851b"
+    "observation_id": "obs_38d3c97d7d"
    },
    "dispute_002:voluntary_payment|no_appeal|cls=counterparty_receives": {
     "key": "dispute_002:voluntary_payment|no_appeal|cls=counterparty_receives",
@@ -12560,7 +12560,7 @@
       "context": "\u2026 ttlement agreement calls for judgment to be entered on the terms stated as to all outstanding issues with respect to the Jury Claims; WHEREAS, all claims other than the Jury Clai ms have been dismissed from this case; WHEREAS, the settlement agreement therefore provides the terms for final judgment as to all remaining claims in this case; WHEREAS, the court recently granted ChromaDex, Inc.\u2019s motion for entry of final judgment; THEREFORE, IT IS HEREBY ORDERED, ADJUDGED, AND DECREED THAT: 1. Elysium shall pay to ChromaDex the sum total of $2,500,000 to resolve any outstanding issues that existed as of February 3, 2022 with respect to the Jury Claims, including the issue of prejudgment in terest, as well as the litigation between ChromaDex and Elysium in the U.S. District Court for the Southern District of New York captioned In re Elysium Health-ChromaDex Litigation, No. 17-cv-7394-LJL. 2. Any outstanding issues that existed as of February 3, 2022, with respect to the Jury Claims, including prejudgment interest, are DISMISSED WITH PREJUDICE. 3. All parties shall bear their own attorn ey\u2019s fees and costs arising from the Jury Claims. 4. The parties shall not file any post-tria l motions or appeals related to the Jury Claims. IT IS FURTHER ORDERED, ADJUDGED, AND DECREED that this Court shall retain jurisdiction of th is matter for the purposes of enforcing the terms of this final judgment for 120 days, or until further order of the court. The Clerk is ordered to enter this final judgment forthwith and without further notice. Dated: August 13, 2024 Hon. Fred W. Slaughter United States District Court Judge 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 Case 8:16-cv-02277-FWS-DFM Document 618 Filed 08/13/24 Page 3 of 3 Page ID #:31103"
      }
     ],
-    "observation_id": "obs_2ad498e22b"
+    "observation_id": "obs_705bc5cee3"
    },
    "dispute_002:enforcement|no_appeal|cls=counterparty_receives": {
     "key": "dispute_002:enforcement|no_appeal|cls=counterparty_receives",
@@ -12608,7 +12608,7 @@
       "context": "\u2026 ttlement agreement calls for judgment to be entered on the terms stated as to all outstanding issues with respect to the Jury Claims; WHEREAS, all claims other than the Jury Clai ms have been dismissed from this case; WHEREAS, the settlement agreement therefore provides the terms for final judgment as to all remaining claims in this case; WHEREAS, the court recently granted ChromaDex, Inc.\u2019s motion for entry of final judgment; THEREFORE, IT IS HEREBY ORDERED, ADJUDGED, AND DECREED THAT: 1. Elysium shall pay to ChromaDex the sum total of $2,500,000 to resolve any outstanding issues that existed as of February 3, 2022 with respect to the Jury Claims, including the issue of prejudgment in terest, as well as the litigation between ChromaDex and Elysium in the U.S. District Court for the Southern District of New York captioned In re Elysium Health-ChromaDex Litigation, No. 17-cv-7394-LJL. 2. Any outstanding issues that existed as of February 3, 2022, with respect to the Jury Claims, including prejudgment interest, are DISMISSED WITH PREJUDICE. 3. All parties shall bear their own attorn ey\u2019s fees and costs arising from the Jury Claims. 4. The parties shall not file any post-tria l motions or appeals related to the Jury Claims. IT IS FURTHER ORDERED, ADJUDGED, AND DECREED that this Court shall retain jurisdiction of th is matter for the purposes of enforcing the terms of this final judgment for 120 days, or until further order of the court. The Clerk is ordered to enter this final judgment forthwith and without further notice. Dated: August 13, 2024 Hon. Fred W. Slaughter United States District Court Judge 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 Case 8:16-cv-02277-FWS-DFM Document 618 Filed 08/13/24 Page 3 of 3 Page ID #:31103"
      }
     ],
-    "observation_id": "obs_bde74d561a"
+    "observation_id": "obs_c12cf26b11"
    },
    "dispute_002:settle_after_judgment|cls=no_cash": {
     "key": "dispute_002:settle_after_judgment|cls=no_cash",
@@ -12664,7 +12664,7 @@
       "context": "\u2026 ttlement agreement calls for judgment to be entered on the terms stated as to all outstanding issues with respect to the Jury Claims; WHEREAS, all claims other than the Jury Clai ms have been dismissed from this case; WHEREAS, the settlement agreement therefore provides the terms for final judgment as to all remaining claims in this case; WHEREAS, the court recently granted ChromaDex, Inc.\u2019s motion for entry of final judgment; THEREFORE, IT IS HEREBY ORDERED, ADJUDGED, AND DECREED THAT: 1. Elysium shall pay to ChromaDex the sum total of $2,500,000 to resolve any outstanding issues that existed as of February 3, 2022 with respect to the Jury Claims, including the issue of prejudgment in terest, as well as the litigation between ChromaDex and Elysium in the U.S. District Court for the Southern District of New York captioned In re Elysium Health-ChromaDex Litigation, No. 17-cv-7394-LJL. 2. Any outstanding issues that existed as of February 3, 2022, with respect to the Jury Claims, including prejudgment interest, are DISMISSED WITH PREJUDICE. 3. All parties shall bear their own attorn ey\u2019s fees and costs arising from the Jury Claims. 4. The parties shall not file any post-tria l motions or appeals related to the Jury Claims. IT IS FURTHER ORDERED, ADJUDGED, AND DECREED that this Court shall retain jurisdiction of th is matter for the purposes of enforcing the terms of this final judgment for 120 days, or until further order of the court. The Clerk is ordered to enter this final judgment forthwith and without further notice. Dated: August 13, 2024 Hon. Fred W. Slaughter United States District Court Judge 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 Case 8:16-cv-02277-FWS-DFM Document 618 Filed 08/13/24 Page 3 of 3 Page ID #:31103"
      }
     ],
-    "observation_id": "obs_d1bedfc8c3"
+    "observation_id": "obs_59297d4a84"
    },
    "dispute_002:voluntary_payment|no_appeal|cls=no_cash": {
     "key": "dispute_002:voluntary_payment|no_appeal|cls=no_cash",
@@ -12722,7 +12722,7 @@
       "context": "\u2026 ttlement agreement calls for judgment to be entered on the terms stated as to all outstanding issues with respect to the Jury Claims; WHEREAS, all claims other than the Jury Clai ms have been dismissed from this case; WHEREAS, the settlement agreement therefore provides the terms for final judgment as to all remaining claims in this case; WHEREAS, the court recently granted ChromaDex, Inc.\u2019s motion for entry of final judgment; THEREFORE, IT IS HEREBY ORDERED, ADJUDGED, AND DECREED THAT: 1. Elysium shall pay to ChromaDex the sum total of $2,500,000 to resolve any outstanding issues that existed as of February 3, 2022 with respect to the Jury Claims, including the issue of prejudgment in terest, as well as the litigation between ChromaDex and Elysium in the U.S. District Court for the Southern District of New York captioned In re Elysium Health-ChromaDex Litigation, No. 17-cv-7394-LJL. 2. Any outstanding issues that existed as of February 3, 2022, with respect to the Jury Claims, including prejudgment interest, are DISMISSED WITH PREJUDICE. 3. All parties shall bear their own attorn ey\u2019s fees and costs arising from the Jury Claims. 4. The parties shall not file any post-tria l motions or appeals related to the Jury Claims. IT IS FURTHER ORDERED, ADJUDGED, AND DECREED that this Court shall retain jurisdiction of th is matter for the purposes of enforcing the terms of this final judgment for 120 days, or until further order of the court. The Clerk is ordered to enter this final judgment forthwith and without further notice. Dated: August 13, 2024 Hon. Fred W. Slaughter United States District Court Judge 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 Case 8:16-cv-02277-FWS-DFM Document 618 Filed 08/13/24 Page 3 of 3 Page ID #:31103"
      }
     ],
-    "observation_id": "obs_b8c8d5562f"
+    "observation_id": "obs_e281c96e8e"
    },
    "dispute_002:enforcement|no_appeal|cls=no_cash": {
     "key": "dispute_002:enforcement|no_appeal|cls=no_cash",
@@ -12770,7 +12770,7 @@
       "context": "\u2026 ttlement agreement calls for judgment to be entered on the terms stated as to all outstanding issues with respect to the Jury Claims; WHEREAS, all claims other than the Jury Clai ms have been dismissed from this case; WHEREAS, the settlement agreement therefore provides the terms for final judgment as to all remaining claims in this case; WHEREAS, the court recently granted ChromaDex, Inc.\u2019s motion for entry of final judgment; THEREFORE, IT IS HEREBY ORDERED, ADJUDGED, AND DECREED THAT: 1. Elysium shall pay to ChromaDex the sum total of $2,500,000 to resolve any outstanding issues that existed as of February 3, 2022 with respect to the Jury Claims, including the issue of prejudgment in terest, as well as the litigation between ChromaDex and Elysium in the U.S. District Court for the Southern District of New York captioned In re Elysium Health-ChromaDex Litigation, No. 17-cv-7394-LJL. 2. Any outstanding issues that existed as of February 3, 2022, with respect to the Jury Claims, including prejudgment interest, are DISMISSED WITH PREJUDICE. 3. All parties shall bear their own attorn ey\u2019s fees and costs arising from the Jury Claims. 4. The parties shall not file any post-tria l motions or appeals related to the Jury Claims. IT IS FURTHER ORDERED, ADJUDGED, AND DECREED that this Court shall retain jurisdiction of th is matter for the purposes of enforcing the terms of this final judgment for 120 days, or until further order of the court. The Clerk is ordered to enter this final judgment forthwith and without further notice. Dated: August 13, 2024 Hon. Fred W. Slaughter United States District Court Judge 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 Case 8:16-cv-02277-FWS-DFM Document 618 Filed 08/13/24 Page 3 of 3 Page ID #:31103"
      }
     ],
-    "observation_id": "obs_7a9216f7a1"
+    "observation_id": "obs_3bebb968fe"
    }
   },
   "paths": {
@@ -13926,11 +13926,11 @@
  },
  "jev": {
   "provider": "openrouter",
-  "requests": 17,
-  "cache_hits": 0,
-  "physical_attempts": 17,
+  "requests": 0,
+  "cache_hits": 17,
+  "physical_attempts": 0,
   "attempt_ceiling": 400,
-  "spent_usd": "0.002541420",
+  "spent_usd": "0",
   "spend_cap_usd": "0.10"
  }
 }

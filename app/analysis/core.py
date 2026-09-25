@@ -103,11 +103,11 @@ class Analysis:
         return {
             "metrics": {
                 "lender_pv_cents": float(w @ stack("lender_pv")), "dollar_days": float(w @ stack("dollar_days")),
-                "full_collection_by_maturity_p": float(w @ (unc == 0)),
+                "full_collection_by_maturity_p": min(1.0, float(w @ (unc == 0))),
                 "uncollected_maturity_cents": float(w @ unc),
                 "uncollected_horizon_cents": float(w @ stack("uncollected_horizon")),
                 "min_cash_mean_cents": float(w @ mins), "min_cash_p5_cents": float(mq[0]),
-                "shortfall_p": float(w @ (mins < 0)), "shortfall_mean_cents": float(w @ np.maximum(-mins, 0)),
+                "shortfall_p": min(1.0, float(w @ (mins < 0))), "shortfall_mean_cents": float(w @ np.maximum(-mins, 0)),
                 "peak_locked_cents": float(w @ stack("locked").max(axis=1)),
                 "peak_capacity_cents": float(w @ stack("capacity").max(axis=1)),
                 "horizon_cash_mean_cents": float(w @ cash[:, -1]),
