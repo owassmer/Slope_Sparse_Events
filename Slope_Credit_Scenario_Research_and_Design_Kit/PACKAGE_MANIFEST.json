@@ -123,7 +123,7 @@
     {
       "path": "research/recent_cases/chromadex/acquire.py",
       "bytes": 9680,
-      "sha256": "f62401220f70a14e9be72afe9180ce46c89b8a5c45b0349b43891466f8ba666a"
+      "sha256": "366add83be1af93c921b18d3dd4709eb34c6a3e11fa3309d77128baf8263ca20"
     },
     {
       "path": "research/recent_cases/chromadex/cacd_16cv2277_d001_complaint.pdf",
@@ -367,8 +367,8 @@
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
-      "bytes": 63659,
-      "sha256": "e1a7c6bca2e401ac88f1ffaa27b042a9fa2e2389ff3371576c82575a09a3b196"
+      "bytes": 63779,
+      "sha256": "674645e09f80ba2167639c2ae50b664d5fb5699e0dea7797b749ad0dd406d979"
     },
     {
       "path": "research/revision_v2/package_kit.py",

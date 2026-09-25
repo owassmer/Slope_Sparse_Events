@@ -6,7 +6,7 @@ CourtListener (availability = the docket entry's filing date, day precision, end
 Two RECAP copies were left out because their text cannot be extracted: D. Del. Dkt. 373 (image-only final
 judgment) and Dkt. 379 (Federal Circuit mandate with a broken font encoding). Their facts appear in Dkt. 399
 and the 10-K. Membership for the
-mission `chromadex_20240903` is `eligible` when public by the cutoff and `outcome` after it. Re-running is idempotent.
+mission `chromadex_20240819` is `eligible` when public by the cutoff and `outcome` after it. Re-running is idempotent.
 """
 
 from __future__ import annotations
