@@ -691,34 +691,54 @@ def _matter_passages(ctx: RunContext, item: InventoryItem) -> list[tuple[str, di
     return out
 
 
-async def _per_section(ctx: RunContext, item: InventoryItem, ask, failing: set[str], label: str,
-                       advice: str) -> list[SemanticObservation]:
+async def _per_section(ctx: RunContext, item: InventoryItem, ask, failing: set[str], label: str, advice: str,
+                       reuse=None) -> list[SemanticObservation]:
     """Run one host check per section (in parallel). A clear failing answer on any section rejects the entry and names the
-    observation the agent may escalate; there is no free-text override."""
+    observation the agent may escalate; there is no free-text override. `reuse(section_id)` may return an earlier passing
+    observation that still holds, so a retry re-checks only the sections that failed."""
     passages = _matter_passages(ctx, item)
+    kept = {sid: reuse(sid) for sid, _, _ in passages} if reuse else {}
+
+    async def one(sid, passage, sha):
+        return [kept[sid]] if kept.get(sid) is not None else await ask(sid, passage, sha)
     try:
-        results = await asyncio.gather(*(ask(sid, passage, sha) for sid, passage, sha in passages))
+        results = await asyncio.gather(*(one(sid, passage, sha) for sid, passage, sha in passages))
     except Exception as e:
         _record_jev_failure(ctx, e)
         raise ToolError(f"{item.item_id}: {label} could not be checked ({e})") from e
     obs = [o for r in results for o in r]
     failed = [(sid, o) for (sid, _, _), o in zip(passages, obs, strict=True) if o.answer in failing and not is_ambiguous(o)]
+    fresh = [o for (sid, _, _), o in zip(passages, obs, strict=True) if kept.get(sid) is None]
     if failed:
         _dispose(ctx, [o for _, o in failed], "challenged_agent_draft", f"{label} on {item.item_id}")
         detail = "; ".join(f"{sid}: {meaning(o.question_id, o.answer)} ({o.observation_id})" for sid, o in failed)
-        raise ToolError(f"{item.item_id}: {label} failed. {detail}. {advice} If you disagree, escalate the item with the "
+        passed = len(passages) - len(failed)
+        raise ToolError(f"{item.item_id}: {label} failed on {len(failed)} of {len(passages)} sections ({passed} passed and "
+                        f"will not be re-checked). {detail}. {advice} If you disagree, escalate the item with the "
                         "observation_id and what is not accounted for; it will stay open for the reviewer.")
-    _dispose(ctx, obs, "used_in_finding", f"{label} on {item.item_id}")
+    _dispose(ctx, [o for o in fresh if o.downstream_disposition == "unused" and not o.disposition_note],
+             "used_in_finding", f"{label} on {item.item_id}")
     return obs
 
 
 async def _check_coverage(ctx: RunContext, item: InventoryItem, fids: tuple[str, ...]) -> list[SemanticObservation]:
     """Host check that 'covered' is true for every section: the cited findings must account for what it describes."""
     cited = [ctx.run.graph["findings"][f] for f in fids]
+    review_date = str(ctx.evidence.snapshot_info()["cutoff"])[:10]
+
+    def reuse(sid: str) -> SemanticObservation | None:
+        # Adding findings cannot uncover a section: an earlier clear pass with a subset of these findings still holds.
+        for o in ctx.run.graph["observations"].values():
+            if (o.question_id == "coverage_supported" and o.subject_ids[:2] == (item.item_id, sid)
+                    and set(o.subject_ids[2:]) <= set(fids) and o.answer == "covered" and not is_ambiguous(o)):
+                return o
+        return None
     return await _per_section(
-        ctx, item, lambda sid, passage, sha: ctx.semantics.coverage(passage, cited, (item.item_id, sid, *fids), (sha,)),
+        ctx, item, lambda sid, passage, sha: ctx.semantics.coverage(passage, cited, (item.item_id, sid, *fids), (sha,),
+                                                                    review_date),
         {"partly_covered", "not_covered"}, "coverage check",
-        "Read the section, propose and accept a finding for what it establishes, then account for the item again with it.")
+        "Read the failed sections, propose and accept findings for the live matters they establish, then account for the "
+        "item again citing all its findings.", reuse=reuse)
 
 
 async def _check_duplicate(ctx: RunContext, item: InventoryItem, other: InventoryItem) -> list[SemanticObservation]:

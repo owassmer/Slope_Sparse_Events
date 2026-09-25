@@ -191,11 +191,11 @@ class Semantics:
                                subject_ids, hashes)
 
     async def coverage(self, passage: dict | list[dict], cited: list[AtomicFinding], subject_ids: tuple[str, ...],
-                       source_hashes: tuple[str, ...]) -> list[SemanticObservation]:
-        """inventory_coverage: do the cited findings account for the flagged matter?"""
+                       source_hashes: tuple[str, ...], review_date: str = "") -> list[SemanticObservation]:
+        """inventory_coverage: do the cited findings account for each live matter the passage describes?"""
         cited_state = [{"finding_id": f.finding_id, "proposition": f.proposition} for f in cited]
-        return await self._ask("inventory_coverage", ["coverage_supported"],
-                               {"passage": passage, "cited_findings": cited_state}, subject_ids, source_hashes)
+        state = {"passage": passage, "cited_findings": cited_state, **({"review_date": review_date} if review_date else {})}
+        return await self._ask("inventory_coverage", ["coverage_supported"], state, subject_ids, source_hashes)
 
     async def adds_matter(self, covered_passage: dict | list[dict], passage: dict, subject_ids: tuple[str, ...],
                           source_hashes: tuple[str, ...]) -> list[SemanticObservation]:
