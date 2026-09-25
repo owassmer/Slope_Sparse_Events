@@ -1,7 +1,7 @@
 {
   "artifact": "jev_semantic_boundary_cases",
-  "version": "1.6.0",
-  "registry_version": "3.4.0",
+  "version": "1.7.0",
+  "registry_version": "3.5.0",
   "access_class": "host_evaluator_only",
   "policy": "Labelled semantic boundary cases for sanity-checking Jev questions and the code-owned routing thresholds. Non-synthetic passages are sliced verbatim from admissible decision-date snapshot text, with the snapshot's source metadata. Never mount into an agent or reviewer run.",
   "cases": [
@@ -1035,6 +1035,94 @@
       },
       "expected": "partly_covered",
       "why": "The live covenant requiring Knight to approve operating budgets (and the 12% rate) is not accounted for."
+    },
+    {
+      "case_id": "syn_exclusion_shareholding",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "matter_relevance",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "passage": {
+          "heading_path": "PROSPECTUS SUMMARY > Relationships with Knight Therapeutics",
+          "text": "The lender under our Amended and Restated Loan Agreement, as amended by the Sixth Amendment dated June 6, 2024, is Knight Therapeutics (Barbados) Inc. (“Knight”). The total consolidated amount outstanding under such loan was $12,333,053 as of June 30, 2024, and the loan bears interest at a rate of 12% per year. Under this loan, we are subject to a number of financial and operating covenants, including the requirement that Knight approve our quarterly and annual operating budget prior to implementation. For additional information, see “Management’s Discussion and Analysis of Financial Condition and Results of Operations — Liquidity and Capital Resources — Short- and Long -Term Borrowings” and the notes to our condensed consolidated financial statements that are included elsewhere in this prospectus. An affiliate of Knight is also the beneficial owner of approximately 19.6% of our outstanding common stock. In addition, we have entered into several distribution agreements with Knight Therapeutics, Inc., an affiliate of Knight, for the distribution of our products. See “Certain Relationships and Related Party Transactions” for additional information."
+        },
+        "matter": "An affiliate of Knight beneficially owns about 19.6% of Synergy's common stock (agent's reason: equity ownership creates no payment or obligation of Synergy)."
+      },
+      "expected": "could_not_change",
+      "why": "Ownership detail; no payment, obligation, covenant or earnings effect."
+    },
+    {
+      "case_id": "syn_exclusion_gain_refused",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "matter_relevance",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "passage": {
+          "heading_path": "MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS > Liquidity and Capital Resources",
+          "text": "On December 28, 2023, we entered into a confidential settlement agreement and mutual general release with a former supplier. The loan bears interest at 5% per annum and is payable in full with the last payment. This settlement resulted in a gain to us of $2,235,986 and is reflected as a reduction of cost of sales (See Note 13). During 2023, we made payments of $1,000,000 toward this loan. The outstanding loan balance at December 31, 2023 was $4,802,445, including interest of $352,445."
+        },
+        "matter": "The $2,235,986 settlement gain (agent's reason: it is noncash and creates no cash flow)."
+      },
+      "expected": "could_change",
+      "why": "A matter-related gain changes underwriting earnings; it needs a finding (run 8 miss)."
+    },
+    {
+      "case_id": "syn_exclusion_paid_matter_refused",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "matter_relevance",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "passage": {
+          "heading_path": "SYNERGY CHC CORP. NOTES TO CONSOLIDATED FINANCIAL STATEMENTS > Note 13 — Commitments and Contingencies",
+          "text": "On July 25, 2022, plaintiff Barbara Valenti (“Valenti”) filed a putative class action complaint against Synergy CHC Corp. (“Synergy”) in the United States District Court for the Eastern District of New York, Case No. 1:22 -cv-4361-BMC , for alleged violations of New York General Business Law Sections 349 and 350, arising out of advertising for the FOCUSfactor product. On August 18, 2022, Synergy filed a motion to dismiss and a motion to strike class claims. Valenti’s counsel filed an opposition to the motions on August 30, 2022, and Synergy withdrew the motions on September 1, 2022. Synergy filed an answer to the complaint on September 16, 2022. On December 29, 2022, and while denying all liability, Synergy settled with Valenti for a payment of $340,000 to be paid in twelve installments ending on December 1, 2023, in exchange for a full release of Valenti’s individual claims. On December 29, 2022, plaintiff filed a stipulation of voluntarily dismissal of the individual claims with prejudice. During 2023, the Company has fully paid $340,000, per the agreement."
+        },
+        "matter": "The Valenti settlement of $340,000 (agent's reason: fully paid in 2023, nothing remains)."
+      },
+      "expected": "could_change",
+      "why": "A settled payment obligation must be shown with a cited finding, not excluded."
+    },
+    {
+      "case_id": "syn_coverage_with_exclusions",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "coverage_supported",
+      "state": {
+        "passage": {
+          "heading_path": "PROSPECTUS SUMMARY > Relationships with Knight Therapeutics",
+          "text": "The lender under our Amended and Restated Loan Agreement, as amended by the Sixth Amendment dated June 6, 2024, is Knight Therapeutics (Barbados) Inc. (“Knight”). The total consolidated amount outstanding under such loan was $12,333,053 as of June 30, 2024, and the loan bears interest at a rate of 12% per year. Under this loan, we are subject to a number of financial and operating covenants, including the requirement that Knight approve our quarterly and annual operating budget prior to implementation. For additional information, see “Management’s Discussion and Analysis of Financial Condition and Results of Operations — Liquidity and Capital Resources — Short- and Long -Term Borrowings” and the notes to our condensed consolidated financial statements that are included elsewhere in this prospectus. An affiliate of Knight is also the beneficial owner of approximately 19.6% of our outstanding common stock. In addition, we have entered into several distribution agreements with Knight Therapeutics, Inc., an affiliate of Knight, for the distribution of our products. See “Certain Relationships and Related Party Transactions” for additional information."
+        },
+        "cited_findings": [
+          {
+            "finding_id": "fnd_k1",
+            "proposition": "Under the Amended and Restated Loan Agreement, as amended by the Sixth Amendment dated June 6, 2024, Synergy owed Knight $12,333,053 at June 30, 2024, bearing interest at 12% per year.",
+            "quotes": [
+              "The total consolidated amount outstanding under such loan was $12,333,053 as of June 30, 2024, and the loan bears interest at a rate of 12% per year."
+            ]
+          },
+          {
+            "finding_id": "fnd_k4",
+            "proposition": "Under the Knight loan Synergy is subject to financial and operating covenants, including that Knight must approve its quarterly and annual operating budget before implementation.",
+            "quotes": [
+              "Under this loan, we are subject to a number of financial and operating covenants, including the requirement that Knight approve our quarterly and annual operating budget prior to implementation."
+            ]
+          }
+        ],
+        "excluded_matters": [
+          {
+            "matter": "An affiliate of Knight beneficially owns about 19.6% of Synergy's common stock",
+            "reason": "Equity ownership creates no payment or obligation of Synergy."
+          },
+          {
+            "matter": "Distribution agreements with Knight Therapeutics, Inc.",
+            "reason": "Ordinary commercial distribution terms; the passage states no payment obligation."
+          }
+        ]
+      },
+      "expected": "covered",
+      "why": "The loan terms and covenant have findings; the rest is named as excluded."
     }
   ]
 }

@@ -22,7 +22,8 @@ INPUTS = json.loads((CASES_DIR / SNAP / "run_inputs.json").read_text())
 DEFAULT_ANSWERS = {"claim_posture": "agreed_contractually", "obligation_status": "required", "entity_scope": "target",
                    "claims_supported": "all_supported", "finding_support": "supports", "finding_atomicity": "one_claim",
                    "context_sufficiency": "enough", "economic_role": "existing_cash_obligation", "statement_relation": "agree",
-                   "coverage_supported": "covered", "adds_matter": "nothing_new", "decision_relevance": "could_not_change"}
+                   "coverage_supported": "covered", "adds_matter": "nothing_new", "decision_relevance": "could_not_change",
+                   "matter_relevance": "could_not_change"}
 
 
 class FakeJev:
@@ -352,6 +353,29 @@ def test_covered_claims_are_checked(make_ctx):
     assert ctx.run.get("inventory", "inv_001").status == "disputed"
     call(T.submit_packet, ctx, {"summary": "s", "conclusion": "The settlement loan requires future payments."})
     assert any("disputed inventory item inv_001" in r for r in ctx.incomplete_reasons)  # a matter kind: INCOMPLETE_REVIEW
+
+
+def test_named_exclusions_are_checked(make_ctx):
+    from app.domain.investigation import InventoryItem
+    for answer, accepted in (("could_not_change", True), ("could_change", False)):
+        ctx = make_ctx(answers={"matter_relevance": answer}, name=f"excl-{answer}")
+        note11 = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")["id"]
+        ctx.run.put("inventory_loaded", InventoryItem(item_id="inv_001", section_ids=(note11,), source_id="synergy_s1a_20240813",
+                                                     heading_path=("Note 11",), kind="debt_or_financing_agreement", signal=0.9))
+        _, fid = _accepted_settlement_finding(ctx)
+        window = T._coverage_windows(ctx, ctx.run.get("inventory", "inv_001"))[0][0]
+        bad = call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "covered_by_findings",
+                                                         "finding_ids": [fid], "excluded_matters": [
+                                                             {"window": "nope:0-1", "matter": "The debt issuance cost line",
+                                                              "reason": "Presentation of issuance cost; no payment."}]}]})
+        assert "not a window of this item" in bad["rejected"][0]["reason"]
+        out = call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "covered_by_findings",
+                                                         "finding_ids": [fid], "excluded_matters": [
+                                                             {"window": window, "matter": f"The debt issuance cost line ({answer})",
+                                                              "reason": "Presentation of issuance cost; no payment."}]}]})
+        item = ctx.run.get("inventory", "inv_001")
+        assert (out["accounted"] == ["inv_001"]) is accepted
+        assert (len(item.exclusions) == 1 and item.exclusions[0].observation_id) if accepted else item.status == "open"
 
 
 def test_duplicate_and_relevance_claims_are_checked(make_ctx):

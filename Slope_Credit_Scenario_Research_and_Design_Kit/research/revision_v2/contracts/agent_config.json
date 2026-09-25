@@ -206,6 +206,7 @@
           "trigger": "host, per section, on every inventory item the agent marks covered, duplicate or not decision-relevant",
           "questions": [
             "coverage_supported",
+            "matter_relevance",
             "adds_matter",
             "decision_relevance"
           ]
@@ -271,7 +272,7 @@
       "request_missing_fact": "Record the exact requested fact/document and the action consequences. This tool sends no communication.",
       "submit_packet": "Lock the investigation graph, source hashes, findings, effects and calculation versions for review. No lending action.",
       "read_inventory": "List the host sweep inventory: specific matters flagged in the admissible evidence, with their accounting status.",
-      "account_for_items": "Account for inventory items: covered by named accepted findings, a duplicate of a covered item, or not decision-relevant with a reason; each claim is checked per section. A failed check is closed with a new finding or a verified duplicate, or escalated with the failed observation ID and what is missing (the item is disputed and stays open for the reviewer). The packet cannot be submitted while items are open.",
+      "account_for_items": "Account for inventory items: covered by named accepted findings (checked window by window; a matter with no payment, obligation, restriction, covenant or earnings effect may be named as an exclusion for its window with a reason, and each exclusion is checked), a duplicate of a covered item, or not decision-relevant with a reason. A failed check is closed with a new finding or a verified duplicate, or escalated with the failed observation ID and what is missing (the item is disputed and stays open for the reviewer). The packet cannot be submitted while items are open.",
       "escalate_effect": "Escalate an effect the category guard rejected: it becomes disputed, creates no cash stream and is left for the reviewer; a disputed cash-moving effect makes the run INCOMPLETE_REVIEW.",
       "resolve_reconciliation": "Resolve an open reconciliation task with a note on how the statements relate."
     },

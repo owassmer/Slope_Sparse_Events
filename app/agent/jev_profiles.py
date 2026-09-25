@@ -191,12 +191,19 @@ class Semantics:
                                subject_ids, hashes)
 
     async def coverage(self, passage: dict, cited: list[AtomicFinding], subject_ids: tuple[str, ...],
-                       source_hashes: tuple[str, ...]) -> list[SemanticObservation]:
-        """inventory_coverage: do the cited findings (with their quotes) account for each specific matter in the window?"""
+                       source_hashes: tuple[str, ...], excluded: list[dict] | None = None) -> list[SemanticObservation]:
+        """inventory_coverage: do the cited findings (with their quotes) account for each specific matter in the window,
+        other than matters the agent named as not decision-relevant (each already checked)?"""
         cited_state = [{"finding_id": f.finding_id, "proposition": f.proposition, "quotes": [s.quote for s in f.spans],
                         **({"is_inference": True} if f.is_inference else {})} for f in cited]
-        return await self._ask("inventory_coverage", ["coverage_supported"],
-                               {"passage": passage, "cited_findings": cited_state}, subject_ids, source_hashes)
+        state = {"passage": passage, "cited_findings": cited_state, **({"excluded_matters": excluded} if excluded else {})}
+        return await self._ask("inventory_coverage", ["coverage_supported"], state, subject_ids, source_hashes)
+
+    async def matter_relevance(self, company: str, passage: dict, matter: str, subject_ids: tuple[str, ...],
+                               source_hashes: tuple[str, ...]) -> list[SemanticObservation]:
+        """inventory_coverage: could this one named matter change cash, obligations, underwriting earnings or repayment?"""
+        return await self._ask("inventory_coverage", ["matter_relevance"],
+                               {"company": company, "passage": passage, "matter": matter}, subject_ids, source_hashes)
 
     async def adds_matter(self, covered_passage: dict | list[dict], passage: dict, subject_ids: tuple[str, ...],
                           source_hashes: tuple[str, ...]) -> list[SemanticObservation]:

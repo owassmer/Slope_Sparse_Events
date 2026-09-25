@@ -151,6 +151,18 @@ class ReconciliationTask(Frozen):
     note: str = ""
 
 
+class MatterExclusion(Frozen):
+    """A matter in one coverage window that the agent names as not decision-relevant instead of covering it with a finding.
+    It clears the window only with a clear could_not_change from matter_relevance; paid, closed or superseded matters
+    still need a cited finding."""
+
+    key: str  # stable ID: hash of window + matter
+    window: str  # section_id:start-end
+    matter: str
+    reason: str
+    observation_id: str = ""
+
+
 class InventoryItem(Frozen):
     """A matter the host sweep flagged (one or more sections of one source under one heading and kind);
     the agent must account for it before submitting."""
@@ -167,6 +179,7 @@ class InventoryItem(Frozen):
     status: Literal["open", "covered", "not_decision_relevant", "disputed"] = "open"
     finding_ids: tuple[str, ...] = ()
     duplicate_of: str = ""  # covered as a duplicate of this (covered) item
+    exclusions: tuple[MatterExclusion, ...] = ()  # named not-decision-relevant matters, each checked
     observation_ids: tuple[str, ...] = ()  # the host checks that decided the status
     note: str = ""
 

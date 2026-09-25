@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.4.0",
+  "registry_version": "3.5.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -73,11 +73,12 @@
     },
     "inventory_coverage": {
       "primitive": "choice",
-      "trigger": "host, on every inventory item the agent marks covered (one request per window of at most 2,500 characters of every section), duplicate or not decision-relevant (one request per flagged section chunk)",
+      "trigger": "host, on every inventory item the agent marks covered (one request per window of at most 2,500 characters of every section, plus one per matter the agent names as not decision-relevant), duplicate or not decision-relevant (one request per flagged section chunk)",
       "questions": [
         "coverage_supported",
         "adds_matter",
-        "decision_relevance"
+        "decision_relevance",
+        "matter_relevance"
       ]
     }
   },
@@ -99,7 +100,9 @@
     "cited_findings": "The accepted findings the statement rests on: proposition plus verbatim quotes.",
     "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs).",
     "covered_passage": "The passage of an inventory item already accounted for by accepted findings, which the agent says this passage duplicates.",
-    "review_date": "The date of the credit review; the question concerns what could matter from that date on."
+    "review_date": "The date of the credit review; the question concerns what could matter from that date on.",
+    "matter": "One matter in the passage that the agent names as not decision-relevant, in the agent's words, with the agent's reason.",
+    "excluded_matters": "Matters in the passage the agent has named as not decision-relevant, each already checked by matter_relevance; they need no finding."
   },
   "observation_record": {
     "call_fields": [
@@ -599,17 +602,18 @@
     },
     {
       "id": "coverage_supported",
-      "version": "3.4.0",
+      "version": "3.5.0",
       "profile": "inventory_coverage",
       "primitive": "choice",
       "question": "Do the cited findings account for each specific matter this passage describes?",
       "applies_when": "The agent marks an inventory item as covered by accepted findings (asked once per window of every section of the item).",
       "state_fields": [
         "passage",
-        "cited_findings"
+        "cited_findings",
+        "excluded_matters"
       ],
       "prompt": {
-        "instructions": "Do state.cited_findings account for each specific matter that state.passage describes? A specific matter is a lawsuit or claim, a settlement, a loan or other financing agreement and its terms, a covenant or consent requirement, a restriction on cash, or an accounting gain, loss or accrual arising from one of these. Routine accounting policies, ordinary operating balances (receivables, payables, inventory, taxes, equity compensation) and generic disclosures are not specific matters. A passage may describe several. A finding accounts for a matter when it states what the passage establishes about it, including that it was paid, released, modified, matured or superseded. Presentation details of a matter the findings state, such as a current and long-term split or a subtotal, are part of that matter. Each finding comes with its verbatim quotes; use them to tell which matter it concerns. Findings about a different matter, or about a different aspect than the one the passage describes, do not account for it.",
+        "instructions": "Do state.cited_findings account for each specific matter that state.passage describes? A specific matter is a lawsuit or claim, a settlement, a loan or other financing agreement and its terms, a covenant or consent requirement, a restriction on cash, or an accounting gain, loss or accrual arising from one of these. Routine accounting policies, ordinary operating balances (receivables, payables, inventory, taxes, equity compensation) and generic disclosures are not specific matters. A passage may describe several. A finding accounts for a matter when it states what the passage establishes about it, including that it was paid, released, modified, matured or superseded. Presentation details of a matter the findings state, such as a current and long-term split or a subtotal, are part of that matter. If state.excluded_matters is present, the matters it names need no finding; every other specific matter still does, and an excluded matter covers only what it names. Each finding comes with its verbatim quotes; use them to tell which matter it concerns. Findings about a different matter, or about a different aspect than the one the passage describes, do not account for it.",
         "criteria": {
           "covered": "Every specific matter the passage describes is accounted for by a finding.",
           "partly_covered": "At least one specific matter the passage describes, or a distinct item of one (for example another loan, a covenant, a payment status or an accounting gain), has no finding.",
@@ -661,6 +665,28 @@
         }
       },
       "application": "A clear could_change blocks the not-decision-relevant label; the agent covers, dedupes or escalates the item instead."
+    },
+    {
+      "id": "matter_relevance",
+      "version": "3.5.0",
+      "profile": "inventory_coverage",
+      "primitive": "choice",
+      "question": "Could this named matter, as the passage describes it, change the borrower's cash, obligations, the earnings used in underwriting, or its ability to repay?",
+      "applies_when": "The agent names a matter in a coverage window as not decision-relevant instead of covering it with a finding.",
+      "state_fields": [
+        "company",
+        "passage",
+        "matter"
+      ],
+      "prompt": {
+        "instructions": "Consider only state.matter, as state.passage describes it. Could it change state.company's cash, its obligations, the historical earnings a lender would use in underwriting, or its ability to repay? Do not judge whether it has already been paid, closed, released or superseded, and do not compare dates: a matter that created or changed a payment, obligation, restriction, covenant or earnings item counts as could_change even if it is now settled, because that must be shown with a cited finding. Ownership, governance, procedural or legal-reasoning detail, and descriptions with no payment, obligation, restriction, covenant or earnings effect, could not change them.",
+        "criteria": {
+          "could_change": "The matter involves a payment, obligation, restriction, covenant, default term or earnings item of the borrower.",
+          "could_not_change": "The matter involves no payment, obligation, restriction, covenant, default term or earnings item of the borrower.",
+          "unclear": "Cannot tell what the named matter is or what the passage says about it."
+        }
+      },
+      "application": "A named exclusion clears a coverage window only when the answer is a clear could_not_change; otherwise the agent covers the matter with a finding or escalates. Every exclusion and its answer is recorded."
     }
   ]
 }

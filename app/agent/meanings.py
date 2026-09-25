@@ -42,6 +42,8 @@ MEANINGS: dict[str, dict[str | bool, str]] = {
                            "not_covered": "The findings concern a different matter", "unclear": "Coverage unclear"},
     "adds_matter": {"nothing_new": "Adds nothing to the covered passage", "adds_item": "Describes a matter or item the covered passage does not",
                     "unclear": "Duplication unclear"},
+    "matter_relevance": {"could_change": "This matter could change cash, obligations, underwriting earnings or repayment",
+                         "could_not_change": "This matter could not change the decision inputs", "unclear": "Relevance unclear"},
     "decision_relevance": {"could_change": "Could change cash, obligations, underwriting earnings or repayment ability",
                            "could_not_change": "Could not change the decision inputs", "unclear": "Relevance unclear"},
     "claims_supported": {"all_supported": "Every factual claim is supported", "some_unsupported": "Some claims are not supported by the cited findings",

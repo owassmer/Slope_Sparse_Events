@@ -1,0 +1,1045 @@
+{
+  "run_at": "2026-09-25T04:59:12.988115+00:00",
+  "cases_file": "evals/jev_semantic_cases.json",
+  "registry_version": "3.5.0",
+  "cases_version": "1.7.0",
+  "cases": 51,
+  "agreement": 50,
+  "noul_threshold": 0.5,
+  "by_question": {
+    "activity_status": {
+      "agree": 1,
+      "cases": 1
+    },
+    "adds_matter": {
+      "agree": 2,
+      "cases": 2
+    },
+    "cash_access": {
+      "agree": 2,
+      "cases": 2
+    },
+    "claim_posture": {
+      "agree": 4,
+      "cases": 4
+    },
+    "claims_supported": {
+      "agree": 2,
+      "cases": 2
+    },
+    "context_sufficiency": {
+      "agree": 1,
+      "cases": 1
+    },
+    "coverage_supported": {
+      "agree": 8,
+      "cases": 8
+    },
+    "decision_relevance": {
+      "agree": 5,
+      "cases": 5
+    },
+    "economic_role": {
+      "agree": 3,
+      "cases": 3
+    },
+    "entity_scope": {
+      "agree": 1,
+      "cases": 2
+    },
+    "finding_atomicity": {
+      "agree": 2,
+      "cases": 2
+    },
+    "finding_support": {
+      "agree": 2,
+      "cases": 2
+    },
+    "gap_relevance": {
+      "agree": 2,
+      "cases": 2
+    },
+    "instruction_like_text": {
+      "agree": 1,
+      "cases": 1
+    },
+    "matter_inventory": {
+      "agree": 2,
+      "cases": 2
+    },
+    "matter_kind": {
+      "agree": 1,
+      "cases": 1
+    },
+    "matter_relevance": {
+      "agree": 3,
+      "cases": 3
+    },
+    "obligation_status": {
+      "agree": 4,
+      "cases": 4
+    },
+    "premise_conflict": {
+      "agree": 1,
+      "cases": 1
+    },
+    "statement_relation": {
+      "agree": 1,
+      "cases": 1
+    },
+    "usable_evidence": {
+      "agree": 2,
+      "cases": 2
+    }
+  },
+  "jev_usage": {
+    "provider": "openrouter",
+    "requests": 51,
+    "cache_hits": 0,
+    "physical_attempts": 51,
+    "attempt_ceiling": 400,
+    "spent_usd": "0.002021166",
+    "spend_cap_usd": "0.10"
+  },
+  "results": [
+    {
+      "case_id": "syn_merchant_agreed",
+      "borrower": "synergy",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "expected": "agreed_contractually",
+      "answer": "agreed_contractually",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "reported_completed": 0.0,
+        "agreed_contractually": 1.0,
+        "imposed_by_court_or_authority": 0.0,
+        "unknown": 0.0,
+        "planned_or_expected": 0.0,
+        "alleged_or_requested": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_lodc_claim_posture",
+      "borrower": "synergy",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "expected": "alleged_or_requested",
+      "answer": "alleged_or_requested",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "planned_or_expected": 0.0,
+        "reported_completed": 0.02,
+        "imposed_by_court_or_authority": 0.0,
+        "unknown": 0.0,
+        "agreed_contractually": 0.0,
+        "alleged_or_requested": 0.98
+      },
+      "confidence": 0.97,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_lodc_claim_status",
+      "borrower": "synergy",
+      "question_id": "obligation_status",
+      "question_version": "3.0.0",
+      "expected": "claimed_or_disputed",
+      "answer": "claimed_or_disputed",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "claimed_or_disputed": 1.0,
+        "conditional": 0.0,
+        "reported_satisfied": 0.0,
+        "required": 0.0,
+        "unknown": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_lodc_paid_posture",
+      "borrower": "synergy",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "expected": "reported_completed",
+      "answer": "reported_completed",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unknown": 0.0,
+        "imposed_by_court_or_authority": 0.0,
+        "planned_or_expected": 0.0,
+        "alleged_or_requested": 0.0,
+        "reported_completed": 1.0,
+        "agreed_contractually": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_lodc_paid_status",
+      "borrower": "synergy",
+      "question_id": "obligation_status",
+      "question_version": "3.0.0",
+      "expected": "reported_satisfied",
+      "answer": "reported_satisfied",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unknown": 0.0,
+        "claimed_or_disputed": 0.0,
+        "reported_satisfied": 1.0,
+        "conditional": 0.0,
+        "required": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_hvl_required",
+      "borrower": "synergy",
+      "question_id": "obligation_status",
+      "question_version": "3.0.0",
+      "expected": "required",
+      "answer": "required",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "claimed_or_disputed": 0.0,
+        "conditional": 0.0,
+        "reported_satisfied": 0.0,
+        "required": 1.0,
+        "unknown": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_court_allegation",
+      "borrower": "synergy",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "expected": "alleged_or_requested",
+      "answer": "alleged_or_requested",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unknown": 0.0,
+        "imposed_by_court_or_authority": 0.0,
+        "alleged_or_requested": 0.99,
+        "reported_completed": 0.01,
+        "planned_or_expected": 0.0,
+        "agreed_contractually": 0.0
+      },
+      "confidence": 0.98,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_entity_mismatch",
+      "borrower": "synergy",
+      "question_id": "entity_scope",
+      "question_version": "3.0.1",
+      "expected": "different",
+      "answer": "different",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "target": 0.0,
+        "different": 1.0,
+        "unknown": 0.0
+      },
+      "confidence": 0.99,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_entity_unresolvable",
+      "borrower": "synergy",
+      "question_id": "entity_scope",
+      "question_version": "3.0.1",
+      "expected": "unknown",
+      "answer": "different",
+      "agree": false,
+      "noul_value": null,
+      "probabilities": {
+        "target": 0.38,
+        "unknown": 0.11,
+        "different": 0.51
+      },
+      "confidence": 0.26,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_gain_noncash",
+      "borrower": "synergy",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "expected": "noncash_accounting_item",
+      "answer": "noncash_accounting_item",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "no_direct_financial_premise": 0.0,
+        "existing_cash_obligation": 0.0,
+        "financing_or_reimbursement": 0.0,
+        "operating_change": 0.0,
+        "noncash_accounting_item": 1.0,
+        "cash_access_constraint": 0.0,
+        "unclear": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_hvl_role",
+      "borrower": "synergy",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "expected": "existing_cash_obligation",
+      "answer": "existing_cash_obligation",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "noncash_accounting_item": 0.0,
+        "operating_change": 0.0,
+        "unclear": 0.0,
+        "cash_access_constraint": 0.0,
+        "financing_or_reimbursement": 0.0,
+        "no_direct_financial_premise": 0.0,
+        "existing_cash_obligation": 1.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_cash_unrestricted_unsupported",
+      "borrower": "synergy",
+      "question_id": "finding_support",
+      "question_version": "3.0.0",
+      "expected": "does_not_resolve",
+      "answer": "does_not_resolve",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "contradicts": 0.0,
+        "supports": 0.06,
+        "does_not_resolve": 0.94
+      },
+      "confidence": 0.9,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_cash_supported",
+      "borrower": "synergy",
+      "question_id": "finding_support",
+      "question_version": "3.0.0",
+      "expected": "supports",
+      "answer": "supports",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "supports": 0.99,
+        "contradicts": 0.0,
+        "does_not_resolve": 0.01
+      },
+      "confidence": 0.98,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_cash_access_not_stated",
+      "borrower": "synergy",
+      "question_id": "cash_access",
+      "question_version": "3.0.1",
+      "expected": "unknown",
+      "answer": "unknown",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "access_limited": 0.0,
+        "access_prohibited": 0.0,
+        "unknown": 1.0,
+        "restriction_released": 0.0,
+        "restriction_requested_only": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_finding_combined",
+      "borrower": "synergy",
+      "question_id": "finding_atomicity",
+      "question_version": "3.0.0",
+      "expected": "multiple_claims",
+      "answer": "multiple_claims",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "multiple_claims": 1.0,
+        "unclear": 0.0,
+        "one_claim": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_finding_single",
+      "borrower": "synergy",
+      "question_id": "finding_atomicity",
+      "question_version": "3.0.0",
+      "expected": "one_claim",
+      "answer": "one_claim",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "one_claim": 0.84,
+        "multiple_claims": 0.16,
+        "unclear": 0.0
+      },
+      "confidence": 0.76,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_table_without_context",
+      "borrower": "synergy",
+      "question_id": "context_sufficiency",
+      "question_version": "3.0.0",
+      "expected": "missing_target_context",
+      "answer": "missing_target_context",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "missing_target_context": 0.31,
+        "enough": 0.03,
+        "missing_definition": 0.11,
+        "unclear": 0.24,
+        "missing_condition_or_timing": 0.31
+      },
+      "confidence": 0.14,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "brf_capacity_planned",
+      "borrower": "barfresh",
+      "question_id": "activity_status",
+      "question_version": "3.0.1",
+      "expected": "planned_or_conditional",
+      "answer": "planned_or_conditional",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unknown": 0.0,
+        "limited": 0.0,
+        "operating_or_restored": 0.0,
+        "unavailable": 0.0,
+        "planned_or_conditional": 1.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "brf_disputed_payable",
+      "borrower": "barfresh",
+      "question_id": "obligation_status",
+      "question_version": "3.0.0",
+      "expected": "claimed_or_disputed",
+      "answer": "claimed_or_disputed",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unknown": 0.0,
+        "required": 0.0,
+        "claimed_or_disputed": 1.0,
+        "reported_satisfied": 0.0,
+        "conditional": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "brf_litigation_funding_role",
+      "borrower": "barfresh",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "expected": "financing_or_reimbursement",
+      "answer": "financing_or_reimbursement",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "existing_cash_obligation": 0.0,
+        "operating_change": 0.0,
+        "noncash_accounting_item": 0.0,
+        "cash_access_constraint": 0.0,
+        "unclear": 0.0,
+        "financing_or_reimbursement": 1.0,
+        "no_direct_financial_premise": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_screen_relevant",
+      "borrower": "synergy",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "expected": true,
+      "answer": true,
+      "agree": true,
+      "noul_value": 0.95,
+      "probabilities": null,
+      "confidence": null,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_screen_usable",
+      "borrower": "synergy",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "expected": true,
+      "answer": true,
+      "agree": true,
+      "noul_value": 0.97,
+      "probabilities": null,
+      "confidence": null,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_screen_not_usable",
+      "borrower": "synthetic",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "expected": false,
+      "answer": false,
+      "agree": true,
+      "noul_value": 0.06,
+      "probabilities": null,
+      "confidence": null,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_screen_irrelevant",
+      "borrower": "synthetic",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "expected": false,
+      "answer": false,
+      "agree": true,
+      "noul_value": 0.01,
+      "probabilities": null,
+      "confidence": null,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_screen_premise_conflict",
+      "borrower": "synergy",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "expected": true,
+      "answer": true,
+      "agree": true,
+      "noul_value": 0.95,
+      "probabilities": null,
+      "confidence": null,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_screen_instruction",
+      "borrower": "synthetic",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "expected": true,
+      "answer": true,
+      "agree": true,
+      "noul_value": 0.98,
+      "probabilities": null,
+      "confidence": null,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_restriction_requested",
+      "borrower": "synthetic",
+      "question_id": "cash_access",
+      "question_version": "3.0.1",
+      "expected": "restriction_requested_only",
+      "answer": "restriction_requested_only",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "access_limited": 0.0,
+        "restriction_released": 0.0,
+        "access_prohibited": 0.0,
+        "restriction_requested_only": 1.0,
+        "unknown": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_relation_different_scope",
+      "borrower": "synthetic",
+      "question_id": "statement_relation",
+      "question_version": "3.0.0",
+      "expected": "different_scope",
+      "answer": "different_scope",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "different_scope": 1.0,
+        "agree": 0.0,
+        "conflict": 0.0,
+        "unknown": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_sweep_specific_matter",
+      "borrower": "synergy",
+      "question_id": "matter_inventory",
+      "question_version": "3.1.0",
+      "expected": true,
+      "answer": true,
+      "agree": true,
+      "noul_value": 0.97,
+      "probabilities": null,
+      "confidence": null,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_sweep_generic_risk",
+      "borrower": "synergy",
+      "question_id": "matter_inventory",
+      "question_version": "3.1.0",
+      "expected": false,
+      "answer": false,
+      "agree": true,
+      "noul_value": 0.03,
+      "probabilities": null,
+      "confidence": null,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_sweep_kind_accounting",
+      "borrower": "synergy",
+      "question_id": "matter_kind",
+      "question_version": "3.1.0",
+      "expected": "legal_matter_or_settlement",
+      "answer": "legal_matter_or_settlement",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "debt_or_financing_agreement": 0.0,
+        "cash_restriction": 0.0,
+        "none_or_generic": 0.0,
+        "accounting_item_from_a_matter": 0.03,
+        "covenant_or_restriction": 0.0,
+        "legal_matter_or_settlement": 0.97
+      },
+      "confidence": 0.96,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_support_all",
+      "borrower": "synergy",
+      "question_id": "claims_supported",
+      "question_version": "3.1.1",
+      "expected": "all_supported",
+      "answer": "all_supported",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "some_unsupported": 0.36,
+        "unclear": 0.01,
+        "all_supported": 0.63
+      },
+      "confidence": 0.45,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_support_extra_claim",
+      "borrower": "synergy",
+      "question_id": "claims_supported",
+      "question_version": "3.1.1",
+      "expected": "some_unsupported",
+      "answer": "some_unsupported",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "some_unsupported": 1.0,
+        "all_supported": 0.0,
+        "unclear": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_coverage_gain_missed",
+      "borrower": "synergy",
+      "question_id": "coverage_supported",
+      "question_version": "3.5.0",
+      "expected": "partly_covered",
+      "answer": "partly_covered",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "partly_covered": 0.93,
+        "covered": 0.07,
+        "unclear": 0.0,
+        "not_covered": 0.0
+      },
+      "confidence": 0.9,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_coverage_full",
+      "borrower": "synergy",
+      "question_id": "coverage_supported",
+      "question_version": "3.5.0",
+      "expected": "covered",
+      "answer": "covered",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "not_covered": 0.01,
+        "covered": 0.53,
+        "unclear": 0.0,
+        "partly_covered": 0.46
+      },
+      "confidence": 0.37,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_coverage_other_matter",
+      "borrower": "synergy",
+      "question_id": "coverage_supported",
+      "question_version": "3.5.0",
+      "expected": "not_covered",
+      "answer": "not_covered",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unclear": 0.0,
+        "not_covered": 0.82,
+        "partly_covered": 0.18,
+        "covered": 0.0
+      },
+      "confidence": 0.76,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_coverage_multi_loan_all",
+      "borrower": "synergy",
+      "question_id": "coverage_supported",
+      "question_version": "3.5.0",
+      "expected": "covered",
+      "answer": "covered",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "covered": 0.56,
+        "unclear": 0.0,
+        "not_covered": 0.01,
+        "partly_covered": 0.43
+      },
+      "confidence": 0.41,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_coverage_multi_loan_one",
+      "borrower": "synergy",
+      "question_id": "coverage_supported",
+      "question_version": "3.5.0",
+      "expected": "partly_covered",
+      "answer": "partly_covered",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "partly_covered": 0.98,
+        "covered": 0.02,
+        "not_covered": 0.0,
+        "unclear": 0.0
+      },
+      "confidence": 0.96,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_duplicate_annual_repeats_interim",
+      "borrower": "synergy",
+      "question_id": "adds_matter",
+      "question_version": "3.3.0",
+      "expected": "nothing_new",
+      "answer": "nothing_new",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "nothing_new": 1.0,
+        "adds_item": 0.0,
+        "unclear": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_duplicate_adds_gain",
+      "borrower": "synergy",
+      "question_id": "adds_matter",
+      "question_version": "3.3.0",
+      "expected": "adds_item",
+      "answer": "adds_item",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "nothing_new": 0.01,
+        "adds_item": 0.99,
+        "unclear": 0.0
+      },
+      "confidence": 0.98,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_relevance_paid_matter",
+      "borrower": "synergy",
+      "question_id": "decision_relevance",
+      "question_version": "3.3.0",
+      "expected": "could_not_change",
+      "answer": "could_not_change",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "could_not_change": 0.97,
+        "unclear": 0.0,
+        "could_change": 0.03
+      },
+      "confidence": 0.95,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_relevance_settlement_gain",
+      "borrower": "synergy",
+      "question_id": "decision_relevance",
+      "question_version": "3.3.0",
+      "expected": "could_change",
+      "answer": "could_change",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "could_change": 0.99,
+        "could_not_change": 0.01,
+        "unclear": 0.0
+      },
+      "confidence": 0.98,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_relevance_routine_tax_policy",
+      "borrower": "synergy",
+      "question_id": "decision_relevance",
+      "question_version": "3.3.0",
+      "expected": "could_not_change",
+      "answer": "could_not_change",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "could_change": 0.0,
+        "unclear": 0.0,
+        "could_not_change": 1.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_relevance_routine_receivables_note",
+      "borrower": "synergy",
+      "question_id": "decision_relevance",
+      "question_version": "3.3.0",
+      "expected": "could_not_change",
+      "answer": "could_not_change",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "could_change": 0.0,
+        "unclear": 0.0,
+        "could_not_change": 1.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_relevance_routine_stock_compensation",
+      "borrower": "synergy",
+      "question_id": "decision_relevance",
+      "question_version": "3.3.0",
+      "expected": "could_not_change",
+      "answer": "could_not_change",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "could_not_change": 0.99,
+        "could_change": 0.01,
+        "unclear": 0.0
+      },
+      "confidence": 0.99,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_coverage_superseded_history",
+      "borrower": "synergy",
+      "question_id": "coverage_supported",
+      "question_version": "3.5.0",
+      "expected": "covered",
+      "answer": "covered",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unclear": 0.0,
+        "partly_covered": 0.44,
+        "covered": 0.54,
+        "not_covered": 0.02
+      },
+      "confidence": 0.38,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_coverage_live_covenant_missed",
+      "borrower": "synergy",
+      "question_id": "coverage_supported",
+      "question_version": "3.5.0",
+      "expected": "partly_covered",
+      "answer": "partly_covered",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "not_covered": 0.03,
+        "covered": 0.01,
+        "partly_covered": 0.96,
+        "unclear": 0.0
+      },
+      "confidence": 0.95,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_exclusion_shareholding",
+      "borrower": "synergy",
+      "question_id": "matter_relevance",
+      "question_version": "3.5.0",
+      "expected": "could_not_change",
+      "answer": "could_not_change",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unclear": 0.0,
+        "could_not_change": 0.95,
+        "could_change": 0.05
+      },
+      "confidence": 0.92,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_exclusion_gain_refused",
+      "borrower": "synergy",
+      "question_id": "matter_relevance",
+      "question_version": "3.5.0",
+      "expected": "could_change",
+      "answer": "could_change",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unclear": 0.0,
+        "could_change": 0.97,
+        "could_not_change": 0.03
+      },
+      "confidence": 0.95,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_exclusion_paid_matter_refused",
+      "borrower": "synergy",
+      "question_id": "matter_relevance",
+      "question_version": "3.5.0",
+      "expected": "could_change",
+      "answer": "could_change",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unclear": 0.0,
+        "could_change": 1.0,
+        "could_not_change": 0.0
+      },
+      "confidence": 0.99,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_coverage_with_exclusions",
+      "borrower": "synergy",
+      "question_id": "coverage_supported",
+      "question_version": "3.5.0",
+      "expected": "covered",
+      "answer": "covered",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unclear": 0.0,
+        "not_covered": 0.0,
+        "partly_covered": 0.12,
+        "covered": 0.88
+      },
+      "confidence": 0.84,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    }
+  ],
+  "note": "Agreement with hand labels on a small boundary set; a sanity check, not an accuracy estimate."
+}

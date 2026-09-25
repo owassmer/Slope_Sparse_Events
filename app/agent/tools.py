@@ -40,6 +40,7 @@ from app.domain.investigation import (
     EconomicEffectProposal,
     EvidenceCandidate,
     InventoryItem,
+    MatterExclusion,
     ParameterRequirement,
     ReconciliationTask,
     SemanticObservation,
@@ -559,8 +560,11 @@ async def _account_one(ctx: RunContext, entry: dict) -> str | dict:
             bad = [f for f in fids if f not in ctx.run.graph["findings"] or ctx.run.graph["findings"][f].status != "accepted"]
             if not fids or bad:
                 raise ToolError(f"{item.item_id}: covered_by_findings needs accepted finding IDs (not accepted: {bad or 'none given'})")
-            checks = await _check_coverage(ctx, item, fids) if ctx.semantics is not None else []
+            exclusions = await _check_exclusions(ctx, item, entry.get("excluded_matters") or []) \
+                if ctx.semantics is not None else ()
+            checks = await _check_coverage(ctx, item, fids, exclusions) if ctx.semantics is not None else []
             update = item.model_copy(update={"status": "covered", "finding_ids": fids, "note": reason,
+                                             "exclusions": exclusions,
                                              "observation_ids": tuple(o.observation_id for o in checks)})
         elif disposition == "duplicate_of":
             other = ctx.run.get("inventory", entry.get("duplicate_of") or "")
@@ -738,23 +742,77 @@ async def _per_section(ctx: RunContext, item: InventoryItem, ask, failing: set[s
     return obs
 
 
-async def _check_coverage(ctx: RunContext, item: InventoryItem, fids: tuple[str, ...]) -> list[SemanticObservation]:
-    """Host check that 'covered' is true for every section: the cited findings must account for what it describes."""
+async def _check_exclusions(ctx: RunContext, item: InventoryItem, entries: list[dict]) -> tuple[MatterExclusion, ...]:
+    """Each matter the agent names as not decision-relevant is checked on its own window by matter_relevance. Only a clear
+    could_not_change clears it; anything else rejects the entry (cover it with a finding, or escalate)."""
+    if not entries:
+        return ()
+    windows = {key: (passage, sha) for key, passage, sha in _coverage_windows(ctx, item)}
+    company = ctx.inputs["baseline_profile"]["borrower"]
+    parsed = []
+    for e in entries:
+        window, matter, why = (e.get("window") or "").strip(), (e.get("matter") or "").strip(), (e.get("reason") or "").strip()
+        if window not in windows:
+            raise ToolError(f"{item.item_id}: excluded matter window {window!r} is not a window of this item; use the "
+                            "section_id:start-end key from the failed coverage check")
+        if len(matter) < 8 or len(why) < OVERRIDE_NOTE_MIN:
+            raise ToolError(f"{item.item_id}: name each excluded matter and say why it cannot change cash, obligations, "
+                            "underwriting earnings or repayment")
+        key = "exc_" + hashlib.sha256(f"{window}|{matter}".encode()).hexdigest()[:10]
+        parsed.append(MatterExclusion(key=key, window=window, matter=matter, reason=why))
+    try:
+        answers = await asyncio.gather(*(ctx.semantics.matter_relevance(
+            company, windows[x.window][0], f"{x.matter} (agent's reason: {x.reason})", (item.item_id, x.window, x.key),
+            (windows[x.window][1],)) for x in parsed))
+    except Exception as e:
+        _record_jev_failure(ctx, e)
+        raise ToolError(f"{item.item_id}: excluded matters could not be checked ({e})") from e
+    checked, failed = [], []
+    for x, [o] in zip(parsed, answers, strict=True):
+        checked.append(x.model_copy(update={"observation_id": o.observation_id}))
+        if o.answer == "could_not_change" and not is_ambiguous(o):
+            _dispose(ctx, [o], "used_in_finding", f"exclusion on {item.item_id}: {x.matter}")
+        else:
+            failed.append((x, o))
+    if failed:
+        _dispose(ctx, [o for _, o in failed], "challenged_agent_draft", f"exclusion on {item.item_id}")
+        detail = "; ".join(f"{x.matter!r}: {meaning(o.question_id, o.answer)}{' (ambiguous)' if is_ambiguous(o) else ''} "
+                           f"({o.observation_id})" for x, o in failed)
+        raise ToolError(f"{item.item_id}: excluded matters not accepted. {detail}. A matter that involves a payment, "
+                        "obligation, restriction, covenant or earnings item needs a cited finding, even if it is now paid or "
+                        "superseded. If you disagree, escalate the item with the observation_id.")
+    return tuple(checked)
+
+
+async def _check_coverage(ctx: RunContext, item: InventoryItem, fids: tuple[str, ...],
+                          exclusions: tuple[MatterExclusion, ...] = ()) -> list[SemanticObservation]:
+    """Host check that 'covered' is true window by window: the cited findings must account for each specific matter,
+    other than matters the agent named and matter_relevance accepted as not decision-relevant."""
     cited = [ctx.run.graph["findings"][f] for f in fids]
+    by_window: dict[str, list[MatterExclusion]] = {}
+    for x in exclusions:
+        by_window.setdefault(x.window, []).append(x)
+    allowed = set(fids) | {x.key for x in exclusions}
 
     def reuse(key: str) -> SemanticObservation | None:
-        # Adding findings cannot uncover a window: an earlier clear pass with a subset of these findings still holds.
+        # More findings or exclusions cannot uncover a window: an earlier clear pass with a subset of them still holds.
         for o in ctx.run.graph["observations"].values():
             if (o.question_id == "coverage_supported" and o.subject_ids[:2] == (item.item_id, key)
-                    and set(o.subject_ids[2:]) <= set(fids) and o.answer == "covered" and not is_ambiguous(o)):
+                    and set(o.subject_ids[2:]) <= allowed and o.answer == "covered" and not is_ambiguous(o)):
                 return o
         return None
+
+    def ask(key, passage, sha):
+        excl = by_window.get(key, [])
+        return ctx.semantics.coverage(passage, cited, (item.item_id, key, *fids, *(x.key for x in excl)), (sha,),
+                                      [{"matter": x.matter, "reason": x.reason} for x in excl] or None)
     return await _per_section(
-        ctx, item, lambda key, passage, sha: ctx.semantics.coverage(passage, cited, (item.item_id, key, *fids), (sha,)),
-        {"partly_covered", "not_covered"}, "coverage check",
-        "Read each failed window (section_id:start-end character range) and propose and accept a finding for each specific "
-        "matter it describes, including one stating that a matter was paid, closed or superseded, then account for the item "
-        "again citing all its findings.", reuse=reuse, units=_coverage_windows(ctx, item))
+        ctx, item, ask, {"partly_covered", "not_covered"}, "coverage check",
+        "Read each failed window (section_id:start-end character range). For each specific matter it describes, propose and "
+        "accept a finding (including one stating that a matter was paid, closed or superseded), or, for a matter with no "
+        "payment, obligation, restriction, covenant or earnings effect, name it in excluded_matters with that window key and "
+        "your reason. Then account for the item again citing all its findings and exclusions.",
+        reuse=reuse, units=_coverage_windows(ctx, item))
 
 
 async def _check_duplicate(ctx: RunContext, item: InventoryItem, other: InventoryItem) -> list[SemanticObservation]:
@@ -783,9 +841,10 @@ def _escalate_item(ctx: RunContext, item: InventoryItem, observation_id: str, mi
     """Escalation answers a specific failed check on this item; the item is disputed and stays open for the reviewer."""
     obs = ctx.run.graph["observations"].get(observation_id)
     failing = {"coverage_supported": {"partly_covered", "not_covered"}, "adds_matter": {"adds_item"},
-               "decision_relevance": {"could_change"}}
+               "decision_relevance": {"could_change"}, "matter_relevance": {"could_change", "unclear"}}
     if (obs is None or not obs.subject_ids or obs.subject_ids[0] != item.item_id
-            or obs.answer not in failing.get(obs.question_id, set()) or is_ambiguous(obs)):
+            or obs.answer not in failing.get(obs.question_id, set())
+            or (is_ambiguous(obs) and obs.question_id != "matter_relevance")):
         raise ToolError(f"{item.item_id}: escalate needs the observation_id of a failed host check on this item")
     if len(missing) < OVERRIDE_NOTE_MIN:
         raise ToolError(f"{item.item_id}: say what the check found missing and why you could not account for it")
@@ -1018,11 +1077,14 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
     ("read_inventory", "List the matters the host sweep flagged in the admissible evidence and their accounting status.",
      obj({}, []), read_inventory),
     ("account_for_items", "Account for inventory items in a batch. Each entry is checked on its own: covered_by_findings "
-     "(accepted finding_ids that account for every section), duplicate_of (another item already covered; the passage must add "
+     "(accepted finding_ids that account for every window of every section; optionally excluded_matters naming, per window, "
+     "a matter with no payment, obligation, restriction, covenant or earnings effect and why, each checked), duplicate_of (another item already covered; the passage must add "
      "nothing), not_decision_relevant (with a reason; checked), or escalate (the observation_id of a failed check on the item "
      "and what is missing; the item stays open for the reviewer).",
      obj({"items": {"type": "array", "items": obj({"item_id": S, "disposition": {"type": "string", "enum": [
          "covered_by_findings", "duplicate_of", "not_decision_relevant", "escalate"]}, "finding_ids": {"type": "array", "items": S},
+         "excluded_matters": {"type": "array", "items": obj({"window": S, "matter": S, "reason": S},
+                                                            ["window", "matter", "reason"])},
          "duplicate_of": S, "reason": S, "observation_id": S, "missing": S},
          ["item_id", "disposition"])}}, ["items"]), account_for_items),
     ("escalate_effect", "Escalate an effect the category guard rejected when you disagree with the check: it becomes disputed, "
