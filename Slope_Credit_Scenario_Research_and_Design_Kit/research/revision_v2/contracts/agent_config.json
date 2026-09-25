@@ -202,7 +202,7 @@
           ]
         },
         "inventory_coverage": {
-          "trigger": "host, per section, on every inventory item the agent marks covered, duplicate or not decision-relevant",
+          "trigger": "host, at submission, on every paragraph or table row an accepted finding cites",
           "questions": [
             "coverage_supported"
           ]

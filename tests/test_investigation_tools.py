@@ -347,3 +347,20 @@ def test_cited_units_gate_submission(make_ctx):
     assert [e["kind"] for e in checklist["escalations"]] == ["cited_unit_coverage"]
     assert [x["item_id"] for x in checklist["uncited_flagged_units"]] == ["inv_002"]
     assert ctx.run.get("inventory", "inv_001").status == "cited" and ctx.run.get("inventory", "inv_002").status == "uncited"
+
+
+def test_gap_share_and_short_quotes_and_amounts():
+    from app.agent.sweep import units_touching
+    from app.domain.investigation import SemanticObservation
+
+    def cov(p):
+        return SemanticObservation(observation_id="obs_x", call_id="c", profile="inventory_coverage",
+                                   question_id="coverage_supported", question_version="3.8.0", primitive="choice",
+                                   answer=max(p, key=p.get), probabilities=p)
+    assert T._coverage_gap(cov({"partly_covered": 0.55, "not_covered": 0.45, "covered": 0.0}))  # two gap answers: a gap
+    assert not T._coverage_gap(cov({"partly_covered": 0.52, "covered": 0.48}))  # near-even with covered: not blocking
+    text = "Daily Payment Percentage means 25%\n\nThe Minimum Payment is thirty percent of the Total Payment Amount."
+    assert [u["text"] for u in units_touching(text, 0, 10)] == ["Daily Payment Percentage means 25%"]  # short, still checked
+    assert len(units_touching(text, 5, text.index("Minimum") + 3)) == 2  # a quote across paragraphs checks both
+    assert T._cents_in_text(223_598_600, "a gain to us of $2,235,986, and is reflected")  # comma after the amount
+    assert not T._cents_in_text(60_000_000, "$2,600,000")

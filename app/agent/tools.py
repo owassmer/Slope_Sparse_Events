@@ -26,11 +26,11 @@ from typing import Any
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
 from app.agent.jev import registry_question
-from app.agent.jev_profiles import Semantics, is_ambiguous
+from app.agent.jev_profiles import AMBIGUITY_MARGIN, Semantics, is_ambiguous
 from app.agent.meanings import NOT_SETTLED, meaning
 from app.agent.mission import project_mission
 from app.agent.run_store import RunStore
-from app.agent.sweep import unit_of
+from app.agent.sweep import units_touching
 from app.config import ConfigurationError
 from app.domain.investigation import (
     CASH_FREE_MECHANISMS,
@@ -135,7 +135,7 @@ def _cents_in_text(cents: int, text: str) -> bool:
     if rem == 0 and dollars >= 1_000_000:
         forms |= {f"{dollars / 1_000_000:.1f} million", f"{dollars / 1_000_000:g} million"}
     # A digit, comma or decimal point may not touch the match: "600,000" must not match "$2,600,000".
-    return any(re.search(rf"(?<![\d,.]){re.escape(f)}(?![\d,]|\.\d)", flat) for f in forms)
+    return any(re.search(rf"(?<![\d,.]){re.escape(f)}(?!\d|,\d|\.\d)", flat) for f in forms)
 
 
 def _baseline_item(ctx: RunContext, key: str) -> dict | None:
@@ -621,6 +621,13 @@ def _attribute_screen(ctx: RunContext, finding: AtomicFinding) -> None:
         _dispose(ctx, unused, "used_in_finding", f"screened passage cited in {finding.finding_id}")
 
 
+def _coverage_gap(o: SemanticObservation) -> bool:
+    """A clear coverage gap: partly_covered + not_covered exceeds covered by the ambiguity margin. A near-even split between
+    the two gap answers is still a gap; a near-even split between covered and a gap answer does not block."""
+    p = o.probabilities or {}
+    return p.get("partly_covered", 0) + p.get("not_covered", 0) - p.get("covered", 0) >= AMBIGUITY_MARGIN
+
+
 def _cited_units(ctx: RunContext) -> dict[str, dict]:
     """Every atomic unit (paragraph or table row) an accepted finding cites, with the findings that cite it."""
     out: dict[str, dict] = {}
@@ -629,14 +636,15 @@ def _cited_units(ctx: RunContext) -> dict[str, dict]:
             continue
         for sp in f.spans:
             sec = ctx.evidence.read_section(sp.section_id)
-            u = unit_of(sec["text"], sp.start)
-            if u is None:
-                continue
-            key = f"{sp.section_id}:{u['start']}-{u['end']}"
-            entry = out.setdefault(key, {"section_id": sp.section_id, "unit": u, "sha": sec["source"]["sha256"],
-                                         "heading_path": " > ".join(sec["heading_path"]), "finding_ids": []})
-            if f.finding_id not in entry["finding_ids"]:
-                entry["finding_ids"].append(f.finding_id)
+            touched = units_touching(sec["text"], sp.start, sp.end)
+            if not touched:  # a quote outside any paragraph or row is still checked, on the quote itself
+                touched = [{"start": sp.start, "end": sp.end, "kind": "quote", "text": sp.quote}]
+            for u in touched:
+                key = f"{sp.section_id}:{u['start']}-{u['end']}"
+                entry = out.setdefault(key, {"section_id": sp.section_id, "unit": u, "sha": sec["source"]["sha256"],
+                                             "heading_path": " > ".join(sec["heading_path"]), "finding_ids": []})
+                if f.finding_id not in entry["finding_ids"]:
+                    entry["finding_ids"].append(f.finding_id)
     return out
 
 
@@ -670,7 +678,7 @@ async def _check_cited_units(ctx: RunContext, escalations: list[dict]) -> list[d
         o = ctx.run.graph["observations"].get(e.get("observation_id") or "")
         missing = (e.get("missing") or "").strip()
         if (o is None or o.question_id != "coverage_supported" or len(o.subject_ids) < 2 or o.subject_ids[0] != "unit"
-                or o.answer not in ("partly_covered", "not_covered") or is_ambiguous(o)):
+                or not _coverage_gap(o)):
             raise ToolError(f"coverage_escalations: {e.get('observation_id')} is not a failed cited-unit coverage check")
         if len(missing) < OVERRIDE_NOTE_MIN:
             raise ToolError(f"coverage_escalations: say what {o.observation_id} found missing and why no finding states it")
@@ -696,8 +704,10 @@ async def _check_cited_units(ctx: RunContext, escalations: list[dict]) -> list[d
         raise ToolError(f"The cited paragraphs could not be checked: {e}") from e
     failed, rows = [], []
     for (k, v), [o] in zip(todo, answers, strict=True):
-        bad = o.answer in ("partly_covered", "not_covered") and not is_ambiguous(o)
-        _dispose(ctx, [o], "challenged_agent_draft" if bad else "used_in_finding", f"cited-unit check on {k}")
+        bad = _coverage_gap(o)
+        clear_pass = o.answer == "covered" and not is_ambiguous(o)
+        _dispose(ctx, [o], "challenged_agent_draft" if bad else "used_in_finding" if clear_pass else "unused",
+                 f"cited-unit check on {k}" + ("" if bad or clear_pass else " (near-even; not blocking)"))
         rows.append({"unit": k, "finding_ids": v["finding_ids"], "observation_id": o.observation_id, "answer": o.answer,
                      "ambiguous": is_ambiguous(o), "passed": not bad})
         if bad:
@@ -729,9 +739,10 @@ def _consequence_reply(ctx: RunContext, effect: EconomicEffectProposal, reply: d
     if (obs is None or obs.question_id != "claims_supported" or obs.answer != "some_unsupported" or is_ambiguous(obs)
             or earlier is None or earlier.status != "rejected"):
         raise ToolError("reply_to_failed_check needs the observation_id of a failed consequence-support check on a rejected effect")
-    if earlier.model_consequence.strip() != effect.model_consequence.strip():
-        raise ToolError(f"The reply must keep the model consequence that {obs.observation_id} checked; a revised consequence "
-                        "is checked afresh (omit reply_to_failed_check)")
+    if (earlier.model_consequence.strip() != effect.model_consequence.strip() or earlier.finding_ids != effect.finding_ids
+            or earlier.parameters != effect.parameters or earlier.baseline_treatment != effect.baseline_treatment):
+        raise ToolError(f"The reply must keep the model consequence, findings, treatment and parameters that "
+                        f"{obs.observation_id} checked; a revised effect is checked afresh (omit reply_to_failed_check)")
     if len(reason) < OVERRIDE_NOTE_MIN:
         raise ToolError("Say which claim the check marked unsupported and why the cited findings support it")
     return obs, reason

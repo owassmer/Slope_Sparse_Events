@@ -107,7 +107,7 @@ async def _sweep_units(evidence: EvidenceStore, adapter: JevAdapter, company: st
 MIN_UNIT_CHARS = 40  # headings and fragments shorter than this are not units
 
 
-def units(text: str) -> list[dict[str, Any]]:
+def units(text: str, min_chars: int = MIN_UNIT_CHARS) -> list[dict[str, Any]]:
     """Split a section into atomic evidence units: one per paragraph and one per table row.
 
     A table row carries its table's header row so it keeps its column context. Offsets are into the section text, so a
@@ -133,7 +133,7 @@ def units(text: str) -> list[dict[str, Any]]:
                                 "text": f"{context}\n{ln}" if context else ln})
             continue
         previous = block.strip()
-        if len(previous) < MIN_UNIT_CHARS:
+        if len(previous) < min_chars or not previous:
             continue
         for i in range(0, len(block), CHUNK_CHARS):
             piece = block[i:i + CHUNK_CHARS]
@@ -144,6 +144,11 @@ def units(text: str) -> list[dict[str, Any]]:
 def unit_of(section_text: str, offset: int) -> dict[str, Any] | None:
     """The unit containing a character offset (a finding span's start), if any."""
     return next((u for u in units(section_text) if u["start"] <= offset < u["end"]), None)
+
+
+def units_touching(section_text: str, start: int, end: int) -> list[dict[str, Any]]:
+    """Every unit a quote [start, end) touches, short paragraphs included: a cited quote is never left unchecked."""
+    return [u for u in units(section_text, min_chars=1) if u["start"] < max(end, start + 1) and start < u["end"]]
 
 
 def sweep_path(snapshot_id: str) -> Path:

@@ -31,6 +31,7 @@ from app.domain.investigation import (
 )
 
 GENESIS = "0" * 64
+REMOVED_FIELDS = {("inventory", "exclusions")}  # recorded by run 13 under a design later removed
 COLLECTIONS: dict[str, type[BaseModel]] = {
     "dependencies": DecisionDependency, "candidates": EvidenceCandidate, "jev_calls": JevCallRecord,
     "observations": SemanticObservation, "findings": AtomicFinding, "reconciliations": ReconciliationTask,
@@ -145,8 +146,10 @@ class RunStore:
             defaults = {f: json.loads(json.dumps(info.get_default(call_default_factory=True), default=str))
                         for f, info in model.model_fields.items() if not info.is_required()}
             for key, obj in recorded.items():
-                # A field a later schema removed is not replayed; it stays protected by the hash-chained event log.
-                if any(replayed[key].get(field) != value for field, value in obj.items() if field in model.model_fields):
+                # Only a field a later schema removed is skipped (it stays protected by the hash-chained event log);
+                # any other field the packet holds must equal the replayed value, so a forged field is still caught.
+                if any(replayed[key].get(field) != value for field, value in obj.items()
+                       if (name, field) not in REMOVED_FIELDS):
                     return False
                 # A field absent from the packet is acceptable only when the replayed value is its default
                 # (a field added by a later schema version), never when a recorded value was deleted.
