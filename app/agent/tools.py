@@ -50,7 +50,7 @@ from app.finance.thresholds import remaining_period_required_net_cash
 
 MAX_SEARCH_RESULTS = 12
 DEFAULT_SEARCH_RESULTS = 8
-RELATION_CHECKS_PER_ACCEPTANCE = 2
+RELATION_CHECKS_PER_ACCEPTANCE = 1  # most recent accepted finding under the same dependency
 # Category-error guard (code-owned): the semantic status a finding must have to support each mechanism.
 CATEGORY_RULES: dict[str, tuple[str, str, set[str], set[str]]] = {
     # mechanism: (subject_kind, status question, allowed statuses, allowed postures)

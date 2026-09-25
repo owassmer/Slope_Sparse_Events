@@ -163,14 +163,12 @@ class Semantics:
         proposed = finding.proposition + (" (the agent presents this as an inference from the cited passages)"
                                           if finding.is_inference else "")
         passage = passages[0] if len(passages) == 1 else passages
-        state = {"target": finding.target, "source": source, "passage": passage, "proposed_finding": proposed}
-        hashes_t = tuple(dict.fromkeys(hashes))
-        # The entity check is host-mandated on every finding (not only when the agent asks for an interpretation).
-        entity_state = {"target": finding.target, "source": source, "passage": passage, "claim": finding.proposition}
-        quality, entity = await asyncio.gather(
-            self._ask("finding_check", profile_questions("finding_check"), state, (finding.finding_id,), hashes_t),
-            self._ask("finding_check", ["entity_scope"], entity_state, (finding.finding_id,), hashes_t))
-        return quality + entity
+        # One request: the finding-quality questions read state.proposed_finding, and the host-mandated entity check
+        # reads state.claim (the same proposition, stated without the inference note), over the same passage.
+        state = {"target": finding.target, "source": source, "passage": passage, "proposed_finding": proposed,
+                 "claim": finding.proposition}
+        return await self._ask("finding_check", [*profile_questions("finding_check"), "entity_scope"], state,
+                               (finding.finding_id,), tuple(dict.fromkeys(hashes)))
 
     async def relate(self, a: AtomicFinding, b: AtomicFinding, proposed_fact: str) -> list[SemanticObservation]:
         """statement_relation between two findings with respect to one proposed fact."""

@@ -223,7 +223,7 @@ This is a local personal demonstration. Public sharing uses recorded runs with c
 | PydanticAI agent loop | Omit; native subscription runtimes serve this requirement directly |
 | Data/domain validation | Keep Pydantic and JSON Schema independently of agent framework |
 | Tool integration | Small custom MCP server; no general shell/filesystem/browser tools for historical investigation |
-| Initial budgets | 80 agent turns (host-counted and enforced), 150 physical Jev attempts including SDK retries (spend cap $0.10 per run), approximately ten minutes, plus repeated-no-progress stop; ceilings, not targets |
+| Initial budgets | 80 agent turns (host-counted and enforced), 250 physical Jev attempts including SDK retries (spend cap $0.10 per run; host sweep has its own budget), approximately ten minutes, plus repeated-no-progress stop; ceilings, not targets |
 | Extra retry wrapper | Omit initially because layered retries can multiply calls; bounded provider retries within wall-clock budget |
 | Viewer | FastAPI, Jinja2, HTMX, Pico.css; local-only by default |
 | Storage/search | SQLite with FTS5; no vector database needed for this corpus |
@@ -252,7 +252,7 @@ The agent requests a **judgment profile** with object IDs; the host resolves the
 | `candidate_screen` | Host, on every `search_evidence` result (one request per query–passage pair) | `gap_relevance`, `usable_evidence`, `premise_conflict`, `instruction_like_text` (Noul) |
 | `claim_interpretation` | Agent, after reading a passage and stating one atomic claim | `entity_scope`, `claim_posture`, and whichever of `obligation_status`, `cash_access`, `activity_status`, `offset_status` the claim concerns (Choice) |
 | `finding_check` | Host, on every `propose_finding` | `finding_support`, `finding_atomicity`, `context_sufficiency`, `economic_role` (Choice) |
-| `statement_relation` | Agent, when two findings or passages may conflict; host, on each accepted finding against up to three accepted findings under the same dependency; host, when an effect may overlap a baseline item | `statement_relation`, `baseline_overlap` (Choice; overlap is a warning only) |
+| `statement_relation` | Agent, when two findings or passages may conflict; host, on each accepted finding against the most recent accepted finding under the same dependency; host, when an effect may overlap a baseline item | `statement_relation`, `baseline_overlap` (Choice; overlap is a warning only) |
 | `snapshot_sweep` | Host, once per snapshot before any run (cached, own budget) | `matter_inventory` (Noul), `matter_kind` (Choice) |
 | `statement_support` | Host, on every effect's model consequence and on the packet conclusion | `claims_supported` (Choice) |
 | `inventory_coverage` | Host, on every inventory item the agent marks covered | `coverage_supported` (Choice) |
