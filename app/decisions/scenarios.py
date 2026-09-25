@@ -73,20 +73,29 @@ def _place(amount, window_start: date, window_end: date, kind: str, placement: s
     return mid, (lo + hi) // 2
 
 
-def _product_bps(weights: list[int]) -> int:
+def _product(weights: list[int]) -> Decimal:
     p = Decimal(1)
     for w in weights:
         p *= Decimal(w) / BPS
-    return int((p * BPS).to_integral_value())
+    return p
+
+
+def _combination_weights(combos: list[tuple[DisputePath, ...]]) -> list[int | None]:
+    """Products of the disputes' path weights (combined as independent), in basis points summing to exactly 10,000."""
+    if any(p.weight_bps is None for combo in combos for p in combo):
+        return [None] * len(combos)
+    raw = [_product([p.weight_bps for p in combo]) * BPS for combo in combos]
+    out = [int(r.to_integral_value()) for r in raw]
+    out[out.index(max(out))] += 10_000 - sum(out)
+    return out
 
 
 def scenarios(disputes: list[list[DisputePath]]) -> list[Scenario]:
     views = [Scenario("bank_only", (), (), 10_000, "central")]
     if not disputes:
         return views
-    for combo in itertools.product(*disputes):
-        weights = [p.weight_bps for p in combo]
-        w = None if any(x is None for x in weights) else _product_bps(weights)
+    combos = list(itertools.product(*disputes))
+    for combo, w in zip(combos, _combination_weights(combos), strict=True):
         cash = tuple(c for p in combo for c in p.cash)
         for placement in (("stress", "central") if cash else ("central",)):
             views.append(Scenario("event_adjusted", tuple(p.path_id for p in combo),

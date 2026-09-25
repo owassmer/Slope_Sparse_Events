@@ -208,3 +208,16 @@ def test_judgment_dates_must_appear_in_the_record():
     assert _date_in_text(date(2024, 8, 13), "Document 618 Filed 08/13/24 Page 1 of 3")
     assert not _date_in_text(date(2024, 8, 13), "Filed 08/13/2023")
     assert not _date_in_text(date(2024, 8, 1), "Filed 08/13/24")
+
+
+def test_combined_dispute_weights_sum_to_one_and_expected_never_exceeds_contract():
+    ca = evaluate("creditor", 250_000_000, date(2024, 8, 13), CA_QUOTE, "cacd_16cv2277_d618_judgment",
+                  StubJudge("judgment_entered", {"judgment_entered": "pay"}, top=0.91))
+    de = evaluate("debtor", 980_000_000, None, DE_QUOTE, "cdxc_2024q2_10q",
+                  StubJudge("amount_pending", {"amount_pending": "amount_fixed", "judgment_entered": "appeal_bonded"}))
+    terms = load_terms()
+    comp = compare(load_feed(SNAP), terms, REQ, [list(ca.paths), list(de.paths)])
+    central = [sc for sc in comp.scenarios if sc.view == "event_adjusted" and sc.placement == "central"]
+    assert sum(sc.weight_bps for sc in central) == 10_000
+    for v in summarize(comp, terms)["structures"]["inst_90_2000000"]["views"].values():
+        assert sum(c["amount_cents"] for c in v["expected_collections"]) <= sum(r["amount_cents"] for r in v["contractual"])

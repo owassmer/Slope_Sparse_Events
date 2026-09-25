@@ -1,0 +1,137 @@
+{
+  "snapshot_id": "chromadex_20240819",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T16:34:10.088463+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "3.10.0",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "fe7951da508f62a2e973e0000cd667f00003549704c64a8387bdb37bf9f786fe",
+    "sections": 520,
+    "flagged": 178,
+    "unscreened": 0,
+    "chunks": 539,
+    "units": 1205,
+    "flagged_units": 569,
+    "unscreened_units": 0,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 0,
+      "cache_hits": 1744,
+      "physical_attempts": 0,
+      "attempt_ceiling": 1500,
+      "spent_usd": "0",
+      "spend_cap_usd": "0.10"
+    },
+    "inventory_items": 569
+  },
+  "run_id": "chromadex_20240819-agent_plus_jev-20260925T163410Z",
+  "status": "CANDIDATE_READY",
+  "failure": null,
+  "incomplete_reasons": [],
+  "finished_at": "2026-09-25T16:38:35.770396+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "record_dependency": 2,
+    "read_evidence": 11,
+    "search_evidence": 5,
+    "judge": 2,
+    "propose_finding": 5,
+    "resolve_finding": 5,
+    "resolve_reconciliation": 1,
+    "instantiate_dispute": 3,
+    "run_scenarios": 1,
+    "propose_effect": 9,
+    "request_missing_fact": 3,
+    "submit_packet": 2,
+    "StructuredOutput": 1
+  },
+  "turns_used": 29,
+  "max_turns": 120,
+  "claude": {
+    "num_turns": 55,
+    "duration_ms": 263500,
+    "usage": {
+      "input_tokens": 58,
+      "cache_creation_input_tokens": 91237,
+      "cache_read_input_tokens": 1424278,
+      "output_tokens": 26285,
+      "output_tokens_details": {
+        "thinking_tokens": 3827
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 91237,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 626,
+          "cache_read_input_tokens": 89555,
+          "cache_creation_input_tokens": 1682,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 1682
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 1.5406836000000004,
+    "structured_output": {
+      "conclusion": "On bank data alone, the $2.0M 90-day installment request passes (order limit about $2.72M). Once the Elysium disputes are counted, it does not: the event-adjusted order limit is about $1.43M. That limit is bound by a stress path in which ChromaDex secures the pending Delaware attorney-fee award (up to about $9.8M including interest, per its 10-Q estimate) with cash collateral pending appeal, and the $2.5M California judgment receivable has not yet been collected. Recommendation: route to exception review (material litigation; existing secured lender). Offer at most about $1.43M on inst_90 (inst_90_1430000) unless evidence shows the fee award will not lock or consume that cash within the horizon. Conditions: (a) confirm the fee amount and whether appeal security is cash-collateralised; (b) confirm Western Alliance Bank's covenants permit the financing, or obtain consent; (c) count the $2.5M from Elysium only once received. The path weights are model judgment, not default probabilities.",
+      "pivotal_unknowns": [
+        "Amount of the D. Del. attorney fee award to Elysium, and whether ChromaDex will secure it pending appeal with cash collateral or a surety bond/letter of credit, and when (fact_001)",
+        "Whether the Western Alliance Bank Credit Agreement covenants permit $2.0M of unsecured Slope financing or require lender consent (fact_002)",
+        "Date on which Elysium pays the $2.5M C.D. Cal. judgment (fact_003)"
+      ],
+      "supported_effect_ids": [
+        "eff_009",
+        "eff_008",
+        "eff_006"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 82,
+    "cache_hits": 11,
+    "physical_attempts": 82,
+    "attempt_ceiling": 400,
+    "spent_usd": "0.007168434",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 2,
+    "candidates": 36,
+    "jev_calls": 93,
+    "observations": 240,
+    "findings": 5,
+    "reconciliations": 1,
+    "effects": 9,
+    "inventory": 569,
+    "disputes": 2
+  },
+  "chain_head": "93239d2fb2238b72a35d36f424578a58efe621e65e8a718a5a6812c2b27f4b25"
+}

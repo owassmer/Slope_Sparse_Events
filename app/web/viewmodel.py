@@ -163,7 +163,11 @@ def _decision(run_dir: Path) -> dict | None:
     s = json.loads(path.read_text())
     views = list(s["recommendation"])
     rows = []
+    shown = {r["structure"] for r in s["recommendation"].values()}
+    requested = s["request"]["amount_cents"] // 100
     for name, e in s["structures"].items():
+        if name != "decline" and name not in shown and not name.endswith(f"_{requested}"):
+            continue  # amounts the sizing search tried stay in scenarios.json, not on the page
         row = {"name": name, "label": e["label"]}
         for view in views:
             v = e["views"][view]
@@ -194,7 +198,7 @@ def _disputes(g: dict) -> list[dict]:
     out = []
     for d in g.get("disputes", {}).values():
         out.append({
-            "id": d.instance_id, "title": d.title, "role": "owes" if d.borrower_role == "debtor" else "is owed",
+            "id": d.instance_id, "title": d.title, "debtor": d.borrower_role == "debtor",
             "counterparty": d.counterparty, "amount": _money(d.amount.model_dump(mode="json")),
             "stage": stages[d.stage]["label"] if d.stage else "outside the model", "status": d.status,
             "findings": list(d.finding_ids),

@@ -38,12 +38,12 @@ def modelled(disputes: list[DisputeInstance]) -> list[DisputeInstance]:
 def conditions(disputes: list[DisputeInstance], inputs: dict) -> list[dict]:
     """Funding conditions as actions (what to do, what follows if it is satisfied, and if not), generated from the
     dispute model's rules and evidence requests and from the existing lenders."""
-    out = []
+    out, borrower = [], inputs["baseline_profile"]["borrower"]
     for d in disputes:
         amount = d.amount.value if d.amount.value is not None else d.amount.upper
         if any(c.kind == "lock" for p in d.paths for c in p.cash):
-            out.append({"action": f"Confirm how {d.title} would be secured pending appeal (cash collateral or a letter "
-                                  "of credit) and for how much.",
+            out.append({"action": f"Confirm how {borrower} would secure a stay pending appeal of the {usd(amount)} owed "
+                                  f"to {d.counterparty} (cash collateral or a letter of credit), and for how much.",
                         "if_satisfied": "The confirmed collateral replaces the modelled lock on the appeal paths.",
                         "if_not": "The appeal paths keep 50% to 100% of a bond at 125% of the judgment locked "
                                   "(model rule).", "instance_id": d.instance_id})
