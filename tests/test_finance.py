@@ -112,6 +112,13 @@ def test_daily_payments_use_account_credits_and_next_business_day():
         project(t, seasoned_state(AUG12, 0, 0), ConsolidatedRevenue(daily_cents={sat: 1}), horizon=date(2024, 8, 31))
 
 
+def test_closed_window_shortfall_must_be_declared():
+    after_w1 = date(2024, 11, 30)
+    with pytest.raises(ValueError, match="declare the unmet amount"):
+        project(MerchantTerms(), seasoned_state(after_w1, 100_000_00, 100_000_00),
+                flat_credits(after_w1 + timedelta(1), date(2024, 12, 31), 0), horizon=date(2024, 12, 31))
+
+
 def test_missing_account_credits_are_unknown_not_zero():
     with pytest.raises(UnknownInput, match="Account Credits"):
         project(MerchantTerms(), seasoned_state(AUG12, 0, 0), flat_credits(AUG13, date(2024, 9, 30), 500_00),

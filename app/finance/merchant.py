@@ -194,6 +194,10 @@ def project(terms: MerchantTerms, state: MerchantLoanState, credits: AccountCred
     window_due = {w: previous_business_day(terms.window_bounds(funding, w)[1] - timedelta(days=1)) for w in (1, 2)}
     top_up_due = {due: w for w, due in window_due.items() if due > state.as_of}
     windows_done = {w for w, due in window_due.items() if due <= state.as_of}
+    for w in windows_done:  # a closed window's shortfall cannot vanish: it must be declared as arrears
+        if arrears == 0 and terms.window_top_up_cents(w, daily_w[w], manual_w[w], received) > 0:
+            raise ValueError(f"Window {w} closed below its Minimum Payment; declare the unmet amount in "
+                             "unmet_prior_obligation_cents")
     needed_through = min(horizon, term_due)
     if needed_through >= start and (credits.covers[0] > start or credits.covers[1] < needed_through):
         raise UnknownInput("Account Credits", f"credits must cover {start}..{needed_through}; days outside "
