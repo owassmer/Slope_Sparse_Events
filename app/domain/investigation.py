@@ -209,11 +209,14 @@ def validate_effect(effect: EconomicEffectProposal, findings: dict[str, AtomicFi
             for span in f.spans:
                 try:
                     verify_span(span)
-                except ValueError as e:
-                    problems.append(f"Finding {fid}: {e}")
+                except Exception as e:  # missing section, moved text or unreadable source are all problems
+                    problems.append(f"Finding {fid}: span {span.section_id} could not be verified ({e})")
     for p in effect.parameters:
-        if p.status in ("known", "range") and p.value is None:
+        if p.status in ("known", "range") and (p.value is None or p.value.status == "unknown"):
             problems.append(f"Parameter {p.name} is {p.status} but carries no value")
+        stray = set(p.finding_ids) - set(effect.finding_ids)
+        if stray:
+            problems.append(f"Parameter {p.name} cites findings outside this effect: {sorted(stray)}")
     if effect.mechanism in CASH_FREE_MECHANISMS and effect.cash_direction != "none":
         problems.append(f"{effect.mechanism} cannot create a cash {effect.cash_direction}")
     if effect.mechanism == "noncash_normalization" and effect.baseline_treatment != "normalization_only":

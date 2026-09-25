@@ -488,5 +488,5 @@
       "cache_hit": false
     }
   ],
-  "note": "Agreement with hand labels on a small boundary set; a sanity check, not an accuracy estimate. First run, cases v1.0.0 and registry 3.0.0 (entity_scope before its 3.0.1 wording). The second run (after the wording change, before the case fix) was overwritten and is not preserved."
+  "note": "Agreement with hand labels on a small boundary set; a sanity check, not an accuracy estimate. First run, cases v1.0.0 and registry 3.0.0 (entity_scope before its 3.0.1 wording). The second run (after the wording change, before the case fix) was overwritten and is not preserved. [Provenance: restored on 2026-09-25 from a copy saved before the original runs/recorded/jev_semantic_eval.json was overwritten; results unchanged.]"
 }

@@ -505,5 +505,5 @@
       "cache_hit": false
     }
   ],
-  "note": "Agreement with hand labels on a small boundary set; a sanity check, not an accuracy estimate. Third run: cases v1.0.0 plus the unresolvable variant, entity_scope 3.0.1."
+  "note": "Agreement with hand labels on a small boundary set; a sanity check, not an accuracy estimate. Third run: cases v1.0.0 plus the unresolvable variant, entity_scope 3.0.1. [Provenance: moved from runs/recorded/jev_semantic_eval.json on 2026-09-25; this note's run description was added after the run; results unchanged.]"
 }

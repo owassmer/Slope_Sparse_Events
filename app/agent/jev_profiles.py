@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import re
 
-from app.agent.jev import NOUL_THRESHOLD, JevAdapter
+from app.agent.jev import NOUL_THRESHOLD, JevAdapter, JevBudgetExceeded
 from app.agent.run_store import RunStore
 from app.config import question_registry
 from app.domain.investigation import (
@@ -78,6 +78,7 @@ class Semantics:
     def __init__(self, run: RunStore, evidence: EvidenceStore, jev: JevAdapter) -> None:
         self.run, self.evidence, self.jev = run, evidence, jev
         self.last_screen_errors: list[str] = []
+        self.budget_exhausted = False
 
     # --- state builders (admissible objects only) ---------------------------------------------
 
@@ -125,6 +126,8 @@ class Semantics:
                 screen = CandidateScreen(route=route(signals), observation_ids=tuple(o.observation_id for o in obs),
                                          signals=signals)
             except Exception as e:  # a failed screen never hides the candidate
+                if isinstance(e, JevBudgetExceeded):
+                    self.budget_exhausted = True  # the runner turns this into INCOMPLETE_REVIEW
                 screen = CandidateScreen(route="unscreened", error=f"{type(e).__name__}: {e}"[:300])
             screened = c.model_copy(update={"screen": screen})
             self.run.put("candidate_screened", screened)
