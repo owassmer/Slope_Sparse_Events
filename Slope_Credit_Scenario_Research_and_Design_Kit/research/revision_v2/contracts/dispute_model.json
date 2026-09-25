@@ -1,30 +1,79 @@
 {
   "model_id": "post_judgment_money_dispute",
-  "model_version": "2.0.0",
+  "model_version": "3.0.0",
   "status": "host_owned_design_contract",
-  "scope": "Post-judgment slice of a US federal civil money dispute: from a liability ruling whose amount is still open, through a money judgment, to payment, a secured appeal, settlement, or an unpaid judgment and its enforcement. The full lifecycle (pleadings, dispositive motions, trial) is the roadmap.",
-  "design": "A scenario compiler. Jev reads each cited passage against one obligation (who pays whom, the amount's status, which procedural events it establishes, which factors it bears on and at what level). Code combines those readings with the rules below: it places the stage from the established events, aggregates each factor by its own rule, closes only the paths an established fact rules out, and sets every date and amount. Every remaining cash path is kept and tested against Slope's policy; none is weighted or pruned. Code marks the paths the record points to, with the decisive quote, as an ordinal reading, never a probability.",
+  "scope": "Post-judgment slice of a US federal civil money dispute, bounded by cash: only developments that can move cash, collections, collateral or credit capacity within the analysis horizon. It ends in payment, settlement, an unresolved amount, a pending secured appeal or an uncollected balance, and never forecasts appellate merits.",
+  "design": "Two Jev stages. (1) Present-state interpretation of each cited finding, hydrated with its surrounding evidence: who pays, the amount's status, which procedural events it establishes, which factors it bears on and at what level. Established events place the stage; an established waiver or payment constrains the graph. (2) Conditional forecasting: at each node, Jev returns the probability of one defined future event under named parent assumptions and a code-set window, given the relevant hydrated passages and the interpretation distributions. Code multiplies conditional probabilities along each path, draws event dates and amounts inside code-owned windows and ranges, and keeps every structurally feasible path (zero-probability paths stay available for stress).",
   "roles": {
-    "agent": "Groups the accepted findings that concern one obligation, names the obligation and the counterparty, quotes the amount figure (checked against the quotes) and any judgment date (checked against the quotes). The agent does not judge who pays, the amount's status or the stage, and does not design paths; it may propose an extension, which is recorded and flagged, never used.",
-    "jev": "Answers atomic questions about one passage and one obligation. Jev never forecasts the outcome, and never sets a date, an amount, a path or the credit decision.",
-    "host": "Asks the questions, applies the aggregation, stage, eligibility and cash rules, and compiles every remaining path."
+    "agent": "Groups the accepted findings about one obligation and gives its order reference (a docket reference, checked), its nature (from `natures`), the counterparty, the amount figure (checked against the quotes) and any judgment date (checked against the quotes). Its prose never reaches Jev.",
+    "jev": "Answers present-state and conditional forecast questions. Never sets a date, an amount or a path.",
+    "host": "Hydrates evidence, asks the questions, applies stage and constraint rules, composes probabilities, simulates cash."
   },
-  "paths_label": "Paths are the outcomes the evidence still permits; each is tested against Slope's policy and none is weighted. 'The record points here' marks the paths an established factor supports (code-derived, ordinal).",
+  "probability_label": "Model judgment: Jev's conditional probabilities of defined future events, composed along each path by code.",
+  "natures": {
+    "fee_and_cost_award": "an award of attorneys' fees and costs",
+    "money_judgment": "a money judgment",
+    "damages_award": "an award of damages",
+    "settlement_payment": "a court-ordered settlement payment"
+  },
   "rules": {
-    "appeal_notice_days": {"value": 30, "citation": "Fed. R. App. P. 4(a)(1)(A): notice of appeal within 30 days after entry of the judgment."},
-    "automatic_stay_days": {"value": 30, "citation": "Fed. R. Civ. P. 62(a): execution on a judgment is stayed for 30 days after its entry."},
-    "supersedeas_multiple_bps": {"value": 12500, "citation": "Fed. R. Civ. P. 62(b): a stay pending appeal on a bond or other security. District practice commonly sets the bond above the judgment to cover interest and costs; 125% is a model parameter."},
-    "bond_collateral_share_bps": {"lower": 5000, "upper": 10000, "citation": "Model parameter: the share of the bond a surety takes as cash collateral from the judgment debtor, locked while the appeal is pending. A bond backed by a letter of credit instead uses credit-line capacity and locks no cash."},
-    "post_judgment_interest_bps_per_year": {"lower": 400, "upper": 500, "citation": "28 U.S.C. § 1961(a): simple interest from entry of judgment at the weekly average one-year Treasury yield for the week before judgment; the range is that yield's level in mid-2024."},
-    "ruling_window_days": {"value": 120, "citation": "No rule sets when a court decides a submitted matter. Code-owned window from the review date; scenarios place the ruling early and late in it."},
-    "voluntary_payment_days_after_stay": {"value": 30, "citation": "Model parameter: a debtor that pays does so by 30 days after the automatic stay ends."},
-    "settlement_window_days": {"value": 90, "citation": "Model parameter: a settlement at this stage is paid within 90 days of the stage's start."},
-    "settlement_share_bps": {"lower": 6000, "upper": 10000, "citation": "Model parameter: a settlement pays 60% to 100% of the amount."},
-    "enforcement_period_days": {"value": 90, "citation": "Fed. R. Civ. P. 69(a): a money judgment is enforced by a writ of execution. Model parameter: collection, when it succeeds, completes within 90 days after the stay ends."}
+    "appeal_notice_days": {
+      "value": 30,
+      "citation": "Fed. R. App. P. 4(a)(1)(A): notice of appeal within 30 days after entry of the judgment."
+    },
+    "automatic_stay_days": {
+      "value": 30,
+      "citation": "Fed. R. Civ. P. 62(a): execution on a judgment is stayed for 30 days after its entry."
+    },
+    "supersedeas_multiple_bps": {
+      "value": 12500,
+      "citation": "Fed. R. Civ. P. 62(b): a stay pending appeal on a bond or other security. District practice commonly sets the bond above the judgment to cover interest and costs; 125% is a model parameter."
+    },
+    "bond_collateral_share_bps": {
+      "lower": 5000,
+      "upper": 10000,
+      "citation": "Model parameter: the share of the bond a surety takes as cash collateral from the judgment debtor, locked while the appeal is pending. A bond backed by a letter of credit instead uses credit-line capacity and locks no cash."
+    },
+    "post_judgment_interest_bps_per_year": {
+      "lower": 400,
+      "upper": 500,
+      "citation": "28 U.S.C. § 1961(a): simple interest from entry of judgment at the weekly average one-year Treasury yield for the week before judgment; the range is that yield's level in mid-2024."
+    },
+    "ruling_window_days": {
+      "value": 180,
+      "citation": "No rule sets when a court decides a submitted matter. The pending-ruling window is the analysis horizon; the ruling date is drawn uniformly inside it."
+    },
+    "voluntary_payment_days_after_stay": {
+      "value": 30,
+      "citation": "Model parameter: a debtor that pays does so by 30 days after the automatic stay ends."
+    },
+    "settlement_window_days": {
+      "value": 90,
+      "citation": "Model parameter: a settlement at this stage is paid within 90 days of the stage's start."
+    },
+    "settlement_share_bps": {
+      "lower": 6000,
+      "upper": 10000,
+      "citation": "Model parameter: a settlement pays 60% to 100% of the amount."
+    },
+    "enforcement_period_days": {
+      "value": 90,
+      "citation": "Fed. R. Civ. P. 69(a): a money judgment is enforced by a writ of execution. Model parameter: collection, when it succeeds, completes within 90 days after the stay ends."
+    }
   },
   "readings": {
-    "amount_status_order": ["sought", "estimated", "fixed", "paid"],
-    "amount_status_labels": {"sought": "sought by a party, not fixed", "estimated": "estimated by a party, not fixed", "fixed": "fixed by the court", "paid": "paid"},
+    "amount_status_order": [
+      "sought",
+      "estimated",
+      "fixed",
+      "paid"
+    ],
+    "amount_status_labels": {
+      "sought": "sought by a party, not fixed",
+      "estimated": "estimated by a party, not fixed",
+      "fixed": "fixed by the court",
+      "paid": "paid"
+    },
     "events": {
       "entitlement_decided": "the court has decided the payer is liable for this obligation",
       "amount_fixed": "the court has fixed this obligation's amount",
@@ -34,78 +83,234 @@
       "paid": "this obligation has been paid"
     },
     "stage_rules": [
-      {"event": "paid", "stage": "paid"},
-      {"event": "stay_secured", "stage": "appeal_pending"},
-      {"event": "judgment_entered", "stage": "judgment_entered"},
-      {"event": "amount_fixed", "stage": "judgment_entered"},
-      {"event": "entitlement_decided", "stage": "amount_pending"}
+      {
+        "event": "paid",
+        "stage": "paid"
+      },
+      {
+        "event": "stay_secured",
+        "stage": "appeal_pending"
+      },
+      {
+        "event": "judgment_entered",
+        "stage": "judgment_entered"
+      },
+      {
+        "event": "amount_fixed",
+        "stage": "judgment_entered"
+      },
+      {
+        "event": "entitlement_decided",
+        "stage": "amount_pending"
+      }
     ],
     "stage_rules_note": "The stage is the most advanced procedural event any cited passage establishes. No established event leaves the dispute outside the model, with an evidence request."
   },
-  "stages": {
-    "amount_pending": {"label": "Liability decided, amount open", "terminal": false},
-    "judgment_entered": {"label": "Money judgment entered", "terminal": false},
-    "appeal_pending": {"label": "Appeal pending, stay secured", "terminal": false},
-    "enforcement": {"label": "Unpaid, no secured stay", "terminal": false},
-    "paid": {"label": "Paid", "terminal": true},
-    "settled": {"label": "Settled", "terminal": true},
-    "amount_pending_at_horizon": {"label": "Amount still open at the horizon", "terminal": true},
-    "appeal_pending_at_horizon": {"label": "Appeal still pending at the horizon", "terminal": true},
-    "uncollected_at_horizon": {"label": "Not collected by the horizon", "terminal": true}
-  },
-  "transitions": {
-    "amount_pending": [
-      {"transition_id": "amount_fixed", "rule": "ruling", "to": "judgment_entered", "label": "The court fixes the amount", "points_if": [{"factor": "amount_finality", "at_least": 2}]},
-      {"transition_id": "settle", "rule": "settle", "to": "settled", "label": "The parties settle before the ruling", "points_if": [{"factor": "settlement_signals", "at_least": 2}]},
-      {"transition_id": "no_ruling", "rule": "none", "to": "amount_pending_at_horizon", "label": "No ruling within the horizon", "points_if": [{"factor": "amount_finality", "at_most": 1}]}
-    ],
-    "judgment_entered": [
-      {"transition_id": "pay", "rule": "pay", "to": "paid", "label": "The payer pays", "points_if": [{"factor": "appeal_intent", "at_most": 0}, {"factor": "debtor_resistance", "at_most": 0}]},
-      {"transition_id": "appeal_secured", "rule": "bond", "to": "appeal_pending", "label": "The payer appeals and secures a stay", "closed_if": [{"factor": "appeal_barred", "present": true}], "points_if": [{"factor": "appeal_intent", "at_least": 3}]},
-      {"transition_id": "settle", "rule": "settle", "to": "settled", "label": "The parties settle", "points_if": [{"factor": "settlement_signals", "at_least": 2}]},
-      {"transition_id": "unpaid_no_secured_stay", "rule": "none", "to": "enforcement", "label": "Unpaid, no secured stay", "points_if": [{"factor": "debtor_resistance", "at_least": 3}, {"factor": "debtor_liquidity", "at_most": 1}]}
-    ],
-    "appeal_pending": [
-      {"transition_id": "appeal_continues", "rule": "none", "to": "appeal_pending_at_horizon", "label": "The appeal continues", "points_if": [{"factor": "appeal_intent", "at_least": 3}]},
-      {"transition_id": "settle", "rule": "settle_release", "to": "settled", "label": "The parties settle during the appeal", "points_if": [{"factor": "settlement_signals", "at_least": 2}]}
-    ],
-    "enforcement": [
-      {"transition_id": "collected", "rule": "collect", "to": "paid", "label": "The creditor collects", "points_if": [{"factor": "debtor_liquidity", "at_least": 2}]},
-      {"transition_id": "settle", "rule": "settle", "to": "settled", "label": "The parties settle", "points_if": [{"factor": "settlement_signals", "at_least": 2}]},
-      {"transition_id": "uncollected", "rule": "none", "to": "uncollected_at_horizon", "label": "Not collected in the horizon", "points_if": [{"factor": "debtor_liquidity", "at_most": 1}, {"factor": "debtor_resistance", "at_least": 3}]}
-    ]
-  },
-  "eligibility_note": "Only an established fact closes a path: an appeal waiver that covers this obligation closes the secured appeal; payment ends the dispute. Silence closes nothing, and a stated intention (for example not to appeal) closes nothing.",
   "factors": {
     "amount_finality": {
-      "label": "How final the amount is", "kind": "graded", "aggregate": "most_advanced",
+      "label": "How final the amount is",
+      "kind": "graded",
+      "aggregate": "most_advanced",
       "relevance": "Does the quoted text say how far this obligation's amount has progressed (claimed, briefed or submitted for decision, fixed)?",
-      "levels": ["No amount has been stated", "An amount is claimed or requested by a party", "The amount has been fully briefed or submitted to the court for decision", "The court has fixed the amount"]
+      "levels": [
+        "No amount has been stated",
+        "An amount is claimed or requested by a party",
+        "The amount has been fully briefed or submitted to the court for decision",
+        "The court has fixed the amount"
+      ]
     },
     "appeal_intent": {
-      "label": "The payer's appeal intent", "kind": "graded", "aggregate": "latest",
+      "label": "The payer's appeal intent",
+      "kind": "graded",
+      "aggregate": "latest",
       "relevance": "Does the quoted text say whether the payer will appeal this obligation?",
-      "levels": ["The payer accepts the judgment or says it will not appeal", "The passage states no position on an appeal", "The payer is considering or reserves the right to appeal", "The payer states it intends to appeal", "The payer has filed a notice of appeal"]
+      "levels": [
+        "The payer accepts the judgment or says it will not appeal",
+        "The passage states no position on an appeal",
+        "The payer is considering or reserves the right to appeal",
+        "The payer states it intends to appeal",
+        "The payer has filed a notice of appeal"
+      ]
     },
     "appeal_barred": {
-      "label": "An appeal of this obligation is waived or barred", "kind": "present", "aggregate": "any",
+      "label": "An appeal of this obligation is waived or barred",
+      "kind": "present",
+      "aggregate": "any",
       "relevance": "Does the quoted text state that the payer waived, or is barred from, appealing this obligation itself (not some other claim or order)?"
     },
     "debtor_resistance": {
-      "label": "The payer's conduct on this obligation", "kind": "graded", "aggregate": "latest",
+      "label": "The payer's conduct on this obligation",
+      "kind": "graded",
+      "aggregate": "latest",
       "relevance": "Does the quoted text describe how the payer has responded to this obligation or to the court's orders about it?",
-      "levels": ["The payer has complied promptly", "The passage describes no conduct by the payer on this obligation", "The payer contested or delayed but complied in the end", "The payer has refused, or contested enforcement of, this obligation"]
+      "levels": [
+        "The payer has complied promptly",
+        "The passage describes no conduct by the payer on this obligation",
+        "The payer contested or delayed but complied in the end",
+        "The payer has refused, or contested enforcement of, this obligation"
+      ]
     },
     "debtor_liquidity": {
-      "label": "The payer's ability to pay", "kind": "graded", "aggregate": "latest",
+      "label": "The payer's ability to pay",
+      "kind": "graded",
+      "aggregate": "latest",
       "relevance": "Does the quoted text describe the payer's own cash, finances or ability to pay an amount of this size?",
-      "levels": ["The payer reports it cannot pay or doubts it can continue as a going concern", "The payer's resources look constrained relative to the amount", "The payer's resources look adequate for the amount", "The payer's resources are ample relative to the amount"]
+      "levels": [
+        "The payer reports it cannot pay or doubts it can continue as a going concern",
+        "The payer's resources look constrained relative to the amount",
+        "The payer's resources look adequate for the amount",
+        "The payer's resources are ample relative to the amount"
+      ]
     },
     "settlement_signals": {
-      "label": "Settlement signals", "kind": "graded", "aggregate": "latest",
+      "label": "Settlement signals",
+      "kind": "graded",
+      "aggregate": "latest",
       "relevance": "Does the quoted text say anything about the parties settling this obligation?",
-      "levels": ["The passage describes no settlement discussion", "A party expresses general willingness to settle, or mediation is ordered", "The parties disclose active settlement negotiations", "The parties have an agreement in principle or a term sheet"]
+      "levels": [
+        "The passage describes no settlement discussion",
+        "A party expresses general willingness to settle, or mediation is ordered",
+        "The parties disclose active settlement negotiations",
+        "The parties have an agreement in principle or a term sheet"
+      ]
     }
   },
-  "aggregation_note": "most_advanced: the highest level any routed passage establishes (procedural progress only moves forward). latest: the level in the most recent passage (by source date); passages of the same date that disagree are kept as a conflict, and the factor is not used. any: present if any routed passage establishes it for this obligation."
+  "nodes": {
+    "settle_before_ruling": {
+      "stage": "amount_pending",
+      "question": "forecast_settlement",
+      "event": "the parties settle this obligation before the court fixes the amount",
+      "window": "review date to review date + settlement_window_days",
+      "context_factors": [
+        "settlement_signals",
+        "amount_finality",
+        "debtor_resistance"
+      ]
+    },
+    "amount_fixed": {
+      "stage": "amount_pending",
+      "question": "forecast_amount_fixed",
+      "event": "the court fixes the amount of this obligation",
+      "assumes": [
+        "no settlement before the ruling"
+      ],
+      "window": "review date to the end of the analysis horizon",
+      "context_factors": [
+        "amount_finality"
+      ]
+    },
+    "settle_after_judgment": {
+      "stage": "judgment_entered",
+      "question": "forecast_settlement",
+      "event": "the parties settle this obligation before the appeal deadline",
+      "assumes": [
+        "the amount is fixed on the judgment date"
+      ],
+      "window": "judgment date to judgment date + appeal_notice_days",
+      "context_factors": [
+        "settlement_signals",
+        "debtor_resistance"
+      ]
+    },
+    "appeal": {
+      "stage": "judgment_entered",
+      "question": "forecast_appeal",
+      "event": "the payer files a notice of appeal against this obligation",
+      "assumes": [
+        "the amount is fixed on the judgment date",
+        "no settlement before the appeal deadline"
+      ],
+      "window": "judgment date to judgment date + appeal_notice_days (Fed. R. App. P. 4(a)(1)(A))",
+      "context_factors": [
+        "appeal_intent",
+        "appeal_barred",
+        "debtor_resistance",
+        "debtor_liquidity"
+      ]
+    },
+    "secured_stay": {
+      "stage": "judgment_entered",
+      "question": "forecast_secured_stay",
+      "event": "the payer obtains a stay of this obligation secured by a bond or other security",
+      "assumes": [
+        "the payer has appealed"
+      ],
+      "window": "judgment date to judgment date + automatic_stay_days (Fed. R. Civ. P. 62(a), (b))",
+      "context_factors": [
+        "debtor_liquidity",
+        "appeal_intent"
+      ]
+    },
+    "security_form": {
+      "stage": "judgment_entered",
+      "question": "forecast_security_form",
+      "debtor_only": true,
+      "event": "how the payer secures the stay",
+      "options": {
+        "cash_deposit": "a cash deposit with the court (locks the judgment amount in cash)",
+        "surety_bond": "a surety bond (the surety takes cash collateral of 50% to 100% of a bond at 125% of the amount)",
+        "letter_of_credit": "a bond backed by a letter of credit (uses credit-line capacity of 125% of the amount, locks no cash)"
+      },
+      "assumes": [
+        "the payer has appealed and obtains a secured stay"
+      ],
+      "window": "when the stay is secured",
+      "context_factors": [
+        "debtor_liquidity"
+      ]
+    },
+    "settle_during_appeal": {
+      "stage": "appeal_pending",
+      "question": "forecast_settlement",
+      "event": "the parties settle this obligation while the secured appeal is pending",
+      "assumes": [
+        "the payer has appealed and secured a stay"
+      ],
+      "window": "stay date to the end of the analysis horizon",
+      "context_factors": [
+        "settlement_signals"
+      ]
+    },
+    "voluntary_payment": {
+      "stage": "judgment_entered",
+      "question": "forecast_voluntary_payment",
+      "event": "the payer pays this obligation",
+      "assumes": [
+        "the amount is fixed",
+        "no settlement",
+        "no secured stay is in place"
+      ],
+      "window": "automatic stay end to automatic stay end + voluntary_payment_days_after_stay",
+      "context_factors": [
+        "debtor_resistance",
+        "debtor_liquidity",
+        "appeal_intent"
+      ]
+    },
+    "enforcement": {
+      "stage": "enforcement",
+      "question": "forecast_enforcement_collects",
+      "event": "enforcement collects this obligation from the payer",
+      "assumes": [
+        "the payer has not paid voluntarily",
+        "no secured stay is in place"
+      ],
+      "window": "automatic stay end to automatic stay end + enforcement_period_days (Fed. R. Civ. P. 69(a))",
+      "context_factors": [
+        "debtor_liquidity",
+        "debtor_resistance"
+      ]
+    }
+  },
+  "outcomes": {
+    "settled": "Settlement paid: 60%-100% of the amount, dated inside the settlement window.",
+    "unresolved": "The amount is not fixed within the horizon: no cash.",
+    "appeal_pending": "Secured appeal pending at the horizon: the encumbrance (cash or credit capacity) stays in place.",
+    "settled_during_appeal": "Settlement paid on its drawn date; the exact encumbrance is released on that date.",
+    "paid": "Paid voluntarily: the amount plus post-judgment interest unless the amount already includes it.",
+    "collected": "Collected by enforcement: the amount plus post-judgment interest unless already included.",
+    "uncollected": "Unpaid and uncollected at the horizon: no cash."
+  },
+  "dependence": "Disputes with the same counterparty are evaluated in order, borrower-as-payer first. A later dispute's forecast questions are asked once per outcome class of the earlier one for that counterparty (the counterparty received payment within the horizon, or did not); the joint probability is P(earlier path) x P(later path | class).",
+  "constraints": "Only an established fact changes the graph: an established payment ends the dispute; an established appeal waiver covering this obligation removes the appeal branch. Silence and stated intentions change nothing structurally; they are evidence for the forecasts."
 }

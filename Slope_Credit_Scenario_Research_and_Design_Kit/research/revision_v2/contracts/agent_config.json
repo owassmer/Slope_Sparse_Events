@@ -2,7 +2,7 @@
   "configuration_id": "slope_external_event_cashflow_investigation",
   "configuration_version": "3.2.0-design",
   "status": "design_template_not_implemented_or_live_validated",
-  "scope": "One local investigation of a real borrower and a proposed new discretionary advance, followed by loan cash-flow scenario comparison and independent review. The case is reconstructed as if the borrower applied to Slope on the decision date, using Slope's product, a reconstructed price card and policy, and synthetic connected-bank data, each labelled once at its source.",
+  "scope": "One local investigation of a real borrower's external event for supplied financing terms, followed by the host's probabilistic scenario and sensitivity analysis of the loan's dated cash flows. The case is reconstructed as if the borrower applied to Slope on the decision date, using Slope's bill-pay product with supplied terms and synthetic connected-bank data, labelled once at its source. The module does not recommend, size or condition a loan.",
   "default_mission": {
     "case_id": "synergy_chc_2024",
     "borrower": "Synergy CHC Corp.",
@@ -105,7 +105,6 @@
           "mcp__credit__propose_effect",
           "mcp__credit__run_sensitivity",
           "mcp__credit__instantiate_dispute",
-          "mcp__credit__run_scenarios",
           "mcp__credit__request_missing_fact",
           "mcp__credit__read_inventory",
           "mcp__credit__escalate_effect",
@@ -237,21 +236,21 @@
       "max_repair_cycles": 1
     }
   },
-  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, and propose atomic findings that quote the evidence exactly. Jev screens retrieved evidence and checks narrow semantic claims; you reconcile its judgments with the evidence and may disagree with a failed check by replying to it with a stated reason, or escalate it for the reviewer where the host requires escalation. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer or change an account. Use the Slope terms and policy in the run inputs as given.",
+  "role_instruction": "Investigate an external event only to the extent needed to understand how it could move the borrower's cash and the loan's collections. Record the unknowns that could matter, search and read admissible evidence, and propose atomic findings that quote the evidence exactly. Jev screens retrieved evidence and checks narrow semantic claims; you reconcile its judgments with the evidence and may disagree with a failed check by replying to it with a stated reason, or escalate it where the host requires escalation. Translate accepted findings into economic effect proposals, and compile every live dispute with instantiate_dispute, whichever side the borrower is on. Code computes dates, money, schedules and cash flows; after your run the host builds the probabilistic analysis. Finish with a concise summary of what the research established and why it matters financially. Do not recommend, size or condition the financing, and do not claim to send an offer or change an account.",
   "invariants": [
-    "Start with the same baseline profile, existing obligations, decision date and candidate financing request for the before/after comparison.",
+    "Start with the same baseline profile, existing obligations, decision date and supplied financing terms for the before/after comparison.",
     "Keep borrower cash flows, contractual loan payments, scenario collections and funding-facility cash flows distinct.",
     "Use only evidence admitted by the host's snapshot rules. Do not use remembered future outcomes.",
     "All amounts, dates and parameter values have reported, derived or operator-assumption basis; unknown remains unknown.",
     "Use source-supported ranges or named scenario parameters where exact values are unavailable. Never silently interpolate financial statements into daily historical facts.",
-    "Do not turn Jev confidence or lawsuit severity into default probabilities or dollar adjustments. Default probability comes from the labelled risk tier; the host weights the branches of a live dispute from Jev's branch judgments, labelled model judgment.",
+    "Do not turn Jev's confidence statistic or lawsuit severity into default probabilities or dollar adjustments. Jev's forecast probabilities are conditional probabilities of defined future events, composed by the host and labelled model judgment.",
     "Track legal-entity, asset, product, channel and period scope for every adjustment.",
     "Reconcile every patch with baseline entries to prevent double counting; preserve associated avoided costs, recoveries and delayed receipts.",
     "Do not automatically rewrite existing contractual payments, assume new creditor seniority, or freeze committed credit.",
     "Do not label loan principal collections or all interest as Slope corporate revenue; use the selected stakeholder accounting scope.",
     "Do not assume lower principal is always safer; financed inventory and resulting receipts must respond to the action chosen.",
-    "A missing incidental fact need not block the decision. A pivotal missing fact requires its exact question and the action consequences of alternative answers.",
-    "Runtime or quota failure means incomplete investigation, not an adverse borrower recommendation."
+    "A missing incidental fact need not block the analysis. A pivotal missing fact requires its exact question and how its answer would move the cash flows.",
+    "Runtime or quota failure means an incomplete investigation, not an adverse borrower result."
   ],
   "tools": {
     "host_scope": [
@@ -279,7 +278,6 @@
       "run_sensitivity": "Run deterministic thresholds or ledger sensitivities over explicit parameter bounds and return which values change the result.",
       "request_missing_fact": "Record the exact requested fact/document and the action consequences. This tool sends no communication.",
       "instantiate_dispute": "Compile a live dispute onto the host-owned post-judgment dispute model: the agent groups the cited accepted findings about one obligation, names the obligation and counterparty, and quotes the amount and any judgment date (checked against the quotes). Jev reads each finding atomically (who pays, the amount's status, procedural events, factors; never a forecast); code places the stage, closes only paths an established fact rules out, sets every date and amount from rules, and keeps every other cash path, unweighted, for the policy test.",
-      "run_scenarios": "Run the deterministic engine on the accepted dispute nodes: every Slope structure, bank-only vs event-adjusted, with policy tests, limits, lowest projected cash and funding conditions.",
       "submit_packet": "Lock the investigation graph, source hashes, findings, effects and calculation versions for review. No lending action.",
       "read_inventory": "The reading list: paragraphs and table rows the host sweep flagged as describing a specific matter, and whether an accepted finding cites each.",
       "escalate_effect": "Escalate an effect the category guard rejected: it becomes disputed, creates no cash stream and is left for the reviewer; a disputed cash-moving effect makes the run INCOMPLETE_REVIEW.",
@@ -320,13 +318,6 @@
       "INCOMPLETE_REVIEW",
       "FAILED_CONFIGURATION"
     ],
-    "lending_recommendation_values": [
-      "APPROVE_REQUESTED_STRUCTURE",
-      "OFFER_ALTERNATIVE_STRUCTURE",
-      "CONDITIONAL_OFFER",
-      "DECLINE_REQUEST",
-      "UNDETERMINED"
-    ],
     "review_dispositions": [
       "PASS",
       "REPAIR_REQUIRED",
@@ -341,10 +332,8 @@
       "escalated_cash_moving_effect_dispute": "INCOMPLETE_REVIEW",
       "escalated_cited_unit_coverage_gap": "reviewer_checklist (INCOMPLETE_REVIEW only if the reviewer finds a material gap that one repair pass does not close)"
     },
-    "failure_recommendation_policy": "Keep any prior provisional recommendation in the trace, but do not publish it as a completed result. Set final lending recommendation UNDETERMINED unless an independently completed supported decision packet exists. Execution failure itself is never a reason for DECLINE_REQUEST.",
-    "complete_with_pivotal_gap": "A reviewed packet may finish with UNDETERMINED and a precise borrower question plus action map. It must not claim that the financing decision has been resolved.",
-    "conditional_offer_requirement": "Specify the exact condition, acceptable resolving evidence, deadline if supported, and the amount/term/schedule offered when the condition is satisfied. Generic monitoring is not a condition.",
-    "submission_requirement": "Every final action must reference the source-supported mechanisms, explicit assumptions, considered offers and financial results that justify it."
+    "submission_requirement": "The conclusion references the source-supported mechanisms and explicit assumptions behind each financial effect it describes.",
+    "analysis_output": "The run ends with the agent's findings, compiled disputes and a concise financial-relevance summary. The host's analysis reports distributions of the loan's dated cash flows for the supplied terms; no lending recommendation is produced."
   },
   "state_and_replay": {
     "run_isolation": "Facts, gaps, patches, calculations and outputs are scoped by run_id; snapshot_id alone is insufficient because repeated evaluations must not share mutable state.",
@@ -508,7 +497,7 @@
       ],
       "expose_jev_registry": false,
       "require_typesafe_credential": false,
-      "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, make focused evidence judgments yourself, reconcile contradictions, and propose atomic findings that quote the evidence exactly. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer or change an account. Use the Slope terms and policy in the run inputs as given.",
+      "role_instruction": "Investigate an external event only to the extent needed to understand how it could move the borrower's cash and the loan's collections. Record the unknowns that could matter, search and read admissible evidence, and propose atomic findings that quote the evidence exactly. Make focused evidence judgments yourself and reconcile contradictions. Translate accepted findings into economic effect proposals, and compile every live dispute with instantiate_dispute, whichever side the borrower is on. Code computes dates, money, schedules and cash flows; after your run the host builds the probabilistic analysis. Finish with a concise summary of what the research established and why it matters financially. Do not recommend, size or condition the financing, and do not claim to send an offer or change an account.",
       "evaluation_metadata_visibility": "Host scorer only; do not reveal arm labels or expected findings to the blind reviewer.",
       "remove_host_semantic_checks": [
         "snapshot_sweep inventory",
