@@ -510,30 +510,40 @@ async def read_inventory(ctx: RunContext, _args: dict) -> dict:
 
 
 async def account_for_items(ctx: RunContext, args: dict) -> dict:
-    updates = []
+    """Each entry is judged on its own: accepted entries are recorded, rejected ones come back with their reason.
+
+    (A failure no longer aborts the batch, so earlier entries are not re-checked on retry.)
+    """
+    accepted, rejected = [], []
     for entry in args.get("items", []):
-        item = ctx.run.get("inventory", entry["item_id"])
-        disposition = entry.get("disposition")
-        if disposition == "covered_by_findings":
-            fids = tuple(entry.get("finding_ids") or [])
-            bad = [f for f in fids if f not in ctx.run.graph["findings"] or ctx.run.graph["findings"][f].status != "accepted"]
-            if not fids or bad:
-                raise ToolError(f"{item.item_id}: covered_by_findings needs accepted finding IDs (not accepted: {bad or 'none given'})")
-            if ctx.semantics is not None:
-                problem = await _check_coverage(ctx, item, fids, entry.get("override_reason", ""))
-                if problem:
-                    raise ToolError(problem)
-            updates.append(item.model_copy(update={"status": "covered", "finding_ids": fids, "note": entry.get("reason", "")}))
-        elif disposition == "not_decision_relevant":
-            reason = (entry.get("reason") or "").strip()
-            if len(reason) < OVERRIDE_NOTE_MIN:
-                raise ToolError(f"{item.item_id}: say why it does not bear on the financing decision")
-            updates.append(item.model_copy(update={"status": "not_decision_relevant", "note": reason}))
-        else:
-            raise ToolError(f"{entry.get('item_id')}: disposition must be covered_by_findings or not_decision_relevant")
-    for u in updates:  # all validated before any write
-        ctx.run.put("inventory_accounted", u)
-    return {"accounted": [u.item_id for u in updates],
+        try:
+            item = ctx.run.get("inventory", entry["item_id"])
+            if item.status != "open":
+                raise ToolError(f"{item.item_id} is already {item.status}")
+            disposition = entry.get("disposition")
+            if disposition == "covered_by_findings":
+                fids = tuple(entry.get("finding_ids") or [])
+                bad = [f for f in fids if f not in ctx.run.graph["findings"] or ctx.run.graph["findings"][f].status != "accepted"]
+                if not fids or bad:
+                    raise ToolError(f"{item.item_id}: covered_by_findings needs accepted finding IDs (not accepted: {bad or 'none given'})")
+                if ctx.semantics is not None:
+                    problem = await _check_coverage(ctx, item, fids, entry.get("override_reason", ""))
+                    if problem:
+                        raise ToolError(problem)
+                update = item.model_copy(update={"status": "covered", "finding_ids": fids,
+                                                 "note": entry.get("override_reason") or entry.get("reason", "")})
+            elif disposition == "not_decision_relevant":
+                reason = (entry.get("reason") or "").strip()
+                if len(reason) < OVERRIDE_NOTE_MIN:
+                    raise ToolError(f"{item.item_id}: say why it does not bear on the financing decision")
+                update = item.model_copy(update={"status": "not_decision_relevant", "note": reason})
+            else:
+                raise ToolError(f"{entry.get('item_id')}: disposition must be covered_by_findings or not_decision_relevant")
+            ctx.run.put("inventory_accounted", update)
+            accepted.append(update.item_id)
+        except (ToolError, KeyError) as e:
+            rejected.append({"item_id": entry.get("item_id"), "reason": str(e).strip("'")})
+    return {"accounted": accepted, "rejected": rejected,
             "open": sum(i.status == "open" for i in ctx.run.graph["inventory"].values())}
 
 

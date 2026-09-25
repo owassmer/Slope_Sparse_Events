@@ -267,8 +267,8 @@ def test_inventory_and_reconciliations_gate_submission(make_ctx):
     submit = {"summary": "s", "conclusion": "The settlement loan requires future payments."}
     with pytest.raises(T.ToolError, match="inventory items are still open"):
         call(T.submit_packet, ctx, submit)
-    with pytest.raises(T.ToolError, match="covered_by_findings needs accepted"):
-        call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "covered_by_findings", "finding_ids": ["fnd_999"]}]})
+    bad = call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "covered_by_findings", "finding_ids": ["fnd_999"]}]})
+    assert bad["accounted"] == [] and "needs accepted" in bad["rejected"][0]["reason"]
     call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "covered_by_findings", "finding_ids": [fid]}]})
     with pytest.raises(T.ToolError, match="Open reconciliation"):
         call(T.submit_packet, ctx, submit)
@@ -307,8 +307,8 @@ def test_covered_claims_are_checked(make_ctx):
                                                  heading_path=("Note 11",), kind="accounting_item_from_a_matter", signal=0.9))
     _, fid = _accepted_settlement_finding(ctx)
     entry = {"item_id": "inv_001", "disposition": "covered_by_findings", "finding_ids": [fid]}
-    with pytest.raises(T.ToolError, match="concern a different matter"):
-        call(T.account_for_items, ctx, {"items": [entry]})
+    out = call(T.account_for_items, ctx, {"items": [entry]})
+    assert out["accounted"] == [] and "different matter" in out["rejected"][0]["reason"]
     assert ctx.run.get("inventory", "inv_001").status == "open"
     ok = call(T.account_for_items, ctx, {"items": [{**entry, "override_reason": "The schedule is the matter; the gain is covered elsewhere."}]})
     assert ok["open"] == 0
