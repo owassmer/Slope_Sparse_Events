@@ -279,11 +279,17 @@ def test_inventory_and_reconciliations_gate_submission(make_ctx):
 def test_cited_screened_passages_are_recorded_as_used(make_ctx):
     ctx = make_ctx(name="attrib")
     _settlement_flow(ctx)
-    cited = {s.section_id for f in ctx.run.graph["findings"].values() for s in f.spans}
+    cited = {s.section_id for f in ctx.run.graph["findings"].values() if f.status == "accepted" for s in f.spans}
     screened = [c for c in ctx.run.graph["candidates"].values() if c.screen and c.item_id in cited]
     if screened:
         assert all(ctx.run.get("observations", o).downstream_disposition == "used_in_finding"
                    for c in screened for o in c.screen.observation_ids)
+
+
+def test_submit_refuses_unvalidated_supported_effects(make_ctx):
+    ctx = make_ctx(name="supported")
+    with pytest.raises(T.ToolError, match="eff_999 is unknown"):
+        asyncio.run(T.submit_packet(ctx, {"conclusion": "x", "supported_effect_ids": ["eff_999"]}))
 
 
 def test_sweep_chunks_and_groups():

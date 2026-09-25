@@ -190,7 +190,7 @@ class Semantics:
                                {"statement": statement, "cited_findings": cited_state, "engine_results": engine_results},
                                subject_ids, hashes)
 
-    async def coverage(self, passage: dict, cited: list[AtomicFinding], subject_ids: tuple[str, ...],
+    async def coverage(self, passage: dict | list[dict], cited: list[AtomicFinding], subject_ids: tuple[str, ...],
                        source_hashes: tuple[str, ...]) -> list[SemanticObservation]:
         """inventory_coverage: do the cited findings account for the flagged matter?"""
         cited_state = [{"finding_id": f.finding_id, "proposition": f.proposition} for f in cited]

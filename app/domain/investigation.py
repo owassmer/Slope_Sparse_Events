@@ -162,6 +162,7 @@ class InventoryItem(Frozen):
     kind: str  # matter_kind answer
     signal: float  # matter_inventory Noul value (a judgment, not a probability of anything)
     excerpt: str = ""
+    section_excerpts: tuple[str, ...] = ()  # the flagged chunk start for each section, in section_ids order
     status: Literal["open", "covered", "not_decision_relevant"] = "open"
     finding_ids: tuple[str, ...] = ()
     note: str = ""

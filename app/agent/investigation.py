@@ -158,7 +158,8 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         for g in inventory_groups(sweep):
             run.put("inventory_loaded", InventoryItem(
                 item_id=run.new_id("inv"), section_ids=tuple(g["section_ids"]), source_id=g["source_id"],
-                heading_path=tuple(g["heading_path"]), kind=g["kind"], signal=g["signal"], excerpt=g["excerpt"]),
+                heading_path=tuple(g["heading_path"]), kind=g["kind"], signal=g["signal"], excerpt=g["excerpt"],
+                section_excerpts=tuple(g.get("section_excerpts", ()))),
                 payload={"sweep_sha256": sweep["sweep_sha256"], "registry_version": sweep["registry_version"]})
         record["sweep"] = {"sweep_sha256": sweep["sweep_sha256"], **sweep["summary"], "jev_usage": sweep["jev_usage"],
                            "inventory_items": len(run.graph["inventory"])}

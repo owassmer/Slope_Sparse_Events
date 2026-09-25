@@ -20,8 +20,10 @@
   <div class="card">
     <h5>Conclusion</h5>
     <p>{{ v.submitted.conclusion or "No packet conclusion submitted." }}</p>
-    {% if v.conclusion_check %}<p class="muted"><span class="tag jev">Jev check</span>Conclusion claims:
-      {{ "supported by findings and engine results" if v.conclusion_check.answer == "all_supported" else v.conclusion_check.answer.replace("_", " ") }}{% if v.conclusion_check.override_reason %} · overridden: {{ v.conclusion_check.override_reason }}{% endif %}</p>{% endif %}
+    {% for c in v.conclusion_checks %}<p class="muted"><span class="tag jev">Jev check {{ loop.index }}/{{ v.conclusion_checks | length }}</span>Conclusion claims:
+      {% if c.answer == "some_unsupported" and not c.ambiguous %}<strong>some unsupported</strong>{% if c.override_reason %} · overridden: {{ c.override_reason }}{% elif not loop.last %} · rejected; the agent revised{% endif %}
+      {% elif c.answer == "all_supported" and not c.ambiguous %}supported by findings and engine results
+      {% else %}{{ c.answer.replace("_", " ") }} (near-even; not blocking){% if c.override_reason %} · agent's recorded reason: {{ c.override_reason }}{% endif %}{% endif %}</p>{% endfor %}
     {% if v.submitted.incomplete_reasons %}<p><span class="tag warn">Incomplete</span> {{ v.submitted.incomplete_reasons | join("; ") }}</p>{% endif %}
   </div>
 </div>
@@ -77,7 +79,8 @@
 <p class="muted">Jev read every admissible section once and flagged specific matters; the agent had to account for each before submitting.</p>
 <table><thead><tr><th>Matter</th><th>Kind</th><th>Accounted as</th></tr></thead><tbody>
 {% for i in v.inventory %}<tr><td>{{ i.source }}<br><span class="muted">{{ i.heading }} ({{ i.sections }} section{{ "s" if i.sections != 1 }})</span></td>
-  <td>{{ i.kind }}</td><td>{{ i.status }}{% if i.findings %}<br><span class="muted">{{ i.findings | join(", ") }}</span>{% endif %}{% if i.note %}<br><span class="muted">{{ i.note }}</span>{% endif %}</td></tr>{% endfor %}
+  <td>{{ i.kind }}</td><td>{{ i.status }}{% if i.findings %}<br><span class="muted">{{ i.findings | join(", ") }}</span>{% endif %}{% if i.note %}<br><span class="muted">{{ i.note }}</span>{% endif %}
+    {% for c in i.coverage_checks %}<br><span class="tag jev">Coverage</span><span class="muted">{{ c.meaning }}{% if c.ambiguous %} (ambiguous){% endif %} · {{ c.findings | join(", ") }} · {{ c.disposition }}{% if c.note and c.disposition == "overridden by agent with reason" %}: {{ c.note }}{% endif %}</span>{% endfor %}</td></tr>{% endfor %}
 </tbody></table>
 {% endif %}
 

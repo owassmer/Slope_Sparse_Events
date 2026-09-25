@@ -132,16 +132,25 @@ class RunStore:
         not compared. Any altered or missing recorded value still fails.
         """
         current = json.loads(json.dumps(self.export(), default=str))
-        for name in COLLECTIONS:
-            if name not in packet:
-                continue
+        for name, model in COLLECTIONS.items():
             ids = ID_FIELD[name]
-            recorded = {o[ids]: o for o in packet[name]}
             replayed = {o[ids]: o for o in current.get(name, [])}
+            if name not in packet:
+                if replayed:  # a collection with content cannot be missing from the packet
+                    return False
+                continue
+            recorded = {o[ids]: o for o in packet[name]}
             if recorded.keys() != replayed.keys():
                 return False
+            defaults = {f: json.loads(json.dumps(info.get_default(call_default_factory=True), default=str))
+                        for f, info in model.model_fields.items() if not info.is_required()}
             for key, obj in recorded.items():
                 if any(replayed[key].get(field) != value for field, value in obj.items()):
+                    return False
+                # A field absent from the packet is acceptable only when the replayed value is its default
+                # (a field added by a later schema version), never when a recorded value was deleted.
+                missing = set(replayed[key]) - set(obj)
+                if any(f not in defaults or replayed[key][f] != defaults[f] for f in missing):
                     return False
         return True
 

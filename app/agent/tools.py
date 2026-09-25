@@ -93,6 +93,7 @@ class RunContext:
     submitted: bool = False
     turns_used: int = 0
     max_turns: int | None = None
+    accepted_order: list[str] = field(default_factory=list)
 
     @property
     def case_id(self) -> str:
@@ -295,7 +296,6 @@ async def propose_finding(ctx: RunContext, args: dict) -> dict:
                             subject_kind=args.get("subject_kind", "other"), subject=args.get("subject", ""),
                             is_inference=bool(args.get("is_inference", False)), spans=tuple(spans), observation_ids=linked)
     ctx.run.put("finding_proposed", finding)
-    _attribute_screen(ctx, finding)
     checks: list[SemanticObservation] = []
     if ctx.semantics is not None:
         try:
@@ -354,6 +354,9 @@ async def resolve_finding(ctx: RunContext, args: dict) -> dict:
                                           "resolution_note": args.get("note", "")})
     ctx.run.put("finding_resolved", resolved)
     out: dict[str, Any] = {"finding_id": resolved.finding_id, "status": resolved.status}
+    if resolved.status == "accepted":
+        _attribute_screen(ctx, resolved)
+        ctx.accepted_order.append(resolved.finding_id)
     if resolved.status == "accepted" and ctx.semantics is not None:
         out["relation_checks"] = await _auto_relations(ctx, resolved)
     return out
@@ -557,6 +560,10 @@ async def resolve_reconciliation(ctx: RunContext, args: dict) -> dict:
 
 
 async def submit_packet(ctx: RunContext, args: dict) -> dict:
+    for eid in args.get("supported_effect_ids") or []:
+        eff = ctx.run.graph["effects"].get(eid)
+        if eff is None or eff.status != "validated":
+            raise ToolError(f"{eid} is {'unknown' if eff is None else eff.status}; list only validated effects as supported")
     if ctx.semantics is not None:
         open_items = [i.item_id for i in ctx.run.graph["inventory"].values() if i.status == "open"]
         if open_items:
@@ -599,15 +606,17 @@ def _attribute_screen(ctx: RunContext, finding: AtomicFinding) -> None:
         _dispose(ctx, unused, "used_in_finding", f"screened passage cited in {finding.finding_id}")
 
 
-def _matter_passage(ctx: RunContext, item: InventoryItem) -> tuple[dict, tuple[str, ...]]:
-    """The flagged chunk the sweep scored highest (the item's excerpt locates it), with its heading path."""
-    for sid in item.section_ids:
+def _matter_passage(ctx: RunContext, item: InventoryItem) -> tuple[dict | list[dict], tuple[str, ...]]:
+    """The flagged chunk of each section in the group (up to 4), located by the sweep's excerpts."""
+    excerpts = list(item.section_excerpts) or [item.excerpt] * len(item.section_ids)
+    passages, hashes = [], []
+    for sid, excerpt in list(zip(item.section_ids, excerpts, strict=False))[:4]:
         sec = ctx.evidence.read_section(sid)
-        for piece in chunks(sec["text"]):
-            if item.excerpt and item.excerpt[:120] in piece:
-                return {"heading_path": " > ".join(sec["heading_path"]), "text": piece}, (sec["source"]["sha256"],)
-    sec = ctx.evidence.read_section(item.section_ids[0])
-    return {"heading_path": " > ".join(sec["heading_path"]), "text": chunks(sec["text"])[0]}, (sec["source"]["sha256"],)
+        pieces = chunks(sec["text"])
+        piece = next((p for p in pieces if excerpt and excerpt[:120] in p), pieces[0])
+        passages.append({"heading_path": " > ".join(sec["heading_path"]), "text": piece})
+        hashes.append(sec["source"]["sha256"])
+    return (passages[0] if len(passages) == 1 else passages), tuple(dict.fromkeys(hashes))
 
 
 async def _check_coverage(ctx: RunContext, item: InventoryItem, fids: tuple[str, ...], override: str) -> str | None:
@@ -631,8 +640,8 @@ async def _check_coverage(ctx: RunContext, item: InventoryItem, fids: tuple[str,
 async def _auto_relations(ctx: RunContext, finding: AtomicFinding) -> list[dict]:
     """Relation check against the most recent accepted findings under the same dependency; conflicts open tasks."""
     dep = ctx.run.get("dependencies", finding.dependency_id)
-    others = [f for f in ctx.run.graph["findings"].values()
-              if f.dependency_id == finding.dependency_id and f.status == "accepted" and f.finding_id != finding.finding_id]
+    accepted = [ctx.run.graph["findings"][f] for f in ctx.accepted_order if f != finding.finding_id]
+    others = [f for f in accepted if f.dependency_id == finding.dependency_id and f.status == "accepted"]
     out = []
     for other in others[-RELATION_CHECKS_PER_ACCEPTANCE:]:
         try:
@@ -701,13 +710,17 @@ async def _consequence_support(ctx: RunContext, effect: EconomicEffectProposal,
     # follows from modify_available_funding, not from a finding. New facts still have to come from the findings.
     engine = [f"Modelling treatment of this effect: {TREATMENT_MEANING.get(effect.baseline_treatment, effect.baseline_treatment)}; "
               f"mechanism {effect.mechanism.replace('_', ' ')}; cash direction {effect.cash_direction}."]
-    engine += [f"{p.name}: {p.value.value if p.value and p.value.value is not None else 'unknown'}" for p in effect.parameters]
+    engine += [f"{p.name}: ${p.value.value / 100:,.2f} (quoted in the cited findings)" for p in effect.parameters
+               if p.value is not None and p.value.value is not None and p.value.provenance.basis == Basis.DOCUMENTED
+               and p.value.unit == Unit.CENTS]
     [obs] = await ctx.semantics.support(effect.model_consequence, cited, engine, (effect.effect_id,))
     # Reject only a clear "some unsupported"; a near-even answer is recorded (visible in checks) but does not block,
     # because false alarms here cost the agent turns without protecting the cash model.
     if obs.answer == "some_unsupported" and not is_ambiguous(obs):
         return [f"Consequence support: {meaning('claims_supported', obs.answer)}. Revise the model consequence to what the "
                 "cited findings support"], [obs]
+    if obs.answer != "all_supported":  # near-even: not blocking, but not counted as a supporting use either
+        _dispose(ctx, [obs], "unused", "near-even support answer; not blocking")
     return [], [obs]
 
 

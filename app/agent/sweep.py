@@ -86,7 +86,9 @@ def build_sweep(snapshot_id: str, company: str, *, force: bool = False) -> dict[
     registry = question_registry()["registry_version"]
     if path.exists() and not force:
         cached = json.loads(path.read_text())
-        if cached["registry_version"] == registry and cached["company"] == company:
+        manifest = EvidenceStore(snapshot_id).snapshot_info()["evidence_manifest_hash"]
+        if (cached["registry_version"] == registry and cached["company"] == company
+                and cached.get("evidence_manifest_hash") == manifest):
             return cached
     b = agent_config()["budgets"]
     evidence = EvidenceStore(snapshot_id)
@@ -110,14 +112,17 @@ def inventory_groups(sweep: dict[str, Any]) -> list[dict[str, Any]]:
     """Group flagged sections into matters: one per source, heading path and kind (paginated sources by source and kind)."""
     groups: dict[tuple, dict[str, Any]] = {}
     for r in sweep["records"]:
-        if not r["flagged"]:
+        if not (r["flagged"] or r.get("unscreened")):  # an unscreened section must be read, not silently dropped
             continue
+        if r.get("unscreened"):
+            r = {**r, "kind": "unscreened", "signal": 0.0}
         hp = tuple(r["heading_path"])
         paginated = not hp or (hp[-1].startswith("Page ") and hp[-1][5:].isdigit())
         key = (r["source_id"], () if paginated else hp, r["kind"])
         g = groups.setdefault(key, {"source_id": r["source_id"], "heading_path": list(key[1]), "kind": r["kind"],
-                                    "section_ids": [], "signal": 0.0, "excerpt": ""})
+                                    "section_ids": [], "section_excerpts": [], "signal": 0.0, "excerpt": ""})
         g["section_ids"].append(r["section_id"])
+        g["section_excerpts"].append(r["excerpt"])
         if r["signal"] > g["signal"]:
             g["signal"], g["excerpt"] = r["signal"], r["excerpt"]
     return list(groups.values())
