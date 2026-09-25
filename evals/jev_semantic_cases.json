@@ -1,7 +1,7 @@
 {
   "artifact": "jev_semantic_boundary_cases",
-  "version": "1.1.0",
-  "registry_version": "3.0.1",
+  "version": "2.0.0",
+  "registry_version": "3.8.0",
   "access_class": "host_evaluator_only",
   "policy": "Labelled semantic boundary cases for sanity-checking Jev questions and the code-owned routing thresholds. Non-synthetic passages are sliced verbatim from admissible decision-date snapshot text, with the snapshot's source metadata. Never mount into an agent or reviewer run.",
   "cases": [
@@ -191,29 +191,6 @@
       },
       "expected": "different",
       "why": "Named counterparty differs: the L.O.D.C. payment is not the HVL settlement loan."
-    },
-    {
-      "case_id": "syn_entity_unresolvable",
-      "borrower": "synergy",
-      "profile": "claim_interpretation",
-      "question_id": "entity_scope",
-      "state": {
-        "target": "Synergy CHC Corp. — a settlement loan with an unnamed former supplier",
-        "source": {
-          "source_id": "synergy_s1a_20240813",
-          "title": "Synergy CHC Corp. Form S-1/A registration statement (Amendment No. 2)",
-          "publisher": "SEC EDGAR",
-          "document_kind": "sec_registration_statement",
-          "available_at": "2024-08-13T23:59:59-04:00"
-        },
-        "passage": {
-          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 13 — Commitments & Contingencies",
-          "text": "During May 2024, the Company paid in full the settlement to L.O.D.C Group, Ltd."
-        },
-        "claim": "The Company paid in full the settlement to L.O.D.C. Group in May 2024."
-      },
-      "expected": "unknown",
-      "why": "Nothing in the passage says whether L.O.D.C. is the unnamed former supplier."
     },
     {
       "case_id": "syn_gain_noncash",
@@ -651,6 +628,246 @@
       },
       "expected": "different_scope",
       "why": "Different obligations, not a conflict."
+    },
+    {
+      "case_id": "syn_sweep_specific_matter",
+      "borrower": "synergy",
+      "profile": "snapshot_sweep",
+      "question_id": "matter_inventory",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "passage": {
+          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 13 — Commitments & Contingencies",
+          "text": "On July 28, 2023, L.O.D.C. Group (“LODC”) asserted claims of over $1,000,000 against Synergy for breach of contract arising from their alleged failure to comply with contracts related to the delivery of hand sanitizer."
+        }
+      },
+      "expected": true,
+      "why": "A named claim against the company."
+    },
+    {
+      "case_id": "syn_sweep_generic_risk",
+      "borrower": "synergy",
+      "profile": "snapshot_sweep",
+      "question_id": "matter_inventory",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "passage": {
+          "heading_path": "PROSPECTUS SUMMARY > Summary Risk Factors",
+          "text": "If our outside suppliers and manufacturers fail to supply products in sufficient quantities and in a timely fashion, our business could suffer"
+        }
+      },
+      "expected": false,
+      "why": "A generic risk factor names no matter."
+    },
+    {
+      "case_id": "syn_sweep_kind_accounting",
+      "borrower": "synergy",
+      "profile": "snapshot_sweep",
+      "question_id": "matter_kind",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "passage": {
+          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 13 — Commitments & Contingencies",
+          "text": "The case was settled during December 2023, resulting in a net gain to the company of $2,235,986, reflected as a reduction of cost of sales, and a loan payable of $5,450,000 (see Note 11)."
+        }
+      },
+      "expected": "legal_matter_or_settlement",
+      "why": "The passage mainly describes the case's settlement (the gain is secondary); accounting_item_from_a_matter is the defensible alternative."
+    },
+    {
+      "case_id": "syn_support_all",
+      "borrower": "synergy",
+      "profile": "statement_support",
+      "question_id": "claims_supported",
+      "state": {
+        "statement": "Up to $2,000,000 of settlement loan payments fall due in 2024.",
+        "cited_findings": [
+          {
+            "finding_id": "fnd_a",
+            "proposition": "The December 28, 2023 settlement loan requires payments of $2,000,000 in 2024.",
+            "quotes": [
+              "| 2024 | $2,000,000 |"
+            ]
+          }
+        ],
+        "engine_results": []
+      },
+      "expected": "all_supported",
+      "why": "Restates the finding."
+    },
+    {
+      "case_id": "syn_support_extra_claim",
+      "borrower": "synergy",
+      "profile": "statement_support",
+      "question_id": "claims_supported",
+      "state": {
+        "statement": "Up to $2,000,000 of settlement loan payments fall due in 2024, which triggers the cross-default on the Sanders note and cuts FY2023 EBITDA of $10.8 million.",
+        "cited_findings": [
+          {
+            "finding_id": "fnd_a",
+            "proposition": "The December 28, 2023 settlement loan requires payments of $2,000,000 in 2024.",
+            "quotes": [
+              "| 2024 | $2,000,000 |"
+            ]
+          }
+        ],
+        "engine_results": []
+      },
+      "expected": "some_unsupported",
+      "why": "Cross-default and EBITDA are not in the finding."
+    },
+    {
+      "case_id": "syn_coverage_gain_missed",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "coverage_supported",
+      "state": {
+        "passage": {
+          "heading_path": "MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS > Liquidity and Capital Resources",
+          "text": "On December 28, 2023, we entered into a confidential settlement agreement and mutual general release with a former supplier. The loan bears interest at 5% per annum and is payable in full with the last payment. This settlement resulted in a gain to us of $2,235,986 and is reflected as a reduction of cost of sales (See Note 13). During 2023, we made payments of $1,000,000 toward this loan. The outstanding loan balance at December 31, 2023 was $4,802,445, including interest of $352,445."
+        },
+        "cited_findings": [
+          {
+            "finding_id": "fnd_a",
+            "proposition": "Synergy's December 28, 2023 settlement with a former supplier took the form of a loan bearing 5% interest; Synergy paid $1,000,000 toward it in 2023 and the balance at December 31, 2023 was $4,802,445 including $352,445 of interest."
+          }
+        ]
+      },
+      "expected": "partly_covered",
+      "why": "The loan finding misses the distinct accounting gain the passage reports (the run 6 failure)."
+    },
+    {
+      "case_id": "syn_coverage_full",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "coverage_supported",
+      "state": {
+        "passage": {
+          "heading_path": "MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS > Liquidity and Capital Resources",
+          "text": "On December 28, 2023, we entered into a confidential settlement agreement and mutual general release with a former supplier. The loan bears interest at 5% per annum and is payable in full with the last payment. This settlement resulted in a gain to us of $2,235,986 and is reflected as a reduction of cost of sales (See Note 13). During 2023, we made payments of $1,000,000 toward this loan. The outstanding loan balance at December 31, 2023 was $4,802,445, including interest of $352,445."
+        },
+        "cited_findings": [
+          {
+            "finding_id": "fnd_a",
+            "proposition": "Synergy's December 28, 2023 settlement with a former supplier took the form of a loan bearing 5% interest; Synergy paid $1,000,000 toward it in 2023 and the balance at December 31, 2023 was $4,802,445 including $352,445 of interest."
+          },
+          {
+            "finding_id": "fnd_b",
+            "proposition": "The December 28, 2023 supplier settlement produced a $2,235,986 gain for Synergy, recorded as a reduction of cost of sales (a noncash accounting item)."
+          }
+        ]
+      },
+      "expected": "covered",
+      "why": "The findings state both the loan and the gain the passage establishes."
+    },
+    {
+      "case_id": "syn_coverage_other_matter",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "coverage_supported",
+      "state": {
+        "passage": {
+          "heading_path": "CERTAIN RELATIONSHIPS AND RELATED PARTY TRANSACTIONS",
+          "text": "On April 2, 2014, we entered into a Sales and Marketing Consultant and Distribution Agreement with Kenek Brands, Inc. (“Kenek”), a company owned by Jack Ross, our Chief Executive Officer. For the years ended December 31, 2023, 2022 and 2021, we expensed consulting fees of $500,000, $738,483 and $1,287,296, respectively. For the year ended December 31, 2023, we paid eight months of a vehicle allowance of $2,500 per month. For the year ended December 31, 2022, we paid fifteen months of a vehicle allowance of $2,500 per month. We advanced $501,321 and $131,894 in the manner of a prepaid bonus in the years ended December 31, 2023 and 2022, respectively. We advanced $326,683 during the six months ended June 30, 2024. During the six months ended June 30, 2024 we were advanced $1,400,000 and $149,500 Canadian Dollars (US Dollars $109,225) in the form of a short -term note. During the six months ended June 30, 2024 we applied advances of $328,003 to the note balance. The balance owing at June 30, 2024 was $1,181,222. During 2023, we were advanced $1,170,000 in the form of a short -term note. We repaid this during 2023 with interest of $210,000."
+        },
+        "cited_findings": [
+          {
+            "finding_id": "fnd_c",
+            "proposition": "Synergy's Knight loan balance was $12,333,053 at June 30, 2024."
+          }
+        ]
+      },
+      "expected": "not_covered",
+      "why": "A Knight loan finding does not account for the Kenek related-party note."
+    },
+    {
+      "case_id": "syn_coverage_live_covenant_missed",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "coverage_supported",
+      "state": {
+        "passage": {
+          "heading_path": "PROSPECTUS SUMMARY > Relationships with Knight Therapeutics",
+          "text": "The lender under our Amended and Restated Loan Agreement, as amended by the Sixth Amendment dated June 6, 2024, is Knight Therapeutics (Barbados) Inc. (“Knight”). The total consolidated amount outstanding under such loan was $12,333,053 as of June 30, 2024, and the loan bears interest at a rate of 12% per year. Under this loan, we are subject to a number of financial and operating covenants, including the requirement that Knight approve our quarterly and annual operating budget prior to implementation. For additional information, see “Management’s Discussion and Analysis of Financial Condition and Results of Operations — Liquidity and Capital Resources — Short- and Long -Term Borrowings” and the notes to our condensed consolidated financial statements that are included elsewhere in this prospectus. An affiliate of Knight is also the beneficial owner of approximately 19.6% of our outstanding common stock. In addition, we have entered into several distribution agreements with Knight Therapeutics, Inc., an affiliate of Knight, for the distribution of our products. See “Certain Relationships and Related Party Transactions” for additional information."
+        },
+        "cited_findings": [
+          {
+            "finding_id": "fnd_k2",
+            "proposition": "Synergy owed Knight $12,333,053 at June 30, 2024."
+          }
+        ]
+      },
+      "expected": "partly_covered",
+      "why": "The live covenant requiring Knight to approve operating budgets (and the 12% rate) is not accounted for."
+    },
+    {
+      "case_id": "syn_coverage_row_covered",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "coverage_supported",
+      "state": {
+        "passage": {
+          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 11 — Notes Payable",
+          "text": "|  | June 30, 2024 | December 31, 2023 |\n| Knight | 12,333,053 | 12,426,997 |"
+        },
+        "cited_findings": [
+          {
+            "finding_id": "fnd_n",
+            "proposition": "Synergy's Knight note payable balance was $12,333,053 at June 30, 2024 and $12,426,997 at December 31, 2023.",
+            "quotes": [
+              "| Knight | 12,333,053 | 12,426,997 |"
+            ]
+          }
+        ]
+      },
+      "expected": "covered",
+      "why": "One table row, one loan: the finding states its balances."
+    },
+    {
+      "case_id": "syn_coverage_row_other_loan",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "coverage_supported",
+      "state": {
+        "passage": {
+          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 11 — Notes Payable",
+          "text": "|  | June 30, 2024 | December 31, 2023 |\n| Sanders | 9,794,165 | 10,294,165 |"
+        },
+        "cited_findings": [
+          {
+            "finding_id": "fnd_n",
+            "proposition": "Synergy's Knight note payable balance was $12,333,053 at June 30, 2024 and $12,426,997 at December 31, 2023.",
+            "quotes": [
+              "| Knight | 12,333,053 | 12,426,997 |"
+            ]
+          }
+        ]
+      },
+      "expected": "not_covered",
+      "why": "The Sanders row is a different loan from the Knight finding."
+    },
+    {
+      "case_id": "syn_entity_named_counterparty",
+      "borrower": "synergy",
+      "profile": "claim_interpretation",
+      "question_id": "entity_scope",
+      "state": {
+        "target": "Synergy CHC Corp. — the L.O.D.C. Group, Ltd. settlement",
+        "source": {
+          "source_id": "synergy_s1a_20240813",
+          "title": "Synergy CHC Corp. Form S-1/A registration statement (Amendment No. 2)",
+          "publisher": "SEC EDGAR",
+          "document_kind": "sec_registration_statement",
+          "available_at": "2024-08-13T23:59:59-04:00"
+        },
+        "passage": {
+          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 13 — Commitments & Contingencies",
+          "text": "During May 2024, the Company paid in full the settlement to L.O.D.C Group, Ltd."
+        },
+        "claim": "The Company paid in full the settlement to L.O.D.C. Group in May 2024."
+      },
+      "expected": "target",
+      "why": "One question: the passage names the same counterparty and obligation as the target."
     }
   ]
 }

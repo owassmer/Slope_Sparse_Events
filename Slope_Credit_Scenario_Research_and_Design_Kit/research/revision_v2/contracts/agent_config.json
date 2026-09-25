@@ -1,6 +1,6 @@
 {
   "configuration_id": "slope_external_event_cashflow_investigation",
-  "configuration_version": "3.0.0-design",
+  "configuration_version": "3.2.0-design",
   "status": "design_template_not_implemented_or_live_validated",
   "scope": "One local investigation of a real borrower and a proposed new discretionary advance, followed by loan cash-flow scenario comparison and independent review. Analysis candidates are not claims of actual Slope offers or customers.",
   "default_mission": {
@@ -105,11 +105,14 @@
           "mcp__credit__propose_effect",
           "mcp__credit__run_sensitivity",
           "mcp__credit__request_missing_fact",
+          "mcp__credit__read_inventory",
+          "mcp__credit__escalate_effect",
+          "mcp__credit__resolve_reconciliation",
           "mcp__credit__submit_packet"
         ],
         "permission_mode": "dontAsk",
         "setting_sources": [],
-        "max_turns": 80
+        "max_turns": 120
       },
       "runtime_bindings_required": {
         "mcp_servers": "Inject exactly one scoped credit MCP server into ClaudeAgentOptions.mcp_servers. No ambient MCP servers.",
@@ -158,7 +161,7 @@
           ]
         },
         "claim_interpretation": {
-          "trigger": "agent, via judge(profile, evidence_id, claim)",
+          "trigger": "agent via judge; and host, for every finding that supports a proposed effect (status question chosen by the effect's mechanism)",
           "questions": [
             "entity_scope",
             "claim_posture",
@@ -179,10 +182,29 @@
           ]
         },
         "statement_relation": {
-          "trigger": "agent, via judge(profile, finding_ids); host, when an effect may overlap a baseline item",
+          "trigger": "agent via judge; host on each accepted finding against the most recent accepted finding under the same dependency; host for baseline overlap",
           "questions": [
             "statement_relation",
             "baseline_overlap"
+          ]
+        },
+        "snapshot_sweep": {
+          "trigger": "host, once per snapshot before investigation; cached; own budget",
+          "questions": [
+            "matter_inventory",
+            "matter_kind"
+          ]
+        },
+        "statement_support": {
+          "trigger": "host, on every propose_effect consequence and on submit_packet conclusion",
+          "questions": [
+            "claims_supported"
+          ]
+        },
+        "inventory_coverage": {
+          "trigger": "host, at submission, on every paragraph or table row an accepted finding cites",
+          "questions": [
+            "coverage_supported"
           ]
         }
       },
@@ -203,7 +225,7 @@
       "max_repair_cycles": 1
     }
   },
-  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, and propose atomic findings that quote the evidence exactly. Jev screens retrieved evidence and checks narrow semantic claims; you reconcile its judgments with the evidence and may override one with a stated reason. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer, change an account, or know Slope's private policy.",
+  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, and propose atomic findings that quote the evidence exactly. Jev screens retrieved evidence and checks narrow semantic claims; you reconcile its judgments with the evidence and may disagree with a failed check by replying to it with a stated reason, or escalate it for the reviewer where the host requires escalation. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer, change an account, or know Slope's private policy.",
   "invariants": [
     "Start with the same baseline profile, existing obligations, decision date and candidate financing request for the before/after comparison.",
     "Keep borrower cash flows, contractual loan payments, scenario collections and funding-facility cash flows distinct.",
@@ -244,7 +266,10 @@
       "propose_effect": "Propose an economic effect from accepted findings: mechanism, target stream, parameter requirements, baseline treatment and linked effects. Validated by the finance engine; never activated by Jev output.",
       "run_sensitivity": "Run deterministic thresholds or ledger sensitivities over explicit parameter bounds and return which values change the result.",
       "request_missing_fact": "Record the exact requested fact/document and the action consequences. This tool sends no communication.",
-      "submit_packet": "Lock the investigation graph, source hashes, findings, effects and calculation versions for review. No lending action."
+      "submit_packet": "Lock the investigation graph, source hashes, findings, effects and calculation versions for review. No lending action.",
+      "read_inventory": "The reading list: paragraphs and table rows the host sweep flagged as describing a specific matter, and whether an accepted finding cites each.",
+      "escalate_effect": "Escalate an effect the category guard rejected: it becomes disputed, creates no cash stream and is left for the reviewer; a disputed cash-moving effect makes the run INCOMPLETE_REVIEW.",
+      "resolve_reconciliation": "Resolve an open reconciliation task with a note on how the statements relate."
     },
     "disallowed_capabilities": [
       "unscoped shell or code execution by the agent",
@@ -258,15 +283,18 @@
     ]
   },
   "budgets": {
-    "main_agent_max_turns": 80,
-    "main_investigation_wall_clock_seconds": 600,
+    "main_agent_max_turns": 120,
+    "main_investigation_wall_clock_seconds": 900,
     "review_wall_clock_seconds": 300,
-    "total_wall_clock_seconds_including_one_repair": 1200,
+    "total_wall_clock_seconds_including_one_repair": 1500,
     "consecutive_no_progress_actions": 3,
     "no_progress_definition": "An action produces no new eligible evidence, no corrected finding, no resolved/narrowed gap, no new valid patch and no changed sensitivity result. Repeating the same query alone is not progress.",
     "budget_policy": "Ceilings, not targets. Record actual elapsed time, token usage, requests and spend. Finish early when further accessible evidence cannot change the action across the stated sensitivity range.",
-    "jev_max_physical_attempts_including_retries": 150,
-    "turn_counting": "A turn is one distinct model response (message_id), counted by the host and enforced by interrupting the session. The SDK's num_turns counts differently and is recorded only for reference."
+    "jev_max_physical_attempts_including_retries": 400,
+    "turn_counting": "A turn is one distinct model response (message_id), counted by the host and enforced by interrupting the session. The SDK's num_turns counts differently and is recorded only for reference.",
+    "sweep_max_physical_attempts_per_snapshot": 1500,
+    "sweep_spend_cap_usd_per_snapshot": "0.10",
+    "search_default_results": 8
   },
   "completion_and_decisions": {
     "execution_states": [
@@ -295,7 +323,9 @@
       "missing_required_jev_credential_before_agent_plus_jev_run": "FAILED_CONFIGURATION",
       "quota_or_deadline_exhaustion": "INCOMPLETE_REVIEW",
       "unrecoverable_source_or_model_service_failure": "INCOMPLETE_REVIEW",
-      "unresolved_material_review_error_after_one_repair": "INCOMPLETE_REVIEW"
+      "unresolved_material_review_error_after_one_repair": "INCOMPLETE_REVIEW",
+      "escalated_cash_moving_effect_dispute": "INCOMPLETE_REVIEW",
+      "escalated_cited_unit_coverage_gap": "reviewer_checklist (INCOMPLETE_REVIEW only if the reviewer finds a material gap that one repair pass does not close)"
     },
     "failure_recommendation_policy": "Keep any prior provisional recommendation in the trace, but do not publish it as a completed result. Set final lending recommendation UNDETERMINED unless an independently completed supported decision packet exists. Execution failure itself is never a reason for DECLINE_REQUEST.",
     "complete_with_pivotal_gap": "A reviewed packet may finish with UNDETERMINED and a precise borrower question plus action map. It must not claim that the financing decision has been resolved.",
@@ -457,15 +487,22 @@
   "comparison_mode_overrides": {
     "agent_only": {
       "remove_allowed_and_exposed_tools": [
-        "mcp__credit__judge"
+        "mcp__credit__judge",
+        "mcp__credit__read_inventory",
+        "mcp__credit__escalate_effect",
+        "mcp__credit__resolve_reconciliation"
       ],
       "expose_jev_registry": false,
       "require_typesafe_credential": false,
       "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, make focused evidence judgments yourself, reconcile contradictions, and propose atomic findings that quote the evidence exactly. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer, change an account, or know Slope private policy.",
       "evaluation_metadata_visibility": "Host scorer only; do not reveal arm labels or expected findings to the blind reviewer.",
       "remove_host_semantic_checks": [
+        "snapshot_sweep inventory",
         "candidate_screen on search_evidence",
-        "finding_check on propose_finding"
+        "finding_check on propose_finding",
+        "automatic statement_relation on accepted findings",
+        "effect category guard (posture/status)",
+        "statement_support on effect consequences and the conclusion"
       ]
     },
     "agent_plus_jev": {

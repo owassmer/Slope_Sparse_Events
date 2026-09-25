@@ -1,0 +1,151 @@
+{
+  "snapshot_id": "synergy_20240813",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T04:59:21.725136+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "3.5.0",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "3071799d47add251dafa983678a5cf702e9310d1d49cc4d3f6aff92719f7c04f",
+    "sections": 297,
+    "flagged": 67,
+    "unscreened": 0,
+    "chunks": 305,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 0,
+      "cache_hits": 305,
+      "physical_attempts": 0,
+      "attempt_ceiling": 800,
+      "spent_usd": "0",
+      "spend_cap_usd": "0.10"
+    },
+    "inventory_items": 36
+  },
+  "run_id": "synergy_20240813-agent_plus_jev-20260925T045921Z",
+  "status": "INCOMPLETE_REVIEW",
+  "failure": null,
+  "incomplete_reasons": [
+    "Jev unavailable (JevBudgetExceeded): Jev attempt ceiling reached (400 physical attempts)",
+    "disputed inventory item inv_004 (debt or financing agreement): Knight affiliate distribution agreements and ~19.6% ownership not captured as findings; Knight loan balance, interest, budget-approval covenant covered by fnd_024/fnd_025/fnd_052/fnd_008.",
+    "disputed inventory item inv_007 (debt or financing agreement): MD&A liquidity windows describing historical Knight amendments (fees, extension fees, prior covenants), Neuragen note, historical Shopify loans (2022-2023, repaid), March 2024 CEO note; key current terms covered by fnd_008-fnd_011, fnd_024-fnd_027, fnd_050-fnd_051, fnd_042, fnd_054. Run budget/Jev ceiling prevented per-window findings.",
+    "disputed inventory item inv_008 (legal matter or settlement): Unidentified residual in s0121 window 0-2020 (Valenti/Atrium procedural history); Valenti payment (fnd_045/fnd_048), Atrium counterclaims and settlement (fnd_047, fnd_003) and LODC (fnd_049) are covered.",
+    "disputed inventory item inv_009 (debt or financing agreement): Related-party transactions section (Knight distribution/royalties, CEO consulting, BoomBod loans, Kenek notes) not covered window by window; related-party note receivable (fnd_043, fnd_042) and CEO notes (fnd_022, fnd_046, fnd_054) covered.",
+    "disputed inventory item inv_011 (debt or financing agreement): Underwriting agreement terms for proposed offering (discounts/expenses) not recorded; no offering proceeds were assumed in the analysis.",
+    "disputed inventory item inv_012 (covenant or restriction): Underwriter warrant terms not recorded as a finding; equity instrument contingent on offering closing.",
+    "disputed inventory item inv_019 (debt or financing agreement): Note 9 related-party windows (Knight royalties, related-party loan receivable history, prepaid related party) not covered by findings.",
+    "disputed inventory item inv_021 (debt or financing agreement): Note 11 per-window historical terms (Neuragen, Knight 2017-2023 amendments and fees, Hand MD repaid, Sanders history, repaid Shopify loans) not individually covered; current schedules covered by fnd_004, fnd_006, fnd_007, fnd_024, fnd_025, fnd_027, fnd_050, fnd_051, fnd_017, fnd_018, fnd_055.",
+    "disputed inventory item inv_030 (debt or financing agreement): FY2023 related-party transactions (CEO consulting fees, vehicle allowance, Knight royalties, BoomBod) not covered by findings.",
+    "disputed inventory item inv_032 (debt or financing agreement): FY2023 Note 11 per-window historical terms (Neuragen note, Knight 2017\u20132023 amendments, fees and prior covenants, Hand MD loan repaid, Sanders note/debenture history, 2022\u20132023 Shopify loans repaid, Atrium Dec 2023 settlement loan at year-end) not individually covered; current schedules are covered by fnd_004, fnd_007, fnd_008, fnd_009, fnd_011, fnd_024, fnd_025, fnd_027, fnd_050, fnd_051, fnd_055. Run budget prevented per-window findings.",
+    "disputed inventory item inv_035 (debt or financing agreement): Residual in FY2023 subsequent events window not identified; Jan 2024 Shopify repaid (fnd_055), March 2024 CEO note (fnd_054), May 1 Shopify loan, May 2024 supplier settlement (fnd_056), LODC paid (fnd_023), Knight Sixth Amendment (fnd_024/fnd_025) covered.",
+    "disputed inventory item inv_036 (debt or financing agreement): Unregistered securities issuances (debentures/warrants history) not recorded as findings; related debt balances are in Note 11 findings."
+  ],
+  "finished_at": "2026-09-25T05:13:12.131759+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "read_evidence": 24,
+    "record_dependency": 5,
+    "search_evidence": 2,
+    "judge": 2,
+    "propose_finding": 57,
+    "resolve_finding": 56,
+    "resolve_reconciliation": 5,
+    "propose_effect": 15,
+    "run_sensitivity": 1,
+    "account_for_items": 28,
+    "request_missing_fact": 3,
+    "submit_packet": 3,
+    "StructuredOutput": 1
+  },
+  "turns_used": 87,
+  "max_turns": 120,
+  "claude": {
+    "num_turns": 207,
+    "duration_ms": 828690,
+    "usage": {
+      "input_tokens": 174,
+      "cache_creation_input_tokens": 246161,
+      "cache_read_input_tokens": 12665633,
+      "output_tokens": 87277,
+      "output_tokens_details": {
+        "thinking_tokens": 13067
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 246161,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 705,
+          "cache_read_input_tokens": 242905,
+          "cache_creation_input_tokens": 3256,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 3256
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 6.2486506,
+    "structured_output": {
+      "conclusion": "Two things are unresolved. First, a funding constraint: under the Knight loan, Synergy agreed not to add any other debt without paying out Knight first, and a default on any third-party debt automatically defaults the Knight loan. Whether Knight has consented to a new advance is unknown. Second, a settlement cash requirement: the 2024 schedules include $2,000,000 on the settlement loan (identified as Atrium by inference) and $600,000 on the March 27, 2024 supplier settlement, against approximately $2.0 million of reported cash. With $100,000 treated as unavailable and a $200,000 illustrative reserve, the sensitivity shows a requirement above reported cash of $900,000 if none of these amounts was paid after June 30, 2024, $250,000 if 25% was paid, and zero if 50% or more was paid. Synergy must also repay its Shopify debt by December 31, 2024. The Atrium litigation is settled, and its gain was non-cash. No lending action is taken. The review is incomplete: 12 debt, related-party and underwriting inventory items are escalated and block completion.",
+      "pivotal_unknowns": [
+        "Whether Knight Therapeutics has consented to, or its amended loan carves out, a new working-capital advance (fact_001)",
+        "How much of the $2,000,000 Atrium and $600,000 supplier-settlement 2024 amounts was paid between June 30 and August 13, 2024 (fact_002)",
+        "Whether the May 2024 'current supplier' settlement with monthly payments through June 2026 is the same obligation as the March 27, 2024 settlement (fact_003)",
+        "Shopify debt already repaid since June 30, 2024 against the December 31, 2024 termination requirement"
+      ],
+      "supported_effect_ids": [
+        "eff_005",
+        "eff_006",
+        "eff_010",
+        "eff_011",
+        "eff_013",
+        "eff_015"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 331,
+    "cache_hits": 68,
+    "physical_attempts": 331,
+    "attempt_ceiling": 400,
+    "spent_usd": "0.030649458",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 5,
+    "candidates": 5,
+    "jev_calls": 399,
+    "observations": 677,
+    "findings": 56,
+    "reconciliations": 5,
+    "effects": 15,
+    "inventory": 36
+  },
+  "chain_head": "960ec68ea136c05108163a9ba09d237b96c3e5ec6f9ae581b187088f651421be"
+}

@@ -30,6 +30,7 @@ from app.agent.jev import JevAdapter, canonical_sha256
 from app.agent.jev_profiles import Semantics
 from app.agent.run_store import RunStore
 from app.agent.smoke import preflight
+from app.agent.sweep import build_sweep, inventory_units, sweep_path
 from app.agent.tools import RunContext, build_server
 from app.config import (
     AGENT_PROCESS_ENV,
@@ -41,6 +42,7 @@ from app.config import (
     main_agent_settings,
     question_registry,
 )
+from app.domain.investigation import InventoryItem
 from app.evidence.store import EvidenceStore
 
 WORKING_METHOD = """Working method
@@ -50,13 +52,11 @@ WORKING_METHOD = """Working method
 - search_evidence for that dependency, read_evidence for the passages you need (including their surrounding context), and cite
   only text you have read. Quote exactly.
 {jev_method}- propose_finding for one atomic proposition at a time, then resolve_finding. Record how each linked observation was used,
-  and give a reason whenever you override one.
+  and give a reason whenever you disagree with one.
 - propose_effect for each supported economic mechanism, stating its baseline treatment, parameters (unknown stays unknown) and the
   plain-language model consequence. Existing liabilities are scheduled once, never added again.
-- Account for every disclosed legal matter, settlement and settlement-related accounting item you encounter. When one has no
-  future cash effect (for example it is reported paid, or it is an accounting entry rather than cash), record that as a cited
-  finding and an effect with mechanism resolved_obligation or noncash_normalization and cash_direction none, so the reviewer can
-  see why it does not change cash.
+- When a matter has no future cash effect, record that as a cited finding and an effect with cash_direction none, so the
+  reviewer can see why it does not change cash.
 - If you connect a name, label or table row to an obligation by matching amounts or dates, mark that finding is_inference and
   describe the link as an inference in your conclusion.
 - run_sensitivity on validated settlement effects to see which unknown changes the cash requirement.
@@ -64,7 +64,18 @@ WORKING_METHOD = """Working method
 - Use only the evidence returned by the tools; do not rely on remembered facts about this company or later events.
 - Work efficiently: the run stops at {turn_budget} turns; submit before then."""
 
-JEV_METHOD = """- Search results carry a semantic screen label; all results are shown and you decide what to read.
+JEV_METHOD = """- read_inventory early: the host screened the admissible evidence paragraph by paragraph and table row by table
+  row, and lists the atomic units that describe a specific matter. It is a reading list, not a checklist to fill in: read
+  what bears on the decision and record findings for it. Units no accepted finding cites go to the independent reviewer.
+- At submission the host checks every paragraph or table row your accepted findings cite: the findings citing it must state
+  each payment, obligation, restriction, covenant, default term or earnings item it describes (for example a settlement
+  gain in the paragraph that describes the settlement loan). If one fails, add the missing finding and resubmit; if you
+  genuinely disagree, resubmit with coverage_escalations {observation_id, missing}, which go to the reviewer's checklist.
+- The host checks each proposed effect: its supporting findings' posture and status must fit the mechanism, and its model
+  consequence must be supported by the cited findings. It also checks your conclusion at submission and checks accepted findings
+  under the same question against each other. Revise when a check fails. If you disagree with a failed support check, reply to
+  that observation with your reason; if you disagree with a failed category guard, escalate_effect for the reviewer.
+- Search results carry a semantic screen label; all results are shown and you decide what to read.
 - When the posture, status or entity of a statement matters, call judge (claim_interpretation) with one claim, a precise target
   and the verbatim anchor_quote, and link the observations to the finding. When two statements may conflict, use
   statement_relation. An ambiguous or unsettled judgment means: read more context or narrow the target, not accept.
@@ -142,6 +153,24 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         return {**record, "run_id": run_id, "status": "FAILED_CONFIGURATION", "error": str(e)}
     ctx = RunContext(run=run, evidence=evidence, inputs=inputs, arm=arm,
                      semantics=Semantics(run, evidence, jev) if jev else None)
+    if jev is not None:  # host sweep inventory (cached per snapshot; its own budget)
+        try:
+            sweep = build_sweep(snapshot_id, inputs["baseline_profile"]["borrower"])
+        except Exception as e:  # noqa: BLE001 - any sweep failure stops before the agent runs
+            status = "FAILED_CONFIGURATION" if isinstance(e, ConfigurationError) else "INCOMPLETE_REVIEW"
+            run.lock({"summary": None, "configuration_failure": str(e) if status == "FAILED_CONFIGURATION" else None,
+                      "incomplete_reasons": [f"snapshot sweep failed: {e}"]})
+            return {**record, "run_id": run_id, "status": status, "error": f"snapshot sweep failed: {e}"}
+        for u in inventory_units(sweep):
+            run.put("inventory_loaded", InventoryItem(
+                item_id=run.new_id("inv"), section_ids=(u["section_id"],), source_id=u["source_id"],
+                heading_path=tuple(u["heading_path"]), kind="unscreened" if u["unscreened"] else u["kind"],
+                signal=u["signal"] or 0.0, excerpt=u["excerpt"], unit_kind=u["unit_kind"], unit_start=u["start"],
+                unit_end=u["end"]),
+                payload={"sweep_sha256": sweep["sweep_sha256"], "registry_version": sweep["registry_version"]})
+        record["sweep"] = {"sweep_sha256": sweep["sweep_sha256"], **sweep["summary"], "jev_usage": sweep["jev_usage"],
+                           "inventory_items": len(run.graph["inventory"])}
+        shutil.copyfile(sweep_path(snapshot_id), run.dir / "sweep.json")  # recorded with the run for provenance
     allowed = allowed_tools(arm)
     options = ClaudeAgentOptions(
         model=settings["model"], effort=settings["effort"], tools=[], allowed_tools=allowed,

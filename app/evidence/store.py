@@ -45,6 +45,11 @@ class EvidenceStore:
         """Catalog metadata for one admissible source (raises outside the snapshot)."""
         return self._source(source_id)
 
+    def list_sections(self) -> list[dict[str, Any]]:
+        """Every admissible section (for host-side sweeps; never exposed to the agent as a list)."""
+        rows = self.con.execute("SELECT section_id, source_id, heading_path, text FROM sections ORDER BY source_id, ordinal")
+        return [{**dict(r), "heading_path": json.loads(r["heading_path"])} for r in rows]
+
     def list_sources(self) -> list[dict[str, Any]]:
         rows = self.con.execute(
             "SELECT s.*, (SELECT count(*) FROM sections x WHERE x.source_id = s.source_id) AS n_sections, "

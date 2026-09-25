@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.0.1",
+  "registry_version": "3.8.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -55,6 +55,28 @@
         "statement_relation",
         "baseline_overlap"
       ]
+    },
+    "snapshot_sweep": {
+      "primitive": "noul+choice",
+      "trigger": "host, once per snapshot before investigation: every section, then every paragraph and table row of the flagged sections",
+      "questions": [
+        "matter_inventory",
+        "matter_kind"
+      ]
+    },
+    "statement_support": {
+      "primitive": "choice",
+      "trigger": "host, on every effect consequence and on the conclusion",
+      "questions": [
+        "claims_supported"
+      ]
+    },
+    "inventory_coverage": {
+      "primitive": "choice",
+      "trigger": "host, at submission, on every paragraph or table row an accepted finding cites",
+      "questions": [
+        "coverage_supported"
+      ]
     }
   },
   "state_contract": {
@@ -69,7 +91,11 @@
     "statement_a": "First statement with its source and passage context.",
     "statement_b": "Second statement with its source and passage context.",
     "effect_description": "The proposed economic effect in words: mechanism, obligation or activity, and scope.",
-    "baseline_item": "The baseline stream or item it might duplicate, in words."
+    "baseline_item": "The baseline stream or item it might duplicate, in words.",
+    "company": "The borrower's legal name.",
+    "statement": "Agent-written text to check (an effect's model consequence or the packet conclusion).",
+    "cited_findings": "The accepted findings the statement rests on: proposition plus verbatim quotes.",
+    "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs)."
   },
   "observation_record": {
     "call_fields": [
@@ -500,6 +526,94 @@
         }
       },
       "application": "Warning signal only; deterministic obligation IDs and host validation decide double counting."
+    },
+    {
+      "id": "matter_inventory",
+      "version": "3.1.0",
+      "profile": "snapshot_sweep",
+      "primitive": "noul",
+      "question": "Does this passage describe a specific, identified legal matter, settlement, debt agreement, covenant, cash restriction or matter-related accounting item of the named company?",
+      "applies_when": "Every admissible section of the snapshot, once, before an investigation.",
+      "state_fields": [
+        "company",
+        "passage"
+      ],
+      "prompt": {
+        "instructions": "Does this passage describe a specific, identified legal matter, settlement, debt agreement, covenant, cash restriction or matter-related accounting item of the named company? Judge state.passage for state.company. A generic risk factor, a hypothetical, a definition or boilerplate that names no specific matter, agreement or counterparty does not count.",
+        "criteria": {
+          "true": "The passage identifies a specific matter, agreement, covenant, restriction or accounting item of this company (a named case, counterparty, dated agreement or stated amount).",
+          "false": "The passage is generic, hypothetical, boilerplate, or about something else."
+        }
+      },
+      "application": "Builds the host inventory the agent must account for; a flag is a pointer to read, never a finding."
+    },
+    {
+      "id": "matter_kind",
+      "version": "3.1.0",
+      "profile": "snapshot_sweep",
+      "primitive": "choice",
+      "question": "What kind of matter does this passage mainly describe?",
+      "applies_when": "Asked together with matter_inventory on every section.",
+      "state_fields": [
+        "company",
+        "passage"
+      ],
+      "prompt": {
+        "instructions": "What kind of matter does state.passage mainly describe for state.company? Classify the main specific matter; choose none_or_generic if there is no specific matter.",
+        "criteria": {
+          "legal_matter_or_settlement": "A lawsuit, claim, dispute, judgment or settlement.",
+          "debt_or_financing_agreement": "A loan, note, credit facility, advance or other financing agreement and its terms.",
+          "covenant_or_restriction": "A covenant, consent requirement, lien or restriction in an agreement.",
+          "cash_restriction": "Restricted, pledged or otherwise limited cash.",
+          "accounting_item_from_a_matter": "An accounting entry arising from a specific matter (a gain, loss, accrual or reserve).",
+          "none_or_generic": "No specific matter; generic or unrelated text."
+        }
+      },
+      "application": "Groups the inventory for the agent and the reviewer; not a finding."
+    },
+    {
+      "id": "claims_supported",
+      "version": "3.1.1",
+      "profile": "statement_support",
+      "primitive": "choice",
+      "question": "Is every factual claim in this statement supported by the cited findings or the stated engine results?",
+      "applies_when": "Every effect's model-consequence text and the packet conclusion.",
+      "state_fields": [
+        "statement",
+        "cited_findings",
+        "engine_results"
+      ],
+      "prompt": {
+        "instructions": "Is every factual claim in state.statement supported by state.cited_findings or state.engine_results? A factual claim is a name, amount, date, status, event or causal link. Paraphrases, restatements and qualifiers such as 'up to' or 'about' that follow directly from the findings are supported. Only a claim that adds something the findings and engine results do not state counts against the statement. Recommendations and clearly marked assumptions or inferences are not factual claims. Do not use outside knowledge.",
+        "criteria": {
+          "all_supported": "Every factual claim is stated in, or restates or follows directly from, the cited findings or engine results.",
+          "some_unsupported": "At least one factual claim adds a name, amount, date, status, event or causal link that the cited findings and engine results do not state.",
+          "unclear": "Cannot tell which claims are made or what supports them."
+        }
+      },
+      "application": "Catches fluent claims that no finding supports before they reach the reviewer; revise or override with a reason."
+    },
+    {
+      "id": "coverage_supported",
+      "version": "3.8.0",
+      "profile": "inventory_coverage",
+      "primitive": "choice",
+      "question": "Do the findings that cite this paragraph or table row state each payment, obligation, restriction, covenant, default term and earnings item it describes?",
+      "applies_when": "At submission, once for every atomic unit (paragraph or table row) that accepted findings cite.",
+      "state_fields": [
+        "passage",
+        "cited_findings"
+      ],
+      "prompt": {
+        "instructions": "state.passage is one paragraph or one table row (shown with its header row) that state.cited_findings quote. Do the findings state each payment, obligation, restriction, covenant, default term and earnings item that the passage describes, including that one was paid, released or superseded? Other detail (ownership, governance, procedure, legal reasoning, presentation, ordinary operating balances) needs no finding. Each finding comes with its verbatim quotes.",
+        "criteria": {
+          "covered": "The findings state each payment, obligation, restriction, covenant, default term and earnings item the passage describes.",
+          "partly_covered": "A payment, obligation, restriction, covenant, default term or earnings item the passage describes (for example an accounting gain beside a loan) is not stated by the findings.",
+          "not_covered": "The findings state none of the passage's payments, obligations, restrictions, covenants or earnings items.",
+          "unclear": "Cannot tell what the passage describes or what the findings state."
+        }
+      },
+      "application": "Gate at submission over the agent's own reading: a clear gap is closed with a finding or escalated to the reviewer's checklist; never overridden. Units no finding cites are the reviewer's, not Jev's."
     }
   ]
 }

@@ -95,7 +95,9 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
                                         "basis": ("in cited quote" if p.value and p.value.provenance.basis == "documented_evidence"
                                                   else "agent-stated, not in cited quote" if p.value else "")}
                                        for p in e.parameters],
-                        "findings": [findings[f] for f in e.finding_ids if f in findings]})
+                        "findings": [findings[f] for f in e.finding_ids if f in findings],
+                        "checks": [obs_view(o) for o in e.observation_ids if o in g["observations"]],
+                        "overrides": dict(e.override_reasons), "dispute": e.dispute})
 
     deps = []
     for d in g["dependencies"].values():
@@ -111,6 +113,26 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
                                                         if g["findings"][v["id"]].dependency_id == d.dependency_id]})
 
     ledger = Counter(o.downstream_disposition for o in g["observations"].values())
+    titles = {sid: run_source_title(inputs, sid) for sid in {i.source_id for i in g["inventory"].values()}}
+    coverage_by_item: dict[str, list] = {}
+    check_labels = {"coverage_supported": "Coverage", "adds_matter": "Duplicate", "decision_relevance": "Relevance",
+                    "matter_relevance": "Exclusion (earlier design)"}
+    for o in g["observations"].values():
+        if o.question_id in check_labels and o.subject_ids:
+            coverage_by_item.setdefault(o.subject_ids[0], []).append({
+                "label": check_labels[o.question_id], "id": o.observation_id,
+                "meaning": meaning(o.question_id, o.answer), "answer": o.answer, "ambiguous": is_ambiguous(o),
+                "disposition": o.downstream_disposition.replace("_", " "), "note": o.disposition_note,
+                "findings": list(o.subject_ids[1:])})
+    inventory = [{"id": i.item_id, "kind": i.kind.replace("_", " "), "source": titles.get(i.source_id, i.source_id),
+                  "heading": " › ".join(i.heading_path[-2:]) or "(whole document)", "sections": len(i.section_ids),
+                  "status": i.status.replace("_", " "), "findings": list(i.finding_ids), "note": i.note,
+                  "duplicate_of": i.duplicate_of, "unit_kind": i.unit_kind.replace("_", " "), "excerpt": i.excerpt,
+                  "coverage_checks": coverage_by_item.get(i.item_id, [])}
+                 for i in sorted(g["inventory"].values(), key=lambda i: i.item_id)]
+    cited_checks = [e.payload for e in run.events if e.kind == "cited_units_checked"]
+    conclusion_checks = [e.payload for e in run.events if e.kind == "conclusion_checked"]
+    conclusion_check = conclusion_checks[-1] if conclusion_checks else None
     return {
         "late_failure": (record.get("status") not in (None, status)) and (record.get("failure") or record.get("status")),
         "run_id": run_id, "verified_head": run.head[:16], "record": record, "meta": meta, "status": status,
@@ -122,6 +144,12 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
         "sensitivities": [e.payload for e in run.events if e.kind == "sensitivity_run"],
         "reconciliations": [t.model_dump() for t in g["reconciliations"].values()],
         "jev_ledger": dict(ledger), "jev_calls": len(g["jev_calls"]), "observations": len(g["observations"]),
+        "inventory": inventory, "conclusion_check": conclusion_check, "conclusion_checks": conclusion_checks,
+        "atomic_inventory": any(i.unit_start >= 0 for i in g["inventory"].values()),
+        "cited_checks": [{**c, "checked": [{**r, "meaning": meaning("coverage_supported", r["answer"])} for r in c["checked"]]}
+                         for c in cited_checks],
+        "reviewer_checklist": submitted.get("reviewer_checklist"),
+        "sweep": next((e.payload for e in run.events if e.kind == "inventory_loaded"), None),
     }
 
 

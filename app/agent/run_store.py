@@ -23,6 +23,7 @@ from app.domain.investigation import (
     EconomicEffectProposal,
     EventKind,
     EvidenceCandidate,
+    InventoryItem,
     InvestigationEvent,
     JevCallRecord,
     ReconciliationTask,
@@ -30,10 +31,11 @@ from app.domain.investigation import (
 )
 
 GENESIS = "0" * 64
+REMOVED_FIELDS = {("inventory", "exclusions")}  # recorded by run 13 under a design later removed
 COLLECTIONS: dict[str, type[BaseModel]] = {
     "dependencies": DecisionDependency, "candidates": EvidenceCandidate, "jev_calls": JevCallRecord,
     "observations": SemanticObservation, "findings": AtomicFinding, "reconciliations": ReconciliationTask,
-    "effects": EconomicEffectProposal,
+    "effects": EconomicEffectProposal, "inventory": InventoryItem,
 }
 # Which collection each event kind writes its object into (None = log-only event).
 EVENT_COLLECTION: dict[str, str | None] = {
@@ -41,10 +43,11 @@ EVENT_COLLECTION: dict[str, str | None] = {
     "observation_recorded": "observations", "observation_disposition": "observations",
     "finding_proposed": "findings", "finding_resolved": "findings", "reconciliation_opened": "reconciliations",
     "reconciliation_resolved": "reconciliations", "effect_proposed": "effects", "effect_validated": "effects",
+    "inventory_loaded": "inventory", "inventory_accounted": "inventory", "effect_disputed": "effects",
 }
 ID_FIELD = {"dependencies": "dependency_id", "candidates": "candidate_id", "jev_calls": "call_id",
             "observations": "observation_id", "findings": "finding_id", "reconciliations": "task_id",
-            "effects": "effect_id"}
+            "effects": "effect_id", "inventory": "item_id"}
 
 
 class LockedRunError(RuntimeError):
@@ -71,9 +74,8 @@ class RunStore:
             self.verify()
             if self.locked:  # a locked run's log must still end exactly where the packet says
                 packet = json.loads((self.dir / "packet.json").read_text())
-                body = {k: v for k, v in packet.items() if k not in ("locked_at", "chain_head")}
                 if (packet["chain_head"] != self.head or packet["event_count"] != len(self.events)
-                        or json.loads(json.dumps(body, default=str)) != json.loads(json.dumps(self.export(), default=str))):
+                        or not self._packet_matches(packet)):
                     raise ValueError(f"Locked run {run_id}: event log does not match its packet")
         elif meta is not None:
             self.append("run_started", payload={"run_id": run_id, **meta})
@@ -123,6 +125,38 @@ class RunStore:
             prefix, _, n = key.rpartition("_")
             if prefix and n.isdigit():
                 self.counters[prefix] = max(self.counters.get(prefix, 0), int(n))
+
+    def _packet_matches(self, packet: dict[str, Any]) -> bool:
+        """Every collection and field recorded in the packet must equal the replayed log.
+
+        Schema evolution only adds collections or defaulted fields; those are not in older packets, so they are
+        not compared. Any altered or missing recorded value still fails.
+        """
+        current = json.loads(json.dumps(self.export(), default=str))
+        for name, model in COLLECTIONS.items():
+            ids = ID_FIELD[name]
+            replayed = {o[ids]: o for o in current.get(name, [])}
+            if name not in packet:
+                if replayed:  # a collection with content cannot be missing from the packet
+                    return False
+                continue
+            recorded = {o[ids]: o for o in packet[name]}
+            if recorded.keys() != replayed.keys():
+                return False
+            defaults = {f: json.loads(json.dumps(info.get_default(call_default_factory=True), default=str))
+                        for f, info in model.model_fields.items() if not info.is_required()}
+            for key, obj in recorded.items():
+                # Only a field a later schema removed is skipped (it stays protected by the hash-chained event log);
+                # any other field the packet holds must equal the replayed value, so a forged field is still caught.
+                if any(replayed[key].get(field) != value for field, value in obj.items()
+                       if (name, field) not in REMOVED_FIELDS):
+                    return False
+                # A field absent from the packet is acceptable only when the replayed value is its default
+                # (a field added by a later schema version), never when a recorded value was deleted.
+                missing = set(replayed[key]) - set(obj)
+                if any(f not in defaults or replayed[key][f] != defaults[f] for f in missing):
+                    return False
+        return True
 
     def verify(self) -> None:
         prev = GENESIS

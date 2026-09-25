@@ -19,11 +19,19 @@ SNAP = "synergy_20240813"
 INPUTS = json.loads((CASES_DIR / SNAP / "run_inputs.json").read_text())
 
 
-class FakeJev:
-    """First criterion wins with 0.8 unless `flat` names a question to answer ambiguously."""
+DEFAULT_ANSWERS = {"claim_posture": "agreed_contractually", "obligation_status": "required", "entity_scope": "target",
+                   "claims_supported": "all_supported", "finding_support": "supports", "finding_atomicity": "one_claim",
+                   "context_sufficiency": "enough", "economic_role": "existing_cash_obligation", "statement_relation": "agree",
+                   "coverage_supported": "covered"}
 
-    def __init__(self, adapter, flat=()):
+
+class FakeJev:
+    """Realistic default answers (others: first criterion) with 0.8, unless `flat` names a question to answer
+    ambiguously; `answers` overrides specific questions."""
+
+    def __init__(self, adapter, flat=(), answers=None):
         self.adapter, self.flat = adapter, set(flat)
+        self.answers = {**DEFAULT_ANSWERS, **(answers or {})}
 
     async def system_one(self, *, state, questions, model, response_model):
         self.adapter.physical_attempts += 1
@@ -33,6 +41,9 @@ class FakeJev:
                 answers[qid] = {"type": "noul", "noul": 0.9}
             else:
                 keys = list(q.criteria)
+                if self.answers.get(qid) in keys:
+                    keys.remove(self.answers[qid])
+                    keys.insert(0, self.answers[qid])
                 top = 0.45 if qid in self.flat else 0.8
                 probs = {k: (top if i == 0 else (1 - top) / (len(keys) - 1)) for i, k in enumerate(keys)}
                 if qid in self.flat:
@@ -53,12 +64,12 @@ def make_ctx(evidence, tmp_path, monkeypatch):
     monkeypatch.setattr(jev_module, "jev_credential", lambda p: "k")
     monkeypatch.setattr(jev_module, "CACHE_DIR", tmp_path / "cache")
 
-    def make(arm="agent_plus_jev", flat=()):
-        run = RunStore(f"run-{arm}-{len(flat)}", root=tmp_path, meta={"arm": arm})
+    def make(arm="agent_plus_jev", flat=(), answers=None, name=""):
+        run = RunStore(f"run-{arm}-{len(flat)}-{name}", root=tmp_path, meta={"arm": arm})
         sem = None
         if arm == "agent_plus_jev":
             a = JevAdapter(run_id=run.run_id, new_id=run.new_id)
-            a.client = FakeJev(a, flat)
+            a.client = FakeJev(a, flat, answers)
             sem = Semantics(run, evidence, a)
         return T.RunContext(run=run, evidence=evidence, inputs=INPUTS, arm=arm, semantics=sem)
     return make
@@ -136,7 +147,8 @@ def test_effects_are_validated_and_sensitivity_is_deterministic(make_ctx):
     disp = [{"observation_id": o["observation_id"], "disposition": "used_in_finding"} for o in prop["observations"]]
     call(T.resolve_finding, ctx, {"finding_id": prop["finding_id"], "decision": "accept", "dispositions": disp})
     bad = call(T.propose_effect, ctx, {"finding_ids": [prop["finding_id"]], "mechanism": "noncash_normalization", "target": "x",
-                                       "cash_direction": "outflow", "baseline_treatment": "normalization_only"})
+                                       "cash_direction": "outflow", "baseline_treatment": "normalization_only",
+                                       "model_consequence": "No cash effect."})
     assert bad["status"] == "rejected"
     eff = call(T.propose_effect, ctx, {"finding_ids": [prop["finding_id"]], "mechanism": "settlement_payment_timing",
                                        "target": "supplier settlement loan", "cash_direction": "outflow",
@@ -145,10 +157,11 @@ def test_effects_are_validated_and_sensitivity_is_deterministic(make_ctx):
                                                        "status": "known", "value_cents": 200_000_000, "finding_ids": [prop["finding_id"]]},
                                                       {"name": "paid_since_june_30", "description": "payments since June 30", "status": "unknown"}],
                                        "double_count_guard": "Existing liability; scheduled once", "model_consequence": "Dated outflows"})
-    assert eff["status"] == "validated" and eff["baseline_overlap_warning"]
+    assert eff["status"] == "validated" and eff["checks"]
     stated = call(T.propose_effect, ctx, {"finding_ids": [prop["finding_id"]], "mechanism": "settlement_payment_timing",
                                           "target": "same loan, typed amount", "cash_direction": "outflow",
                                           "baseline_treatment": "already_in_baseline_reclassify_timing",
+                                          "model_consequence": "Up to $2,000,000 of 2024 settlement payments.",
                                           "parameters": [{"name": "remaining_current_year_bucket_cents", "description": "typed",
                                                           "status": "known", "value_cents": 123_456_700, "finding_ids": [prop["finding_id"]]}]})
     with pytest.raises(T.ToolError, match="found in its cited quotes"):  # agent-stated amounts never feed the engine
@@ -156,7 +169,8 @@ def test_effects_are_validated_and_sensitivity_is_deterministic(make_ctx):
     twice = call(T.run_sensitivity, ctx, {"effect_ids": [eff["effect_id"], eff["effect_id"]], "unavailable_opening_cash_cents": 0})
     assert len(twice["buckets"]) == 1  # the same effect is counted once
     wrong = call(T.propose_effect, ctx, {"finding_ids": [prop["finding_id"]], "mechanism": "resolved_obligation", "target": "x",
-                                         "cash_direction": "none", "baseline_treatment": "normalization_only"})
+                                         "cash_direction": "none", "baseline_treatment": "normalization_only",
+                                         "model_consequence": "No future cash effect."})
     assert wrong["status"] == "rejected" and any("does not fit" in m for m in wrong["problems"])
     unknown_share = call(T.run_sensitivity, ctx, {"effect_ids": [eff["effect_id"]]})
     assert all(r["required_net_cash_cents"] is None for r in unknown_share["scenarios"])  # unknown stays unknown
@@ -201,3 +215,152 @@ def test_agent_only_arm_has_no_screen_or_judge(make_ctx):
     assert res["results"] and not any("screen" in r for r in res["results"])
     with pytest.raises(T.ToolError):
         call(T.judge, ctx, {"profile": "claim_interpretation"})
+
+
+# --- step 4c host checks -----------------------------------------------------------------------------
+
+def _accepted_settlement_finding(ctx):
+    dep, _, prop = _settlement_flow(ctx)
+    disp = [{"observation_id": o["observation_id"], "disposition": "used_in_finding"} for o in prop["observations"]]
+    call(T.resolve_finding, ctx, {"finding_id": prop["finding_id"], "decision": "accept", "dispositions": disp})
+    return dep, prop["finding_id"]
+
+
+SETTLEMENT = {"mechanism": "settlement_payment_timing", "target": "the December 28, 2023 supplier settlement loan",
+              "cash_direction": "outflow", "baseline_treatment": "already_in_baseline_reclassify_timing",
+              "model_consequence": "Up to $2,000,000 of 2024 settlement payments."}
+
+
+def test_category_guard_blocks_a_disputed_amount_from_becoming_a_payment(make_ctx):
+    ctx = make_ctx(answers={"obligation_status": "claimed_or_disputed"}, name="disputed")
+    _, fid = _accepted_settlement_finding(ctx)
+    eff = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT})
+    assert eff["status"] == "rejected" and any("Claimed or disputed" in p for p in eff["problems"])
+    # no free-text override: disagreement escalates, the effect is disputed, creates no cash stream, and the run is incomplete
+    again = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT, "override_reasons": {"category_guard": "x" * 40}})
+    assert again["status"] == "rejected"
+    with pytest.raises(T.ToolError, match="Say why"):
+        call(T.escalate_effect, ctx, {"effect_id": eff["effect_id"], "reason": "no"})
+    call(T.escalate_effect, ctx, {"effect_id": eff["effect_id"],
+                                  "reason": "The schedule is an agreed settlement loan; the disputed reading concerns the claim."})
+    assert ctx.run.get("effects", eff["effect_id"]).status == "disputed"
+    with pytest.raises(T.ToolError, match="disputed; list only validated"):
+        call(T.submit_packet, ctx, {"summary": "s", "conclusion": "c", "supported_effect_ids": [eff["effect_id"]]})
+    call(T.submit_packet, ctx, {"summary": "s", "conclusion": "The settlement loan requires future payments."})
+    assert any("disputed effect" in r for r in ctx.incomplete_reasons)
+
+
+def test_unsupported_consequence_is_rejected(make_ctx):
+    ctx = make_ctx(answers={"claims_supported": "some_unsupported"}, name="unsupported")
+    _, fid = _accepted_settlement_finding(ctx)
+    eff = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT})
+    assert eff["status"] == "rejected" and any("Consequence support" in p for p in eff["problems"])
+    failed = next(c["observation_id"] for c in eff["checks"] if c["question_id"] == "claims_supported")
+    reason = "The finding quotes the $2,000,000 2024 row of the settlement schedule."
+    with pytest.raises(T.ToolError, match="keep the model consequence"):
+        call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT, "model_consequence": "Something else entirely.",
+                                     "reply_to_failed_check": {"observation_id": failed, "reason": reason}})
+    ok = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT,
+                                      "reply_to_failed_check": {"observation_id": failed, "reason": reason}})
+    assert ok["status"] == "validated" and ctx.run.get("observations", failed).downstream_disposition == "overridden_by_agent_with_reason"
+
+
+def test_near_even_unsupported_passes_but_is_not_counted_as_used(make_ctx):
+    ctx = make_ctx(flat=("claims_supported",), answers={"claims_supported": "some_unsupported"}, name="neareven")
+    _, fid = _accepted_settlement_finding(ctx)
+    eff = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT})
+    support = [o for o in ctx.run.graph["observations"].values() if o.question_id == "claims_supported"]
+    assert eff["status"] == "validated" and support and all(o.downstream_disposition == "unused" for o in support)
+
+
+def test_reconciliations_gate_submission(make_ctx):
+    ctx = make_ctx(answers={"statement_relation": "conflict"}, name="gates")
+    dep, fid = _accepted_settlement_finding(ctx)
+    hvl = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")
+    second = call(T.propose_finding, ctx, {"dependency_id": dep, "proposition": "The settlement loan balance was $4,802,445.",
+                                           "target": "Synergy CHC Corp. — the December 28, 2023 supplier settlement loan",
+                                           "citations": [{"item_id": hvl["id"], "quote": "The outstanding loan balance at both June 30, 2024 and December 31, 2023 was $4,802,445"}]})
+    disp = [{"observation_id": o["observation_id"], "disposition": "used_in_finding"} for o in second["observations"]]
+    res = call(T.resolve_finding, ctx, {"finding_id": second["finding_id"], "decision": "accept", "dispositions": disp})
+    task = res["relation_checks"][0]["reconciliation_task"]
+    submit = {"summary": "s", "conclusion": "The settlement loan requires future payments."}
+    with pytest.raises(T.ToolError, match="Open reconciliation"):
+        call(T.submit_packet, ctx, submit)
+    call(T.resolve_reconciliation, ctx, {"task_id": task, "note": "Different measures of the same loan: balance vs schedule."})
+    assert call(T.submit_packet, ctx, submit)["locked"]
+
+
+def test_cited_screened_passages_are_recorded_as_used(make_ctx):
+    ctx = make_ctx(name="attrib")
+    _settlement_flow(ctx)
+    cited = {s.section_id for f in ctx.run.graph["findings"].values() if f.status == "accepted" for s in f.spans}
+    screened = [c for c in ctx.run.graph["candidates"].values() if c.screen and c.item_id in cited]
+    if screened:
+        assert all(ctx.run.get("observations", o).downstream_disposition == "used_in_finding"
+                   for c in screened for o in c.screen.observation_ids)
+
+
+def test_submit_refuses_unvalidated_supported_effects(make_ctx):
+    ctx = make_ctx(name="supported")
+    with pytest.raises(T.ToolError, match="eff_999 is unknown"):
+        asyncio.run(T.submit_packet(ctx, {"conclusion": "x", "supported_effect_ids": ["eff_999"]}))
+
+
+def test_sweep_units_are_atomic():
+    from app.agent.sweep import chunks, unit_of, units
+    parts = chunks("a" * 9000 + "\n\n" + "b" * 10)
+    assert all(len(x) <= 8000 for x in parts) and "".join(parts).replace("\n", "").count("a") == 9000
+    text = ("The notes payable are as follows, at the dates shown below:\n\n[t1]\n| | 2024 | 2023 |\n| Knight | 12 | 13 |\n"
+            "| Sanders | 9 | 10 |\n\nShort\n\nThe settlement resulted in a gain reflected as a reduction of cost of sales.")
+    us = units(text)
+    assert [u["kind"] for u in us] == ["paragraph", "table_row", "table_row", "paragraph"]  # "Short" is not a unit
+    assert us[1]["text"] == "| | 2024 | 2023 |\n| Knight | 12 | 13 |"  # each row carries its header
+    assert text[us[2]["start"]:us[2]["end"]] == "| Sanders | 9 | 10 |"
+    assert unit_of(text, text.index("gain"))["kind"] == "paragraph"
+
+
+def test_cited_units_gate_submission(make_ctx):
+    from app.agent.sweep import unit_of
+    from app.domain.investigation import InventoryItem
+    ctx = make_ctx(answers={"coverage_supported": "partly_covered"}, name="cited")
+    _, fid = _accepted_settlement_finding(ctx)
+    span = ctx.run.get("findings", fid).spans[0]
+    text = ctx.evidence.read_section(span.section_id)["text"]
+    u = unit_of(text, span.start)
+    other = next(x for x in __import__("app.agent.sweep", fromlist=["units"]).units(text) if x["start"] != u["start"])
+    for iid, unit in (("inv_001", u), ("inv_002", other)):  # the cited unit and another flagged unit nobody cites
+        ctx.run.put("inventory_loaded", InventoryItem(item_id=iid, section_ids=(span.section_id,), source_id=span.source_id,
+                                                     heading_path=("Note 11",), kind="debt_or_financing_agreement", signal=0.9,
+                                                     unit_kind=unit["kind"], unit_start=unit["start"], unit_end=unit["end"]))
+    submit = {"summary": "s", "conclusion": "The settlement loan requires future payments."}
+    with pytest.raises(T.ToolError, match="cited paragraphs or rows") as err:
+        call(T.submit_packet, ctx, submit)
+    failed = next(o.observation_id for o in ctx.run.graph["observations"].values() if o.question_id == "coverage_supported")
+    assert failed in str(err.value)
+    with pytest.raises(T.ToolError, match="say what"):
+        call(T.submit_packet, ctx, {**submit, "coverage_escalations": [{"observation_id": failed, "missing": "no"}]})
+    missing = "The paragraph also reports the accounting gain, which no finding states."
+    call(T.submit_packet, ctx, {**submit, "coverage_escalations": [{"observation_id": failed, "missing": missing}]})
+    assert not ctx.incomplete_reasons  # an escalation goes to the reviewer's checklist, not straight to INCOMPLETE
+    packet = next(e.payload for e in ctx.run.events if e.kind == "packet_submitted")
+    checklist = packet["reviewer_checklist"]
+    assert [e["kind"] for e in checklist["escalations"]] == ["cited_unit_coverage"]
+    assert [x["item_id"] for x in checklist["uncited_flagged_units"]] == ["inv_002"]
+    assert ctx.run.get("inventory", "inv_001").status == "cited" and ctx.run.get("inventory", "inv_002").status == "uncited"
+
+
+def test_gap_share_and_short_quotes_and_amounts():
+    from app.agent.sweep import units_touching
+    from app.domain.investigation import SemanticObservation
+
+    def cov(p):
+        return SemanticObservation(observation_id="obs_x", call_id="c", profile="inventory_coverage",
+                                   question_id="coverage_supported", question_version="3.8.0", primitive="choice",
+                                   answer=max(p, key=p.get), probabilities=p)
+    assert T._coverage_gap(cov({"partly_covered": 0.55, "not_covered": 0.45, "covered": 0.0}))  # two gap answers: a gap
+    assert not T._coverage_gap(cov({"partly_covered": 0.52, "covered": 0.48}))  # near-even with covered: not blocking
+    text = "Daily Payment Percentage means 25%\n\nThe Minimum Payment is thirty percent of the Total Payment Amount."
+    assert [u["text"] for u in units_touching(text, 0, 10)] == ["Daily Payment Percentage means 25%"]  # short, still checked
+    assert len(units_touching(text, 5, text.index("Minimum") + 3)) == 2  # a quote across paragraphs checks both
+    assert T._cents_in_text(223_598_600, "a gain to us of $2,235,986, and is reflected")  # comma after the amount
+    assert not T._cents_in_text(60_000_000, "$2,600,000")

@@ -1,0 +1,157 @@
+{
+  "snapshot_id": "synergy_20240813",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T05:15:11.873873+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "3.6.0",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "52211221d8758c949c9c4e9f2ea48cf86a0751be7f151addfeb4f5f39b4281b1",
+    "sections": 297,
+    "flagged": 67,
+    "unscreened": 0,
+    "chunks": 305,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 0,
+      "cache_hits": 305,
+      "physical_attempts": 0,
+      "attempt_ceiling": 800,
+      "spent_usd": "0",
+      "spend_cap_usd": "0.10"
+    },
+    "inventory_items": 36
+  },
+  "run_id": "synergy_20240813-agent_plus_jev-20260925T051511Z",
+  "status": "INCOMPLETE_REVIEW",
+  "failure": null,
+  "incomplete_reasons": [
+    "disputed inventory item inv_001 (legal matter or settlement): Court decision pages 2\u201316 contain the magistrate's legal analysis of Synergy's misrepresentation/fraud pleading (Feb 2023). The matter is covered by fnd_045/fnd_046 (the ruling and background) and fnd_002/fnd_003/fnd_005 (Dec 2023 settlement into a $5.45M loan). The pleading analysis itself has no cash consequence; the reviewer should confirm that no page-level finding is needed.",
+    "disputed inventory item inv_004 (debt or financing agreement): The remaining part of s0027 (Knight affiliate owns ~19.6% of shares; distribution agreements with Knight Therapeutics) was not separately found. Balance, rate, budget approval and covenants are covered by fnd_048/fnd_047/fnd_059/fnd_060/fnd_009.",
+    "disputed inventory item inv_007 (debt or financing agreement): MD&A liquidity section: historical Shopify loans (2022\u20132023, repaid) and the Neuragen note history were not separately found. The current obligations, cash and operating cash flow are covered (fnd_017, fnd_052, fnd_053, fnd_054, fnd_012, fnd_029, fnd_016, fnd_003, fnd_007, fnd_022).",
+    "disputed inventory item inv_009 (debt or financing agreement): Related-party section details (Knight Canada distribution-fee percentages, Gowan rent waiver, Sneaky Vaunt royalties) were not separately found. The Kenek note/consulting, BoomBod receivable and Knight loan/debt service are covered (fnd_056, fnd_024, fnd_055, fnd_022, fnd_049, fnd_048).",
+    "disputed inventory item inv_011 (debt or financing agreement): Underwriter indemnification and dealer concession terms were not separately found. The conditional nature of offering proceeds is covered by fnd_057, and the equity-raise covenant by fnd_032.",
+    "disputed inventory item inv_012 (covenant or restriction): Warrant exercise price (110%), expiry tranches and FINRA 180-day lock-up were not separately found. Issuance on closing and cashless exercise are covered by fnd_058; these terms have no cash effect.",
+    "disputed inventory item inv_017 (accounting item from a matter): Inventory-in-transit and components/raw-materials line items were not separately found. The total inventory, Knight pledge and absence of H1 2024 write-offs are covered by fnd_067/fnd_034/fnd_038.",
+    "disputed inventory item inv_019 (debt or financing agreement): Note 9 detail (Kenek prepaid consulting $500k, Knight distribution-fee balances consolidated into the loan, royalties owed $25,905) was not separately found. The Kenek note, BoomBod receivable and Knight consolidation are covered (fnd_024, fnd_055, fnd_022, fnd_048, fnd_064).",
+    "disputed inventory item inv_021 (debt or financing agreement): Note 11 secondary terms (Knight CEO compensation cap, shareholders agreement, Neuragen/2017 tranche history, Sanders $563,092 incentive fee, Hand MD loan repaid) were not separately found. All scheduled 2024 cash obligations, the Knight/Sanders principal schedules, the covenants (no added debt, cross-default, $30M FOCUSfactor trigger, $1.25M EBITDA, equity raise, Shopify payoff) and the fees are covered by fnd_003/005/007/008/009/010/012/013/029/030/032/035/048/059/060/061/062/063/064/065.",
+    "disputed inventory item inv_025 (cash restriction): The Dec 31, 2023 restricted-cash reconciliation (s0226) was not read in full. The June 30, 2024 restricted cash ($100k credit-card collateral) is covered by fnd_020/fnd_021.",
+    "disputed inventory item inv_027 (accounting item from a matter): Dec 31, 2023 AR ($2,106,094 net; related-party AR $0; 2022 bad-debt write-off) was not separately found. The June 30, 2024 AR is covered by fnd_044; the older period has no forward cash effect.",
+    "disputed inventory item inv_030 (debt or financing agreement): Note 9 (annual): Knight 2023 interest expense and the Feb 2024 amendment consolidating loans were not separately found. The consolidated Knight terms are covered by fnd_012/fnd_048/fnd_064.",
+    "disputed inventory item inv_031 (accounting item from a matter): Dec 31, 2023 AP line items (warehousing, payroll taxes, etc.) were not separately found. The 2023 AP-forgiveness gain (fnd_033) and June 30, 2024 AP total (fnd_036) are covered.",
+    "disputed inventory item inv_032 (debt or financing agreement): Annual-report Note 11 sections s0246\u2013s0251 were not read in full. They restate at Dec 31, 2023 the loans covered at June 30, 2024 by the interim Note 11 findings (fnd_003, fnd_012, fnd_029, fnd_030, fnd_032, fnd_035, fnd_059\u2013fnd_065).",
+    "disputed inventory item inv_035 (debt or financing agreement): In the annual subsequent-events note, the Jan 29, 2024 Shopify loan repaid ($0 at June 12) and the March 2024 $1.4M CEO-entity note were not separately found. The May 1 Shopify balance, May 2024 supplier settlement, LODC payment and Knight Sixth Amendment are covered (fnd_069, fnd_043, fnd_026, fnd_012)."
+  ],
+  "finished_at": "2026-09-25T05:29:13.689524+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "read_evidence": 42,
+    "record_dependency": 10,
+    "search_evidence": 9,
+    "judge": 5,
+    "propose_finding": 71,
+    "resolve_finding": 70,
+    "resolve_reconciliation": 9,
+    "propose_effect": 17,
+    "run_sensitivity": 3,
+    "account_for_items": 5,
+    "request_missing_fact": 2,
+    "submit_packet": 2,
+    "StructuredOutput": 1
+  },
+  "turns_used": 89,
+  "max_turns": 120,
+  "claude": {
+    "num_turns": 251,
+    "duration_ms": 840464,
+    "usage": {
+      "input_tokens": 178,
+      "cache_creation_input_tokens": 304265,
+      "cache_read_input_tokens": 12801941,
+      "output_tokens": 95865,
+      "output_tokens_details": {
+        "thinking_tokens": 15767
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 304265,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 880,
+          "cache_read_input_tokens": 299940,
+          "cache_creation_input_tokens": 4325,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 4325
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 6.912520200000002,
+    "structured_output": {
+      "conclusion": "None of the three offers can be supported on the current evidence. Knight's senior secured loan terms say Synergy shall not add any other debt without paying Knight out first (fnd_009). A default on any third-party debt automatically defaults the Knight loan (fnd_010), and a Knight default also defaults the Sanders loan (fnd_030). Any of the three advances therefore depends on Knight's consent, which the evidence does not show. That consent is the pivotal missing fact. Second, $2.6M of 2024 settlement payments remain ($2.0M Atrium, $0.6M supplier). Against ~$2.0M reported cash and the illustrative $200k reserve, Synergy is short $800k\u2013$900k if nothing has been paid since June 30, 2024, $150k\u2013$250k if 25% has been paid, and $0 if half or more has been paid (eff_002, eff_005, sensitivity run). Shopify debt must also be paid off by December 31, 2024 (eff_013). If Knight's consent is documented and most of the 2024 settlement payments are shown paid, the offers can then be compared on operating receipts. Otherwise the requested advance cannot be supported. The link between the VitBest row and the March 2024 supplier settlement is an inference from matching amounts. No lending action was taken. The packet is locked but not complete: 15 inventory items (debt, legal, covenant, cash-restriction and accounting) were escalated and remain open for the reviewer.",
+      "pivotal_unknowns": [
+        "Whether Knight Therapeutics has consented to, or the Sixth Amendment permits, a new advance despite the clause 'Synergy shall not add any other debt without paying out KTI first'",
+        "How much of the 2024 settlement installments ($2.0M Atrium, $0.6M supplier) was paid between June 30 and August 13, 2024, and when the rest is due",
+        "Whether the ~$2.0M cash figure for August 12, 2024 includes the $100k restricted credit-card collateral",
+        "How much Shopify/WebBank debt remains to be paid off by December 31, 2024",
+        "Whether the May 2024 current-supplier settlement is the same obligation as the March 27, 2024 supplier settlement loan"
+      ],
+      "supported_effect_ids": [
+        "eff_002",
+        "eff_005",
+        "eff_008",
+        "eff_011",
+        "eff_013",
+        "eff_014",
+        "eff_015",
+        "eff_016",
+        "eff_017"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 294,
+    "cache_hits": 20,
+    "physical_attempts": 295,
+    "attempt_ceiling": 400,
+    "spent_usd": "0.029254764",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 10,
+    "candidates": 35,
+    "jev_calls": 314,
+    "observations": 752,
+    "findings": 70,
+    "reconciliations": 9,
+    "effects": 17,
+    "inventory": 36
+  },
+  "chain_head": "38ebf9caaaeec4114476be2ba326c9314d14db109368c144b1089ce184734550"
+}

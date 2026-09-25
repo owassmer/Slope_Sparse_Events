@@ -167,8 +167,8 @@
     },
     {
       "path": "research/revision_v2/contracts/agent_config.json",
-      "bytes": 31466,
-      "sha256": "482dc78c0950f053d0f6be8e94792ba89ed7e5893ca68a1d22923086e837f744"
+      "bytes": 33689,
+      "sha256": "d3cf156a31ad743f03bac687de864819b5184b3f3e4e44ab7166169469f40154"
     },
     {
       "path": "research/revision_v2/contracts/barfresh-economic-effects.json",
@@ -217,8 +217,8 @@
     },
     {
       "path": "research/revision_v2/contracts/question_registry.json",
-      "bytes": 27706,
-      "sha256": "a5d631c601aae0294a4599f4154b87808b1fdb1b76d5568b8ca8d38df2666610"
+      "bytes": 34898,
+      "sha256": "21fd294d25c50899f0ede3f054f122f1fc946b0e7652c4ed6304c5607fc41730"
     },
     {
       "path": "research/revision_v2/contracts/synergy-decision-context.json",
@@ -257,8 +257,8 @@
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
-      "bytes": 48439,
-      "sha256": "e02e7bbc38844500bd417130008ce96bc7b559efa879bc4fc8e461da29f26c10"
+      "bytes": 55519,
+      "sha256": "b14595552847797e9dcbf804f7633dbb755befd2ceaa9bd4ceec82ee81321473"
     },
     {
       "path": "research/revision_v2/package_kit.py",

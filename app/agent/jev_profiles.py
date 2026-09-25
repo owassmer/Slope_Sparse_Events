@@ -163,14 +163,12 @@ class Semantics:
         proposed = finding.proposition + (" (the agent presents this as an inference from the cited passages)"
                                           if finding.is_inference else "")
         passage = passages[0] if len(passages) == 1 else passages
-        state = {"target": finding.target, "source": source, "passage": passage, "proposed_finding": proposed}
-        hashes_t = tuple(dict.fromkeys(hashes))
-        # The entity check is host-mandated on every finding (not only when the agent asks for an interpretation).
-        entity_state = {"target": finding.target, "source": source, "passage": passage, "claim": finding.proposition}
-        quality, entity = await asyncio.gather(
-            self._ask("finding_check", profile_questions("finding_check"), state, (finding.finding_id,), hashes_t),
-            self._ask("finding_check", ["entity_scope"], entity_state, (finding.finding_id,), hashes_t))
-        return quality + entity
+        # One request: the finding-quality questions read state.proposed_finding, and the host-mandated entity check
+        # reads state.claim (the same proposition, stated without the inference note), over the same passage.
+        state = {"target": finding.target, "source": source, "passage": passage, "proposed_finding": proposed,
+                 "claim": finding.proposition}
+        return await self._ask("finding_check", [*profile_questions("finding_check"), "entity_scope"], state,
+                               (finding.finding_id,), tuple(dict.fromkeys(hashes)))
 
     async def relate(self, a: AtomicFinding, b: AtomicFinding, proposed_fact: str) -> list[SemanticObservation]:
         """statement_relation between two findings with respect to one proposed fact."""
@@ -181,6 +179,24 @@ class Semantics:
         hashes = tuple(dict.fromkeys(self.evidence.source(f.spans[0].source_id)["sha256"] for f in (a, b)))
         return await self._ask("statement_relation", ["statement_relation"], state,
                                (a.finding_id, b.finding_id), hashes)
+
+    async def support(self, statement: str, cited: list[AtomicFinding], engine_results: list[str],
+                      subject_ids: tuple[str, ...], *, with_quotes: bool = True) -> list[SemanticObservation]:
+        """statement_support: are the factual claims in an agent-written statement supported by what it cites?"""
+        cited_state = [{"finding_id": f.finding_id, "proposition": f.proposition,
+                        **({"quotes": [s.quote for s in f.spans]} if with_quotes else {})} for f in cited]
+        hashes = tuple(dict.fromkeys(self.evidence.source(s.source_id)["sha256"] for f in cited for s in f.spans))
+        return await self._ask("statement_support", ["claims_supported"],
+                               {"statement": statement, "cited_findings": cited_state, "engine_results": engine_results},
+                               subject_ids, hashes)
+
+    async def coverage(self, passage: dict, cited: list[AtomicFinding], subject_ids: tuple[str, ...],
+                       source_hashes: tuple[str, ...]) -> list[SemanticObservation]:
+        """inventory_coverage: do the cited findings (with their quotes) address the matter this flagged passage describes?"""
+        cited_state = [{"finding_id": f.finding_id, "proposition": f.proposition, "quotes": [s.quote for s in f.spans],
+                        **({"is_inference": True} if f.is_inference else {})} for f in cited]
+        return await self._ask("inventory_coverage", ["coverage_supported"],
+                               {"passage": passage, "cited_findings": cited_state}, subject_ids, source_hashes)
 
     async def baseline_overlap(self, effect_description: str, baseline_item: str, subject_ids: tuple[str, ...],
                                source_hashes: tuple[str, ...] = ()) -> list[SemanticObservation]:

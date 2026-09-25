@@ -151,6 +151,31 @@ class ReconciliationTask(Frozen):
     note: str = ""
 
 
+class InventoryItem(Frozen):
+    """A reading-list pointer: one atomic evidence unit (a paragraph or a table row) the host sweep flagged as describing a
+    specific matter. The agent is not required to account for it; at submission the host records whether an accepted
+    finding cites it, and uncited units go to the independent reviewer's checklist. (Runs recorded before the atomic
+    redesign hold section-level items with the older accounting statuses.)"""
+
+    item_id: str
+    section_ids: tuple[str, ...]
+    source_id: str
+    heading_path: tuple[str, ...]
+    kind: str  # matter_kind answer
+    signal: float  # matter_inventory Noul value (a judgment, not a probability of anything)
+    excerpt: str = ""
+    section_excerpts: tuple[str, ...] = ()  # the flagged chunk start for each section, in section_ids order
+    # disputed: a host check failed and the agent escalated it; it stays open for the human reviewer
+    status: Literal["open", "covered", "not_decision_relevant", "disputed", "cited", "uncited"] = "open"
+    finding_ids: tuple[str, ...] = ()
+    duplicate_of: str = ""  # covered as a duplicate of this (covered) item
+    unit_kind: str = ""  # paragraph | table_row (atomic items)
+    unit_start: int = -1  # character offsets of the unit in its section text
+    unit_end: int = -1
+    observation_ids: tuple[str, ...] = ()  # the host checks that decided the status
+    note: str = ""
+
+
 class ParameterRequirement(Frozen):
     """A value the effect needs. Unknown stays unknown; a value carries its basis and citations."""
 
@@ -176,7 +201,11 @@ class EconomicEffectProposal(Frozen):
     linked_effect_ids: tuple[str, ...] = ()
     double_count_guard: str = ""
     model_consequence: str = ""  # plain-language "so what?" for the reviewer
-    status: Literal["proposed", "validated", "rejected"] = "proposed"
+    observation_ids: tuple[str, ...] = ()  # host guard checks (posture/status per finding, statement support)
+    override_reasons: dict[str, str] = Field(default_factory=dict)  # guard -> agent's reply to a failed check
+    # disputed: rejected by the category guard and escalated by the agent; never a cash stream, open for the reviewer
+    status: Literal["proposed", "validated", "rejected", "disputed"] = "proposed"
+    dispute: str = ""
     validation_messages: tuple[str, ...] = ()
 
 
@@ -185,6 +214,7 @@ EventKind = Literal[
     "observation_recorded", "observation_disposition", "finding_proposed", "finding_resolved",
     "reconciliation_opened", "reconciliation_resolved", "effect_proposed", "effect_validated",
     "sensitivity_run", "missing_fact_requested", "packet_submitted", "run_failed",
+    "inventory_loaded", "inventory_accounted", "conclusion_checked", "effect_disputed", "cited_units_checked",
 ]
 
 

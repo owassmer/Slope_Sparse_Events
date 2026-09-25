@@ -1,0 +1,81 @@
+{
+  "snapshot_id": "synergy_20240813",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T03:45:22.028777+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "3.3.0",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "e52ce854ce390e00a66d07a9c70080b3c49ca7eac84198bd3cdef060ad560c36",
+    "sections": 297,
+    "flagged": 67,
+    "unscreened": 0,
+    "chunks": 305,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 0,
+      "cache_hits": 305,
+      "physical_attempts": 0,
+      "attempt_ceiling": 800,
+      "spent_usd": "0",
+      "spend_cap_usd": "0.10"
+    },
+    "inventory_items": 36
+  },
+  "run_id": "synergy_20240813-agent_plus_jev-20260925T034522Z",
+  "status": "INCOMPLETE_REVIEW",
+  "failure": "wall clock budget of 600s reached",
+  "incomplete_reasons": [],
+  "finished_at": "2026-09-25T03:55:33.235415+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "read_evidence": 23,
+    "record_dependency": 8,
+    "search_evidence": 4,
+    "judge": 3,
+    "propose_finding": 34,
+    "resolve_finding": 34,
+    "resolve_reconciliation": 5,
+    "propose_effect": 13,
+    "run_sensitivity": 1,
+    "account_for_items": 5,
+    "request_missing_fact": 3,
+    "submit_packet": 1
+  },
+  "turns_used": 52,
+  "max_turns": 80,
+  "claude": null,
+  "jev": {
+    "provider": "openrouter",
+    "requests": 172,
+    "cache_hits": 4,
+    "physical_attempts": 172,
+    "attempt_ceiling": 250,
+    "spent_usd": "0.015946980",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 8,
+    "candidates": 17,
+    "jev_calls": 176,
+    "observations": 391,
+    "findings": 34,
+    "reconciliations": 5,
+    "effects": 13,
+    "inventory": 36
+  },
+  "chain_head": "c1a32c3082074eda88e17ad50935ca0640ce1f6f2ac85f680fb14ecc96b88e53"
+}

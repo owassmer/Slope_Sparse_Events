@@ -1,0 +1,136 @@
+{
+  "snapshot_id": "synergy_20240813",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T05:55:25.342008+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "3.8.0",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "0fef25ca67782ca5a1eefbc19cca2e274c2bb192d7e7b40b94116e6e3d5050cf",
+    "sections": 297,
+    "flagged": 67,
+    "unscreened": 0,
+    "chunks": 305,
+    "units": 590,
+    "flagged_units": 329,
+    "unscreened_units": 0,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 581,
+      "cache_hits": 314,
+      "physical_attempts": 581,
+      "attempt_ceiling": 1500,
+      "spent_usd": "0.025373292",
+      "spend_cap_usd": "0.10"
+    },
+    "inventory_items": 329
+  },
+  "run_id": "synergy_20240813-agent_plus_jev-20260925T055525Z",
+  "status": "CANDIDATE_READY",
+  "failure": null,
+  "incomplete_reasons": [],
+  "finished_at": "2026-09-25T06:03:28.865811+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "record_dependency": 6,
+    "search_evidence": 8,
+    "read_evidence": 18,
+    "judge": 5,
+    "propose_finding": 34,
+    "resolve_finding": 34,
+    "resolve_reconciliation": 4,
+    "propose_effect": 11,
+    "run_sensitivity": 1,
+    "request_missing_fact": 2,
+    "submit_packet": 2,
+    "StructuredOutput": 1
+  },
+  "turns_used": 57,
+  "max_turns": 120,
+  "claude": {
+    "num_turns": 131,
+    "duration_ms": 481139,
+    "usage": {
+      "input_tokens": 114,
+      "cache_creation_input_tokens": 167160,
+      "cache_read_input_tokens": 4917606,
+      "output_tokens": 50953,
+      "output_tokens_details": {
+        "thinking_tokens": 8517
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 167160,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 840,
+          "cache_read_input_tokens": 164979,
+          "cache_creation_input_tokens": 2181,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 2181
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 3.3403172000000003,
+    "structured_output": {
+      "conclusion": "No advance can be recommended on the admitted evidence. The binding issue is contractual, not cash.\nKnight's amended senior secured loan states that Synergy shall not add any other debt without paying out Knight first. Knight's security covers all current and future assets. WebBank's agreement separately makes encumbering its all-asset collateral without prior written consent an Event of Default. Whether Knight (and WebBank, for a secured advance) has consented is unknown. Until that is resolved, none of the three analytical offers ($100k/6m, $250k/6m, $250k/3m) can be treated as available funding.\nIf consent exists, cash capacity turns on how much of the 2024 settlement payments was paid after June 30, 2024: $2,000,000 on the Atrium settlement loan and $600,000 on the March 27, 2024 supplier settlement loan. Against ~$2.0M reported cash, less $100k assumed unavailable and a $200k illustrative reserve:\n- 0% paid: required net cash of $900,000, more than even the $250k advance.\n- 25% paid: $250,000.\n- 50% or more paid: $0.\nThe requested $250k/6m structure therefore only fits if a substantial share of those payments has already been made. The $250k/3m structure adds larger monthly installments during the same window as the settlement payments and WebBank's first Minimum Payment.\nTwo identifications are inferences from matching amounts and dates, not stated links: the Atrium settlement loan as the $5,450,000 December 28, 2023 former-supplier loan, and the March 27 loan as the VitBest row. The Atrium settlement gain is non-cash and excluded from repayment capacity. No default probability is inferred from the litigation.",
+      "pivotal_unknowns": [
+        "Whether Knight Therapeutics has consented to or waived its restriction on Synergy adding other debt without first paying out Knight, and whether WebBank has consented to any lien on its collateral.",
+        "How much of the $2,000,000 2024 Atrium settlement payment and the $600,000 2024 supplier settlement payment was paid between July 1 and August 13, 2024, and the remaining 2024 installment dates."
+      ],
+      "supported_effect_ids": [
+        "eff_002",
+        "eff_009",
+        "eff_004",
+        "eff_010",
+        "eff_011"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 154,
+    "cache_hits": 14,
+    "physical_attempts": 154,
+    "attempt_ceiling": 400,
+    "spent_usd": "0.013873062",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 6,
+    "candidates": 47,
+    "jev_calls": 168,
+    "observations": 491,
+    "findings": 34,
+    "reconciliations": 4,
+    "effects": 11,
+    "inventory": 329
+  },
+  "chain_head": "abfb73bc8f3fd262ea0067107f0f264b6a5f98f06a1addff6e3d339aac3fdf7c"
+}

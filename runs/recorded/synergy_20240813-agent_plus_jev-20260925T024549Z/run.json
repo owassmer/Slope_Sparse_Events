@@ -1,0 +1,137 @@
+{
+  "snapshot_id": "synergy_20240813",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T02:45:49.728085+00:00",
+  "configuration_version": "3.1.0-design",
+  "registry_version": "3.2.0",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "f6df2f9469e765206580635d2ca17ebee486c0eaef5ddbeaef032a4c17a2f52c",
+    "sections": 297,
+    "flagged": 67,
+    "unscreened": 0,
+    "chunks": 305,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 0,
+      "cache_hits": 305,
+      "physical_attempts": 0,
+      "attempt_ceiling": 800,
+      "spent_usd": "0",
+      "spend_cap_usd": "0.10"
+    },
+    "inventory_items": 36
+  },
+  "run_id": "synergy_20240813-agent_plus_jev-20260925T024549Z",
+  "status": "INCOMPLETE_REVIEW",
+  "failure": null,
+  "incomplete_reasons": [
+    "Jev unavailable (JevBudgetExceeded): Jev attempt ceiling reached (150 physical attempts)"
+  ],
+  "finished_at": "2026-09-25T02:54:20.661230+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "read_evidence": 20,
+    "record_dependency": 6,
+    "search_evidence": 4,
+    "judge": 4,
+    "propose_finding": 27,
+    "resolve_finding": 26,
+    "resolve_reconciliation": 4,
+    "propose_effect": 12,
+    "run_sensitivity": 4,
+    "request_missing_fact": 3,
+    "account_for_items": 9,
+    "submit_packet": 1,
+    "StructuredOutput": 1
+  },
+  "turns_used": 52,
+  "max_turns": 80,
+  "claude": {
+    "num_turns": 126,
+    "duration_ms": 509389,
+    "usage": {
+      "input_tokens": 104,
+      "cache_creation_input_tokens": 173680,
+      "cache_read_input_tokens": 5898473,
+      "output_tokens": 57505,
+      "output_tokens_details": {
+        "thinking_tokens": 8668
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 173680,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 1280,
+          "cache_read_input_tokens": 173362,
+          "cache_creation_input_tokens": 318,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 318
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 3.7196506000000005,
+    "structured_output": {
+      "conclusion": "INCOMPLETE (runtime limit, not an adverse borrower finding): I could not lock the packet. The Jev attempt ceiling was reached, so the host could not check 13 inventory items. Each has accepted supporting findings: inv_004, 007, 008, 009, 013, 019, 021, 022, 024, 025, 030, 032, 033. I did not reclassify them as not decision-relevant to get past the gate. Substantive result on the admitted evidence: no candidate advance can be supported. The binding issue is contractual, not the lawsuit. The Knight amended loan says \"Synergy shall not add any other debt without paying out KTI first\" (fnd_008). It is senior secured against all assets, including cash (fnd_009), and it automatically defaults if Synergy defaults on any third-party debt (fnd_010). Unless Knight consents, the $100k/6m, $250k/6m and $250k/3m structures are all additional debt under that covenant. The Atrium (HVL) litigation was settled in December 2023 into a $5.45M loan payable (fnd_003), with $2.0M of required payments in 2024 (fnd_004, eff_003). The March 27, 2024 supplier settlement loan requires $600k in 2024 (fnd_012, eff_004). The LODC and Valenti settlements are fully paid (eff_008). The Shopify debt ($333,454 + $93,736 at June 30) must be repaid by Dec 31, 2024 (eff_010). Against about $2.0M of reported cash and an illustrative $200k reserve, the sensitivity gives a net requirement from operations of $800k if none of the $2.6M combined 2024 settlement payments has been paid since the schedule date. It is $900k if the $100k restricted collateral is unavailable, $150k at 25% paid, and $0 at 35% or more paid. All of this is before Slope payments ($17,667, $44,167 or $85,833 per month), the Shopify payoff, and Knight/Sanders interest. Three links are inferences from matching amounts: the Note 11 settlement loans to Atrium and VitBest, and the funding of the Aug 12 cash mainly by $1.72M of CEO-entity note draws. If Knight consent is documented, the paid share and due dates of the settlement installments decide the choice among structures: the 3-month $250k offer has the highest collision risk, and the $100k offer the lowest, though it finances less inventory.",
+      "pivotal_unknowns": [
+        "Whether Knight Therapeutics (Barbados) Inc. has consented in writing to, or its agreement permits, a new third-party working-capital advance without paying out the Knight loan (fact_001)",
+        "Amount paid since June 30, 2024 and remaining due dates of the $2,000,000 2024 Atrium settlement installment and the $600,000 2024 March 27, 2024 supplier settlement installment (fact_002)",
+        "Repayment terms of the CEO-controlled entity short-term note that funded about $1.72M of July-August 2024 cash, and whether the ~$2.0M Aug 12 cash includes the $100,000 restricted collateral (fact_003)"
+      ],
+      "supported_effect_ids": [
+        "eff_003",
+        "eff_004",
+        "eff_008",
+        "eff_009",
+        "eff_010"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 148,
+    "cache_hits": 14,
+    "physical_attempts": 148,
+    "attempt_ceiling": 150,
+    "spent_usd": "0.012895722",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 6,
+    "candidates": 33,
+    "jev_calls": 162,
+    "observations": 386,
+    "findings": 27,
+    "reconciliations": 4,
+    "effects": 12,
+    "inventory": 36
+  },
+  "chain_head": "84cf47aec86efbf148559a7fa0824f7c996d3c6085a26def295ca2bbfb5db067"
+}
