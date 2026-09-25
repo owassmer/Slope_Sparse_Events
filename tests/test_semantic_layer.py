@@ -9,7 +9,7 @@ import pytest
 
 import app.agent.jev as jev_module
 from app.agent.jev import JevAdapter, JevBudgetExceeded
-from app.agent.jev_profiles import Semantics
+from app.agent.jev_profiles import Semantics, is_ambiguous, route
 from app.agent.run_store import LockedRunError, RunStore
 from app.config import CONTRACTS, allowed_tools, question_registry
 from app.domain.investigation import (
@@ -17,6 +17,7 @@ from app.domain.investigation import (
     DecisionDependency,
     EconomicEffectProposal,
     EvidenceCandidate,
+    SemanticObservation,
     validate_effect,
 )
 from app.evidence import snapshot
@@ -27,12 +28,20 @@ SNAP = "synergy_20240813"
 
 
 class FakeJevClient:
-    """Answers every question with a fixed, valid response and records each state it received."""
+    """Answers every question with a fixed, valid response and records each state it received.
 
-    def __init__(self) -> None:
+    Counts one physical attempt per request, as the real client's HTTP request hook does."""
+
+    def __init__(self, adapter=None, fail_on: str | None = None) -> None:
         self.states: list[dict] = []
+        self.adapter, self.fail_on = adapter, fail_on
 
     async def system_one(self, *, state, questions, model, response_model):
+        if self.adapter is not None:
+            self.adapter.physical_attempts += 1
+        if self.fail_on == "first" and len(self.states) == 0 and not getattr(self, "failed", False):
+            self.failed = True
+            raise RuntimeError("provider unavailable")
         self.states.append(state)
         answers = {}
         for qid, q in questions.items():
@@ -52,8 +61,9 @@ def adapter(monkeypatch, tmp_path):
     monkeypatch.setattr(jev_module, "CACHE_DIR", tmp_path / "cache")
 
     def make(run: RunStore | None = None, **kw) -> JevAdapter:
+        fail_on = kw.pop("fail_on", None)
         a = JevAdapter(run_id=run.run_id if run else "t", new_id=run.new_id if run else None, **kw)
-        a.client = FakeJevClient()
+        a.client = FakeJevClient(a, fail_on)
         return a
     return make
 
@@ -91,6 +101,7 @@ def test_jev_state_is_built_only_from_admissible_run_objects(adapter, evidence, 
                             proposition="The Company reports a schedule of future settlement loan payments.",
                             target="Synergy CHC Corp.", spans=(span,))
     asyncio.run(sem.check_finding(finding))
+    asyncio.run(sem.relate(finding, finding, "The Company reports future settlement loan payments."))
 
     corpus = " ".join(evidence.read_section(s["section_id"])["text"]
                       for s in [evidence.read(c.item_id) for c in cands] if "section_id" in s or "text" in s)
@@ -106,6 +117,32 @@ def test_jev_state_is_built_only_from_admissible_run_objects(adapter, evidence, 
     assert all(o.call_id in run.graph["jev_calls"] for o in run.graph["observations"].values())
 
 
+def test_a_failed_screen_never_hides_candidates(adapter, evidence, tmp_path):
+    run = RunStore("r3", root=tmp_path, meta={"arm": "agent_plus_jev"})
+    hits = evidence.search("required to make future payments settlement", limit=4)
+    sem = Semantics(run, evidence, adapter(run, fail_on="first"))
+    dep = run.put("dependency_recorded", DecisionDependency(dependency_id=run.new_id("dep"), question="q", affects="a"))
+    cands = [EvidenceCandidate(candidate_id=run.new_id("cand"), dependency_id=dep.dependency_id, search_id="search_001",
+                               query="q", rank=i, item_id=h["id"], kind=h["kind"], source_id=h["source_id"],
+                               heading_path=tuple(h["heading_path"]), snippet=h["snippet"]) for i, h in enumerate(hits)]
+    out = asyncio.run(sem.screen(dep, cands))
+    assert len(out) == len(cands)
+    failed = [c for c in out if c.screen.route == "unscreened"]
+    assert len(failed) == 1 and "provider unavailable" in failed[0].screen.error
+    assert sem.last_screen_errors and len(run.graph["candidates"]) == len(cands)
+    assert route({"gap_relevance": 0.9, "usable_evidence": 0.9}) == "unscreened"  # missing signal is not context-only
+    assert route({"gap_relevance": 0.9, "usable_evidence": 0.9, "premise_conflict": 0.1,
+                  "instruction_like_text": 0.9}) == "instruction_flagged"
+
+
+def test_flat_judgments_are_flagged_ambiguous():
+    flat = SemanticObservation(observation_id="o", call_id="c", profile="claim_interpretation", question_id="entity_scope",
+                               question_version="3.0.1", primitive="choice", answer="target",
+                               probabilities={"target": 0.53, "different": 0.38, "unknown": 0.09})
+    clear = flat.model_copy(update={"probabilities": {"target": 0.9, "different": 0.07, "unknown": 0.03}})
+    assert is_ambiguous(flat) and not is_ambiguous(clear)
+
+
 def test_spans_must_be_verbatim(evidence):
     hit = next(h for h in evidence.search("paid in full the settlement L.O.D.C.") if h["kind"] == "section")
     span = locate(evidence, hit["id"], "the Company paid in full the settlement to L.O.D.C Group, Ltd.")
@@ -116,12 +153,19 @@ def test_spans_must_be_verbatim(evidence):
         verify(evidence, span.model_copy(update={"start": span.start + 1}))
 
 
-def test_jev_output_cannot_create_cash():
-    findings = {"f1": AtomicFinding(finding_id="f1", dependency_id="d", proposition="p", target="t", spans=(), status="proposed")}
-    gain = EconomicEffectProposal(effect_id="e1", finding_ids=("f1",), mechanism="noncash_normalization", target="FY2023 cost of sales",
-                                  cash_direction="outflow", baseline_treatment="normalization_only")
-    problems = validate_effect(gain, findings)
+def test_jev_output_cannot_create_cash(evidence):
+    with pytest.raises(ValueError):  # a finding must rest on at least one verbatim span
+        AtomicFinding(finding_id="f0", dependency_id="d", proposition="p", target="t", spans=())
+    hit = next(h for h in evidence.search("paid in full the settlement L.O.D.C.") if h["kind"] == "section")
+    span = locate(evidence, hit["id"], "the Company paid in full the settlement to L.O.D.C Group, Ltd.")
+    findings = {"f1": AtomicFinding(finding_id="f1", dependency_id="d", proposition="p", target="t", spans=(span,)),
+                "f2": AtomicFinding(finding_id="f2", dependency_id="d", proposition="p", target="t", status="accepted",
+                                    spans=(span.model_copy(update={"start": span.start + 3}),))}
+    gain = EconomicEffectProposal(effect_id="e1", finding_ids=("f1", "f2"), mechanism="noncash_normalization",
+                                  target="FY2023 cost of sales", cash_direction="outflow", baseline_treatment="normalization_only")
+    problems = validate_effect(gain, findings, verify_span=lambda sp: verify(evidence, sp))
     assert any("not accepted" in p for p in problems) and any("cannot create a cash" in p for p in problems)
+    assert any("does not match its quote" in p for p in problems)
     # The semantic modules have no path to the cash ledger.
     for mod in ("jev.py", "jev_profiles.py"):
         src = (Path(jev_module.__file__).parent / mod).read_text()
@@ -133,9 +177,20 @@ def test_event_log_is_hash_chained_replayable_and_lockable(tmp_path):
     run.put("dependency_recorded", DecisionDependency(dependency_id=run.new_id("dep"), question="q", affects="a"))
     replay = RunStore("r2", root=tmp_path)
     assert replay.head == run.head and "dep_001" in replay.graph["dependencies"]
+    run.append("search", object_ids=("search_007",), payload={"query": "q"})
+    assert RunStore("r2", root=tmp_path).new_id("search") == "search_008"  # log-only IDs survive replay
+    stale = RunStore("r2", root=tmp_path)
     run.lock({"summary": "test"})
     with pytest.raises(LockedRunError):
         run.put("dependency_recorded", DecisionDependency(dependency_id="dep_002", question="q", affects="a"))
+    with pytest.raises(LockedRunError):  # another instance locked it
+        stale.append("search", payload={})
+    events = tmp_path / "r2" / "events.jsonl"
+    full = events.read_text()
+    events.write_text("\n".join(full.splitlines()[:-1]) + "\n")  # drop the final event of a locked run
+    with pytest.raises(ValueError, match="does not match its packet"):
+        RunStore("r2", root=tmp_path)
+    events.write_text(full)
     lines = (tmp_path / "r2" / "events.jsonl").read_text().splitlines()
     lines[1] = lines[1].replace('"question":"q"', '"question":"tampered"')
     (tmp_path / "r2" / "events.jsonl").write_text("\n".join(lines) + "\n")
@@ -149,10 +204,12 @@ def test_cache_and_attempt_accounting(adapter):
     call1, _ = asyncio.run(a.judge(profile="claim_interpretation", question_ids=["claim_posture"], state=state))
     call2, _ = asyncio.run(a.judge(profile="claim_interpretation", question_ids=["claim_posture"], state=state))
     assert (call1.cache_hit, call2.cache_hit) == (False, True) and a.requests == 1
-    assert call1.attempts_reserved == 1 + jev_module.MAX_RETRIES and call2.attempts_reserved == 0
+    assert call1.attempts_used == 1 and call2.attempts_used == 0  # actual attempts, not the worst-case reservation
     b = adapter(use_cache=False)
-    b.max_attempts = 5
-    asyncio.run(b.judge(profile="claim_interpretation", question_ids=["claim_posture"], state=state))
+    b.max_attempts = 4  # worst case 3 per request; unused reservations are released
+    for _ in range(2):
+        asyncio.run(b.judge(profile="claim_interpretation", question_ids=["claim_posture"], state=state))
+    assert b.physical_attempts == 2 and b.inflight_attempts == 0
     with pytest.raises(JevBudgetExceeded):
         asyncio.run(b.judge(profile="claim_interpretation", question_ids=["claim_posture"], state=state))
 

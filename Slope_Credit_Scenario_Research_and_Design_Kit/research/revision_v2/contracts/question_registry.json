@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.0.0",
+  "registry_version": "3.0.1",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -82,7 +82,7 @@
       "returned_model",
       "state_sha256",
       "source_content_hashes",
-      "attempts_reserved",
+      "attempts_used",
       "usage",
       "raw_response",
       "created_at",
@@ -286,7 +286,7 @@
     },
     {
       "id": "cash_access",
-      "version": "3.0.0",
+      "version": "3.0.1",
       "profile": "claim_interpretation",
       "primitive": "choice",
       "question": "What does the passage say about access to this specific cash balance, account or asset?",
@@ -299,20 +299,20 @@
         "subject"
       ],
       "prompt": {
-        "instructions": "What does the passage say about access to this specific cash balance, account or asset? Judge only state.subject (the identified cash pool). A request to freeze funds is not a freeze; a borrowing limit is not a restriction on cash already owned. Whether the condition still applies at the review date is decided in code.",
+        "instructions": "What does the passage say about access to this specific cash balance, account or asset? Judge only state.subject (the identified cash pool). A request to freeze funds is not a freeze; a borrowing limit is not a restriction on cash already owned. Whether the condition still applies at the review date is decided in code. A statement that cash exists, or its amount, says nothing about whether it is restricted: choose unknown unless an access condition is stated.",
         "criteria": {
           "access_prohibited": "An imposed prohibition on access to the whole identified pool.",
           "access_limited": "Imposed partial access, permitted uses, a cap, or a stated release condition.",
-          "released_or_available": "The restriction is reported removed or satisfied, or the pool is reported freely available.",
+          "restriction_released": "A previously imposed restriction on the identified pool is reported removed or satisfied, rather than requested or expected to be released.",
           "restriction_requested_only": "A restriction is only requested, proposed or anticipated, not imposed.",
           "unknown": "Cannot tell: no single access condition is established for the identified pool."
         }
       },
-      "application": "Restricted cash is not lost cash, and unknown access is not zero cash."
+      "application": "Restricted cash is not lost cash, unknown access is not zero cash, and reported cash is not proof of availability."
     },
     {
       "id": "activity_status",
-      "version": "3.0.0",
+      "version": "3.0.1",
       "profile": "claim_interpretation",
       "primitive": "choice",
       "question": "What does the passage say about this specific operating activity?",
@@ -330,7 +330,7 @@
           "unavailable": "The activity is reported stopped or prevented entirely.",
           "limited": "The activity operates only within a stated product, capacity, permission or other constraint.",
           "planned_or_conditional": "Availability depends on a future start, approval, qualification or ramp; operation is not reported as achieved.",
-          "operating_or_restored": "The activity is reported operating or resumed at the stated scope.",
+          "operating_or_restored": "The activity is reported operating or resumed at the stated scope, without an unresolved operating constraint stated in this claim.",
           "unknown": "Cannot tell: no single operating state, several activities combined, or scope missing."
         }
       },

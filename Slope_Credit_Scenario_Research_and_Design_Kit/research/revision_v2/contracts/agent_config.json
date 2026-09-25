@@ -203,7 +203,7 @@
       "max_repair_cycles": 1
     }
   },
-  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Select the next research action adaptively. Establish the relevant repayment mechanism, translate supported facts into explicit scenario patches, and compare the permitted offers using the financial engine. Jev supplies focused evidence judgments; you reconcile them and reason about the business. Code computes dates, money, schedules and cash flows. Finish with a concrete recommended action or the exact unresolved input that prevents choosing one. Do not claim to send an offer, change an account, or know Slope's private policy.",
+  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, and propose atomic findings that quote the evidence exactly. Jev screens retrieved evidence and checks narrow semantic claims; you reconcile its judgments with the evidence and may override one with a stated reason. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer, change an account, or know Slope's private policy.",
   "invariants": [
     "Start with the same baseline profile, existing obligations, decision date and candidate financing request for the before/after comparison.",
     "Keep borrower cash flows, contractual loan payments, scenario collections and funding-facility cash flows distinct.",
@@ -460,7 +460,7 @@
       ],
       "expose_jev_registry": false,
       "require_typesafe_credential": false,
-      "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Select the next research action adaptively. Establish the relevant repayment mechanism, make focused evidence judgments yourself, reconcile contradictions, translate supported facts into explicit scenario patches, and compare permitted offers using the financial engine. Code computes dates, money, schedules and cash flows. Finish with a concrete recommended action or the exact unresolved input that prevents choosing one. Do not claim to send an offer, change an account, or know Slope private policy.",
+      "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, make focused evidence judgments yourself, reconcile contradictions, and propose atomic findings that quote the evidence exactly. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer, change an account, or know Slope private policy.",
       "evaluation_metadata_visibility": "Host scorer only; do not reveal arm labels or expected findings to the blind reviewer.",
       "remove_host_semantic_checks": [
         "candidate_screen on search_evidence",

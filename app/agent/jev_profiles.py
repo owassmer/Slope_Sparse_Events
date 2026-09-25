@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import re
 
-from app.agent.jev import JevAdapter
+from app.agent.jev import NOUL_THRESHOLD, JevAdapter
 from app.agent.run_store import RunStore
 from app.config import question_registry
 from app.domain.investigation import (
@@ -27,7 +27,11 @@ from app.domain.investigation import (
 from app.evidence.store import EvidenceStore
 
 # Code-owned routing thresholds on Noul values (checked against evals/jev_semantic_cases.json).
-RELEVANT, USABLE, CONFLICT = 0.5, 0.5, 0.5
+RELEVANT = USABLE = CONFLICT = INSTRUCTION = NOUL_THRESHOLD
+# A Choice answer whose top two options are closer than this is ambiguous: read more context or
+# reconcile; never accept it as settled. (Judgment ambiguity, not an event probability.)
+AMBIGUITY_MARGIN = 0.25
+ROUTE_ORDER = {"direct_evidence": 0, "conflict": 1, "unscreened": 2, "context_only": 3, "instruction_flagged": 4}
 PASSAGE_CHARS = 12_000
 STATUS_QUESTION = {"obligation": "obligation_status", "cash_pool": "cash_access", "activity": "activity_status",
                    "offset": "offset_status"}
@@ -47,12 +51,25 @@ def excerpt(text: str, anchor: str | None = None, limit: int = PASSAGE_CHARS) ->
 
 
 def route(signals: dict[str, float]) -> str:
-    relevant = signals.get("gap_relevance", 0) >= RELEVANT
-    if relevant and signals.get("premise_conflict", 0) >= CONFLICT:
+    """Order-only routing. A missing signal is unscreened, never silently context-only."""
+    if any(signals.get(q) is None for q in ("gap_relevance", "usable_evidence", "premise_conflict")):
+        return "unscreened"
+    if signals.get("instruction_like_text", 0) >= INSTRUCTION:
+        return "instruction_flagged"  # still shown, ranked last
+    relevant = signals["gap_relevance"] >= RELEVANT
+    if relevant and signals["premise_conflict"] >= CONFLICT:
         return "conflict"
-    if relevant and signals.get("usable_evidence", 0) >= USABLE:
+    if relevant and signals["usable_evidence"] >= USABLE:
         return "direct_evidence"
     return "context_only"
+
+
+def is_ambiguous(observation: SemanticObservation) -> bool:
+    """True when a Choice distribution is too flat to treat as settled (or an answer is missing)."""
+    if observation.primitive == "noul":
+        return observation.noul_value is None or abs(observation.noul_value - NOUL_THRESHOLD) < AMBIGUITY_MARGIN / 2
+    probs = sorted((observation.probabilities or {}).values(), reverse=True)
+    return len(probs) < 2 or probs[0] - probs[1] < AMBIGUITY_MARGIN
 
 
 class Semantics:
@@ -60,6 +77,7 @@ class Semantics:
 
     def __init__(self, run: RunStore, evidence: EvidenceStore, jev: JevAdapter) -> None:
         self.run, self.evidence, self.jev = run, evidence, jev
+        self.last_screen_errors: list[str] = []
 
     # --- state builders (admissible objects only) ---------------------------------------------
 
@@ -97,25 +115,32 @@ class Semantics:
                       "could_change": dependency.affects}
 
         async def one(c: EvidenceCandidate) -> EvidenceCandidate:
-            hit = re.search(r"\[([^\]]+)\]", c.snippet)  # FTS highlights the first matched term
-            passage, sha = self._passage(c.item_id, anchor=hit.group(1) if hit else None)
-            obs = await self._ask("candidate_screen", profile_questions("candidate_screen"),
-                                  {"unanswered_question": unanswered, "passage": passage},
-                                  (dependency.dependency_id, c.candidate_id, c.item_id), (sha,))
-            signals = {o.question_id: o.noul_value for o in obs if o.noul_value is not None}
-            screened = c.model_copy(update={"screen": CandidateScreen(
-                route=route(signals), observation_ids=tuple(o.observation_id for o in obs), signals=signals)})
+            try:
+                hit = re.search(r"\[([^\]]+)\]", c.snippet)  # FTS highlights the first matched term
+                passage, sha = self._passage(c.item_id, anchor=hit.group(1) if hit else None)
+                obs = await self._ask("candidate_screen", profile_questions("candidate_screen"),
+                                      {"unanswered_question": unanswered, "passage": passage},
+                                      (dependency.dependency_id, c.candidate_id, c.item_id), (sha,))
+                signals = {o.question_id: o.noul_value for o in obs if o.noul_value is not None}
+                screen = CandidateScreen(route=route(signals), observation_ids=tuple(o.observation_id for o in obs),
+                                         signals=signals)
+            except Exception as e:  # a failed screen never hides the candidate
+                screen = CandidateScreen(route="unscreened", error=f"{type(e).__name__}: {e}"[:300])
+            screened = c.model_copy(update={"screen": screen})
             self.run.put("candidate_screened", screened)
             return screened
 
         screened = await asyncio.gather(*(one(c) for c in candidates))
-        order = {"direct_evidence": 0, "conflict": 1, "context_only": 2}
-        return sorted(screened, key=lambda c: (order[c.screen.route], c.rank))
+        self.last_screen_errors = [c.screen.error for c in screened if c.screen.error]
+        return sorted(screened, key=lambda c: (ROUTE_ORDER[c.screen.route], c.rank))
 
     async def interpret(self, *, item_id: str, claim: str, target: str, subject_kind: str = "other",
-                        subject: str = "") -> list[SemanticObservation]:
-        """claim_interpretation: entity scope and posture, plus the status question for the claim's subject."""
-        passage, sha = self._passage(item_id, anchor=claim[:40])
+                        subject: str = "", anchor_quote: str | None = None) -> list[SemanticObservation]:
+        """claim_interpretation: entity scope and posture, plus the status question for the claim's subject.
+
+        `anchor_quote` (verbatim text the claim rests on) keeps a long section's excerpt on the right text.
+        """
+        passage, sha = self._passage(item_id, anchor=anchor_quote)
         questions = ["entity_scope", "claim_posture"]
         state = {"target": target, "source": self._source(self.evidence.read(item_id)["source"]["source_id"]),
                  "passage": passage, "claim": claim}
@@ -149,9 +174,9 @@ class Semantics:
         return await self._ask("statement_relation", ["statement_relation"], state,
                                (a.finding_id, b.finding_id), hashes)
 
-    async def baseline_overlap(self, effect_description: str, baseline_item: str,
-                               subject_ids: tuple[str, ...]) -> list[SemanticObservation]:
+    async def baseline_overlap(self, effect_description: str, baseline_item: str, subject_ids: tuple[str, ...],
+                               source_hashes: tuple[str, ...] = ()) -> list[SemanticObservation]:
         """Warning signal only; obligation IDs and host validation decide double counting."""
         return await self._ask("statement_relation", ["baseline_overlap"],
                                {"effect_description": effect_description, "baseline_item": baseline_item},
-                               subject_ids, ())
+                               subject_ids, source_hashes)

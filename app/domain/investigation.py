@@ -13,14 +13,17 @@ Runtime objects cite snapshot spans and finding IDs, never the builder's facts r
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.domain.values import EvidenceValue
+
 Disposition = Literal["used_in_finding", "caused_more_context_read", "caused_research_redirect", "flagged_conflict",
                       "challenged_agent_draft", "overridden_by_agent_with_reason", "unused"]
 SubjectKind = Literal["obligation", "cash_pool", "activity", "offset", "other"]
-ScreenRoute = Literal["direct_evidence", "conflict", "context_only", "unscreened"]
+ScreenRoute = Literal["direct_evidence", "conflict", "unscreened", "context_only", "instruction_flagged"]
 Mechanism = Literal[
     "settlement_payment_timing",  # existing liability assigned to dated outflows
     "noncash_normalization",  # historical earnings adjustment; never a cash stream
@@ -58,9 +61,10 @@ class DecisionDependency(Frozen):
 
 
 class CandidateScreen(Frozen):
-    route: ScreenRoute
+    route: ScreenRoute  # "unscreened": screening failed or a signal is missing; the candidate is still shown
     observation_ids: tuple[str, ...] = ()
     signals: dict[str, float] = Field(default_factory=dict)  # Noul values by question id (not probabilities of truth)
+    error: str = ""
 
 
 class EvidenceCandidate(Frozen):
@@ -90,7 +94,7 @@ class JevCallRecord(Frozen):
     returned_model: str | None
     state_sha256: str
     source_content_hashes: tuple[str, ...]
-    attempts_reserved: int
+    attempts_used: int  # physical HTTP attempts observed for this request (0 on a cache hit)
     usage: dict[str, Any] | None
     raw_response: dict[str, Any]
     created_at: str
@@ -121,7 +125,7 @@ class AtomicFinding(Frozen):
     subject_kind: SubjectKind = "other"
     subject: str = ""
     is_inference: bool = False  # the agent's own linkage of cited premises, labelled as such
-    spans: tuple[SourceSpan, ...]
+    spans: tuple[SourceSpan, ...] = Field(min_length=1)  # every finding rests on verbatim snapshot text
     observation_ids: tuple[str, ...] = ()
     status: Literal["proposed", "accepted", "rejected"] = "proposed"
     resolution_note: str = ""
@@ -136,9 +140,13 @@ class ReconciliationTask(Frozen):
 
 
 class ParameterRequirement(Frozen):
+    """A value the effect needs. Unknown stays unknown; a value carries its basis and citations."""
+
     name: str
     description: str
-    status: Literal["known", "unknown", "assumption_required"] = "unknown"
+    status: Literal["known", "range", "unknown", "assumption_required"] = "unknown"
+    value: EvidenceValue | None = None  # spec §5: amount or supported range, with provenance
+    finding_ids: tuple[str, ...] = ()  # findings the value is taken from
     resolves_via: str = ""
 
 
@@ -149,7 +157,7 @@ class EconomicEffectProposal(Frozen):
     finding_ids: tuple[str, ...]
     mechanism: Mechanism
     target: str  # obligation, stream or activity the effect applies to
-    cash_direction: Literal["inflow", "outflow", "none"]
+    cash_direction: Literal["inflow", "outflow", "none", "unknown"]
     baseline_treatment: Literal["already_in_baseline_reclassify_timing", "new_to_baseline",
                                 "remove_from_baseline", "normalization_only"]
     parameters: tuple[ParameterRequirement, ...] = ()
@@ -178,11 +186,13 @@ class InvestigationEvent(Frozen):
     hash: str
 
 
-def validate_effect(effect: EconomicEffectProposal, findings: dict[str, AtomicFinding]) -> list[str]:
+def validate_effect(effect: EconomicEffectProposal, findings: dict[str, AtomicFinding],
+                    verify_span: Callable[[SourceSpan], None] | None = None) -> list[str]:
     """Host structural validation of an effect proposal. Returns problems (empty when valid).
 
-    Semantic observations are not consulted here: only agent-accepted findings can support an effect,
-    and cash-free mechanisms can never carry a cash direction.
+    Semantic observations are not consulted here: only agent-accepted findings resting on verbatim
+    snapshot spans can support an effect, and cash-free mechanisms can never carry a cash direction.
+    `verify_span` (app.evidence.spans.verify bound to the run's snapshot) re-checks each cited span.
     """
     problems = []
     if not effect.finding_ids:
@@ -193,6 +203,17 @@ def validate_effect(effect: EconomicEffectProposal, findings: dict[str, AtomicFi
             problems.append(f"Unknown finding {fid}")
         elif f.status != "accepted":
             problems.append(f"Finding {fid} is {f.status}, not accepted")
+        elif not f.spans:
+            problems.append(f"Finding {fid} cites no source span")
+        elif verify_span is not None:
+            for span in f.spans:
+                try:
+                    verify_span(span)
+                except ValueError as e:
+                    problems.append(f"Finding {fid}: {e}")
+    for p in effect.parameters:
+        if p.status in ("known", "range") and p.value is None:
+            problems.append(f"Parameter {p.name} is {p.status} but carries no value")
     if effect.mechanism in CASH_FREE_MECHANISMS and effect.cash_direction != "none":
         problems.append(f"{effect.mechanism} cannot create a cash {effect.cash_direction}")
     if effect.mechanism == "noncash_normalization" and effect.baseline_treatment != "normalization_only":

@@ -5,10 +5,12 @@ probabilities and confidence describe its own judgment; they are never event pro
 dollar adjustments. The host, not the agent, builds the state and chooses the questions (see
 jev_profiles.py).
 
-Budget: the per-run ceiling counts physical attempts including SDK retries. The retry policy is set
-explicitly and each request reserves 1 + max_retries attempts before dispatch, plus a conservative
-input-cost reservation against the spend cap. Cache: identical (model, registry version, questions,
-state) requests are answered from var/jev_cache and marked as cache hits.
+Budget: the per-run ceiling counts physical HTTP attempts, including SDK retries, observed by a
+request hook on the client. Before dispatch a request needs headroom for its worst case (1 + max_retries
+attempts, and a conservative input-cost estimate); afterwards only what it actually used is kept, and
+spend is reconciled against the provider-reported cost when present. Cache: identical requests (model,
+built question text and criteria, state) are answered from var/jev_cache, marked as cache hits and keep
+their original timestamp.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+import httpx2
 from pydantic import BaseModel, ConfigDict
 from typesafe_sdk import AsyncTypeSafeClient, Choice, Noul, RetryPolicy
 
@@ -37,6 +40,7 @@ from app.domain.investigation import JevCallRecord, SemanticObservation
 
 EXPECTED_BUILD_MARKER = "jev-1.13"
 MAX_RETRIES = 2
+NOUL_THRESHOLD = 0.5  # code-owned; also used for screen routing (checked against evals/)
 CACHE_DIR = VAR / "jev_cache"
 
 
@@ -75,62 +79,82 @@ class JevAdapter:
                  new_id: Callable[[str], str] | None = None, use_cache: bool = True) -> None:
         cfg = agent_config()
         self.provider = provider or jev_provider()
-        self.client = AsyncTypeSafeClient(api_key=jev_credential(self.provider), base_url=self.provider.base_url,
-                                          retry=RetryPolicy(max_retries=MAX_RETRIES), timeout=30.0)
+        self.physical_attempts = 0
+
+        async def count_attempt(_request) -> None:
+            self.physical_attempts += 1
+
+        self.client = AsyncTypeSafeClient(
+            api_key=jev_credential(self.provider), base_url=self.provider.base_url,
+            retry=RetryPolicy(max_retries=MAX_RETRIES),
+            http_client=httpx2.AsyncClient(timeout=30.0, event_hooks={"request": [count_attempt]}))
         self.run_id = run_id
         self.new_id = new_id or (lambda prefix: f"{prefix}_{uuid.uuid4().hex[:10]}")
         self.use_cache = use_cache
         self.max_attempts = cfg["budgets"]["jev_max_physical_attempts_including_retries"]
         self.spend_cap = Decimal(cfg["runtime"]["jev"]["spend_cap_usd_per_run"])
         self.price_per_token = Decimal(cfg["runtime"]["jev"]["provider_price_usd_per_million_input_tokens_at_design"]) / 10**6
-        self.attempts_reserved = 0
-        self.reserved_usd = Decimal(0)
+        self.inflight_attempts = 0
+        self.inflight_usd = Decimal(0)
+        self.spent_usd = Decimal(0)
         self.requests = 0
         self.cache_hits = 0
 
-    def _reserve(self, payload_chars: int) -> int:
+    def _reserve(self, payload_chars: int) -> tuple[int, Decimal]:
+        """Worst-case headroom check before dispatch; released after the request completes."""
         attempts = 1 + MAX_RETRIES
         estimate = Decimal(payload_chars // 3 + 1) * self.price_per_token * attempts  # ~3 chars/token, conservative
-        if self.attempts_reserved + attempts > self.max_attempts:
+        if self.physical_attempts + self.inflight_attempts + attempts > self.max_attempts:
             raise JevBudgetExceeded(f"Jev attempt ceiling reached ({self.max_attempts} physical attempts)")
-        if self.reserved_usd + estimate > self.spend_cap:
+        if self.spent_usd + self.inflight_usd + estimate > self.spend_cap:
             raise JevBudgetExceeded(f"Jev spend cap ${self.spend_cap} would be exceeded")
-        self.attempts_reserved += attempts
-        self.reserved_usd += estimate
-        return attempts
+        self.inflight_attempts += attempts
+        self.inflight_usd += estimate
+        return attempts, estimate
 
     async def judge(self, *, profile: str, question_ids: list[str], state: dict, subject_ids: tuple[str, ...] = (),
                     source_content_hashes: tuple[str, ...] = ()) -> tuple[JevCallRecord, list[SemanticObservation]]:
         """Ask independent questions about one state in a single request."""
         entries = {qid: registry_question(qid) for qid in question_ids}
         registry_version = question_registry()["registry_version"]
-        cache_key = canonical_sha256({"model": self.provider.model, "registry": registry_version,
-                                      "questions": {q: e["version"] for q, e in entries.items()}, "state": state})
+        questions = {qid: build_question(e) for qid, e in entries.items()}
+        # Key on the exact built question text and criteria, so an edit without a version bump cannot hit.
+        cache_key = canonical_sha256({"model": self.provider.model, "state": state,
+                                      "questions": {q: v.model_dump(mode="json") for q, v in questions.items()}})
         cache_file = CACHE_DIR / f"{cache_key}.json"
-        now = datetime.now(UTC).isoformat()
-        attempts, cache_hit = 0, False
+        attempts_used, cache_hit = 0, False
         if self.use_cache and cache_file.exists():
-            raw = json.loads(cache_file.read_text())
+            cached = json.loads(cache_file.read_text())
+            raw, now = cached["raw"], cached["created_at"]
             cache_hit = True
             self.cache_hits += 1
         else:
-            questions = {qid: build_question(e) for qid, e in entries.items()}
-            attempts = self._reserve(len(json.dumps(state)) + sum(len(q.model_dump_json()) for q in questions.values()))
-            self.requests += 1
-            raw = (await self.client.system_one(state=state, questions=questions, model=self.provider.model,
-                                                response_model=_Raw)).model_dump(mode="json")
+            reserved, estimate = self._reserve(
+                len(json.dumps(state)) + sum(len(q.model_dump_json()) for q in questions.values()))
+            before = self.physical_attempts
+            try:
+                self.requests += 1
+                raw = (await self.client.system_one(state=state, questions=questions, model=self.provider.model,
+                                                    response_model=_Raw)).model_dump(mode="json")
+            finally:
+                self.inflight_attempts -= reserved
+                self.inflight_usd -= estimate
+                attempts_used = self.physical_attempts - before  # approximate under concurrency; totals are exact
+            cost = (raw.get("usage") or {}).get("cost")
+            self.spent_usd += Decimal(str(cost)) if cost is not None else estimate
+            now = datetime.now(UTC).isoformat()
             returned = raw.get("model")
             if not returned or EXPECTED_BUILD_MARKER not in str(returned):
                 raise ConfigurationError(f"Unexpected Jev model {returned!r}; pinned {self.provider.pinned_build}")
             if self.use_cache:
                 CACHE_DIR.mkdir(parents=True, exist_ok=True)
-                cache_file.write_text(json.dumps(raw))
+                cache_file.write_text(json.dumps({"raw": raw, "created_at": now}))
 
         call = JevCallRecord(
             call_id=self.new_id("jev"), run_id=self.run_id, profile=profile, subject_ids=subject_ids,
             question_ids=tuple(question_ids), registry_version=registry_version, requested_model=self.provider.model,
             returned_model=raw.get("model"), state_sha256=canonical_sha256(state),
-            source_content_hashes=source_content_hashes, attempts_reserved=attempts, usage=raw.get("usage"),
+            source_content_hashes=source_content_hashes, attempts_used=attempts_used, usage=raw.get("usage"),
             raw_response=raw, created_at=now, cache_hit=cache_hit)
         answers = raw.get("answers") or {}
         observations = []
@@ -141,7 +165,7 @@ class JevAdapter:
                 observations.append(SemanticObservation(
                     observation_id=self.new_id("obs"), call_id=call.call_id, profile=profile, question_id=qid,
                     question_version=entry["version"], primitive="noul",
-                    answer=None if value is None else value >= 0.5, noul_value=value, subject_ids=subject_ids))
+                    answer=None if value is None else value >= NOUL_THRESHOLD, noul_value=value, subject_ids=subject_ids))
             else:
                 observations.append(SemanticObservation(
                     observation_id=self.new_id("obs"), call_id=call.call_id, profile=profile, question_id=qid,
@@ -151,5 +175,5 @@ class JevAdapter:
 
     def usage_summary(self) -> dict[str, Any]:
         return {"provider": self.provider.name, "requests": self.requests, "cache_hits": self.cache_hits,
-                "attempts_reserved": self.attempts_reserved, "attempt_ceiling": self.max_attempts,
-                "reserved_usd": str(self.reserved_usd), "spend_cap_usd": str(self.spend_cap)}
+                "physical_attempts": self.physical_attempts, "attempt_ceiling": self.max_attempts,
+                "spent_usd": str(self.spent_usd), "spend_cap_usd": str(self.spend_cap)}

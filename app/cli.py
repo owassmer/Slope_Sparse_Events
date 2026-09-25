@@ -84,5 +84,23 @@ def finance_check() -> None:
     raise typer.Exit(1 if bad else 0)
 
 
+jev_cli = typer.Typer(no_args_is_help=True, help="Jev semantic layer (step 4a)")
+cli.add_typer(jev_cli, name="jev")
+
+
+@jev_cli.command("check-cases")
+def jev_check_cases() -> None:
+    """Run the labelled semantic boundary cases live (separately billed, ~30 requests) and report agreement."""
+    from app.agent.jev_eval import run_eval
+
+    report = run_eval()
+    for q, v in report["by_question"].items():
+        typer.echo(f"  {q:24s} {v['agree']}/{v['cases']}")
+    for r in report["results"]:
+        if not r["agree"]:
+            typer.echo(f"  disagree: {r['case_id']}: expected {r['expected']!r}, got {r['answer']!r}")
+    typer.echo(f"{report['agreement']}/{report['cases']} agree  ->  {report['path']}")
+
+
 def main() -> None:
     cli()

@@ -69,6 +69,10 @@ class RunStore:
             for line in self.path.read_text().splitlines():
                 self._apply(InvestigationEvent.model_validate_json(line))
             self.verify()
+            if self.locked:  # a locked run's log must still end exactly where the packet says
+                packet = json.loads((self.dir / "packet.json").read_text())
+                if packet["chain_head"] != self.head or packet["event_count"] != len(self.events):
+                    raise ValueError(f"Locked run {run_id}: event log does not match its packet")
         elif meta is not None:
             self.append("run_started", payload={"run_id": run_id, **meta})
 
@@ -85,7 +89,8 @@ class RunStore:
 
     def append(self, kind: EventKind, obj: BaseModel | None = None, *, object_ids: tuple[str, ...] = (),
                payload: dict[str, Any] | None = None) -> InvestigationEvent:
-        if self.locked:
+        if self.locked or (self.dir / "packet.json").exists():  # another instance may have locked it
+            self.locked = True
             raise LockedRunError(f"Run {self.run_id} is locked")
         body = dict(payload or {})
         if obj is not None:
@@ -104,15 +109,16 @@ class RunStore:
     def _apply(self, event: InvestigationEvent) -> None:
         self.events.append(event)
         collection = EVENT_COLLECTION.get(event.kind)
+        ids = list(event.object_ids)
         if collection and "object" in event.payload:
             model = COLLECTIONS[collection].model_validate(event.payload["object"])
             key = getattr(model, ID_FIELD[collection])
             self.graph[collection][key] = model
-            prefix = key.rsplit("_", 1)[0]
-            try:
-                self.counters[prefix] = max(self.counters.get(prefix, 0), int(key.rsplit("_", 1)[1]))
-            except ValueError:
-                pass
+            ids.append(key)
+        for key in ids:  # replay restores every ID counter (objects and log-only IDs such as searches)
+            prefix, _, n = key.rpartition("_")
+            if prefix and n.isdigit():
+                self.counters[prefix] = max(self.counters.get(prefix, 0), int(n))
 
     def verify(self) -> None:
         prev = GENESIS
@@ -144,6 +150,7 @@ class RunStore:
     def lock(self, summary: dict[str, Any] | None = None) -> Path:
         self.append("packet_submitted", payload=summary or {})
         packet = {"locked_at": datetime.now(UTC).isoformat(), "chain_head": self.head, **self.export()}
+        # export() already carries event_count; the loader checks head and count against the log.
         out = self.dir / "packet.json"
         out.write_text(json.dumps(packet, indent=2, default=str) + "\n")
         self.locked = True
