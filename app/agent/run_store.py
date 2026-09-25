@@ -145,7 +145,8 @@ class RunStore:
             defaults = {f: json.loads(json.dumps(info.get_default(call_default_factory=True), default=str))
                         for f, info in model.model_fields.items() if not info.is_required()}
             for key, obj in recorded.items():
-                if any(replayed[key].get(field) != value for field, value in obj.items()):
+                # A field a later schema removed is not replayed; it stays protected by the hash-chained event log.
+                if any(replayed[key].get(field) != value for field, value in obj.items() if field in model.model_fields):
                     return False
                 # A field absent from the packet is acceptable only when the replayed value is its default
                 # (a field added by a later schema version), never when a recorded value was deleted.

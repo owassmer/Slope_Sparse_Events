@@ -64,16 +64,12 @@ WORKING_METHOD = """Working method
 - Use only the evidence returned by the tools; do not rely on remembered facts about this company or later events.
 - Work efficiently: the run stops at {turn_budget} turns; submit before then."""
 
-JEV_METHOD = """- read_inventory early: the host screened every admissible section and lists the specific matters it found. Before
-  submitting, account_for_items for every item: covered by accepted findings, a duplicate of a covered item, or not
-  decision-relevant with a reason. Account for items as you go, in batches, once the findings for a matter are accepted;
-  do not leave the inventory to the end. Coverage is checked window by window over each section's full text; a matter that
-  was paid, closed or superseded is covered by a cited finding that says so. A matter with no payment, obligation,
-  restriction, covenant or earnings effect (ownership, governance, procedural or legal-reasoning detail) can instead be
-  named in excluded_matters for its window with your reason; each is checked. Escalate only when you genuinely disagree
-  with a check, not to save turns: write the findings while budget remains. When a check finds something unaccounted for, add a
-  finding for it and account again; if you cannot, escalate the item with the failed observation_id and what is missing. An
-  escalated legal, settlement, debt, covenant, cash-restriction or accounting item leaves the review incomplete.
+JEV_METHOD = """- read_inventory early: the host screened every admissible section and lists the specific matters it flagged. It is a
+  reading list: for each item say what it means for the decision with account_for_items, as you go and in batches, once
+  the findings for a matter are accepted. Covered: cite the accepted findings for the matter the section describes. Not
+  decision-relevant: give your reason. A duplicate of a covered item: name it. Each claim is checked; if a check fails, add
+  the missing finding and account again, or escalate the item with the failed observation_id if you genuinely disagree.
+  An escalated legal, settlement, debt, covenant, cash-restriction or accounting item leaves the review incomplete.
 - The host checks each proposed effect: its supporting findings' posture and status must fit the mechanism, and its model
   consequence must be supported by the cited findings. It also checks your conclusion at submission and checks accepted findings
   under the same question against each other. Revise when a check fails. If you disagree with a failed support check, reply to

@@ -116,7 +116,7 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
     titles = {sid: run_source_title(inputs, sid) for sid in {i.source_id for i in g["inventory"].values()}}
     coverage_by_item: dict[str, list] = {}
     check_labels = {"coverage_supported": "Coverage", "adds_matter": "Duplicate", "decision_relevance": "Relevance",
-                    "matter_relevance": "Exclusion"}
+                    "matter_relevance": "Exclusion (earlier design)"}
     for o in g["observations"].values():
         if o.question_id in check_labels and o.subject_ids:
             coverage_by_item.setdefault(o.subject_ids[0], []).append({
@@ -128,7 +128,6 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
                   "heading": " › ".join(i.heading_path[-2:]) or "(whole document)", "sections": len(i.section_ids),
                   "status": i.status.replace("_", " "), "findings": list(i.finding_ids), "note": i.note,
                   "duplicate_of": i.duplicate_of,
-                  "exclusions": [{"matter": x.matter, "reason": x.reason, "window": x.window} for x in i.exclusions],
                   "coverage_checks": coverage_by_item.get(i.item_id, [])}
                  for i in sorted(g["inventory"].values(), key=lambda i: i.item_id)]
     conclusion_checks = [e.payload for e in run.events if e.kind == "conclusion_checked"]

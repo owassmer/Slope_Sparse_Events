@@ -82,7 +82,6 @@
 <table><thead><tr><th>Matter</th><th>Kind</th><th>Accounted as</th></tr></thead><tbody>
 {% for i in v.inventory %}<tr><td>{{ i.source }}<br><span class="muted">{{ i.heading }} ({{ i.sections }} section{{ "s" if i.sections != 1 }})</span></td>
   <td>{{ i.kind }}</td><td>{% if i.status == "disputed" %}<span class="tag warn">Disputed: open</span>{% else %}{{ i.status }}{% endif %}{% if i.duplicate_of %} (duplicate of {{ i.duplicate_of }}){% endif %}{% if i.findings %}<br><span class="muted">{{ i.findings | join(", ") }}</span>{% endif %}{% if i.note %}<br><span class="muted">{{ i.note }}</span>{% endif %}
-    {% for x in i.exclusions %}<br><span class="tag warn">Not decision-relevant</span><span class="muted">{{ x.matter }}: {{ x.reason }} ({{ x.window }}; checked by Jev)</span>{% endfor %}
     {% for c in i.coverage_checks %}<br><span class="tag jev">{{ c.label }}</span><span class="muted">{{ c.meaning }}{% if c.ambiguous %} (ambiguous){% endif %} · {{ c.findings | join(", ") }} · {{ c.disposition }}{% if c.note and c.disposition in ("overridden by agent with reason", "flagged conflict") %}: {{ c.note }}{% endif %}</span>{% endfor %}</td></tr>{% endfor %}
 </tbody></table>
 {% endif %}
