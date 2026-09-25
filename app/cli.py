@@ -66,5 +66,23 @@ def evidence_read(snapshot: str, item_id: str) -> None:
     typer.echo(json.dumps(EvidenceStore(snapshot).read(item_id), indent=2, default=str))
 
 
+finance = typer.Typer(no_args_is_help=True, help="Deterministic finance core (step 3)")
+cli.add_typer(finance, name="finance")
+
+
+@finance.command("check")
+def finance_check() -> None:
+    """Reproduce the kit's reference arithmetic with the finance engine."""
+    from app.finance.reference_check import checks
+
+    bad = 0
+    for name, engine, reference in checks():
+        ok = engine == reference
+        bad += not ok
+        typer.echo(f"{'ok ' if ok else 'MISMATCH'}  {name}: {engine}" + ("" if ok else f" (reference {reference})"))
+    typer.echo(f"{'All reference values reproduced' if not bad else f'{bad} mismatches'}")
+    raise typer.Exit(1 if bad else 0)
+
+
 def main() -> None:
     cli()
