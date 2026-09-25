@@ -179,24 +179,22 @@ JEV_SMOKE_STATE = {
         "Payment Amount prior to the end of the Term."
     ),
     "definitions": "Minimum Payment means thirty (30) percent of the Total Payment Amount.",
-    "atomic_claim": "The Borrower must pay a Minimum Payment within the first six-Month period from the Effective Date.",
+    "claim": "The Borrower must pay a Minimum Payment within the first six-Month period from the Effective Date.",
 }
 
 
 def run_jev_smoke(run_id: str) -> dict[str, Any]:
-    adapter = JevAdapter(run_id=run_id, case_id=SMOKE_CASE, snapshot_id="smoke_no_snapshot")
-    [judgment] = adapter.judge(JEV_SMOKE_STATE, ["claim_posture"],
-                               source_content_hashes=[JEV_SMOKE_STATE["source"]["sha256"]])
+    adapter = JevAdapter(run_id=run_id, use_cache=False)
+    call, [obs] = asyncio.run(adapter.judge(
+        profile="claim_interpretation", question_ids=["claim_posture"], state=JEV_SMOKE_STATE,
+        source_content_hashes=(JEV_SMOKE_STATE["source"]["sha256"],)))
     return {
-        "provider": adapter.provider.name,
-        "requests_used": adapter.requests,
-        "request_ceiling": adapter.max_requests,
-        "reserved_usd": str(adapter.reserved_usd),
-        "spend_cap_usd": str(adapter.spend_cap),
-        "judgment": judgment.model_dump(),
+        **adapter.usage_summary(),
+        "call": call.model_dump(mode="json"),
+        "observation": obs.model_dump(mode="json"),
         "checks": {
-            "returned_model_matches_pinned_build": bool(judgment.returned_model),  # enforced in adapter
-            "typed_choice_returned": judgment.selected_choice is not None,
+            "returned_model_matches_pinned_build": bool(call.returned_model),  # enforced in adapter
+            "typed_choice_returned": obs.answer is not None,
         },
     }
 

@@ -1,0 +1,509 @@
+{
+  "run_at": "2026-09-25T01:09:26.272584+00:00",
+  "cases_file": "evals/jev_semantic_cases.json",
+  "registry_version": "3.0.0",
+  "cases": 24,
+  "agreement": 23,
+  "noul_threshold": 0.5,
+  "by_question": {
+    "activity_status": {
+      "agree": 1,
+      "cases": 1
+    },
+    "cash_access": {
+      "agree": 1,
+      "cases": 1
+    },
+    "claim_posture": {
+      "agree": 4,
+      "cases": 4
+    },
+    "context_sufficiency": {
+      "agree": 1,
+      "cases": 1
+    },
+    "economic_role": {
+      "agree": 3,
+      "cases": 3
+    },
+    "entity_scope": {
+      "agree": 1,
+      "cases": 2
+    },
+    "finding_atomicity": {
+      "agree": 2,
+      "cases": 2
+    },
+    "finding_support": {
+      "agree": 2,
+      "cases": 2
+    },
+    "gap_relevance": {
+      "agree": 1,
+      "cases": 1
+    },
+    "instruction_like_text": {
+      "agree": 1,
+      "cases": 1
+    },
+    "obligation_status": {
+      "agree": 4,
+      "cases": 4
+    },
+    "premise_conflict": {
+      "agree": 1,
+      "cases": 1
+    },
+    "statement_relation": {
+      "agree": 1,
+      "cases": 1
+    }
+  },
+  "jev_usage": {
+    "provider": "openrouter",
+    "requests": 24,
+    "cache_hits": 0,
+    "attempts_reserved": 72,
+    "attempt_ceiling": 150,
+    "reserved_usd": "0.002231712",
+    "spend_cap_usd": "0.10"
+  },
+  "results": [
+    {
+      "case_id": "syn_merchant_agreed",
+      "borrower": "synergy",
+      "question_id": "claim_posture",
+      "expected": "agreed_contractually",
+      "answer": "agreed_contractually",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unknown": 0.0,
+        "imposed_by_court_or_authority": 0.0,
+        "planned_or_expected": 0.0,
+        "alleged_or_requested": 0.0,
+        "reported_completed": 0.0,
+        "agreed_contractually": 1.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_lodc_claim_posture",
+      "borrower": "synergy",
+      "question_id": "claim_posture",
+      "expected": "alleged_or_requested",
+      "answer": "alleged_or_requested",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "alleged_or_requested": 0.98,
+        "unknown": 0.0,
+        "imposed_by_court_or_authority": 0.0,
+        "agreed_contractually": 0.0,
+        "planned_or_expected": 0.0,
+        "reported_completed": 0.02
+      },
+      "confidence": 0.97,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_lodc_claim_status",
+      "borrower": "synergy",
+      "question_id": "obligation_status",
+      "expected": "claimed_or_disputed",
+      "answer": "claimed_or_disputed",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unknown": 0.0,
+        "claimed_or_disputed": 1.0,
+        "required": 0.0,
+        "conditional": 0.0,
+        "reported_satisfied": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_lodc_paid_posture",
+      "borrower": "synergy",
+      "question_id": "claim_posture",
+      "expected": "reported_completed",
+      "answer": "reported_completed",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "alleged_or_requested": 0.0,
+        "reported_completed": 1.0,
+        "unknown": 0.0,
+        "imposed_by_court_or_authority": 0.0,
+        "planned_or_expected": 0.0,
+        "agreed_contractually": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_lodc_paid_status",
+      "borrower": "synergy",
+      "question_id": "obligation_status",
+      "expected": "reported_satisfied",
+      "answer": "reported_satisfied",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "claimed_or_disputed": 0.0,
+        "conditional": 0.0,
+        "required": 0.0,
+        "unknown": 0.0,
+        "reported_satisfied": 1.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_hvl_required",
+      "borrower": "synergy",
+      "question_id": "obligation_status",
+      "expected": "required",
+      "answer": "required",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "claimed_or_disputed": 0.0,
+        "unknown": 0.0,
+        "required": 1.0,
+        "reported_satisfied": 0.0,
+        "conditional": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_court_allegation",
+      "borrower": "synergy",
+      "question_id": "claim_posture",
+      "expected": "alleged_or_requested",
+      "answer": "alleged_or_requested",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "planned_or_expected": 0.0,
+        "alleged_or_requested": 0.97,
+        "agreed_contractually": 0.0,
+        "imposed_by_court_or_authority": 0.0,
+        "reported_completed": 0.03,
+        "unknown": 0.0
+      },
+      "confidence": 0.96,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_entity_mismatch",
+      "borrower": "synergy",
+      "question_id": "entity_scope",
+      "expected": "different",
+      "answer": "different",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "different": 1.0,
+        "unknown": 0.0,
+        "target": 0.0
+      },
+      "confidence": 0.99,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_gain_noncash",
+      "borrower": "synergy",
+      "question_id": "economic_role",
+      "expected": "noncash_accounting_item",
+      "answer": "noncash_accounting_item",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "no_direct_financial_premise": 0.0,
+        "cash_access_constraint": 0.0,
+        "existing_cash_obligation": 0.0,
+        "financing_or_reimbursement": 0.0,
+        "noncash_accounting_item": 0.99,
+        "operating_change": 0.01,
+        "unclear": 0.0
+      },
+      "confidence": 0.99,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_hvl_role",
+      "borrower": "synergy",
+      "question_id": "economic_role",
+      "expected": "existing_cash_obligation",
+      "answer": "existing_cash_obligation",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "operating_change": 0.0,
+        "no_direct_financial_premise": 0.0,
+        "cash_access_constraint": 0.0,
+        "financing_or_reimbursement": 0.0,
+        "existing_cash_obligation": 1.0,
+        "unclear": 0.0,
+        "noncash_accounting_item": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_cash_unrestricted_unsupported",
+      "borrower": "synergy",
+      "question_id": "finding_support",
+      "expected": "does_not_resolve",
+      "answer": "does_not_resolve",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "does_not_resolve": 0.93,
+        "contradicts": 0.0,
+        "supports": 0.07
+      },
+      "confidence": 0.89,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_cash_supported",
+      "borrower": "synergy",
+      "question_id": "finding_support",
+      "expected": "supports",
+      "answer": "supports",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "contradicts": 0.0,
+        "does_not_resolve": 0.02,
+        "supports": 0.98
+      },
+      "confidence": 0.97,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_finding_combined",
+      "borrower": "synergy",
+      "question_id": "finding_atomicity",
+      "expected": "multiple_claims",
+      "answer": "multiple_claims",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "one_claim": 0.0,
+        "multiple_claims": 1.0,
+        "unclear": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_finding_single",
+      "borrower": "synergy",
+      "question_id": "finding_atomicity",
+      "expected": "one_claim",
+      "answer": "one_claim",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unclear": 0.0,
+        "multiple_claims": 0.08,
+        "one_claim": 0.92
+      },
+      "confidence": 0.88,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_table_without_context",
+      "borrower": "synergy",
+      "question_id": "context_sufficiency",
+      "expected": "missing_target_context",
+      "answer": "missing_target_context",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "missing_target_context": 0.38,
+        "enough": 0.26,
+        "missing_definition": 0.1,
+        "unclear": 0.18,
+        "missing_condition_or_timing": 0.08
+      },
+      "confidence": 0.23,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "brf_capacity_planned",
+      "borrower": "barfresh",
+      "question_id": "activity_status",
+      "expected": "planned_or_conditional",
+      "answer": "planned_or_conditional",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unknown": 0.0,
+        "unavailable": 0.0,
+        "planned_or_conditional": 1.0,
+        "limited": 0.0,
+        "operating_or_restored": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "brf_disputed_payable",
+      "borrower": "barfresh",
+      "question_id": "obligation_status",
+      "expected": "claimed_or_disputed",
+      "answer": "claimed_or_disputed",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "unknown": 0.0,
+        "reported_satisfied": 0.0,
+        "required": 0.0,
+        "claimed_or_disputed": 1.0,
+        "conditional": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "brf_litigation_funding_role",
+      "borrower": "barfresh",
+      "question_id": "economic_role",
+      "expected": "financing_or_reimbursement",
+      "answer": "financing_or_reimbursement",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "operating_change": 0.0,
+        "no_direct_financial_premise": 0.0,
+        "cash_access_constraint": 0.0,
+        "financing_or_reimbursement": 1.0,
+        "existing_cash_obligation": 0.0,
+        "unclear": 0.0,
+        "noncash_accounting_item": 0.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_screen_irrelevant",
+      "borrower": "synthetic",
+      "question_id": "gap_relevance",
+      "expected": false,
+      "answer": false,
+      "agree": true,
+      "noul_value": 0.02,
+      "probabilities": null,
+      "confidence": null,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_screen_premise_conflict",
+      "borrower": "synthetic",
+      "question_id": "premise_conflict",
+      "expected": true,
+      "answer": true,
+      "agree": true,
+      "noul_value": 0.95,
+      "probabilities": null,
+      "confidence": null,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_screen_instruction",
+      "borrower": "synthetic",
+      "question_id": "instruction_like_text",
+      "expected": true,
+      "answer": true,
+      "agree": true,
+      "noul_value": 0.98,
+      "probabilities": null,
+      "confidence": null,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_restriction_requested",
+      "borrower": "synthetic",
+      "question_id": "cash_access",
+      "expected": "restriction_requested_only",
+      "answer": "restriction_requested_only",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "released_or_available": 0.0,
+        "access_prohibited": 0.0,
+        "unknown": 0.0,
+        "access_limited": 0.0,
+        "restriction_requested_only": 1.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_relation_different_scope",
+      "borrower": "synthetic",
+      "question_id": "statement_relation",
+      "expected": "different_scope",
+      "answer": "different_scope",
+      "agree": true,
+      "noul_value": null,
+      "probabilities": {
+        "conflict": 0.0,
+        "agree": 0.0,
+        "unknown": 0.0,
+        "different_scope": 1.0
+      },
+      "confidence": 1.0,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    },
+    {
+      "case_id": "syn_entity_unresolvable",
+      "borrower": "synergy",
+      "question_id": "entity_scope",
+      "expected": "unknown",
+      "answer": "target",
+      "agree": false,
+      "noul_value": null,
+      "probabilities": {
+        "target": 0.53,
+        "different": 0.38,
+        "unknown": 0.09
+      },
+      "confidence": 0.29,
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "cache_hit": false
+    }
+  ],
+  "note": "Agreement with hand labels on a small boundary set; a sanity check, not an accuracy estimate. Third run: cases v1.0.0 plus the unresolvable variant, entity_scope 3.0.1. [Provenance: moved from runs/recorded/jev_semantic_eval.json on 2026-09-25; this note's run description was added after the run; results unchanged.]"
+}

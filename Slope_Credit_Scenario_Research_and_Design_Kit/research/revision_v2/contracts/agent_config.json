@@ -1,6 +1,6 @@
 {
   "configuration_id": "slope_external_event_cashflow_investigation",
-  "configuration_version": "2.0.1-design",
+  "configuration_version": "3.0.0-design",
   "status": "design_template_not_implemented_or_live_validated",
   "scope": "One local investigation of a real borrower and a proposed new discretionary advance, followed by loan cash-flow scenario comparison and independent review. Analysis candidates are not claims of actual Slope offers or customers.",
   "default_mission": {
@@ -96,16 +96,16 @@
           "mcp__credit__get_mission",
           "mcp__credit__read_baseline_profile",
           "mcp__credit__read_loan_terms",
+          "mcp__credit__record_dependency",
           "mcp__credit__search_evidence",
-          "mcp__credit__read_source_section",
-          "mcp__credit__judge_evidence",
-          "mcp__credit__record_finding",
-          "mcp__credit__record_gap",
-          "mcp__credit__propose_patch",
-          "mcp__credit__run_scenarios",
-          "mcp__credit__compare_offers",
+          "mcp__credit__read_evidence",
+          "mcp__credit__judge",
+          "mcp__credit__propose_finding",
+          "mcp__credit__resolve_finding",
+          "mcp__credit__propose_effect",
+          "mcp__credit__run_sensitivity",
           "mcp__credit__request_missing_fact",
-          "mcp__credit__submit_decision_packet"
+          "mcp__credit__submit_packet"
         ],
         "permission_mode": "dontAsk",
         "setting_sources": [],
@@ -130,19 +130,65 @@
       "provider": "TypeSafe",
       "package_pin": "typesafe-sdk==0.7.1",
       "model_pin": "jev-1.13.0",
-      "integration": "direct_SDK_through_scoped_judge_evidence_tool",
+      "integration": "host_owned_judgment_profiles_through_scoped_tools",
       "registry_file": "question_registry.json",
       "authentication": "TYPESAFE_API_KEY available only to the host-side tool handler",
       "subscription_coverage": "Separate service; Claude and ChatGPT subscriptions do not include Jev usage.",
       "generative_model_fallback": false,
       "version_policy": "Verify the actual returned model ID equals the pinned version and retain the raw response. Reject unexpected version changes for evaluation comparability.",
-      "retry_policy": "Use the SDK's bounded retry behavior and host deadline. Do not add a second general-purpose retry wrapper.",
+      "retry_policy": "SDK RetryPolicy set explicitly; the host reserves 1 + max_retries physical attempts per request against the attempt ceiling. No second retry wrapper.",
       "target_state_tokens": 6000,
       "max_state_plus_longest_question_tokens": 32000,
       "max_entire_request_tokens": 64000,
       "provider_price_usd_per_million_input_tokens_at_design": "0.042",
       "spend_cap_usd_per_run": "0.10",
-      "spend_cap_policy": "Host reserves a conservative estimated input-token charge before dispatch and reconciles actual usage. This caps Jev service spend only, not Claude/Codex subscription usage."
+      "spend_cap_policy": "Host reserves a conservative estimated input-token charge before dispatch and reconciles actual usage. This caps Jev service spend only, not Claude/Codex subscription usage.",
+      "primitives": [
+        "choice",
+        "noul"
+      ],
+      "judgment_profiles": {
+        "candidate_screen": {
+          "trigger": "host, on every search_evidence result; one request per query-passage pair",
+          "questions": [
+            "gap_relevance",
+            "usable_evidence",
+            "premise_conflict",
+            "instruction_like_text"
+          ]
+        },
+        "claim_interpretation": {
+          "trigger": "agent, via judge(profile, evidence_id, claim)",
+          "questions": [
+            "entity_scope",
+            "claim_posture",
+            "obligation_status",
+            "cash_access",
+            "activity_status",
+            "offset_status"
+          ],
+          "selection": "entity_scope and claim_posture always; the status question matching the claim's declared subject"
+        },
+        "finding_check": {
+          "trigger": "host, on every propose_finding",
+          "questions": [
+            "finding_support",
+            "finding_atomicity",
+            "context_sufficiency",
+            "economic_role"
+          ]
+        },
+        "statement_relation": {
+          "trigger": "agent, via judge(profile, finding_ids); host, when an effect may overlap a baseline item",
+          "questions": [
+            "statement_relation",
+            "baseline_overlap"
+          ]
+        }
+      },
+      "state_policy": "The host builds each state from immutable run objects (dependency text, evidence section or table text with its heading path, agent-authored claim or finding). The agent never supplies raw Jev state or question IDs.",
+      "screen_policy": "Screening labels and orders candidates as direct evidence, conflict or context-only using code-owned thresholds; it never removes a candidate from the agent's view.",
+      "concurrency": "async fan-out of independent requests"
     },
     "reviewer": {
       "preferred_runtime": "official_codex_cli_exec",
@@ -157,7 +203,7 @@
       "max_repair_cycles": 1
     }
   },
-  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Select the next research action adaptively. Establish the relevant repayment mechanism, translate supported facts into explicit scenario patches, and compare the permitted offers using the financial engine. Jev supplies focused evidence judgments; you reconcile them and reason about the business. Code computes dates, money, schedules and cash flows. Finish with a concrete recommended action or the exact unresolved input that prevents choosing one. Do not claim to send an offer, change an account, or know Slope's private policy.",
+  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, and propose atomic findings that quote the evidence exactly. Jev screens retrieved evidence and checks narrow semantic claims; you reconcile its judgments with the evidence and may override one with a stated reason. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer, change an account, or know Slope's private policy.",
   "invariants": [
     "Start with the same baseline profile, existing obligations, decision date and candidate financing request for the before/after comparison.",
     "Keep borrower cash flows, contractual loan payments, scenario collections and funding-facility cash flows distinct.",
@@ -187,18 +233,18 @@
       "get_mission": "Construct a fresh mission object using mission_projection.allowed_case_fields and allowed_run_input_fields only. Never return the raw mission/configuration object. Return the financing question, use of proceeds, allowed policy/product references and cutoff without evaluator expectations or future hints.",
       "read_baseline_profile": "Read source-backed opening balances, receipts, operating expenses, existing financing and explicit assumptions by field or stream ID.",
       "read_loan_terms": "Return existing contractual schedules and permitted analysis-candidate schedules, with exact pricing/convention basis.",
-      "search_evidence": "Search only eligible records with source/category filters and return dated snippets and IDs. Do not reveal answer keys or future documents.",
-      "read_source_section": "Return a selected section with surrounding definitions, table headers/units and qualifications, plus source metadata."
+      "search_evidence": "Search eligible records for one recorded decision dependency; return dated snippets and IDs. In the agent-plus-Jev arm each candidate carries its candidate_screen labels; no candidate is withheld.",
+      "read_evidence": "Return a selected section or table with heading path, definitions, units, surrounding context and source metadata."
     },
     "analysis_tools": {
-      "judge_evidence": "Validate selected registry entries and narrow state; call the direct TypeSafe SDK, or return a clearly identified eligible interpretation-cache hit.",
-      "record_finding": "Write a run-scoped factual or computed finding with source references, measurement dates and disposition. This is internal analysis state only.",
-      "record_gap": "Write one unresolved premise, its decision dependency, feasible next actions and whether sensitivity shows it can change the chosen offer.",
-      "propose_patch": "Validate a proposed EconomicEffect against target streams, evidence basis, existing adjustments and known double-count rules; do not silently activate an invalid effect.",
-      "run_scenarios": "Apply explicit validated effects and parameter realizations, calculate borrower capacity and loan cash flows, and return calculation references.",
-      "compare_offers": "Evaluate the permitted action menu under explicit policy and operating assumptions; return feasible actions, economics and break-even conditions.",
+      "record_dependency": "Record one decision-relevant unknown premise, the financial quantity or action it could change, and what evidence could resolve it.",
+      "judge": "Request a judgment profile (claim_interpretation or statement_relation) by object IDs plus one agent-stated claim; the host builds minimal state and returns typed semantic observations.",
+      "propose_finding": "Propose one atomic finding with exact source spans (section/table ID, character offsets, verbatim quote). The host verifies spans verbatim and runs finding_check; returns observations for the agent to resolve.",
+      "resolve_finding": "Accept or reject a proposed finding, recording how each semantic observation was used or why it was overridden.",
+      "propose_effect": "Propose an economic effect from accepted findings: mechanism, target stream, parameter requirements, baseline treatment and linked effects. Validated by the finance engine; never activated by Jev output.",
+      "run_sensitivity": "Run deterministic thresholds or ledger sensitivities over explicit parameter bounds and return which values change the result.",
       "request_missing_fact": "Record the exact requested fact/document and the action consequences. This tool sends no communication.",
-      "submit_decision_packet": "Validate and lock the candidate evidence, patch, scenario, offer and calculation versions; then enqueue independent review. No actual lending action."
+      "submit_packet": "Lock the investigation graph, source hashes, findings, effects and calculation versions for review. No lending action."
     },
     "disallowed_capabilities": [
       "unscoped shell or code execution by the agent",
@@ -213,13 +259,13 @@
   },
   "budgets": {
     "main_agent_max_turns": 40,
-    "jev_max_requests_including_retries": 30,
     "main_investigation_wall_clock_seconds": 600,
     "review_wall_clock_seconds": 300,
     "total_wall_clock_seconds_including_one_repair": 1200,
     "consecutive_no_progress_actions": 3,
     "no_progress_definition": "An action produces no new eligible evidence, no corrected finding, no resolved/narrowed gap, no new valid patch and no changed sensitivity result. Repeating the same query alone is not progress.",
-    "budget_policy": "Ceilings, not targets. Record actual elapsed time, token usage, requests and spend. Finish early when further accessible evidence cannot change the action across the stated sensitivity range."
+    "budget_policy": "Ceilings, not targets. Record actual elapsed time, token usage, requests and spend. Finish early when further accessible evidence cannot change the action across the stated sensitivity range.",
+    "jev_max_physical_attempts_including_retries": 150
   },
   "completion_and_decisions": {
     "execution_states": [
@@ -263,7 +309,7 @@
       "agent_plus_jev",
       "agent_only"
     ],
-    "agent_only_policy": "Use the same primary model, admissible evidence, research tools, financial tools, review treatment and comparable total budgets. Remove mcp__credit__judge_evidence from exposed and allowed tools, omit the Jev registry from model context, and replace the role instruction with the agent-only override. This is an explicitly selected evaluation arm, never a service-failure fallback."
+    "agent_only_policy": "Use the same primary model, admissible evidence, research tools, financial tools, review treatment and comparable total budgets. Remove mcp__credit__judge, the screening fields on search results, the automatic finding check and the Jev registry from model context, and replace the role instruction with the agent-only override. This is an explicitly selected evaluation arm, never a service-failure fallback."
   },
   "cache": {
     "algorithm": "SHA-256 over canonical JSON; preserve numeric units and string values",
@@ -410,12 +456,16 @@
   "comparison_mode_overrides": {
     "agent_only": {
       "remove_allowed_and_exposed_tools": [
-        "mcp__credit__judge_evidence"
+        "mcp__credit__judge"
       ],
       "expose_jev_registry": false,
       "require_typesafe_credential": false,
-      "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Select the next research action adaptively. Establish the relevant repayment mechanism, make focused evidence judgments yourself, reconcile contradictions, translate supported facts into explicit scenario patches, and compare permitted offers using the financial engine. Code computes dates, money, schedules and cash flows. Finish with a concrete recommended action or the exact unresolved input that prevents choosing one. Do not claim to send an offer, change an account, or know Slope private policy.",
-      "evaluation_metadata_visibility": "Host scorer only; do not reveal arm labels or expected findings to the blind reviewer."
+      "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, make focused evidence judgments yourself, reconcile contradictions, and propose atomic findings that quote the evidence exactly. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer, change an account, or know Slope private policy.",
+      "evaluation_metadata_visibility": "Host scorer only; do not reveal arm labels or expected findings to the blind reviewer.",
+      "remove_host_semantic_checks": [
+        "candidate_screen on search_evidence",
+        "finding_check on propose_finding"
+      ]
     },
     "agent_plus_jev": {
       "expose_jev_registry": true,

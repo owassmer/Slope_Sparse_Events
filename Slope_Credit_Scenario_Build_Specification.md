@@ -96,7 +96,7 @@ The operator opens a **financing decision**, not a lawsuit dashboard.
 
 1. **Decision header:** real borrower, as-of date, proposed amount/use, term, price and existing exposure. Show whether each input is sourced, operator-supplied or unresolved.
 2. **Baseline:** dated opening cash, operating cash budget, existing debt service and proposed contractual payments. Show existing missing inputs before research begins.
-3. **Investigation:** visible agent activity identifies the material event, connects entities and obligations, consults Jev where useful, and chooses the next source based on its impact on the decision.
+3. **Investigation:** visible agent activity identifies the material event, connects entities and obligations, has Jev screen retrieved evidence and check narrow semantic claims, and chooses the next source based on its impact on the decision.
 4. **Economic changes:** a short list such as “assign existing settlement debt to H2 payment periods,” “remove noncash historical gain,” and “exclude already-paid legal matter.” Each expands to evidence and calculations.
 5. **Offer comparison:** requested draw and alternative amount/term structures, with cash-buffer breaches, conditional unpaid amounts, timing and economics. A specific condition identifies what must be established before a named offer can be funded.
 6. **Loan cash flows:** contractual payments, baseline modeled collections and event-conditioned collections on the same dates. Conditional curves are not labeled expected unless weights are supplied.
@@ -223,7 +223,7 @@ This is a local personal demonstration. Public sharing uses recorded runs with c
 | PydanticAI agent loop | Omit; native subscription runtimes serve this requirement directly |
 | Data/domain validation | Keep Pydantic and JSON Schema independently of agent framework |
 | Tool integration | Small custom MCP server; no general shell/filesystem/browser tools for historical investigation |
-| Initial budgets | 40 agent turns, 30 Jev calls, approximately ten minutes, plus repeated-no-progress stop; ceilings, not targets |
+| Initial budgets | 40 agent turns, 150 physical Jev attempts including SDK retries (spend cap $0.10 per run), approximately ten minutes, plus repeated-no-progress stop; ceilings, not targets |
 | Extra retry wrapper | Omit initially because layered retries can multiply calls; bounded provider retries within wall-clock budget |
 | Viewer | FastAPI, Jinja2, HTMX, Pico.css; local-only by default |
 | Storage/search | SQLite with FTS5; no vector database needed for this corpus |
@@ -233,29 +233,36 @@ These are verified design pins, not a claim of installed or tested integration. 
 
 ### Actual adaptive workflow
 
-The agent receives the mission and baseline, then decides which gap could change the financing choice. Its loop is: select material uncertainty; search eligible evidence; fetch full context; propose a sourced finding; ask Jev when the semantic decision warrants it; reconcile contradictions; run the financial scenario; choose the next high-impact gap; submit a reviewable packet.
+The agent receives the mission and baseline, then decides which gap could change the financing choice. Its loop is: select a material uncertainty and record it as a decision dependency; search eligible evidence for it; read the strongest evidence and conflicts; propose atomic, sourced findings; reconcile contradictions; propose economic effects; run the financial sensitivity; choose the next high-impact dependency; submit a reviewable packet.
 
-Tools: `get_mission`, `read_baseline_profile`, `read_loan_terms`, `search_evidence`, `read_source_section`, `record_finding`, `judge_evidence`, `propose_patch`, `run_scenarios`, `compare_offers`, `record_gap`, `request_missing_fact`, `submit_decision_packet`. Missing-fact requests are recorded internally and send no message. The exact MCP allowlist is in `contracts/agent_config.json`; these are conceptual capabilities bound to that server interface. Handlers bind run/case/cutoff on the server. The model cannot override its snapshot or choose arbitrary file paths. Acquisition occurs outside a historical run; later sources cannot become available through an unrestricted browser.
+Design rationale for the semantic layer is in `Jev_Pivot.md` (builder context; never an agent prompt). The division of labour is: **the agent thinks broadly, Jev judges narrowly, code computes exactly, the host controls everything, and the reviewer sees the causal chain.**
 
-Only whitelisted operational mission fields reach the agent. Case-specific expected findings, counterparty identities established only by later documents (such as a legal-entity name from a 2025 agreement) and evaluation labels remain evaluator-only in `case_eval_private.json`; neither the investigator nor the blind reviewer receives that file. Do not hand the agent a numbered list of answer-bearing documents or a fixed Jev-question sequence. It should demonstrate that it can discover the connection between a court dispute, supplier debt and repayment requirements. The financial sensitivity tool helps prioritize payment dates and receipt channels over immaterial legal detail.
+Tools (exact MCP allowlist in `contracts/agent_config.json`): `get_mission`, `read_baseline_profile`, `read_loan_terms`, `record_dependency`, `search_evidence`, `read_evidence`, `judge`, `propose_finding`, `resolve_finding`, `propose_effect`, `run_sensitivity`, `request_missing_fact`, `submit_packet`. Missing-fact requests are recorded internally and send no message. Handlers bind run/case/cutoff on the server; tool arguments are object IDs, queries and agent-authored propositions, never paths, snapshot names, cutoffs or raw Jev state. Acquisition occurs outside a historical run; later sources cannot become available through an unrestricted browser.
 
-### Jev questions
+Only whitelisted operational mission fields reach the agent. Case-specific expected findings, counterparty identities established only by later documents (such as a legal-entity name from a 2025 agreement) and evaluation labels remain evaluator-only in `case_eval_private.json`; neither the investigator nor the blind reviewer receives that file. Do not hand the agent a numbered list of answer-bearing documents or a scripted sequence of research steps or answers. Host-triggered semantic checks at fixed boundaries (below) are a control mechanism, not an answer script: the agent still chooses what to investigate, where to search and what to conclude. It should demonstrate that it can discover the connection between a court dispute, supplier debt and repayment requirements. The financial sensitivity tool helps prioritize payment dates and receipt channels over immaterial legal detail.
 
-The supplied registry contains seven semantic templates and two routing templates. The agent invokes only relevant questions; nine calls are not a required ritual.
+### Jev as the semantic judgment layer
 
-| Semantic judgment | Why it changes the financial model |
-|---|---|
-| Entity/scope match | Prevents assigning another affiliate’s obligation or another channel’s receipts to the borrower |
-| Claim posture | Separates allegation, agreed requirement, court requirement, completed event and expectation |
-| Support for one proposed finding | Checks whether the passage supports the complete qualified proposition |
-| Cash access/restriction | Distinguishes restricted, partially usable, released or merely requested restrictions |
-| Operating availability | Distinguishes achieved production from planned or conditional capacity |
-| Obligation status | Distinguishes fixed, disputed, conditional and already-satisfied amounts |
-| Offset support | Identifies whether funding/insurance offsets the specified expense or cash requirement |
+Jev is a typed, narrow semantic sensor placed where retrieved text becomes a finding, a finding becomes an economic effect, or evidence conflicts. Its value is preventing category errors before they become financial inputs: an allegation treated as a liability, a paid matter treated as a future outflow, a noncash gain treated as cash, the wrong entity, a disputed demand treated as an agreed payment. It never determines amounts, dates, probabilities or the credit decision, and a Jev answer never activates a cash-flow adjustment on its own.
 
-Routing asks which available source category can close the selected gap and whether the proposed research step addresses it. Code, not Jev, does arithmetic, date comparisons, eligibility checks and payment allocation. The main agent remains responsible for integrating evidence and explaining the economic mechanism.
+The agent requests a **judgment profile** with object IDs; the host resolves the immutable objects, builds the smallest necessary state, selects the versioned questions, makes the call, logs the physical request once and returns typed semantic observations. Independent questions on the same state go in one request.
 
-Each call contains one atomic claim, the target entity/obligation, source passage with necessary definitions and qualifiers, and only relevant prior findings. Preserve unknown and conflicting states. Do not apply unvalidated confidence cutoffs that convert a classification to financial truth. Independent questions may be batched; dependent questions require updated state.
+| Profile | Trigger | Questions (primitive) |
+|---|---|---|
+| `candidate_screen` | Host, on every `search_evidence` result (one request per query–passage pair) | `gap_relevance`, `usable_evidence`, `premise_conflict`, `instruction_like_text` (Noul) |
+| `claim_interpretation` | Agent, after reading a passage and stating one atomic claim | `entity_scope`, `claim_posture`, and whichever of `obligation_status`, `cash_access`, `activity_status`, `offset_status` the claim concerns (Choice) |
+| `finding_check` | Host, on every `propose_finding` | `finding_support`, `finding_atomicity`, `context_sufficiency`, `economic_role` (Choice) |
+| `statement_relation` | Agent, when two findings or passages may conflict; host, when an effect may overlap a baseline item | `statement_relation`, `baseline_overlap` (Choice; overlap is a warning only) |
+
+Screening labels and orders evidence (direct evidence, conflict, context-only); it never hides a candidate, so a Jev false negative cannot bury the passage that answers the question. Routing thresholds live in code and are checked against labelled cases in `evals/`; no confidence cutoff converts a classification into a fact or a financial input.
+
+Acceptance is asymmetric: Jev observation → agent accepts, reconciles, or overrides with a stated reason → host structural validation (atomicity, verbatim source spans) → effect proposal → deterministic engine validation. Every semantic observation carries a `downstream_disposition` (used in finding, caused a further read, redirected research, flagged conflict, challenged the agent's draft, overridden with reason, unused), which forms the Jev contribution ledger used in evaluation.
+
+Code, not Jev, does arithmetic, date comparisons, eligibility checks and payment allocation. The main agent remains responsible for integrating evidence and explaining the economic mechanism. Preserve unknown and conflicting states.
+
+### Investigation graph
+
+The investigation is recorded as one append-only graph that the packet, reviewer, viewer and evaluator all consume: decision dependencies → searches and evidence candidates → Jev call records and semantic observations → atomic findings (exact source spans verified verbatim against the snapshot, plus observation references) → reconciliation tasks → economic effect proposals (mechanism, target stream, parameter requirements, baseline treatment) → sensitivity results. Runtime effects cite findings and source spans, never the builder's facts registry. Traceability means structured observable actions, never model reasoning tokens.
 
 ### Isolation and state
 
@@ -315,10 +322,11 @@ evals/                # gold premises, contradictions, isolation tests
 | 1. Runtime smoke test | Native subscription auth, one custom tool and schema output; one budgeted Jev call | Exact models/runtime recorded; no metered Anthropic/OpenAI fallback |
 | 2. Evidence ingestion | Source hash verification, structured tables, FTS, two dated snapshots | Future source IDs inaccessible; original table context retrievable |
 | 3. Financial core | Actual merchant rules, proposed fixed schedule, settlement calendar and cash ledger | Reference thresholds match; no double counts or fake opening balances |
-| 4. Agent/Jev integration | Adaptive gap-driven investigation and sourced effects | Produces correct economic mechanisms and parameter requirements without answer-bearing document order |
-| 5. Decision comparison | Explicit amount/term candidates, constraints, conditional collections and marginal funding export | Before/after has identical common inputs; result explains the binding constraint |
-| 6. Review and viewer | Independent challenge, immutable packet, leading decision/curve interface | Reviewer can trace claims; outcome reveal cannot contaminate the run |
-| 7. Transfer/evaluation | Same engine on Barfresh; agent-with-Jev vs agent-alone runs | Differences reported honestly, including failures and cases where Jev adds no value |
+| 4a. Semantic layer | Investigation graph and run store, Jev adapter (Choice and Noul) with host-owned judgment profiles, question registry v3, labelled semantic eval cases | Jev state is built only from admissible snapshot objects; every observation is traceable to a versioned question and physical call; Jev output cannot create a cash stream; labelled cases run live |
+| 4b. Investigation | Scoped MCP tools, adaptive runner, recorded Synergy run, thin read-only investigation viewer | From only the admissible dated snapshot and locked baseline, the agent identifies decision-relevant gaps; Jev systematically screens retrieved evidence and checks narrow semantic claims; every accepted finding is atomic and traceable to source spans and semantic observations; every proposed economic effect names its mechanism, target, parameter requirements and baseline treatment; dates and arithmetic remain deterministic; pivotal unresolved facts remain typed unknowns; the full investigation is observable; and no answer-bearing document order or evaluator information reaches the run |
+| 5. Decision comparison | Matched baseline/event-adjusted scenario pairs (only effect IDs differ), Account Credits linked to operating receipts, payment capacity with an explicit allocation rule, action-conditioned operating streams, distinct result series, conditional collections, conditional offers stated as fact + acceptable evidence + threshold branches, marginal funding export | Before/after has identical common inputs; result explains the binding constraint |
+| 6. Review and workbench | Independent challenge of the locked graph packet (issues point to nodes or edges), polished credit workbench led by the decision | Reviewer can trace claims; outcome reveal cannot contaminate the run |
+| 7. Transfer/evaluation | Same engine on Barfresh; agent-with-Jev vs agent-alone runs measured on critical semantic errors, finding and effect quality, pivotal-gap discovery, research efficiency, the Jev contribution ledger, agent/Jev disagreement, cost and decision consistency | Differences reported honestly, including failures and cases where Jev adds no value |
 
 The first demonstrable milestone is the Synergy financial core plus an agent-produced evidence adjustment. Do not spend the first build phase on a polished legal dashboard or a warehouse model. Conversely, do not substitute a canned report for the adaptive investigation Russell explicitly mentioned.
 
@@ -341,7 +349,7 @@ Financial acceptance tests protect economics:
 
 Agent acceptance includes identifying the three separate Synergy matters; respecting the August-cutoff boundary on the second supplier's identity (reporting the "VitBest" table label and its balance-matched link to the March settlement is acceptable when cited as an inference, while the full legal entity or any 2025 agreement fact is future leakage); distinguishing agreement from allegation, recognizing the noncash gain and date mismatch, surfacing material missing terms, and not importing 2025 refinancing as August committed cash. Barfresh tests planned capacity, expense funding and disputed payable treatment.
 
-Evaluate agent-alone and agent-plus-Jev using the same corpus, mission, primary model, research/financial tools and budgets. The agent-alone arm omits the Jev tool and mandatory Jev instructions; it retains the same financial calculation capabilities. Record evidence support, economic-effect accuracy, double-count prevention, decision consistency, research efficiency, latency and Jev usage. Keep blind reviewer context and retain failures. Run multiple seeds/sessions, but do not claim a statistically meaningful production improvement from two borrowers.
+Evaluate agent-alone and agent-plus-Jev using the same corpus, mission, primary model, research/financial tools and budgets. The agent-alone arm omits the `judge` tool, the screening fields on search results, the automatic finding check and the Jev registry; it retains the same retrieval and financial calculation capabilities. Final-decision agreement is insufficient on its own: also measure critical semantic errors (wrong entity, allegation treated as liability, paid treated as future payment, noncash treated as cash), supported-finding and effect quality, pivotal-gap discovery, research efficiency, which Jev observations changed research or corrected a finding (the contribution ledger), how often and how justifiably the agent overrode Jev, and cost. Jev may leave the recommendation unchanged on a borrower while still improving evidence discipline; that is a legitimate result. Record evidence support, economic-effect accuracy, double-count prevention, decision consistency, research efficiency, latency and Jev usage. Keep blind reviewer context and retain failures. Run multiple seeds/sessions, but do not claim a statistically meaningful production improvement from two borrowers.
 
 Critical errors—wrong entity, future leakage, fabricated payment date, demanded amount treated as paid, invented Slope policy, cash overstated or duplicate obligation—block a publishable demo result even if a blended score is high.
 

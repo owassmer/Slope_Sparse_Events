@@ -14,8 +14,9 @@ The deliverable is a **financing decision plus the loan's dated cash flows**. A 
    - `research/revision_v2/contracts/economic-effects.json`, `barfresh-economic-effects.json`, `proposal-fixtures.json`, `build-contracts.schema.json`
    - `research/revision_v2/data/sources.json` (catalog, hashes, mission membership) and `facts_synergy.json`
    - `research/revision_v2/reference/calculator.py`: reference arithmetic the finance core must reproduce
+4. `Jev_Pivot.md`: design rationale for the semantic judgment layer (steps 4–7). Its decisions are folded into the spec (§7, §9, §10) and `agent_config.json`; the spec wins if they differ. Its provider-provenance section is not adopted.
 
-**Isolation (non-negotiable):** `case_eval_private.json`, `outcome_checks_synergy.json`, the facts registry, and any source whose `mission_membership` is `outcome` must never reach the investigating agent or the blind reviewer. They reach the agent only through scoped MCP handlers built from the dated snapshot DB. This document and the alignment doc are builder context, and they must not be injected into agent prompts either.
+**Isolation (non-negotiable):** `case_eval_private.json`, `outcome_checks_synergy.json`, the facts registry, and any source whose `mission_membership` is `outcome` must never reach the investigating agent or the blind reviewer. They reach the agent only through scoped MCP handlers built from the dated snapshot DB. This document, the alignment doc and `Jev_Pivot.md` are builder context, and they must not be injected into agent prompts either.
 
 ## Critical errors (they block a demo result)
 Wrong entity. Future-information leakage. A fabricated payment date. A demanded amount treated as paid. Invented Slope policy. Overstated cash. A duplicated obligation. Unknown values silently becoming 0 or 1. Jev confidence used as a probability.
@@ -38,4 +39,4 @@ Commands: `uv sync`, `uv run slope ...`, `uv run pytest`, `uv run ruff check .`
 This is a proof-of-concept demo. **Do not spend significant time on non-essential tests, checks, or verification.** Write tests only where they protect financial correctness (the spec §10 invariants and the reference thresholds) or isolation (no future or evaluator leakage). No coverage targets, no exhaustive edge-case suites, no polishing checks. This speed allowance does not permit careless implementation: the economics, provenance, and the decision logic must still be right, and the demo must be coherent and intuitive.
 
 ## Product judgment
-Ask: *does this help the reviewer decide what to fund and understand the cash that comes back?* Keep contractual, conditional, and expected series distinct. Unknown is a typed state, never zero. Deterministic code does the arithmetic. The agent and Jev interpret evidence.
+Ask: *does this help the reviewer decide what to fund and understand the cash that comes back?* Keep contractual, conditional, and expected series distinct. Unknown is a typed state, never zero. Deterministic code does the arithmetic. The agent and Jev interpret evidence: the agent thinks broadly, Jev judges narrowly through host-owned judgment profiles, code computes exactly, the host controls everything, and the reviewer sees the causal chain in one investigation graph. A Jev answer never sets an amount, a date or a decision, and never activates a cash adjustment on its own.
