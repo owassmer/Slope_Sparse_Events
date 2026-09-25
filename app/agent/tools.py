@@ -427,8 +427,9 @@ async def propose_effect(ctx: RunContext, args: dict) -> dict:
                 _dispose(ctx, [o for o in guard_obs if _guard_name(o) == name], "overridden_by_agent_with_reason", overrides[name])
             elif found:
                 problems += found
-        _dispose(ctx, [o for o in guard_obs if ctx.run.get("observations", o.observation_id).downstream_disposition == "unused"],
-                 "challenged_agent_draft" if problems else "used_in_finding", f"effect guard for {effect.effect_id}")
+        undisposed = [o for o in guard_obs if (cur := ctx.run.get("observations", o.observation_id)).downstream_disposition
+                      == "unused" and not cur.disposition_note]  # a note means already disposed (e.g. near-even: unused)
+        _dispose(ctx, undisposed, "challenged_agent_draft" if problems else "used_in_finding", f"effect guard for {effect.effect_id}")
     validated = effect.model_copy(update={"status": "rejected" if problems else "validated",
                                           "validation_messages": tuple(problems),
                                           "observation_ids": tuple(o.observation_id for o in guard_obs),

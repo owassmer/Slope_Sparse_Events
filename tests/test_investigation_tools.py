@@ -250,6 +250,14 @@ def test_unsupported_consequence_is_rejected(make_ctx):
     assert eff["status"] == "rejected" and any("Consequence support" in p for p in eff["problems"])
 
 
+def test_near_even_unsupported_passes_but_is_not_counted_as_used(make_ctx):
+    ctx = make_ctx(flat=("claims_supported",), answers={"claims_supported": "some_unsupported"}, name="neareven")
+    _, fid = _accepted_settlement_finding(ctx)
+    eff = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT})
+    support = [o for o in ctx.run.graph["observations"].values() if o.question_id == "claims_supported"]
+    assert eff["status"] == "validated" and support and all(o.downstream_disposition == "unused" for o in support)
+
+
 def test_inventory_and_reconciliations_gate_submission(make_ctx):
     from app.domain.investigation import InventoryItem
     ctx = make_ctx(answers={"statement_relation": "conflict"}, name="gates")
