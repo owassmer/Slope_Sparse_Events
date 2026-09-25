@@ -1,0 +1,101 @@
+{
+  "model_id": "post_judgment_money_dispute",
+  "model_version": "1.0.0",
+  "status": "host_owned_design_contract",
+  "scope": "Post-judgment slice of a US federal civil money dispute: from a liability ruling whose amount is still open, through a money judgment, to payment, appeal with a bond, settlement, or enforcement and collection. The full lifecycle (pleadings, dispositive motions, trial) is the roadmap.",
+  "roles": {
+    "agent": "Instantiates a dispute onto this model: the accepted findings about it, which side the borrower is on, the counterparty, the documented amount and any docket date. The agent does not design stages, transitions or cash; it may propose an extension, which is recorded and flagged, never used.",
+    "host": "Traverses the model, asks Jev each atomic question, applies the rules below to set every date and amount, composes the paths and multiplies their weights.",
+    "jev": "Judges atomically: which stage the dispute is at (Choice), which factor each finding bears on (Choice), a factor's level (Score) or presence (Noul), and which transition the record supports next (Choice, with the path so far as its premise). Jev never sets a date, an amount or the credit decision."
+  },
+  "weights_label": "Transition weights are Jev's judgment of what the record supports (calibrated by TypeSafe to frontier-model consensus, not to observed litigation outcomes). Path weights are their products. Calibration against historical dockets is the roadmap.",
+  "rules": {
+    "appeal_notice_days": {"value": 30, "citation": "Fed. R. App. P. 4(a)(1)(A): notice of appeal within 30 days after entry of the judgment."},
+    "automatic_stay_days": {"value": 30, "citation": "Fed. R. Civ. P. 62(a): execution on a judgment is stayed for 30 days after its entry."},
+    "supersedeas_multiple_bps": {"value": 12500, "citation": "Fed. R. Civ. P. 62(b): a stay pending appeal on a bond or other security. District practice commonly sets the bond above the judgment to cover interest and costs; 125% is a model parameter."},
+    "bond_collateral_share_bps": {"lower": 5000, "upper": 10000, "citation": "Model parameter: the share of the bond a surety takes as cash collateral from the judgment debtor, locked while the appeal is pending."},
+    "post_judgment_interest_bps_per_year": {"lower": 400, "upper": 500, "citation": "28 U.S.C. § 1961(a): simple interest from entry of judgment at the weekly average one-year Treasury yield for the week before judgment; the range is that yield's level in mid-2024."},
+    "ruling_window_days": {"value": 120, "citation": "No rule sets when a court decides a submitted matter. Code-owned window from the review date; scenarios place the ruling early and late in it."},
+    "voluntary_payment_days_after_stay": {"value": 30, "citation": "Model parameter: a debtor that pays does so by 30 days after the automatic stay ends."},
+    "settlement_window_days": {"value": 90, "citation": "Model parameter: a settlement at this stage is paid within 90 days of the stage's start."},
+    "settlement_share_bps": {"lower": 6000, "upper": 10000, "citation": "Model parameter: a post-judgment settlement pays 60% to 100% of the amount."},
+    "enforcement_period_days": {"value": 90, "citation": "Fed. R. Civ. P. 69(a): a money judgment is enforced by a writ of execution. Model parameter: collection, when it succeeds, completes within 90 days after the stay ends."}
+  },
+  "refinement": {
+    "uncertain_if_top_below_bps": 7000,
+    "decision_relevant_if_cash_spread_at_least_share_of_request_bps": 2500,
+    "route_if_probability_at_least": 0.25,
+    "min_path_weight_bps": 100,
+    "note": "A transition is refined only when it is uncertain (its most supported option is below 70%) and decision-relevant (its options' cash differs by at least a quarter of the financing request). Refinement routes each finding to the transition's factors, grades them, and re-asks the transition with the factor results. Factors still unknown after refinement become evidence requests. Paths below 1% are pruned and the pruned weight is reported."
+  },
+  "stages": {
+    "amount_pending": {"label": "Liability decided, amount open", "description": "The court has decided a party is liable (for example, granted fees or damages) but has not fixed the amount; no money judgment has been entered for it yet.", "terminal": false},
+    "judgment_entered": {"label": "Money judgment entered", "description": "A judgment or order fixes the amount one party must pay the other, and no notice of appeal has been filed against it yet.", "terminal": false},
+    "appeal_pending": {"label": "Appeal pending", "description": "The judgment debtor has appealed and the judgment is stayed on a bond or other security.", "terminal": false},
+    "enforcement": {"label": "Enforcement", "description": "The judgment is unpaid, unstayed and past the automatic stay; the creditor may enforce it.", "terminal": false},
+    "paid": {"label": "Paid", "terminal": true},
+    "settled": {"label": "Settled", "terminal": true},
+    "amount_pending_at_horizon": {"label": "Amount still open at the horizon", "terminal": true},
+    "appeal_pending_at_horizon": {"label": "Appeal still pending at the horizon", "terminal": true},
+    "uncollected_at_horizon": {"label": "Not collected by the horizon", "terminal": true}
+  },
+  "transitions": {
+    "amount_pending": [
+      {"transition_id": "amount_fixed", "rule": "ruling", "to": "judgment_entered", "label": "The court fixes the amount", "description": "The court rules on the amount and enters a money judgment within the financing horizon.", "factors": ["amount_finality", "settlement_signals"]},
+      {"transition_id": "settle", "rule": "settle", "to": "settled", "label": "The parties settle before the ruling", "description": "The parties settle the amount before the court rules.", "factors": ["amount_finality", "settlement_signals"]},
+      {"transition_id": "no_ruling", "rule": "none", "to": "amount_pending_at_horizon", "label": "No ruling within the horizon", "description": "The court does not fix the amount within the financing horizon.", "factors": ["amount_finality", "settlement_signals"]}
+    ],
+    "judgment_entered": [
+      {"transition_id": "pay", "rule": "pay", "to": "paid", "label": "The debtor pays", "description": "The judgment debtor pays the judgment without appealing.", "factors": ["appeal_intent", "appeal_barred", "debtor_resistance", "debtor_liquidity", "settlement_signals"]},
+      {"transition_id": "appeal_bonded", "rule": "bond", "to": "appeal_pending", "label": "The debtor appeals and posts a bond", "description": "The judgment debtor files a notice of appeal and stays the judgment with a bond or other security.", "factors": ["appeal_intent", "appeal_barred", "debtor_resistance", "debtor_liquidity", "settlement_signals"]},
+      {"transition_id": "settle", "rule": "settle", "to": "settled", "label": "The parties settle", "description": "The parties settle the judgment for an agreed payment.", "factors": ["appeal_intent", "debtor_resistance", "settlement_signals"]},
+      {"transition_id": "resist", "rule": "none", "to": "enforcement", "label": "The debtor neither pays nor bonds", "description": "The judgment debtor does not pay and does not stay the judgment with a bond; the creditor must enforce it.", "factors": ["appeal_intent", "appeal_barred", "debtor_resistance", "debtor_liquidity"]}
+    ],
+    "appeal_pending": [
+      {"transition_id": "appeal_continues", "rule": "none", "to": "appeal_pending_at_horizon", "label": "The appeal continues", "description": "The appeal is still pending at the end of the financing horizon.", "factors": ["settlement_signals"]},
+      {"transition_id": "settle", "rule": "settle_release", "to": "settled", "label": "The parties settle during the appeal", "description": "The parties settle while the appeal is pending, and the bond is discharged.", "factors": ["settlement_signals"]}
+    ],
+    "enforcement": [
+      {"transition_id": "collected", "rule": "collect", "to": "paid", "label": "The creditor collects", "description": "The creditor collects the judgment through enforcement within the horizon.", "factors": ["debtor_resistance", "debtor_liquidity"]},
+      {"transition_id": "settle", "rule": "settle", "to": "settled", "label": "The parties settle", "description": "The parties settle during enforcement.", "factors": ["debtor_resistance", "settlement_signals"]},
+      {"transition_id": "uncollected", "rule": "none", "to": "uncollected_at_horizon", "label": "Not collected in the horizon", "description": "Enforcement does not collect the judgment within the horizon.", "factors": ["debtor_resistance", "debtor_liquidity"]}
+    ]
+  },
+  "factors": {
+    "amount_finality": {
+      "label": "How final the amount is", "kind": "graded",
+      "question": "How far has the amount the court will award progressed, as this passage describes it?",
+      "levels": ["No amount has been stated", "An amount is claimed or requested by a party", "The amount has been fully briefed or submitted to the court for decision", "The court has fixed the amount"],
+      "evidence_request": {"action": "Obtain the docket for the amount: the request, the briefing and whether it is submitted for decision.", "if_satisfied": "The ruling's timing and amount are re-judged with it.", "if_not": "The amount stays a range and the ruling window stays at the rule's default."}
+    },
+    "appeal_intent": {
+      "label": "The debtor's appeal intent", "kind": "graded",
+      "question": "What does this passage say about whether the judgment debtor will appeal?",
+      "levels": ["The debtor accepts the judgment or says it will not appeal", "The passage states no position on an appeal", "The debtor is considering or reserves the right to appeal", "The debtor states it intends to appeal", "The debtor has filed a notice of appeal"],
+      "evidence_request": {"action": "Ask the borrower whether an appeal will be taken and how any stay would be secured.", "if_satisfied": "The appeal branch is re-weighted on the answer.", "if_not": "Every branch stays weighted on the record as it is."}
+    },
+    "appeal_barred": {
+      "label": "An appeal is barred or waived", "kind": "present",
+      "question": "Does this passage state that the judgment debtor has waived its right to appeal, or that an appeal is barred?",
+      "evidence_request": {"action": "Confirm from the judgment or settlement whether the debtor waived its appeal rights.", "if_satisfied": "The appeal branch is re-weighted on the answer.", "if_not": "The appeal branch stays weighted on the record as it is."}
+    },
+    "debtor_resistance": {
+      "label": "The debtor's conduct in this dispute", "kind": "graded",
+      "question": "How has the judgment debtor responded to this obligation or to the court's orders in this dispute, as this passage describes it?",
+      "levels": ["The debtor has complied promptly", "The passage describes no conduct by the debtor on this obligation", "The debtor contested or delayed but complied in the end", "The debtor has refused, or contested enforcement of, this obligation"],
+      "evidence_request": {"action": "Obtain the docket entries since the judgment: any payment, stay motion or enforcement step.", "if_satisfied": "The payment and enforcement branches are re-weighted.", "if_not": "They stay weighted on the record as it is."}
+    },
+    "debtor_liquidity": {
+      "label": "The debtor's ability to pay", "kind": "graded",
+      "question": "What does this passage say about the judgment debtor's ability to pay an amount of this size?",
+      "levels": ["The debtor reports it cannot pay or doubts it can continue as a going concern", "The debtor's resources look constrained relative to the amount", "The debtor's resources look adequate for the amount", "The debtor's resources are ample relative to the amount"],
+      "evidence_request": {"action": "Obtain the judgment debtor's latest balance sheet or cash position.", "if_satisfied": "The payment and collection branches are re-weighted.", "if_not": "They stay weighted on the record as it is."}
+    },
+    "settlement_signals": {
+      "label": "Settlement signals", "kind": "graded",
+      "question": "What does this passage say about the parties settling this obligation?",
+      "levels": ["The passage describes no settlement discussion", "A party expresses general willingness to settle, or mediation is ordered", "The parties disclose active settlement negotiations", "The parties have an agreement in principle or a term sheet"],
+      "evidence_request": {"action": "Ask the borrower whether settlement talks are under way on this matter.", "if_satisfied": "The settlement branch is re-weighted.", "if_not": "It stays weighted on the record as it is."}
+    }
+  }
+}

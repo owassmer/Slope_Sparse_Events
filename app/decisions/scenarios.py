@@ -1,18 +1,19 @@
-"""Scenario engine: how each Slope financing structure performs, bank-only and with the dispute's branches.
+"""Scenario engine: how each Slope financing structure performs, bank-only and along the disputes' paths.
 
-Views (matched pair; common inputs identical, only the dispute nodes differ):
-  - bank_only: the connected-bank projection (trailing 13 weeks per category) and the financing action.
-  - event_adjusted: the same, plus every combination of the dispute nodes' branches. Each branch's cash is placed
-    two ways: `stress` (outflows and locks at the window start at the high amount; inflows at the window end at the
-    low amount) and `central` (window midpoint, midpoint amount).
+Views (matched pair; common inputs identical, only the dispute paths differ):
+  - bank_only: the connected-bank projection and the financing action.
+  - event_adjusted: the same, plus one path from each dispute (the generic dispute model gives each dispute its
+    root-to-leaf paths with conditional weights; distinct disputes are combined as independent, labelled). Each path's
+    cash is placed two ways: `stress` (outflows and locks at the window start at the high amount; inflows at the
+    window end at the low amount) and `central` (window midpoint, midpoint amount).
 
-The financing action: Slope pays the supplier invoice on the funding date, so the borrower no longer pays that invoice
-itself on its due date, and instead repays Slope on the structure's schedule. Declining leaves the invoice with the
-borrower. Collections (declared rule): ACH autopay takes each scheduled payment when available cash covers it;
+The financing action: Slope pays the supplier up to the financed amount on the funding date; the borrower pays any
+remainder of the invoice itself on its due date (all of it if Slope declines), then repays Slope on the structure's
+schedule. Collections (declared rule): ACH autopay takes each scheduled payment when available cash covers it;
 otherwise it takes the available cash and retries the rest at the next month-end (catch-up).
 
-Weighted (expected) figures use the nodes' branch weights (Jev's model judgment, labelled once) and treat nodes as
-independent. Every conditional result is kept beside them. Money is integer cents; rates are Decimal.
+Weighted (expected) figures use path weights (products of Jev's conditional judgments, labelled model judgment).
+Every conditional result is kept beside them. Money is integer cents; rates are Decimal.
 """
 
 from __future__ import annotations
@@ -22,30 +23,39 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 
-from app.domain.investigation import DisputeNode
+from app.domain.investigation import DisputePath
 from app.domain.values import cents_round, usd
 from app.finance.bank import BankFeed, projection, risk_features
 from app.finance.slope_products import BPS, SlopeOffer, limits, menu, offer, term_spec, tier_for
-from app.finance.valuation import present_value_cents, principal_dollar_days
+from app.finance.valuation import present_value_cents
 
 HORIZON_DAYS = 180
+AMOUNT_STEP_CENTS = 1_000_000  # supported amounts are sized on a USD 10k grid
 
 
 @dataclass(frozen=True)
 class Request:
-    amount_cents: int
+    amount_cents: int  # the invoice
     invoice_due: date  # when the borrower would pay the supplier itself
     funding: date  # when Slope pays the supplier
     requested_term_id: str
 
 
 @dataclass
-class Path:
-    """One scenario's daily available cash for one structure, and what Slope collects."""
+class Scenario:
+    """One combination of dispute paths (empty for bank-only) under one cash placement."""
     view: str
-    branch_ids: tuple[str, ...]
-    placement: str
+    path_ids: tuple[str, ...]
+    labels: tuple[str, ...]
     weight_bps: int | None
+    placement: str
+    cash: tuple = ()
+
+
+@dataclass
+class Outcome:
+    """One structure in one scenario: daily-cash low point, payments and what Slope collects."""
+    scenario: Scenario
     structure: str
     min_cash_cents: int = 0
     min_cash_on: date | None = None
@@ -63,19 +73,6 @@ def _place(amount, window_start: date, window_end: date, kind: str, placement: s
     return mid, (lo + hi) // 2
 
 
-def branch_combinations(nodes: list[DisputeNode]) -> list[tuple[tuple[str, ...], int | None, list]]:
-    """Cartesian product of branches across nodes: (branch ids, weight bps or None, cash items)."""
-    if not nodes:
-        return [((), 10_000, [])]
-    out = []
-    for combo in itertools.product(*[n.branches for n in nodes]):
-        ids = tuple(f"{n.node_id}:{b.branch_id}" for n, b in zip(nodes, combo, strict=True))
-        weights = [n.weights_bps.get(b.branch_id) for n, b in zip(nodes, combo, strict=True)]
-        w = None if any(x is None for x in weights) else _product_bps(weights)
-        out.append((ids, w, [c for b in combo for c in b.cash]))
-    return out
-
-
 def _product_bps(weights: list[int]) -> int:
     p = Decimal(1)
     for w in weights:
@@ -83,7 +80,21 @@ def _product_bps(weights: list[int]) -> int:
     return int((p * BPS).to_integral_value())
 
 
-def simulate(feed: BankFeed, request: Request, structure: SlopeOffer | None, cash_items: list, placement: str,
+def scenarios(disputes: list[list[DisputePath]]) -> list[Scenario]:
+    views = [Scenario("bank_only", (), (), 10_000, "central")]
+    if not disputes:
+        return views
+    for combo in itertools.product(*disputes):
+        weights = [p.weight_bps for p in combo]
+        w = None if any(x is None for x in weights) else _product_bps(weights)
+        cash = tuple(c for p in combo for c in p.cash)
+        for placement in (("stress", "central") if cash else ("central",)):
+            views.append(Scenario("event_adjusted", tuple(p.path_id for p in combo),
+                                  tuple(" → ".join(p.labels) for p in combo), w, placement, cash))
+    return views
+
+
+def simulate(feed: BankFeed, request: Request, structure: SlopeOffer | None, cash_items, placement: str,
              horizon: date) -> tuple[dict[date, int], list[tuple[date, int]], int, list[tuple[date, int, int]]]:
     """Daily available cash (after restricted cash) and Slope's collections under the declared autopay rule."""
     flows: dict[date, int] = {}
@@ -93,14 +104,14 @@ def simulate(feed: BankFeed, request: Request, structure: SlopeOffer | None, cas
 
     for d, _, cents in projection(feed, horizon):
         add(d, cents)
-    if structure is None:
-        add(request.invoice_due, -request.amount_cents)  # the borrower pays its own supplier
+    financed = structure.amount_cents if structure else 0
+    if request.amount_cents > financed:
+        add(request.invoice_due, -(request.amount_cents - financed))  # the borrower pays the rest of its invoice
     for item in cash_items:
         on, amt = _place(item.amount, item.window_start, item.window_end, item.kind, placement)
         add(on, -amt if item.kind in ("outflow", "lock") else amt)
-    schedule = structure.schedule(request.funding) if structure else []
     due: dict[date, int] = {}
-    for p in schedule:
+    for p in (structure.schedule(request.funding) if structure else []):
         due[p.due] = due.get(p.due, 0) + p.amount_cents
     cash, path, collected, owed, pays = feed.available_cents, {}, [], 0, []
     d = feed.period_end + timedelta(days=1)
@@ -125,155 +136,188 @@ def simulate(feed: BankFeed, request: Request, structure: SlopeOffer | None, cas
 class Comparison:
     tier: str
     tier_measures: dict
-    limits: dict
+    base_limits: dict
     structures: dict[str, SlopeOffer | None]
-    paths: list[Path]
+    outcomes: list[Outcome]
     request: Request
     liquidity_floor_cents: int
-    nodes: list[DisputeNode]
+    scenarios: list[Scenario]
+    horizon: date
+    feed: BankFeed = field(repr=False, default=None)
 
 
-def compare(feed: BankFeed, terms: dict, request: Request, nodes: list[DisputeNode],
-            horizon_days: int = HORIZON_DAYS) -> Comparison:
-    features = risk_features(feed)
-    tier, measures = tier_for(features, terms)
-    horizon = feed.period_end + timedelta(days=horizon_days)
-    structures: dict[str, SlopeOffer | None] = {"decline": None}
-    for o in menu(terms, request.amount_cents, tier):
-        structures[o.offer_id] = o
-    floor = cents_round(Decimal(features["monthly_outflows_cents"])
-                        * terms["credit_policy"]["liquidity_floor_months_of_outflows_bps"] / BPS)
-    views = [("bank_only", [((), 10_000, [])])]
-    if nodes:
-        views.append(("event_adjusted", branch_combinations(nodes)))
-    comp = Comparison(tier=tier, tier_measures=measures, limits=limits(features, terms), structures=structures,
-                      paths=[], request=request, liquidity_floor_cents=floor, nodes=nodes)
-
-    def run(names: list[str]) -> None:
-        for view, combos in views:
-            for ids, weight, items in combos:
-                for placement in (("stress", "central") if items else ("central",)):
-                    for name in names:
-                        daily, collected, shortfall, pays = simulate(feed, request, structures[name], items, placement,
-                                                                     horizon)
-                        low_day = min(daily, key=daily.get)
-                        comp.paths.append(Path(view=view, branch_ids=ids, placement=placement, weight_bps=weight,
-                                               structure=name, min_cash_cents=daily[low_day], min_cash_on=low_day,
-                                               collections=collected, shortfall_cents=shortfall, payment_dates=pays))
-    run(list(structures))
-    # The supported amount in each view: the order limit implied by the borrower's own lowest projected cash (the
-    # decline paths), rounded down to USD 10k, on the requested term, whenever it is below the request.
-    for view, _ in views:
-        order_limit = policy_checks(comp, terms, "decline", view)["order_limit_cents"]
-        supported = order_limit // 1_000_000 * 1_000_000
-        if 0 < supported < request.amount_cents:
-            s = offer(terms, request.requested_term_id, supported, tier)
-            if s.offer_id not in structures:
-                structures[s.offer_id] = s
-                run([s.offer_id])
-    return comp
-
-
-def economics(o: SlopeOffer, funding: date, collections: list[tuple[date, int]], terms: dict,
-              decision: date) -> dict:
-    """Lender economics on this structure's collections: NPV at cost of funds, principal dollar-days, expected loss."""
-    cap = terms["capital"]
-    cof = Decimal(cap["cost_of_funds_bps_per_year"]) / BPS
-    flows = [((funding - decision).days, -o.amount_cents)] + [((d - decision).days, c) for d, c in collections]
-    npv = present_value_cents(flows, cof)
-    collected = sum(c for _, c in collections)
-    principal = [((p.due - decision).days, p.principal_cents) for p in o.schedule(funding)]
-    dollar_days = principal_dollar_days([((funding - decision).days, o.amount_cents)], principal) \
-        if collected >= o.total_cents else None
-    years = Decimal(o.days) / Decimal(365)
-    pd = Decimal(cap["probability_of_default_bps_per_year"][o.tier]) / BPS
-    el = cents_round(Decimal(o.amount_cents) * pd * years * Decimal(cap["loss_given_default_bps"]) / BPS)
-    return {"fee_cents": o.fee_cents, "fee_bps": o.fee_bps, "apr_equivalent_bps": o.apr_equivalent_bps(funding),
-            "collected_cents": collected, "npv_at_cost_of_funds_cents": cents_round(npv),
-            "principal_dollar_days": dollar_days, "expected_loss_cents": el,
-            "fee_net_of_expected_loss_cents": o.fee_cents - el}
+def _run(comp: Comparison, name: str) -> list[Outcome]:
+    out = []
+    for sc in comp.scenarios:
+        daily, collected, shortfall, pays = simulate(comp.feed, comp.request, comp.structures[name], sc.cash,
+                                                     sc.placement, comp.horizon)
+        low = min(daily, key=daily.get)
+        out.append(Outcome(sc, name, daily[low], low, collected, shortfall, pays))
+    return out
 
 
 def policy_checks(comp: Comparison, terms: dict, name: str, view: str) -> dict:
-    """Reconstructed Slope policy for one structure in one view: amount limits, tenor, and the liquidity floor at
-    every payment date in every branch and placement. The limit also scales with the lowest projected cash."""
+    """Reconstructed Slope policy for one structure in one view, on that structure's own cash paths: the limit (lower
+    of the share of monthly inflows and the share of the lowest projected cash), the order limit, tenor, and the
+    liquidity floor at every payment date in every scenario. Names the binding constraint, scenario and date."""
     s = comp.structures[name]
     pol = terms["credit_policy"]
-    paths = [p for p in comp.paths if p.structure == name and p.view == view]
-    low = min(p.min_cash_cents for p in paths)
-    cash_limit = cents_round(Decimal(max(low, 0)) * pol["limit_share_of_min_projected_cash_bps"] / BPS)
-    limit = min(comp.limits["limit_cents"], cash_limit)
+    outs = [o for o in comp.outcomes if o.structure == name and o.scenario.view == view]
+    lowest = min(outs, key=lambda o: o.min_cash_cents)
+    cash_limit = cents_round(Decimal(max(lowest.min_cash_cents, 0)) * pol["limit_share_of_min_projected_cash_bps"] / BPS)
+    limit = min(comp.base_limits["limit_cents"], cash_limit)
+    binding_limit = "lowest projected cash" if cash_limit < comp.base_limits["limit_cents"] else "monthly bank inflows"
     order_limit = cents_round(Decimal(limit) * pol["order_limit_share_of_limit_bps"] / BPS)
+    result = {"limit_cents": limit, "order_limit_cents": order_limit, "limit_set_by": binding_limit,
+              "lowest_projected_cash_cents": lowest.min_cash_cents, "lowest_cash_on": lowest.min_cash_on.isoformat(),
+              "lowest_cash_scenario": list(lowest.scenario.labels), "lowest_cash_placement": lowest.scenario.placement}
     if s is None:
-        return {"limit_cents": limit, "order_limit_cents": order_limit, "passes": True, "reasons": []}
+        return {**result, "passes": True, "reasons": []}
     reasons = []
     if s.amount_cents > order_limit:
         reasons.append(f"amount above the order limit of {usd(order_limit)}")
     if s.days > pol["max_tenor_days"]:
         reasons.append("tenor above policy")
-    floor_breaches = [(p.branch_ids, p.placement, d.isoformat()) for p in paths for d, _, after in p.payment_dates
-                      if after < comp.liquidity_floor_cents]
-    if floor_breaches:
-        reasons.append(f"cash after a payment falls below one month of outflows in {len(floor_breaches)} case(s)")
-    if any(p.shortfall_cents for p in paths):
-        reasons.append("a scheduled payment is not fully collected by the horizon in some branch")
-    return {"limit_cents": limit, "order_limit_cents": order_limit, "passes": not reasons, "reasons": reasons,
-            "floor_breaches": floor_breaches[:5], "lowest_projected_cash_cents": low}
+    breaches = [(o.scenario, d, after) for o in outs for d, _, after in o.payment_dates if after < comp.liquidity_floor_cents]
+    if breaches:
+        sc, d, after = min(breaches, key=lambda b: b[2])
+        reasons.append(f"cash after the {d.isoformat()} payment falls to {usd(after)}, below one month of outflows "
+                       f"({usd(comp.liquidity_floor_cents)}), in {' / '.join(sc.labels) or 'the bank-only view'} "
+                       f"({sc.placement})")
+    if any(o.shortfall_cents for o in outs):
+        reasons.append("a scheduled payment is not fully collected by the horizon in some scenario")
+    return {**result, "passes": not reasons, "reasons": reasons}
+
+
+def _supported_amount(comp: Comparison, terms: dict, view: str) -> SlopeOffer | None:
+    """Largest amount on the requested term, on a USD 10k grid, that passes policy on its own cash paths. Larger
+    amounts carry larger payments and fees, so cash paths and the cash-based limit fall as the amount rises: the pass
+    set is a lower interval, found by bisection and verified at the boundary."""
+    req = comp.request
+
+    def passes(cents: int) -> bool:
+        o = offer(terms, req.requested_term_id, cents, comp.tier)
+        if o.offer_id not in comp.structures:
+            comp.structures[o.offer_id] = o
+            comp.outcomes += _run(comp, o.offer_id)
+        return policy_checks(comp, terms, o.offer_id, view)["passes"]
+
+    lo, hi = 0, req.amount_cents // AMOUNT_STEP_CENTS
+    if hi and passes(hi * AMOUNT_STEP_CENTS):
+        return comp.structures[f"{req.requested_term_id}_{hi * AMOUNT_STEP_CENTS // 100}"]
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        lo, hi = (mid, hi) if passes(mid * AMOUNT_STEP_CENTS) else (lo, mid)
+    if lo == 0 or not passes(lo * AMOUNT_STEP_CENTS):
+        return None
+    return comp.structures[f"{req.requested_term_id}_{lo * AMOUNT_STEP_CENTS // 100}"]
+
+
+def compare(feed: BankFeed, terms: dict, request: Request, disputes: list[list[DisputePath]],
+            horizon_days: int = HORIZON_DAYS) -> Comparison:
+    features = risk_features(feed)
+    tier, measures = tier_for(features, terms)
+    structures: dict[str, SlopeOffer | None] = {"decline": None}
+    for o in menu(terms, request.amount_cents, tier):
+        structures[o.offer_id] = o
+    floor = cents_round(Decimal(features["monthly_outflows_cents"])
+                        * terms["credit_policy"]["liquidity_floor_months_of_outflows_bps"] / BPS)
+    comp = Comparison(tier=tier, tier_measures=measures, base_limits=limits(features, terms), structures=structures,
+                      outcomes=[], request=request, liquidity_floor_cents=floor, scenarios=scenarios(disputes),
+                      horizon=feed.period_end + timedelta(days=horizon_days), feed=feed)
+    for name in list(structures):
+        comp.outcomes += _run(comp, name)
+    return comp
+
+
+def _principal_dollar_days(o: SlopeOffer, funding: date, collections: list[tuple[date, int]], horizon: date) -> int:
+    """Outstanding principal x days, in dollar-days, from funding to actual collection (principal is each collection's
+    pro rata share of the total due); principal still outstanding at the horizon counts to the horizon."""
+    outstanding, last, total = o.amount_cents, funding, Decimal(0)
+    for d, c in collections:
+        total += Decimal(outstanding) * (d - last).days
+        outstanding -= min(outstanding, cents_round(Decimal(c) * o.amount_cents / o.total_cents))
+        last = d
+    total += Decimal(outstanding) * (horizon - last).days
+    return int(total / 100)
+
+
+def economics(o: SlopeOffer, comp: Comparison, collections: list[tuple[date, int]], terms: dict) -> dict:
+    """Lender economics on one scenario's collections: NPV at cost of funds, dollar-days, expected loss."""
+    cap = terms["capital"]
+    decision = comp.request.funding - timedelta(days=1)
+    cof = Decimal(cap["cost_of_funds_bps_per_year"]) / BPS
+    flows = [((comp.request.funding - decision).days, -o.amount_cents)] + [((d - decision).days, c) for d, c in collections]
+    years = Decimal(o.days) / Decimal(365)
+    pd = Decimal(cap["probability_of_default_bps_per_year"][o.tier]) / BPS
+    el = cents_round(Decimal(o.amount_cents) * pd * years * Decimal(cap["loss_given_default_bps"]) / BPS)
+    collected = sum(c for _, c in collections)
+    return {"fee_cents": o.fee_cents, "fee_bps": o.fee_bps, "apr_equivalent_bps": o.apr_equivalent_bps(comp.request.funding),
+            "collected_cents": collected, "uncollected_cents": o.total_cents - collected,
+            "npv_at_cost_of_funds_cents": cents_round(present_value_cents(flows, cof)),
+            "principal_dollar_days": _principal_dollar_days(o, comp.request.funding, collections, comp.horizon),
+            "expected_loss_cents": el, "fee_net_of_expected_loss_cents": o.fee_cents - el}
+
+
+def _expected_series(outs: list[Outcome]) -> list[dict] | None:
+    central = [o for o in outs if o.scenario.placement == "central"]
+    if not central or any(o.scenario.weight_bps is None for o in central):
+        return None
+    by_day: dict[date, Decimal] = {}
+    for o in central:
+        for d, c in o.collections:
+            by_day[d] = by_day.get(d, Decimal(0)) + Decimal(o.scenario.weight_bps) / BPS * c
+    return [{"date": d.isoformat(), "amount_cents": cents_round(v)} for d, v in sorted(by_day.items())]
 
 
 def summarize(comp: Comparison, terms: dict) -> dict:
-    """The decision view: per structure, bank-only vs event-adjusted policy, economics, collections and branches."""
-    decision = comp.request.funding - timedelta(days=1)
+    """The decision view: recommendation per view, then per structure: policy, and per scenario its dated collections
+    and economics; the contractual and expected series."""
+    views = sorted({sc.view for sc in comp.scenarios}, key=["bank_only", "event_adjusted"].index)
+    recs = {view: recommend(comp, terms, view) for view in views}  # may add sized structures first
     out = {"tier": comp.tier, "tier_measures": comp.tier_measures, "liquidity_floor_cents": comp.liquidity_floor_cents,
-           "structures": {}, "nodes": [
-               {"node_id": n.node_id, "decision_point": n.decision_point,
-                "branches": [{"branch_id": b.branch_id, "label": b.label, "weight_bps": n.weights_bps.get(b.branch_id)}
-                             for b in n.branches]} for n in comp.nodes]}
-    views = ["bank_only"] + (["event_adjusted"] if comp.nodes else [])
+           "horizon": comp.horizon.isoformat(), "recommendation": recs, "structures": {}}
     for name, s in comp.structures.items():
         entry = {"label": "Decline (borrower pays its supplier)" if s is None else
                  f"{usd(s.amount_cents)}, {term_spec(terms, s.term_id)['label']}", "views": {}}
         for view in views:
-            checks = policy_checks(comp, terms, name, view)
-            paths = [p for p in comp.paths if p.structure == name and p.view == view]
-            central = [p for p in paths if p.placement == "central"]
-            weighted = None
-            if s is not None and all(p.weight_bps is not None for p in central):
-                weighted = cents_round(sum((Decimal(p.weight_bps) / BPS) * sum(c for _, c in p.collections)
-                                           for p in central))
-            v = {"policy": checks, "lowest_cash_cents": min(p.min_cash_cents for p in paths),
-                 "lowest_cash_on": min(paths, key=lambda p: p.min_cash_cents).min_cash_on.isoformat(),
-                 "branches": [{"branch_ids": list(p.branch_ids), "placement": p.placement, "weight_bps": p.weight_bps,
-                               "lowest_cash_cents": p.min_cash_cents, "lowest_cash_on": p.min_cash_on.isoformat(),
-                               "collected_cents": sum(c for _, c in p.collections), "shortfall_cents": p.shortfall_cents}
-                              for p in paths]}
+            outs = [o for o in comp.outcomes if o.structure == name and o.scenario.view == view]
+            v = {"policy": policy_checks(comp, terms, name, view), "scenarios": []}
+            for o in outs:
+                row = {"paths": list(o.scenario.path_ids), "labels": list(o.scenario.labels),
+                       "weight_bps": o.scenario.weight_bps, "placement": o.scenario.placement,
+                       "lowest_cash_cents": o.min_cash_cents, "lowest_cash_on": o.min_cash_on.isoformat()}
+                if s is not None:
+                    row["collections"] = [{"date": d.isoformat(), "amount_cents": c} for d, c in o.collections]
+                    row["economics"] = economics(s, comp, o.collections, terms)
+                v["scenarios"].append(row)
             if s is not None:
-                worst = min(paths, key=lambda p: sum(c for _, c in p.collections))
-                v["economics"] = economics(s, comp.request.funding, worst.collections, terms, decision)
-                v["expected_collected_cents"] = weighted
                 v["contractual"] = [{"due": p.due.isoformat(), "amount_cents": p.amount_cents,
                                      "principal_cents": p.principal_cents, "fee_cents": p.fee_cents}
                                     for p in s.schedule(comp.request.funding)]
+                v["expected_collections"] = _expected_series(outs)
             entry["views"][view] = v
         out["structures"][name] = entry
-    out["recommendation"] = {view: recommend(comp, out, view) for view in views}
     return out
 
 
-def recommend(comp: Comparison, summary: dict, view: str) -> dict:
-    """Declared objective, applied per view: the requested structure if it passes policy in every branch and
-    placement; otherwise the passing structure closest to the request (largest amount, requested term first, then the
-    shortest tenor); otherwise decline. The requested structure's failing reasons are kept for the explanation."""
+def recommend(comp: Comparison, terms: dict, view: str) -> dict:
+    """Declared objective, per view: the requested structure if it passes policy in every scenario and placement;
+    otherwise the largest amount on the requested term that passes (sized on its own cash paths); otherwise decline.
+    The explanation names what binds: the requested structure's failing reasons and where cash is lowest."""
     req = comp.request
     requested = f"{req.requested_term_id}_{req.amount_cents // 100}"
-    ranked = sorted((n for n, s in comp.structures.items() if s is not None),
-                    key=lambda n: (-comp.structures[n].amount_cents, comp.structures[n].term_id != req.requested_term_id,
-                                   comp.structures[n].days))
-    ranked.remove(requested)
-    ranked.insert(0, requested)
-    chosen = next((n for n in ranked if summary["structures"][n]["views"][view]["policy"]["passes"]), "decline")
-    pol = summary["structures"]["decline"]["views"][view]["policy"]
-    return {"structure": chosen, "requested": requested,
-            "limit_cents": pol["limit_cents"], "order_limit_cents": pol["order_limit_cents"],
-            "requested_passes": chosen == requested,
-            "requested_reasons": summary["structures"][requested]["views"][view]["policy"]["reasons"]}
+    req_check = policy_checks(comp, terms, requested, view)
+    if req_check["passes"]:
+        chosen = requested
+    else:
+        sized = _supported_amount(comp, terms, view)
+        chosen = sized.offer_id if sized else "decline"
+    chosen_check = policy_checks(comp, terms, chosen, view)
+    return {"structure": chosen, "requested": requested, "requested_passes": chosen == requested,
+            "requested_reasons": req_check["reasons"],
+            "limit_cents": chosen_check["limit_cents"], "order_limit_cents": chosen_check["order_limit_cents"],
+            "limit_set_by": chosen_check["limit_set_by"],
+            "binding": {"lowest_projected_cash_cents": req_check["lowest_projected_cash_cents"],
+                        "on": req_check["lowest_cash_on"], "scenario": req_check["lowest_cash_scenario"],
+                        "placement": req_check["lowest_cash_placement"]}}

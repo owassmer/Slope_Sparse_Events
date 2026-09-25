@@ -34,21 +34,26 @@
 <div class="grid2">
   {% for view in d.views %}{% set r = d.recommendation[view] %}
   <div class="card">
-    <h5>{{ "Bank data only" if view == "bank_only" else "With the dispute's branches" }}</h5>
+    <h5>{{ "Bank data only" if view == "bank_only" else "With the disputes' paths" }}</h5>
     <p><strong>{{ r.label }}</strong>{% if not r.requested_passes %} <span class="tag warn">below the request</span>{% endif %}</p>
-    <p class="muted">Limit {{ r.limit }} · order limit {{ r.order_limit }}{% if r.requested_reasons %} · request: {{ r.requested_reasons | join("; ") }}{% endif %}</p>
+    <p class="muted">Limit {{ r.limit }} ({{ r.limit_set_by }}) · order limit {{ r.order_limit }} · lowest projected cash {{ r.lowest }} on {{ r.binding.on }}{% if r.binding.scenario %} in {{ r.binding.scenario | join(" / ") }} ({{ r.binding.placement }}){% endif %}
+    {% if r.requested_reasons %}<br>Request: {{ r.requested_reasons | join("; ") }}{% endif %}</p>
   </div>{% endfor %}
 </div>
-{% if d.conditions %}<p><strong>Conditions</strong></p><ul>{% for c in d.conditions %}<li>{{ c.action }} <span class="muted">({{ c.why }})</span></li>{% endfor %}</ul>{% endif %}
-{% for n in v.dispute_nodes %}<div class="card"><h5>{{ n.decision_point }}</h5>
-  {% for b in n.branches %}<p style="margin:.2rem 0"><span class="tag jev">{{ b.weight }}</span><strong>{{ b.label }}</strong>: {{ b.description }}
-    {% for c in b.cash %}<br><span class="muted">{{ c.kind }} {{ c.amount }} ({{ c.label }}), {{ c.window }}</span>{% endfor %}</p>{% endfor %}
+{% if d.conditions %}<p><strong>Conditions</strong></p><ul>{% for c in d.conditions %}<li>{{ c.action }} <span class="muted">If satisfied: {{ c.if_satisfied }} If not: {{ c.if_not }}</span></li>{% endfor %}</ul>{% endif %}
+{% for x in v.disputes %}<div class="card"><h5>{{ x.title }}</h5>
+  <p class="muted">The borrower {{ x.role }} {{ x.counterparty }} {{ x.amount }} · stage: {{ x.stage }}{% if x.refined %} · refined by factors at: {{ x.refined | join(", ") }}{% endif %}</p>
+  {% for p in x.paths %}<p style="margin:.2rem 0"><span class="tag jev">{{ p.weight }}</span><strong>{{ p.labels }}</strong>
+    {% for c in p.cash %}<br><span class="muted">{{ c.kind }} {{ c.amount }} ({{ c.label }}), {{ c.window }}: {{ c.rule }}</span>{% endfor %}</p>{% endfor %}
+  {% if x.pruned %}<p class="muted">Paths below 1% pruned: {{ x.pruned }} of weight.</p>{% endif %}
+  {% if x.factors %}<details><summary>Factors ({{ x.factors | length }})</summary>{% for f in x.factors %}<p style="margin:.2rem 0"><span class="tag jev">Jev</span>{{ f.label }}: <strong>{{ f.level }}</strong>{% if f.findings %} <span class="muted">({{ f.findings | join(", ") }})</span>{% endif %}</p>{% endfor %}</details>{% endif %}
+  {% if x.extension %}<p><span class="tag warn">Proposed model extension (not used)</span> {{ x.extension }}</p>{% endif %}
 </div>{% endfor %}
-{% if v.dispute_nodes %}<p class="muted">{{ d.weights_label }}</p>{% endif %}
-<table><thead><tr><th>Structure</th>{% for view in d.views %}<th>{{ "Bank only" if view == "bank_only" else "With dispute" }}</th>{% endfor %}</tr></thead><tbody>
+{% if v.disputes %}<p class="muted">{{ d.weights_label }}</p>{% endif %}
+<table><thead><tr><th>Structure</th>{% for view in d.views %}<th>{{ "Bank only" if view == "bank_only" else "With disputes" }}</th>{% endfor %}</tr></thead><tbody>
 {% for row in d.rows %}<tr><td>{{ row.label }}{% if row[d.views[0]].fee %}<br><span class="muted">fee {{ row[d.views[0]].fee }} · {{ row[d.views[0]].apr }} effective</span>{% endif %}</td>
   {% for view in d.views %}{% set c = row[view] %}<td>{% if c.passes %}<span class="tag engine">passes</span>{% else %}<span class="tag warn">fails</span>{% endif %}
-    <span class="muted">lowest cash {{ c.lowest }}{% if c.npv %} · NPV {{ c.npv }}{% endif %}{% if c.reasons %}<br>{{ c.reasons | join("; ") }}{% endif %}</span></td>{% endfor %}</tr>{% endfor %}
+    <span class="muted">lowest cash {{ c.lowest }}{% if c.collected %} · {{ c.collected }}{% endif %}{% if c.reasons %}<br>{{ c.reasons | join("; ") }}{% endif %}</span></td>{% endfor %}</tr>{% endfor %}
 </tbody></table>
 <p class="muted">Risk tier {{ d.tier }} from connected bank data. {{ d.bank_feed.provenance }} {{ d.slope_terms.provenance }}</p>
 {% endif %}

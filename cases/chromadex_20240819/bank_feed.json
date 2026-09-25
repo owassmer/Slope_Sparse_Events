@@ -1124,525 +1124,525 @@
   },
   {
    "date": "2024-04-01",
-   "amount_cents": 13570831,
+   "amount_cents": 13587885,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00159"
   },
   {
    "date": "2024-04-02",
-   "amount_cents": 12782591,
+   "amount_cents": 12798654,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00160"
   },
   {
    "date": "2024-04-03",
-   "amount_cents": 34328685,
+   "amount_cents": 34371824,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00161"
   },
   {
    "date": "2024-04-03",
-   "amount_cents": 23715637,
+   "amount_cents": 23745438,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00162"
   },
   {
    "date": "2024-04-03",
-   "amount_cents": 13255784,
+   "amount_cents": 13272442,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00163"
   },
   {
    "date": "2024-04-03",
-   "amount_cents": -12143026,
+   "amount_cents": -12158090,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00164"
   },
   {
    "date": "2024-04-03",
-   "amount_cents": -30293313,
+   "amount_cents": -30330894,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00165"
   },
   {
    "date": "2024-04-03",
-   "amount_cents": -49304710,
+   "amount_cents": -49365877,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00166"
   },
   {
    "date": "2024-04-04",
-   "amount_cents": 15217753,
+   "amount_cents": 15236876,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00167"
   },
   {
    "date": "2024-04-05",
-   "amount_cents": 78964299,
+   "amount_cents": 79063528,
    "counterparty": "Amazon Payments",
    "category": "marketplace_payouts",
    "transaction_id": "txn_00168"
   },
   {
    "date": "2024-04-05",
-   "amount_cents": 16990155,
+   "amount_cents": 17011506,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00169"
   },
   {
    "date": "2024-04-05",
-   "amount_cents": -84326153,
+   "amount_cents": -84430766,
    "counterparty": "Payroll (ADP)",
    "category": "payroll",
    "transaction_id": "txn_00170"
   },
   {
    "date": "2024-04-08",
-   "amount_cents": 13208686,
+   "amount_cents": 13225285,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00171"
   },
   {
    "date": "2024-04-09",
-   "amount_cents": 17288134,
+   "amount_cents": 17309859,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00172"
   },
   {
    "date": "2024-04-10",
-   "amount_cents": 31267392,
+   "amount_cents": 31306684,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00173"
   },
   {
    "date": "2024-04-10",
-   "amount_cents": 23501771,
+   "amount_cents": 23531304,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00174"
   },
   {
    "date": "2024-04-10",
-   "amount_cents": 12305979,
+   "amount_cents": 12321443,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00175"
   },
   {
    "date": "2024-04-10",
-   "amount_cents": -11670058,
+   "amount_cents": -11684536,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00176"
   },
   {
    "date": "2024-04-10",
-   "amount_cents": -32533078,
+   "amount_cents": -32573438,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00177"
   },
   {
    "date": "2024-04-10",
-   "amount_cents": -59540047,
+   "amount_cents": -59613911,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00178"
   },
   {
    "date": "2024-04-11",
-   "amount_cents": 17453731,
+   "amount_cents": 17475663,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00179"
   },
   {
    "date": "2024-04-12",
-   "amount_cents": 17121786,
+   "amount_cents": 17143302,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00180"
   },
   {
    "date": "2024-04-12",
-   "amount_cents": -21524835,
+   "amount_cents": -21551538,
    "counterparty": "Other professional services",
    "category": "professional_fees",
    "transaction_id": "txn_00181"
   },
   {
    "date": "2024-04-12",
-   "amount_cents": -28699780,
+   "amount_cents": -28735384,
    "counterparty": "Research and clinical vendors",
    "category": "research",
    "transaction_id": "txn_00182"
   },
   {
    "date": "2024-04-15",
-   "amount_cents": 14886224,
+   "amount_cents": 14904931,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00183"
   },
   {
    "date": "2024-04-15",
-   "amount_cents": -28699780,
+   "amount_cents": -28735384,
    "counterparty": "Litigation counsel",
    "category": "legal_fees",
    "transaction_id": "txn_00184"
   },
   {
    "date": "2024-04-16",
-   "amount_cents": 14691380,
+   "amount_cents": 14709842,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00185"
   },
   {
    "date": "2024-04-17",
-   "amount_cents": 34801416,
+   "amount_cents": 34845149,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00186"
   },
   {
    "date": "2024-04-17",
-   "amount_cents": 24396680,
+   "amount_cents": 24427337,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00187"
   },
   {
    "date": "2024-04-17",
-   "amount_cents": 14843457,
+   "amount_cents": 14862109,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00188"
   },
   {
    "date": "2024-04-17",
-   "amount_cents": -12958035,
+   "amount_cents": -12974110,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00189"
   },
   {
    "date": "2024-04-17",
-   "amount_cents": -39296250,
+   "amount_cents": -39345000,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00190"
   },
   {
    "date": "2024-04-17",
-   "amount_cents": -50004128,
+   "amount_cents": -50066162,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00191"
   },
   {
    "date": "2024-04-18",
-   "amount_cents": 16491305,
+   "amount_cents": 16512028,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00192"
   },
   {
    "date": "2024-04-18",
-   "amount_cents": -71749450,
+   "amount_cents": -71838461,
    "counterparty": "W.R. Grace (NR ingredient)",
    "category": "ingredient_supply",
    "transaction_id": "txn_00193"
   },
   {
    "date": "2024-04-19",
-   "amount_cents": 69784931,
+   "amount_cents": 69872625,
    "counterparty": "Amazon Payments",
    "category": "marketplace_payouts",
    "transaction_id": "txn_00194"
   },
   {
    "date": "2024-04-19",
-   "amount_cents": 15850605,
+   "amount_cents": 15870523,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00195"
   },
   {
    "date": "2024-04-19",
-   "amount_cents": -14349890,
+   "amount_cents": -14367692,
    "counterparty": "Landlord",
    "category": "rent",
    "transaction_id": "txn_00196"
   },
   {
    "date": "2024-04-19",
-   "amount_cents": -66347693,
+   "amount_cents": -66430003,
    "counterparty": "Payroll (ADP)",
    "category": "payroll",
    "transaction_id": "txn_00197"
   },
   {
    "date": "2024-04-22",
-   "amount_cents": 15337525,
+   "amount_cents": 15356798,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00198"
   },
   {
    "date": "2024-04-23",
-   "amount_cents": 14817347,
+   "amount_cents": 14835967,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00199"
   },
   {
    "date": "2024-04-24",
-   "amount_cents": 34185144,
+   "amount_cents": 34228101,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00200"
   },
   {
    "date": "2024-04-24",
-   "amount_cents": 20468769,
+   "amount_cents": 20494492,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00201"
   },
   {
    "date": "2024-04-24",
-   "amount_cents": 16870320,
+   "amount_cents": 16891520,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00202"
   },
   {
    "date": "2024-04-24",
-   "amount_cents": -13453496,
+   "amount_cents": -13470187,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00203"
   },
   {
    "date": "2024-04-24",
-   "amount_cents": -34201315,
+   "amount_cents": -34243744,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00204"
   },
   {
    "date": "2024-04-24",
-   "amount_cents": -56399466,
+   "amount_cents": -56469434,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00205"
   },
   {
    "date": "2024-04-25",
-   "amount_cents": 14906973,
+   "amount_cents": 14925706,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00206"
   },
   {
    "date": "2024-04-26",
-   "amount_cents": 15232756,
+   "amount_cents": 15251898,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00207"
   },
   {
    "date": "2024-04-29",
-   "amount_cents": 13736201,
+   "amount_cents": 13753463,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00208"
   },
   {
    "date": "2024-04-30",
-   "amount_cents": 16055422,
+   "amount_cents": 16075596,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00209"
   },
   {
    "date": "2024-05-01",
-   "amount_cents": 31725031,
+   "amount_cents": 31764898,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00210"
   },
   {
    "date": "2024-05-01",
-   "amount_cents": 20889006,
+   "amount_cents": 20915256,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00211"
   },
   {
    "date": "2024-05-01",
-   "amount_cents": 13784956,
+   "amount_cents": 13802279,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00212"
   },
   {
    "date": "2024-05-01",
-   "amount_cents": -10756728,
+   "amount_cents": -10770072,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00213"
   },
   {
    "date": "2024-05-01",
-   "amount_cents": -25800254,
+   "amount_cents": -25832262,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00214"
   },
   {
    "date": "2024-05-01",
-   "amount_cents": -46873591,
+   "amount_cents": -46931742,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00215"
   },
   {
    "date": "2024-05-02",
-   "amount_cents": 17972455,
+   "amount_cents": 17995040,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00216"
   },
   {
    "date": "2024-05-03",
-   "amount_cents": 51100942,
+   "amount_cents": 51165157,
    "counterparty": "Amazon Payments",
    "category": "marketplace_payouts",
    "transaction_id": "txn_00217"
   },
   {
    "date": "2024-05-03",
-   "amount_cents": 13873423,
+   "amount_cents": 13890857,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00218"
   },
   {
    "date": "2024-05-03",
-   "amount_cents": -45034464,
+   "amount_cents": -45090332,
    "counterparty": "Payroll (ADP)",
    "category": "payroll",
    "transaction_id": "txn_00219"
   },
   {
    "date": "2024-05-06",
-   "amount_cents": 13934082,
+   "amount_cents": 13951592,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00220"
   },
   {
    "date": "2024-05-07",
-   "amount_cents": 14249868,
+   "amount_cents": 14267775,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00221"
   },
   {
    "date": "2024-05-08",
-   "amount_cents": 24787970,
+   "amount_cents": 24819119,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00222"
   },
   {
    "date": "2024-05-08",
-   "amount_cents": 20520822,
+   "amount_cents": 20546609,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00223"
   },
   {
    "date": "2024-05-08",
-   "amount_cents": 17794511,
+   "amount_cents": 17816872,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00224"
   },
   {
    "date": "2024-05-08",
-   "amount_cents": -9703064,
+   "amount_cents": -9715101,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00225"
   },
   {
    "date": "2024-05-08",
-   "amount_cents": -30370159,
+   "amount_cents": -30407836,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00226"
   },
   {
    "date": "2024-05-08",
-   "amount_cents": -45715478,
+   "amount_cents": -45772192,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00227"
   },
   {
    "date": "2024-05-09",
-   "amount_cents": 15637213,
+   "amount_cents": 15656863,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00228"
   },
   {
    "date": "2024-05-10",
-   "amount_cents": 17130961,
+   "amount_cents": 17152489,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00229"
   },
   {
    "date": "2024-05-13",
-   "amount_cents": 12805831,
+   "amount_cents": 12821923,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00230"
   },
   {
    "date": "2024-05-13",
-   "amount_cents": -74141098,
+   "amount_cents": -74233076,
    "counterparty": "W.R. Grace (NR ingredient)",
    "category": "ingredient_supply",
    "transaction_id": "txn_00231"
   },
   {
    "date": "2024-05-14",
-   "amount_cents": 16981513,
+   "amount_cents": 17002852,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00232"
   },
   {
    "date": "2024-05-14",
-   "amount_cents": -22242329,
+   "amount_cents": -22269923,
    "counterparty": "Other professional services",
    "category": "professional_fees",
    "transaction_id": "txn_00233"
@@ -1656,1207 +1656,1214 @@
   },
   {
    "date": "2024-05-15",
-   "amount_cents": 29509279,
+   "amount_cents": 29546361,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00235"
   },
   {
    "date": "2024-05-15",
-   "amount_cents": 15575979,
+   "amount_cents": 15595552,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00236"
   },
   {
    "date": "2024-05-15",
-   "amount_cents": 13713072,
+   "amount_cents": 13730304,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00237"
   },
   {
    "date": "2024-05-15",
-   "amount_cents": -10083841,
+   "amount_cents": -10096351,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00238"
   },
   {
    "date": "2024-05-15",
-   "amount_cents": -27116591,
+   "amount_cents": -27150232,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00239"
   },
   {
    "date": "2024-05-15",
-   "amount_cents": -29656439,
+   "amount_cents": -29693230,
    "counterparty": "Research and clinical vendors",
    "category": "research",
    "transaction_id": "txn_00240"
   },
   {
    "date": "2024-05-15",
-   "amount_cents": -44825994,
+   "amount_cents": -44881605,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00241"
   },
   {
    "date": "2024-05-16",
-   "amount_cents": 12746893,
+   "amount_cents": 12762911,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00242"
   },
   {
    "date": "2024-05-17",
-   "amount_cents": 42711930,
+   "amount_cents": 42765603,
    "counterparty": "Amazon Payments",
    "category": "marketplace_payouts",
    "transaction_id": "txn_00243"
   },
   {
    "date": "2024-05-17",
-   "amount_cents": 17520216,
+   "amount_cents": 17542233,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00244"
   },
   {
    "date": "2024-05-17",
-   "amount_cents": -14828219,
+   "amount_cents": -14846615,
    "counterparty": "Landlord",
    "category": "rent",
    "transaction_id": "txn_00245"
   },
   {
    "date": "2024-05-17",
-   "amount_cents": -29656439,
+   "amount_cents": -29693230,
    "counterparty": "Litigation counsel",
    "category": "legal_fees",
    "transaction_id": "txn_00246"
   },
   {
    "date": "2024-05-17",
-   "amount_cents": -51664607,
+   "amount_cents": -51728702,
    "counterparty": "Payroll (ADP)",
    "category": "payroll",
    "transaction_id": "txn_00247"
   },
   {
    "date": "2024-05-20",
-   "amount_cents": 13882987,
+   "amount_cents": 13900433,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00248"
   },
   {
    "date": "2024-05-21",
-   "amount_cents": 14418632,
+   "amount_cents": 14436751,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00249"
   },
   {
    "date": "2024-05-22",
-   "amount_cents": 28162139,
+   "amount_cents": 28197529,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00250"
   },
   {
    "date": "2024-05-22",
-   "amount_cents": 17452257,
+   "amount_cents": 17474188,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00251"
   },
   {
    "date": "2024-05-22",
-   "amount_cents": 15970365,
+   "amount_cents": 15990434,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00252"
   },
   {
    "date": "2024-05-22",
-   "amount_cents": -11564451,
+   "amount_cents": -11578797,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00253"
   },
   {
    "date": "2024-05-22",
-   "amount_cents": -31317630,
+   "amount_cents": -31356482,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00254"
   },
   {
    "date": "2024-05-22",
-   "amount_cents": -36133530,
+   "amount_cents": -36178357,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00255"
   },
   {
    "date": "2024-05-23",
-   "amount_cents": 12812018,
+   "amount_cents": 12828118,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00256"
   },
   {
    "date": "2024-05-24",
-   "amount_cents": 14887465,
+   "amount_cents": 14906173,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00257"
   },
   {
    "date": "2024-05-27",
-   "amount_cents": 14397120,
+   "amount_cents": 14415212,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00258"
   },
   {
    "date": "2024-05-28",
-   "amount_cents": 13885310,
+   "amount_cents": 13902758,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00259"
   },
   {
    "date": "2024-05-29",
-   "amount_cents": 24884306,
+   "amount_cents": 24915576,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00260"
   },
   {
    "date": "2024-05-29",
-   "amount_cents": 20714221,
+   "amount_cents": 20740252,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00261"
   },
   {
    "date": "2024-05-29",
-   "amount_cents": 13232797,
+   "amount_cents": 13249426,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00262"
   },
   {
    "date": "2024-05-29",
-   "amount_cents": -9790685,
+   "amount_cents": -9802832,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00263"
   },
   {
    "date": "2024-05-29",
-   "amount_cents": -26263453,
+   "amount_cents": -26296034,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00264"
   },
   {
    "date": "2024-05-29",
-   "amount_cents": -48874703,
+   "amount_cents": -48935334,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00265"
   },
   {
    "date": "2024-05-30",
-   "amount_cents": 16868148,
+   "amount_cents": 16889346,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00266"
   },
   {
    "date": "2024-05-31",
-   "amount_cents": 59894666,
+   "amount_cents": 59969932,
    "counterparty": "Amazon Payments",
    "category": "marketplace_payouts",
    "transaction_id": "txn_00267"
   },
   {
    "date": "2024-05-31",
-   "amount_cents": 15512273,
+   "amount_cents": 15531765,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00268"
   },
   {
    "date": "2024-05-31",
-   "amount_cents": -58997236,
+   "amount_cents": -59070427,
    "counterparty": "Payroll (ADP)",
    "category": "payroll",
    "transaction_id": "txn_00269"
   },
   {
    "date": "2024-06-03",
-   "amount_cents": 14875494,
+   "amount_cents": 14894187,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00270"
   },
   {
    "date": "2024-06-04",
-   "amount_cents": 18590849,
+   "amount_cents": 18614211,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00271"
   },
   {
    "date": "2024-06-05",
-   "amount_cents": 41072861,
+   "amount_cents": 41124474,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00272"
   },
   {
    "date": "2024-06-05",
-   "amount_cents": 22730943,
+   "amount_cents": 22759507,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00273"
   },
   {
    "date": "2024-06-05",
-   "amount_cents": 15814757,
+   "amount_cents": 15834630,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00274"
   },
   {
    "date": "2024-06-05",
-   "amount_cents": -11631627,
+   "amount_cents": -11646057,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00275"
   },
   {
    "date": "2024-06-05",
-   "amount_cents": -32600899,
+   "amount_cents": -32641343,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00276"
   },
   {
    "date": "2024-06-05",
-   "amount_cents": -47251850,
+   "amount_cents": -47310469,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00277"
   },
   {
    "date": "2024-06-06",
-   "amount_cents": 19024270,
+   "amount_cents": 19048177,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00278"
   },
   {
    "date": "2024-06-07",
-   "amount_cents": 15096667,
+   "amount_cents": 15115638,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00279"
   },
   {
    "date": "2024-06-10",
-   "amount_cents": 15274585,
+   "amount_cents": 15293780,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00280"
   },
   {
    "date": "2024-06-11",
-   "amount_cents": 17881199,
+   "amount_cents": 17903669,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00281"
   },
   {
    "date": "2024-06-12",
-   "amount_cents": 29119192,
+   "amount_cents": 29155784,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00282"
   },
   {
    "date": "2024-06-12",
-   "amount_cents": 22529190,
+   "amount_cents": 22557501,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00283"
   },
   {
    "date": "2024-06-12",
-   "amount_cents": 17560289,
+   "amount_cents": 17582356,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00284"
   },
   {
    "date": "2024-06-12",
-   "amount_cents": -13869579,
+   "amount_cents": -13886786,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00285"
   },
   {
    "date": "2024-06-12",
-   "amount_cents": -31133943,
+   "amount_cents": -31172567,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00286"
   },
   {
    "date": "2024-06-12",
-   "amount_cents": -62348913,
+   "amount_cents": -62426262,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00287"
   },
   {
    "date": "2024-06-13",
-   "amount_cents": 17215916,
+   "amount_cents": 17237550,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00288"
   },
   {
    "date": "2024-06-13",
-   "amount_cents": -71749450,
+   "amount_cents": -71838461,
    "counterparty": "W.R. Grace (NR ingredient)",
    "category": "ingredient_supply",
    "transaction_id": "txn_00289"
   },
   {
    "date": "2024-06-14",
-   "amount_cents": 75773698,
+   "amount_cents": 75868918,
    "counterparty": "Amazon Payments",
    "category": "marketplace_payouts",
    "transaction_id": "txn_00290"
   },
   {
    "date": "2024-06-14",
-   "amount_cents": 18765189,
+   "amount_cents": 18788770,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00291"
   },
   {
    "date": "2024-06-14",
-   "amount_cents": -14349890,
+   "amount_cents": -14367692,
    "counterparty": "Landlord",
    "category": "rent",
    "transaction_id": "txn_00292"
   },
   {
    "date": "2024-06-14",
-   "amount_cents": -67121060,
+   "amount_cents": -67204329,
    "counterparty": "Payroll (ADP)",
    "category": "payroll",
    "transaction_id": "txn_00293"
   },
   {
    "date": "2024-06-17",
-   "amount_cents": 15776352,
+   "amount_cents": 15796177,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00294"
   },
   {
    "date": "2024-06-17",
-   "amount_cents": -21524835,
+   "amount_cents": -21551538,
    "counterparty": "Other professional services",
    "category": "professional_fees",
    "transaction_id": "txn_00295"
   },
   {
    "date": "2024-06-18",
-   "amount_cents": 15667169,
+   "amount_cents": 15686857,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00296"
   },
   {
    "date": "2024-06-18",
-   "amount_cents": -28699780,
+   "amount_cents": -28735384,
    "counterparty": "Litigation counsel",
    "category": "legal_fees",
    "transaction_id": "txn_00297"
   },
   {
    "date": "2024-06-18",
-   "amount_cents": -28699780,
+   "amount_cents": -28735384,
    "counterparty": "Research and clinical vendors",
    "category": "research",
    "transaction_id": "txn_00298"
   },
   {
    "date": "2024-06-19",
-   "amount_cents": 35437791,
+   "amount_cents": 35482324,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00299"
   },
   {
    "date": "2024-06-19",
-   "amount_cents": 22684249,
+   "amount_cents": 22712754,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00300"
   },
   {
    "date": "2024-06-19",
-   "amount_cents": 13947980,
+   "amount_cents": 13965508,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00301"
   },
   {
    "date": "2024-06-19",
-   "amount_cents": -13609525,
+   "amount_cents": -13626409,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00302"
   },
   {
    "date": "2024-06-19",
-   "amount_cents": -37935377,
+   "amount_cents": -37982439,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00303"
   },
   {
    "date": "2024-06-19",
-   "amount_cents": -50974223,
+   "amount_cents": -51037460,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00304"
   },
   {
    "date": "2024-06-20",
-   "amount_cents": 18304134,
+   "amount_cents": 18327136,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00305"
   },
   {
    "date": "2024-06-21",
-   "amount_cents": 17670656,
+   "amount_cents": 17692862,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00306"
   },
   {
    "date": "2024-06-24",
-   "amount_cents": 17425543,
+   "amount_cents": 17447440,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00307"
   },
   {
    "date": "2024-06-25",
-   "amount_cents": 14810447,
+   "amount_cents": 14829058,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00308"
   },
   {
    "date": "2024-06-26",
-   "amount_cents": 28952793,
+   "amount_cents": 28989176,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00309"
   },
   {
    "date": "2024-06-26",
-   "amount_cents": 24138475,
+   "amount_cents": 24168809,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00310"
   },
   {
    "date": "2024-06-26",
-   "amount_cents": 17324815,
+   "amount_cents": 17346586,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00311"
   },
   {
    "date": "2024-06-26",
-   "amount_cents": -11113884,
+   "amount_cents": -11127671,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00312"
   },
   {
    "date": "2024-06-26",
-   "amount_cents": -34653737,
+   "amount_cents": -34696727,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00313"
   },
   {
    "date": "2024-06-26",
-   "amount_cents": -54673365,
+   "amount_cents": -54741193,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00314"
   },
   {
    "date": "2024-06-27",
-   "amount_cents": 14400141,
+   "amount_cents": 14418237,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00315"
   },
   {
    "date": "2024-06-28",
-   "amount_cents": 72975532,
+   "amount_cents": 73067235,
    "counterparty": "Amazon Payments",
    "category": "marketplace_payouts",
    "transaction_id": "txn_00316"
   },
   {
    "date": "2024-06-28",
-   "amount_cents": 17488493,
+   "amount_cents": 17510467,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00317"
   },
   {
    "date": "2024-06-28",
-   "amount_cents": -6,
+   "amount_cents": -8,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00318"
   },
   {
    "date": "2024-06-28",
-   "amount_cents": -83552786,
+   "amount_cents": -83656440,
    "counterparty": "Payroll (ADP)",
    "category": "payroll",
    "transaction_id": "txn_00319"
   },
   {
    "date": "2024-07-01",
-   "amount_cents": 16434312,
+   "amount_cents": 16462626,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00320"
   },
   {
    "date": "2024-07-02",
-   "amount_cents": 16786148,
+   "amount_cents": 16815068,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00321"
   },
   {
    "date": "2024-07-03",
-   "amount_cents": 34152410,
+   "amount_cents": 34211249,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00322"
   },
   {
    "date": "2024-07-03",
-   "amount_cents": 19417377,
+   "amount_cents": 19450830,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00323"
   },
   {
    "date": "2024-07-03",
-   "amount_cents": 14029515,
+   "amount_cents": 14053686,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00324"
   },
   {
    "date": "2024-07-03",
-   "amount_cents": -9367154,
+   "amount_cents": -9710273,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00325"
   },
   {
    "date": "2024-07-03",
-   "amount_cents": -28612308,
+   "amount_cents": -29660377,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00326"
   },
   {
    "date": "2024-07-03",
-   "amount_cents": -44434608,
+   "amount_cents": -46062249,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00327"
   },
   {
    "date": "2024-07-04",
-   "amount_cents": 16192756,
+   "amount_cents": 16220654,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00328"
   },
   {
    "date": "2024-07-05",
-   "amount_cents": 13153460,
+   "amount_cents": 13176121,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00329"
   },
   {
    "date": "2024-07-08",
-   "amount_cents": 14034036,
+   "amount_cents": 14058214,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00330"
   },
   {
    "date": "2024-07-09",
-   "amount_cents": 13990431,
+   "amount_cents": 14014534,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00331"
   },
   {
    "date": "2024-07-10",
-   "amount_cents": 29650743,
+   "amount_cents": 29701827,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00332"
   },
   {
    "date": "2024-07-10",
-   "amount_cents": 18951731,
+   "amount_cents": 18984382,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00333"
   },
   {
    "date": "2024-07-10",
-   "amount_cents": 13491316,
+   "amount_cents": 13514560,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00334"
   },
   {
    "date": "2024-07-10",
-   "amount_cents": -9669803,
+   "amount_cents": -10024008,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00335"
   },
   {
    "date": "2024-07-10",
-   "amount_cents": -27830443,
+   "amount_cents": -28849874,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00336"
   },
   {
    "date": "2024-07-10",
-   "amount_cents": -45515257,
+   "amount_cents": -47182482,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00337"
   },
   {
    "date": "2024-07-11",
-   "amount_cents": 11821083,
+   "amount_cents": 11841449,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00338"
   },
   {
    "date": "2024-07-12",
-   "amount_cents": 66805363,
+   "amount_cents": 66920459,
    "counterparty": "Amazon Payments",
    "category": "marketplace_payouts",
    "transaction_id": "txn_00339"
   },
   {
    "date": "2024-07-12",
-   "amount_cents": 16733865,
+   "amount_cents": 16762695,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00340"
   },
   {
    "date": "2024-07-12",
-   "amount_cents": -21483000,
+   "amount_cents": -22269923,
    "counterparty": "Other professional services",
    "category": "professional_fees",
    "transaction_id": "txn_00341"
   },
   {
    "date": "2024-07-12",
-   "amount_cents": -75206433,
+   "amount_cents": -77961247,
    "counterparty": "Payroll (ADP)",
    "category": "payroll",
    "transaction_id": "txn_00342"
   },
   {
    "date": "2024-07-15",
-   "amount_cents": 16829548,
+   "amount_cents": 16858543,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00343"
   },
   {
    "date": "2024-07-15",
-   "amount_cents": -14322000,
+   "amount_cents": -14846615,
    "counterparty": "Landlord",
    "category": "rent",
    "transaction_id": "txn_00344"
   },
   {
    "date": "2024-07-15",
-   "amount_cents": -71610000,
+   "amount_cents": -74233076,
    "counterparty": "W.R. Grace (NR ingredient)",
    "category": "ingredient_supply",
    "transaction_id": "txn_00345"
   },
   {
    "date": "2024-07-16",
-   "amount_cents": 16636883,
+   "amount_cents": 16665545,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00346"
   },
   {
    "date": "2024-07-17",
-   "amount_cents": 24901589,
+   "amount_cents": 24944491,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00347"
   },
   {
    "date": "2024-07-17",
-   "amount_cents": 19263023,
+   "amount_cents": 19296210,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00348"
   },
   {
    "date": "2024-07-17",
-   "amount_cents": 16522230,
+   "amount_cents": 16550696,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00349"
   },
   {
    "date": "2024-07-17",
-   "amount_cents": -10123801,
+   "amount_cents": -10494636,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00350"
   },
   {
    "date": "2024-07-17",
-   "amount_cents": -26648884,
+   "amount_cents": -27625034,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00351"
   },
   {
    "date": "2024-07-17",
-   "amount_cents": -28644000,
+   "amount_cents": -29693230,
    "counterparty": "Research and clinical vendors",
    "category": "research",
    "transaction_id": "txn_00352"
   },
   {
    "date": "2024-07-17",
-   "amount_cents": -38271606,
+   "amount_cents": -39673496,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00353"
   },
   {
    "date": "2024-07-18",
-   "amount_cents": 14350228,
+   "amount_cents": 14374952,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00354"
   },
   {
    "date": "2024-07-18",
-   "amount_cents": -28644000,
+   "amount_cents": -29693230,
    "counterparty": "Litigation counsel",
    "category": "legal_fees",
    "transaction_id": "txn_00355"
   },
   {
    "date": "2024-07-19",
-   "amount_cents": 16049729,
+   "amount_cents": 16077380,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00356"
   },
   {
    "date": "2024-07-22",
-   "amount_cents": 13359737,
+   "amount_cents": 13382754,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00357"
   },
   {
    "date": "2024-07-23",
-   "amount_cents": 14729983,
+   "amount_cents": 14755360,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00358"
   },
   {
    "date": "2024-07-24",
-   "amount_cents": 26336679,
+   "amount_cents": 26382053,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00359"
   },
   {
    "date": "2024-07-24",
-   "amount_cents": 18858792,
+   "amount_cents": 18891283,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00360"
   },
   {
    "date": "2024-07-24",
-   "amount_cents": 14866821,
+   "amount_cents": 14892435,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00361"
   },
   {
    "date": "2024-07-24",
-   "amount_cents": -10743078,
+   "amount_cents": -11136597,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00362"
   },
   {
    "date": "2024-07-24",
-   "amount_cents": -30552203,
+   "amount_cents": -31671331,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00363"
   },
   {
    "date": "2024-07-24",
-   "amount_cents": -47207163,
+   "amount_cents": -48936363,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00364"
   },
   {
    "date": "2024-07-25",
-   "amount_cents": 14073135,
+   "amount_cents": 14097381,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00365"
   },
   {
    "date": "2024-07-26",
-   "amount_cents": 86830637,
+   "amount_cents": 86980233,
    "counterparty": "Amazon Payments",
    "category": "marketplace_payouts",
    "transaction_id": "txn_00366"
   },
   {
    "date": "2024-07-26",
-   "amount_cents": 14663482,
+   "amount_cents": 14688745,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00367"
   },
   {
    "date": "2024-07-26",
-   "amount_cents": -75174567,
+   "amount_cents": -77928214,
    "counterparty": "Payroll (ADP)",
    "category": "payroll",
    "transaction_id": "txn_00368"
   },
   {
    "date": "2024-07-29",
-   "amount_cents": 13315443,
+   "amount_cents": 13338383,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00369"
   },
   {
    "date": "2024-07-30",
-   "amount_cents": 15717071,
+   "amount_cents": 15744149,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00370"
   },
   {
    "date": "2024-07-31",
-   "amount_cents": 23962579,
+   "amount_cents": 24003863,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00371"
   },
   {
    "date": "2024-07-31",
-   "amount_cents": 18617077,
+   "amount_cents": 18649152,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00372"
   },
   {
    "date": "2024-07-31",
-   "amount_cents": 16070788,
+   "amount_cents": 16098476,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00373"
   },
   {
    "date": "2024-07-31",
-   "amount_cents": -10223164,
+   "amount_cents": -10597639,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00374"
   },
   {
    "date": "2024-07-31",
-   "amount_cents": -22415162,
+   "amount_cents": -23236230,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00375"
   },
   {
    "date": "2024-07-31",
-   "amount_cents": -39401366,
+   "amount_cents": -40844640,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00376"
   },
   {
    "date": "2024-08-01",
-   "amount_cents": 15696115,
+   "amount_cents": 15723157,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00377"
   },
   {
    "date": "2024-08-02",
-   "amount_cents": 15419229,
+   "amount_cents": 15445794,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00378"
   },
   {
    "date": "2024-08-05",
-   "amount_cents": 15202476,
+   "amount_cents": 15228667,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00379"
   },
   {
    "date": "2024-08-06",
-   "amount_cents": 14685874,
+   "amount_cents": 14711175,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00380"
   },
   {
    "date": "2024-08-07",
-   "amount_cents": 38282587,
+   "amount_cents": 38348542,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00381"
   },
   {
    "date": "2024-08-07",
-   "amount_cents": 25611118,
+   "amount_cents": 25655242,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00382"
   },
   {
    "date": "2024-08-07",
-   "amount_cents": 16763184,
+   "amount_cents": 16792064,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00383"
   },
   {
    "date": "2024-08-07",
-   "amount_cents": -16484033,
+   "amount_cents": -17087843,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00384"
   },
   {
    "date": "2024-08-07",
-   "amount_cents": -48284019,
+   "amount_cents": -50052664,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00385"
   },
   {
    "date": "2024-08-07",
-   "amount_cents": -68440025,
+   "amount_cents": -70946986,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00386"
   },
   {
    "date": "2024-08-08",
-   "amount_cents": 16590783,
+   "amount_cents": 16619366,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00387"
   },
   {
    "date": "2024-08-09",
-   "amount_cents": 94164000,
+   "amount_cents": 94326230,
    "counterparty": "Amazon Payments",
    "category": "marketplace_payouts",
    "transaction_id": "txn_00388"
   },
   {
    "date": "2024-08-09",
-   "amount_cents": 14796563,
+   "amount_cents": 14822056,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00389"
   },
   {
    "date": "2024-08-09",
-   "amount_cents": -92169000,
+   "amount_cents": -95545153,
    "counterparty": "Payroll (ADP)",
    "category": "payroll",
    "transaction_id": "txn_00390"
   },
   {
    "date": "2024-08-12",
-   "amount_cents": 17273143,
+   "amount_cents": 17302902,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00391"
   },
   {
    "date": "2024-08-13",
-   "amount_cents": 15496165,
+   "amount_cents": 15522863,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00392"
   },
   {
    "date": "2024-08-13",
-   "amount_cents": -17556000,
+   "amount_cents": -18199076,
    "counterparty": "Research and clinical vendors",
    "category": "research",
    "transaction_id": "txn_00393"
   },
   {
    "date": "2024-08-14",
-   "amount_cents": 46913413,
+   "amount_cents": 46994238,
    "counterparty": "Ingredient customers (incl. related party)",
    "category": "ingredient_receipts",
    "transaction_id": "txn_00394"
   },
   {
    "date": "2024-08-14",
-   "amount_cents": 32680882,
+   "amount_cents": 32737186,
    "counterparty": "Retail and distributor customers",
    "category": "wholesale_receipts",
    "transaction_id": "txn_00395"
   },
   {
    "date": "2024-08-14",
-   "amount_cents": 16809217,
+   "amount_cents": 16838177,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00396"
   },
   {
    "date": "2024-08-14",
-   "amount_cents": -14238967,
+   "amount_cents": -14760541,
    "counterparty": "Fulfilment, freight and other",
    "category": "operations_other",
    "transaction_id": "txn_00397"
   },
   {
    "date": "2024-08-14",
-   "amount_cents": -17556000,
+   "amount_cents": -18199076,
    "counterparty": "Litigation counsel",
    "category": "legal_fees",
    "transaction_id": "txn_00398"
   },
   {
    "date": "2024-08-14",
-   "amount_cents": -35106981,
+   "amount_cents": -36392951,
    "counterparty": "Contract manufacturers",
    "category": "contract_manufacturing",
    "transaction_id": "txn_00399"
   },
   {
    "date": "2024-08-14",
-   "amount_cents": -43890000,
+   "amount_cents": -45497692,
    "counterparty": "W.R. Grace (NR ingredient)",
    "category": "ingredient_supply",
    "transaction_id": "txn_00400"
   },
   {
    "date": "2024-08-14",
-   "amount_cents": -63229975,
+   "amount_cents": -65546090,
    "counterparty": "Advertising platforms",
    "category": "marketing",
    "transaction_id": "txn_00401"
   },
   {
    "date": "2024-08-15",
-   "amount_cents": 14929310,
+   "amount_cents": 14955031,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00402"
   },
   {
    "date": "2024-08-16",
-   "amount_cents": 17931367,
+   "amount_cents": 17962260,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00403"
   },
   {
    "date": "2024-08-16",
-   "amount_cents": -8778000,
+   "amount_cents": -9099538,
    "counterparty": "Landlord",
    "category": "rent",
    "transaction_id": "txn_00404"
   },
   {
    "date": "2024-08-19",
-   "amount_cents": 19154574,
+   "amount_cents": 19187575,
    "counterparty": "Shopify Payments",
    "category": "ecommerce_payouts",
    "transaction_id": "txn_00405"
   },
   {
    "date": "2024-08-19",
-   "amount_cents": -13167000,
+   "amount_cents": -7,
+   "counterparty": "Fulfilment, freight and other",
+   "category": "operations_other",
+   "transaction_id": "txn_00406"
+  },
+  {
+   "date": "2024-08-19",
+   "amount_cents": -13649307,
    "counterparty": "Other professional services",
    "category": "professional_fees",
-   "transaction_id": "txn_00406"
+   "transaction_id": "txn_00407"
   }
  ],
  "daily_balances": [
@@ -3226,355 +3233,355 @@
   },
   {
    "date": "2024-04-01",
-   "closing_cents": 2770070831
+   "closing_cents": 2770087885
   },
   {
    "date": "2024-04-02",
-   "closing_cents": 2782853422
+   "closing_cents": 2782886539
   },
   {
    "date": "2024-04-03",
-   "closing_cents": 2762412479
+   "closing_cents": 2762421382
   },
   {
    "date": "2024-04-04",
-   "closing_cents": 2777630232
+   "closing_cents": 2777658258
   },
   {
    "date": "2024-04-05",
-   "closing_cents": 2789258533
+   "closing_cents": 2789302526
   },
   {
    "date": "2024-04-06",
-   "closing_cents": 2789258533
+   "closing_cents": 2789302526
   },
   {
    "date": "2024-04-07",
-   "closing_cents": 2789258533
+   "closing_cents": 2789302526
   },
   {
    "date": "2024-04-08",
-   "closing_cents": 2802467219
+   "closing_cents": 2802527811
   },
   {
    "date": "2024-04-09",
-   "closing_cents": 2819755353
+   "closing_cents": 2819837670
   },
   {
    "date": "2024-04-10",
-   "closing_cents": 2783087312
+   "closing_cents": 2783125216
   },
   {
    "date": "2024-04-11",
-   "closing_cents": 2800541043
+   "closing_cents": 2800600879
   },
   {
    "date": "2024-04-12",
-   "closing_cents": 2767438214
+   "closing_cents": 2767457259
   },
   {
    "date": "2024-04-13",
-   "closing_cents": 2767438214
+   "closing_cents": 2767457259
   },
   {
    "date": "2024-04-14",
-   "closing_cents": 2767438214
+   "closing_cents": 2767457259
   },
   {
    "date": "2024-04-15",
-   "closing_cents": 2753624658
+   "closing_cents": 2753626806
   },
   {
    "date": "2024-04-16",
-   "closing_cents": 2768316038
+   "closing_cents": 2768336648
   },
   {
    "date": "2024-04-17",
-   "closing_cents": 2740099178
+   "closing_cents": 2740085971
   },
   {
    "date": "2024-04-18",
-   "closing_cents": 2684841033
+   "closing_cents": 2684759538
   },
   {
    "date": "2024-04-19",
-   "closing_cents": 2689778986
+   "closing_cents": 2689704991
   },
   {
    "date": "2024-04-20",
-   "closing_cents": 2689778986
+   "closing_cents": 2689704991
   },
   {
    "date": "2024-04-21",
-   "closing_cents": 2689778986
+   "closing_cents": 2689704991
   },
   {
    "date": "2024-04-22",
-   "closing_cents": 2705116511
+   "closing_cents": 2705061789
   },
   {
    "date": "2024-04-23",
-   "closing_cents": 2719933858
+   "closing_cents": 2719897756
   },
   {
    "date": "2024-04-24",
-   "closing_cents": 2687403814
+   "closing_cents": 2687328504
   },
   {
    "date": "2024-04-25",
-   "closing_cents": 2702310787
+   "closing_cents": 2702254210
   },
   {
    "date": "2024-04-26",
-   "closing_cents": 2717543543
+   "closing_cents": 2717506108
   },
   {
    "date": "2024-04-27",
-   "closing_cents": 2717543543
+   "closing_cents": 2717506108
   },
   {
    "date": "2024-04-28",
-   "closing_cents": 2717543543
+   "closing_cents": 2717506108
   },
   {
    "date": "2024-04-29",
-   "closing_cents": 2731279744
+   "closing_cents": 2731259571
   },
   {
    "date": "2024-04-30",
-   "closing_cents": 2747335166
+   "closing_cents": 2747335167
   },
   {
    "date": "2024-05-01",
-   "closing_cents": 2730303586
+   "closing_cents": 2730283524
   },
   {
    "date": "2024-05-02",
-   "closing_cents": 2748276041
+   "closing_cents": 2748278564
   },
   {
    "date": "2024-05-03",
-   "closing_cents": 2768215942
+   "closing_cents": 2768244246
   },
   {
    "date": "2024-05-04",
-   "closing_cents": 2768215942
+   "closing_cents": 2768244246
   },
   {
    "date": "2024-05-05",
-   "closing_cents": 2768215942
+   "closing_cents": 2768244246
   },
   {
    "date": "2024-05-06",
-   "closing_cents": 2782150024
+   "closing_cents": 2782195838
   },
   {
    "date": "2024-05-07",
-   "closing_cents": 2796399892
+   "closing_cents": 2796463613
   },
   {
    "date": "2024-05-08",
-   "closing_cents": 2773714494
+   "closing_cents": 2773751084
   },
   {
    "date": "2024-05-09",
-   "closing_cents": 2789351707
+   "closing_cents": 2789407947
   },
   {
    "date": "2024-05-10",
-   "closing_cents": 2806482668
+   "closing_cents": 2806560436
   },
   {
    "date": "2024-05-11",
-   "closing_cents": 2806482668
+   "closing_cents": 2806560436
   },
   {
    "date": "2024-05-12",
-   "closing_cents": 2806482668
+   "closing_cents": 2806560436
   },
   {
    "date": "2024-05-13",
-   "closing_cents": 2745147401
+   "closing_cents": 2745149283
   },
   {
    "date": "2024-05-14",
-   "closing_cents": 2739886585
+   "closing_cents": 2739882212
   },
   {
    "date": "2024-05-15",
-   "closing_cents": 2746802050
+   "closing_cents": 2746733011
   },
   {
    "date": "2024-05-16",
-   "closing_cents": 2759548943
+   "closing_cents": 2759495922
   },
   {
    "date": "2024-05-17",
-   "closing_cents": 2723631824
+   "closing_cents": 2723535211
   },
   {
    "date": "2024-05-18",
-   "closing_cents": 2723631824
+   "closing_cents": 2723535211
   },
   {
    "date": "2024-05-19",
-   "closing_cents": 2723631824
+   "closing_cents": 2723535211
   },
   {
    "date": "2024-05-20",
-   "closing_cents": 2737514811
+   "closing_cents": 2737435644
   },
   {
    "date": "2024-05-21",
-   "closing_cents": 2751933443
+   "closing_cents": 2751872395
   },
   {
    "date": "2024-05-22",
-   "closing_cents": 2734502593
+   "closing_cents": 2734420910
   },
   {
    "date": "2024-05-23",
-   "closing_cents": 2747314611
+   "closing_cents": 2747249028
   },
   {
    "date": "2024-05-24",
-   "closing_cents": 2762202076
+   "closing_cents": 2762155201
   },
   {
    "date": "2024-05-25",
-   "closing_cents": 2762202076
+   "closing_cents": 2762155201
   },
   {
    "date": "2024-05-26",
-   "closing_cents": 2762202076
+   "closing_cents": 2762155201
   },
   {
    "date": "2024-05-27",
-   "closing_cents": 2776599196
+   "closing_cents": 2776570413
   },
   {
    "date": "2024-05-28",
-   "closing_cents": 2790484506
+   "closing_cents": 2790473171
   },
   {
    "date": "2024-05-29",
-   "closing_cents": 2764386989
+   "closing_cents": 2764344225
   },
   {
    "date": "2024-05-30",
-   "closing_cents": 2781255137
+   "closing_cents": 2781233571
   },
   {
    "date": "2024-05-31",
-   "closing_cents": 2797664840
+   "closing_cents": 2797664841
   },
   {
    "date": "2024-06-01",
-   "closing_cents": 2797664840
+   "closing_cents": 2797664841
   },
   {
    "date": "2024-06-02",
-   "closing_cents": 2797664840
+   "closing_cents": 2797664841
   },
   {
    "date": "2024-06-03",
-   "closing_cents": 2812540334
+   "closing_cents": 2812559028
   },
   {
    "date": "2024-06-04",
-   "closing_cents": 2831131183
+   "closing_cents": 2831173239
   },
   {
    "date": "2024-06-05",
-   "closing_cents": 2819265368
+   "closing_cents": 2819293981
   },
   {
    "date": "2024-06-06",
-   "closing_cents": 2838289638
+   "closing_cents": 2838342158
   },
   {
    "date": "2024-06-07",
-   "closing_cents": 2853386305
+   "closing_cents": 2853457796
   },
   {
    "date": "2024-06-08",
-   "closing_cents": 2853386305
+   "closing_cents": 2853457796
   },
   {
    "date": "2024-06-09",
-   "closing_cents": 2853386305
+   "closing_cents": 2853457796
   },
   {
    "date": "2024-06-10",
-   "closing_cents": 2868660890
+   "closing_cents": 2868751576
   },
   {
    "date": "2024-06-11",
-   "closing_cents": 2886542089
+   "closing_cents": 2886655245
   },
   {
    "date": "2024-06-12",
-   "closing_cents": 2848398325
+   "closing_cents": 2848465271
   },
   {
    "date": "2024-06-13",
-   "closing_cents": 2793864791
+   "closing_cents": 2793864360
   },
   {
    "date": "2024-06-14",
-   "closing_cents": 2806932728
+   "closing_cents": 2806950027
   },
   {
    "date": "2024-06-15",
-   "closing_cents": 2806932728
+   "closing_cents": 2806950027
   },
   {
    "date": "2024-06-16",
-   "closing_cents": 2806932728
+   "closing_cents": 2806950027
   },
   {
    "date": "2024-06-17",
-   "closing_cents": 2801184245
+   "closing_cents": 2801194666
   },
   {
    "date": "2024-06-18",
-   "closing_cents": 2759451854
+   "closing_cents": 2759410755
   },
   {
    "date": "2024-06-19",
-   "closing_cents": 2729002749
+   "closing_cents": 2728925033
   },
   {
    "date": "2024-06-20",
-   "closing_cents": 2747306883
+   "closing_cents": 2747252169
   },
   {
    "date": "2024-06-21",
-   "closing_cents": 2764977539
+   "closing_cents": 2764945031
   },
   {
    "date": "2024-06-22",
-   "closing_cents": 2764977539
+   "closing_cents": 2764945031
   },
   {
    "date": "2024-06-23",
-   "closing_cents": 2764977539
+   "closing_cents": 2764945031
   },
   {
    "date": "2024-06-24",
-   "closing_cents": 2782403082
+   "closing_cents": 2782392471
   },
   {
    "date": "2024-06-25",
-   "closing_cents": 2797213529
+   "closing_cents": 2797221529
   },
   {
    "date": "2024-06-26",
-   "closing_cents": 2767188626
+   "closing_cents": 2767160509
   },
   {
    "date": "2024-06-27",
-   "closing_cents": 2781588767
+   "closing_cents": 2781578746
   },
   {
    "date": "2024-06-28",
@@ -3590,203 +3597,203 @@
   },
   {
    "date": "2024-07-01",
-   "closing_cents": 2804934312
+   "closing_cents": 2804962626
   },
   {
    "date": "2024-07-02",
-   "closing_cents": 2821720460
+   "closing_cents": 2821777694
   },
   {
    "date": "2024-07-03",
-   "closing_cents": 2806905692
+   "closing_cents": 2804060560
   },
   {
    "date": "2024-07-04",
-   "closing_cents": 2823098448
+   "closing_cents": 2820281214
   },
   {
    "date": "2024-07-05",
-   "closing_cents": 2836251908
+   "closing_cents": 2833457335
   },
   {
    "date": "2024-07-06",
-   "closing_cents": 2836251908
+   "closing_cents": 2833457335
   },
   {
    "date": "2024-07-07",
-   "closing_cents": 2836251908
+   "closing_cents": 2833457335
   },
   {
    "date": "2024-07-08",
-   "closing_cents": 2850285944
+   "closing_cents": 2847515549
   },
   {
    "date": "2024-07-09",
-   "closing_cents": 2864276375
+   "closing_cents": 2861530083
   },
   {
    "date": "2024-07-10",
-   "closing_cents": 2843354662
+   "closing_cents": 2837674488
   },
   {
    "date": "2024-07-11",
-   "closing_cents": 2855175745
+   "closing_cents": 2849515937
   },
   {
    "date": "2024-07-12",
-   "closing_cents": 2842025540
+   "closing_cents": 2832967921
   },
   {
    "date": "2024-07-13",
-   "closing_cents": 2842025540
+   "closing_cents": 2832967921
   },
   {
    "date": "2024-07-14",
-   "closing_cents": 2842025540
+   "closing_cents": 2832967921
   },
   {
    "date": "2024-07-15",
-   "closing_cents": 2772923088
+   "closing_cents": 2760746773
   },
   {
    "date": "2024-07-16",
-   "closing_cents": 2789559971
+   "closing_cents": 2777412318
   },
   {
    "date": "2024-07-17",
-   "closing_cents": 2746558522
+   "closing_cents": 2730717319
   },
   {
    "date": "2024-07-18",
-   "closing_cents": 2732264750
+   "closing_cents": 2715399041
   },
   {
    "date": "2024-07-19",
-   "closing_cents": 2748314479
+   "closing_cents": 2731476421
   },
   {
    "date": "2024-07-20",
-   "closing_cents": 2748314479
+   "closing_cents": 2731476421
   },
   {
    "date": "2024-07-21",
-   "closing_cents": 2748314479
+   "closing_cents": 2731476421
   },
   {
    "date": "2024-07-22",
-   "closing_cents": 2761674216
+   "closing_cents": 2744859175
   },
   {
    "date": "2024-07-23",
-   "closing_cents": 2776404199
+   "closing_cents": 2759614535
   },
   {
    "date": "2024-07-24",
-   "closing_cents": 2747964047
+   "closing_cents": 2728036015
   },
   {
    "date": "2024-07-25",
-   "closing_cents": 2762037182
+   "closing_cents": 2742133396
   },
   {
    "date": "2024-07-26",
-   "closing_cents": 2788356734
+   "closing_cents": 2765874160
   },
   {
    "date": "2024-07-27",
-   "closing_cents": 2788356734
+   "closing_cents": 2765874160
   },
   {
    "date": "2024-07-28",
-   "closing_cents": 2788356734
+   "closing_cents": 2765874160
   },
   {
    "date": "2024-07-29",
-   "closing_cents": 2801672177
+   "closing_cents": 2779212543
   },
   {
    "date": "2024-07-30",
-   "closing_cents": 2817389248
+   "closing_cents": 2794956692
   },
   {
    "date": "2024-07-31",
-   "closing_cents": 2804000000
+   "closing_cents": 2779029674
   },
   {
    "date": "2024-08-01",
-   "closing_cents": 2819696115
+   "closing_cents": 2794752831
   },
   {
    "date": "2024-08-02",
-   "closing_cents": 2835115344
+   "closing_cents": 2810198625
   },
   {
    "date": "2024-08-03",
-   "closing_cents": 2835115344
+   "closing_cents": 2810198625
   },
   {
    "date": "2024-08-04",
-   "closing_cents": 2835115344
+   "closing_cents": 2810198625
   },
   {
    "date": "2024-08-05",
-   "closing_cents": 2850317820
+   "closing_cents": 2825427292
   },
   {
    "date": "2024-08-06",
-   "closing_cents": 2865003694
+   "closing_cents": 2840138467
   },
   {
    "date": "2024-08-07",
-   "closing_cents": 2812452506
+   "closing_cents": 2782846822
   },
   {
    "date": "2024-08-08",
-   "closing_cents": 2829043289
+   "closing_cents": 2799466188
   },
   {
    "date": "2024-08-09",
-   "closing_cents": 2845834852
+   "closing_cents": 2813069321
   },
   {
    "date": "2024-08-10",
-   "closing_cents": 2845834852
+   "closing_cents": 2813069321
   },
   {
    "date": "2024-08-11",
-   "closing_cents": 2845834852
+   "closing_cents": 2813069321
   },
   {
    "date": "2024-08-12",
-   "closing_cents": 2863107995
+   "closing_cents": 2830372223
   },
   {
    "date": "2024-08-13",
-   "closing_cents": 2861048160
+   "closing_cents": 2827696010
   },
   {
    "date": "2024-08-14",
-   "closing_cents": 2783429749
+   "closing_cents": 2743869261
   },
   {
    "date": "2024-08-15",
-   "closing_cents": 2798359059
+   "closing_cents": 2758824292
   },
   {
    "date": "2024-08-16",
-   "closing_cents": 2807512426
+   "closing_cents": 2767687014
   },
   {
    "date": "2024-08-17",
-   "closing_cents": 2807512426
+   "closing_cents": 2767687014
   },
   {
    "date": "2024-08-18",
-   "closing_cents": 2807512426
+   "closing_cents": 2767687014
   },
   {
    "date": "2024-08-19",
-   "closing_cents": 2813500000
+   "closing_cents": 2773225275
   }
  ]
 }

@@ -120,10 +120,11 @@ class SemanticObservation(Frozen):
     profile: str
     question_id: str
     question_version: str
-    primitive: Literal["choice", "noul"]
-    answer: str | bool | None
-    probabilities: dict[str, float] | None = None  # Choice distribution; a judgment, never an event probability
+    primitive: Literal["choice", "noul", "score"]
+    answer: str | bool | None  # Score: the most supported rubric level, as its index
+    probabilities: dict[str, float] | None = None  # Choice/Score distribution; a judgment, never an event probability
     noul_value: float | None = None  # Noul score in [0, 1]
+    score_value: float | None = None  # Score: expected rubric level
     confidence: float | None = None
     subject_ids: tuple[str, ...] = ()
     downstream_disposition: Disposition = "unused"
@@ -211,38 +212,90 @@ class EconomicEffectProposal(Frozen):
 
 
 class BranchCash(Frozen):
-    """One dated cash consequence of a branch: an outflow, an inflow, or cash locked (and later released).
+    """One dated cash consequence on a dispute path: an outflow, an inflow, or cash locked as collateral.
 
-    The amount is an EvidenceValue: documented when it is quoted in the node's findings, otherwise derived with its
-    derivation stated. The window bounds when it can happen; scenarios place it early and late in the window."""
+    The rule that produced it sets the amount (an EvidenceValue: the documented amount, or a range derived by a cited
+    rule) and the window; scenarios place it early and late in the window."""
 
     kind: Literal["outflow", "inflow", "lock"]
     label: str
     amount: EvidenceValue
     window_start: date
     window_end: date
+    rule: str = ""  # the rules applied, with citations, in plain words
     finding_ids: tuple[str, ...] = ()
 
 
-class DisputeBranch(Frozen):
-    branch_id: str
-    label: str  # plain words, e.g. "ChromaDex appeals and posts a bond"
-    description: str  # what happens, as Jev's answer option
+class FactorResult(Frozen):
+    """One factor of the dispute model, established from the findings routed to it. Unknown stays unknown."""
+
+    factor_id: str
+    label: str
+    kind: Literal["graded", "present"]
+    level: int | None = None  # graded: the most advanced rubric level a finding establishes; present: 1 or 0
+    level_label: str = "unknown"
+    finding_ids: tuple[str, ...] = ()
+    observation_ids: tuple[str, ...] = ()
+
+
+class TransitionJudgment(Frozen):
+    """Jev's conditional judgment of what happens next at one stage, given the path so far (its premise)."""
+
+    stage: str
+    premise: tuple[str, ...] = ()  # transition IDs taken so far on this path
+    weights_bps: dict[str, int] = Field(default_factory=dict)  # transition_id -> conditional weight; empty if not judged
+    uncertain: bool = False
+    decision_relevant: bool = False
+    refined: bool = False  # re-asked with factor results
+    factor_ids: tuple[str, ...] = ()
+    observation_ids: tuple[str, ...] = ()
+
+
+class DisputePath(Frozen):
+    """One root-to-leaf path through the model: its transitions, product weight and rule-derived cash."""
+
+    path_id: str
+    transitions: tuple[str, ...]
+    labels: tuple[str, ...]
+    terminal: str
+    weight_bps: int | None  # product of conditional weights, renormalised after pruning; None when not judged
     cash: tuple[BranchCash, ...] = ()
 
 
-class DisputeNode(Frozen):
-    """A pending decision in a live dispute, split into mutually exclusive branches. Jev judges which branch the record
-    supports; its distribution weights the branches (labelled model judgment). Code sets every amount and date."""
+class EvidenceRequest(Frozen):
+    """Irreducible uncertainty turned into an action for the reviewer: what to obtain and what changes either way."""
 
-    node_id: str
+    factor_id: str
+    action: str
+    if_satisfied: str
+    if_not: str
+
+
+class DisputeInstance(Frozen):
+    """A live dispute instantiated onto the host-owned dispute model. The agent supplies the findings, the borrower's
+    side, the counterparty and the documented amount; Jev places the stage and weighs transitions; code sets every
+    date and amount from the model's rules and composes the paths."""
+
+    instance_id: str
     dependency_id: str
-    decision_point: str
+    model_id: str
+    model_version: str
+    title: str
+    borrower_role: Literal["debtor", "creditor"]
+    counterparty: str
     finding_ids: tuple[str, ...] = Field(min_length=1)
-    branches: tuple[DisputeBranch, ...] = Field(min_length=2, max_length=5)
+    amount: EvidenceValue
+    judgment_date: date | None = None
+    stage: str | None = None
+    stage_weights_bps: dict[str, int] = Field(default_factory=dict)
+    factors: tuple[FactorResult, ...] = ()
+    transitions: tuple[TransitionJudgment, ...] = ()
+    paths: tuple[DisputePath, ...] = ()
+    pruned_weight_bps: int = 0
+    evidence_requests: tuple[EvidenceRequest, ...] = ()
+    proposed_extension: str = ""  # flagged for the reviewer; never used by the host
+    status: Literal["evaluated", "outside_model", "not_judged"] = "evaluated"
     observation_ids: tuple[str, ...] = ()
-    weights_bps: dict[str, int] = Field(default_factory=dict)  # branch_id -> weight; empty if not judged
-    status: Literal["proposed", "accepted", "rejected"] = "proposed"
     validation_messages: tuple[str, ...] = ()
 
 
@@ -252,7 +305,7 @@ EventKind = Literal[
     "reconciliation_opened", "reconciliation_resolved", "effect_proposed", "effect_validated",
     "sensitivity_run", "missing_fact_requested", "packet_submitted", "run_failed",
     "inventory_loaded", "inventory_accounted", "conclusion_checked", "effect_disputed", "cited_units_checked",
-    "dispute_node_recorded", "scenarios_run",
+    "dispute_instantiated", "scenarios_run",
 ]
 
 

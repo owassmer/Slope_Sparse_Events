@@ -27,12 +27,6 @@
         "installments": 1
       },
       {
-        "term_id": "net_90",
-        "label": "Net 90",
-        "days": 90,
-        "installments": 1
-      },
-      {
         "term_id": "inst_60",
         "label": "2 monthly installments (60 days)",
         "days": 60,
@@ -43,52 +37,38 @@
         "label": "3 monthly installments (90 days)",
         "days": 90,
         "installments": 3
-      },
-      {
-        "term_id": "inst_120",
-        "label": "4 monthly installments (120 days)",
-        "days": 120,
-        "installments": 4
       }
     ],
     "early_repayment": "The fee is prorated to the days the funds were outstanding.",
-    "default_interest_bps_per_year": 1800,
-    "funding": "Slope pays the supplier on the next business day after approval."
+    "funding": "Slope pays the supplier on the next business day after approval.",
+    "terms_basis": "Slope's FAQ: pay-later on 30- or 60-day terms, or in installments over 60 or 90 days."
   },
   "price_card": {
-    "basis": "Fee as a share of the amount financed, by risk tier and term. Tier A is anchored on the published best rates (Net 30 from 0.99%, Net 90 from 2.99%, under 12% APR); lower tiers are reconstructed.",
+    "basis": "Fee as a share of the amount financed, by risk tier and term. Tier A's Net 30 fee is the published rate (as low as 1.60% on Net 30, bill-pay page); longer terms and lower tiers are reconstructed from it at a similar monthly rate.",
     "tiers": {
       "A": {
-        "net_30": 99,
-        "net_60": 199,
-        "net_90": 299,
-        "inst_60": 179,
-        "inst_90": 249,
-        "inst_120": 319
-      },
-      "B": {
         "net_30": 160,
         "net_60": 300,
-        "net_90": 440,
         "inst_60": 270,
-        "inst_90": 370,
-        "inst_120": 470
+        "inst_90": 370
       },
-      "C": {
+      "B": {
         "net_30": 250,
         "net_60": 470,
-        "net_90": 690,
         "inst_60": 420,
-        "inst_90": 580,
-        "inst_120": 740
+        "inst_90": 580
       },
-      "D": {
+      "C": {
         "net_30": 390,
         "net_60": 740,
-        "net_90": 1090,
         "inst_60": 660,
-        "inst_90": 910,
-        "inst_120": 1160
+        "inst_90": 910
+      },
+      "D": {
+        "net_30": 560,
+        "net_60": 1060,
+        "inst_60": 950,
+        "inst_90": 1300
       }
     }
   },
@@ -131,7 +111,7 @@
     "limit_share_of_monthly_inflows_bps": 5000,
     "limit_share_of_min_projected_cash_bps": 1500,
     "order_limit_share_of_limit_bps": 7500,
-    "max_tenor_days": 120,
+    "max_tenor_days": 90,
     "liquidity_floor_months_of_outflows_bps": 10000,
     "liquidity_floor_basis": "At every scheduled payment date, projected available cash after the payment must stay above one month of operating outflows.",
     "exception_review_triggers": [

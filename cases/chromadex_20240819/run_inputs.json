@@ -16,7 +16,7 @@
       "basis": "operator_request"
     },
     "requested_term": {
-      "value": "120 days, monthly installments",
+      "value": "90 days, monthly installments",
       "basis": "operator_request"
     },
     "requested_pricing": {
@@ -40,7 +40,7 @@
   "permitted_offers": {
     "permitted_offer_set_id": "slope_menu_v1",
     "terms_file": "cases/slope_terms.json",
-    "requested_term_id": "inst_120"
+    "requested_term_id": "inst_90"
   },
   "policy": {
     "policy_config_id": "slope_policy_v1",

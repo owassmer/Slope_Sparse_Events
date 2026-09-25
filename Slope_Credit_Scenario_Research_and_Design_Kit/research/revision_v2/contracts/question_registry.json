@@ -1,10 +1,10 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.9.0",
+  "registry_version": "3.10.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
-  "sdk_mapping": "For each question, prefix prompt.instructions with the global_rules text and construct typesafe_sdk.Noul(instructions, criteria) or typesafe_sdk.Choice(instructions, criteria) according to primitive. Questions in one profile that share a state are sent in one request. Other entry metadata is enforced by the host and not forwarded.",
+  "sdk_mapping": "For each question, prefix prompt.instructions with the global_rules text and construct typesafe_sdk.Noul(instructions, criteria), typesafe_sdk.Choice(instructions, criteria) or typesafe_sdk.Score(instructions, criteria) according to primitive. Questions in one profile that share a state are sent in one request. Other entry metadata is enforced by the host and not forwarded.",
   "purpose": "Narrow semantic judgments at the boundaries where retrieved text becomes a finding, a finding becomes an economic effect, or evidence conflicts. No question estimates a default probability, produces an amount or date, or makes the lending decision.",
   "global_rules": [
     "Answer only from the supplied state. Do not use remembered facts about this company, dispute or later events.",
@@ -78,11 +78,15 @@
         "coverage_supported"
       ]
     },
-    "dispute_branching": {
-      "primitive": "choice",
-      "trigger": "host, when the agent proposes a decision node of a live dispute",
+    "dispute_model": {
+      "primitive": "choice+noul+score",
+      "trigger": "host, when the agent instantiates a live dispute onto the host-owned dispute model (contracts/dispute_model.json)",
       "questions": [
-        "dispute_branch"
+        "dispute_stage",
+        "factor_routing",
+        "factor_level",
+        "factor_present",
+        "dispute_transition"
       ]
     }
   },
@@ -103,8 +107,13 @@
     "statement": "Agent-written text to check (an effect's model consequence or the packet conclusion).",
     "cited_findings": "The accepted findings the statement rests on: proposition plus verbatim quotes.",
     "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs).",
-    "decision_point": "One pending decision in a live dispute, in the agent's words (who decides what, next).",
-    "record": "The accepted findings the node rests on: proposition plus verbatim quotes, with source dates."
+    "record": "The accepted findings the dispute rests on: proposition plus verbatim quotes, with source dates.",
+    "dispute": "The dispute as instantiated: its title, the borrower and its side (judgment debtor or creditor), the counterparty, and which party owes.",
+    "finding": "One accepted finding: its proposition and verbatim quotes, with the source date.",
+    "stage": "The model stage the transition leaves from, with its description.",
+    "premise": "The transitions taken so far on this path (a branch being evaluated, not an established fact).",
+    "factor_results": "Graded or present factors the host established from routed findings, each with its level and the findings behind it.",
+    "factor": "One factor of the dispute model: its label and question."
   },
   "observation_record": {
     "call_fields": [
@@ -625,22 +634,99 @@
       "application": "Gate at submission over the agent's own reading: a clear gap is closed with a finding or escalated to the reviewer's checklist; never overridden. Units no finding cites are the reviewer's, not Jev's."
     },
     {
-      "id": "dispute_branch",
-      "version": "3.9.0",
-      "profile": "dispute_branching",
+      "id": "dispute_stage",
+      "version": "3.10.0",
+      "profile": "dispute_model",
       "primitive": "choice",
-      "question": "Which branch of this pending decision does the record most support as what happens next?",
-      "applies_when": "The agent proposes a decision node of a live dispute with two to five mutually exclusive branches.",
+      "question": "At which stage of the dispute model is this dispute on the review date?",
+      "applies_when": "The agent instantiates a dispute onto the model.",
       "state_fields": [
-        "decision_point",
+        "dispute",
         "record"
       ],
       "prompt": {
-        "instructions": "state.decision_point is one decision still pending in a live dispute on the review date. state.record holds the accepted findings about it, with their verbatim quotes. Using only the record, judge which branch is the next development the record most supports: the parties' stated intentions, the court's orders so far, the procedural posture, and each party's past conduct in this dispute. Do not use outside knowledge of how the dispute ended. Do not judge amounts or dates; code sets those for each branch.",
+        "instructions": "state.dispute is one live dispute and state.record holds the accepted findings about it, with verbatim quotes and source dates. Using only the record, choose the stage the dispute is at on the review date (the latest source date). Choose none_fits when the record places the dispute outside every listed stage. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
         "criteria_from_host": true,
         "criteria": {}
       },
-      "application": "The distribution becomes each branch's weight, labelled once as model judgment (calibrated by TypeSafe to frontier-model consensus, not to observed litigation outcomes). It never sets an amount, a date or the credit decision; conditional results for every branch are always shown."
+      "application": "Code starts the traversal at the chosen stage. none_fits leaves the dispute unmodelled and flags it for the reviewer; an unclear placement becomes an evidence request."
+    },
+    {
+      "id": "factor_routing",
+      "version": "3.10.0",
+      "profile": "dispute_model",
+      "primitive": "choice",
+      "question": "Which of these factors does this one finding bear on most?",
+      "applies_when": "Refinement of an uncertain, decision-relevant transition: once per finding.",
+      "state_fields": [
+        "dispute",
+        "finding"
+      ],
+      "prompt": {
+        "instructions": "state.finding is one accepted finding about state.dispute. Choose the factor its quoted text bears on most directly, or none when it bears on none of them. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
+        "criteria_from_host": true,
+        "criteria": {}
+      },
+      "application": "Code routes the finding to every factor whose probability meets the routing threshold; routing is judgment about relevance, never a weight."
+    },
+    {
+      "id": "factor_level",
+      "version": "3.10.0",
+      "profile": "dispute_model",
+      "primitive": "score",
+      "question": "Which level of this factor does this finding establish?",
+      "applies_when": "A finding routed to a graded factor.",
+      "state_fields": [
+        "dispute",
+        "finding",
+        "factor"
+      ],
+      "prompt": {
+        "instructions": "state.factor is one factor of the dispute model, with its question. Using only state.finding's quoted text, choose the level of the rubric the text establishes. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
+        "criteria_from_host": true,
+        "criteria": []
+      },
+      "application": "Code takes the most advanced level any routed finding establishes and passes it, with its findings, to the transition's re-ask. A factor no finding establishes stays unknown and becomes an evidence request."
+    },
+    {
+      "id": "factor_present",
+      "version": "3.10.0",
+      "profile": "dispute_model",
+      "primitive": "noul",
+      "question": "Does this finding establish this factor?",
+      "applies_when": "A finding routed to a present-or-absent factor.",
+      "state_fields": [
+        "dispute",
+        "finding",
+        "factor"
+      ],
+      "prompt": {
+        "instructions": "state.factor is one present-or-absent factor of the dispute model. Using only state.finding's quoted text, judge whether the text establishes it. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
+        "criteria_from_host": true,
+        "criteria": {}
+      },
+      "application": "Code marks the factor present when any routed finding establishes it (code-owned threshold) and passes it to the transition's re-ask."
+    },
+    {
+      "id": "dispute_transition",
+      "version": "3.10.0",
+      "profile": "dispute_model",
+      "primitive": "choice",
+      "question": "Given this stage and the path so far, which transition does the record most support next?",
+      "applies_when": "Every non-terminal stage the host reaches while traversing the model.",
+      "state_fields": [
+        "dispute",
+        "record",
+        "stage",
+        "premise",
+        "factor_results"
+      ],
+      "prompt": {
+        "instructions": "state.stage is where this path of state.dispute stands; state.premise lists the transitions taken so far on this path (a branch under evaluation, not an established fact). Using only state.record and, when present, state.factor_results, judge which listed transition is the next development the record most supports within the financing horizon: the parties' stated intentions, the court's orders so far, and each party's conduct in this dispute. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
+        "criteria_from_host": true,
+        "criteria": {}
+      },
+      "application": "The distribution becomes the transition's conditional weights, labelled once as model judgment (calibrated by TypeSafe to frontier-model consensus, not to observed litigation outcomes). Code multiplies them along each path. Every path's conditional cash is always shown."
     }
   ]
 }

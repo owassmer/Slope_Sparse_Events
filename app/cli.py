@@ -121,7 +121,7 @@ def compare(run: str = typer.Option(..., help="Recorded run ID (runs/recorded/<i
     from app.evidence.store import EvidenceStore
 
     review = date.fromisoformat(str(EvidenceStore(meta["snapshot_id"]).snapshot_info()["cutoff"])[:10])
-    summary = decide(meta["snapshot_id"], inputs, list(store.graph["dispute_nodes"].values()), review)
+    summary = decide(meta["snapshot_id"], inputs, list(store.graph["disputes"].values()), review)
     js, csv = export(summary, base / run)
     for view, rec in summary["recommendation"].items():
         typer.echo(f"{view:15s} -> {rec['structure']} (limit {rec['limit_cents'] / 100:,.0f}, "

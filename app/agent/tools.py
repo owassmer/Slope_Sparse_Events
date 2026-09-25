@@ -20,7 +20,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -36,11 +36,9 @@ from app.config import ROOT, ConfigurationError
 from app.domain.investigation import (
     CASH_FREE_MECHANISMS,
     AtomicFinding,
-    BranchCash,
     DecisionDependency,
     Disposition,
-    DisputeBranch,
-    DisputeNode,
+    DisputeInstance,
     EconomicEffectProposal,
     EvidenceCandidate,
     ParameterRequirement,
@@ -489,6 +487,10 @@ async def propose_effect(ctx: RunContext, args: dict) -> dict:
 
 async def run_sensitivity(ctx: RunContext, args: dict) -> dict:
     """Remaining-period required net cash across explicit paid-since-measurement scenarios."""
+    from app.decisions.case import is_slope_case
+
+    if is_slope_case(ctx.inputs):
+        raise ToolError("run_sensitivity applies to fixed-installment cases; use run_scenarios on Slope's terms")
     opening = _baseline_item(ctx, "opening_cash_observation_id")
     if opening is None:
         raise ToolError("This case's baseline names no opening-cash observation")
@@ -537,16 +539,27 @@ async def run_sensitivity(ctx: RunContext, args: dict) -> dict:
     return out
 
 
-MAX_WINDOW_DAYS = 730
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December")
 
 
-def _branch_amount(item: dict, quotes: str) -> EvidenceValue:
-    """A branch amount is documented when it appears in the node's cited quotes; otherwise derived, with its basis."""
+def _date_in_text(d: date, text: str) -> bool:
+    """Whether a docket date appears in cited text, in the forms filings use."""
+    flat = " ".join(text.split())
+    m = MONTHS[d.month - 1]
+    forms = {d.isoformat(), f"{m} {d.day}, {d.year}", f"{m[:3]}. {d.day}, {d.year}", f"{m[:3]} {d.day}, {d.year}",
+             f"{d.day} {m} {d.year}", f"{d.month}/{d.day}/{d.year}", f"{d.month:02d}/{d.day:02d}/{d.year}",
+             f"{d.month}/{d.day}/{d.year % 100:02d}", f"{d.month:02d}/{d.day:02d}/{d.year % 100:02d}"}
+    return any(re.search(rf"(?<![\d/]){re.escape(f)}(?![\d/])", flat) for f in forms)
+
+
+def _dispute_amount(item: dict, quotes: str) -> EvidenceValue:
+    """The dispute's amount: documented when it is quoted in the cited findings; otherwise derived, with its basis."""
     basis_note = (item.get("basis") or "").strip()
     if item.get("value_cents") is not None:
         cents = int(item["value_cents"])
         if cents <= 0:
-            raise ToolError("Branch amounts are positive; the kind says whether cash leaves, arrives or is locked")
+            raise ToolError("The amount is positive; borrower_role says which way it flows")
         if _cents_in_text(cents, quotes):
             return EvidenceValue(status=Status.EXACT, unit=Unit.CENTS, value=cents,
                                  provenance=Provenance(basis=Basis.DOCUMENTED, note=basis_note or None))
@@ -555,8 +568,8 @@ def _branch_amount(item: dict, quotes: str) -> EvidenceValue:
         return EvidenceValue(status=Status.EXACT, unit=Unit.CENTS, value=cents,
                              provenance=Provenance(basis=Basis.DERIVED, derivation=basis_note))
     lo, hi = item.get("lower_cents"), item.get("upper_cents")
-    if lo is None or hi is None or not 0 <= int(lo) <= int(hi):
-        raise ToolError("Give value_cents, or lower_cents and upper_cents")
+    if lo is None or hi is None or not 0 < int(lo) <= int(hi):
+        raise ToolError("Give value_cents, or positive lower_cents and upper_cents")
     quoted = _cents_in_text(int(lo), quotes) and _cents_in_text(int(hi), quotes)
     if not quoted and not basis_note:
         raise ToolError("A range not quoted in the findings needs `basis` explaining it")
@@ -564,91 +577,103 @@ def _branch_amount(item: dict, quotes: str) -> EvidenceValue:
         basis=Basis.DOCUMENTED if quoted else Basis.DERIVED, derivation=None if quoted else basis_note))
 
 
-async def propose_dispute_node(ctx: RunContext, args: dict) -> dict:
-    """A pending decision in a live dispute, split into 2-5 mutually exclusive branches with dated cash consequences.
-    In the Jev arm, Jev judges which branch the record supports; its distribution weights the branches (labelled model
-    judgment). Every amount is documented or derived with its basis; every date is a window after the review date."""
+def _path_view(p) -> dict:
+    return {"path": " -> ".join(p.labels), "ends": p.terminal,
+            "weight": "not judged" if p.weight_bps is None else f"{p.weight_bps / 100:.0f}%",
+            "cash": [{"kind": c.kind, "label": c.label, "amount": c.amount.model_dump(mode="json", exclude_none=True),
+                      "window": [c.window_start.isoformat(), c.window_end.isoformat()], "rule": c.rule} for c in p.cash]}
+
+
+async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
+    """Place one live dispute onto the host-owned post-judgment dispute model. The agent supplies the accepted findings,
+    the borrower's side, the counterparty, the amount and any judgment date (checked against the quotes). The host
+    traverses the model: Jev places the stage and judges each transition (refined by factors where uncertain and
+    decision-relevant); code sets every date and amount from the model's rules and composes the weighted paths."""
+    from app.agent.jev_profiles import DisputeProfile
+    from app.decisions.scenarios import HORIZON_DAYS
+    from app.disputes.evaluate import Evaluator
+    from app.disputes.rules import load_model
 
     dep = ctx.run.get("dependencies", args["dependency_id"])
     fids = tuple(dict.fromkeys(args.get("finding_ids") or []))
     findings = [ctx.run.graph["findings"].get(f) for f in fids]
     bad = [f for f, x in zip(fids, findings, strict=True) if x is None or x.status != "accepted"]
     if not fids or bad:
-        raise ToolError(f"A decision node rests on accepted findings (not accepted: {bad or 'none given'})")
+        raise ToolError(f"A dispute rests on accepted findings (not accepted: {bad or 'none given'})")
+    if args.get("borrower_role") not in ("debtor", "creditor"):
+        raise ToolError("borrower_role is debtor (the borrower owes) or creditor (the borrower is owed)")
+    title, counterparty = (args.get("title") or "").strip(), (args.get("counterparty") or "").strip()
+    if not title or not counterparty:
+        raise ToolError("Give the dispute a short title and name the counterparty")
     quotes = " ".join(s.quote for f in findings for s in f.spans)
-    review = date.fromisoformat(str(ctx.evidence.snapshot_info()["cutoff"])[:10])
-    raw_branches = args.get("branches") or []
-    if not 2 <= len(raw_branches) <= 5:
-        raise ToolError("A decision node has 2 to 5 mutually exclusive branches")
-    branches = []
-    for i, b in enumerate(raw_branches, 1):
-        cash = []
-        for item in b.get("cash") or []:
-            try:
-                start, end = date.fromisoformat(item["window_start"]), date.fromisoformat(item["window_end"])
-            except (KeyError, ValueError) as e:
-                raise ToolError("Each cash consequence needs window_start and window_end (YYYY-MM-DD)") from e
-            if start <= review or end < start or (end - review).days > MAX_WINDOW_DAYS:
-                raise ToolError(f"Windows start after the review date {review} and end within two years of it")
-            if item.get("kind") not in ("outflow", "inflow", "lock"):
-                raise ToolError("kind is outflow, inflow or lock")
-            cash.append(BranchCash(kind=item["kind"], label=(item.get("label") or "").strip() or item["kind"],
-                                   amount=_branch_amount(item, quotes), window_start=start, window_end=end,
-                                   finding_ids=tuple(x for x in item.get("finding_ids") or [] if x in fids)))
-        label, desc = (b.get("label") or "").strip(), (b.get("description") or "").strip()
-        if not label or not desc:
-            raise ToolError("Each branch needs a short label and a description of what happens")
-        branches.append(DisputeBranch(branch_id=f"br_{i}", label=label, description=desc, cash=tuple(cash)))
-    node = DisputeNode(node_id=ctx.run.new_id("node"), dependency_id=dep.dependency_id,
-                       decision_point=(args.get("decision_point") or "").strip() or dep.question, finding_ids=fids,
-                       branches=tuple(branches), status="accepted")
-    weights, obs_view = {}, None
-    if ctx.semantics is not None:
-        sources = {s["source_id"]: s["available_at"][:10] for s in ctx.evidence.list_sources()}
-        hashes = tuple(dict.fromkeys(ctx.evidence.read(f.spans[0].item_id)["source"]["sha256"] for f in findings))
+    review = _review_date(ctx)
+    judgment_date = None
+    if args.get("judgment_date"):
         try:
-            [o] = await ctx.semantics.dispute_branch(node, findings, sources, hashes)
-        except Exception as e:
+            judgment_date = date.fromisoformat(args["judgment_date"])
+        except ValueError as e:
+            raise ToolError("judgment_date is YYYY-MM-DD") from e
+        if judgment_date > review:
+            raise ToolError(f"judgment_date is after the review date {review}")
+        if not _date_in_text(judgment_date, quotes):
+            raise ToolError(f"{judgment_date} is not in the cited quotes; cite the finding that dates the judgment")
+    model = load_model()
+    draft = DisputeInstance(
+        instance_id=ctx.run.new_id("dispute"), dependency_id=dep.dependency_id, model_id=model["model_id"],
+        model_version=model["model_version"], title=title, borrower_role=args["borrower_role"],
+        counterparty=counterparty, finding_ids=fids, amount=_dispute_amount(args.get("amount") or {}, quotes),
+        judgment_date=judgment_date, proposed_extension=(args.get("proposed_extension") or "").strip())
+    judge = None
+    if ctx.semantics is not None:
+        hashes = tuple(dict.fromkeys(ctx.evidence.read(f.spans[0].item_id)["source"]["sha256"] for f in findings))
+        judge = DisputeProfile(ctx.semantics, hashes)
+    sources = {s["source_id"]: s["available_at"][:10] for s in ctx.evidence.list_sources()}
+    evaluator = Evaluator(draft, findings, judge=judge, borrower=ctx.inputs["baseline_profile"]["borrower"],
+                          source_dates=sources, review=review, horizon=review + timedelta(days=HORIZON_DAYS),
+                          request_cents=ctx.inputs["run_inputs"]["requested_amount"]["value"],
+                          agent_stage=args.get("stage"), model=model)
+    try:
+        instance = await evaluator.run()
+    except Exception as e:
+        if judge is not None:
             _record_jev_failure(ctx, e)
-            raise ToolError(f"The decision node could not be judged: {e}") from e
-        probs = {k: Decimal(str(v)) for k, v in (o.probabilities or {}).items() if k.startswith("br_")}
-        total = sum(probs.values())
-        if total > 0:
-            raw = {k: int((v / total * 10_000).to_integral_value()) for k, v in probs.items()}
-            raw[max(raw, key=raw.get)] += 10_000 - sum(raw.values())  # weights sum to exactly 10,000 bps
-            weights = raw
-        node = node.model_copy(update={"observation_ids": (o.observation_id,), "weights_bps": weights})
-        _dispose(ctx, [o], "used_in_finding", f"branch weights for {node.node_id}")
-        obs_view = _obs_view(o)
-    ctx.run.put("dispute_node_recorded", node)
-    return {"node_id": node.node_id, "branches": [
-        {"branch_id": b.branch_id, "label": b.label, "weight": (f"{weights[b.branch_id] / 100:.0f}%" if b.branch_id in weights
-                                                                  else "not judged"),
-         "cash": [{"kind": c.kind, "label": c.label, "amount": c.amount.model_dump(mode="json"),
-                   "window": [c.window_start.isoformat(), c.window_end.isoformat()]} for c in b.cash]}
-        for b in node.branches], **({"judgment": obs_view} if obs_view else {}),
-        "note": ("Weights are Jev's judgment of which branch the record supports (model judgment, not an observed "
-                 "frequency). Every branch is modelled; run_scenarios shows each branch's cash and the weighted view.")}
+        raise ToolError(f"The dispute could not be evaluated: {e}") from e
+    if instance.observation_ids:
+        used = [ctx.run.get("observations", o) for o in instance.observation_ids]
+        _dispose(ctx, used, "used_in_finding", f"dispute model for {instance.instance_id}")
+    ctx.run.put("dispute_instantiated", instance)
+    stages = model["stages"]
+    return {"instance_id": instance.instance_id, "status": instance.status,
+            "stage": stages[instance.stage]["label"] if instance.stage else None,
+            "paths": [_path_view(p) for p in instance.paths],
+            "pruned_weight": f"{instance.pruned_weight_bps / 100:.1f}%",
+            "refined_transitions": [j.stage for j in instance.transitions if j.refined],
+            "factors": [{"factor": f.label, "level": f.level_label} for f in instance.factors],
+            "evidence_requests": [r.action for r in instance.evidence_requests],
+            **({"proposed_extension": "recorded and flagged for the reviewer; the model is unchanged"}
+               if instance.proposed_extension else {}),
+            "note": model["weights_label"] + " run_scenarios shows every path's cash and the weighted view."}
 
 
 async def run_scenarios(ctx: RunContext, _args: dict) -> dict:
-    """Run the deterministic engine on the accepted dispute nodes: each Slope structure, bank-only vs event-adjusted."""
+    """Run the deterministic engine on the modelled disputes: each Slope structure, bank-only vs event-adjusted."""
     from app.decisions.case import decide, is_slope_case
 
     if not is_slope_case(ctx.inputs):
         raise ToolError("run_scenarios applies to cases financed on Slope's terms; use run_sensitivity here")
-    nodes = [n for n in ctx.run.graph["dispute_nodes"].values() if n.status == "accepted"]
-    s = decide(ctx.evidence.snapshot_info()["snapshot_id"], ctx.inputs, nodes, _review_date(ctx))
+    disputes = list(ctx.run.graph["disputes"].values())
+    s = decide(ctx.evidence.snapshot_info()["snapshot_id"], ctx.inputs, disputes, _review_date(ctx))
     views = list(s["recommendation"])
     out = {"tier": s["tier"], "recommendation": s["recommendation"], "conditions": s["conditions"],
            "structures": {name: {view: {"passes": e["views"][view]["policy"]["passes"],
                                         "reasons": e["views"][view]["policy"]["reasons"],
-                                        "lowest_cash_cents": e["views"][view]["lowest_cash_cents"],
-                                        "lowest_cash_on": e["views"][view]["lowest_cash_on"]} for view in views}
+                                        "limit_cents": e["views"][view]["policy"]["limit_cents"],
+                                        "order_limit_cents": e["views"][view]["policy"]["order_limit_cents"]}
+                                 for view in views}
                           for name, e in s["structures"].items()},
-           "nodes": s["nodes"], "weights_label": s["weights_label"]}
-    ctx.run.append("scenarios_run", object_ids=tuple(n.node_id for n in nodes), payload={
-        "recommendation": s["recommendation"], "node_ids": [n.node_id for n in nodes]})
+           "disputes": s["disputes"], "weights_label": s["weights_label"]}
+    ctx.run.append("scenarios_run", object_ids=tuple(d.instance_id for d in disputes), payload={
+        "recommendation": s["recommendation"], "instance_ids": [d.instance_id for d in disputes]})
     return out
 
 
@@ -1102,22 +1127,24 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
      "how much was paid since the measurement date. Optionally state an assumed unavailable share of reported cash.",
      obj({"effect_ids": {"type": "array", "items": S}, "paid_fractions": {"type": "array", "items": S},
           "unavailable_opening_cash_cents": {"type": "integer"}}, ["effect_ids"]), run_sensitivity),
-    ("propose_dispute_node", "Model one pending decision in a live dispute (for example the amount a court will fix, "
-     "whether a party appeals and must post a bond, whether a judgment debtor pays and when) as 2-5 mutually exclusive "
-     "branches. Cite the accepted findings it rests on. For each branch give its dated cash consequences: kind "
-     "(outflow, inflow or lock), an amount (value_cents, or lower_cents/upper_cents; state `basis` if the amount is not "
-     "quoted in the findings) and a window (window_start, window_end) after the review date. Jev judges which branch the "
-     "record supports and its distribution weights the branches.",
-     obj({"dependency_id": S, "decision_point": S, "finding_ids": {"type": "array", "items": S},
-          "branches": {"type": "array", "items": obj({"label": S, "description": S, "cash": {"type": "array", "items": obj({
-              "kind": {"type": "string", "enum": ["outflow", "inflow", "lock"]}, "label": S, "value_cents": {"type": "integer"},
-              "lower_cents": {"type": "integer"}, "upper_cents": {"type": "integer"}, "basis": S, "window_start": S,
-              "window_end": S, "finding_ids": {"type": "array", "items": S}}, ["kind", "window_start", "window_end"])}},
-              ["label", "description"])}},
-         ["dependency_id", "decision_point", "finding_ids", "branches"]), propose_dispute_node),
+    ("instantiate_dispute", "Place one live dispute (a money judgment, or a liability ruling whose amount is still open) "
+     "onto the host's post-judgment dispute model. Cite the accepted findings about it; say whether the borrower is the "
+     "debtor (owes) or the creditor (is owed); name the counterparty; give the amount (value_cents, or "
+     "lower_cents/upper_cents; state `basis` if it is not quoted in the findings) and the judgment's entry date if one "
+     "has been entered (it must appear in the cited quotes). The host places the stage, judges each transition with Jev "
+     "and sets every date and amount from the model's rules. You may give your own `stage` reading and a "
+     "`proposed_extension` if the model lacks a step the record shows; an extension is flagged, not used.",
+     obj({"dependency_id": S, "title": S, "finding_ids": {"type": "array", "items": S},
+          "borrower_role": {"type": "string", "enum": ["debtor", "creditor"]}, "counterparty": S,
+          "amount": obj({"value_cents": {"type": "integer"}, "lower_cents": {"type": "integer"},
+                         "upper_cents": {"type": "integer"}, "basis": S}, []),
+          "judgment_date": S, "stage": {"type": "string", "enum": ["amount_pending", "judgment_entered",
+                                                                     "appeal_pending", "enforcement"]},
+          "proposed_extension": S},
+         ["dependency_id", "title", "finding_ids", "borrower_role", "counterparty", "amount"]), instantiate_dispute),
     ("run_scenarios", "Run the deterministic cash engine for every Slope structure: the bank-only view and the "
-     "event-adjusted view with every combination of your accepted dispute nodes' branches. Returns which structures "
-     "pass policy, the limits, the lowest projected cash and the funding conditions.", obj({}, []), run_scenarios),
+     "event-adjusted view along every path of your instantiated disputes. Returns the recommendation and what binds it, "
+     "which structures pass policy, the limits and the funding conditions.", obj({}, []), run_scenarios),
     ("request_missing_fact", "Record a pivotal fact the evidence cannot supply: what it is, why it is pivotal, what evidence "
      "would resolve it and what changes if it is resolved. Sends no message.",
      obj({"dependency_id": S, "fact": S, "why_pivotal": S, "acceptable_evidence": S, "if_resolved": S},

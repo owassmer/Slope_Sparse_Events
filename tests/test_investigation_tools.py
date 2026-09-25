@@ -364,26 +364,3 @@ def test_gap_share_and_short_quotes_and_amounts():
     assert len(units_touching(text, 5, text.index("Minimum") + 3)) == 2  # a quote across paragraphs checks both
     assert T._cents_in_text(223_598_600, "a gain to us of $2,235,986, and is reflected")  # comma after the amount
     assert not T._cents_in_text(60_000_000, "$2,600,000")
-
-
-def test_dispute_node_amounts_windows_and_weights(make_ctx):
-    ctx = make_ctx(name="node")
-    dep, fid = _accepted_settlement_finding(ctx)
-    good = {"kind": "outflow", "label": "installments", "value_cents": 200_000_000,
-            "window_start": "2024-09-01", "window_end": "2024-12-31"}
-    base = {"dependency_id": dep, "decision_point": "Whether the 2024 installments are paid on schedule",
-            "finding_ids": [fid]}
-    with pytest.raises(T.ToolError, match="state how it is derived"):
-        call(T.propose_dispute_node, ctx, {**base, "branches": [
-            {"label": "on schedule", "description": "paid as scheduled", "cash": [{**good, "value_cents": 123_456}]},
-            {"label": "deferred", "description": "renegotiated", "cash": []}]})
-    with pytest.raises(T.ToolError, match="after the review date"):
-        call(T.propose_dispute_node, ctx, {**base, "branches": [
-            {"label": "on schedule", "description": "paid", "cash": [{**good, "window_start": "2024-08-01"}]},
-            {"label": "deferred", "description": "renegotiated", "cash": []}]})
-    out = call(T.propose_dispute_node, ctx, {**base, "branches": [
-        {"label": "on schedule", "description": "paid as scheduled", "cash": [good]},
-        {"label": "deferred", "description": "renegotiated", "cash": []}]})
-    node = ctx.run.get("dispute_nodes", out["node_id"])
-    assert node.branches[0].cash[0].amount.provenance.basis == "documented_evidence"  # quoted in the finding
-    assert sum(node.weights_bps.values()) == 10_000 and node.observation_ids

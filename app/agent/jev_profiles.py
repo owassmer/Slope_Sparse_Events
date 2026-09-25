@@ -6,7 +6,8 @@ call and its observations in the run's investigation graph. The agent never supp
 question IDs, and nothing outside the snapshot and the run can enter a Jev state.
 
 Profiles (registry v3): candidate_screen (host, every search result), claim_interpretation (agent),
-finding_check (host, every proposed finding), statement_relation (agent; host for baseline overlap).
+finding_check (host, every proposed finding), statement_relation (agent; host for baseline overlap),
+dispute_model (host, when the agent instantiates a live dispute; see DisputeProfile).
 """
 
 from __future__ import annotations
@@ -198,25 +199,46 @@ class Semantics:
         return await self._ask("inventory_coverage", ["coverage_supported"],
                                {"passage": passage, "cited_findings": cited_state}, subject_ids, source_hashes)
 
-    async def dispute_branch(self, node, findings: list[AtomicFinding], sources: dict[str, str],
-                             source_hashes: tuple[str, ...]) -> list[SemanticObservation]:
-        """dispute_branching: which branch of a pending decision does the record support? Branches are the options."""
-        record = [{"finding_id": f.finding_id, "proposition": f.proposition, "quotes": [s.quote for s in f.spans],
-                   "source_dates": sorted({sources.get(s.source_id, "") for s in f.spans})} for f in findings]
-        criteria = {b.branch_id: f"{b.label}: {b.description}" for b in node.branches}
-        call, observations = await self.jev.judge(
-            profile="dispute_branching", question_ids=["dispute_branch"],
-            state={"decision_point": node.decision_point, "record": record},
-            subject_ids=(node.node_id, *node.finding_ids), source_content_hashes=source_hashes,
-            criteria={"dispute_branch": criteria})
-        self.run.put("jev_call", call)
-        for o in observations:
-            self.run.put("observation_recorded", o)
-        return observations
-
     async def baseline_overlap(self, effect_description: str, baseline_item: str, subject_ids: tuple[str, ...],
                                source_hashes: tuple[str, ...] = ()) -> list[SemanticObservation]:
         """Warning signal only; obligation IDs and host validation decide double counting."""
         return await self._ask("statement_relation", ["baseline_overlap"],
                                {"effect_description": effect_description, "baseline_item": baseline_item},
                                subject_ids, source_hashes)
+
+
+class DisputeProfile:
+    """dispute_model (registry 3.10): the atomic questions the dispute evaluator asks, one question per request, with
+    host-built options (the model's stages, factors, rubric levels or transitions). Implements DisputeJudge."""
+
+    def __init__(self, semantics: Semantics, source_hashes: tuple[str, ...]) -> None:
+        self.s, self.hashes = semantics, source_hashes
+
+    async def _one(self, qid: str, state: dict, subject_ids: tuple[str, ...], criteria) -> SemanticObservation:
+        call, [o] = await self.s.jev.judge(profile="dispute_model", question_ids=[qid], state=state,
+                                          subject_ids=subject_ids, source_content_hashes=self.hashes,
+                                          criteria={qid: criteria})
+        self.s.run.put("jev_call", call)
+        self.s.run.put("observation_recorded", o)
+        return o
+
+    async def stage(self, dispute, record, options, subject_ids):
+        return await self._one("dispute_stage", {"dispute": dispute, "record": record}, subject_ids, options)
+
+    async def route(self, dispute, finding, options, subject_ids):
+        return await self._one("factor_routing", {"dispute": dispute, "finding": finding}, subject_ids, options)
+
+    async def level(self, dispute, finding, factor, rubric, subject_ids):
+        return await self._one("factor_level", {"dispute": dispute, "finding": finding, "factor": factor},
+                               subject_ids, list(rubric))
+
+    async def present(self, dispute, finding, factor, subject_ids):
+        criteria = {"true": f"The quoted text establishes it: {factor['question']}",
+                    "false": "The quoted text does not establish it, or does not address it."}
+        return await self._one("factor_present", {"dispute": dispute, "finding": finding, "factor": factor},
+                               subject_ids, criteria)
+
+    async def transition(self, dispute, record, stage, premise, factor_results, options, subject_ids):
+        state = {"dispute": dispute, "record": record, "stage": stage, "premise": premise or ["(the stage itself)"],
+                 "factor_results": factor_results or ["(none established yet)"]}
+        return await self._one("dispute_transition", state, subject_ids, options)

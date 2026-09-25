@@ -1,6 +1,6 @@
 """Jev adapter: one physical request -> one JevCallRecord plus one SemanticObservation per question.
 
-Jev answers narrow semantic questions built from the versioned registry (Choice or Noul). Its
+Jev answers narrow semantic questions built from the versioned registry (Choice, Noul or Score). Its
 probabilities and confidence describe its own judgment; they are never event probabilities, weights or
 dollar adjustments. The host, not the agent, builds the state and chooses the questions (see
 jev_profiles.py).
@@ -25,7 +25,7 @@ from typing import Any
 
 import httpx2
 from pydantic import BaseModel, ConfigDict
-from typesafe_sdk import AsyncTypeSafeClient, Choice, Noul, RetryPolicy
+from typesafe_sdk import AsyncTypeSafeClient, Choice, Noul, RetryPolicy, Score
 
 from app.config import (
     VAR,
@@ -65,12 +65,14 @@ def registry_question(question_id: str) -> dict:
     raise KeyError(f"Unknown Jev question {question_id!r}")
 
 
-def build_question(entry: dict) -> Choice | Noul:
+def build_question(entry: dict) -> Choice | Noul | Score:
     """Registry mapping: global rules prefixed to the question's instructions; primitive from the entry."""
     rules = "\n".join(f"- {r}" for r in question_registry()["global_rules"])
     instructions = f"Global rules:\n{rules}\n\nQuestion:\n{entry['prompt']['instructions']}"
     if entry["primitive"] == "noul":
         return Noul(instructions=instructions, criteria=entry["prompt"]["criteria"])
+    if entry["primitive"] == "score":
+        return Score(instructions=instructions, criteria=entry["prompt"]["criteria"])
     return Choice(instructions=instructions, criteria=entry["prompt"]["criteria"])
 
 
@@ -115,9 +117,10 @@ class JevAdapter:
 
     async def judge(self, *, profile: str, question_ids: list[str], state: dict, subject_ids: tuple[str, ...] = (),
                     source_content_hashes: tuple[str, ...] = (),
-                    criteria: dict[str, dict[str, str]] | None = None) -> tuple[JevCallRecord, list[SemanticObservation]]:
+                    criteria: dict[str, dict[str, str] | list[str]] | None = None) -> tuple[JevCallRecord, list[SemanticObservation]]:
         """Ask independent questions about one state in a single request. `criteria` supplies host-built answer
-        options for questions whose registry entry says so (e.g. the branches of a dispute decision node)."""
+        options for questions whose registry entry says so (e.g. a dispute model stage's transitions, or a factor's
+        rubric)."""
         entries = {qid: registry_question(qid) for qid in question_ids}
         for qid, crit in (criteria or {}).items():
             if not entries[qid]["prompt"].get("criteria_from_host"):
@@ -173,6 +176,14 @@ class JevAdapter:
                     observation_id=self.new_id("obs"), call_id=call.call_id, profile=profile, question_id=qid,
                     question_version=entry["version"], primitive="noul",
                     answer=None if value is None else value >= NOUL_THRESHOLD, noul_value=value, subject_ids=subject_ids))
+            elif entry["primitive"] == "score":
+                probs = ans.get("probabilities")
+                observations.append(SemanticObservation(
+                    observation_id=self.new_id("obs"), call_id=call.call_id, profile=profile, question_id=qid,
+                    question_version=entry["version"], primitive="score",
+                    answer=None if not probs else str(max(probs, key=lambda k: probs[k])), score_value=ans.get("score"),
+                    probabilities={str(k): v for k, v in probs.items()} if probs else None,
+                    confidence=ans.get("confidence"), subject_ids=subject_ids))
             else:
                 observations.append(SemanticObservation(
                     observation_id=self.new_id("obs"), call_id=call.call_id, profile=profile, question_id=qid,

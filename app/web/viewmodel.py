@@ -146,14 +146,7 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
         "jev_ledger": dict(ledger), "jev_calls": len(g["jev_calls"]), "observations": len(g["observations"]),
         "inventory": inventory, "conclusion_check": conclusion_check, "conclusion_checks": conclusion_checks,
         "decision": _decision(root / run_id),
-        "dispute_nodes": [{"id": n.node_id, "decision_point": n.decision_point, "findings": list(n.finding_ids),
-                           "branches": [{"label": b.label, "description": b.description,
-                                         "weight": (f"{n.weights_bps[b.branch_id] / 100:.0f}%" if b.branch_id in n.weights_bps
-                                                    else "not judged"),
-                                         "cash": [{"kind": c.kind, "label": c.label, "amount": _money(c.amount.model_dump(mode="json")),
-                                                   "window": f"{c.window_start.isoformat()} to {c.window_end.isoformat()}"}
-                                                  for c in b.cash]} for b in n.branches]}
-                          for n in g.get("dispute_nodes", {}).values()],
+        "disputes": _disputes(g),
         "atomic_inventory": any(i.unit_start >= 0 for i in g["inventory"].values()),
         "cited_checks": [{**c, "checked": [{**r, "meaning": meaning("coverage_supported", r["answer"])} for r in c["checked"]]}
                          for c in cited_checks],
@@ -174,18 +167,47 @@ def _decision(run_dir: Path) -> dict | None:
         row = {"name": name, "label": e["label"]}
         for view in views:
             v = e["views"][view]
-            row[view] = {"passes": v["policy"]["passes"], "lowest": usd(v["lowest_cash_cents"]),
+            scen = v["scenarios"]
+            econ = scen[0].get("economics") if scen else None
+            full = sum(1 for sc in scen if sc.get("economics") and sc["economics"]["uncollected_cents"] == 0)
+            row[view] = {"passes": v["policy"]["passes"], "lowest": usd(v["policy"]["lowest_projected_cash_cents"]),
                          "reasons": v["policy"]["reasons"],
-                         "fee": usd(v["economics"]["fee_cents"]) if "economics" in v else "",
-                         "apr": f"{v['economics']['apr_equivalent_bps'] / 100:.1f}%" if "economics" in v else "",
-                         "npv": usd(v["economics"]["npv_at_cost_of_funds_cents"]) if "economics" in v else ""}
+                         "fee": usd(econ["fee_cents"]) if econ else "",
+                         "apr": f"{econ['apr_equivalent_bps'] / 100:.1f}%" if econ else "",
+                         "collected": f"repaid in full in {full} of {len(scen)} scenarios" if econ else ""}
         rows.append(row)
     rec = {view: {**r, "limit": usd(r["limit_cents"]), "order_limit": usd(r["order_limit_cents"]),
+                  "lowest": usd(r["binding"]["lowest_projected_cash_cents"]),
                   "label": s["structures"][r["structure"]]["label"] if r["structure"] in s["structures"] else r["structure"]}
            for view, r in s["recommendation"].items()}
     return {"views": views, "rows": rows, "recommendation": rec, "conditions": s["conditions"], "tier": s["tier"],
             "bank_feed": s["bank_feed"], "slope_terms": s["slope_terms"], "weights_label": s["weights_label"],
             "request": s["request"]}
+
+
+def _disputes(g: dict) -> list[dict]:
+    """Each instantiated dispute: its stage, the factors Jev established, the weighted paths with their rule-derived
+    cash, and the evidence requests left by irreducible uncertainty."""
+    from app.disputes.rules import load_model
+
+    stages = load_model()["stages"]
+    out = []
+    for d in g.get("disputes", {}).values():
+        out.append({
+            "id": d.instance_id, "title": d.title, "role": "owes" if d.borrower_role == "debtor" else "is owed",
+            "counterparty": d.counterparty, "amount": _money(d.amount.model_dump(mode="json")),
+            "stage": stages[d.stage]["label"] if d.stage else "outside the model", "status": d.status,
+            "findings": list(d.finding_ids),
+            "factors": [{"label": f.label, "level": f.level_label, "findings": list(f.finding_ids)} for f in d.factors],
+            "refined": [j.stage for j in d.transitions if j.refined],
+            "paths": [{"labels": " → ".join(p.labels),
+                       "weight": "not judged" if p.weight_bps is None else f"{p.weight_bps / 100:.0f}%",
+                       "cash": [{"kind": c.kind, "label": c.label, "amount": _money(c.amount.model_dump(mode="json")),
+                                 "window": f"{c.window_start.isoformat()} to {c.window_end.isoformat()}", "rule": c.rule}
+                                for c in p.cash]} for p in sorted(d.paths, key=lambda p: -(p.weight_bps or 0))],
+            "pruned": f"{d.pruned_weight_bps / 100:.1f}%" if d.pruned_weight_bps else "",
+            "requests": [r.action for r in d.evidence_requests], "extension": d.proposed_extension})
+    return out
 
 
 def run_source_title(inputs: dict, source_id: str) -> str:

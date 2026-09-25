@@ -23,9 +23,11 @@ RESTRICTED_CENTS = 15_200_000
 # Quarterly anchors in cents: receipts = net sales - increase in trade receivables; net = change in cash.
 QUARTERS = {
     1: {"months": (1, 2, 3), "receipts": 2_215_300_000 - 140_500_000, "net": 24_000_000, "other_inflows": 0},
-    2: {"months": (4, 5, 6), "receipts": 2_270_000_000 - 121_400_000, "net": 32_000_000,
+    2: {"months": (4, 5, 6), "receipts": 2_273_900_000 - 122_600_000, "net": 32_000_000,
         "other_inflows": 59_800_000},  # stock option exercise proceeds (Q2 financing)
-    3: {"months": (7, 8), "receipts": 1_180_000_000, "net": 25_000_000, "other_inflows": 0},  # Q2 daily rate x 50 days, to 19 Aug
+    # 1 Jul to 19 Aug (50 days) continues Q2's daily operating pattern (Q2 excluding option proceeds: -USD 278k over 91 days).
+    3: {"months": (7, 8), "receipts": (2_273_900_000 - 122_600_000) * 50 // 91, "net": -(27_800_000 * 50 // 91),
+        "other_inflows": 0},
 }
 RECEIPT_MIX = [  # (counterparty, category, share of receipts, cadence)
     ("Shopify Payments", "ecommerce_payouts", 0.47, "daily"),

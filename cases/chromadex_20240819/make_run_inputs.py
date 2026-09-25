@@ -83,7 +83,7 @@ inputs = {
         "mission_id": "chromadex_2024_supplier_bill_financing",
         "requested_use": {"value": "Pay a contract manufacturer's invoice for Tru Niagen finished goods", "basis": "operator_request"},
         "requested_amount": {"value": 200_000_000, "unit": "USD_cents", "basis": "operator_request"},
-        "requested_term": {"value": "120 days, monthly installments", "basis": "operator_request"},
+        "requested_term": {"value": "90 days, monthly installments", "basis": "operator_request"},
         "requested_pricing": {"value": "Slope price card for the borrower's risk tier", "basis": "operator_request"},
         "baseline_profile_id": "chromadex_ordinary_baseline_v1",
         "existing_loan_record_ids": ["chromadex_western_alliance_revolver"],
@@ -100,7 +100,7 @@ inputs = {
         "note": "Without Slope, ChromaDex would pay this invoice itself on its due date.",
     },
     "permitted_offers": {"permitted_offer_set_id": "slope_menu_v1", "terms_file": "cases/slope_terms.json",
-                         "requested_term_id": "inst_120"},
+                         "requested_term_id": "inst_90"},
     "policy": {"policy_config_id": "slope_policy_v1", "terms_file": "cases/slope_terms.json"},
     "bank_feed": "cases/chromadex_20240819/bank_feed.json",
     "baseline_profile": {
