@@ -217,8 +217,8 @@
     },
     {
       "path": "research/revision_v2/contracts/question_registry.json",
-      "bytes": 37994,
-      "sha256": "87ceb3c0661a6def3c916d9c185c932b7d6a41be482fd35c2eb1525eb8742156"
+      "bytes": 39209,
+      "sha256": "4ebde7813f4a2c0cb76c15cdf65361e17615759265751a60955c935960e3285e"
     },
     {
       "path": "research/revision_v2/contracts/synergy-decision-context.json",
@@ -257,8 +257,8 @@
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
-      "bytes": 52278,
-      "sha256": "6c2a8925592d5395533bd56218b002075a72bfcb1592c23ba4fdb07b4dd48b8a"
+      "bytes": 54538,
+      "sha256": "81ce24bfb15f8b38b4a5dc9a046c288a4625380fc5e1464896076d4c3f19115a"
     },
     {
       "path": "research/revision_v2/package_kit.py",

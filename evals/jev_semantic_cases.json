@@ -934,6 +934,54 @@
       },
       "expected": "could_change",
       "why": "An outstanding settlement loan and a gain inside historical cost of sales (the run 8 miss)."
+    },
+    {
+      "case_id": "syn_relevance_routine_tax_policy",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "decision_relevance",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "review_date": "2024-08-13",
+        "passage": {
+          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 2 — Summary of Significant Accounting Policies",
+          "text": "the tax basis of assets and liabilities and their financial reporting amounts based on enacted tax laws and statutory tax rates applicable to the periods in which the differences are expected to affect taxable income. A valuation allowance is recorded when it is “more likely -than -not ” that a deferred tax asset will not be realized."
+        }
+      },
+      "expected": "could_not_change",
+      "why": "An income-tax accounting policy; no specific matter."
+    },
+    {
+      "case_id": "syn_relevance_routine_receivables_note",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "decision_relevance",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "review_date": "2024-08-13",
+        "passage": {
+          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 4 — Accounts Receivable",
+          "text": "Accounts receivable, net of allowances for doubtful accounts, consisted of the following:\n\n[synergy_s1a_20240813#t0039]\n|  | June 30, 2024 | December 31, 2023 |\n| Trade accounts receivable | $3,275,508 | $2,255,540 |\n| Less allowances | (7,422) | (149,446) |\n| Total accounts receivable, net | $3,268,086 | $2,106,094 |\n\nDuring the six months ended June 30, 2024 and 2023, the Company charged $0 to bad debt expense."
+        }
+      },
+      "expected": "could_not_change",
+      "why": "Ordinary receivables and allowances; no specific matter."
+    },
+    {
+      "case_id": "syn_relevance_routine_stock_compensation",
+      "borrower": "synergy",
+      "profile": "inventory_coverage",
+      "question_id": "decision_relevance",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "review_date": "2024-08-13",
+        "passage": {
+          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 14 — Stock Options",
+          "text": "Stock -based compensation expense related to vested options was $4,611 during the six months ended June 30, 2024. The Company determined the value of share -based compensation for options vesting during the six months ended June 30, 2024 using the Black -Scholes fair value option -pricing model with the following weighted average assumptions: estimated fair value of the Company’s common stock of $0.16, risk -free interest rate of 4.33%, volatility of 73%, expected term of 6 years, and dividend yield of 0%. Stock options outstanding as of June 30, 2024, as disclosed in the above table, have an intrinsic value of $0. As of June 30, 2024, unamortized stock -based compensation costs related to options was $50,730, and will be recognized over a period of thirty three months."
+        }
+      },
+      "expected": "could_not_change",
+      "why": "Routine equity compensation; no specific matter."
     }
   ]
 }

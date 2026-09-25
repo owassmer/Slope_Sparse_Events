@@ -365,8 +365,9 @@ def test_duplicate_and_relevance_claims_are_checked(make_ctx):
     call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "covered_by_findings", "finding_ids": [fid]}]})
     out = call(T.account_for_items, ctx, {"items": [
         {"item_id": "inv_002", "disposition": "duplicate_of", "duplicate_of": "inv_003"},  # not covered
-        {"item_id": "inv_003", "disposition": "duplicate_of", "duplicate_of": "inv_001"},  # Jev: adds an item
-        {"item_id": "inv_002", "disposition": "not_decision_relevant", "reason": "An old matter with no bearing on the draw."}]})
+        {"item_id": "inv_003", "disposition": "duplicate_of", "duplicate_of": "inv_001"}]})  # Jev: adds an item
     reasons = [r["reason"] for r in out["rejected"]]
     assert out["accounted"] == [] and "already covered" in reasons[0] and "duplicate check" in reasons[1]
-    assert "decision-relevance check failed" in reasons[2]
+    out = call(T.account_for_items, ctx, {"items": [
+        {"item_id": "inv_002", "disposition": "not_decision_relevant", "reason": "An old matter with no bearing on the draw."}]})
+    assert "decision-relevance check failed" in out["rejected"][0]["reason"]

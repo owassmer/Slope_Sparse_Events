@@ -609,7 +609,7 @@
         "cited_findings"
       ],
       "prompt": {
-        "instructions": "Do state.cited_findings account for each specific matter that state.passage describes? A specific matter is one lawsuit, settlement, loan or other agreement, restriction, or accounting gain, loss or accrual; a passage may describe several. A finding accounts for a matter when it states what the passage establishes about that matter's cash, obligation, restriction or accounting treatment. Presentation details of a matter the findings already state, such as a current and long-term split or a subtotal, are part of that matter. Findings about a different matter, or about a different aspect than the one the passage describes, do not account for it.",
+        "instructions": "Do state.cited_findings account for each specific matter that state.passage describes? A specific matter is a lawsuit or claim, a settlement, a loan or other financing agreement and its terms, a covenant or consent requirement, a restriction on cash, or an accounting gain, loss or accrual arising from one of these. Routine accounting policies, ordinary operating balances (receivables, payables, inventory, taxes, equity compensation) and generic disclosures are not specific matters. A passage may describe several specific matters. A finding accounts for a matter when it states what the passage establishes about that matter's cash, obligation, restriction or accounting treatment. Presentation details of a matter the findings already state, such as a current and long-term split or a subtotal, are part of that matter. Findings about a different matter, or about a different aspect than the one the passage describes, do not account for it.",
         "criteria": {
           "covered": "The findings account for each specific matter the passage describes.",
           "partly_covered": "The findings account for some matters but miss another specific matter the passage describes, or a distinct item of one (for example another loan, an accounting gain, a covenant or a payment status).",
@@ -631,7 +631,7 @@
         "passage"
       ],
       "prompt": {
-        "instructions": "Does state.passage describe any specific matter or item (for example a legal matter, settlement, loan, covenant, restriction, payment status, or an accounting gain, loss or accrual) that state.covered_passage does not also describe? The same matter reported at a different date or with an updated balance is not a new item.",
+        "instructions": "Does state.passage describe any specific matter, or a distinct item of one (such as its payment status or an accounting gain, loss or accrual), that state.covered_passage does not also describe? A specific matter is a lawsuit or claim, a settlement, a loan or other financing agreement and its terms, a covenant or consent requirement, a restriction on cash, or an accounting gain, loss or accrual arising from one of these. Routine accounting policies, ordinary operating balances (receivables, payables, inventory, taxes, equity compensation) and generic disclosures are not specific matters. The same matter reported at a different date or with an updated balance is not a new item.",
         "criteria": {
           "nothing_new": "Every specific matter and item in the passage is also described in the covered passage.",
           "adds_item": "The passage describes at least one specific matter or item the covered passage does not.",
@@ -645,7 +645,7 @@
       "version": "3.3.0",
       "profile": "inventory_coverage",
       "primitive": "choice",
-      "question": "Could what this passage describes change the borrower's cash, obligations, the earnings used in underwriting, or its ability to repay, from the review date on?",
+      "question": "Does this passage describe a specific matter that could change the borrower's cash, obligations, the earnings used in underwriting, or its ability to repay, from the review date on?",
       "applies_when": "The agent marks an inventory item as not decision-relevant.",
       "state_fields": [
         "company",
@@ -653,10 +653,10 @@
         "passage"
       ],
       "prompt": {
-        "instructions": "Could what state.passage describes change state.company's future cash, its obligations outstanding at or after state.review_date, the historical earnings a lender would use in underwriting, or its ability to repay, from state.review_date on? A matter fully paid, released or closed before the review date, with no remaining obligation, restriction or earnings effect, could not. Do not judge how large or likely any change is.",
+        "instructions": "Does state.passage describe a specific matter that could change state.company's future cash, its obligations outstanding at or after state.review_date, the historical earnings a lender would use in underwriting, or its ability to repay, from state.review_date on? A specific matter is a lawsuit or claim, a settlement, a loan or other financing agreement and its terms, a covenant or consent requirement, a restriction on cash, or an accounting gain, loss or accrual arising from one of these. Routine accounting policies, ordinary operating balances (receivables, payables, inventory, taxes, equity compensation) and generic disclosures are not specific matters. A matter fully paid, released or closed before the review date, with no remaining obligation, restriction or earnings effect, could not. Do not judge how large or likely any change is.",
         "criteria": {
-          "could_change": "It describes an obligation, restriction, cash item, contingency or earnings item that could change cash, obligations, underwriting earnings or repayment ability from the review date.",
-          "could_not_change": "It describes nothing that could change these from the review date.",
+          "could_change": "It describes a specific matter (an obligation, restriction, contingency, financing term or matter-related earnings item) that could change cash, obligations, underwriting earnings or repayment ability from the review date.",
+          "could_not_change": "It describes no specific matter, only routine policies, ordinary balances or generic text, or a matter fully closed before the review date.",
           "unclear": "Cannot tell what the passage describes."
         }
       },

@@ -66,7 +66,8 @@ WORKING_METHOD = """Working method
 
 JEV_METHOD = """- read_inventory early: the host screened every admissible section and lists the specific matters it found. Before
   submitting, account_for_items for every item: covered by accepted findings, a duplicate of a covered item, or not
-  decision-relevant with a reason. Each claim is checked section by section. When a check finds something unaccounted for, add a
+  decision-relevant with a reason. Account for items as you go, in batches, once the findings for a matter are accepted;
+  do not leave the inventory to the end. Each claim is checked section by section. When a check finds something unaccounted for, add a
   finding for it and account again; if you cannot, escalate the item with the failed observation_id and what is missing. An
   escalated legal, settlement, debt, covenant, cash-restriction or accounting item leaves the review incomplete.
 - The host checks each proposed effect: its supporting findings' posture and status must fit the mechanism, and its model
