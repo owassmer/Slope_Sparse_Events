@@ -118,3 +118,14 @@ SDK_OUTPUT_TOOL = "StructuredOutput"
 
 def main_agent_settings() -> dict:
     return agent_config()["runtime"]["main_agent"]
+
+
+def allowed_tools(arm: str = "agent_plus_jev") -> list[str]:
+    """Effective MCP allowlist for an evaluation arm (agent_only drops every Jev-facing tool)."""
+    tools = list(main_agent_settings()["native_sdk_options"]["allowed_tools"])
+    if arm == "agent_only":
+        removed = set(agent_config()["comparison_mode_overrides"]["agent_only"]["remove_allowed_and_exposed_tools"])
+        tools = [t for t in tools if t not in removed]
+    elif arm != "agent_plus_jev":
+        raise ConfigurationError(f"Unknown arm {arm!r}")
+    return tools

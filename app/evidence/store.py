@@ -41,6 +41,10 @@ class EvidenceStore:
             raise EvidenceAccessError(f"{source_id!r} is not available in this snapshot")
         return dict(row)
 
+    def source(self, source_id: str) -> dict[str, Any]:
+        """Catalog metadata for one admissible source (raises outside the snapshot)."""
+        return self._source(source_id)
+
     def list_sources(self) -> list[dict[str, Any]]:
         rows = self.con.execute(
             "SELECT s.*, (SELECT count(*) FROM sections x WHERE x.source_id = s.source_id) AS n_sections, "

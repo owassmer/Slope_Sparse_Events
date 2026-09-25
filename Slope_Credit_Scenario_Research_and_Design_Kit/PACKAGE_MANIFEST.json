@@ -217,8 +217,8 @@
     },
     {
       "path": "research/revision_v2/contracts/question_registry.json",
-      "bytes": 27168,
-      "sha256": "0408288863772bc886cbe861a828bcdbd52c6dab4036acb87b090f7678b0d123"
+      "bytes": 27411,
+      "sha256": "656189d02a3f0c29bb805b73f8f82d28bba8331ff1d64399b4c18b2831c1ddb5"
     },
     {
       "path": "research/revision_v2/contracts/synergy-decision-context.json",

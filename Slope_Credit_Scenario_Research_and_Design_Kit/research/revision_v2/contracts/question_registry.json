@@ -211,7 +211,7 @@
     },
     {
       "id": "entity_scope",
-      "version": "3.0.0",
+      "version": "3.0.1",
       "profile": "claim_interpretation",
       "primitive": "choice",
       "question": "Who does this statement apply to?",
@@ -223,10 +223,10 @@
         "claim"
       ],
       "prompt": {
-        "instructions": "Who does this statement apply to? Judge identity and stated scope of state.claim within state.passage, not whether the claim is true. Do not assume an affiliate's obligations belong to the parent.",
+        "instructions": "Who does this statement apply to? Judge identity and stated scope of state.claim within state.passage, not whether the claim is true. The target has two parts: the entity and, when named, a specific asset, activity or obligation. Both must match. A statement about the same company but a different obligation, counterparty, asset or activity is 'different'. Do not assume an affiliate's obligations belong to the parent.",
         "criteria": {
-          "target": "The claim explicitly concerns the selected target entity and, when specified, the target asset, activity or obligation.",
-          "different": "The claim explicitly concerns a different entity, asset, activity or obligation, and the passage does not extend it to the target.",
+          "target": "The claim concerns the target entity and, when the target names a specific asset, activity or obligation, that same one.",
+          "different": "The claim concerns a different entity, or the same entity but a different asset, activity, obligation or counterparty than the one the target names.",
           "unknown": "Cannot tell: identity or scope is unresolved, a definition is missing, or several targets are combined."
         }
       },
