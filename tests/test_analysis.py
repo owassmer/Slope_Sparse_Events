@@ -131,7 +131,8 @@ def test_collateral_and_credit_capacity_are_released_exactly_on_the_settlement_d
                 assert len(locked_on) <= 1 and all(x <= day[0] for x in locked_on)  # none: locked and settled same day
         assert not other.any() and (level >= 0).all()
         if kind == "capacity":
-            assert (ec.cash <= 0).all() and ec.cash.sum(axis=1).max() < 0  # a letter of credit never locks cash
+            # a letter of credit never locks cash; cash moves only by the settlement itself (some draws fall past the period)
+            assert (ec.cash <= 0).all() and ec.cash.sum(axis=1).min() < 0
 
 
 def test_the_invoice_remainder_is_paid_once_and_collections_never_exceed_the_contract():
@@ -144,6 +145,16 @@ def test_the_invoice_remainder_is_paid_once_and_collections_never_exceed_the_con
     # financed $1.5M: the borrower pays the $500k remainder once, and less to Slope; nothing else differs
     diff = full.cash[0, -1] - financed.cash[0, -1]
     assert diff == -((full.collections[0].sum() - financed.collections[0].sum()) - 50_000_000)
+
+
+def test_events_keep_the_full_window_jev_was_asked_about():
+    # Enforcement runs 30-120 days after the ruling, which is drawn over the whole period: part of it falls past the
+    # horizon. Those draws book nothing; no date is squeezed into the period.
+    m, model = model_with([DE]), load_model()
+    path = next(p for p in m.per["de"][""] if p.outcome == "collected" and ("appeal", "", "no") in p.steps)
+    ec = event_cash(DE, path, SETUP, model, Draws(512))
+    inside = (ec.cash != 0).any(axis=1).mean()
+    assert 0.3 < inside < 0.95
 
 
 # 5. Paired simulation -----------------------------------------------------------------------------------

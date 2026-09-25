@@ -97,7 +97,7 @@ def _judgment_meta(j: Judgment, disputes: dict[str, DisputeInstance], order: dic
         who = short_name(parent.counterparty)
         cond.append({"counterparty_receives": f"{who} is paid in the {dispute_short(parent, borrower).split(' ·')[0]}",
                      "counterparty_pays": f"{who} pays in the {dispute_short(parent, borrower).split(' ·')[0]}",
-                     "no_cash": f"no payment in the {dispute_short(parent, borrower).split(' ·')[0]}"}[cls])
+                     "no_cash": f"nothing paid in the {dispute_short(parent, borrower).split(' ·')[0]}"}[cls])
     return {"key": j.key, "dispute": j.instance_id, "dispute_title": disputes[j.instance_id].title,
             "dispute_short": dispute_short(disputes[j.instance_id], borrower), "node": j.node,
             "label": LABEL.get(j.node, j.event), "condition": "; ".join(c for c in cond if c),
@@ -260,8 +260,11 @@ def recompute(path: Path, controls: dict, overrides: dict | None) -> dict:
     setup = base.with_controls(controls or {})
     clean = {k: {b: min(max(float(p), 0.0), 1.0) for b, p in v.items()} for k, v in (overrides or {}).items()
              if k in model.judgments}
-    for k, v in clean.items():  # a probability override keeps the node's distribution summing to one
-        total = sum(v.values()) or 1.0
+    for k, v in list(clean.items()):  # an override keeps the node's distribution summing to one; all-zero is ignored
+        total = sum(v.values())
+        if total <= 0:
+            del clean[k]
+            continue
         clean[k] = {b: v.get(b, 0.0) / total for b in model.judgments[k].distribution}
     key = (str(path), setup)
     if key not in _ANALYSES:

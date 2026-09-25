@@ -111,11 +111,11 @@ class Forecaster:
     def class_assumption(self, parent: DisputeInstance, cls: str) -> str:
         cp = parent.counterparty
         return {"counterparty_receives": f"In the other dispute between these parties ({parent.order_reference}), "
-                                         f"{cp} receives a payment from {self.borrower} during the analysis period.",
+                                         f"{self.borrower} pays {cp} (by payment, settlement or enforcement).",
                 "counterparty_pays": f"In the other dispute between these parties ({parent.order_reference}), "
-                                     f"{cp} pays {self.borrower} during the analysis period.",
-                "no_cash": f"In the other dispute between these parties ({parent.order_reference}), no payment passes "
-                           f"between them during the analysis period."}[cls]
+                                     f"{cp} pays {self.borrower} (by payment, settlement or enforcement).",
+                "no_cash": f"In the other dispute between these parties ({parent.order_reference}), nothing is paid "
+                           f"while this obligation is pending (no ruling, an appeal still pending, or unpaid)."}[cls]
 
     # --- the tree ---------------------------------------------------------------------------------
 
@@ -127,7 +127,9 @@ class Forecaster:
         first, h = self.review + timedelta(days=1), self.horizon
 
         def span(a: date, b: date) -> str:
-            return f"from {fmt(max(a, first))} to {fmt(min(b, h))}" if a <= h else "after the analysis period"
+            if b < first:
+                return f"from {fmt(a)} to {fmt(b)} (already closed on the review date)"
+            return f"from {fmt(max(a, first))} to {fmt(b)}"
 
         w = {"settle_before_ruling": span(first, self.review + timedelta(days=settle)),
              "amount_fixed": span(first, h), "settle_during_appeal": f"from the stay to {fmt(h)}"}

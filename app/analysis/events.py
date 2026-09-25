@@ -58,7 +58,12 @@ class Draws:
 
 
 def amount_cents(d: DisputeInstance, setup: Setup) -> int:
-    a = int(d.amount.value if d.amount.value is not None else d.amount.upper)
+    """The documented figure; for a range, the end that is conservative for the borrower's cash (the top when the
+    borrower pays, the bottom when it is paid). The exposure control scales what the borrower pays."""
+    if d.amount.value is not None:
+        a = int(d.amount.value)
+    else:
+        a = int(d.amount.upper if d.borrower_role == "debtor" else d.amount.lower)
     return int(round(a * setup.exposure_scale)) if d.borrower_role == "debtor" else a
 
 
@@ -79,13 +84,16 @@ def event_cash(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict,
     multiple = param(model, "supersedeas_multiple_bps") / 10_000
 
     def offset(a, b, *key):
-        """A day offset from the review date (1 = the day after) drawn inside [a, b] clipped to the horizon; payments
-        early in stress. A window that opens after the horizon returns a day past it, so nothing is booked there and
-        nothing that depends on it (a release, a payment) is either."""
-        a, b = np.maximum(np.asarray(a), 1), np.minimum(np.maximum(np.asarray(b), 1), days)
+        """A day offset from the review date (1 = the day after) drawn uniformly inside the full window [a, b], the
+        window Jev was asked about; payments early in stress. A draw past the horizon books nothing, and nothing that
+        depends on it (a release, a payment) is booked either. A window that closed before the review date, or that
+        starts after it ends (its parent fell past the horizon), books nothing."""
+        a, b = np.asarray(a), np.asarray(b)
+        closed = b < 1
+        a, b = np.maximum(a, 1), np.maximum(b, 1)
         u = draws.u(iid, *key, adverse_high=not debtor)
         inside = np.minimum(a + np.floor(u * (b - a + 1)).astype(np.int64), b)
-        return np.where(a > b, np.maximum(a, days + 1), inside)  # a window opening after the horizon books nothing
+        return np.where(closed | (a > b), days + 1, inside)  # an empty window (starts after it ends) books nothing
 
     def book(arr, when, cents):
         idx = when - 1
