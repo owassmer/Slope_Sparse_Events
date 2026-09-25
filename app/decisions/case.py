@@ -53,13 +53,15 @@ def conditions(disputes: list[DisputeInstance], inputs: dict, recommendation: di
     out, borrower = [], inputs["baseline_profile"]["borrower"]
     labels = load_model()["readings"]["amount_status_labels"]
     needs = (recommendation or {}).get("requested_needs")
+    titles = {p.path_id: d.title for d in live(disputes) for p in d.paths}
     if needs:
         short = needs["paths_short_whatever_else"]
         out.append({
             "action": f"The requested amount needs at least {usd(needs['needs_lowest_cash_cents'])} of lowest projected "
                       f"cash on every path; {len(needs['short_combinations'])} tested combinations fall short. "
                       + ("Paths that fall short whatever else happens: "
-                         + "; ".join(f"{e['labels']} (short by at least {usd(e['short_by_cents_at_best'])})"
+                         + "; ".join(f"{titles.get(e['path'], '')}: {e['labels']} (short by at least "
+                                     f"{usd(e['short_by_cents_at_best'])})"
                                      for e in short) + "." if short else ""),
             "if_satisfied": "Evidence that rules out every short path restores the requested amount.",
             "if_not": "Offer the recommended amount.", "computed": True})

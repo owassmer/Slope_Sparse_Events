@@ -67,7 +67,7 @@ def _place(amount, window_start: date, window_end: date, kind: str, placement: s
     lo = amount.value if amount.value is not None else amount.lower
     hi = amount.value if amount.value is not None else amount.upper
     if placement == "stress":
-        return (window_start, hi) if kind in ("outflow", "lock") else (window_end, lo)
+        return (window_start, hi) if kind in ("outflow", "lock", "release") else (window_end, lo)
     mid = window_start + (window_end - window_start) / 2
     return mid, (lo + hi) // 2
 
@@ -95,8 +95,14 @@ def simulate(feed: BankFeed, request: Request, structure: SlopeOffer | None, cas
     financed = structure.amount_cents if structure else 0
     if request.amount_cents > financed:
         add(request.invoice_due, -(request.amount_cents - financed))  # the borrower pays the rest of its invoice
-    for item in cash_items:
+    locked: dict[tuple, int] = {}
+    for item in sorted(cash_items, key=lambda c: c.kind == "release"):
         on, amt = _place(item.amount, item.window_start, item.window_end, item.kind, placement)
+        if item.kind == "release":  # returns exactly what this path locked, on the payment's date
+            add(on, locked.pop(item.finding_ids, 0))
+            continue
+        if item.kind == "lock":
+            locked[item.finding_ids] = locked.get(item.finding_ids, 0) + amt
         add(on, -amt if item.kind in ("outflow", "lock") else amt)
     due: dict[date, int] = {}
     for p in (structure.schedule(request.funding) if structure else []):

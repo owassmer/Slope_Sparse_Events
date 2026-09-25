@@ -577,6 +577,9 @@ def _dispute_amount(item: dict, quotes: str) -> EvidenceValue:
         basis=Basis.DOCUMENTED if quoted else Basis.DERIVED, derivation=None if quoted else basis_note))
 
 
+OBLIGATION_CHARS = 120
+
+
 def _path_view(p) -> dict:
     return {"path": " -> ".join(p.labels), "ends": p.terminal, **({"same_cash_as": list(p.also)} if p.also else {}),
             **({"the_record_points_here": list(p.points_here)} if p.points_here else {}),
@@ -606,6 +609,10 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
     if not title or not counterparty or not obligation:
         raise ToolError("Give the dispute a short title, the obligation (what is owed, under which order or judgment) "
                         "and the counterparty")
+    if len(obligation) > OBLIGATION_CHARS:
+        raise ToolError(f"Name the obligation neutrally in at most {OBLIGATION_CHARS} characters (what is owed and under "
+                        "which order, e.g. 'the attorneys' fees awarded in D. Del. 1:18-cv-01434'); no status, "
+                        "appeal position or amount: Jev reads those from the passages")
     live = {d.instance_id: d for d in ctx.run.graph["disputes"].values() if d.status != "superseded"}
     replaced = args.get("supersedes")
     if replaced and replaced not in live:
@@ -1141,7 +1148,8 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
           "unavailable_opening_cash_cents": {"type": "integer"}}, ["effect_ids"]), run_sensitivity),
     ("instantiate_dispute", "Compile one live dispute (a money judgment, or a liability ruling whose amount is still "
      "open) onto the host's post-judgment dispute model. Cite the accepted findings about one obligation; give a short "
-     "title, the obligation (what is owed, under which order or judgment) and the counterparty; quote the amount "
+     "title, the obligation named neutrally (what is owed and under which order, at most 120 characters, with no "
+     "status or appeal position) and the counterparty; quote the amount "
      "(value_cents, or lower_cents/upper_cents; state `basis` if it is not quoted in the findings) and the judgment's "
      "entry date if one has been entered (it must appear in the cited quotes). Jev reads each finding (who pays, the "
      "amount's status, the procedural events, the factors); code places the stage, sets every date and amount, and "

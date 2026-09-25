@@ -274,3 +274,15 @@ def test_an_unmodelled_or_superseded_dispute_is_never_silently_dropped_or_counte
     assert once["recommendation"]["event_adjusted"]["structure"] == s["recommendation"]["event_adjusted"]["structure"]
     text = json.dumps(s["conditions"])
     assert "sought" in text and "owed" not in text  # a sought amount is never described as owed
+
+
+def test_settling_during_an_appeal_returns_the_locked_collateral_with_the_payment():
+    # The bond is discharged when the settlement is paid: never the collateral and the settlement out at once.
+    de = compile_de(StubJudge({"de1": DE_READING, "de2": DE_READING}))
+    by = {p.transitions: p for p in de.paths}
+    feed, lows = load_feed(SNAP), {}
+    for key in (("amount_fixed", "appeal_secured", "appeal_continues"), ("amount_fixed", "appeal_secured", "settle")):
+        daily, _, _, _ = simulate(feed, REQ, None, by[key].cash, "stress", HORIZON)
+        lows[key] = min(daily.values())
+    # settling swaps the (larger) lock for the payment: never lower than keeping the lock, never both at once
+    assert lows[("amount_fixed", "appeal_secured", "settle")] >= lows[("amount_fixed", "appeal_secured", "appeal_continues")]

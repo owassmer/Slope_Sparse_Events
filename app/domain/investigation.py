@@ -212,12 +212,13 @@ class EconomicEffectProposal(Frozen):
 
 
 class BranchCash(Frozen):
-    """One dated cash consequence on a dispute path: an outflow, an inflow, or cash locked as collateral.
+    """One dated cash consequence on a dispute path: an outflow, an inflow, cash locked as collateral, or the release
+    of that lock (which returns exactly what the scenario locked, on the same date as the payment it accompanies).
 
     The rule that produced it sets the amount (an EvidenceValue: the documented amount, or a range derived by a cited
     rule) and the window; scenarios place it early and late in the window."""
 
-    kind: Literal["outflow", "inflow", "lock"]
+    kind: Literal["outflow", "inflow", "lock", "release"]
     label: str
     amount: EvidenceValue
     window_start: date

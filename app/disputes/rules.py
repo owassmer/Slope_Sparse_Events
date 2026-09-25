@@ -119,8 +119,9 @@ def cash_for(model: dict, rule: str, role: str, amount: EvidenceValue, at: Windo
                       "60% to 100% of the amount (model settlement range), paid within 90 days of the stage's start."))
         if rule == "settle_release" and role == "debtor":
             c_lo, c_hi = bond_collateral(model, amount)
-            items.append(("inflow", "Bond collateral returned", c_lo, c_hi, Window(w.end, w.end),
-                          "The bond is discharged when the judgment is settled, and the collateral is returned."))
+            items.append(("release", "Bond collateral returned", c_lo, c_hi, w,
+                          "The bond is discharged when the settlement is paid: the collateral locked on this path "
+                          "returns on the same date as the payment."))
     out = []
     for kind, label, lo, hi, w, why in items:
         if w.start > horizon or w.end < w.start:
