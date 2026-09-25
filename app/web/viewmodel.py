@@ -52,9 +52,19 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
     g = run.graph
     record = json.loads((root / run_id / "run.json").read_text()) if (root / run_id / "run.json").exists() else {}
     meta = run.events[0].payload if run.events else {}
-    inputs_path = CASES_DIR / meta.get("snapshot_id", "") / "run_inputs.json"
-    inputs = json.loads(inputs_path.read_text()) if inputs_path.exists() else {}
+    if "run_inputs" in meta:  # locked in the hash chain
+        inputs, inputs_locked = meta["run_inputs"], True
+    else:  # runs recorded before inputs were chained: show the current case file, marked as such
+        inputs_path = CASES_DIR / meta.get("snapshot_id", "") / "run_inputs.json"
+        inputs, inputs_locked = (json.loads(inputs_path.read_text()) if inputs_path.exists() else {}), False
     submitted = next((e.payload for e in reversed(run.events) if e.kind == "packet_submitted"), {})
+    # Status is derived from the chained packet, not from the unchained run.json.
+    if submitted.get("configuration_failure"):
+        status = "FAILED_CONFIGURATION"
+    elif submitted.get("summary") and not submitted.get("incomplete_reasons"):
+        status = "CANDIDATE_READY"
+    else:
+        status = "INCOMPLETE_REVIEW"
 
     def obs_view(oid: str) -> dict[str, Any]:
         o = g["observations"][oid]
@@ -81,7 +91,9 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
                         "consequence": e.model_consequence, "status": e.status, "problems": list(e.validation_messages),
                         "guard": e.double_count_guard,
                         "parameters": [{"name": p.name.replace("_", " "), "description": p.description, "status": p.status,
-                                        "value": _money(p.value.model_dump(mode="json")) if p.value else "unknown"}
+                                        "value": _money(p.value.model_dump(mode="json")) if p.value else "unknown",
+                                        "basis": ("in cited quote" if p.value and p.value.provenance.basis == "documented_evidence"
+                                                  else "agent-stated, not in cited quote" if p.value else "")}
                                        for p in e.parameters],
                         "findings": [findings[f] for f in e.finding_ids if f in findings]})
 
@@ -100,9 +112,10 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
 
     ledger = Counter(o.downstream_disposition for o in g["observations"].values())
     return {
-        "run_id": run_id, "verified_head": run.head[:16], "record": record, "meta": meta,
+        "run_id": run_id, "verified_head": run.head[:16], "record": record, "meta": meta, "status": status,
+        "inputs_locked": inputs_locked,
         "borrower": inputs.get("baseline_profile", {}).get("borrower", meta.get("case_id")),
-        "review_date": "2024-08-13" if meta.get("snapshot_id") == "synergy_20240813" else meta.get("snapshot_id"),
+        "review_date": (meta.get("snapshot_cutoff") or inputs.get("snapshot_id", ""))[:10],
         "request": inputs.get("run_inputs", {}), "submitted": submitted, "effects": effects, "dependencies": deps,
         "missing_facts": [e.payload for e in run.events if e.kind == "missing_fact_requested"],
         "sensitivities": [e.payload for e in run.events if e.kind == "sensitivity_run"],

@@ -223,7 +223,7 @@ This is a local personal demonstration. Public sharing uses recorded runs with c
 | PydanticAI agent loop | Omit; native subscription runtimes serve this requirement directly |
 | Data/domain validation | Keep Pydantic and JSON Schema independently of agent framework |
 | Tool integration | Small custom MCP server; no general shell/filesystem/browser tools for historical investigation |
-| Initial budgets | 40 agent turns, 150 physical Jev attempts including SDK retries (spend cap $0.10 per run), approximately ten minutes, plus repeated-no-progress stop; ceilings, not targets |
+| Initial budgets | 80 agent turns (host-counted and enforced), 150 physical Jev attempts including SDK retries (spend cap $0.10 per run), approximately ten minutes, plus repeated-no-progress stop; ceilings, not targets |
 | Extra retry wrapper | Omit initially because layered retries can multiply calls; bounded provider retries within wall-clock budget |
 | Viewer | FastAPI, Jinja2, HTMX, Pico.css; local-only by default |
 | Storage/search | SQLite with FTS5; no vector database needed for this corpus |

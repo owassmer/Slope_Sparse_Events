@@ -3,10 +3,11 @@
 {% block body %}
 <hgroup>
   <h2>{{ v.borrower }}</h2>
-  <p>Review date {{ v.review_date }} · Incremental working-capital draw · <strong>{{ v.record.status or "status unknown" }}</strong></p>
+  <p>Review date {{ v.review_date }} · Incremental working-capital draw · <strong>{{ v.status }}</strong></p>
 </hgroup>
 <p class="muted">Run {{ v.run_id }} · arm {{ v.meta.arm }} · event chain verified ({{ v.verified_head }}…) ·
-  {{ v.jev_calls }} Jev calls, {{ v.observations }} semantic observations</p>
+  {{ v.jev_calls }} Jev calls, {{ v.observations }} semantic observations{% if not v.inputs_locked %} ·
+  <span class="tag warn">Inputs not locked in this run</span> (recorded before inputs were chained; showing the current case file){% endif %}</p>
 
 <div class="grid2">
   <div class="card">
@@ -41,7 +42,7 @@
   <p class="muted">Cash direction: {{ e.cash_direction }} · Baseline treatment: {{ e.baseline_treatment }}{% if e.guard %} · Double-count guard: {{ e.guard }}{% endif %}</p>
   {% if e.parameters %}
   <table><thead><tr><th>Parameter</th><th>Value</th><th>Status</th></tr></thead><tbody>
-    {% for p in e.parameters %}<tr><td>{{ p.name }}<br><span class="muted">{{ p.description }}</span></td><td>{{ p.value }}</td><td>{{ p.status }}</td></tr>{% endfor %}
+    {% for p in e.parameters %}<tr><td>{{ p.name }}<br><span class="muted">{{ p.description }}</span></td><td>{{ p.value }}{% if p.basis %}<br><span class="muted">{{ p.basis }}</span>{% endif %}</td><td>{{ p.status }}</td></tr>{% endfor %}
   </tbody></table>{% endif %}
   {% if e.problems %}<p><span class="tag warn">Rejected</span> {{ e.problems | join("; ") }}</p>{% endif %}
   <details><summary>Supporting findings ({{ e.findings | length }})</summary>

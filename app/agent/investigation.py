@@ -26,7 +26,7 @@ from claude_agent_sdk import (
 )
 from pydantic import BaseModel
 
-from app.agent.jev import JevAdapter
+from app.agent.jev import JevAdapter, canonical_sha256
 from app.agent.jev_profiles import Semantics
 from app.agent.run_store import RunStore
 from app.agent.smoke import preflight
@@ -62,7 +62,7 @@ WORKING_METHOD = """Working method
 - run_sensitivity on validated settlement effects to see which unknown changes the cash requirement.
 - request_missing_fact for each pivotal fact the evidence cannot supply, then submit_packet.
 - Use only the evidence returned by the tools; do not rely on remembered facts about this company or later events.
-- Work efficiently: about {turn_budget} turns in total."""
+- Work efficiently: the run stops at {turn_budget} turns; submit before then."""
 
 JEV_METHOD = """- Search results carry a semantic screen label; all results are shown and you decide what to read.
 - When the posture, status or entity of a statement matters, call judge (claim_interpretation) with one claim, a precise target
@@ -82,17 +82,23 @@ def system_prompt(arm: str, max_turns: int) -> str:
     role = (cfg["comparison_mode_overrides"]["agent_only"]["role_instruction"] if arm == "agent_only"
             else cfg["role_instruction"])
     invariants = "\n".join(f"- {i}" for i in cfg["invariants"])
-    method = WORKING_METHOD.format(jev_method=JEV_METHOD if arm == "agent_plus_jev" else "", turn_budget=max_turns - 5)
+    method = WORKING_METHOD.format(jev_method=JEV_METHOD if arm == "agent_plus_jev" else "", turn_budget=max_turns)
     return f"{role}\n\nInvariants\n{invariants}\n\n{method}"
 
 
-async def _session(ctx: RunContext, options: ClaudeAgentOptions, stats: dict[str, Any]) -> ResultMessage | None:
+async def _session(ctx: RunContext, options: ClaudeAgentOptions, stats: dict[str, Any],
+                   max_turns: int) -> ResultMessage | None:
+    """One session; the host counts assistant turns itself and interrupts at the ceiling."""
     result = None
     async with ClaudeSDKClient(options=options) as client:
         await client.query("Begin the investigation for this review.")
         async for msg in client.receive_response():
             if isinstance(msg, AssistantMessage):
                 stats["models"].add(msg.model)
+                stats["assistant_turns"] += 1
+                if stats["assistant_turns"] > max_turns and not stats["turn_limit_hit"]:
+                    stats["turn_limit_hit"] = True
+                    await client.interrupt()
                 for block in msg.content:
                     if isinstance(block, ToolUseBlock):
                         name = block.name.removeprefix("mcp__credit__")
@@ -120,11 +126,18 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
 
     run_id = f"{snapshot_id}-{arm}-{started:%Y%m%dT%H%M%SZ}"
     evidence = EvidenceStore(snapshot_id)
+    # The locked inputs (request, baseline, offers, reserve) are part of the hash chain from the first event.
     run = RunStore(run_id, meta={"arm": arm, "case_id": inputs["case_id"], "snapshot_id": snapshot_id,
+                                 "snapshot_cutoff": evidence.snapshot_info()["cutoff"],
                                  "evidence_manifest_hash": evidence.snapshot_info()["evidence_manifest_hash"],
                                  "configuration_version": cfg["configuration_version"],
-                                 "registry_version": record["registry_version"], "model": settings["model"]})
-    jev = JevAdapter(run_id=run_id, new_id=run.new_id) if arm == "agent_plus_jev" else None
+                                 "registry_version": record["registry_version"], "model": settings["model"],
+                                 "max_turns": max_turns, "run_inputs": inputs, "run_inputs_sha256": canonical_sha256(inputs)})
+    try:
+        jev = JevAdapter(run_id=run_id, new_id=run.new_id) if arm == "agent_plus_jev" else None
+    except ConfigurationError as e:
+        run.lock({"summary": None, "configuration_failure": str(e), "incomplete_reasons": [str(e)]})
+        return {**record, "run_id": run_id, "status": "FAILED_CONFIGURATION", "error": str(e)}
     ctx = RunContext(run=run, evidence=evidence, inputs=inputs, arm=arm,
                      semantics=Semantics(run, evidence, jev) if jev else None)
     allowed = allowed_tools(arm)
@@ -135,10 +148,10 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         cwd=tempfile.mkdtemp(prefix="slope-run-"), env=AGENT_PROCESS_ENV, system_prompt=system_prompt(arm, max_turns),
         output_format={"type": "json_schema", "schema": InvestigationOutcome.model_json_schema()})
 
-    stats: dict[str, Any] = {"models": set(), "tool_calls": {}}
+    stats: dict[str, Any] = {"models": set(), "tool_calls": {}, "assistant_turns": 0, "turn_limit_hit": False}
     result, failure = None, None
     try:
-        result = asyncio.run(asyncio.wait_for(_session(ctx, options, stats), timeout=wall_clock_s))
+        result = asyncio.run(asyncio.wait_for(_session(ctx, options, stats, max_turns), timeout=wall_clock_s))
     except TimeoutError:
         failure = f"wall clock budget of {wall_clock_s}s reached"
     except Exception as e:  # service failure: incomplete review, never a decline
@@ -146,18 +159,24 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
 
     if result is not None and result.is_error:
         failure = failure or f"agent session ended with an error: {result.subtype} {result.result or ''}"[:500]
-    if result is not None and result.subtype == "error_max_turns":
+    if stats["turn_limit_hit"] or (result is not None and result.subtype == "error_max_turns"):
         failure = failure or f"turn budget of {max_turns} reached"
     if not ctx.submitted:
-        run.lock({"summary": None, "incomplete_reasons": ctx.incomplete_reasons + [failure or "packet not submitted"]})
-    status = "CANDIDATE_READY" if ctx.submitted and not ctx.incomplete_reasons and not failure else "INCOMPLETE_REVIEW"
+        run.lock({"summary": None, "configuration_failure": ctx.configuration_failure,
+                  "incomplete_reasons": ctx.incomplete_reasons + [failure or "packet not submitted"]})
+    if ctx.configuration_failure:
+        status = "FAILED_CONFIGURATION"
+    elif ctx.submitted and not ctx.incomplete_reasons and not failure:
+        status = "CANDIDATE_READY"
+    else:
+        status = "INCOMPLETE_REVIEW"
 
     graph = run.export()
     record.update({
         "run_id": run_id, "status": status, "failure": failure, "incomplete_reasons": ctx.incomplete_reasons,
         "finished_at": datetime.now(UTC).isoformat(),
         "returned_models": sorted(stats["models"] | set((result.model_usage or {}) if result else {})),
-        "tool_calls": stats["tool_calls"],
+        "tool_calls": stats["tool_calls"], "assistant_turns": stats["assistant_turns"], "max_turns": max_turns,
         "claude": None if result is None else {"num_turns": result.num_turns, "duration_ms": result.duration_ms,
                                                 "usage": result.usage, "notional_cost_usd": result.total_cost_usd,
                                                 "structured_output": result.structured_output},

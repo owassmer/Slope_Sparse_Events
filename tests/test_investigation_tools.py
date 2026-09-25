@@ -92,8 +92,9 @@ def _settlement_flow(ctx):
                                           "target": "Synergy CHC Corp. — the December 28, 2023 supplier settlement loan",
                                           "affects": "dated settlement outflows"})["dependency_id"]
     res = call(T.search_evidence, ctx, {"dependency_id": dep, "query": "required to make future payments settlement former supplier"})
-    item = next(r["item_id"] for r in res["results"] if r["kind"] == "section" and "#s02" in r["item_id"])
-    quote = "The Company is required to make future payments as follows:"
+    hvl = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")
+    item = hvl["id"]
+    quote = "| 2024 | $2,000,000 |"
     interp = call(T.judge, ctx, {"profile": "claim_interpretation", "item_id": item, "claim": "The Company must make future payments on the settlement loan.",
                                  "target": "Synergy CHC Corp. — the December 28, 2023 supplier settlement loan",
                                  "subject_kind": "obligation", "subject": "the settlement loan", "anchor_quote": quote})
@@ -145,11 +146,52 @@ def test_effects_are_validated_and_sensitivity_is_deterministic(make_ctx):
                                                       {"name": "paid_since_june_30", "description": "payments since June 30", "status": "unknown"}],
                                        "double_count_guard": "Existing liability; scheduled once", "model_consequence": "Dated outflows"})
     assert eff["status"] == "validated" and eff["baseline_overlap_warning"]
+    stated = call(T.propose_effect, ctx, {"finding_ids": [prop["finding_id"]], "mechanism": "settlement_payment_timing",
+                                          "target": "same loan, typed amount", "cash_direction": "outflow",
+                                          "baseline_treatment": "already_in_baseline_reclassify_timing",
+                                          "parameters": [{"name": "remaining_current_year_bucket_cents", "description": "typed",
+                                                          "status": "known", "value_cents": 123_456_700, "finding_ids": [prop["finding_id"]]}]})
+    with pytest.raises(T.ToolError, match="found in its cited quotes"):  # agent-stated amounts never feed the engine
+        call(T.run_sensitivity, ctx, {"effect_ids": [stated["effect_id"]]})
+    twice = call(T.run_sensitivity, ctx, {"effect_ids": [eff["effect_id"], eff["effect_id"]], "unavailable_opening_cash_cents": 0})
+    assert len(twice["buckets"]) == 1  # the same effect is counted once
+    wrong = call(T.propose_effect, ctx, {"finding_ids": [prop["finding_id"]], "mechanism": "resolved_obligation", "target": "x",
+                                         "cash_direction": "none", "baseline_treatment": "normalization_only"})
+    assert wrong["status"] == "rejected" and any("does not fit" in m for m in wrong["problems"])
     unknown_share = call(T.run_sensitivity, ctx, {"effect_ids": [eff["effect_id"]]})
     assert all(r["required_net_cash_cents"] is None for r in unknown_share["scenarios"])  # unknown stays unknown
     s = call(T.run_sensitivity, ctx, {"effect_ids": [eff["effect_id"]], "unavailable_opening_cash_cents": 0})
     by = {r["share_of_bucket_paid_since_measurement"]: r["required_net_cash_cents"] for r in s["scenarios"]}
     assert by == {"0": 20_000_000, "0.5": 0, "1": 0}  # $2.0m bucket + $0.2m reserve - $2.0m reported cash
+
+
+def test_dispositions_are_validated_before_anything_is_written(make_ctx):
+    ctx = make_ctx()
+    _, _, prop = _settlement_flow(ctx)
+    before = len(ctx.run.events)
+    bad = [{"observation_id": o["observation_id"], "disposition": "used"} for o in prop["observations"]]
+    with pytest.raises(T.ToolError, match="Unknown disposition"):
+        call(T.resolve_finding, ctx, {"finding_id": prop["finding_id"], "decision": "accept", "dispositions": bad})
+    assert len(ctx.run.events) == before
+    RunStoreReload = type(ctx.run)
+    assert RunStoreReload(ctx.run.run_id, root=ctx.run.dir.parent).head == ctx.run.head  # the log still loads
+
+
+def test_unchecked_findings_cannot_be_accepted_and_jev_failures_are_recorded(make_ctx):
+    ctx = make_ctx()
+
+    async def broken(*a, **k):
+        raise T.ConfigurationError("Unexpected Jev model 'other'")
+    dep = call(T.record_dependency, ctx, {"question": "q", "target": "Synergy CHC Corp. — settlement loan", "affects": "a"})["dependency_id"]
+    hvl = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")
+    ctx.semantics.check_finding = broken
+    with pytest.raises(T.ToolError, match="not checked"):
+        call(T.propose_finding, ctx, {"dependency_id": dep, "proposition": "p", "target": "Synergy CHC Corp. — settlement loan",
+                                      "citations": [{"item_id": hvl["id"], "quote": "| 2024 | $2,000,000 |"}]})
+    fid = next(iter(ctx.run.graph["findings"]))
+    with pytest.raises(T.ToolError, match="no completed finding check"):
+        call(T.resolve_finding, ctx, {"finding_id": fid, "decision": "accept", "dispositions": []})
+    assert ctx.configuration_failure and ctx.incomplete_reasons
 
 
 def test_agent_only_arm_has_no_screen_or_judge(make_ctx):

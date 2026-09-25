@@ -109,7 +109,7 @@
         ],
         "permission_mode": "dontAsk",
         "setting_sources": [],
-        "max_turns": 40
+        "max_turns": 80
       },
       "runtime_bindings_required": {
         "mcp_servers": "Inject exactly one scoped credit MCP server into ClaudeAgentOptions.mcp_servers. No ambient MCP servers.",
@@ -258,7 +258,7 @@
     ]
   },
   "budgets": {
-    "main_agent_max_turns": 40,
+    "main_agent_max_turns": 80,
     "main_investigation_wall_clock_seconds": 600,
     "review_wall_clock_seconds": 300,
     "total_wall_clock_seconds_including_one_repair": 1200,

@@ -31,11 +31,13 @@
     ],
     "permitted_offer_set_id": "synergy_analytical_offers_v1",
     "policy_config_id": "demo_policy_reserve_v1",
-    "initial_event_seed": "Synergy CHC Corp.'s public filings describe litigation with a former contract manufacturer and related settlements. Establish whether and how these matters affect cash available to repay an incremental draw."
+    "initial_event_seed": "As of 13 August 2024, assess a proposed incremental working-capital draw for Synergy CHC. Reconcile existing merchant financing and supplier-settlement obligations. Compare the requested structure with permitted alternatives and identify the binding cash requirements. Synergy's public filings describe litigation with a former contract manufacturer."
   },
   "baseline_profile": {
     "baseline_profile_id": "synergy_ordinary_baseline_v1",
     "borrower": "Synergy CHC Corp.",
+    "opening_cash_observation_id": "cash_20240812_reported",
+    "aggregate_debt_observation_id": "debt_due_2024",
     "observations": [
       {
         "observation_id": "cash_20240630",

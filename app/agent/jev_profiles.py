@@ -162,10 +162,15 @@ class Semantics:
         source = self._source(finding.spans[0].source_id)
         proposed = finding.proposition + (" (the agent presents this as an inference from the cited passages)"
                                           if finding.is_inference else "")
-        state = {"target": finding.target, "source": source,
-                 "passage": passages[0] if len(passages) == 1 else passages, "proposed_finding": proposed}
-        return await self._ask("finding_check", profile_questions("finding_check"), state,
-                               (finding.finding_id,), tuple(dict.fromkeys(hashes)))
+        passage = passages[0] if len(passages) == 1 else passages
+        state = {"target": finding.target, "source": source, "passage": passage, "proposed_finding": proposed}
+        hashes_t = tuple(dict.fromkeys(hashes))
+        # The entity check is host-mandated on every finding (not only when the agent asks for an interpretation).
+        entity_state = {"target": finding.target, "source": source, "passage": passage, "claim": finding.proposition}
+        quality, entity = await asyncio.gather(
+            self._ask("finding_check", profile_questions("finding_check"), state, (finding.finding_id,), hashes_t),
+            self._ask("finding_check", ["entity_scope"], entity_state, (finding.finding_id,), hashes_t))
+        return quality + entity
 
     async def relate(self, a: AtomicFinding, b: AtomicFinding, proposed_fact: str) -> list[SemanticObservation]:
         """statement_relation between two findings with respect to one proposed fact."""

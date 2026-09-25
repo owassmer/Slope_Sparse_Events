@@ -22,14 +22,16 @@ from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
-from app.agent.jev import JevBudgetExceeded, registry_question
+from app.agent.jev import registry_question
 from app.agent.jev_profiles import Semantics, is_ambiguous
 from app.agent.meanings import NOT_SETTLED, meaning
 from app.agent.mission import project_mission
 from app.agent.run_store import RunStore
+from app.config import ConfigurationError
 from app.domain.investigation import (
     AtomicFinding,
     DecisionDependency,
+    Disposition,
     EconomicEffectProposal,
     EvidenceCandidate,
     ParameterRequirement,
@@ -60,6 +62,7 @@ class RunContext:
     arm: str  # "agent_plus_jev" | "agent_only"
     semantics: Semantics | None = None
     incomplete_reasons: list[str] = field(default_factory=list)
+    configuration_failure: str | None = None
     submitted: bool = False
 
     @property
@@ -83,8 +86,28 @@ def _unsettled(o: SemanticObservation) -> bool:
 
 
 def _record_jev_failure(ctx: RunContext, e: Exception) -> None:
-    if isinstance(e, JevBudgetExceeded):
-        ctx.incomplete_reasons.append(f"Jev budget exhausted: {e}")
+    """Any semantic-layer failure makes the run incomplete; an unexpected Jev model is a configuration failure."""
+    if isinstance(e, ConfigurationError):
+        ctx.configuration_failure = str(e)
+    reason = f"Jev unavailable ({type(e).__name__}): {e}"[:300]
+    if reason not in ctx.incomplete_reasons:
+        ctx.incomplete_reasons.append(reason)
+
+
+def _cents_in_text(cents: int, text: str) -> bool:
+    """Whether an amount appears in cited text, as written in filings ($2,000,000 / 2,000,000 / $2.0 million)."""
+    flat = " ".join(text.replace("$ ", "$").split())
+    dollars, rem = divmod(abs(cents), 100)
+    forms = {f"{dollars:,}" + (f".{rem:02d}" if rem else "")}
+    if rem == 0 and dollars >= 1_000_000:
+        forms |= {f"{dollars / 1_000_000:.1f} million", f"{dollars / 1_000_000:g} million"}
+    return any(f in flat for f in forms)
+
+
+def _baseline_item(ctx: RunContext, key: str) -> dict | None:
+    """The baseline observation a case names for a role (opening cash, aggregate debt); no case literals in code."""
+    wanted = ctx.inputs["baseline_profile"].get(key)
+    return next((o for o in ctx.inputs["baseline_profile"]["observations"] if o["observation_id"] == wanted), None)
 
 
 # --- handlers (plain async functions; testable without the SDK) ------------------------------------
@@ -140,8 +163,12 @@ async def search_evidence(ctx: RunContext, args: dict) -> dict:
                    payload={"query": args["query"], "source_ids": args.get("source_ids"), "candidate_ids": [c.candidate_id for c in cands]})
     if ctx.semantics is not None and cands:
         cands = await ctx.semantics.screen(dep, cands)
-        if ctx.semantics.budget_exhausted:
-            ctx.incomplete_reasons.append("Jev budget exhausted during screening")
+        for err in ctx.semantics.last_screen_errors:
+            reason = f"Jev screening failed for a candidate: {err}"[:300]
+            if reason not in ctx.incomplete_reasons:
+                ctx.incomplete_reasons.append(reason)
+            if "ConfigurationError" in err:
+                ctx.configuration_failure = err
     else:
         for c in cands:
             ctx.run.put("candidate_screened", c)
@@ -200,9 +227,9 @@ async def judge(ctx: RunContext, args: dict) -> dict:
                 ctx.run.put("reconciliation_opened", task)
         else:
             raise ToolError("profile must be claim_interpretation or statement_relation")
-    except EvidenceAccessError as e:
+    except (EvidenceAccessError, ToolError) as e:
         raise ToolError(str(e)) from e
-    except JevBudgetExceeded as e:
+    except Exception as e:
         _record_jev_failure(ctx, e)
         raise ToolError(f"Semantic judgment unavailable: {e}") from e
     return {"observations": [_obs_view(o) for o in obs],
@@ -233,9 +260,9 @@ async def propose_finding(ctx: RunContext, args: dict) -> dict:
     if ctx.semantics is not None:
         try:
             checks = await ctx.semantics.check_finding(finding)
-        except JevBudgetExceeded as e:
+        except Exception as e:
             _record_jev_failure(ctx, e)
-            raise ToolError(f"Finding recorded as {finding.finding_id} but not checked: {e}") from e
+            raise ToolError(f"Finding recorded as {finding.finding_id} but not checked, so it cannot be accepted: {e}") from e
         finding = finding.model_copy(update={"observation_ids": linked + tuple(o.observation_id for o in checks)})
         ctx.run.put("finding_proposed", finding)
     all_obs = [ctx.run.get("observations", o) for o in finding.observation_ids]
@@ -256,6 +283,13 @@ async def resolve_finding(ctx: RunContext, args: dict) -> dict:
     if decision not in ("accept", "reject"):
         raise ToolError("decision must be accept or reject")
     given = {d["observation_id"]: d for d in args.get("dispositions", [])}
+    allowed = set(Disposition.__args__)
+    bad = [d for d in given.values() if d.get("disposition") not in allowed]
+    if bad:
+        raise ToolError(f"Unknown disposition(s) {[d.get('disposition') for d in bad]}; use one of {sorted(allowed)}")
+    if decision == "accept" and ctx.semantics is not None and not any(
+            ctx.run.get("observations", o).profile == "finding_check" for o in finding.observation_ids):
+        raise ToolError(f"{finding.finding_id} has no completed finding check, so it cannot be accepted in this run")
     missing = [o for o in finding.observation_ids if o not in given]
     if missing:
         raise ToolError(f"Give a disposition for every linked observation: missing {missing}")
@@ -282,11 +316,18 @@ async def resolve_finding(ctx: RunContext, args: dict) -> dict:
     return {"finding_id": resolved.finding_id, "status": resolved.status}
 
 
-def _parameter(p: dict) -> ParameterRequirement:
-    """Values supplied by the agent come from its cited findings (finding_ids), so they are documented values."""
+def _parameter(p: dict, findings: dict[str, AtomicFinding]) -> ParameterRequirement:
+    """A value is documented only when it appears verbatim in a cited finding's quotes; otherwise it is agent-stated."""
     value = None
     if p.get("value_cents") is not None:
-        value = documented(int(p["value_cents"]), Unit.CENTS, note=p.get("description"))
+        cents = int(p["value_cents"])
+        quotes = " ".join(s.quote for f in p.get("finding_ids", []) if f in findings for s in findings[f].spans)
+        if p.get("finding_ids") and _cents_in_text(cents, quotes):
+            value = documented(cents, Unit.CENTS, note=p.get("description"))
+        else:
+            value = EvidenceValue(status=Status.EXACT, unit=Unit.CENTS, value=cents, provenance=Provenance(
+                basis=Basis.DERIVED, derivation="agent-stated",
+                note="Agent-stated amount not found verbatim in the cited findings' quotes"))
     elif p.get("lower_cents") is not None and p.get("upper_cents") is not None:
         value = EvidenceValue(status=Status.RANGE, unit=Unit.CENTS, lower=int(p["lower_cents"]), upper=int(p["upper_cents"]),
                               provenance=Provenance(basis=Basis.DOCUMENTED, note=p.get("description")))
@@ -299,7 +340,7 @@ async def propose_effect(ctx: RunContext, args: dict) -> dict:
         effect = EconomicEffectProposal(
             effect_id=ctx.run.new_id("eff"), finding_ids=tuple(args["finding_ids"]), mechanism=args["mechanism"],
             target=args["target"], cash_direction=args["cash_direction"], baseline_treatment=args["baseline_treatment"],
-            parameters=tuple(_parameter(p) for p in args.get("parameters", [])),
+            parameters=tuple(_parameter(p, ctx.run.graph["findings"]) for p in args.get("parameters", [])),
             linked_effect_ids=tuple(args.get("linked_effect_ids", [])), double_count_guard=args.get("double_count_guard", ""),
             model_consequence=args.get("model_consequence", ""))
     except (ValueError, KeyError) as e:
@@ -310,11 +351,13 @@ async def propose_effect(ctx: RunContext, args: dict) -> dict:
     warnings = []
     if ctx.semantics is not None and effect.baseline_treatment == "already_in_baseline_reclassify_timing" and not problems:
         try:
-            overlap = await ctx.semantics.baseline_overlap(
-                f"{effect.mechanism} for {effect.target}", "Aggregate indebtedness coming due in 2024 (baseline, approximately $4.1 million)",
-                (effect.effect_id,))
-            warnings = [_obs_view(o) for o in overlap]
-        except JevBudgetExceeded as e:
+            item = _baseline_item(ctx, "aggregate_debt_observation_id")
+            if item is not None:
+                overlap = await ctx.semantics.baseline_overlap(
+                    f"{effect.mechanism} for {effect.target}", f"{item['label']} (baseline, {item['precision']} "
+                    f"${item['value'] / 100:,.0f}, observed {item['observed_on']})", (effect.effect_id,))
+                warnings = [_obs_view(o) for o in overlap]
+        except Exception as e:
             _record_jev_failure(ctx, e)
     validated = effect.model_copy(update={"status": "rejected" if problems else "validated",
                                           "validation_messages": tuple(problems)})
@@ -326,24 +369,36 @@ async def propose_effect(ctx: RunContext, args: dict) -> dict:
 
 async def run_sensitivity(ctx: RunContext, args: dict) -> dict:
     """Remaining-period required net cash across explicit paid-since-measurement scenarios."""
-    base = {o["observation_id"]: o for o in ctx.inputs["baseline_profile"]["observations"]}
-    opening = base["cash_20240812_reported"]
+    opening = _baseline_item(ctx, "opening_cash_observation_id")
+    if opening is None:
+        raise ToolError("This case's baseline names no opening-cash observation")
     reserve = ctx.inputs["policy"]["required_cash_reserve"]
-    buckets = []
-    for eid in args["effect_ids"]:
+    effect_ids = list(dict.fromkeys(args["effect_ids"]))  # the same effect is never counted twice
+    buckets, seen_findings = [], {}
+    for eid in effect_ids:
         eff: EconomicEffectProposal = ctx.run.get("effects", eid)
         if eff.status != "validated" or eff.mechanism != "settlement_payment_timing":
             raise ToolError(f"{eid} must be a validated settlement_payment_timing effect")
+        shared = [f for f in eff.finding_ids if f in seen_findings]
+        if shared:
+            raise ToolError(f"{eid} rests on {shared}, already used by {seen_findings[shared[0]]}: one obligation, one effect")
+        seen_findings.update({f: eid for f in eff.finding_ids})
         bucket = next((p for p in eff.parameters if p.name == "remaining_current_year_bucket_cents"), None)
-        if bucket is None or bucket.value is None or bucket.value.status == "unknown":
-            raise ToolError(f"{eid} needs a known parameter 'remaining_current_year_bucket_cents'")
+        if (bucket is None or bucket.value is None or bucket.value.status != "exact"
+                or bucket.value.provenance.basis != Basis.DOCUMENTED):
+            raise ToolError(f"{eid} needs 'remaining_current_year_bucket_cents' as an exact amount found in its cited quotes")
         buckets.append((eid, bucket.value.value))
     unavailable_arg = args.get("unavailable_opening_cash_cents")
     unavailable = (assumed(int(unavailable_arg), Unit.CENTS, "A_unavailable_opening_cash", "operator assumption for this sensitivity")
                    if unavailable_arg is not None else unknown(Unit.CENTS, "restricted or unavailable share of reported cash not reported"))
     opening_ev = documented(opening["value"], Unit.CENTS, approximate=True, observed_on=None)
     reserve_ev = assumed(reserve["value"], Unit.CENTS, "demo_policy_reserve_v1", reserve["note"])
-    fractions = [Decimal(x) for x in args.get("paid_fractions", ["0", "0.5", "1"])]
+    try:
+        fractions = [Decimal(str(x)) for x in args.get("paid_fractions", ["0", "0.5", "1"])]
+    except ArithmeticError as e:
+        raise ToolError("paid_fractions must be decimal numbers") from e
+    if not fractions or any(not Decimal(0) <= f <= 1 for f in fractions):
+        raise ToolError("paid_fractions must be between 0 and 1")
     rows = []
     for fr in fractions:
         ins = [(eid, b, assumed(int(b * fr), Unit.CENTS, f"A_paid_{fr}", "scenario: share of the bucket paid since measurement"))
@@ -354,11 +409,11 @@ async def run_sensitivity(ctx: RunContext, args: dict) -> dict:
                      "required_net_cash_cents": res.value, "status": res.status,
                      "missing": res.provenance.note if res.value is None else None})
     out = {"calculation": "required_net_cash = max(0, sum(bucket - paid) + reserve - (reported cash - unavailable portion))",
-           "opening_cash_basis": "management's approximately $2.0m as of 2024-08-12 (approximate)",
+           "opening_cash_basis": f"{opening['label']}: {opening['precision']} ${opening['value'] / 100:,.0f} as of {opening['observed_on']}",
            "reserve_basis": reserve["note"], "unavailable_opening_cash": unavailable_arg if unavailable_arg is not None else "unknown",
            "buckets": [{"effect_id": e, "bucket_cents": b} for e, b in buckets], "scenarios": rows,
            "reading": "A necessary cumulative condition, not a dated feasibility test and not an observed shortfall."}
-    ctx.run.append("sensitivity_run", object_ids=tuple(args["effect_ids"]), payload=out)
+    ctx.run.append("sensitivity_run", object_ids=tuple(effect_ids), payload=out)
     return out
 
 
@@ -372,6 +427,7 @@ async def request_missing_fact(ctx: RunContext, args: dict) -> dict:
 async def submit_packet(ctx: RunContext, args: dict) -> dict:
     summary = {k: args.get(k) for k in ("summary", "pivotal_unknowns", "supported_effect_ids", "conclusion")}
     summary["incomplete_reasons"] = ctx.incomplete_reasons
+    summary["configuration_failure"] = ctx.configuration_failure
     path = ctx.run.lock(summary)
     ctx.submitted = True
     return {"locked": True, "packet": path.name, "chain_head": ctx.run.head}
@@ -424,7 +480,8 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
      "caused_more_context_read, caused_research_redirect, flagged_conflict, challenged_agent_draft, "
      "overridden_by_agent_with_reason, unused) with notes.",
      obj({"finding_id": S, "decision": {"type": "string", "enum": ["accept", "reject"]}, "note": S,
-          "dispositions": {"type": "array", "items": obj({"observation_id": S, "disposition": S, "note": S},
+          "dispositions": {"type": "array", "items": obj({"observation_id": S, "disposition": {"type": "string", "enum": list(
+              Disposition.__args__)}, "note": S},
                                                           ["observation_id", "disposition"])}},
          ["finding_id", "decision"]), resolve_finding),
     ("propose_effect", "Propose an economic effect from accepted findings: mechanism (settlement_payment_timing, "
@@ -434,7 +491,8 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
      obj({"finding_ids": {"type": "array", "items": S}, "mechanism": S, "target": S,
           "cash_direction": {"type": "string", "enum": ["inflow", "outflow", "none", "unknown"]},
           "baseline_treatment": {"type": "string", "enum": ["already_in_baseline_reclassify_timing", "new_to_baseline",
-                                                            "remove_from_baseline", "normalization_only"]},
+                                                            "remove_from_baseline", "normalization_only",
+                                                            "exclude_already_paid_obligation", "modify_available_funding"]},
           "parameters": {"type": "array", "items": PARAM}, "linked_effect_ids": {"type": "array", "items": S},
           "double_count_guard": S, "model_consequence": S},
          ["finding_ids", "mechanism", "target", "cash_direction", "baseline_treatment"]), propose_effect),
@@ -453,6 +511,15 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
 ]
 
 
+AGENT_ONLY_DESCRIPTIONS = {
+    "search_evidence": "Full-text search of the admissible evidence for one recorded dependency. Returns every result with IDs "
+                       "and dated snippets.",
+    "resolve_finding": "Accept or reject a proposed finding with a note explaining the decision.",
+    "propose_finding": "Propose one atomic finding for a dependency, citing verbatim quotes (item_id + exact quote). Mark "
+                       "is_inference when the finding links cited premises the text does not state together.",
+}
+
+
 def build_server(ctx: RunContext, allowed: list[str]):
     """An in-process MCP server exposing only the allowed tools, each bound to this run."""
     names = {a.removeprefix("mcp__credit__") for a in allowed}
@@ -460,6 +527,8 @@ def build_server(ctx: RunContext, allowed: list[str]):
     for name, desc, schema, handler in TOOL_SPECS:
         if name not in names:
             continue
+        if ctx.arm == "agent_only":
+            desc = AGENT_ONLY_DESCRIPTIONS.get(name, desc)
 
         async def call(args: dict, _h=handler, _n=name) -> dict:
             if ctx.submitted and _n != "submit_packet":

@@ -71,7 +71,9 @@ class RunStore:
             self.verify()
             if self.locked:  # a locked run's log must still end exactly where the packet says
                 packet = json.loads((self.dir / "packet.json").read_text())
-                if packet["chain_head"] != self.head or packet["event_count"] != len(self.events):
+                body = {k: v for k, v in packet.items() if k not in ("locked_at", "chain_head")}
+                if (packet["chain_head"] != self.head or packet["event_count"] != len(self.events)
+                        or json.loads(json.dumps(body, default=str)) != json.loads(json.dumps(self.export(), default=str))):
                     raise ValueError(f"Locked run {run_id}: event log does not match its packet")
         elif meta is not None:
             self.append("run_started", payload={"run_id": run_id, **meta})
@@ -94,6 +96,8 @@ class RunStore:
             raise LockedRunError(f"Run {self.run_id} is locked")
         body = dict(payload or {})
         if obj is not None:
+            # model_copy() does not validate; re-validate so an invalid object can never reach the log.
+            obj = type(obj).model_validate(obj.model_dump(mode="json"))
             body["object"] = obj.model_dump(mode="json")
         seq = len(self.events) + 1
         at = datetime.now(UTC).isoformat()
