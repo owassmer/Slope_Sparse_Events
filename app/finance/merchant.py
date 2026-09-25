@@ -14,9 +14,9 @@ Sections 4.1.1, 4.1.2 and 4.2.1):
 
 Not inferred: principal/fee allocation, APR, lien priority, a fee rebate on early payoff, or
 daily credits. Account Credits are their own input type; consolidated revenue is rejected.
-Declared conventions: daily payments round half up to the cent; a window top-up is due on the
-first business day on or after the window's end; the Term balance is due on the last business
-day before the Term ends.
+Declared conventions: daily payments round half up to the cent; a window's Minimum Payment
+top-up is due on the last business day inside that window ("within" the six-month period); the
+Term balance is due on the last business day before the Term ends.
 """
 
 from __future__ import annotations
@@ -113,8 +113,13 @@ class AccountCredits(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     store_scope: str
+    covers: tuple[date, date]  # every day in this range is described; absent days inside it are zero
     daily_gross_cents: dict[date, int]
     provenance_note: str
+
+    def model_post_init(self, _ctx) -> None:
+        if any(not self.covers[0] <= d <= self.covers[1] for d in self.daily_gross_cents):
+            raise ValueError("Account Credits fall outside their declared coverage")
 
 
 class ConsolidatedRevenue(BaseModel):
@@ -186,9 +191,13 @@ def project(terms: MerchantTerms, state: MerchantLoanState, credits: AccountCred
     start = state.as_of + timedelta(days=1)
     term_end = terms.term_end(funding)
     term_due = previous_business_day(term_end - timedelta(days=1))
-    top_up_due = {next_business_day(terms.window_bounds(funding, w)[1]): w for w in (1, 2)
-                  if terms.window_bounds(funding, w)[1] > state.as_of}
-    windows_done = {w for w in (1, 2) if terms.window_bounds(funding, w)[1] <= state.as_of}
+    window_due = {w: previous_business_day(terms.window_bounds(funding, w)[1] - timedelta(days=1)) for w in (1, 2)}
+    top_up_due = {due: w for w, due in window_due.items() if due > state.as_of}
+    windows_done = {w for w, due in window_due.items() if due <= state.as_of}
+    needed_through = min(horizon, term_due)
+    if needed_through >= start and (credits.covers[0] > start or credits.covers[1] < needed_through):
+        raise UnknownInput("Account Credits", f"credits must cover {start}..{needed_through}; days outside "
+                           f"{credits.covers[0]}..{credits.covers[1]} are unknown, not zero")
 
     def pay(on: date, kind: str, amount: int, window: int | None) -> None:
         nonlocal outstanding, received
@@ -202,6 +211,8 @@ def project(terms: MerchantTerms, state: MerchantLoanState, credits: AccountCred
 
     if arrears:
         pay(next_business_day(start), "prior_unmet_obligation", arrears, None)
+    if term_due <= state.as_of and outstanding:  # Term already ended: the whole balance is past due
+        pay(next_business_day(start), "term_balance_past_due", outstanding, None)
 
     d = start
     while d <= horizon and outstanding > 0:
@@ -242,7 +253,7 @@ def project(terms: MerchantTerms, state: MerchantLoanState, credits: AccountCred
         conventions=[
             "Daily payment = 25% of gross Account Credits, rounded half up to the cent.",
             "Credits on a non-Business Day transfer on the next Business Day; the transfer date sets the window.",
-            "Window top-up due on the first Business Day on or after the window end; it cures that window only.",
+            "Window top-up due on the last Business Day inside the window; it cures that window only.",
             "Term balance due on the last Business Day before the Term ends.",
             f"Effective funding date {funding.isoformat()} ({state.funding_date.provenance.basis}).",
         ])

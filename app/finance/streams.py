@@ -38,6 +38,11 @@ def new_draw_streams(offer: FixedInstallmentOffer, *, funding_date: date, route:
     The purchase's incremental receipts belong to this action: a smaller or declined draw changes them.
     """
     ref = offer.proposal_id
+    if purchase_date < funding_date:
+        raise ValueError(f"{ref}: the financed purchase cannot precede funding")
+    if route == "direct_to_vendor" and purchase_cost_cents < offer.advance_cents:
+        raise ValueError(f"{ref}: direct-to-vendor funding of a purchase smaller than the advance needs an explicit "
+                         "route for the remainder; use the bank route or reduce the advance")
     financed = min(purchase_cost_cents, offer.advance_cents)
     excess = purchase_cost_cents - financed
     streams = [CashStream(stream_id=f"new_loan:{ref}:payments", kind="new_loan_payment",

@@ -12,8 +12,11 @@ Guards against the spec's critical errors:
   declared forecast start (June 30 cash cannot open an August forecast), and its unavailable
   portion must be supplied. A flow dated on or before the observation is rejected, because the
   opening balance already reflects it.
-- No duplicated obligation: each obligation ID appears in one stream only, and an aggregate
-  "other debt service" stream must list every separately modelled obligation it excludes.
+- No duplicated obligation: each obligation ID appears in one stream only (any kind), at most one
+  aggregate "other debt service" stream exists, and it must list every separately modelled
+  obligation it excludes.
+- No silent zeros: recurring streams (receipts, operating outflows, other debt service) declare
+  the dates they cover, and must cover the whole forecast.
 - No non-cash items: an accounting normalization (for example a settlement gain) never enters.
 - One route per dollar: proceeds paid directly to a vendor are not also bank cash.
 """
@@ -35,6 +38,8 @@ StreamKind = Literal[
 ]
 INFLOWS = {"operating_receipts", "other_inflow", "new_loan_disbursement", "financed_purchase_receipts"}
 DEBT = {"settlement_payment", "existing_loan_payment", "new_loan_payment"}
+# Recurring streams: a stream that simply stops would silently treat later days as zero.
+RECURRING = {"operating_receipts", "operating_outflow", "other_debt_service"}
 
 
 class LedgerError(ValueError):
@@ -58,6 +63,7 @@ class CashStream(BaseModel):
     is_cash: bool = True
     route: Literal["bank", "direct_to_vendor"] | None = None  # new-loan proceeds and financed purchases
     loan_ref: str | None = None
+    covers: tuple[date, date] | None = None  # recurring streams: the dates the rows fully describe
 
 
 class BorrowerCashBase(BaseModel):
@@ -127,15 +133,26 @@ def validate(base: BorrowerCashBase) -> None:
             if d <= opened:
                 raise LedgerError(f"{s.stream_id}: {d} is on or before the opening-cash observation "
                                   f"({opened}); the opening balance already reflects it")
-        if s.kind in DEBT:
-            if not s.obligation_id:
-                raise LedgerError(f"{s.stream_id}: debt streams name the obligation they pay")
+        if s.kind in DEBT and not s.obligation_id:
+            raise LedgerError(f"{s.stream_id}: debt streams name the obligation they pay")
+        if s.obligation_id:
             if s.obligation_id in seen:
                 raise DoubleCountError(f"Obligation {s.obligation_id} appears in both {seen[s.obligation_id]} "
                                        f"and {s.stream_id}")
             seen[s.obligation_id] = s.stream_id
+        if s.kind in RECURRING:
+            if s.covers is None or s.covers[0] > base.forecast_start or s.covers[1] < base.end:
+                raise UnknownInput(f"{s.stream_id} coverage",
+                                   f"a recurring stream must cover {base.forecast_start}..{base.end}; "
+                                   "days it does not describe are unknown, not zero")
+            if any(not s.covers[0] <= d <= s.covers[1] for d, _ in s.rows):
+                raise LedgerError(f"{s.stream_id}: rows fall outside the declared coverage")
         if s.kind == "new_loan_disbursement" and s.route != "bank":
             raise DoubleCountError(f"{s.stream_id}: only bank-routed proceeds are borrower cash")
+    aggregates = [s for s in base.streams if s.kind == "other_debt_service"]
+    if len(aggregates) > 1:
+        raise DoubleCountError("Only one aggregate other-debt-service stream is allowed: "
+                               f"{[s.stream_id for s in aggregates]}")
     for s in base.streams:
         if s.kind == "other_debt_service":
             uncovered = set(seen) - set(s.excludes_obligations)
@@ -178,6 +195,12 @@ def run(base: BorrowerCashBase) -> LedgerResult:
     balance = values["opening_cash"] - values["unavailable_opening_cash"]
     result = LedgerResult(status="computed", start=start, end=base.end, opening_available_cents=balance,
                           reserve_cents=reserve, min_headroom_cents=balance - reserve, min_headroom_on=start)
+    if start not in by_day:  # the opening balance itself can already sit below the reserve
+        if balance - reserve < 0:
+            result.breach_dates.append(start)
+            result.first_breach_on = start
+        if balance < 0:
+            result.deficit_dates.append(start)
     totals: dict[str, int] = defaultdict(int)
     for d in sorted(by_day):
         kinds = by_day[d]
@@ -198,5 +221,13 @@ def run(base: BorrowerCashBase) -> LedgerResult:
             result.deficit_dates.append(d)
     result.closing_cents = balance
     result.totals_by_kind = dict(totals)
-    result.assumptions = [f"{s.stream_id}: {s.basis} - {s.note}" for s in base.streams]
+    def describe(name: str, ev: EvidenceValue) -> str:
+        pv = ev.provenance
+        refs = ", ".join(pv.source_fact_ids) or pv.assumption_id or "-"
+        return f"{name}: {ev.value} cents ({ev.status}, {pv.basis}; {refs}){' - ' + pv.note if pv.note else ''}"
+
+    result.assumptions = [describe("opening_cash", base.opening_cash),
+                          describe("unavailable_opening_cash", base.unavailable_opening_cash),
+                          describe("required_reserve", base.required_reserve),
+                          *[f"{s.stream_id}: {s.basis} - {s.note}" for s in base.streams]]
     return result

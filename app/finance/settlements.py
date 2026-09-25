@@ -17,7 +17,7 @@ assumption. No historical installment date is invented.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -74,6 +74,9 @@ def calendar(obligation: SettlementObligation, paid_since_measurement: EvidenceV
     """
     if start <= obligation.measured_on:
         raise ValueError("Forecast must start after the measurement date")
+    if paid_since_measurement.known and paid_since_measurement.observed_on != start - timedelta(days=1):
+        raise ValueError(f"{obligation.obligation_id}: payments since {obligation.measured_on} must be observed through "
+                         f"{start - timedelta(days=1)}, the day before the forecast starts")
     buckets = remaining_after_bridge(obligation, paid_since_measurement)
     out: list[SettlementPayment] = []
     for year, amount in sorted(buckets.items()):

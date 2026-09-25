@@ -7,7 +7,7 @@ import pytest
 
 from app.domain.values import Basis, Unit, UnknownInput, assumed, documented, unknown
 from app.finance import ledger, settlements
-from app.finance.calendar import add_months, next_business_day
+from app.finance.calendar import add_months, previous_business_day
 from app.finance.fixed_installment import FixedInstallmentOffer
 from app.finance.ledger import BorrowerCashBase, CashStream, DoubleCountError, LedgerError
 from app.finance.merchant import (
@@ -31,6 +31,15 @@ def cents(usd: str) -> int:
 
 def a(value, name="A_test", unit=Unit.CENTS, **kw):
     return assumed(value, unit, name, "test fixture assumption", **kw)
+
+
+def paid(value):
+    """Settlement payments since June 30, observed through the day before the forecast starts."""
+    return assumed(value, Unit.CENTS, "A_paid_since_june30", "test fixture assumption", observed_on=AUG12)
+
+
+def window_due(k):
+    return previous_business_day(add_months(FUNDING, 6 * k) - timedelta(days=1))
 
 
 # --- reference arithmetic --------------------------------------------------------------------
@@ -66,7 +75,7 @@ def flat_credits(start: date, end: date, daily_cents: int) -> AccountCredits:
     while d <= end:
         out[d] = daily_cents
         d += timedelta(days=1)
-    return AccountCredits(store_scope="test store", daily_gross_cents=out, provenance_note="test")
+    return AccountCredits(store_scope="test store", covers=(start, end), daily_gross_cents=out, provenance_note="test")
 
 
 def test_first_window_excess_does_not_cover_the_second_window():
@@ -75,11 +84,10 @@ def test_first_window_excess_does_not_cover_the_second_window():
     state = seasoned_state(AUG12, received=cents("209050"), w1_daily=cents("209050"))
     horizon = add_months(FUNDING, 12) + timedelta(days=10)
     p = project(t, state, flat_credits(AUG13, horizon, 0), horizon=horizon)
-    w1_end, w2_end = t.window_bounds(FUNDING, 1)[1], t.window_bounds(FUNDING, 2)[1]
     top_ups = [r for r in p.rows if r.kind == "window_top_up"]
-    assert [r.window for r in top_ups] == [2]  # window 1 already met
-    assert top_ups[0].on == next_business_day(w2_end) and top_ups[0].amount_cents == t.minimum_payment_cents
-    assert all(r.on != next_business_day(w1_end) or r.kind != "window_top_up" for r in p.rows)
+    assert [r.window for r in top_ups] == [2]  # window 1 already met; its excess does not carry over
+    assert top_ups[0].on == window_due(2) < t.window_bounds(FUNDING, 2)[1]  # due inside its own window
+    assert top_ups[0].amount_cents == t.minimum_payment_cents
 
 
 def test_seasoned_clocks_run_from_funding_not_the_analysis_date():
@@ -88,7 +96,7 @@ def test_seasoned_clocks_run_from_funding_not_the_analysis_date():
     for as_of in (date(2024, 6, 30), AUG12):
         p = project(t, seasoned_state(as_of, 0, 0), flat_credits(as_of + timedelta(1), horizon, 0), horizon=horizon)
         top_ups = [r.on for r in p.rows if r.kind == "window_top_up"]
-        assert top_ups == [next_business_day(add_months(FUNDING, 6)), next_business_day(add_months(FUNDING, 12))]
+        assert top_ups == [window_due(1), window_due(2)]
         assert p.paid_off_on is not None and p.paid_off_on < add_months(FUNDING, 18)
         assert sum(r.amount_cents for r in p.rows) == t.total_payment_cents  # never beyond the total
 
@@ -96,11 +104,18 @@ def test_seasoned_clocks_run_from_funding_not_the_analysis_date():
 def test_daily_payments_use_account_credits_and_next_business_day():
     t = MerchantTerms()
     sat = date(2024, 8, 17)
-    credits = AccountCredits(store_scope="test", daily_gross_cents={sat: 400_00}, provenance_note="test")
+    credits = AccountCredits(store_scope="test", covers=(AUG13, date(2024, 8, 31)), daily_gross_cents={sat: 400_00},
+                             provenance_note="test")
     p = project(t, seasoned_state(AUG12, 0, 0), credits, horizon=date(2024, 8, 31))
     assert [(r.on, r.amount_cents) for r in p.rows] == [(date(2024, 8, 19), 100_00)]
     with pytest.raises(TypeError):
         project(t, seasoned_state(AUG12, 0, 0), ConsolidatedRevenue(daily_cents={sat: 1}), horizon=date(2024, 8, 31))
+
+
+def test_missing_account_credits_are_unknown_not_zero():
+    with pytest.raises(UnknownInput, match="Account Credits"):
+        project(MerchantTerms(), seasoned_state(AUG12, 0, 0), flat_credits(AUG13, date(2024, 9, 30), 500_00),
+                horizon=date(2025, 6, 30))
 
 
 def test_unknown_funding_date_blocks_the_dated_schedule():
@@ -121,7 +136,7 @@ def test_june_schedule_needs_an_explicit_bridge_and_counts_payments_once():
     with pytest.raises(UnknownInput):
         settlements.calendar(HVL, unknown(Unit.CENTS, "July-August payments not observed"), start=AUG13,
                              timing="early", through=date(2026, 12, 31))
-    pays = settlements.calendar(HVL, a(40_000_000), start=AUG13, timing="monthly_even", through=date(2026, 12, 31))
+    pays = settlements.calendar(HVL, paid(40_000_000), start=AUG13, timing="monthly_even", through=date(2026, 12, 31))
     assert sum(p.amount_cents for p in pays) == HVL.total_remaining_cents - 40_000_000
     assert sum(p.amount_cents for p in pays if p.bucket_year == 2024) == 160_000_000
     assert all(date(p.bucket_year, 1, 1) <= p.on <= date(p.bucket_year, 12, 31) and p.on >= AUG13 for p in pays)
@@ -130,8 +145,10 @@ def test_june_schedule_needs_an_explicit_bridge_and_counts_payments_once():
 
 
 def test_timing_scenarios_place_buckets_without_inventing_amounts():
-    early = settlements.calendar(HVL, a(0), start=AUG13, timing="early", through=date(2025, 12, 31))
-    late = settlements.calendar(HVL, a(0), start=AUG13, timing="late", through=date(2025, 12, 31))
+    early = settlements.calendar(HVL, paid(0), start=AUG13, timing="early", through=date(2025, 12, 31))
+    late = settlements.calendar(HVL, paid(0), start=AUG13, timing="late", through=date(2025, 12, 31))
+    with pytest.raises(ValueError, match="observed through"):  # a June-dated bridge cannot open an August forecast
+        settlements.calendar(HVL, a(0, observed_on=JUN30), start=AUG13, timing="early", through=date(2025, 12, 31))
     assert [(p.on, p.amount_cents) for p in early] == [(date(2024, 8, 13), 200_000_000), (date(2025, 1, 2), 200_000_000)]
     assert [(p.on, p.amount_cents) for p in late] == [(date(2024, 12, 31), 200_000_000), (date(2025, 12, 31), 200_000_000)]
 
@@ -147,8 +164,12 @@ def base(streams, *, opening=None, unavailable=None, reserve=None, start=AUG13, 
         end=end, streams=tuple(streams))
 
 
+COVER = (AUG13, date(2025, 12, 31))
+
+
 def receipts(rows, sid="receipts"):
-    return CashStream(stream_id=sid, kind="operating_receipts", rows=tuple(rows), basis=Basis.OPERATOR, note="test")
+    return CashStream(stream_id=sid, kind="operating_receipts", rows=tuple(rows), basis=Basis.OPERATOR, note="test",
+                      covers=COVER)
 
 
 def test_no_fake_opening_balance():
@@ -162,16 +183,34 @@ def test_no_fake_opening_balance():
 
 
 def test_each_obligation_is_counted_once():
-    pays = settlements.calendar(HVL, a(0), start=AUG13, timing="late", through=date(2025, 3, 31))
+    pays = settlements.calendar(HVL, paid(0), start=AUG13, timing="late", through=date(2025, 3, 31))
     s = settlement_stream(HVL.obligation_id, pays)
+    tagged = CashStream(stream_id="opex_incl_hvl", kind="operating_outflow", rows=((date(2024, 9, 30), 1),),
+                        basis=Basis.OPERATOR, note="", obligation_id=HVL.obligation_id, covers=COVER)
+    with pytest.raises(DoubleCountError):  # the same obligation through a non-debt stream
+        ledger.run(base([s, tagged]))
     with pytest.raises(DoubleCountError):
         ledger.run(base([s, s.model_copy(update={"stream_id": "dup"})]))
     aggregate = CashStream(stream_id="other_debt", kind="other_debt_service", rows=((date(2024, 9, 30), 1),),
-                           basis=Basis.OPERATOR, note="all notes payable service")
+                           basis=Basis.OPERATOR, note="all notes payable service", covers=COVER)
     with pytest.raises(DoubleCountError, match="excludes"):
         ledger.run(base([s, aggregate]))
     ok = aggregate.model_copy(update={"excludes_obligations": (HVL.obligation_id,)})
     assert ledger.run(base([s, ok])).status == "computed"
+    with pytest.raises(DoubleCountError, match="Only one aggregate"):
+        ledger.run(base([s, ok, ok.model_copy(update={"stream_id": "other_debt_2"})]))
+
+
+def test_recurring_streams_must_cover_the_forecast():
+    short = receipts([(date(2024, 9, 1), 1)]).model_copy(update={"covers": (AUG13, date(2024, 9, 30))})
+    with pytest.raises(UnknownInput, match="coverage"):
+        ledger.run(base([short]))
+
+
+def test_opening_day_breach_is_reported():
+    r = ledger.run(base([receipts([(date(2024, 9, 1), 50_000_000)])], opening=documented(
+        10_000_000, Unit.CENTS, observed_on=AUG12, approximate=True)))
+    assert r.first_breach_on == AUG13 and r.min_headroom_cents == -10_000_000 and r.min_headroom_on == AUG13
 
 
 def test_noncash_normalization_never_becomes_cash():
@@ -195,6 +234,10 @@ def test_direct_vendor_and_bank_routes_do_not_double_count():
                    basis=Basis.OPERATOR, note="", route="direct_to_vendor", loan_ref="analysis_100k_6m")]
     with pytest.raises(DoubleCountError):
         ledger.run(base(bad))
+    with pytest.raises(ValueError, match="remainder"):  # $60k purchase from a $100k direct-to-vendor advance
+        new_draw_streams(offer, route="direct_to_vendor", **{**common, "purchase_cost_cents": 6_000_000})
+    with pytest.raises(ValueError, match="precede funding"):
+        new_draw_streams(offer, route="bank", **{**common, "purchase_date": date(2024, 8, 19)})
 
 
 def test_dated_test_is_stricter_than_the_cumulative_threshold():
@@ -206,7 +249,7 @@ def test_dated_test_is_stricter_than_the_cumulative_threshold():
     end = date(2024, 12, 31)
 
     def run(timing):
-        s = [settlement_stream(o.obligation_id, settlements.calendar(o, a(0), start=AUG13, timing=timing, through=end))
+        s = [settlement_stream(o.obligation_id, settlements.calendar(o, paid(0), start=AUG13, timing=timing, through=end))
              for o in (HVL, supplier)]
         return ledger.run(base([*s, rec], end=end))
 
