@@ -1,0 +1,137 @@
+{
+  "snapshot_id": "synergy_20240813",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T02:38:17.943970+00:00",
+  "configuration_version": "3.1.0-design",
+  "registry_version": "3.1.1",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "a9d2a83986a15389e5fb684ca07f453adb0b59a4850939e5086de7dc9c12e93c",
+    "sections": 297,
+    "flagged": 67,
+    "unscreened": 0,
+    "chunks": 305,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 0,
+      "cache_hits": 305,
+      "physical_attempts": 0,
+      "attempt_ceiling": 800,
+      "spent_usd": "0",
+      "spend_cap_usd": "0.10"
+    },
+    "inventory_items": 36
+  },
+  "run_id": "synergy_20240813-agent_plus_jev-20260925T023817Z",
+  "status": "CANDIDATE_READY",
+  "failure": null,
+  "incomplete_reasons": [],
+  "finished_at": "2026-09-25T02:44:14.229006+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "read_evidence": 18,
+    "record_dependency": 6,
+    "search_evidence": 5,
+    "judge": 5,
+    "propose_finding": 18,
+    "resolve_finding": 18,
+    "resolve_reconciliation": 2,
+    "propose_effect": 12,
+    "run_sensitivity": 3,
+    "request_missing_fact": 3,
+    "account_for_items": 1,
+    "submit_packet": 2,
+    "StructuredOutput": 1
+  },
+  "turns_used": 32,
+  "max_turns": 80,
+  "claude": {
+    "num_turns": 99,
+    "duration_ms": 354878,
+    "usage": {
+      "input_tokens": 64,
+      "cache_creation_input_tokens": 141994,
+      "cache_read_input_tokens": 2888417,
+      "output_tokens": 41650,
+      "output_tokens_details": {
+        "thinking_tokens": 6440
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 141994,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 688,
+          "cache_read_input_tokens": 146427,
+          "cache_creation_input_tokens": 1404,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 1404
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 2.5468913999999994,
+    "structured_output": {
+      "conclusion": "No funding conclusion can be reached. Under the Knight loan terms, Synergy shall not add any other debt without paying out Knight first, and a default on third-party debt automatically defaults the Knight loan. So any new advance depends on Knight's consent, which the evidence does not establish. Separately, the scheduled 2024 settlement payments are $2.0M on the December 28, 2023 former-supplier settlement loan (identified as the Atrium settlement by inference) and $600k on the VitBest settlement, both measured at June 30, 2024. Shopify debt must also be repaid by December 31, 2024. Against about $2.0M of reported cash and the illustrative $200k reserve, the sensitivity shows a necessary net cash need of $800k if nothing has been paid since June 30, $900k if $100k of cash is unavailable, and $0 once half has been paid. The cash requirement therefore turns on payments made since June 30, and feasibility turns on Knight's consent. The LODC and Valenti settlements are already paid and add no future cash outflow.",
+      "pivotal_unknowns": [
+        "Whether Knight Therapeutics has consented to, or carved out, an incremental advance despite the covenant that Synergy shall not add any other debt without paying out Knight first (fact_001)",
+        "How much of the $2.0M and $600k 2024 settlement installments was paid between July 1 and Aug 13, 2024 (fact_002)",
+        "Repayment terms of the $1,716,496 July\u2013August 2024 CEO-entity short-term note (fact_003)",
+        "Whether the $100k restricted cash is inside the ~$2.0M reported cash, and the Shopify balance at the review date"
+      ],
+      "supported_effect_ids": [
+        "eff_003",
+        "eff_004",
+        "eff_007",
+        "eff_009",
+        "eff_010",
+        "eff_012"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 104,
+    "cache_hits": 7,
+    "physical_attempts": 104,
+    "attempt_ceiling": 150,
+    "spent_usd": "0.010071180",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 6,
+    "candidates": 25,
+    "jev_calls": 111,
+    "observations": 279,
+    "findings": 18,
+    "reconciliations": 2,
+    "effects": 12,
+    "inventory": 36
+  },
+  "chain_head": "628db97664e0e299886076c7877deed7eb68e724ba97b1dd96deb3d0b8bfcdc5"
+}

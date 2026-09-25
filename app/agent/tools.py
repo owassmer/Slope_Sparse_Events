@@ -28,6 +28,7 @@ from app.agent.jev_profiles import Semantics, is_ambiguous
 from app.agent.meanings import NOT_SETTLED, meaning
 from app.agent.mission import project_mission
 from app.agent.run_store import RunStore
+from app.agent.sweep import chunks
 from app.config import ConfigurationError
 from app.domain.investigation import (
     AtomicFinding,
@@ -35,6 +36,7 @@ from app.domain.investigation import (
     Disposition,
     EconomicEffectProposal,
     EvidenceCandidate,
+    InventoryItem,
     ParameterRequirement,
     ReconciliationTask,
     SemanticObservation,
@@ -517,6 +519,10 @@ async def account_for_items(ctx: RunContext, args: dict) -> dict:
             bad = [f for f in fids if f not in ctx.run.graph["findings"] or ctx.run.graph["findings"][f].status != "accepted"]
             if not fids or bad:
                 raise ToolError(f"{item.item_id}: covered_by_findings needs accepted finding IDs (not accepted: {bad or 'none given'})")
+            if ctx.semantics is not None:
+                problem = await _check_coverage(ctx, item, fids, entry.get("override_reason", ""))
+                if problem:
+                    raise ToolError(problem)
             updates.append(item.model_copy(update={"status": "covered", "finding_ids": fids, "note": entry.get("reason", "")}))
         elif disposition == "not_decision_relevant":
             reason = (entry.get("reason") or "").strip()
@@ -581,6 +587,35 @@ def _attribute_screen(ctx: RunContext, finding: AtomicFinding) -> None:
         unused = [ctx.run.get("observations", o) for o in c.screen.observation_ids
                   if ctx.run.get("observations", o).downstream_disposition == "unused"]
         _dispose(ctx, unused, "used_in_finding", f"screened passage cited in {finding.finding_id}")
+
+
+def _matter_passage(ctx: RunContext, item: InventoryItem) -> tuple[dict, tuple[str, ...]]:
+    """The flagged chunk the sweep scored highest (the item's excerpt locates it), with its heading path."""
+    for sid in item.section_ids:
+        sec = ctx.evidence.read_section(sid)
+        for piece in chunks(sec["text"]):
+            if item.excerpt and item.excerpt[:120] in piece:
+                return {"heading_path": " > ".join(sec["heading_path"]), "text": piece}, (sec["source"]["sha256"],)
+    sec = ctx.evidence.read_section(item.section_ids[0])
+    return {"heading_path": " > ".join(sec["heading_path"]), "text": chunks(sec["text"])[0]}, (sec["source"]["sha256"],)
+
+
+async def _check_coverage(ctx: RunContext, item: InventoryItem, fids: tuple[str, ...], override: str) -> str | None:
+    """Host check that 'covered' is true: the cited findings must account for the flagged matter."""
+    passage, hashes = _matter_passage(ctx, item)
+    try:
+        [obs] = await ctx.semantics.coverage(passage, [ctx.run.graph["findings"][f] for f in fids], (item.item_id, *fids), hashes)
+    except Exception as e:
+        _record_jev_failure(ctx, e)
+        return f"{item.item_id}: coverage could not be checked ({e})"
+    clear_gap = obs.answer in ("partly_covered", "not_covered") and not is_ambiguous(obs)
+    if clear_gap and len(override.strip()) < OVERRIDE_NOTE_MIN:
+        _dispose(ctx, [obs], "challenged_agent_draft", f"coverage check on {item.item_id}")
+        return (f"{item.item_id}: {meaning('coverage_supported', obs.answer)}. Add a finding for what this passage establishes "
+                f"(read {item.section_ids[0]}), cite different findings, or give override_reason.")
+    _dispose(ctx, [obs], "overridden_by_agent_with_reason" if clear_gap else "used_in_finding",
+             override.strip() if clear_gap else f"coverage check on {item.item_id}")
+    return None
 
 
 async def _auto_relations(ctx: RunContext, finding: AtomicFinding) -> list[dict]:
@@ -770,7 +805,8 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
     ("account_for_items", "Account for inventory items in a batch: covered_by_findings (accepted finding_ids) or "
      "not_decision_relevant (with a reason).",
      obj({"items": {"type": "array", "items": obj({"item_id": S, "disposition": {"type": "string", "enum": [
-         "covered_by_findings", "not_decision_relevant"]}, "finding_ids": {"type": "array", "items": S}, "reason": S},
+         "covered_by_findings", "not_decision_relevant"]}, "finding_ids": {"type": "array", "items": S}, "reason": S,
+         "override_reason": S},
          ["item_id", "disposition"])}}, ["items"]), account_for_items),
     ("resolve_reconciliation", "Resolve an open reconciliation task: explain how the statements relate and which finding stands.",
      obj({"task_id": S, "note": S}, ["task_id", "note"]), resolve_reconciliation),

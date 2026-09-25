@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.1.1",
+  "registry_version": "3.2.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -69,6 +69,13 @@
       "trigger": "host, on every effect consequence and on the conclusion",
       "questions": [
         "claims_supported"
+      ]
+    },
+    "inventory_coverage": {
+      "primitive": "choice",
+      "trigger": "host, on every inventory item marked covered",
+      "questions": [
+        "coverage_supported"
       ]
     }
   },
@@ -585,6 +592,28 @@
         }
       },
       "application": "Catches fluent claims that no finding supports before they reach the reviewer; revise or override with a reason."
+    },
+    {
+      "id": "coverage_supported",
+      "version": "3.2.0",
+      "profile": "inventory_coverage",
+      "primitive": "choice",
+      "question": "Do these findings account for the specific matter this passage describes?",
+      "applies_when": "The agent marks an inventory item as covered by accepted findings.",
+      "state_fields": [
+        "passage",
+        "cited_findings"
+      ],
+      "prompt": {
+        "instructions": "Do state.cited_findings account for the specific matter that state.passage describes? A finding accounts for the matter when it states what the passage establishes about that matter's cash, obligation, restriction or accounting treatment. Findings about a different matter, or about a different aspect than the one the passage describes, do not account for it.",
+        "criteria": {
+          "covered": "The findings state what the passage establishes about its specific matter.",
+          "partly_covered": "The findings address the matter but miss a distinct item the passage describes (for example an accounting gain, a covenant or a payment status).",
+          "not_covered": "The findings concern a different matter or aspect.",
+          "unclear": "Cannot tell what matter the passage describes or what the findings state."
+        }
+      },
+      "application": "An inventory item marked covered must actually be covered; otherwise add a finding or give a reason."
     }
   ]
 }

@@ -200,6 +200,12 @@
           "questions": [
             "claims_supported"
           ]
+        },
+        "inventory_coverage": {
+          "trigger": "host, on every inventory item the agent marks covered",
+          "questions": [
+            "coverage_supported"
+          ]
         }
       },
       "state_policy": "The host builds each state from immutable run objects (dependency text, evidence section or table text with its heading path, agent-authored claim or finding). The agent never supplies raw Jev state or question IDs.",

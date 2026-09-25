@@ -38,6 +38,11 @@ MEANINGS: dict[str, dict[str | bool, str]] = {
                       "unclear": "Financial role unclear"},
     "statement_relation": {"agree": "The statements agree", "conflict": "The statements conflict",
                            "different_scope": "Different entities, periods or obligations; not a conflict", "unknown": "Relation unclear"},
+    "coverage_supported": {"covered": "The findings account for this matter", "partly_covered": "The findings miss part of this matter",
+                           "not_covered": "The findings concern a different matter", "unclear": "Coverage unclear"},
+    "claims_supported": {"all_supported": "Every factual claim is supported", "some_unsupported": "Some claims are not supported by the cited findings",
+                         "unclear": "Support unclear"},
+    "matter_inventory": {True: "Describes a specific matter", False: "No specific matter"},
     "baseline_overlap": {"same": "Possibly the same obligation as a baseline item (check for double counting)",
                          "distinct": "Distinct from the baseline item", "unknown": "Overlap unclear"},
 }

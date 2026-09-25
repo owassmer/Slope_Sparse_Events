@@ -21,7 +21,8 @@ INPUTS = json.loads((CASES_DIR / SNAP / "run_inputs.json").read_text())
 
 DEFAULT_ANSWERS = {"claim_posture": "agreed_contractually", "obligation_status": "required", "entity_scope": "target",
                    "claims_supported": "all_supported", "finding_support": "supports", "finding_atomicity": "one_claim",
-                   "context_sufficiency": "enough", "economic_role": "existing_cash_obligation", "statement_relation": "agree"}
+                   "context_sufficiency": "enough", "economic_role": "existing_cash_obligation", "statement_relation": "agree",
+                   "coverage_supported": "covered"}
 
 
 class FakeJev:
@@ -252,7 +253,8 @@ def test_unsupported_consequence_is_rejected(make_ctx):
 def test_inventory_and_reconciliations_gate_submission(make_ctx):
     from app.domain.investigation import InventoryItem
     ctx = make_ctx(answers={"statement_relation": "conflict"}, name="gates")
-    ctx.run.put("inventory_loaded", InventoryItem(item_id="inv_001", section_ids=("s1",), source_id="synergy_s1a_20240813",
+    note11 = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")["id"]
+    ctx.run.put("inventory_loaded", InventoryItem(item_id="inv_001", section_ids=(note11,), source_id="synergy_s1a_20240813",
                                                  heading_path=("Note 11",), kind="debt_or_financing_agreement", signal=0.9))
     dep, fid = _accepted_settlement_finding(ctx)
     hvl = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")
@@ -295,3 +297,18 @@ def test_sweep_chunks_and_groups():
         {"flagged": False, "source_id": "s1a", "heading_path": ["RISK"], "kind": "none_or_generic", "section_id": "s#2", "signal": 0.2, "excerpt": ""}]}
     groups = inventory_groups(sweep)
     assert len(groups) == 2 and groups[0]["section_ids"] == ["c#1", "c#2"] and groups[0]["excerpt"] == "y"
+
+
+def test_covered_claims_are_checked(make_ctx):
+    from app.domain.investigation import InventoryItem
+    ctx = make_ctx(answers={"coverage_supported": "not_covered"}, name="coverage")
+    note11 = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")["id"]
+    ctx.run.put("inventory_loaded", InventoryItem(item_id="inv_001", section_ids=(note11,), source_id="synergy_s1a_20240813",
+                                                 heading_path=("Note 11",), kind="accounting_item_from_a_matter", signal=0.9))
+    _, fid = _accepted_settlement_finding(ctx)
+    entry = {"item_id": "inv_001", "disposition": "covered_by_findings", "finding_ids": [fid]}
+    with pytest.raises(T.ToolError, match="concern a different matter"):
+        call(T.account_for_items, ctx, {"items": [entry]})
+    assert ctx.run.get("inventory", "inv_001").status == "open"
+    ok = call(T.account_for_items, ctx, {"items": [{**entry, "override_reason": "The schedule is the matter; the gain is covered elsewhere."}]})
+    assert ok["open"] == 0
