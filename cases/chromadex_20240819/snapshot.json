@@ -1,7 +1,7 @@
 {
-  "snapshot_id": "chromadex_20240903",
+  "snapshot_id": "chromadex_20240819",
   "case_id": "chromadex_elysium_2024",
-  "note": "Cutoff and source membership come from the kit's data/sources.json (mission chromadex_20240903). This file only supplies neutral display metadata for admissible sources.",
+  "note": "Cutoff and source membership come from the kit's data/sources.json (mission chromadex_20240819). This file only supplies neutral display metadata for admissible sources.",
   "source_display": {
     "cdxc_2023_10k": {
       "title": "ChromaDex Corp. Form 10-K for fiscal year 2023",

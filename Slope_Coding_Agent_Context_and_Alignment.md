@@ -108,7 +108,7 @@ Owen wants the demonstration grounded in actual businesses, actual legal events,
 
 ### ChromaDex: lead demonstration
 
-The lead decision date is **3 September 2024**. ChromaDex is a consumer supplement brand that buys finished goods from contract manufacturers. On that date its disputes with Elysium Health, a former customer, are live and move money both ways: a Delaware fee award whose amount awaits a ruling (about $9.8 million sought, and ChromaDex intends to appeal, which needs a bond), and a California judgment ordering Elysium to pay ChromaDex $2.5 million with no payment date. These are the forward-looking, branching questions that bank data cannot answer. The request is reconstructed as Slope bill-pay financing of a contract-manufacturer invoice, and the resolution events fall inside that financing's life.
+The lead decision date is **19 August 2024**. ChromaDex is a consumer supplement brand that buys finished goods from contract manufacturers. On that date its disputes with Elysium Health, a former customer, are live and move money both ways: a Delaware fee award whose amount awaits a ruling (about $9.8 million sought, and ChromaDex intends to appeal, which needs a bond), and a California judgment ordering Elysium to pay ChromaDex $2.5 million with no payment date. These are the forward-looking, branching questions that bank data cannot answer. The request is reconstructed as Slope bill-pay financing of a contract-manufacturer invoice, and the resolution events fall inside that financing's life.
 
 ### Synergy CHC: secondary demonstration
 
@@ -124,7 +124,7 @@ The public evidence supports meaningful thresholds and scenario analysis. Inputs
 
 ### Barfresh: deferred
 
-Barfresh (25 October 2024) is deferred: its live dispute is in state court with no public docket. The original rationale follows.
+Barfresh (25 October 2024) is deferred: its live dispute is in state court with no docket we could access. The original rationale follows.
 
 The second decision date was **25 October 2024**. Barfresh is a small beverage business with a supplier dispute, production considerations and a real receivables facility.
 

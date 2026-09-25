@@ -225,14 +225,14 @@
       "max_repair_cycles": 1
     }
   },
-  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, and propose atomic findings that quote the evidence exactly. Jev screens retrieved evidence and checks narrow semantic claims; you reconcile its judgments with the evidence and may disagree with a failed check by replying to it with a stated reason, or escalate it for the reviewer where the host requires escalation. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer, change an account, or know Slope's private policy.",
+  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, and propose atomic findings that quote the evidence exactly. Jev screens retrieved evidence and checks narrow semantic claims; you reconcile its judgments with the evidence and may disagree with a failed check by replying to it with a stated reason, or escalate it for the reviewer where the host requires escalation. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer or change an account. Use the Slope terms and policy in the run inputs as given.",
   "invariants": [
     "Start with the same baseline profile, existing obligations, decision date and candidate financing request for the before/after comparison.",
     "Keep borrower cash flows, contractual loan payments, scenario collections and funding-facility cash flows distinct.",
     "Use only evidence admitted by the host's snapshot rules. Do not use remembered future outcomes.",
     "All amounts, dates and parameter values have reported, derived or operator-assumption basis; unknown remains unknown.",
     "Use source-supported ranges or named scenario parameters where exact values are unavailable. Never silently interpolate financial statements into daily historical facts.",
-    "Do not turn Jev confidence or lawsuit severity into default probabilities or dollar adjustments.",
+    "Do not turn Jev confidence or lawsuit severity into default probabilities or dollar adjustments. Default probability comes from the labelled risk tier; the host weights the branches of a live dispute from Jev's branch judgments, labelled model judgment.",
     "Track legal-entity, asset, product, channel and period scope for every adjustment.",
     "Reconcile every patch with baseline entries to prevent double counting; preserve associated avoided costs, recoveries and delayed receipts.",
     "Do not automatically rewrite existing contractual payments, assume new creditor seniority, or freeze committed credit.",
@@ -515,8 +515,8 @@
     "case_id": "chromadex_elysium_2024",
     "mission_id": "chromadex_2024_supplier_bill_financing",
     "borrower": "ChromaDex Corporation",
-    "decision_date": "2024-09-03",
-    "as_of": "2024-09-03T23:59:59-04:00",
+    "decision_date": "2024-08-19",
+    "as_of": "2024-08-19T23:59:59-04:00",
     "decision_timezone": "America/New_York",
     "cutoff_precision": "Conservative end of the decision date in New York; court filings count from the end of their filing day.",
     "financial_measurement_date": "2024-06-30",
@@ -524,7 +524,7 @@
     "mission_type": "supplier_bill_financing",
     "loan_terms_basis": "reconstructed_slope_terms",
     "relationship_claim": "Reconstructed as if ChromaDex applied to Slope on this date to finance a supplier invoice. No claim that ChromaDex is or was a Slope customer.",
-    "product_selection": "Slope bill-pay financing: Slope pays the supplier and ChromaDex repays on net terms or in monthly installments of up to 120 days, priced by risk tier (the menu and price card are in the run inputs).",
+    "product_selection": "Slope bill-pay financing: Slope pays the supplier and ChromaDex repays on net terms or in monthly installments of up to 120 days, priced by risk tier from Slope's price card.",
     "financing_basis": "Existing Western Alliance Bank revolving credit line of up to USD 10.0 million, with covenants."
   }
 }

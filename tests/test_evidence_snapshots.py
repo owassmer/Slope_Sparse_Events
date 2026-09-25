@@ -83,7 +83,7 @@ def test_2025_only_facts_are_absent_but_the_admissible_label_is_kept(built):
     assert row[1] == "2,920,824"
 
 
-# Facts public only after 3 Sep 2024 (ChromaDex outcome sources): the fee judgment's amount and date, Elysium's
+# Facts public only after 19 Aug 2024 (ChromaDex outcome sources): the fee judgment's amount and date, Elysium's
 # 11 Sep 2024 appeal, the appeal bond, the December settlement judgment and the company's 2025 rename.
 CHROMADEX_FUTURE_FACTS = ["Niagen Bioscience", "Stipulated Amended Judgment", "9.2 million", "October 28, 2024",
                           "September 11, 2024", "Appeal Bond"]
@@ -92,16 +92,16 @@ CHROMADEX_FUTURE_FACTS = ["Niagen Bioscience", "Stipulated Amended Judgment", "9
 def test_chromadex_outcome_facts_are_absent(built):
     out, _, stores = built
     catalog = [s for s in json.loads(snapshot.SOURCES_JSON.read_text())["sources"]
-               if s["mission_membership"].get("chromadex_20240903") == "outcome"]
+               if s["mission_membership"].get("chromadex_20240819") == "outcome"]
     later = " ".join(" ".join((snapshot.KIT / s["package_relative_path"]).read_bytes().decode("latin-1").split())
                      for s in catalog if s["package_relative_path"].endswith(".html")).lower()
-    raw = (out / "chromadex_20240903.sqlite").read_bytes().lower()
+    raw = (out / "chromadex_20240819.sqlite").read_bytes().lower()
     for fact in CHROMADEX_FUTURE_FACTS:
         if fact != "Stipulated Amended Judgment":  # that one is a PDF caption; its absence is still checked below
             assert fact.lower() in later, f"probe {fact!r} is not in an outcome source"
         assert fact.lower().encode() not in raw
     # The decision-date judgment itself is admissible: Elysium ordered to pay USD 2.5 million.
-    assert "$2,500,000" in stores["chromadex_20240903"].read("cacd_16cv2277_d618_judgment#s0002")["text"]
+    assert "$2,500,000" in stores["chromadex_20240819"].read("cacd_16cv2277_d618_judgment#s0002")["text"]
 
 
 def test_settlement_schedule_table_keeps_its_original_context(built):

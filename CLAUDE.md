@@ -1,7 +1,7 @@
 # Slope Sparse Events — builder instructions
 
 ## What this is
-A proof-of-concept demo for Russell (Slope). A credit reviewer is deciding on a new discretionary working-capital draw. An agent (Claude Agent SDK) investigates an unusual external event (a lawsuit), with Jev (TypeSafe) making focused judgments along the way. Deterministic code turns the sourced economic effects into borrower cash capacity, loan collections, a feasible offer set, and the capital impact. Lead case: ChromaDex at 3 Sep 2024 (live disputes with Elysium Health: a fee award being fixed and a judgment receivable). Secondary case: Synergy CHC at 13 Aug 2024 (resolved dispute, hidden settlement obligations). Barfresh is deferred (no public docket for its live case).
+A proof-of-concept demo for Russell (Slope). A credit reviewer is deciding on a new discretionary working-capital draw. An agent (Claude Agent SDK) investigates an unusual external event (a lawsuit), with Jev (TypeSafe) making focused judgments along the way. Deterministic code turns the sourced economic effects into borrower cash capacity, loan collections, a feasible offer set, and the capital impact. Lead case: ChromaDex at 19 Aug 2024 (live disputes with Elysium Health: a fee award being fixed and a judgment receivable). Secondary case: Synergy CHC at 13 Aug 2024 (resolved dispute, hidden settlement obligations). Barfresh is deferred (no accessible docket for its live case).
 
 The demo reconstructs Slope as closely as public information allows: Slope's bill-pay product, a reconstructed price card and credit policy, and synthetic connected-bank data, each labelled once at its source and otherwise used plainly (this is a proof of concept for Russell, not a hedged research note).
 

@@ -123,7 +123,7 @@
     {
       "path": "research/recent_cases/chromadex/acquire.py",
       "bytes": 9680,
-      "sha256": "56a185b378b305b60b5283488b218b148d5065b9268fbed30e8875ae7b10ca10"
+      "sha256": "f62401220f70a14e9be72afe9180ce46c89b8a5c45b0349b43891466f8ba666a"
     },
     {
       "path": "research/recent_cases/chromadex/cacd_16cv2277_d001_complaint.pdf",
@@ -277,8 +277,8 @@
     },
     {
       "path": "research/revision_v2/contracts/agent_config.json",
-      "bytes": 35007,
-      "sha256": "0b37c8854c9ea6ad51a445c8acb644909fee0b97257ea9cfc26cda9c1ead7703"
+      "bytes": 35169,
+      "sha256": "96ced12488c5c3e054fc803afc4ad6e69a7dfdf8dcb2633765f74563f330752b"
     },
     {
       "path": "research/revision_v2/contracts/barfresh-economic-effects.json",
@@ -363,12 +363,12 @@
     {
       "path": "research/revision_v2/data/sources.json",
       "bytes": 44207,
-      "sha256": "ada8c6172349672e4ffdf021fb7760505d6dd2b2a8d0092778e366ffdf70aaad"
+      "sha256": "a18786f05f2b621efe2a09e182cd4c2a3615892220bd8898fcfdeb6bb3a7140f"
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
-      "bytes": 62861,
-      "sha256": "2479eb1bed6f082d9deda602b7b1a7a2364aac54069807d8aa73e266b33bd8de"
+      "bytes": 63659,
+      "sha256": "e1a7c6bca2e401ac88f1ffaa27b042a9fa2e2389ff3371576c82575a09a3b196"
     },
     {
       "path": "research/revision_v2/package_kit.py",

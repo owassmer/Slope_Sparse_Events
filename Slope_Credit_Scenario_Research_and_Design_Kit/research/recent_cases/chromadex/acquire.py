@@ -21,8 +21,8 @@ KIT = Path(__file__).resolve().parents[3]
 HERE = Path(__file__).resolve().parent
 CATALOG = KIT / "research/revision_v2/data/sources.json"
 CASE_ID = "chromadex_elysium_2024"
-MISSION = "chromadex_20240903"
-CUTOFF = "2024-09-03T23:59:59-04:00"
+MISSION = "chromadex_20240819"
+CUTOFF = "2024-08-19T23:59:59-04:00"
 UA = {"User-Agent": "Slope sparse-events research owassmer1@gmail.com"}
 CIK = "1386570"
 
