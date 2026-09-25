@@ -95,7 +95,7 @@
       "label": "Settlement signals", "kind": "graded",
       "question": "What does this passage say about the parties settling this obligation?",
       "levels": ["The passage describes no settlement discussion", "A party expresses general willingness to settle, or mediation is ordered", "The parties disclose active settlement negotiations", "The parties have an agreement in principle or a term sheet"],
-      "evidence_request": {"action": "Ask the borrower whether settlement talks are under way on this matter.", "if_satisfied": "The settlement branch is re-weighted.", "if_not": "It stays weighted on the record as it is."}
+      "evidence_request": {"action": "Ask the borrower whether settlement talks are under way.", "if_satisfied": "The settlement branch is re-weighted.", "if_not": "It stays weighted on the record as it is."}
     }
   }
 }

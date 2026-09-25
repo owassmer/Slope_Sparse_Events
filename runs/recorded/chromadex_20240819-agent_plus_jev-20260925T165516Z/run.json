@@ -1,0 +1,136 @@
+{
+  "snapshot_id": "chromadex_20240819",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T16:55:16.855730+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "3.10.0",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "fe7951da508f62a2e973e0000cd667f00003549704c64a8387bdb37bf9f786fe",
+    "sections": 520,
+    "flagged": 178,
+    "unscreened": 0,
+    "chunks": 539,
+    "units": 1205,
+    "flagged_units": 569,
+    "unscreened_units": 0,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 0,
+      "cache_hits": 1744,
+      "physical_attempts": 0,
+      "attempt_ceiling": 1500,
+      "spent_usd": "0",
+      "spend_cap_usd": "0.10"
+    },
+    "inventory_items": 569
+  },
+  "run_id": "chromadex_20240819-agent_plus_jev-20260925T165516Z",
+  "status": "CANDIDATE_READY",
+  "failure": null,
+  "incomplete_reasons": [],
+  "finished_at": "2026-09-25T16:59:11.515597+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "record_dependency": 4,
+    "search_evidence": 7,
+    "read_evidence": 10,
+    "propose_finding": 5,
+    "resolve_finding": 5,
+    "resolve_reconciliation": 1,
+    "instantiate_dispute": 2,
+    "run_scenarios": 1,
+    "propose_effect": 7,
+    "request_missing_fact": 3,
+    "submit_packet": 2,
+    "StructuredOutput": 1
+  },
+  "turns_used": 26,
+  "max_turns": 120,
+  "claude": {
+    "num_turns": 53,
+    "duration_ms": 233329,
+    "usage": {
+      "input_tokens": 52,
+      "cache_creation_input_tokens": 91056,
+      "cache_read_input_tokens": 1295917,
+      "output_tokens": 23416,
+      "output_tokens_details": {
+        "thinking_tokens": 3877
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 91056,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 580,
+          "cache_read_input_tokens": 89325,
+          "cache_creation_input_tokens": 1731,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 1731
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 1.4561594000000004,
+    "structured_output": {
+      "conclusion": "Do not approve the requested $2.0M 90-day installment structure on the automated path. It passes on bank data alone but fails event-adjusted: under the model's appeal-bond stress path for the D. Del. fee award, the order limit falls to about $1.43M. The largest structure that passes event-adjusted is 3 monthly installments over 90 days at $1.43M. Because of the material litigation, the application meets Slope's exception-review trigger. The $2.0M could be reconsidered if ChromaDex shows it will secure a stay pending appeal without locking cash (or the award comes in well below $9.8M), or confirms receipt of the $2.5M from Elysium. Conditions: confirm Western Alliance does not restrict this unsecured obligation while the line is undrawn, and count the $2.5M judgment receivable only once received. Branch weights are the model's judgment, not default probabilities.",
+      "pivotal_unknowns": [
+        "Amount of the D. Del. fee award and how/when ChromaDex secures a stay pending appeal (cash collateral vs non-cash bond/LC) \u2014 binds the event-adjusted limit",
+        "Whether and when Elysium pays the $2.5M C.D. Cal. judgment to ChromaDex",
+        "Whether the amended Western Alliance agreement restricts additional unsecured indebtedness while undrawn / lender consent",
+        "Whether settlement talks with Elysium on the fee award are under way"
+      ],
+      "supported_effect_ids": [
+        "eff_005",
+        "eff_007"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 82,
+    "cache_hits": 13,
+    "physical_attempts": 82,
+    "attempt_ceiling": 400,
+    "spent_usd": "0.007140336",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 4,
+    "candidates": 44,
+    "jev_calls": 95,
+    "observations": 260,
+    "findings": 5,
+    "reconciliations": 1,
+    "effects": 7,
+    "inventory": 569,
+    "disputes": 2
+  },
+  "chain_head": "447c71d67a7c0e640bd3214812c22b51f18bff0cc143615fd629211108d21a92"
+}

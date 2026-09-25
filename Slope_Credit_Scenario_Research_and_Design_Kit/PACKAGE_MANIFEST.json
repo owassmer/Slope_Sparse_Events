@@ -312,8 +312,8 @@
     },
     {
       "path": "research/revision_v2/contracts/dispute_model.json",
-      "bytes": 12813,
-      "sha256": "38419a196386d6e6b3f73ebfdc171fed4aca7f015a63df0247ef835ebf9f5ca7"
+      "bytes": 12798,
+      "sha256": "4937f86474eeaf1a5ef5f68fc12deba722e49d1760ef7b97223f720f9097bd3a"
     },
     {
       "path": "research/revision_v2/contracts/economic-effects.json",

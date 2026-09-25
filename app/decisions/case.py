@@ -56,8 +56,9 @@ def conditions(disputes: list[DisputeInstance], inputs: dict) -> list[dict]:
                         "if_satisfied": "Received cash enters the connected-bank data and the next review.",
                         "if_not": "The decision already stands on the paths where it is not received.",
                         "instance_id": d.instance_id})
+        subject = f"the {usd(amount)} {'owed to' if d.borrower_role == 'debtor' else 'owed by'} {d.counterparty}"
         for r in d.evidence_requests:
-            out.append({"action": r.action, "if_satisfied": r.if_satisfied, "if_not": r.if_not,
+            out.append({"action": f"{r.action.rstrip('.')} (for {subject}).", "if_satisfied": r.if_satisfied, "if_not": r.if_not,
                         "instance_id": d.instance_id, "factor_id": r.factor_id})
     for loan in inputs["baseline_profile"].get("existing_loans", []):
         out.append({"action": f"Confirm {loan['lender']}'s covenants permit this financing after the disputes' cash "
