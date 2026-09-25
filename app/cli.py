@@ -103,32 +103,34 @@ def jev_check_cases() -> None:
 
 
 @cli.command()
-def compare(run: str = typer.Option(..., help="Recorded run ID (runs/recorded/<id>)."),
-            root: str = typer.Option("", help="Directory holding the run (default runs/recorded).")) -> None:
-    """Scenarios, economics and recommendation for a recorded run on Slope's terms; writes scenarios.json and
-    collections.csv into the run directory."""
-    from datetime import date
+def analyze(run: str = typer.Option(..., help="Recorded run ID (runs/recorded/<id>)."),
+            root: str = typer.Option("", help="Directory holding the run (default runs/recorded)."),
+            refresh_probabilities: bool = typer.Option(False, "--refresh-probabilities",
+                                                       help="Ask Jev again instead of using cached forecasts.")) -> None:
+    """Probabilistic scenario and sensitivity analysis of the loan's dated cash flows for a recorded run; writes
+    analysis.json, collections.csv and cashflows.csv beside it."""
     from pathlib import Path
 
-    from app.agent.run_store import RunStore
+    from app.analysis.build import build, money
     from app.config import ROOT
-    from app.decisions.case import decide, export
 
     base = Path(root) if root else ROOT / "runs" / "recorded"
-    store = RunStore(run, root=base)
-    meta = store.events[0].payload
-    inputs = meta["run_inputs"]
-    from app.evidence.store import EvidenceStore
+    data = build(run, base, refresh=refresh_probabilities)
+    for view in ("bank_only", "event_adjusted"):
+        m = data["views"][view]["metrics"]
+        typer.echo(f"{view:15s} lender PV {money(m['lender_pv_cents'])}  full by maturity "
+                   f"{m['full_collection_by_maturity_p']:.1%}  min cash mean {money(m['min_cash_mean_cents'])}  "
+                   f"P5 {money(m['min_cash_p5_cents'])}  shortfall {m['shortfall_p']:.1%}")
+    for r in data["sensitivity"]["judgments"][:3]:
+        typer.echo(f"  driver: {r['dispute_title']}: {r['event']} (Jev {r['jev_model']})")
+    typer.echo(f"{len(data['scenarios'])} joint paths; Jev {data['jev']}; wrote analysis.json, collections.csv, cashflows.csv")
 
-    review = date.fromisoformat(str(EvidenceStore(meta["snapshot_id"]).snapshot_info()["cutoff"])[:10])
-    summary = decide(meta["snapshot_id"], inputs, list(store.graph["disputes"].values()), review)
-    js, csv = export(summary, base / run)
-    for view, rec in summary["recommendation"].items():
-        typer.echo(f"{view:15s} -> {rec['structure']} (limit {rec['limit_cents'] / 100:,.0f}, "
-                   f"order limit {rec['order_limit_cents'] / 100:,.0f})")
-    for c in summary["conditions"]:
-        typer.echo(f"  condition: {c['action']}")
-    typer.echo(f"wrote {js.name} and {csv.name}")
+
+@cli.command()
+def compare(run: str = typer.Option(..., help="Recorded run ID."), root: str = typer.Option("", help="Run directory."),
+            refresh_probabilities: bool = typer.Option(False, "--refresh-probabilities")) -> None:
+    """Alias of `analyze`."""
+    analyze(run=run, root=root, refresh_probabilities=refresh_probabilities)
 
 
 @cli.command()

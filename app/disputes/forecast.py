@@ -61,6 +61,7 @@ class Judgment:
     confidence: float | None = None
     finding_ids: tuple[str, ...] = ()
     readings: dict = field(default_factory=dict)
+    evidence: list = field(default_factory=list)
     observation_id: str = ""
 
 
@@ -298,7 +299,7 @@ class Forecaster:
             return Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
                             event=n.event, assumptions=n.assumptions, window=n.window, distribution=dist,
                             confidence=o.confidence, finding_ids=fids, readings=readings,
-                            observation_id=o.observation_id)
+                            evidence=st["evidence"], observation_id=o.observation_id)
 
         results = await asyncio.gather(*(one(n) for n in self.nodes.values()))
         return {j.key: j for j in results}

@@ -145,81 +145,12 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
         "reconciliations": [t.model_dump() for t in g["reconciliations"].values()],
         "jev_ledger": dict(ledger), "jev_calls": len(g["jev_calls"]), "observations": len(g["observations"]),
         "inventory": inventory, "conclusion_check": conclusion_check, "conclusion_checks": conclusion_checks,
-        "decision": _decision(root / run_id),
-        "disputes": _disputes(g, inputs.get("baseline_profile", {}).get("borrower", "")),
         "atomic_inventory": any(i.unit_start >= 0 for i in g["inventory"].values()),
         "cited_checks": [{**c, "checked": [{**r, "meaning": meaning("coverage_supported", r["answer"])} for r in c["checked"]]}
                          for c in cited_checks],
         "reviewer_checklist": submitted.get("reviewer_checklist"),
         "sweep": next((e.payload for e in run.events if e.kind == "inventory_loaded"), None),
     }
-
-
-def _decision(run_dir: Path) -> dict | None:
-    """The deterministic decision written by `slope compare` next to the recorded run, if present."""
-    path = run_dir / "scenarios.json"
-    if not path.exists():
-        return None
-    s = json.loads(path.read_text())
-    views = list(s["recommendation"])
-    rows = []
-    shown = {r["structure"] for r in s["recommendation"].values()}
-    requested = s["request"]["amount_cents"] // 100
-    for name, e in s["structures"].items():
-        if name != "decline" and name not in shown and not name.endswith(f"_{requested}"):
-            continue  # amounts the sizing search tried stay in scenarios.json, not on the page
-        row = {"name": name, "label": e["label"]}
-        for view in views:
-            v = e["views"][view]
-            scen = v["scenarios"]
-            econ = scen[0].get("economics") if scen else None
-            full = sum(1 for sc in scen if sc.get("economics") and sc["economics"]["uncollected_cents"] == 0)
-            row[view] = {"passes": v["policy"]["passes"], "lowest": usd(v["policy"]["lowest_projected_cash_cents"]),
-                         "reasons": v["policy"]["reasons"],
-                         "fee": usd(econ["fee_cents"]) if econ else "",
-                         "apr": f"{econ['apr_equivalent_bps'] / 100:.1f}%" if econ else "",
-                         "collected": f"repaid in full in {full} of {len(scen)} scenarios" if econ else ""}
-        rows.append(row)
-    def fig(f: dict | None) -> dict | None:
-        if not f:
-            return None
-        return {**f, "amount": usd(f["amount_cents"]), "limit": usd(f["limit_cents"]),
-                "order_limit": usd(f["order_limit_cents"]), "lowest": usd(f["lowest_projected_cash_cents"])}
-
-    rec = {view: {**r, "at_requested": fig(r["at_requested"]), "at_recommended": fig(r["at_recommended"]),
-                  "next_amount_up": fig(r["next_amount_up"]), "incomplete": r.get("incomplete", []),
-                  "label": s["structures"][r["structure"]]["label"] if r["structure"] in s["structures"] else r["structure"]}
-           for view, r in s["recommendation"].items()}
-    return {"views": views, "rows": rows, "recommendation": rec, "conditions": s["conditions"], "tier": s["tier"],
-            "bank_feed": s["bank_feed"], "slope_terms": s["slope_terms"], "paths_label": s["paths_label"],
-            "request": s["request"]}
-
-
-def _disputes(g: dict, borrower: str) -> list[dict]:
-    """Each compiled dispute: who pays and the amount's status (Jev's readings), the established events and factors with
-    their decisive quotes, the closed paths, and every remaining path with its rule-derived cash."""
-    from app.decisions.case import describe
-    from app.disputes.rules import load_model
-
-    model = load_model()
-    stages, labels, events = model["stages"], model["readings"]["amount_status_labels"], model["readings"]["events"]
-    out = []
-    for d in g.get("disputes", {}).values():
-        if d.status == "superseded":
-            continue
-        out.append({
-            "id": d.instance_id, "title": d.title, "obligation": describe(d, borrower, labels),
-            "stage": stages[d.stage]["label"] if d.stage else "not established", "status": d.status,
-            "events": [{"event": events[k], "finding": v.finding_id, "quote": v.quote} for k, v in d.established.items()],
-            "factors": [{"label": f.label, "level": f.level_label, "finding": f.decisive.finding_id if f.decisive else "",
-                         "quote": f.decisive.quote if f.decisive else ""} for f in d.factors if f.level is not None or f.conflict],
-            "closed": d.closed,
-            "paths": [{"labels": " → ".join(p.labels), "also": list(p.also), "points": list(p.points_here),
-                       "cash": [{"kind": c.kind, "label": c.label, "amount": _money(c.amount.model_dump(mode="json")),
-                                 "window": f"{c.window_start.isoformat()} to {c.window_end.isoformat()}", "rule": c.rule}
-                                for c in p.cash]} for p in d.paths],
-            "requests": [r.action for r in d.evidence_requests], "extension": d.proposed_extension})
-    return out
 
 
 def run_source_title(inputs: dict, source_id: str) -> str:

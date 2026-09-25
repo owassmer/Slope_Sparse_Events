@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ data.borrower }} · loan cash-flow analysis{% endblock %}
+{% block body %}
+<style>
+  .hdr { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; margin-bottom:.6rem; }
+  .hdr h2 { margin-bottom:.2rem; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(12rem,1fr)); gap:.8rem; margin:.6rem 0 .4rem; }
+  .kpi { border:1px solid var(--pico-muted-border-color); border-radius:.5rem; padding:.7rem .9rem; }
+  .kpi .v { font-size:1.35rem; font-weight:700; line-height:1.2; }
+  .kpi .l { font-size:.78rem; color:var(--pico-muted-color); }
+  .kpi .d { font-size:.8rem; margin-top:.15rem; }
+  .lead { font-size:1.02rem; margin:.4rem 0 1.2rem; }
+  .up { color:#15803d; } .down { color:#b91c1c; } .flat { color:var(--pico-muted-color); }
+  section { margin-bottom:1.6rem; }
+  h3 { margin:.2rem 0 .5rem; }
+  .sub { color:var(--pico-muted-color); font-size:.85rem; margin:-.3rem 0 .6rem; }
+  .disputes { display:grid; grid-template-columns:repeat(auto-fit,minmax(22rem,1fr)); gap:1rem; }
+  .dcard { border:1px solid var(--pico-muted-border-color); border-radius:.5rem; padding:.8rem 1rem; }
+  .dcard h4 { margin:0 0 .3rem; font-size:1rem; }
+  .fc { display:grid; grid-template-columns:1fr 5.5rem; gap:.25rem .6rem; align-items:center; font-size:.84rem; margin-top:.4rem; }
+  .fc .ev { cursor:pointer; } .fc .ev:hover { text-decoration:underline; }
+  .bar { height:.55rem; background:var(--pico-muted-border-color); border-radius:.3rem; overflow:hidden; position:relative; }
+  .bar > i { display:block; height:100%; background:#7c3aed; }
+  .pbar { display:flex; align-items:center; gap:.35rem; } .pbar .bar { flex:1; } .pbar b { font-size:.8rem; width:2.6rem; text-align:right; }
+  svg.chart { width:100%; height:auto; display:block; background:transparent; }
+  svg.chart text { font-size:11px; fill:var(--pico-muted-color); }
+  .legend { display:flex; flex-wrap:wrap; gap:1rem; font-size:.8rem; color:var(--pico-muted-color); margin:.2rem 0 .3rem; }
+  .legend span::before { content:""; display:inline-block; width:.9rem; height:.55rem; margin-right:.3rem; border-radius:.15rem; background:var(--c); opacity:var(--o,1); vertical-align:middle; }
+  table.t { font-size:.84rem; } table.t td, table.t th { padding:.35rem .5rem; vertical-align:top; }
+  tr.drv { cursor:pointer; } tr.drv:hover td { background:var(--pico-card-sectioning-background-color); }
+  tr.drv.sel td { background:var(--pico-card-sectioning-background-color); }
+  .drill { border-left:3px solid #7c3aed; padding:.6rem 1rem; margin:.2rem 0 1rem; background:var(--pico-card-sectioning-background-color); border-radius:.3rem; }
+  .drill h5 { margin:.6rem 0 .3rem; font-size:.9rem; }
+  .drill blockquote { font-size:.84rem; } mark { background:#fde68a; color:#1f2937; padding:0 .1rem; }
+  .chain { display:flex; flex-wrap:wrap; gap:.3rem; align-items:center; font-size:.78rem; color:var(--pico-muted-color); margin:.1rem 0 .4rem; }
+  .chain b { color:var(--pico-color); font-weight:600; }
+  .controls { position:sticky; top:0; z-index:5; background:var(--pico-background-color); border-bottom:1px solid var(--pico-muted-border-color); padding:.5rem 0 .6rem; margin-bottom:1rem; }
+  .controls .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr)); gap:.4rem 1rem; align-items:end; }
+  .controls label { font-size:.76rem; margin:0; } .controls input[type=range] { margin:.1rem 0 0; }
+  .controls .val { font-weight:600; float:right; }
+  .controls .node { margin-top:.4rem; font-size:.8rem; display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+  .controls button { padding:.15rem .6rem; font-size:.78rem; margin:0; width:auto; }
+  .status { font-size:.78rem; color:var(--pico-muted-color); min-height:1rem; }
+  .more { font-size:.8rem; cursor:pointer; color:var(--pico-primary); }
+  .tip { position:absolute; pointer-events:none; background:var(--pico-background-color); border:1px solid var(--pico-muted-border-color); border-radius:.3rem; padding:.3rem .5rem; font-size:.75rem; display:none; z-index:10; white-space:nowrap; }
+  .chartwrap { position:relative; }
+</style>
+<script id="analysis-data" type="application/json">{{ data | tojson }}</script>
+<div class="hdr">
+  <div><h2 id="hdr-title"></h2><div class="muted" id="hdr-sub"></div></div>
+  {% if has_record %}<a class="muted" href="/runs/{{ run_id }}/investigation">Investigation record →</a>{% endif %}
+</div>
+<div class="controls" id="controls"></div>
+<div class="kpis" id="kpis"></div>
+<p class="lead" id="lead"></p>
+
+<section id="findings"></section>
+
+<section>
+  <h3>The borrower's cash</h3>
+  <p class="sub">Available cash, bank data only and with the disputes: median and 5th–95th percentile band across the operating draws and event paths. Dots mark the loan's payment dates.</p>
+  <div class="legend" id="legend-cash"></div>
+  <div class="chartwrap"><svg class="chart" id="chart-cash" viewBox="0 0 960 270"></svg><div class="tip" id="tip-cash"></div></div>
+</section>
+
+<section>
+  <h3>The loan's collections</h3>
+  <p class="sub">Cumulative collections against the contractual schedule, same dates.</p>
+  <div class="legend" id="legend-coll"></div>
+  <div class="chartwrap"><svg class="chart" id="chart-coll" viewBox="0 0 960 230"></svg><div class="tip" id="tip-coll"></div></div>
+</section>
+
+<section id="drivers"></section>
+<section id="params"></section>
+<section id="paths"></section>
+<section id="stress"></section>
+<script src="/static/analysis.js"></script>
+{% endblock %}
