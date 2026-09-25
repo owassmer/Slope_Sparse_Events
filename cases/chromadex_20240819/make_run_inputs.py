@@ -84,24 +84,27 @@ inputs = {
         "requested_use": {"value": "Pay a contract manufacturer's invoice for Tru Niagen finished goods", "basis": "operator_request"},
         "requested_amount": {"value": 200_000_000, "unit": "USD_cents", "basis": "operator_request"},
         "requested_term": {"value": "90 days, monthly installments", "basis": "operator_request"},
-        "requested_pricing": {"value": "Slope price card for the borrower's risk tier", "basis": "operator_request"},
+        "requested_pricing": {"value": "3.7% fee on the amount financed", "basis": "operator_request"},
         "baseline_profile_id": "chromadex_ordinary_baseline_v1",
         "existing_loan_record_ids": ["chromadex_western_alliance_revolver"],
-        "permitted_offer_set_id": "slope_menu_v1",
-        "policy_config_id": "slope_policy_v1",
-        "initial_event_seed": ("As of 19 August 2024, assess Slope financing of a USD 2.0 million contract-manufacturer "
-                               "invoice for ChromaDex Corporation. ChromaDex's public filings describe long-running "
-                               "litigation with Elysium Health, a former customer, in several federal courts."),
+        "permitted_offer_set_id": "slope_supplied_terms_v1",
+        "policy_config_id": "analysis_only",
+        "initial_event_seed": ("As of 19 August 2024, analyse how external events could affect Slope financing of a USD "
+                               "2.0 million contract-manufacturer invoice for ChromaDex Corporation, repaid in three "
+                               "monthly installments. ChromaDex's public filings describe long-running litigation with "
+                               "Elysium Health, a former customer, in several federal courts."),
     },
     "financing_plan": {
         "funding": "next business day after the review date (Slope pays the supplier)",
         "invoice_due_days_after_funding": 30,
         "basis": "operator_request",
-        "note": "Without Slope, ChromaDex would pay this invoice itself on its due date.",
+        "note": "Slope pays the supplier up to the financed amount; ChromaDex pays any remainder of the invoice itself on its due date.",
+        "supplied_terms": {"invoice_cents": 200_000_000, "amount_cents": 200_000_000, "installments": 3, "days": 90,
+                           "fee_bps": 370, "discount_rate_bps": 800,
+                           "product": "Slope bill-pay financing: Slope pays the supplier; the business repays in monthly installments by ACH"},
     },
-    "permitted_offers": {"permitted_offer_set_id": "slope_menu_v1", "terms_file": "cases/slope_terms.json",
-                         "requested_term_id": "inst_90"},
-    "policy": {"policy_config_id": "slope_policy_v1", "terms_file": "cases/slope_terms.json"},
+    "permitted_offers": {"permitted_offer_set_id": "slope_supplied_terms_v1"},
+    "policy": {"policy_config_id": "analysis_only"},
     "bank_feed": "cases/chromadex_20240819/bank_feed.json",
     "baseline_profile": {
         "baseline_profile_id": "chromadex_ordinary_baseline_v1",

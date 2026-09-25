@@ -211,22 +211,6 @@ class EconomicEffectProposal(Frozen):
     validation_messages: tuple[str, ...] = ()
 
 
-class BranchCash(Frozen):
-    """One dated cash consequence on a dispute path: an outflow, an inflow, cash locked as collateral, or the release
-    of that lock (which returns exactly what the scenario locked, on the same date as the payment it accompanies).
-
-    The rule that produced it sets the amount (an EvidenceValue: the documented amount, or a range derived by a cited
-    rule) and the window; scenarios place it early and late in the window."""
-
-    kind: Literal["outflow", "inflow", "lock", "release"]
-    label: str
-    amount: EvidenceValue
-    window_start: date
-    window_end: date
-    rule: str = ""  # the rules applied, with citations, in plain words
-    finding_ids: tuple[str, ...] = ()
-
-
 class Decisive(Frozen):
     """The passage a reading rests on: which finding, its source date and the verbatim quote."""
 
@@ -236,45 +220,34 @@ class Decisive(Frozen):
 
 
 class FindingReading(Frozen):
-    """Jev's atomic reading of one cited finding's quotes against one obligation (never a forecast)."""
+    """Jev's present-state reading of one cited finding, judged against one obligation with the passage's surrounding
+    evidence (never a forecast). Full distributions are kept; code derives structural facts from them."""
 
     finding_id: str
     source_date: str
-    payer: Literal["borrower", "counterparty", "not_stated"] | None = None
-    amount_status: str | None = None  # sought | estimated | fixed | paid | not_stated
-    includes_interest: bool | None = None
-    events: dict[str, bool | None] = Field(default_factory=dict)  # procedural event -> established by this passage
-    bears_on: dict[str, bool | None] = Field(default_factory=dict)  # factor -> the passage bears on it
-    levels: dict[str, int | None] = Field(default_factory=dict)  # graded factor -> rubric level this passage establishes
+    payer: dict[str, float] = Field(default_factory=dict)  # borrower | counterparty | not_stated -> probability
+    amount_status: dict[str, float] = Field(default_factory=dict)  # sought | estimated | fixed | paid | not_stated
+    includes_interest: float | None = None  # Noul value
+    events: dict[str, float | None] = Field(default_factory=dict)  # procedural event -> Noul value
+    bears_on: dict[str, float | None] = Field(default_factory=dict)  # factor -> Noul value (presence, for a present factor)
+    levels: dict[str, dict[str, float]] = Field(default_factory=dict)  # graded factor -> rubric level -> probability
     observation_ids: tuple[str, ...] = ()
 
 
 class FactorResult(Frozen):
-    """One factor, aggregated from the passages routed to it by the factor's own rule. Unknown stays unknown; passages
-    of the same date that disagree are kept as a conflict and the factor is not used."""
+    """One factor, aggregated from the passages routed to it by the factor's own rule, with its full distribution.
+    Unknown stays unknown; passages of the same date that disagree are kept as a conflict."""
 
     factor_id: str
     label: str
     kind: Literal["graded", "present"]
     aggregate: str
-    level: int | None = None  # graded: rubric level; present: 1 or 0
-    level_label: str = "unknown"
+    distribution: dict[str, float] = Field(default_factory=dict)  # rubric level label -> probability (graded)
+    probability: float | None = None  # present-or-absent factors: the strongest routed Noul value
+    level_label: str = "unknown"  # the most probable level, for display
     conflict: bool = False
     decisive: Decisive | None = None
     finding_ids: tuple[str, ...] = ()
-
-
-class DisputePath(Frozen):
-    """One path the evidence still permits, with its rule-derived cash. Unweighted: every path is tested."""
-
-    path_id: str
-    transitions: tuple[str, ...]
-    labels: tuple[str, ...]
-    terminal: str
-    weight_bps: int | None = None  # always None for compiled paths: the offer is tested on every path
-    cash: tuple[BranchCash, ...] = ()
-    points_here: tuple[str, ...] = ()  # established factors that support this path, with their decisive quotes
-    also: tuple[str, ...] = ()  # other paths with identical cash, merged into this one
 
 
 class EvidenceRequest(Frozen):
@@ -287,17 +260,18 @@ class EvidenceRequest(Frozen):
 
 
 class DisputeInstance(Frozen):
-    """A live dispute compiled onto the host-owned dispute model. The agent groups the findings and quotes the amount
-    and any judgment date; Jev reads each finding atomically (who pays, the amount's status, procedural events,
-    factors); code places the stage, closes only the paths an established fact rules out, and sets every date and
-    amount. Every remaining path is kept."""
+    """A live dispute grouped by the agent and read by Jev. The agent supplies the findings, a docket reference, the
+    obligation's nature, the counterparty, the quoted amount and any judgment date; Jev reads each finding with its
+    surrounding evidence (who pays, the amount's status, procedural events, factors); code places the stage and
+    records the constraints an established fact imposes. Forecasts and cash paths are built by the analysis."""
 
     instance_id: str
     dependency_id: str
     model_id: str
     model_version: str
     title: str
-    obligation: str = ""
+    order_reference: str
+    nature: str
     counterparty: str
     finding_ids: tuple[str, ...] = Field(min_length=1)
     amount: EvidenceValue
@@ -309,14 +283,12 @@ class DisputeInstance(Frozen):
     established: dict[str, Decisive] = Field(default_factory=dict)  # procedural event -> the passage establishing it
     readings: tuple[FindingReading, ...] = ()
     factors: tuple[FactorResult, ...] = ()
-    closed: dict[str, str] = Field(default_factory=dict)  # transition -> the established fact that closes it
-    paths: tuple[DisputePath, ...] = ()
+    constraints: dict[str, str] = Field(default_factory=dict)  # removed branch -> the established fact that removes it
     evidence_requests: tuple[EvidenceRequest, ...] = ()
-    proposed_extension: str = ""  # flagged for the reviewer; never used by the host
-    status: Literal["compiled", "outside_model", "not_judged", "superseded", "resolved"] = "compiled"
+    proposed_extension: str = ""  # flagged; never used by the host
+    status: Literal["interpreted", "outside_model", "not_judged", "superseded", "resolved"] = "interpreted"
     superseded_by: str = ""
     observation_ids: tuple[str, ...] = ()
-    validation_messages: tuple[str, ...] = ()
 
 
 EventKind = Literal[
@@ -325,7 +297,7 @@ EventKind = Literal[
     "reconciliation_opened", "reconciliation_resolved", "effect_proposed", "effect_validated",
     "sensitivity_run", "missing_fact_requested", "packet_submitted", "run_failed",
     "inventory_loaded", "inventory_accounted", "conclusion_checked", "effect_disputed", "cited_units_checked",
-    "dispute_instantiated", "scenarios_run",
+    "dispute_instantiated",
 ]
 
 

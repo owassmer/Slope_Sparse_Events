@@ -59,13 +59,15 @@ WORKING_METHOD = """Working method
   reviewer can see why it does not change cash.
 - If you connect a name, label or table row to an obligation by matching amounts or dates, mark that finding is_inference and
   describe the link as an inference in your conclusion.
-- Compile every dispute that is still live on the review date (a money judgment not yet paid, or a liability ruling
+- Group every dispute that is still live on the review date (a money judgment not yet paid, or a liability ruling
   whose amount is still open), whichever side the borrower is on: an amount owed to the borrower matters as much as
-  one it owes. Compile each with instantiate_dispute: the accepted findings about one obligation (cite the passages
-  that show what the court has decided, the amount and any appeal position), the obligation, the counterparty, the
-  amount figure and any judgment date. Jev reads each finding (who pays, the amount's status, the procedural events);
-  the host keeps every cash path the evidence permits. Then run_scenarios: it sizes each structure against all of them
-  and computes what the requested amount would need. Base your conclusion on those computed results.
+  one it owes. Group each with instantiate_dispute: the accepted findings about one obligation (cite the passages that
+  show what the court has decided, the amount, any party's stated position, and the parties' resources), the docket
+  reference only, the obligation's nature, the counterparty, the amount figure and any judgment date. Jev reads who
+  pays, the amount's status and the procedural position from the passages; after your run the host asks Jev for the
+  probabilities of each future development and builds the financial analysis of the supplied loan.
+- Finish with a concise summary of what the research established and why it matters to the borrower's cash and the
+  loan's collections. Do not recommend, size or condition the financing.
 - run_sensitivity on validated settlement effects (fixed-installment cases) to see which unknown changes the cash
   requirement.
 - request_missing_fact for each pivotal fact the evidence cannot supply, then submit_packet.
