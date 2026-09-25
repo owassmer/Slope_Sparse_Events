@@ -1,0 +1,139 @@
+{
+  "snapshot_id": "chromadex_20240819",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T18:10:22.076158+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "3.11.0",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "07ac345c1ab1df623949b7e5f8de01d0a846e1d9c0bd108a28ecb789f90043d0",
+    "sections": 520,
+    "flagged": 178,
+    "unscreened": 0,
+    "chunks": 539,
+    "units": 1205,
+    "flagged_units": 569,
+    "unscreened_units": 0,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 0,
+      "cache_hits": 1744,
+      "physical_attempts": 0,
+      "attempt_ceiling": 1500,
+      "spent_usd": "0",
+      "spend_cap_usd": "0.10"
+    },
+    "inventory_items": 569
+  },
+  "run_id": "chromadex_20240819-agent_plus_jev-20260925T181022Z",
+  "status": "CANDIDATE_READY",
+  "failure": null,
+  "incomplete_reasons": [],
+  "finished_at": "2026-09-25T18:16:06.180294+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "record_dependency": 2,
+    "read_evidence": 10,
+    "search_evidence": 6,
+    "propose_finding": 13,
+    "resolve_finding": 13,
+    "resolve_reconciliation": 5,
+    "instantiate_dispute": 3,
+    "run_scenarios": 1,
+    "propose_effect": 12,
+    "escalate_effect": 1,
+    "run_sensitivity": 1,
+    "request_missing_fact": 4,
+    "submit_packet": 3,
+    "StructuredOutput": 1
+  },
+  "turns_used": 38,
+  "max_turns": 120,
+  "claude": {
+    "num_turns": 80,
+    "duration_ms": 342002,
+    "usage": {
+      "input_tokens": 76,
+      "cache_creation_input_tokens": 120655,
+      "cache_read_input_tokens": 2423190,
+      "output_tokens": 35767,
+      "output_tokens_details": {
+        "thinking_tokens": 5542
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 120655,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 787,
+          "cache_read_input_tokens": 123626,
+          "cache_creation_input_tokens": 2274,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 2274
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 2.1655220000000006,
+    "structured_output": {
+      "conclusion": "Bank-only view: the requested $2.0M financing over 90 days in 3 monthly installments passes. Tier A; limit $3.62M, order limit $2.72M. Event-adjusted view: $2.0M fails. The engine's recommended structure is inst_90 at $1,430,000. The binding paths are the Delaware fee award (D. Del. 1:18-cv-01434, liability granted 25 Mar 2024, amount awaiting a ruling, up to about $9.8M) where ChromaDex appeals and posts a cash-collateralised stay bond (a model assumption). On those paths the lowest projected cash is about $12.7M. The $2.0M request needs $17.78M, and every fee-award path is short by at least $0.85M. The $2.5M Elysium owes ChromaDex under the C.D. Cal. judgment of 13 Aug 2024 is counted only once received. Approval also depends on the Western Alliance covenant on additional indebtedness permitting the financing. Material litigation sends the case to human exception review. No offer was made and no account was changed.",
+      "pivotal_unknowns": [
+        "Amount and timing of the D. Del. 1:18-cv-01434 attorneys' fees and costs award against ChromaDex (currently $0 to ~$9.8M; fully briefed, awaiting ruling)",
+        "Form of stay security if ChromaDex appeals the fee award (cash collateral vs surety bond/letter of credit)",
+        "Whether the Western Alliance Bank Credit Agreement's additional-indebtedness and liquidity covenants permit the Slope financing without consent",
+        "Whether/when Elysium paid the $2.5M owed to ChromaDex under C.D. Cal. Dkt. 618 (not relied upon)"
+      ],
+      "supported_effect_ids": [
+        "eff_007",
+        "eff_010",
+        "eff_011"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 115,
+    "cache_hits": 19,
+    "physical_attempts": 115,
+    "attempt_ceiling": 400,
+    "spent_usd": "0.009722034",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 2,
+    "candidates": 38,
+    "jev_calls": 134,
+    "observations": 406,
+    "findings": 13,
+    "reconciliations": 5,
+    "effects": 12,
+    "inventory": 569,
+    "disputes": 2
+  },
+  "chain_head": "4a9b2d5c05b7b0afdce77ab6268ea31c8219a35c93d6985edfa64bfa8cefd1ab"
+}
