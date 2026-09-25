@@ -190,12 +190,13 @@ class Semantics:
                                {"statement": statement, "cited_findings": cited_state, "engine_results": engine_results},
                                subject_ids, hashes)
 
-    async def coverage(self, passage: dict | list[dict], cited: list[AtomicFinding], subject_ids: tuple[str, ...],
-                       source_hashes: tuple[str, ...], review_date: str = "") -> list[SemanticObservation]:
-        """inventory_coverage: do the cited findings account for each live matter the passage describes?"""
-        cited_state = [{"finding_id": f.finding_id, "proposition": f.proposition} for f in cited]
-        state = {"passage": passage, "cited_findings": cited_state, **({"review_date": review_date} if review_date else {})}
-        return await self._ask("inventory_coverage", ["coverage_supported"], state, subject_ids, source_hashes)
+    async def coverage(self, passage: dict, cited: list[AtomicFinding], subject_ids: tuple[str, ...],
+                       source_hashes: tuple[str, ...]) -> list[SemanticObservation]:
+        """inventory_coverage: do the cited findings (with their quotes) account for each specific matter in the window?"""
+        cited_state = [{"finding_id": f.finding_id, "proposition": f.proposition, "quotes": [s.quote for s in f.spans],
+                        **({"is_inference": True} if f.is_inference else {})} for f in cited]
+        return await self._ask("inventory_coverage", ["coverage_supported"],
+                               {"passage": passage, "cited_findings": cited_state}, subject_ids, source_hashes)
 
     async def adds_matter(self, covered_passage: dict | list[dict], passage: dict, subject_ids: tuple[str, ...],
                           source_hashes: tuple[str, ...]) -> list[SemanticObservation]:

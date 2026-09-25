@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.3.1",
+  "registry_version": "3.4.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -73,7 +73,7 @@
     },
     "inventory_coverage": {
       "primitive": "choice",
-      "trigger": "host, on every inventory item the agent marks covered, duplicate or not decision-relevant (one request per section)",
+      "trigger": "host, on every inventory item the agent marks covered (one request per window of at most 2,500 characters of every section), duplicate or not decision-relevant (one request per flagged section chunk)",
       "questions": [
         "coverage_supported",
         "adds_matter",
@@ -599,26 +599,25 @@
     },
     {
       "id": "coverage_supported",
-      "version": "3.3.1",
+      "version": "3.4.0",
       "profile": "inventory_coverage",
       "primitive": "choice",
-      "question": "Do these findings account for each live specific matter this passage describes, one that could still change the decision from the review date?",
-      "applies_when": "The agent marks an inventory item as covered by accepted findings (asked once per section).",
+      "question": "Do the cited findings account for each specific matter this passage describes?",
+      "applies_when": "The agent marks an inventory item as covered by accepted findings (asked once per window of every section of the item).",
       "state_fields": [
-        "review_date",
         "passage",
         "cited_findings"
       ],
       "prompt": {
-        "instructions": "Do state.cited_findings account for each specific matter that state.passage describes and that could still change the borrower's cash, obligations, the earnings used in underwriting, or its ability to repay, from state.review_date on? A specific matter is a lawsuit or claim, a settlement, a loan or other financing agreement and its terms, a covenant or consent requirement, a restriction on cash, or an accounting gain, loss or accrual arising from one of these. Routine accounting policies, ordinary operating balances (receivables, payables, inventory, taxes, equity compensation) and generic disclosures are not specific matters. A passage may describe several. A finding accounts for a matter when it states what the passage establishes about that matter's cash, obligation, restriction, covenant or accounting treatment. Some content needs no finding: superseded history of a matter (earlier tranches, terms or maturities replaced by later amendments, prior-period balances) when the findings state that matter's current position, even if they do not mention the history; presentation details (a current and long-term split, a subtotal); and matters fully closed before the review date. Judge only whether something live is missing. Findings about a different matter, or about a different aspect than the one the passage describes, do not account for it.",
+        "instructions": "Do state.cited_findings account for each specific matter that state.passage describes? A specific matter is a lawsuit or claim, a settlement, a loan or other financing agreement and its terms, a covenant or consent requirement, a restriction on cash, or an accounting gain, loss or accrual arising from one of these. Routine accounting policies, ordinary operating balances (receivables, payables, inventory, taxes, equity compensation) and generic disclosures are not specific matters. A passage may describe several. A finding accounts for a matter when it states what the passage establishes about it, including that it was paid, released, modified, matured or superseded. Presentation details of a matter the findings state, such as a current and long-term split or a subtotal, are part of that matter. Each finding comes with its verbatim quotes; use them to tell which matter it concerns. Findings about a different matter, or about a different aspect than the one the passage describes, do not account for it.",
         "criteria": {
-          "covered": "Nothing live is missing: every live specific matter in the passage is accounted for, and the rest is superseded history, presentation detail or closed matters.",
-          "partly_covered": "The findings account for some live matters but miss another live specific matter the passage describes, or a distinct live item of one (for example another loan, a covenant, a payment requirement or an accounting gain).",
+          "covered": "Every specific matter the passage describes is accounted for by a finding.",
+          "partly_covered": "At least one specific matter the passage describes, or a distinct item of one (for example another loan, a covenant, a payment status or an accounting gain), has no finding.",
           "not_covered": "The findings concern a different matter or aspect.",
           "unclear": "Cannot tell what the passage describes or what the findings state."
         }
       },
-      "application": "An inventory item marked covered must actually be covered. A clear gap is closed with a finding, shown to be a duplicate of a covered item, or escalated as disputed; it is never overridden."
+      "application": "An inventory item marked covered must be covered window by window. A clear gap is closed with a cited finding (which may state that a matter was paid, closed or superseded), a verified duplicate, or escalation as disputed; it is never overridden."
     },
     {
       "id": "adds_matter",

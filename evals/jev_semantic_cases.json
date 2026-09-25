@@ -1,7 +1,7 @@
 {
   "artifact": "jev_semantic_boundary_cases",
-  "version": "1.5.0",
-  "registry_version": "3.3.1",
+  "version": "1.6.0",
+  "registry_version": "3.4.0",
   "access_class": "host_evaluator_only",
   "policy": "Labelled semantic boundary cases for sanity-checking Jev questions and the code-owned routing thresholds. Non-synthetic passages are sliced verbatim from admissible decision-date snapshot text, with the snapshot's source metadata. Never mount into an agent or reviewer run.",
   "cases": [
@@ -745,7 +745,6 @@
       "profile": "inventory_coverage",
       "question_id": "coverage_supported",
       "state": {
-        "review_date": "2024-08-13",
         "passage": {
           "heading_path": "MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS > Liquidity and Capital Resources",
           "text": "On December 28, 2023, we entered into a confidential settlement agreement and mutual general release with a former supplier. The loan bears interest at 5% per annum and is payable in full with the last payment. This settlement resulted in a gain to us of $2,235,986 and is reflected as a reduction of cost of sales (See Note 13). During 2023, we made payments of $1,000,000 toward this loan. The outstanding loan balance at December 31, 2023 was $4,802,445, including interest of $352,445."
@@ -766,7 +765,6 @@
       "profile": "inventory_coverage",
       "question_id": "coverage_supported",
       "state": {
-        "review_date": "2024-08-13",
         "passage": {
           "heading_path": "MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS > Liquidity and Capital Resources",
           "text": "On December 28, 2023, we entered into a confidential settlement agreement and mutual general release with a former supplier. The loan bears interest at 5% per annum and is payable in full with the last payment. This settlement resulted in a gain to us of $2,235,986 and is reflected as a reduction of cost of sales (See Note 13). During 2023, we made payments of $1,000,000 toward this loan. The outstanding loan balance at December 31, 2023 was $4,802,445, including interest of $352,445."
@@ -791,7 +789,6 @@
       "profile": "inventory_coverage",
       "question_id": "coverage_supported",
       "state": {
-        "review_date": "2024-08-13",
         "passage": {
           "heading_path": "CERTAIN RELATIONSHIPS AND RELATED PARTY TRANSACTIONS",
           "text": "On April 2, 2014, we entered into a Sales and Marketing Consultant and Distribution Agreement with Kenek Brands, Inc. (“Kenek”), a company owned by Jack Ross, our Chief Executive Officer. For the years ended December 31, 2023, 2022 and 2021, we expensed consulting fees of $500,000, $738,483 and $1,287,296, respectively. For the year ended December 31, 2023, we paid eight months of a vehicle allowance of $2,500 per month. For the year ended December 31, 2022, we paid fifteen months of a vehicle allowance of $2,500 per month. We advanced $501,321 and $131,894 in the manner of a prepaid bonus in the years ended December 31, 2023 and 2022, respectively. We advanced $326,683 during the six months ended June 30, 2024. During the six months ended June 30, 2024 we were advanced $1,400,000 and $149,500 Canadian Dollars (US Dollars $109,225) in the form of a short -term note. During the six months ended June 30, 2024 we applied advances of $328,003 to the note balance. The balance owing at June 30, 2024 was $1,181,222. During 2023, we were advanced $1,170,000 in the form of a short -term note. We repaid this during 2023 with interest of $210,000."
@@ -812,7 +809,6 @@
       "profile": "inventory_coverage",
       "question_id": "coverage_supported",
       "state": {
-        "review_date": "2024-08-13",
         "passage": {
           "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 11 — Notes Payable",
           "text": "[synergy_s1a_20240813#t0045]\n|  | June 30, 2024 | December 31, 2023 |\n| Kenek, related party | $1,181,222 | $— |\n| Knight | 12,333,053 | 12,426,997 |\n| Sanders | 9,794,165 | 10,294,165 |\n| Atrium | 4,802,445 | 4,802,445 |\n| VitBest | 2,920,824 | — |\n| Shopify | 482,725 | 94,525 |\n| Total notes payable | $31,514,434 | $27,630,420 |\n| Unamortized debt issuance cost | (55,535) | (12,288) |\n| Total notes payable, net | 31,458,899 | 27,618,132 |\n| Short term loan payable, related party | (1,181,222) | — |\n| Current portion, related party | (2,000,000) | — |\n| Current portion, other | (5,887,602) | (2,094,525) |\n| Long-term portion, related party | 10,333,053 | 12,426,997 |\n| Long-term portion, other | $12,057,022 | $13,096,610 |"
@@ -857,7 +853,6 @@
       "profile": "inventory_coverage",
       "question_id": "coverage_supported",
       "state": {
-        "review_date": "2024-08-13",
         "passage": {
           "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 11 — Notes Payable",
           "text": "[synergy_s1a_20240813#t0045]\n|  | June 30, 2024 | December 31, 2023 |\n| Kenek, related party | $1,181,222 | $— |\n| Knight | 12,333,053 | 12,426,997 |\n| Sanders | 9,794,165 | 10,294,165 |\n| Atrium | 4,802,445 | 4,802,445 |\n| VitBest | 2,920,824 | — |\n| Shopify | 482,725 | 94,525 |\n| Total notes payable | $31,514,434 | $27,630,420 |\n| Unamortized debt issuance cost | (55,535) | (12,288) |\n| Total notes payable, net | 31,458,899 | 27,618,132 |\n| Short term loan payable, related party | (1,181,222) | — |\n| Current portion, related party | (2,000,000) | — |\n| Current portion, other | (5,887,602) | (2,094,525) |\n| Long-term portion, related party | 10,333,053 | 12,426,997 |\n| Long-term portion, other | $12,057,022 | $13,096,610 |"
@@ -994,7 +989,6 @@
       "profile": "inventory_coverage",
       "question_id": "coverage_supported",
       "state": {
-        "review_date": "2024-08-13",
         "passage": {
           "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 11 — Notes Payable",
           "text": "Terms of the $10,000,000 August 9, 2017 loan (Third Tranche) (see note 9) were modified in the Third amendment. Third tranche shall bear interest from May 8, 2020 at a rate equal to 12.5% per annum compounded quarterly. The Company shall pay success fee in the amount of $1,000,000 with respect to the Third Tranche, which shall be fully earned on May 8, 2020 and payable no later than August 31, 2022. Third Tranche success fee shall bear interest at 12.5% per annum compounding quarterly. The loan has been extended to a maturity date of December 31, 2021. Because these amendments were considered not substantive changes, the Company accounted for the modifications as modification of debt."
@@ -1002,12 +996,25 @@
         "cited_findings": [
           {
             "finding_id": "fnd_k1",
-            "proposition": "Under the Amended and Restated Loan Agreement, as amended by the Sixth Amendment dated June 6, 2024, Synergy owed Knight $12,333,053 at June 30, 2024, bearing interest at 12% per year."
+            "proposition": "Under the Amended and Restated Loan Agreement, as amended by the Sixth Amendment dated June 6, 2024, Synergy owed Knight $12,333,053 at June 30, 2024, bearing interest at 12% per year.",
+            "quotes": [
+              "The total consolidated amount outstanding under such loan was $12,333,053 as of June 30, 2024, and the loan bears interest at a rate of 12% per year."
+            ]
+          },
+          {
+            "finding_id": "fnd_k3",
+            "is_inference": true,
+            "proposition": "The $10,000,000 August 9, 2017 Third Tranche (12.5% interest from May 8, 2020) was modified by the Third Amendment, accounted for as a debt modification, and extended to a maturity of December 31, 2021, with a $1,000,000 success fee (bearing 12.5% interest) payable no later than August 31, 2022; it is part of the Knight loan now outstanding under the Sixth Amendment (inference from the loan agreement history).",
+            "quotes": [
+              "Terms of the $10,000,000 August 9, 2017 loan (Third Tranche) (see note 9) were modified in the Third amendment.",
+              "The loan has been extended to a maturity date of December 31, 2021.",
+              "The Company shall pay success fee in the amount of $1,000,000 with respect to the Third Tranche, which shall be fully earned on May 8, 2020 and payable no later than August 31, 2022."
+            ]
           }
         ]
       },
       "expected": "covered",
-      "why": "The 2017 tranche terms (matured 2021) are superseded history; the finding states the loan's current terms."
+      "why": "Superseded history is covered by a cited finding that states it was modified and matured; the other finding states the current terms."
     },
     {
       "case_id": "syn_coverage_live_covenant_missed",
@@ -1015,7 +1022,6 @@
       "profile": "inventory_coverage",
       "question_id": "coverage_supported",
       "state": {
-        "review_date": "2024-08-13",
         "passage": {
           "heading_path": "PROSPECTUS SUMMARY > Relationships with Knight Therapeutics",
           "text": "The lender under our Amended and Restated Loan Agreement, as amended by the Sixth Amendment dated June 6, 2024, is Knight Therapeutics (Barbados) Inc. (“Knight”). The total consolidated amount outstanding under such loan was $12,333,053 as of June 30, 2024, and the loan bears interest at a rate of 12% per year. Under this loan, we are subject to a number of financial and operating covenants, including the requirement that Knight approve our quarterly and annual operating budget prior to implementation. For additional information, see “Management’s Discussion and Analysis of Financial Condition and Results of Operations — Liquidity and Capital Resources — Short- and Long -Term Borrowings” and the notes to our condensed consolidated financial statements that are included elsewhere in this prospectus. An affiliate of Knight is also the beneficial owner of approximately 19.6% of our outstanding common stock. In addition, we have entered into several distribution agreements with Knight Therapeutics, Inc., an affiliate of Knight, for the distribution of our products. See “Certain Relationships and Related Party Transactions” for additional information."

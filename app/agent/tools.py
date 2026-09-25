@@ -83,6 +83,7 @@ OVERRIDE_NOTE_MIN = 20
 BLOCKING_KINDS = {"legal_matter_or_settlement", "debt_or_financing_agreement", "covenant_or_restriction", "cash_restriction",
                   "accounting_item_from_a_matter"}
 MAX_DUPLICATE_PASSAGES = 6
+COVERAGE_WINDOW_CHARS = 2_500  # coverage unit: small enough that a failure points the agent at what is missing
 
 
 class ToolError(Exception):
@@ -679,6 +680,22 @@ def _attribute_screen(ctx: RunContext, finding: AtomicFinding) -> None:
         _dispose(ctx, unused, "used_in_finding", f"screened passage cited in {finding.finding_id}")
 
 
+def _coverage_windows(ctx: RunContext, item: InventoryItem) -> list[tuple[str, dict, str]]:
+    """(window key, passage, source hash) for every window of every section of the item: all of the text, split at
+    paragraph breaks into pieces of at most COVERAGE_WINDOW_CHARS. The key is section_id:start-end (character offsets)."""
+    out = []
+    for sid in item.section_ids:
+        sec = ctx.evidence.read_section(sid)
+        pos = 0
+        for piece in chunks(sec["text"], COVERAGE_WINDOW_CHARS):
+            start = sec["text"].find(piece, pos)
+            start = pos if start < 0 else start
+            pos = start + len(piece)
+            out.append((f"{sid}:{start}-{pos}", {"heading_path": " > ".join(sec["heading_path"]), "text": piece},
+                        sec["source"]["sha256"]))
+    return out
+
+
 def _matter_passages(ctx: RunContext, item: InventoryItem) -> list[tuple[str, dict, str]]:
     """(section_id, flagged chunk, source hash) for every section of the matter, located by the sweep's excerpts."""
     excerpts = list(item.section_excerpts) or [item.excerpt] * len(item.section_ids)
@@ -692,11 +709,11 @@ def _matter_passages(ctx: RunContext, item: InventoryItem) -> list[tuple[str, di
 
 
 async def _per_section(ctx: RunContext, item: InventoryItem, ask, failing: set[str], label: str, advice: str,
-                       reuse=None) -> list[SemanticObservation]:
-    """Run one host check per section (in parallel). A clear failing answer on any section rejects the entry and names the
-    observation the agent may escalate; there is no free-text override. `reuse(section_id)` may return an earlier passing
-    observation that still holds, so a retry re-checks only the sections that failed."""
-    passages = _matter_passages(ctx, item)
+                       reuse=None, units=None) -> list[SemanticObservation]:
+    """Run one host check per unit (a flagged section chunk, or a coverage window), in parallel. A clear failing answer on
+    any unit rejects the entry and names the observation the agent may escalate; there is no free-text override.
+    `reuse(key)` may return an earlier passing observation that still holds, so a retry re-checks only failed units."""
+    passages = units if units is not None else _matter_passages(ctx, item)
     kept = {sid: reuse(sid) for sid, _, _ in passages} if reuse else {}
 
     async def one(sid, passage, sha):
@@ -711,9 +728,9 @@ async def _per_section(ctx: RunContext, item: InventoryItem, ask, failing: set[s
     fresh = [o for (sid, _, _), o in zip(passages, obs, strict=True) if kept.get(sid) is None]
     if failed:
         _dispose(ctx, [o for _, o in failed], "challenged_agent_draft", f"{label} on {item.item_id}")
-        detail = "; ".join(f"{sid}: {meaning(o.question_id, o.answer)} ({o.observation_id})" for sid, o in failed)
+        detail = "; ".join(f"{key}: {meaning(o.question_id, o.answer)} ({o.observation_id})" for key, o in failed)
         passed = len(passages) - len(failed)
-        raise ToolError(f"{item.item_id}: {label} failed on {len(failed)} of {len(passages)} sections ({passed} passed and "
+        raise ToolError(f"{item.item_id}: {label} failed on {len(failed)} of {len(passages)} parts ({passed} passed and "
                         f"will not be re-checked). {detail}. {advice} If you disagree, escalate the item with the "
                         "observation_id and what is not accounted for; it will stay open for the reviewer.")
     _dispose(ctx, [o for o in fresh if o.downstream_disposition == "unused" and not o.disposition_note],
@@ -724,21 +741,20 @@ async def _per_section(ctx: RunContext, item: InventoryItem, ask, failing: set[s
 async def _check_coverage(ctx: RunContext, item: InventoryItem, fids: tuple[str, ...]) -> list[SemanticObservation]:
     """Host check that 'covered' is true for every section: the cited findings must account for what it describes."""
     cited = [ctx.run.graph["findings"][f] for f in fids]
-    review_date = str(ctx.evidence.snapshot_info()["cutoff"])[:10]
 
-    def reuse(sid: str) -> SemanticObservation | None:
-        # Adding findings cannot uncover a section: an earlier clear pass with a subset of these findings still holds.
+    def reuse(key: str) -> SemanticObservation | None:
+        # Adding findings cannot uncover a window: an earlier clear pass with a subset of these findings still holds.
         for o in ctx.run.graph["observations"].values():
-            if (o.question_id == "coverage_supported" and o.subject_ids[:2] == (item.item_id, sid)
+            if (o.question_id == "coverage_supported" and o.subject_ids[:2] == (item.item_id, key)
                     and set(o.subject_ids[2:]) <= set(fids) and o.answer == "covered" and not is_ambiguous(o)):
                 return o
         return None
     return await _per_section(
-        ctx, item, lambda sid, passage, sha: ctx.semantics.coverage(passage, cited, (item.item_id, sid, *fids), (sha,),
-                                                                    review_date),
+        ctx, item, lambda key, passage, sha: ctx.semantics.coverage(passage, cited, (item.item_id, key, *fids), (sha,)),
         {"partly_covered", "not_covered"}, "coverage check",
-        "Read the failed sections, propose and accept findings for the live matters they establish, then account for the "
-        "item again citing all its findings.", reuse=reuse)
+        "Read each failed window (section_id:start-end character range) and propose and accept a finding for each specific "
+        "matter it describes, including one stating that a matter was paid, closed or superseded, then account for the item "
+        "again citing all its findings.", reuse=reuse, units=_coverage_windows(ctx, item))
 
 
 async def _check_duplicate(ctx: RunContext, item: InventoryItem, other: InventoryItem) -> list[SemanticObservation]:

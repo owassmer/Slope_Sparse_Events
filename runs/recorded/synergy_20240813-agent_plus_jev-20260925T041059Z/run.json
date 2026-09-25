@@ -1,0 +1,155 @@
+{
+  "snapshot_id": "synergy_20240813",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T04:10:59.099239+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "3.3.1",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "e9695c8c3ec0c573c4a887419be131be44fab16382eba20f6286aac3b51676fe",
+    "sections": 297,
+    "flagged": 67,
+    "unscreened": 0,
+    "chunks": 305,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 0,
+      "cache_hits": 305,
+      "physical_attempts": 0,
+      "attempt_ceiling": 800,
+      "spent_usd": "0",
+      "spend_cap_usd": "0.10"
+    },
+    "inventory_items": 36
+  },
+  "run_id": "synergy_20240813-agent_plus_jev-20260925T041059Z",
+  "status": "INCOMPLETE_REVIEW",
+  "failure": null,
+  "incomplete_reasons": [
+    "disputed inventory item inv_003 (debt or financing agreement): WebBank Definitions section: findings fnd_011/012/016/022/023 cover the daily payment, minimum payment, account sweep, obligations, make-up payments and term; the checker still flags an unspecified definition (possibly Owner/Confidential/Arbitration terms) as uncovered. No additional cash term identified.",
+    "disputed inventory item inv_004 (debt or financing agreement): Knight prospectus-summary paragraph: fnd_020/009/010 cover the balance, 12% rate, covenants, budget approval, 19.6% affiliate ownership and distribution agreements; checker flags an unspecified remaining part.",
+    "disputed inventory item inv_006 (accounting item from a matter): FY2023 results MD&A; the settlement gain in cost of sales is covered by fnd_025/eff_017, but the section's other 2023 operating-result items were not separately recorded as findings.",
+    "disputed inventory item inv_007 (debt or financing agreement): Long liquidity section: Knight, Sanders, settlement loans, Shopify loans, BoomBod and cash are covered; not separately recorded are the historical Knight amendment fees, the Third Amendment $600,000 minimum-cash covenant (whether it survives the Fifth/Sixth Amendments is unclear), the March 2024 $1.4M CEO-entity note and the Neuragen note history.",
+    "disputed inventory item inv_009 (debt or financing agreement): Related-party transactions section s0142 not read in full within the turn budget; Knight and CEO-entity items are covered by fnd_013/014/020.",
+    "disputed inventory item inv_011 (debt or financing agreement): Underwriting agreement for an IPO that had not closed as of Aug 13, 2024; possible offering proceeds (cash inflow) and underwriter compensation not recorded as a finding. Not relied on for the advance.",
+    "disputed inventory item inv_012 (covenant or restriction): Underwriter warrant exercise price, expiry tranches and lock-up are not in fnd_027; there is no Synergy cash outflow.",
+    "disputed inventory item inv_019 (debt or financing agreement): Note 9 sections s0197/s0198: consulting-fee prepayments to the CEO's company ($500,000 prepaid) and Knight distribution-fee/royalty history consolidated into the Knight loan are not separately recorded.",
+    "disputed inventory item inv_021 (debt or financing agreement): Note 11 notes payable (8 sections): the 2024 settlement schedules (Atrium $2.0M, VitBest $600k), Knight, Sanders and Shopify terms are covered, but not every sub-loan history (Neuragen note, Knight tranches/fees, individual Shopify advances, current-portion classification) was recorded atomically. The current portion (other) of $5,887,602 at June 30, 2024 needs reconciling to 2024 cash due.",
+    "disputed inventory item inv_025 (cash restriction): Dec 31, 2023/2022 restricted-cash reconciliation not separately recorded; the June 30, 2024 restricted cash ($100,000 credit card collateral) is covered by fnd_007.",
+    "disputed inventory item inv_030 (debt or financing agreement): FY2023 related-party note s0242 (CEO consulting fees, vehicle allowance, etc.) not recorded as a finding.",
+    "disputed inventory item inv_032 (debt or financing agreement): FY2023 annual Note 11 sections s0247/s0248/s0251/s0252 (Knight tranche history, debenture history, Atrium settlement as of Dec 31, 2023) were not recorded atomically. The June 30, 2024 schedules that supersede them are covered by fnd_004/fnd_006/fnd_021/fnd_024.",
+    "disputed inventory item inv_033 (legal matter or settlement): FY2023 annual contingencies note s0255 may state an LODC/Atrium posture as of the annual issuance date that differs from the June 30, 2024 note; it was not read within the turn budget. The current status is covered by fnd_001/fnd_017.",
+    "disputed inventory item inv_035 (debt or financing agreement): FY2023 subsequent-events note s0259 (Jan 29, 2024 Shopify loan, March 2024 settlements/modifications) was not read in full; the current balances are covered by fnd_006/016/021.",
+    "disputed inventory item inv_036 (debt or financing agreement): Recent sales of unregistered securities (debentures/warrants history) were not recorded as a finding; the live debenture terms are covered by fnd_021."
+  ],
+  "finished_at": "2026-09-25T04:20:27.216656+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "read_evidence": 22,
+    "record_dependency": 6,
+    "search_evidence": 4,
+    "judge": 5,
+    "propose_finding": 28,
+    "resolve_finding": 27,
+    "propose_effect": 17,
+    "run_sensitivity": 4,
+    "account_for_items": 8,
+    "resolve_reconciliation": 1,
+    "request_missing_fact": 2,
+    "submit_packet": 2,
+    "StructuredOutput": 1
+  },
+  "turns_used": 53,
+  "max_turns": 80,
+  "claude": {
+    "num_turns": 132,
+    "duration_ms": 564922,
+    "usage": {
+      "input_tokens": 106,
+      "cache_creation_input_tokens": 175300,
+      "cache_read_input_tokens": 5790840,
+      "output_tokens": 59804,
+      "output_tokens_details": {
+        "thinking_tokens": 9753
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 175300,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 869,
+          "cache_read_input_tokens": 178060,
+          "cache_creation_input_tokens": 3669,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 3669
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 3.757072,
+    "structured_output": {
+      "conclusion": "No lending recommendation can be supported yet; the requested advance cannot be judged affordable. Synergy must pay $2.0M on the Atrium settlement loan and $600k on the March 27, 2024 supplier settlement loan in 2024, against about $2.0M of reported cash. How much of those installments was paid after June 30, 2024 is unknown.\n\nThe sensitivity runs use reported cash and a $200k reserve:\n- With $100k of cash treated as unavailable, Synergy needs $900k of additional net cash if none of the settlement installments has been paid, $250k if 25% has been paid, and $0 if 50% has been paid.\n- With $0 unavailable, the figures are $800k, $150k and $0.\n- With $500k unavailable, Synergy needs $1.3M at 0% paid, $650k at 25%, $390k at 35% and $0 at 50%.\n\nThese are necessary cumulative conditions, not dated shortfalls. They exclude the advance's own repayments, Knight and Sanders monthly interest, and the CEO-entity note. Knight's approval of the operating budget and its EBITDA covenant also bear on whether any new advance is permitted. A Knight default would cross-default the Sanders loan.\n\nLinking the 'Atrium' notes-payable row to the Dec 28, 2023 $5.45M settlement loan is an inference from matching balances and a cross-reference (fnd_003). The review is incomplete because escalated inventory items remain.",
+      "pivotal_unknowns": [
+        "Amount and dates of payments already made on the Atrium ($2.0M) and March 27, 2024 supplier ($600k) 2024 settlement installments since June 30, 2024",
+        "Whether the Knight loan agreement (Sixth Amendment) or the Sanders note restricts new debt, requires Knight consent or budget approval for the advance, or still carries a $600,000 minimum-cash covenant",
+        "Repayment date of the CEO-entity short-term note",
+        "Whether the ~$2.0M Aug 12 cash figure includes the $100k restricted credit card collateral",
+        "Monthly cash interest to Knight and Sanders, and Synergy's operating cash flow through Dec 31, 2024"
+      ],
+      "supported_effect_ids": [
+        "eff_005",
+        "eff_006",
+        "eff_008",
+        "eff_009",
+        "eff_013",
+        "eff_014",
+        "eff_017"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 143,
+    "cache_hits": 34,
+    "physical_attempts": 143,
+    "attempt_ceiling": 250,
+    "spent_usd": "0.015483258",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 6,
+    "candidates": 13,
+    "jev_calls": 177,
+    "observations": 367,
+    "findings": 27,
+    "reconciliations": 1,
+    "effects": 17,
+    "inventory": 36
+  },
+  "chain_head": "299bed15922e0f1561fc195222ab50bea54c567e75b8d7c377b087d25388b5cb"
+}
