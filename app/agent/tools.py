@@ -559,7 +559,7 @@ def _dispute_amount(item: dict, quotes: str) -> EvidenceValue:
     if item.get("value_cents") is not None:
         cents = int(item["value_cents"])
         if cents <= 0:
-            raise ToolError("The amount is positive; borrower_role says which way it flows")
+            raise ToolError("The amount is positive; Jev reads which way it flows")
         if _cents_in_text(cents, quotes):
             return EvidenceValue(status=Status.EXACT, unit=Unit.CENTS, value=cents,
                                  provenance=Provenance(basis=Basis.DOCUMENTED, note=basis_note or None))
@@ -578,20 +578,21 @@ def _dispute_amount(item: dict, quotes: str) -> EvidenceValue:
 
 
 def _path_view(p) -> dict:
-    return {"path": " -> ".join(p.labels), "ends": p.terminal,
-            "weight": "not judged" if p.weight_bps is None else f"{p.weight_bps / 100:.0f}%",
+    return {"path": " -> ".join(p.labels), "ends": p.terminal, **({"same_cash_as": list(p.also)} if p.also else {}),
+            **({"the_record_points_here": list(p.points_here)} if p.points_here else {}),
             "cash": [{"kind": c.kind, "label": c.label, "amount": c.amount.model_dump(mode="json", exclude_none=True),
                       "window": [c.window_start.isoformat(), c.window_end.isoformat()], "rule": c.rule} for c in p.cash]}
 
 
 async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
-    """Place one live dispute onto the host-owned post-judgment dispute model. The agent supplies the accepted findings,
-    the borrower's side, the counterparty, the amount and any judgment date (checked against the quotes). The host
-    traverses the model: Jev places the stage and judges each transition (refined by factors where uncertain and
-    decision-relevant); code sets every date and amount from the model's rules and composes the weighted paths."""
+    """Compile one live dispute onto the host-owned dispute model. The agent groups the accepted findings about one
+    obligation, names it and the counterparty, and quotes the amount and any judgment date (both checked against the
+    quotes). Jev reads each finding atomically (who pays, the amount's status, procedural events, factors); code places
+    the stage, closes only the paths an established fact rules out, sets every date and amount, and keeps every other
+    path for the policy test."""
     from app.agent.jev_profiles import DisputeProfile
     from app.decisions.scenarios import HORIZON_DAYS
-    from app.disputes.evaluate import Evaluator
+    from app.disputes.evaluate import Compiler
     from app.disputes.rules import load_model
 
     dep = ctx.run.get("dependencies", args["dependency_id"])
@@ -600,11 +601,11 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
     bad = [f for f, x in zip(fids, findings, strict=True) if x is None or x.status != "accepted"]
     if not fids or bad:
         raise ToolError(f"A dispute rests on accepted findings (not accepted: {bad or 'none given'})")
-    if args.get("borrower_role") not in ("debtor", "creditor"):
-        raise ToolError("borrower_role is debtor (the borrower owes) or creditor (the borrower is owed)")
     title, counterparty = (args.get("title") or "").strip(), (args.get("counterparty") or "").strip()
-    if not title or not counterparty:
-        raise ToolError("Give the dispute a short title and name the counterparty")
+    obligation = (args.get("obligation") or "").strip()
+    if not title or not counterparty or not obligation:
+        raise ToolError("Give the dispute a short title, the obligation (what is owed, under which order or judgment) "
+                        "and the counterparty")
     live = {d.instance_id: d for d in ctx.run.graph["disputes"].values() if d.status != "superseded"}
     replaced = args.get("supersedes")
     if replaced and replaced not in live:
@@ -628,25 +629,23 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
     model = load_model()
     draft = DisputeInstance(
         instance_id=ctx.run.new_id("dispute"), dependency_id=dep.dependency_id, model_id=model["model_id"],
-        model_version=model["model_version"], title=title, borrower_role=args["borrower_role"],
-        counterparty=counterparty, finding_ids=fids, amount=_dispute_amount(args.get("amount") or {}, quotes),
-        amount_includes_interest=bool((args.get("amount") or {}).get("includes_post_judgment_interest")),
-        judgment_date=judgment_date, proposed_extension=(args.get("proposed_extension") or "").strip())
+        model_version=model["model_version"], title=title, obligation=obligation, counterparty=counterparty,
+        finding_ids=fids, amount=_dispute_amount(args.get("amount") or {}, quotes), judgment_date=judgment_date,
+        proposed_extension=(args.get("proposed_extension") or "").strip())
     judge = None
     if ctx.semantics is not None:
         hashes = tuple(dict.fromkeys(ctx.evidence.read(f.spans[0].item_id)["source"]["sha256"] for f in findings))
         judge = DisputeProfile(ctx.semantics, hashes)
-    sources = {s["source_id"]: s["available_at"][:10] for s in ctx.evidence.list_sources()}
-    evaluator = Evaluator(draft, findings, judge=judge, borrower=ctx.inputs["baseline_profile"]["borrower"],
-                          source_dates=sources, review=review, horizon=review + timedelta(days=HORIZON_DAYS),
-                          request_cents=ctx.inputs["run_inputs"]["requested_amount"]["value"],
-                          agent_stage=args.get("stage"), model=model)
+    sources = {s["source_id"]: (s["title"], s["available_at"][:10]) for s in ctx.evidence.list_sources()}
+    compiler = Compiler(draft, findings, judge=judge, borrower=ctx.inputs["baseline_profile"]["borrower"],
+                        sources=sources, review=review, horizon=review + timedelta(days=HORIZON_DAYS),
+                        agent_reading={k: args.get(k) for k in ("borrower_role", "stage")}, model=model)
     try:
-        instance = await evaluator.run()
+        instance = await compiler.run()
     except Exception as e:
         if judge is not None:
             _record_jev_failure(ctx, e)
-        raise ToolError(f"The dispute could not be evaluated: {e}") from e
+        raise ToolError(f"The dispute could not be compiled: {e}") from e
     if instance.observation_ids:
         used = [ctx.run.get("observations", o) for o in instance.observation_ids]
         _dispose(ctx, used, "used_in_finding", f"dispute model for {instance.instance_id}")
@@ -654,17 +653,18 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
         ctx.run.put("dispute_instantiated", live[replaced].model_copy(update={"status": "superseded",
                                                                               "superseded_by": instance.instance_id}))
     ctx.run.put("dispute_instantiated", instance)
-    stages = model["stages"]
+    stages, labels = model["stages"], model["readings"]["amount_status_labels"]
     return {"instance_id": instance.instance_id, "status": instance.status,
+            "borrower": {"debtor": "pays", "creditor": "is paid"}.get(instance.borrower_role or "", "not established"),
+            "amount_status": labels.get(instance.amount_status, instance.amount_status),
             "stage": stages[instance.stage]["label"] if instance.stage else None,
-            "paths": [_path_view(p) for p in instance.paths],
-            "pruned_weight": f"{instance.pruned_weight_bps / 100:.1f}%",
-            "refined_transitions": [j.stage for j in instance.transitions if j.refined],
+            "established_events": {k: v.finding_id for k, v in instance.established.items()},
             "factors": [{"factor": f.label, "level": f.level_label} for f in instance.factors],
+            "closed_paths": instance.closed, "paths": [_path_view(p) for p in instance.paths],
             "evidence_requests": [r.action for r in instance.evidence_requests],
             **({"proposed_extension": "recorded and flagged for the reviewer; the model is unchanged"}
                if instance.proposed_extension else {}),
-            "note": model["weights_label"] + " run_scenarios shows every path's cash and the weighted view."}
+            "note": model["paths_label"] + " run_scenarios tests every path."}
 
 
 async def run_scenarios(ctx: RunContext, _args: dict) -> dict:
@@ -683,7 +683,7 @@ async def run_scenarios(ctx: RunContext, _args: dict) -> dict:
                                         "order_limit_cents": e["views"][view]["policy"]["order_limit_cents"]}
                                  for view in views}
                           for name, e in s["structures"].items()},
-           "disputes": s["disputes"], "weights_label": s["weights_label"]}
+           "disputes": s["disputes"], "paths_label": s["paths_label"]}
     ctx.run.append("scenarios_run", object_ids=tuple(d.instance_id for d in disputes), payload={
         "recommendation": s["recommendation"], "instance_ids": [d.instance_id for d in disputes]})
     return out
@@ -1139,24 +1139,23 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
      "how much was paid since the measurement date. Optionally state an assumed unavailable share of reported cash.",
      obj({"effect_ids": {"type": "array", "items": S}, "paid_fractions": {"type": "array", "items": S},
           "unavailable_opening_cash_cents": {"type": "integer"}}, ["effect_ids"]), run_sensitivity),
-    ("instantiate_dispute", "Place one live dispute (a money judgment, or a liability ruling whose amount is still open) "
-     "onto the host's post-judgment dispute model. Cite the accepted findings about it; say whether the borrower is the "
-     "debtor (owes) or the creditor (is owed); name the counterparty; give the amount (value_cents, or "
-     "lower_cents/upper_cents; state `basis` if it is not quoted in the findings) and the judgment's entry date if one "
-     "has been entered (it must appear in the cited quotes). Say if the amount already includes post-judgment interest. "
-     "A dispute is modelled once; to correct one, pass `supersedes` with its instance ID. The host places the stage, judges each transition with Jev "
-     "and sets every date and amount from the model's rules. You may give your own `stage` reading and a "
-     "`proposed_extension` if the model lacks a step the record shows; an extension is flagged, not used.",
-     obj({"dependency_id": S, "title": S, "finding_ids": {"type": "array", "items": S},
-          "borrower_role": {"type": "string", "enum": ["debtor", "creditor"]}, "counterparty": S,
+    ("instantiate_dispute", "Compile one live dispute (a money judgment, or a liability ruling whose amount is still "
+     "open) onto the host's post-judgment dispute model. Cite the accepted findings about one obligation; give a short "
+     "title, the obligation (what is owed, under which order or judgment) and the counterparty; quote the amount "
+     "(value_cents, or lower_cents/upper_cents; state `basis` if it is not quoted in the findings) and the judgment's "
+     "entry date if one has been entered (it must appear in the cited quotes). Jev reads each finding (who pays, the "
+     "amount's status, the procedural events, the factors); code places the stage, sets every date and amount, and "
+     "keeps every cash path the evidence permits. A dispute is modelled once; to correct one, pass `supersedes` with "
+     "its instance ID. You may add a `proposed_extension` if the model lacks a step the record shows (flagged, not "
+     "used). borrower_role and stage are used only when no Jev is available.",
+     obj({"dependency_id": S, "title": S, "obligation": S, "finding_ids": {"type": "array", "items": S},
+          "counterparty": S,
           "amount": obj({"value_cents": {"type": "integer"}, "lower_cents": {"type": "integer"},
-                         "upper_cents": {"type": "integer"}, "basis": S,
-                         "includes_post_judgment_interest": {"type": "boolean"}}, []),
-          "supersedes": S,
-          "judgment_date": S, "stage": {"type": "string", "enum": ["amount_pending", "judgment_entered",
-                                                                     "appeal_pending", "enforcement"]},
-          "proposed_extension": S},
-         ["dependency_id", "title", "finding_ids", "borrower_role", "counterparty", "amount"]), instantiate_dispute),
+                         "upper_cents": {"type": "integer"}, "basis": S}, []),
+          "judgment_date": S, "supersedes": S, "proposed_extension": S,
+          "borrower_role": {"type": "string", "enum": ["debtor", "creditor"]},
+          "stage": {"type": "string", "enum": ["amount_pending", "judgment_entered", "appeal_pending", "enforcement"]}},
+         ["dependency_id", "title", "obligation", "finding_ids", "counterparty", "amount"]), instantiate_dispute),
     ("run_scenarios", "Run the deterministic cash engine for every Slope structure: the bank-only view and the "
      "event-adjusted view along every path of your instantiated disputes. Returns the recommendation and what binds it, "
      "which structures pass policy, the limits and the funding conditions.", obj({}, []), run_scenarios),

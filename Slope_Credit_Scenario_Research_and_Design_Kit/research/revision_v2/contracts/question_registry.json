@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.10.0",
+  "registry_version": "3.11.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -80,13 +80,24 @@
     },
     "dispute_model": {
       "primitive": "choice+noul+score",
-      "trigger": "host, when the agent instantiates a live dispute onto the host-owned dispute model (contracts/dispute_model.json)",
+      "trigger": "host, when the agent instantiates a live dispute: per cited finding, a reading request (direction, amount status, interest, procedural events), a relevance request (one question per factor), and a level request per routed graded factor",
       "questions": [
-        "dispute_stage",
-        "factor_routing",
-        "factor_level",
-        "factor_present",
-        "dispute_transition"
+        "obligation_direction",
+        "amount_status",
+        "amount_includes_interest",
+        "event_entitlement_decided",
+        "event_amount_fixed",
+        "event_judgment_entered",
+        "event_appeal_filed",
+        "event_stay_secured",
+        "event_paid",
+        "bears_on_amount_finality",
+        "bears_on_appeal_intent",
+        "bears_on_appeal_barred",
+        "bears_on_debtor_resistance",
+        "bears_on_debtor_liquidity",
+        "bears_on_settlement_signals",
+        "factor_level"
       ]
     }
   },
@@ -107,13 +118,9 @@
     "statement": "Agent-written text to check (an effect's model consequence or the packet conclusion).",
     "cited_findings": "The accepted findings the statement rests on: proposition plus verbatim quotes.",
     "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs).",
-    "record": "The accepted findings the dispute rests on: proposition plus verbatim quotes, with source dates.",
-    "dispute": "The dispute as instantiated: its title, the borrower and its side (judgment debtor or creditor), the counterparty, which party owes, the review date and the date the financing horizon ends.",
-    "finding": "One accepted finding: its proposition and verbatim quotes, with the source date.",
-    "stage": "The model stage the transition leaves from, with its description.",
-    "premise": "The transitions taken so far on this path (a branch being evaluated, not an established fact).",
-    "factor_results": "Graded or present factors the host established from routed findings, each with its level and the findings behind it.",
-    "factor": "One factor of the dispute model: its label and question."
+    "factor": "One factor of the dispute model: its label and question.",
+    "obligation": "One obligation in a live dispute as the agent identified it (what is owed, and the two parties); once established by the host, which party pays (the payer).",
+    "cited_text": "The verbatim quotes one accepted finding cites, with the source title and date. The agent's own proposition is not included."
   },
   "observation_record": {
     "call_fields": [
@@ -634,99 +641,324 @@
       "application": "Gate at submission over the agent's own reading: a clear gap is closed with a finding or escalated to the reviewer's checklist; never overridden. Units no finding cites are the reviewer's, not Jev's."
     },
     {
-      "id": "dispute_stage",
-      "version": "3.10.0",
+      "version": "3.11.0",
       "profile": "dispute_model",
-      "primitive": "choice",
-      "question": "At which stage of the dispute model is this dispute on the review date?",
-      "applies_when": "The agent instantiates a dispute onto the model.",
       "state_fields": [
-        "dispute",
-        "record"
+        "obligation",
+        "cited_text"
       ],
+      "id": "obligation_direction",
+      "primitive": "choice",
+      "question": "According to the cited text, which party must pay the other under this obligation?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
       "prompt": {
-        "instructions": "state.dispute is one live dispute and state.record holds the accepted findings about it, with verbatim quotes and source dates. Using only the record, choose the stage the dispute is at on the review date (the latest source date). Choose none_fits when the record places the dispute outside every listed stage. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
+        "instructions": "According to state.cited_text, which party must pay the other under state.obligation? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
         "criteria_from_host": true,
         "criteria": {}
       },
-      "application": "Code starts the traversal at the chosen stage. none_fits leaves the dispute unmodelled and flags it for the reviewer; an unclear placement becomes an evidence request."
+      "application": "Code takes the direction the cited passages establish; passages that disagree are kept as a conflict and the dispute is not modelled until it is resolved."
     },
     {
-      "id": "factor_routing",
-      "version": "3.10.0",
+      "version": "3.11.0",
       "profile": "dispute_model",
-      "primitive": "choice",
-      "question": "Which of these factors does this one finding bear on most?",
-      "applies_when": "Refinement of an uncertain, decision-relevant transition: once per finding.",
       "state_fields": [
-        "dispute",
-        "finding"
+        "obligation",
+        "cited_text"
       ],
+      "id": "amount_status",
+      "primitive": "choice",
+      "question": "What is the status of this obligation's amount in the cited text?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
       "prompt": {
-        "instructions": "state.finding is one accepted finding about state.dispute. Choose the factor its quoted text bears on most directly, or none when it bears on none of them. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
-        "criteria_from_host": true,
-        "criteria": {}
+        "instructions": "What is the status of the amount of state.obligation, as state.cited_text describes it? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "sought": "A party seeks or claims this amount; no court has fixed it.",
+          "estimated": "A party estimates the amount it expects to owe or receive; no court has fixed it.",
+          "fixed": "A court order or judgment fixes this amount.",
+          "paid": "The text says this amount has been paid.",
+          "not_stated": "The text does not state this obligation's amount or its status."
+        }
       },
-      "application": "Code routes the finding to every factor whose probability meets the routing threshold; routing is judgment about relevance, never a weight."
+      "application": "Code takes the most advanced status any passage establishes; an amount that is sought or estimated is never shown as owed."
     },
     {
-      "id": "factor_level",
-      "version": "3.10.0",
+      "version": "3.11.0",
       "profile": "dispute_model",
-      "primitive": "score",
-      "question": "Which level of this factor does this finding establish?",
-      "applies_when": "A finding routed to a graded factor.",
       "state_fields": [
-        "dispute",
-        "finding",
+        "obligation",
+        "cited_text"
+      ],
+      "id": "amount_includes_interest",
+      "primitive": "noul",
+      "question": "Does the cited text say this obligation's amount includes post-judgment interest?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text say this obligation's amount includes post-judgment interest? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text says the amount includes post-judgment interest (or an estimate of it).",
+          "false": "The text does not say so."
+        }
+      },
+      "application": "Code then does not add statutory post-judgment interest again."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "event_entitlement_decided",
+      "primitive": "noul",
+      "question": "Does the cited text establish that the court has decided the payer is liable for this obligation?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that the court has decided the payer is liable for this obligation? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that the court has decided the payer is liable for this obligation.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "event_amount_fixed",
+      "primitive": "noul",
+      "question": "Does the cited text establish that the court has fixed this obligation's amount?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that the court has fixed this obligation's amount? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that the court has fixed this obligation's amount.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "event_judgment_entered",
+      "primitive": "noul",
+      "question": "Does the cited text establish that a money judgment for this obligation has been entered?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that a money judgment for this obligation has been entered? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that a money judgment for this obligation has been entered.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "event_appeal_filed",
+      "primitive": "noul",
+      "question": "Does the cited text establish that the payer has filed a notice of appeal against this obligation?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that the payer has filed a notice of appeal against this obligation? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that the payer has filed a notice of appeal against this obligation.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "event_stay_secured",
+      "primitive": "noul",
+      "question": "Does the cited text establish that the payer has stayed this obligation with a bond or other security?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that the payer has stayed this obligation with a bond or other security? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that the payer has stayed this obligation with a bond or other security.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "event_paid",
+      "primitive": "noul",
+      "question": "Does the cited text establish that this obligation has been paid?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that this obligation has been paid? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that this obligation has been paid.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "bears_on_amount_finality",
+      "primitive": "noul",
+      "question": "Does the quoted text say how far this obligation's amount has progressed (claimed, briefed or submitted for decision, fixed)?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text say how far this obligation's amount has progressed (claimed, briefed or submitted for decision, fixed)? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "bears_on_appeal_intent",
+      "primitive": "noul",
+      "question": "Does the quoted text say whether the payer will appeal this obligation?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text say whether the payer will appeal this obligation? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "bears_on_appeal_barred",
+      "primitive": "noul",
+      "question": "Does the quoted text state that the payer waived, or is barred from, appealing this obligation itself (not some other claim or order)?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text state that the payer waived, or is barred from, appealing this obligation itself (not some other claim or order)? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "bears_on_debtor_resistance",
+      "primitive": "noul",
+      "question": "Does the quoted text describe how the payer has responded to this obligation or to the court's orders about it?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text describe how the payer has responded to this obligation or to the court's orders about it? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "bears_on_debtor_liquidity",
+      "primitive": "noul",
+      "question": "Does the quoted text describe the payer's own cash, finances or ability to pay an amount of this size?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text describe the payer's own cash, finances or ability to pay an amount of this size? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text"
+      ],
+      "id": "bears_on_settlement_signals",
+      "primitive": "noul",
+      "question": "Does the quoted text say anything about the parties settling this obligation?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text say anything about the parties settling this obligation? Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.11.0",
+      "profile": "dispute_model",
+      "state_fields": [
+        "obligation",
+        "cited_text",
         "factor"
       ],
+      "id": "factor_level",
+      "primitive": "score",
+      "question": "Which level of this factor does the cited text establish?",
+      "applies_when": "A passage routed to a graded factor.",
       "prompt": {
-        "instructions": "state.factor is one factor of the dispute model, with its question. Using only state.finding's quoted text, choose the level of the rubric the text establishes. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
+        "instructions": "state.factor is one factor of the dispute model. Using only state.cited_text, choose the rubric level the text establishes for state.obligation. Answer only about state.obligation, from state.cited_text. Do not predict what will happen, and do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them.",
         "criteria_from_host": true,
         "criteria": []
       },
-      "application": "Code takes the most advanced level any routed finding establishes and passes it, with its findings, to the transition's re-ask. A factor no finding establishes stays unknown and becomes an evidence request."
-    },
-    {
-      "id": "factor_present",
-      "version": "3.10.0",
-      "profile": "dispute_model",
-      "primitive": "noul",
-      "question": "Does this finding establish this factor?",
-      "applies_when": "A finding routed to a present-or-absent factor.",
-      "state_fields": [
-        "dispute",
-        "finding",
-        "factor"
-      ],
-      "prompt": {
-        "instructions": "state.factor is one present-or-absent factor of the dispute model. Using only state.finding's quoted text, judge whether the text establishes it. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
-        "criteria_from_host": true,
-        "criteria": {}
-      },
-      "application": "Code marks the factor present when any routed finding establishes it (code-owned threshold) and passes it to the transition's re-ask."
-    },
-    {
-      "id": "dispute_transition",
-      "version": "3.10.0",
-      "profile": "dispute_model",
-      "primitive": "choice",
-      "question": "Given this stage and the path so far, which transition does the record most support next?",
-      "applies_when": "Every non-terminal stage the host reaches while traversing the model.",
-      "state_fields": [
-        "dispute",
-        "record",
-        "stage",
-        "premise",
-        "factor_results"
-      ],
-      "prompt": {
-        "instructions": "state.stage is where this path of state.dispute stands; state.premise lists the transitions taken so far on this path (a branch under evaluation, not an established fact). Using only state.record and, when present, state.factor_results, judge which listed transition is the next development the record most supports by state.dispute.financing_horizon_ends: the parties' stated intentions, the court's orders so far, and each party's conduct in this dispute. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
-        "criteria_from_host": true,
-        "criteria": {}
-      },
-      "application": "The distribution becomes the transition's conditional weights, labelled once as model judgment (calibrated by TypeSafe to frontier-model consensus, not to observed litigation outcomes). Code multiplies them along each path. Every path's conditional cash is always shown."
+      "application": "Code aggregates the levels by the factor's own rule (most advanced, or latest by source date, keeping same-date conflicts) and uses them only to close paths an established fact rules out and to mark where the record points."
     }
   ]
 }

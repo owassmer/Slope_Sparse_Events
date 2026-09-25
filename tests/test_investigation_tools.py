@@ -377,7 +377,7 @@ def test_a_dispute_is_modelled_once(make_ctx):
     ctx.run.put("dispute_instantiated", DisputeInstance(
         instance_id="dispute_001", dependency_id=dep, model_id="m", model_version="1", title="t", borrower_role="debtor",
         counterparty="c", finding_ids=(fid,), amount=amount))
-    args = {"dependency_id": dep, "title": "t", "finding_ids": [fid], "borrower_role": "debtor", "counterparty": "c",
+    args = {"dependency_id": dep, "title": "t", "obligation": "o", "finding_ids": [fid], "counterparty": "c",
             "amount": {"value_cents": 200_000_000}}
     with pytest.raises(T.ToolError, match="already instantiated"):
         call(T.instantiate_dispute, ctx, args)  # the same findings again would count the dispute twice

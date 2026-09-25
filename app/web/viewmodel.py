@@ -146,7 +146,7 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
         "jev_ledger": dict(ledger), "jev_calls": len(g["jev_calls"]), "observations": len(g["observations"]),
         "inventory": inventory, "conclusion_check": conclusion_check, "conclusion_checks": conclusion_checks,
         "decision": _decision(root / run_id),
-        "disputes": _disputes(g),
+        "disputes": _disputes(g, inputs.get("baseline_profile", {}).get("borrower", "")),
         "atomic_inventory": any(i.unit_start >= 0 for i in g["inventory"].values()),
         "cited_checks": [{**c, "checked": [{**r, "meaning": meaning("coverage_supported", r["answer"])} for r in c["checked"]]}
                          for c in cited_checks],
@@ -191,31 +191,33 @@ def _decision(run_dir: Path) -> dict | None:
                   "label": s["structures"][r["structure"]]["label"] if r["structure"] in s["structures"] else r["structure"]}
            for view, r in s["recommendation"].items()}
     return {"views": views, "rows": rows, "recommendation": rec, "conditions": s["conditions"], "tier": s["tier"],
-            "bank_feed": s["bank_feed"], "slope_terms": s["slope_terms"], "weights_label": s["weights_label"],
+            "bank_feed": s["bank_feed"], "slope_terms": s["slope_terms"], "paths_label": s["paths_label"],
             "request": s["request"]}
 
 
-def _disputes(g: dict) -> list[dict]:
-    """Each instantiated dispute: its stage, the factors Jev established, the weighted paths with their rule-derived
-    cash, and the evidence requests left by irreducible uncertainty."""
+def _disputes(g: dict, borrower: str) -> list[dict]:
+    """Each compiled dispute: who pays and the amount's status (Jev's readings), the established events and factors with
+    their decisive quotes, the closed paths, and every remaining path with its rule-derived cash."""
+    from app.decisions.case import describe
     from app.disputes.rules import load_model
 
-    stages = load_model()["stages"]
+    model = load_model()
+    stages, labels, events = model["stages"], model["readings"]["amount_status_labels"], model["readings"]["events"]
     out = []
     for d in g.get("disputes", {}).values():
+        if d.status == "superseded":
+            continue
         out.append({
-            "id": d.instance_id, "title": d.title, "debtor": d.borrower_role == "debtor",
-            "counterparty": d.counterparty, "amount": _money(d.amount.model_dump(mode="json")),
-            "stage": stages[d.stage]["label"] if d.stage else "outside the model", "status": d.status,
-            "findings": list(d.finding_ids),
-            "factors": [{"label": f.label, "level": f.level_label, "findings": list(f.finding_ids)} for f in d.factors],
-            "refined": [j.stage for j in d.transitions if j.refined],
-            "paths": [{"labels": " → ".join(p.labels),
-                       "weight": "not judged" if p.weight_bps is None else f"{p.weight_bps / 100:.0f}%",
+            "id": d.instance_id, "title": d.title, "obligation": describe(d, borrower, labels),
+            "stage": stages[d.stage]["label"] if d.stage else "not established", "status": d.status,
+            "events": [{"event": events[k], "finding": v.finding_id, "quote": v.quote} for k, v in d.established.items()],
+            "factors": [{"label": f.label, "level": f.level_label, "finding": f.decisive.finding_id if f.decisive else "",
+                         "quote": f.decisive.quote if f.decisive else ""} for f in d.factors if f.level is not None or f.conflict],
+            "closed": d.closed,
+            "paths": [{"labels": " → ".join(p.labels), "also": list(p.also), "points": list(p.points_here),
                        "cash": [{"kind": c.kind, "label": c.label, "amount": _money(c.amount.model_dump(mode="json")),
                                  "window": f"{c.window_start.isoformat()} to {c.window_end.isoformat()}", "rule": c.rule}
-                                for c in p.cash]} for p in sorted(d.paths, key=lambda p: -(p.weight_bps or 0))],
-            "pruned": f"{d.pruned_weight_bps / 100:.1f}%" if d.pruned_weight_bps else "",
+                                for c in p.cash]} for p in d.paths],
             "requests": [r.action for r in d.evidence_requests], "extension": d.proposed_extension})
     return out
 

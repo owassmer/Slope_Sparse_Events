@@ -1,12 +1,14 @@
-"""Step 5b financial correctness: Slope products, the connected-bank baseline, the scenario engine and the
-post-judgment dispute model (rule-derived dates and amounts, path weights, refinement). No network."""
+"""Step 5b financial correctness: Slope products, the connected-bank baseline, the scenario engine and the dispute
+scenario compiler (Jev's atomic readings -> established facts -> every permitted cash path). No network.
+
+Dispute texts are real record text: the C.D. Cal. judgment (Dkt. 618) and ChromaDex's Q2 2024 10-Q."""
 
 import asyncio
 from datetime import date, timedelta
 
 from app.agent.tools import _date_in_text
 from app.decisions.scenarios import AMOUNT_STEP_CENTS, Request, compare, simulate, summarize
-from app.disputes.evaluate import Evaluator
+from app.disputes.evaluate import Compiler
 from app.domain.investigation import (
     AtomicFinding,
     BranchCash,
@@ -25,9 +27,18 @@ FUNDING = date(2024, 8, 20)
 HORIZON = REVIEW + timedelta(days=180)
 REQ = Request(amount_cents=200_000_000, invoice_due=date(2024, 9, 19), funding=FUNDING, requested_term_id="inst_90")
 
-# Real record text: the C.D. Cal. judgment (Dkt. 618) and ChromaDex's Q2 2024 10-Q on the Delaware fee award.
-CA_QUOTE = "Elysium shall pay to ChromaDex the sum total of $2,500,000 ... Dated: August 13, 2024"
-DE_QUOTE = ("inclusive of ChromaDex's estimates for post-judgment interest, is approximately $9.8 million")
+CA_JUDGMENT = "Elysium shall pay to ChromaDex the sum total of $2,500,000 ... Dated: August 13, 2024"
+CA_WAIVER = "4. The parties shall not file any post-trial motions or appeals related to the Jury Claims."
+DE_FEES = ("The issue is now fully briefed and awaiting a ruling by the Court. In connection with the Court's current "
+           "ruling and the Company's intention to appeal this decision, management has assessed that it is reasonably "
+           "possible a contingent liability will be incurred.")
+DE_AMOUNT = "inclusive of ChromaDex's estimates for post-judgment interest, is approximately $9.8 million"
+SOURCES = {"cacd_d618": ("C.D. Cal. Judgment (Dkt. 618)", "2024-08-13"),
+           "q1_10q": ("ChromaDex Q1 2024 10-Q", "2024-05-08"), "q2_10q": ("ChromaDex Q2 2024 10-Q", "2024-08-07")}
+
+CA_READING = {"payer": "counterparty", "status": "fixed", "events": {"judgment_entered", "amount_fixed"}}
+DE_READING = {"payer": "borrower", "status": "sought", "interest": True, "events": {"entitlement_decided"},
+              "bears": {"amount_finality": 2, "appeal_intent": 3}}
 
 
 def ev(cents: int) -> EvidenceValue:
@@ -40,49 +51,51 @@ def finding(fid: str, quote: str, source: str) -> AtomicFinding:
                                            end=len(quote), quote=quote),))
 
 
-def instance(role: str, amount: int, judgment: date | None, fid: str) -> DisputeInstance:
-    return DisputeInstance(instance_id="dispute_001", dependency_id="dep_001", model_id="m", model_version="0",
-                           title="t", borrower_role=role, counterparty="Elysium Health, Inc.", finding_ids=(fid,),
-                           amount=ev(amount), judgment_date=judgment)
-
-
 class StubJudge:
-    """Answers each atomic question from fixed preferences; `top` is the transition answer's share."""
+    """Answers the atomic reading questions from a fixed reading per finding (what Jev would read in that passage)."""
 
-    def __init__(self, stage: str, prefer: dict[str, str], top: float = 0.8):
-        self.stage_id, self.prefer, self.top, self.calls = stage, prefer, top, []
+    def __init__(self, readings: dict[str, dict]):
+        self.readings, self.calls = readings, []
 
-    def _obs(self, qid, options, pick, top, primitive="choice"):
-        keys = list(options)
-        rest = (1 - top) / (len(keys) - 1)
-        probs = {k: (top if k == pick else rest) for k in keys}
+    def _o(self, qid, answer, primitive):
         self.calls.append(qid)
         return SemanticObservation(observation_id=f"obs_{len(self.calls)}", call_id="c", profile="dispute_model",
-                                   question_id=qid, question_version="3.10.0", primitive=primitive, answer=pick,
-                                   probabilities=probs)
+                                   question_id=qid, question_version="3.11.0", primitive=primitive, answer=answer)
 
-    async def stage(self, dispute, record, options, subject_ids):
-        return self._obs("dispute_stage", options, self.stage_id, 0.9)
+    async def read(self, obligation, cited, direction, subject_ids):
+        r = self.readings[subject_ids[0]]
+        events = ["entitlement_decided", "amount_fixed", "judgment_entered", "appeal_filed", "stay_secured", "paid"]
+        return [self._o("obligation_direction", r.get("payer", "not_stated"), "choice"),
+                self._o("amount_status", r.get("status", "not_stated"), "choice"),
+                self._o("amount_includes_interest", r.get("interest", False), "noul"),
+                *(self._o(f"event_{e}", e in r.get("events", set()), "noul") for e in events)]
 
-    async def route(self, dispute, finding, options, subject_ids):
-        return self._obs("factor_routing", options, "appeal_intent", 0.9)
+    async def relevance(self, obligation, cited, subject_ids):
+        bears = self.readings[subject_ids[0]].get("bears", {})
+        factors = ["amount_finality", "appeal_intent", "appeal_barred", "debtor_resistance", "debtor_liquidity",
+                   "settlement_signals"]
+        return [self._o(f"bears_on_{f}", f in bears, "noul") for f in factors]
 
-    async def level(self, dispute, finding, factor, rubric, subject_ids):
-        return self._obs("factor_level", {str(i): r for i, r in enumerate(rubric)}, "3", 0.9, "score")
-
-    async def present(self, dispute, finding, factor, subject_ids):
-        return self._obs("factor_present", {"true": 1, "false": 0}, "false", 0.9)
-
-    async def transition(self, dispute, record, stage, premise, factor_results, options, subject_ids):
-        top = 0.85 if factor_results else self.top
-        return self._obs("dispute_transition", options, self.prefer.get(stage["stage"], next(iter(options))), top)
+    async def level(self, obligation, cited, factor, rubric, subject_ids):
+        return self._o("factor_level", str(self.readings[subject_ids[0]]["bears"][factor["factor_id"]]), "score")
 
 
-def evaluate(role, amount, judgment, quote, source, judge, request=200_000_000):
-    f = finding("fnd_001", quote, source)
-    ev_ = Evaluator(instance(role, amount, judgment, f.finding_id), [f], judge=judge, borrower="ChromaDex, Inc.",
-                    source_dates={source: "2024-08-13"}, review=REVIEW, horizon=HORIZON, request_cents=request)
-    return asyncio.run(ev_.run())
+def compile_dispute(findings, judge, amount, judgment=None, obligation="the obligation", fid_prefix="dispute_001"):
+    draft = DisputeInstance(instance_id=fid_prefix, dependency_id="dep_001", model_id="m", model_version="0", title="t",
+                            obligation=obligation, counterparty="Elysium Health, Inc.",
+                            finding_ids=tuple(f.finding_id for f in findings), amount=ev(amount), judgment_date=judgment)
+    return asyncio.run(Compiler(draft, findings, judge=judge, borrower="ChromaDex Corporation", sources=SOURCES,
+                                review=REVIEW, horizon=HORIZON).run())
+
+
+def compile_ca(judge, extra=()):
+    return compile_dispute([finding("ca1", CA_JUDGMENT, "cacd_d618"), *extra], judge, 250_000_000, date(2024, 8, 13),
+                           "the $2.5 million payment under the C.D. Cal. judgment", "dispute_ca")
+
+
+def compile_de(judge, extra=()):
+    return compile_dispute([finding("de1", DE_FEES, "q2_10q"), finding("de2", DE_AMOUNT, "q2_10q"), *extra], judge,
+                           980_000_000, None, "the attorneys' fees and costs awarded to Elysium in D. Del.", "dispute_de")
 
 
 # --- Slope products and the bank baseline -------------------------------------------------------------
@@ -129,8 +142,7 @@ def test_a_lock_lowers_cash_by_its_amount_and_zero_cash_paths_reproduce_bank_onl
     locked, coll, _, _ = simulate(feed, REQ, s, [lock], "stress", HORIZON)
     assert all(base[d] - locked[d] == 980_000_000 for d in base if d >= FUNDING)
     assert sum(c for _, c in coll) <= s.total_cents
-    empty = evaluate("debtor", 1_000_000, date(2024, 8, 13), CA_QUOTE, "cacd_16cv2277_d618_judgment",
-                     StubJudge("judgment_entered", {"judgment_entered": "appeal_bonded", "appeal_pending": "appeal_continues"}))
+    empty = compile_ca(StubJudge({"ca1": CA_READING}))
     no_cash = [p.model_copy(update={"cash": ()}) for p in empty.paths]
     comp = compare(feed, terms, REQ, [no_cash])
     for name in list(comp.structures):
@@ -143,8 +155,7 @@ def test_the_supported_amount_is_sized_on_its_own_paths_and_names_what_binds():
     bond = BranchCash(kind="lock", label="bond", amount=ev(1_225_000_000), window_start=FUNDING,
                       window_end=date(2024, 9, 30))
 
-    paths = [DisputePath(path_id="p1", transitions=("appeal_bonded",), labels=("bond",), terminal="t", weight_bps=10_000,
-                         cash=(bond,))]
+    paths = [DisputePath(path_id="p1", transitions=("appeal_secured",), labels=("bond",), terminal="t", cash=(bond,))]
     comp = compare(feed, terms, REQ, [paths])
     s = summarize(comp, terms)
     rec = s["recommendation"]["event_adjusted"]
@@ -158,49 +169,84 @@ def test_the_supported_amount_is_sized_on_its_own_paths_and_names_what_binds():
         assert "collections" in sc and "economics" in sc  # per-branch collections and economics
 
 
-# --- the dispute model ----------------------------------------------------------------------------------
+# --- the dispute scenario compiler ---------------------------------------------------------------------
 
-def test_rule_derived_dates_and_amounts():
-    judge = StubJudge("judgment_entered", {"judgment_entered": "pay"})
-    ca = evaluate("creditor", 250_000_000, date(2024, 8, 13), CA_QUOTE, "cacd_16cv2277_d618_judgment", judge)
-    pay = next(p for p in ca.paths if p.transitions == ("pay",))
+def test_stage_direction_and_amounts_come_from_readings_and_rules():
+    ca = compile_ca(StubJudge({"ca1": CA_READING}))
+    assert ca.borrower_role == "creditor" and ca.stage == "judgment_entered" and ca.amount_status == "fixed"
+    [pay] = [p for p in ca.paths if p.transitions == ("pay",)]
     [c] = pay.cash
     assert c.kind == "inflow" and c.window_start == date(2024, 9, 12)  # FRCP 62(a): 30-day automatic stay
     assert c.window_end == date(2024, 10, 12) and c.amount.lower > 250_000_000  # plus § 1961 interest
-    bonded = next(p for p in ca.paths if p.transitions[0] == "appeal_bonded")
-    assert not any(x.kind == "inflow" for x in bonded.cash[:1]) or bonded.transitions[-1] == "settle"
-    de = evaluate("debtor", 980_000_000, None, DE_QUOTE, "cdxc_2024q2_10q",
-                  StubJudge("amount_pending", {"amount_pending": "amount_fixed", "judgment_entered": "appeal_bonded",
-                                               "appeal_pending": "appeal_continues"}))
-    path = next(p for p in de.paths if p.transitions == ("amount_fixed", "appeal_bonded", "appeal_continues"))
-    [lock] = path.cash
+    de = compile_de(StubJudge({"de1": DE_READING, "de2": DE_READING}))
+    assert de.borrower_role == "debtor" and de.stage == "amount_pending" and de.amount_status == "sought"
+    assert de.amount_includes_interest  # the 10-Q figure includes interest, so § 1961 is not added again
+    [lock_path] = [p for p in de.paths if p.transitions == ("amount_fixed", "appeal_secured", "appeal_continues")]
+    [lock] = lock_path.cash
     assert lock.kind == "lock" and lock.amount.upper == 1_225_000_000  # 125% bond, up to 100% cash collateral
-    assert lock.window_start == date(2024, 8, 20) and lock.window_end == REVIEW + timedelta(days=150)
+    assert any(r.factor_id == "amount_status" for r in de.evidence_requests)  # sought, not fixed: get the ruling
+    assert all(p.weight_bps is None for p in de.paths + ca.paths)  # no forecast weights
 
 
-def test_path_weights_are_products_that_sum_to_one():
-    de = evaluate("debtor", 980_000_000, None, DE_QUOTE, "cdxc_2024q2_10q",
-                  StubJudge("amount_pending", {"amount_pending": "amount_fixed", "judgment_entered": "appeal_bonded",
-                                               "appeal_pending": "appeal_continues", "enforcement": "collected"}))
-    assert sum(p.weight_bps for p in de.paths) == 10_000
-    w = {p.transitions: p.weight_bps for p in de.paths}
-    # conditional weights multiply along a path: continues (80%) vs settles (20%) under the same two earlier steps
-    assert abs(w[("amount_fixed", "appeal_bonded", "appeal_continues")]
-               - 4 * w[("amount_fixed", "appeal_bonded", "settle")]) <= 4
+def test_a_confident_pay_reading_cannot_suppress_the_no_receipt_path():
+    # (a) Everything in the record points to Elysium paying; the unpaid path (no receipt) is still compiled and tested.
+    judge = StubJudge({"ca1": {**CA_READING, "bears": {"appeal_intent": 0, "debtor_resistance": 0, "debtor_liquidity": 3}}})
+    ca = compile_ca(judge)
+    [pay] = [p for p in ca.paths if p.transitions == ("pay",)]
+    assert pay.points_here  # the record points to payment...
+    assert any(not any(c.kind == "inflow" for c in p.cash) for p in ca.paths)  # ...but a no-receipt path remains
+    comp = compare(load_feed(SNAP), load_terms(), REQ, [list(ca.paths)])
+    lowest = min(o.min_cash_cents for o in comp.outcomes if o.scenario.view == "event_adjusted"
+                 and o.structure == "inst_90_2000000")
+    bank = min(o.min_cash_cents for o in comp.outcomes if o.scenario.view == "bank_only" and o.structure == "inst_90_2000000")
+    assert lowest == bank  # the binding case for a receivable is that it never arrives
 
 
-def test_refinement_only_when_uncertain_and_decision_relevant():
-    prefer = {"judgment_entered": "pay"}
-    confident = StubJudge("judgment_entered", prefer, top=0.8)
-    evaluate("creditor", 250_000_000, date(2024, 8, 13), CA_QUOTE, "cacd_16cv2277_d618_judgment", confident)
-    assert "factor_routing" not in confident.calls
-    uncertain = StubJudge("judgment_entered", prefer, top=0.4)
-    out = evaluate("creditor", 250_000_000, date(2024, 8, 13), CA_QUOTE, "cacd_16cv2277_d618_judgment", uncertain)
-    assert "factor_routing" in uncertain.calls and out.transitions[0].refined
-    assert any(f.level is None for f in out.factors) or not out.evidence_requests
-    small = StubJudge("judgment_entered", prefer, top=0.4)
-    evaluate("creditor", 1_000_000, date(2024, 8, 13), CA_QUOTE, "cacd_16cv2277_d618_judgment", small)
-    assert "factor_routing" not in small.calls  # USD 10k cannot move a USD 2M decision
+def test_a_path_the_record_does_not_point_to_still_reaches_policy_and_binds():
+    # (b) ChromaDex saying it will NOT appeal (a stated intention) closes nothing: the bond lock is tested and binds.
+    reading = {**DE_READING, "bears": {"amount_finality": 2, "appeal_intent": 0}}
+    de = compile_de(StubJudge({"de1": reading, "de2": reading}))
+    [bond] = [p for p in de.paths if p.transitions == ("amount_fixed", "appeal_secured", "appeal_continues")]
+    assert not any("appeal intent" in n for n in bond.points_here)
+    s = summarize(compare(load_feed(SNAP), load_terms(), REQ, [list(de.paths)]), load_terms())
+    rec = s["recommendation"]["event_adjusted"]
+    assert not rec["requested_passes"]
+    assert any("appeals and secures a stay" in lab for lab in rec["at_requested"]["lowest_cash_scenario"])
+    needs = rec["requested_needs"]
+    assert needs["needs_lowest_cash_cents"] == 1_777_777_778  # $2.0M / 75% order share / 15% of lowest cash
+    assert any(e["short_always"] for e in needs["paths_short_whatever_else"])
+
+
+def test_newer_constrained_liquidity_beats_an_older_favourable_reading():
+    # (c) 'latest' aggregation: the Q2 passage (newer) decides, not the Q1 one; same-date disagreement is a conflict.
+    old = finding("de_q1", "cash, cash equivalents and restricted cash of $27.6 million", "q1_10q")
+    new = finding("de_q2", "we may need to raise additional capital to fund an adverse judgment", "q2_10q")
+    readings = {"de1": DE_READING, "de2": DE_READING, "de_q1": {"payer": "borrower", "bears": {"debtor_liquidity": 3}},
+                "de_q2": {"payer": "borrower", "bears": {"debtor_liquidity": 1}}}
+    de = compile_de(StubJudge(readings), (old, new))
+    [liq] = [f for f in de.factors if f.factor_id == "debtor_liquidity"]
+    assert liq.level == 1 and liq.decisive.finding_id == "de_q2" and not liq.conflict
+    same = {**readings, "de_q1b": {"payer": "borrower", "bears": {"debtor_liquidity": 3}}}
+    de2 = compile_de(StubJudge(same), (new, finding("de_q1b", "ample liquidity", "q2_10q")))
+    [liq2] = [f for f in de2.factors if f.factor_id == "debtor_liquidity"]
+    assert liq2.conflict and liq2.level is None  # kept as a conflict, and not used
+
+
+def test_a_waiver_closes_only_its_own_obligation():
+    # (d) The C.D. Cal. waiver covers the Jury Claims: read as covering that payment, it closes that dispute's secured
+    # appeal (the unpaid path, with no receipt, remains); it does not bar the appeal of the Delaware fee award.
+    ca = compile_ca(StubJudge({"ca1": CA_READING, "ca2": {"payer": "counterparty", "bears": {"appeal_barred": True}}}),
+                    (finding("ca2", CA_WAIVER, "cacd_d618"),))
+    assert "judgment_entered.appeal_secured" in ca.closed and "ca2" in ca.closed["judgment_entered.appeal_secured"]
+    assert any(not p.cash for p in ca.paths)  # no-receipt path still tested
+    de = compile_de(StubJudge({"de1": DE_READING, "de2": DE_READING}))
+    assert not de.closed and any("appeal_secured" in p.transitions for p in de.paths)
+
+
+def test_readings_that_disagree_on_who_pays_leave_the_dispute_unmodelled_with_a_request():
+    judge = StubJudge({"ca1": CA_READING, "ca2": {"payer": "borrower"}})
+    ca = compile_ca(judge, (finding("ca2", CA_WAIVER, "cacd_d618"),))
+    assert ca.status == "outside_model" and not ca.paths and ca.evidence_requests[0].factor_id == "direction"
 
 
 def test_judgment_dates_must_appear_in_the_record():
@@ -210,19 +256,6 @@ def test_judgment_dates_must_appear_in_the_record():
     assert not _date_in_text(date(2024, 8, 1), "Filed 08/13/24")
 
 
-def test_combined_dispute_weights_sum_to_one_and_expected_never_exceeds_contract():
-    ca = evaluate("creditor", 250_000_000, date(2024, 8, 13), CA_QUOTE, "cacd_16cv2277_d618_judgment",
-                  StubJudge("judgment_entered", {"judgment_entered": "pay"}, top=0.91))
-    de = evaluate("debtor", 980_000_000, None, DE_QUOTE, "cdxc_2024q2_10q",
-                  StubJudge("amount_pending", {"amount_pending": "amount_fixed", "judgment_entered": "appeal_bonded"}))
-    terms = load_terms()
-    comp = compare(load_feed(SNAP), terms, REQ, [list(ca.paths), list(de.paths)])
-    central = [sc for sc in comp.scenarios if sc.view == "event_adjusted" and sc.placement == "central"]
-    assert sum(sc.weight_bps for sc in central) == 10_000
-    for v in summarize(comp, terms)["structures"]["inst_90_2000000"]["views"].values():
-        assert sum(c["amount_cents"] for c in v["expected_collections"]) <= sum(r["amount_cents"] for r in v["contractual"])
-
-
 def test_an_unmodelled_or_superseded_dispute_is_never_silently_dropped_or_counted():
     import json
 
@@ -230,14 +263,14 @@ def test_an_unmodelled_or_superseded_dispute_is_never_silently_dropped_or_counte
     from app.decisions.case import decide
 
     inputs = json.loads((CASES_DIR / SNAP / "run_inputs.json").read_text())
-    de = evaluate("debtor", 980_000_000, None, DE_QUOTE, "cdxc_2024q2_10q",
-                  StubJudge("amount_pending", {"amount_pending": "amount_fixed", "judgment_entered": "appeal_bonded"}))
-    unplaced = instance("creditor", 250_000_000, None, "fnd_009").model_copy(
-        update={"instance_id": "dispute_002", "status": "outside_model", "title": "unplaced"})
+    de = compile_de(StubJudge({"de1": DE_READING, "de2": DE_READING}))
+    unplaced = de.model_copy(update={"instance_id": "dispute_002", "status": "outside_model", "title": "unplaced",
+                                     "paths": ()})
     duplicate = de.model_copy(update={"instance_id": "dispute_003", "status": "superseded"})
     s = decide(SNAP, inputs, [de, unplaced, duplicate], REVIEW)
     assert s["recommendation"]["event_adjusted"]["incomplete"] == ["unplaced"]
     assert len(s["disputes"]) == 2  # the superseded instance is neither shown nor counted
     once = decide(SNAP, inputs, [de], REVIEW)
     assert once["recommendation"]["event_adjusted"]["structure"] == s["recommendation"]["event_adjusted"]["structure"]
-
+    text = json.dumps(s["conditions"])
+    assert "sought" in text and "owed" not in text  # a sought amount is never described as owed

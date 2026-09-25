@@ -2,18 +2,18 @@
 
 Views (matched pair; common inputs identical, only the dispute paths differ):
   - bank_only: the connected-bank projection and the financing action.
-  - event_adjusted: the same, plus one path from each dispute (the generic dispute model gives each dispute its
-    root-to-leaf paths with conditional weights; distinct disputes are combined as independent, labelled). Each path's
-    cash is placed two ways: `stress` (outflows and locks at the window start at the high amount; inflows at the
-    window end at the low amount) and `central` (window midpoint, midpoint amount).
+  - event_adjusted: the same, plus one path from each dispute, for every combination of the paths the evidence
+    permits (the dispute model compiles them; none is weighted or pruned). Each combination's cash is placed two ways:
+    `stress` (outflows and locks at the window start at the high amount; inflows at the window end at the low amount)
+    and `central` (window midpoint, midpoint amount).
 
 The financing action: Slope pays the supplier up to the financed amount on the funding date; the borrower pays any
 remainder of the invoice itself on its due date (all of it if Slope declines), then repays Slope on the structure's
 schedule. Collections (declared rule): ACH autopay takes each scheduled payment when available cash covers it;
 otherwise it takes the available cash and retries the rest at the next month-end (catch-up).
 
-Weighted (expected) figures use path weights (products of Jev's conditional judgments, labelled model judgment).
-Every conditional result is kept beside them. Money is integer cents; rates are Decimal.
+Slope's policy is tested on every combination and placement; each result is conditional on its paths. Money is
+integer cents; rates are Decimal.
 """
 
 from __future__ import annotations
@@ -47,7 +47,6 @@ class Scenario:
     view: str
     path_ids: tuple[str, ...]
     labels: tuple[str, ...]
-    weight_bps: int | None
     placement: str
     cash: tuple = ()
 
@@ -73,33 +72,13 @@ def _place(amount, window_start: date, window_end: date, kind: str, placement: s
     return mid, (lo + hi) // 2
 
 
-def _product(weights: list[int]) -> Decimal:
-    p = Decimal(1)
-    for w in weights:
-        p *= Decimal(w) / BPS
-    return p
-
-
-def _combination_weights(combos: list[tuple[DisputePath, ...]]) -> list[int | None]:
-    """Products of the disputes' path weights (combined as independent), in basis points summing to exactly 10,000."""
-    if any(p.weight_bps is None for combo in combos for p in combo):
-        return [None] * len(combos)
-    raw = [_product([p.weight_bps for p in combo]) * BPS for combo in combos]
-    out = [int(r.to_integral_value()) for r in raw]
-    out[out.index(max(out))] += 10_000 - sum(out)
-    return out
-
-
 def scenarios(disputes: list[list[DisputePath]]) -> list[Scenario]:
-    views = [Scenario("bank_only", (), (), 10_000, "central")]
-    if not disputes:
-        return views
-    combos = list(itertools.product(*disputes))
-    for combo, w in zip(combos, _combination_weights(combos), strict=True):
+    views = [Scenario("bank_only", (), (), "central")]
+    for combo in itertools.product(*disputes) if disputes else ():
         cash = tuple(c for p in combo for c in p.cash)
         for placement in (("stress", "central") if cash else ("central",)):
             views.append(Scenario("event_adjusted", tuple(p.path_id for p in combo),
-                                  tuple(" → ".join(p.labels) for p in combo), w, placement, cash))
+                                  tuple(" → ".join(p.labels) for p in combo), placement, cash))
     return views
 
 
@@ -269,20 +248,9 @@ def economics(o: SlopeOffer, comp: Comparison, collections: list[tuple[date, int
             "expected_loss_cents": el, "fee_net_of_expected_loss_cents": o.fee_cents - el}
 
 
-def _expected_series(outs: list[Outcome]) -> list[dict] | None:
-    central = [o for o in outs if o.scenario.placement == "central"]
-    if not central or any(o.scenario.weight_bps is None for o in central):
-        return None
-    by_day: dict[date, Decimal] = {}
-    for o in central:
-        for d, c in o.collections:
-            by_day[d] = by_day.get(d, Decimal(0)) + Decimal(o.scenario.weight_bps) / BPS * c
-    return [{"date": d.isoformat(), "amount_cents": cents_round(v)} for d, v in sorted(by_day.items())]
-
-
 def summarize(comp: Comparison, terms: dict) -> dict:
     """The decision view: recommendation per view, then per structure: policy, and per scenario its dated collections
-    and economics; the contractual and expected series."""
+    and economics (conditional on the scenario's paths), beside the contractual schedule."""
     views = sorted({sc.view for sc in comp.scenarios}, key=["bank_only", "event_adjusted"].index)
     recs = {view: recommend(comp, terms, view) for view in views}  # may add sized structures first
     out = {"tier": comp.tier, "tier_measures": comp.tier_measures, "liquidity_floor_cents": comp.liquidity_floor_cents,
@@ -295,7 +263,7 @@ def summarize(comp: Comparison, terms: dict) -> dict:
             v = {"policy": policy_checks(comp, terms, name, view), "scenarios": []}
             for o in outs:
                 row = {"paths": list(o.scenario.path_ids), "labels": list(o.scenario.labels),
-                       "weight_bps": o.scenario.weight_bps, "placement": o.scenario.placement,
+                       "placement": o.scenario.placement,
                        "lowest_cash_cents": o.min_cash_cents, "lowest_cash_on": o.min_cash_on.isoformat()}
                 if s is not None:
                     row["collections"] = [{"date": d.isoformat(), "amount_cents": c} for d, c in o.collections]
@@ -305,10 +273,38 @@ def summarize(comp: Comparison, terms: dict) -> dict:
                 v["contractual"] = [{"due": p.due.isoformat(), "amount_cents": p.amount_cents,
                                      "principal_cents": p.principal_cents, "fee_cents": p.fee_cents}
                                     for p in s.schedule(comp.request.funding)]
-                v["expected_collections"] = _expected_series(outs)
             entry["views"][view] = v
         out["structures"][name] = entry
     return out
+
+
+def requested_needs(comp: Comparison, terms: dict, name: str, view: str) -> dict | None:
+    """What the requested amount needs, computed across every tested combination of dispute paths: the lowest
+    projected cash at which its order limit covers it, and each combination that falls short (by how much), and for
+    each dispute path whether it falls short whatever the other disputes do."""
+    s, pol = comp.structures[name], terms["credit_policy"]
+    need = cents_round(Decimal(s.amount_cents) * BPS / pol["order_limit_share_of_limit_bps"] * BPS
+                       / pol["limit_share_of_min_projected_cash_bps"])
+    combos: dict[tuple, dict] = {}
+    for o in comp.outcomes:
+        if o.structure == name and o.scenario.view == view:
+            c = combos.setdefault(o.scenario.path_ids, {"labels": list(o.scenario.labels), "lowest": o.min_cash_cents})
+            c["lowest"] = min(c["lowest"], o.min_cash_cents)
+    if not combos or not any(c["lowest"] < need for c in combos.values()):
+        return None
+    short = sorted(({"paths": list(k), "labels": c["labels"], "lowest_cash_cents": c["lowest"],
+                     "short_by_cents": need - c["lowest"]} for k, c in combos.items() if c["lowest"] < need),
+                   key=lambda r: -r["short_by_cents"])
+    per_path: dict[str, dict] = {}
+    for k, c in combos.items():
+        for i, pid in enumerate(k):
+            e = per_path.setdefault(pid, {"path": pid, "labels": c["labels"][i], "short_always": True,
+                                          "short_by_cents_at_best": None})
+            gap = need - c["lowest"]
+            e["short_always"] &= gap > 0
+            e["short_by_cents_at_best"] = gap if e["short_by_cents_at_best"] is None else min(e["short_by_cents_at_best"], gap)
+    return {"needs_lowest_cash_cents": need, "short_combinations": short,
+            "paths_short_whatever_else": [e for e in per_path.values() if e["short_always"]]}
 
 
 def recommend(comp: Comparison, terms: dict, view: str) -> dict:
@@ -339,4 +335,5 @@ def recommend(comp: Comparison, terms: dict, view: str) -> dict:
     return {"structure": chosen, "requested": requested, "requested_passes": chosen == requested,
             "limit_cents": at_chosen["limit_cents"], "order_limit_cents": at_chosen["order_limit_cents"],
             "at_recommended": at_chosen, "at_requested": figures(requested),
-            "next_amount_up": figures(next_up) if next_up and next_up != requested else None}
+            "next_amount_up": figures(next_up) if next_up and next_up != requested else None,
+            "requested_needs": None if req_check["passes"] else requested_needs(comp, terms, requested, view)}

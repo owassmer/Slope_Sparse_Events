@@ -226,45 +226,58 @@ class BranchCash(Frozen):
     finding_ids: tuple[str, ...] = ()
 
 
+class Decisive(Frozen):
+    """The passage a reading rests on: which finding, its source date and the verbatim quote."""
+
+    finding_id: str
+    source_date: str
+    quote: str
+
+
+class FindingReading(Frozen):
+    """Jev's atomic reading of one cited finding's quotes against one obligation (never a forecast)."""
+
+    finding_id: str
+    source_date: str
+    payer: Literal["borrower", "counterparty", "not_stated"] | None = None
+    amount_status: str | None = None  # sought | estimated | fixed | paid | not_stated
+    includes_interest: bool | None = None
+    events: dict[str, bool | None] = Field(default_factory=dict)  # procedural event -> established by this passage
+    bears_on: dict[str, bool | None] = Field(default_factory=dict)  # factor -> the passage bears on it
+    levels: dict[str, int | None] = Field(default_factory=dict)  # graded factor -> rubric level this passage establishes
+    observation_ids: tuple[str, ...] = ()
+
+
 class FactorResult(Frozen):
-    """One factor of the dispute model, established from the findings routed to it. Unknown stays unknown."""
+    """One factor, aggregated from the passages routed to it by the factor's own rule. Unknown stays unknown; passages
+    of the same date that disagree are kept as a conflict and the factor is not used."""
 
     factor_id: str
     label: str
     kind: Literal["graded", "present"]
-    level: int | None = None  # graded: the most advanced rubric level a finding establishes; present: 1 or 0
+    aggregate: str
+    level: int | None = None  # graded: rubric level; present: 1 or 0
     level_label: str = "unknown"
+    conflict: bool = False
+    decisive: Decisive | None = None
     finding_ids: tuple[str, ...] = ()
-    observation_ids: tuple[str, ...] = ()
-
-
-class TransitionJudgment(Frozen):
-    """Jev's conditional judgment of what happens next at one stage, given the path so far (its premise)."""
-
-    stage: str
-    premise: tuple[str, ...] = ()  # transition IDs taken so far on this path
-    weights_bps: dict[str, int] = Field(default_factory=dict)  # transition_id -> conditional weight; empty if not judged
-    initial_weights_bps: dict[str, int] = Field(default_factory=dict)  # before refinement, when refined
-    uncertain: bool = False
-    decision_relevant: bool = False
-    refined: bool = False  # re-asked with factor results
-    factor_ids: tuple[str, ...] = ()
-    observation_ids: tuple[str, ...] = ()
 
 
 class DisputePath(Frozen):
-    """One root-to-leaf path through the model: its transitions, product weight and rule-derived cash."""
+    """One path the evidence still permits, with its rule-derived cash. Unweighted: every path is tested."""
 
     path_id: str
     transitions: tuple[str, ...]
     labels: tuple[str, ...]
     terminal: str
-    weight_bps: int | None  # product of conditional weights, renormalised after pruning; None when not judged
+    weight_bps: int | None = None  # always None for compiled paths: the offer is tested on every path
     cash: tuple[BranchCash, ...] = ()
+    points_here: tuple[str, ...] = ()  # established factors that support this path, with their decisive quotes
+    also: tuple[str, ...] = ()  # other paths with identical cash, merged into this one
 
 
 class EvidenceRequest(Frozen):
-    """Irreducible uncertainty turned into an action for the reviewer: what to obtain and what changes either way."""
+    """What to obtain, and what follows either way."""
 
     factor_id: str
     action: str
@@ -273,30 +286,33 @@ class EvidenceRequest(Frozen):
 
 
 class DisputeInstance(Frozen):
-    """A live dispute instantiated onto the host-owned dispute model. The agent supplies the findings, the borrower's
-    side, the counterparty and the documented amount; Jev places the stage and weighs transitions; code sets every
-    date and amount from the model's rules and composes the paths."""
+    """A live dispute compiled onto the host-owned dispute model. The agent groups the findings and quotes the amount
+    and any judgment date; Jev reads each finding atomically (who pays, the amount's status, procedural events,
+    factors); code places the stage, closes only the paths an established fact rules out, and sets every date and
+    amount. Every remaining path is kept."""
 
     instance_id: str
     dependency_id: str
     model_id: str
     model_version: str
     title: str
-    borrower_role: Literal["debtor", "creditor"]
+    obligation: str = ""
     counterparty: str
     finding_ids: tuple[str, ...] = Field(min_length=1)
     amount: EvidenceValue
-    amount_includes_interest: bool = False  # the documented amount already includes post-judgment interest
     judgment_date: date | None = None
+    borrower_role: Literal["debtor", "creditor"] | None = None  # from Jev's readings (the agent's, in the agent-only arm)
+    amount_status: str = "unknown"
+    amount_includes_interest: bool = False
     stage: str | None = None
-    stage_weights_bps: dict[str, int] = Field(default_factory=dict)
+    established: dict[str, Decisive] = Field(default_factory=dict)  # procedural event -> the passage establishing it
+    readings: tuple[FindingReading, ...] = ()
     factors: tuple[FactorResult, ...] = ()
-    transitions: tuple[TransitionJudgment, ...] = ()
+    closed: dict[str, str] = Field(default_factory=dict)  # transition -> the established fact that closes it
     paths: tuple[DisputePath, ...] = ()
-    pruned_weight_bps: int = 0
     evidence_requests: tuple[EvidenceRequest, ...] = ()
     proposed_extension: str = ""  # flagged for the reviewer; never used by the host
-    status: Literal["evaluated", "outside_model", "not_judged", "superseded"] = "evaluated"
+    status: Literal["compiled", "outside_model", "not_judged", "superseded", "resolved"] = "compiled"
     superseded_by: str = ""
     observation_ids: tuple[str, ...] = ()
     validation_messages: tuple[str, ...] = ()

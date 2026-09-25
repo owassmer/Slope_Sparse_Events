@@ -60,10 +60,11 @@ WORKING_METHOD = """Working method
 - If you connect a name, label or table row to an obligation by matching amounts or dates, mark that finding is_inference and
   describe the link as an inference in your conclusion.
 - When a dispute is still live on the review date (a money judgment not yet paid, or a liability ruling whose amount
-  is still open), place it on the host's dispute model with instantiate_dispute: the accepted findings about it, whether
-  the borrower owes or is owed, the counterparty, the amount and any judgment date. The host sets the stages, dates and
-  amounts from rules; do not invent branches. Then run_scenarios to see how each financing structure performs
-  bank-only and along the disputes' paths, and what binds the recommendation.
+  is still open), compile it with instantiate_dispute: the accepted findings about one obligation (cite the passages
+  that show what the court has decided, the amount and any appeal position), the obligation, the counterparty, the
+  amount figure and any judgment date. Jev reads each finding (who pays, the amount's status, the procedural events);
+  the host keeps every cash path the evidence permits. Then run_scenarios: it sizes each structure against all of them
+  and computes what the requested amount would need. Base your conclusion on those computed results.
 - run_sensitivity on validated settlement effects (fixed-installment cases) to see which unknown changes the cash
   requirement.
 - request_missing_fact for each pivotal fact the evidence cannot supply, then submit_packet.

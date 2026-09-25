@@ -208,37 +208,38 @@ class Semantics:
 
 
 class DisputeProfile:
-    """dispute_model (registry 3.10): the atomic questions the dispute evaluator asks, one question per request, with
-    host-built options (the model's stages, factors, rubric levels or transitions). Implements DisputeJudge."""
+    """dispute_model (registry 3.11): Jev's atomic readings of one cited finding against one obligation. Per finding:
+    a reading request (who pays, the amount's status, interest, procedural events), a relevance request (one question
+    per factor), and a level request per routed graded factor. Never a forecast. Implements DisputeJudge."""
 
     def __init__(self, semantics: Semantics, source_hashes: tuple[str, ...]) -> None:
         self.s, self.hashes = semantics, source_hashes
 
-    async def _one(self, qid: str, state: dict, subject_ids: tuple[str, ...], criteria) -> SemanticObservation:
-        call, [o] = await self.s.jev.judge(profile="dispute_model", question_ids=[qid], state=state,
-                                          subject_ids=subject_ids, source_content_hashes=self.hashes,
-                                          criteria={qid: criteria})
+    async def _ask(self, qids: list[str], state: dict, subject_ids: tuple[str, ...],
+                   criteria: dict | None = None) -> list[SemanticObservation]:
+        call, observations = await self.s.jev.judge(profile="dispute_model", question_ids=qids, state=state,
+                                                    subject_ids=subject_ids, source_content_hashes=self.hashes,
+                                                    criteria=criteria)
         self.s.run.put("jev_call", call)
-        self.s.run.put("observation_recorded", o)
+        for o in observations:
+            self.s.run.put("observation_recorded", o)
+        return observations
+
+    async def read(self, obligation, cited, direction, subject_ids):
+        from app.disputes.rules import load_model
+
+        qids = ["obligation_direction", "amount_status", "amount_includes_interest",
+                *(f"event_{ev}" for ev in load_model()["readings"]["events"])]
+        return await self._ask(qids, {"obligation": obligation, "cited_text": cited}, subject_ids,
+                               {"obligation_direction": direction})
+
+    async def relevance(self, obligation, cited, subject_ids):
+        from app.disputes.rules import load_model
+
+        qids = [f"bears_on_{f}" for f in load_model()["factors"]]
+        return await self._ask(qids, {"obligation": obligation, "cited_text": cited}, subject_ids)
+
+    async def level(self, obligation, cited, factor, rubric, subject_ids):
+        [o] = await self._ask(["factor_level"], {"obligation": obligation, "cited_text": cited, "factor": factor},
+                              subject_ids, {"factor_level": list(rubric)})
         return o
-
-    async def stage(self, dispute, record, options, subject_ids):
-        return await self._one("dispute_stage", {"dispute": dispute, "record": record}, subject_ids, options)
-
-    async def route(self, dispute, finding, options, subject_ids):
-        return await self._one("factor_routing", {"dispute": dispute, "finding": finding}, subject_ids, options)
-
-    async def level(self, dispute, finding, factor, rubric, subject_ids):
-        return await self._one("factor_level", {"dispute": dispute, "finding": finding, "factor": factor},
-                               subject_ids, list(rubric))
-
-    async def present(self, dispute, finding, factor, subject_ids):
-        criteria = {"true": f"The quoted text establishes it: {factor['question']}",
-                    "false": "The quoted text does not establish it, or does not address it."}
-        return await self._one("factor_present", {"dispute": dispute, "finding": finding, "factor": factor},
-                               subject_ids, criteria)
-
-    async def transition(self, dispute, record, stage, premise, factor_results, options, subject_ids):
-        state = {"dispute": dispute, "record": record, "stage": stage, "premise": premise or ["(the stage itself)"],
-                 "factor_results": factor_results or ["(none established yet)"]}
-        return await self._one("dispute_transition", state, subject_ids, options)
