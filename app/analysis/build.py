@@ -192,8 +192,10 @@ def build(run_id: str, root: Path, refresh: bool = False) -> dict:
     findings: dict[str, AtomicFinding] = {k: f for k, f in store.graph["findings"].items() if f.status == "accepted"}
     live = [d for d in store.graph["disputes"].values() if d.status != "superseded"]
     sources = {s["source_id"]: (s["title"], s["available_at"][:10]) for s in evidence.list_sources()}
+    feed = load_feed(meta["snapshot_id"])
     fc = Forecaster(live, findings, borrower=borrower, review=review, horizon=setup.horizon,
-                    hydrate=lambda f: evidence_state(evidence, f, [], sources)["passage"])
+                    hydrate=lambda f: evidence_state(evidence, f, [], sources)["passage"],
+                    borrower_cash_cents=feed.available_cents)
     per = fc.all_paths()
     records: list = []
     jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
@@ -202,7 +204,7 @@ def build(run_id: str, root: Path, refresh: bool = False) -> dict:
     model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered())
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in live if d.status not in ("interpreted", "resolved")]
-    data = payload(load_feed(meta["snapshot_id"]), setup, model, meta_for(model, borrower, not_modelled))
+    data = payload(feed, setup, model, meta_for(model, borrower, not_modelled))
     data["model"] = _model_json(model)
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
     data["base_setup"] = setup_json(setup)

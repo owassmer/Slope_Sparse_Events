@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.13.0",
+  "registry_version": "3.14.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -91,6 +91,7 @@
         "event_appeal_filed",
         "event_stay_secured",
         "event_paid",
+        "event_mediation_ordered",
         "bears_on_amount_finality",
         "bears_on_appeal_intent",
         "bears_on_appeal_barred",
@@ -799,6 +800,26 @@
       "application": "Code places the stage from the most advanced established event."
     },
     {
+      "version": "3.14.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "event_mediation_ordered",
+      "primitive": "noul",
+      "question": "Does the cited text establish that the court has ordered the parties to mediate or attend a settlement conference on this obligation?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that the court has ordered the parties to mediate or attend a settlement conference on this obligation? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that the court has ordered the parties to mediate or attend a settlement conference on this obligation.",
+          "false": "The text does not establish it (it may be silent, describe a party's request or willingness, or concern a different obligation)."
+        }
+      },
+      "application": "Code passes the established event to the forecasts as evidence; it does not change the stage."
+    },
+    {
       "version": "3.12.0",
       "profile": "dispute_interpretation",
       "state_fields": [
@@ -919,7 +940,7 @@
       "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
     },
     {
-      "version": "3.12.0",
+      "version": "3.14.0",
       "profile": "dispute_interpretation",
       "state_fields": [
         "obligation",
@@ -927,10 +948,10 @@
       ],
       "id": "bears_on_debtor_liquidity",
       "primitive": "noul",
-      "question": "Does the quoted text describe the payer's own cash, finances or ability to pay an amount of this size?",
-      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "question": "Does the quoted text say whether the payer can fund this obligation: its cash, its financing, or a statement about its ability to pay an amount of this size?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute in which the counterparty pays.",
       "prompt": {
-        "instructions": "Does the quoted text describe the payer's own cash, finances or ability to pay an amount of this size? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "instructions": "Does the quoted text say whether the payer can fund this obligation: its cash, its financing, or a statement about its ability to pay an amount of this size? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
         "criteria": {
           "true": "Yes, for this obligation.",
           "false": "No, or only about a different claim, order or party."
@@ -939,7 +960,7 @@
       "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
     },
     {
-      "version": "3.12.0",
+      "version": "3.14.0",
       "profile": "dispute_interpretation",
       "state_fields": [
         "obligation",
@@ -947,10 +968,10 @@
       ],
       "id": "bears_on_settlement_signals",
       "primitive": "noul",
-      "question": "Does the quoted text say anything about the parties settling this obligation?",
+      "question": "Does the quoted text say anything about the parties' willingness or efforts to settle this obligation, including a refusal to settle or failed talks?",
       "applies_when": "Every accepted finding the agent cites for a live dispute.",
       "prompt": {
-        "instructions": "Does the quoted text say anything about the parties settling this obligation? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "instructions": "Does the quoted text say anything about the parties' willingness or efforts to settle this obligation, including a refusal to settle or failed talks? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
         "criteria": {
           "true": "Yes, for this obligation.",
           "false": "No, or only about a different claim, order or party."

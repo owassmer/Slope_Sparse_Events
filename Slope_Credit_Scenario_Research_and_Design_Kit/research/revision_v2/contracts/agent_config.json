@@ -220,6 +220,7 @@
             "event_appeal_filed",
             "event_stay_secured",
             "event_paid",
+            "event_mediation_ordered",
             "bears_on_amount_finality",
             "bears_on_appeal_intent",
             "bears_on_appeal_barred",

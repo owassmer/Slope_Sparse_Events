@@ -277,8 +277,8 @@
     },
     {
       "path": "research/revision_v2/contracts/agent_config.json",
-      "bytes": 36739,
-      "sha256": "8256ae3dd86921e6efbd9cf4969e3b48d205fd8b6eb2e4ed1cfebd683f4e32f7"
+      "bytes": 36778,
+      "sha256": "1a20f23774883dbe03d407dfb099577859f248e03efe63ac49ef803187471d2f"
     },
     {
       "path": "research/revision_v2/contracts/barfresh-economic-effects.json",
@@ -312,8 +312,8 @@
     },
     {
       "path": "research/revision_v2/contracts/dispute_model.json",
-      "bytes": 14961,
-      "sha256": "b0284ab013b31595f99fd16c4d136cedbbadc9ad43366751275aa7408f64dd52"
+      "bytes": 15510,
+      "sha256": "c54f5e7120c287575186665f9dc4f385d468d7cd4592bc915b18fa79720928d8"
     },
     {
       "path": "research/revision_v2/contracts/economic-effects.json",
@@ -332,8 +332,8 @@
     },
     {
       "path": "research/revision_v2/contracts/question_registry.json",
-      "bytes": 66540,
-      "sha256": "64791a7ffb72616402509b7f9021909286c8b7714fb0e31a4f28acb20b9bca95"
+      "bytes": 68246,
+      "sha256": "dc244cb9686b32869a3d8856daf20909162fe9856e37b56894202c93dc0002e9"
     },
     {
       "path": "research/revision_v2/contracts/synergy-decision-context.json",

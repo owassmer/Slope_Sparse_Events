@@ -84,8 +84,9 @@ def fmt(d: date) -> str:
 class Forecaster:
     def __init__(self, disputes: list[DisputeInstance], findings: dict[str, AtomicFinding], *, borrower: str,
                  review: date, horizon: date, hydrate: Callable[[AtomicFinding], dict],
-                 model: dict | None = None) -> None:
+                 model: dict | None = None, borrower_cash_cents: int | None = None) -> None:
         self.m = model or load_model()
+        self.borrower_cash = borrower_cash_cents  # available cash on the review date, from the connected-bank data
         self.disputes = [d for d in disputes if d.status == "interpreted"]
         self.findings, self.borrower, self.review, self.horizon, self.hydrate = findings, borrower, review, horizon, hydrate
         self.nodes: dict[str, Node] = {}
@@ -244,11 +245,14 @@ class Forecaster:
         payer, payee = (self.borrower, d.counterparty) if d.borrower_role == "debtor" else (d.counterparty, self.borrower)
         amount = d.amount.value if d.amount.value is not None else d.amount.upper
         status = self.m["readings"]["amount_status_labels"].get(d.amount_status, "status not established")
-        return {"as_of": fmt(self.review), "analysis_period_ends": fmt(self.horizon), "payer": payer, "payee": payee,
+        case = {"as_of": fmt(self.review), "analysis_period_ends": fmt(self.horizon), "payer": payer, "payee": payee,
                 "obligation": f"{self.m['natures'].get(d.nature, d.nature)}, {d.order_reference}",
                 "amount": f"{usd(amount)} ({status})",
                 "established": [f"{self.m['readings']['events'][k]} (passage dated {v.source_date})"
                                 for k, v in d.established.items()]}
+        if d.borrower_role == "debtor" and self.borrower_cash is not None:
+            case["payer_available_cash"] = f"{usd(self.borrower_cash)} (connected-bank data on {fmt(self.review)})"
+        return case
 
     def _evidence(self, d: DisputeInstance, node: str) -> tuple[list[dict], tuple[str, ...]]:
         factors = set(self.m["nodes"][node]["context_factors"])

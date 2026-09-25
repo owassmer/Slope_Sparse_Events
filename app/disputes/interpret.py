@@ -35,7 +35,8 @@ class InterpretationJudge(Protocol):
     async def read(self, obligation: dict, evidence: dict, direction: dict[str, str],
                    subject_ids: tuple[str, ...]) -> list[SemanticObservation]: ...
 
-    async def relevance(self, obligation: dict, evidence: dict, subject_ids: tuple[str, ...]) -> list[SemanticObservation]: ...
+    async def relevance(self, obligation: dict, evidence: dict, subject_ids: tuple[str, ...],
+                        factor_ids: list[str]) -> list[SemanticObservation]: ...
 
     async def level(self, obligation: dict, evidence: dict, factor: dict, rubric: list[str],
                     subject_ids: tuple[str, ...]) -> SemanticObservation: ...
@@ -93,13 +94,21 @@ class Interpreter:
             events={ev: (by[f"event_{ev}"].noul_value if f"event_{ev}" in by else None) for ev in self.m["readings"]["events"]},
             observation_ids=tuple(o.observation_id for o in obs))
 
-    async def _factors(self, f: AtomicFinding, r: FindingReading, evidence: dict, obligation: dict) -> FindingReading:
-        obs = await self.judge.relevance(obligation, evidence, (f.finding_id, self.d.instance_id))
+    def _asked(self, role: str) -> list[str]:
+        """The factors asked for this obligation: a factor scoped to one payer (the payer's ability to fund, asked only
+        when the counterparty pays; the borrower's own cash comes from its bank data) is skipped for the other."""
+        payer = "borrower" if role == "debtor" else "counterparty"
+        return [fid for fid, spec in self.m["factors"].items() if spec.get("payer", payer) == payer]
+
+    async def _factors(self, f: AtomicFinding, r: FindingReading, evidence: dict, obligation: dict,
+                       asked: list[str]) -> FindingReading:
+        obs = await self.judge.relevance(obligation, evidence, (f.finding_id, self.d.instance_id), asked)
         self.obs += [o.observation_id for o in obs]
         by = {o.question_id: o for o in obs}
-        bears = {fid: (by[f"bears_on_{fid}"].noul_value if f"bears_on_{fid}" in by else None) for fid in self.m["factors"]}
+        bears = {fid: (by[f"bears_on_{fid}"].noul_value if f"bears_on_{fid}" in by else None) for fid in asked}
         levels, oids = {}, [o.observation_id for o in obs]
-        for fid, spec in self.m["factors"].items():
+        for fid in asked:
+            spec = self.m["factors"][fid]
             if spec["kind"] == "graded" and (bears.get(fid) or 0) >= ESTABLISHED:
                 factor = {"factor_id": fid, "label": spec["label"], "question": spec["relevance"]}
                 o = await self.judge.level(obligation, evidence, factor, spec["levels"], (f.finding_id, self.d.instance_id))
@@ -173,7 +182,8 @@ class Interpreter:
             return self._outside({**update, "readings": tuple(readings)})
         role = "debtor" if payers == {"borrower"} else "creditor"
         obligation = {**self.obligation, "payer": self.borrower if role == "debtor" else self.d.counterparty}
-        readings = list(await asyncio.gather(*(self._factors(f, r, evidence[f.finding_id], obligation)
+        asked = self._asked(role)
+        readings = list(await asyncio.gather(*(self._factors(f, r, evidence[f.finding_id], obligation, asked)
                                                for f, r in zip(self.findings, readings, strict=True))))
         factors = self._aggregate(readings)
         statuses = [argmax(r.amount_status) for r in readings]

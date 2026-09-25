@@ -75,11 +75,11 @@ class WaiverJudge:
                 self._o("amount_status", probabilities={"fixed": 0.9, "sought": 0.1}),
                 self._o("event_judgment_entered", noul_value=0.95)]
 
-    async def relevance(self, obligation, evidence, subject_ids):
+    async def relevance(self, obligation, evidence, subject_ids, factor_ids):
+        assert "debtor_liquidity" not in factor_ids  # ChromaDex pays: its own cash comes from the bank data
         waived = subject_ids[0] == "a"
         return [self._o(f"bears_on_{f}", noul_value=(0.9 if waived and f == "appeal_barred" else 0.05))
-                for f in ("amount_finality", "appeal_intent", "appeal_barred", "debtor_resistance", "debtor_liquidity",
-                          "settlement_signals")]
+                for f in factor_ids]
 
     async def level(self, *a, **k):  # no graded factor is routed in this fixture
         raise AssertionError("unexpected level call")
@@ -93,7 +93,8 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     assert barred.probability == 0.9 and barred.level_label == "established"
 
     fc = Forecaster([d], {f.finding_id: f for f in fs}, borrower=BORROWER, review=REVIEW,
-                    horizon=REVIEW + timedelta(days=180), hydrate=lambda f: {"finding": f.finding_id})
+                    horizon=REVIEW + timedelta(days=180), hydrate=lambda f: {"finding": f.finding_id},
+                    borrower_cash_cents=2_758_025_275)
     paths = fc.paths(d)
     assert {"appeal_pending", "settled_during_appeal"} <= {p.outcome for p in paths}
     assert any(("appeal", "", "yes") in p.steps for p in paths)
@@ -101,3 +102,4 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     state, fids, readings = fc.state(appeal)
     assert readings[barred.label] == {"probability_present": 0.9}  # the waiver reaches Jev's appeal forecast
     assert "a" in fids  # with the passage that states it
+    assert state["case"]["payer_available_cash"].startswith("$27,580,252.75")  # the payer's cash is data, not a reading

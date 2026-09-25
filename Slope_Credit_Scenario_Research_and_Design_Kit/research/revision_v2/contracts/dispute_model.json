@@ -1,6 +1,6 @@
 {
   "model_id": "post_judgment_money_dispute",
-  "model_version": "3.1.0",
+  "model_version": "3.2.0",
   "status": "host_owned_design_contract",
   "scope": "Post-judgment slice of a US federal civil money dispute, bounded by cash: only developments that can move cash, collections, collateral or credit capacity within the analysis horizon. It ends in payment, settlement, an unresolved amount, a pending secured appeal or an uncollected balance, and never forecasts appellate merits.",
   "design": "Two Jev stages. (1) Present-state interpretation of each cited finding, hydrated with its surrounding evidence: who pays, the amount's status, which procedural events it establishes, which factors it bears on and at what level. Established events place the stage; an established waiver or payment constrains the graph. (2) Conditional forecasting: at each node, Jev returns the probability of one defined future event under named parent assumptions and a code-set window, given the relevant hydrated passages and the interpretation distributions. Code multiplies conditional probabilities along each path, draws event dates and amounts inside code-owned windows and ranges, and keeps every structurally feasible path (zero-probability paths stay available for stress).",
@@ -80,7 +80,8 @@
       "judgment_entered": "a money judgment for this obligation has been entered",
       "appeal_filed": "the payer has filed a notice of appeal against this obligation",
       "stay_secured": "the payer has stayed this obligation with a bond or other security",
-      "paid": "this obligation has been paid"
+      "paid": "this obligation has been paid",
+      "mediation_ordered": "the court has ordered the parties to mediate or attend a settlement conference on this obligation"
     },
     "stage_rules": [
       {
@@ -128,9 +129,9 @@
         "The payer accepts the judgment or says it will not appeal",
         "The passage states no position on an appeal",
         "The payer is considering or reserves the right to appeal",
-        "The payer states it intends to appeal",
-        "The payer has filed a notice of appeal"
-      ]
+        "The payer states it intends to appeal"
+      ],
+      "note": "A filed notice of appeal is the procedural event appeal_filed, not a level of intent."
     },
     "appeal_barred": {
       "label": "An appeal of this obligation is waived or barred",
@@ -151,25 +152,27 @@
       ]
     },
     "debtor_liquidity": {
-      "label": "The payer's ability to pay",
+      "label": "The payer's ability to fund this obligation",
       "kind": "graded",
       "aggregate": "latest",
-      "relevance": "Does the quoted text describe the payer's own cash, finances or ability to pay an amount of this size?",
+      "relevance": "Does the quoted text say whether the payer can fund this obligation: its cash, its financing, or a statement about its ability to pay an amount of this size?",
       "levels": [
-        "The payer reports it cannot pay or doubts it can continue as a going concern",
-        "The payer's resources look constrained relative to the amount",
-        "The payer's resources look adequate for the amount",
-        "The payer's resources are ample relative to the amount"
-      ]
+        "The text indicates the payer cannot fund this obligation",
+        "The text indicates the payer could fund it only with strain (new financing, asset sales or cuts to operations)",
+        "The text indicates the payer can fund it without strain"
+      ],
+      "payer": "counterparty",
+      "payer_note": "Asked only when the counterparty pays. When the borrower pays, its available cash comes from the connected-bank data and is given to the forecasts directly."
     },
     "settlement_signals": {
       "label": "Settlement signals",
       "kind": "graded",
       "aggregate": "latest",
-      "relevance": "Does the quoted text say anything about the parties settling this obligation?",
+      "relevance": "Does the quoted text say anything about the parties' willingness or efforts to settle this obligation, including a refusal to settle or failed talks?",
       "levels": [
+        "A party refuses to settle, or settlement talks have failed",
         "The passage describes no settlement discussion",
-        "A party expresses general willingness to settle, or mediation is ordered",
+        "A party expresses general willingness to settle",
         "The parties disclose active settlement negotiations",
         "The parties have an agreement in principle or a term sheet"
       ]
