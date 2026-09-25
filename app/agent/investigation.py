@@ -30,7 +30,7 @@ from app.agent.jev import JevAdapter, canonical_sha256
 from app.agent.jev_profiles import Semantics
 from app.agent.run_store import RunStore
 from app.agent.smoke import preflight
-from app.agent.sweep import build_sweep, inventory_groups, sweep_path
+from app.agent.sweep import build_sweep, inventory_units, sweep_path
 from app.agent.tools import RunContext, build_server
 from app.config import (
     AGENT_PROCESS_ENV,
@@ -64,12 +64,13 @@ WORKING_METHOD = """Working method
 - Use only the evidence returned by the tools; do not rely on remembered facts about this company or later events.
 - Work efficiently: the run stops at {turn_budget} turns; submit before then."""
 
-JEV_METHOD = """- read_inventory early: the host screened every admissible section and lists the specific matters it flagged. It is a
-  reading list: for each item say what it means for the decision with account_for_items, as you go and in batches, once
-  the findings for a matter are accepted. Covered: cite the accepted findings for the matter the section describes. Not
-  decision-relevant: give your reason. A duplicate of a covered item: name it. Each claim is checked; if a check fails, add
-  the missing finding and account again, or escalate the item with the failed observation_id if you genuinely disagree.
-  An escalated item goes to the independent reviewer's checklist with your note; say plainly what it should confirm.
+JEV_METHOD = """- read_inventory early: the host screened the admissible evidence paragraph by paragraph and table row by table
+  row, and lists the atomic units that describe a specific matter. It is a reading list, not a checklist to fill in: read
+  what bears on the decision and record findings for it. Units no accepted finding cites go to the independent reviewer.
+- At submission the host checks every paragraph or table row your accepted findings cite: the findings citing it must state
+  each payment, obligation, restriction, covenant, default term or earnings item it describes (for example a settlement
+  gain in the paragraph that describes the settlement loan). If one fails, add the missing finding and resubmit; if you
+  genuinely disagree, resubmit with coverage_escalations {observation_id, missing}, which go to the reviewer's checklist.
 - The host checks each proposed effect: its supporting findings' posture and status must fit the mechanism, and its model
   consequence must be supported by the cited findings. It also checks your conclusion at submission and checks accepted findings
   under the same question against each other. Revise when a check fails. If you disagree with a failed support check, reply to
@@ -160,11 +161,12 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
             run.lock({"summary": None, "configuration_failure": str(e) if status == "FAILED_CONFIGURATION" else None,
                       "incomplete_reasons": [f"snapshot sweep failed: {e}"]})
             return {**record, "run_id": run_id, "status": status, "error": f"snapshot sweep failed: {e}"}
-        for g in inventory_groups(sweep):
+        for u in inventory_units(sweep):
             run.put("inventory_loaded", InventoryItem(
-                item_id=run.new_id("inv"), section_ids=tuple(g["section_ids"]), source_id=g["source_id"],
-                heading_path=tuple(g["heading_path"]), kind=g["kind"], signal=g["signal"], excerpt=g["excerpt"],
-                section_excerpts=tuple(g.get("section_excerpts", ()))),
+                item_id=run.new_id("inv"), section_ids=(u["section_id"],), source_id=u["source_id"],
+                heading_path=tuple(u["heading_path"]), kind="unscreened" if u["unscreened"] else u["kind"],
+                signal=u["signal"] or 0.0, excerpt=u["excerpt"], unit_kind=u["unit_kind"], unit_start=u["start"],
+                unit_end=u["end"]),
                 payload={"sweep_sha256": sweep["sweep_sha256"], "registry_version": sweep["registry_version"]})
         record["sweep"] = {"sweep_sha256": sweep["sweep_sha256"], **sweep["summary"], "jev_usage": sweep["jev_usage"],
                            "inventory_items": len(run.graph["inventory"])}

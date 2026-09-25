@@ -152,8 +152,10 @@ class ReconciliationTask(Frozen):
 
 
 class InventoryItem(Frozen):
-    """A matter the host sweep flagged (one or more sections of one source under one heading and kind);
-    the agent must account for it before submitting."""
+    """A reading-list pointer: one atomic evidence unit (a paragraph or a table row) the host sweep flagged as describing a
+    specific matter. The agent is not required to account for it; at submission the host records whether an accepted
+    finding cites it, and uncited units go to the independent reviewer's checklist. (Runs recorded before the atomic
+    redesign hold section-level items with the older accounting statuses.)"""
 
     item_id: str
     section_ids: tuple[str, ...]
@@ -164,9 +166,12 @@ class InventoryItem(Frozen):
     excerpt: str = ""
     section_excerpts: tuple[str, ...] = ()  # the flagged chunk start for each section, in section_ids order
     # disputed: a host check failed and the agent escalated it; it stays open for the human reviewer
-    status: Literal["open", "covered", "not_decision_relevant", "disputed"] = "open"
+    status: Literal["open", "covered", "not_decision_relevant", "disputed", "cited", "uncited"] = "open"
     finding_ids: tuple[str, ...] = ()
     duplicate_of: str = ""  # covered as a duplicate of this (covered) item
+    unit_kind: str = ""  # paragraph | table_row (atomic items)
+    unit_start: int = -1  # character offsets of the unit in its section text
+    unit_end: int = -1
     observation_ids: tuple[str, ...] = ()  # the host checks that decided the status
     note: str = ""
 
@@ -209,7 +214,7 @@ EventKind = Literal[
     "observation_recorded", "observation_disposition", "finding_proposed", "finding_resolved",
     "reconciliation_opened", "reconciliation_resolved", "effect_proposed", "effect_validated",
     "sensitivity_run", "missing_fact_requested", "packet_submitted", "run_failed",
-    "inventory_loaded", "inventory_accounted", "conclusion_checked", "effect_disputed",
+    "inventory_loaded", "inventory_accounted", "conclusion_checked", "effect_disputed", "cited_units_checked",
 ]
 
 

@@ -76,7 +76,28 @@
 </div>
 {% endfor %}{% endif %}
 
-{% if v.inventory %}
+{% if v.cited_checks %}
+<h3>Cited paragraphs checked at submission <span class="tag jev">Jev gate</span></h3>
+<p class="muted">Every paragraph or table row the accepted findings cite was checked: do the findings citing it state each payment, obligation, restriction, covenant, default term and earnings item it describes?</p>
+{% for c in v.cited_checks %}<details{% if loop.last %} open{% endif %}><summary>Attempt {{ loop.index }}: {{ c.checked | selectattr("passed") | list | length }} of {{ c.checked | length }} checked passed; {{ c.reused_passes }} earlier passes reused; {{ c.escalated | length }} escalated</summary>
+  {% for r in c.checked %}<p style="margin:.2rem 0">{% if r.passed %}<span class="tag engine">Passed</span>{% else %}<span class="tag warn">Gap</span>{% endif %}<span class="muted">{{ r.unit }} · {{ r.meaning }}{% if r.ambiguous %} (near-even){% endif %} · {{ r.finding_ids | join(", ") }}</span></p>{% endfor %}
+  {% for e in c.escalated %}<p><span class="tag warn">Escalated to the reviewer</span> {{ e.unit }}: {{ e.missing }}</p>{% endfor %}
+</details>{% endfor %}
+{% endif %}
+
+{% if v.reviewer_checklist %}
+<h3>Reviewer checklist</h3>
+<p class="muted">What the independent reviewer starts from: flagged units no accepted finding cites ({{ v.reviewer_checklist.uncited_flagged_units | length }}) and every escalation ({{ v.reviewer_checklist.escalations | length }}).</p>
+{% endif %}
+
+{% if v.inventory and v.atomic_inventory %}
+<h3>Reading list <span class="tag jev">Host sweep</span></h3>
+<p class="muted">Jev read the admissible evidence paragraph by paragraph and table row by table row and flagged the units that describe a specific matter. It is a pointer list for the agent, not a checklist; units no accepted finding cites go to the reviewer.</p>
+<table><thead><tr><th>Unit</th><th>Kind</th><th>Status</th></tr></thead><tbody>
+{% for i in v.inventory %}<tr><td>{{ i.source }} · <span class="muted">{{ i.heading }} ({{ i.unit_kind }})</span><br><span class="muted">{{ i.excerpt[:200] }}</span></td>
+  <td>{{ i.kind }}</td><td>{% if i.status == "cited" %}Cited by {{ i.findings | join(", ") }}{% elif i.status == "uncited" %}<span class="tag warn">On the reviewer's checklist</span>{% else %}{{ i.status }}{% endif %}</td></tr>{% endfor %}
+</tbody></table>
+{% elif v.inventory %}
 <h3>Inventory <span class="tag jev">Host sweep</span></h3>
 <p class="muted">Jev read every admissible section once and flagged specific matters. The agent had to account for each before submitting, and Jev checked each claim section by section. A <em>disputed</em> item failed a check the agent could not resolve; it is open for the reviewer.</p>
 <table><thead><tr><th>Matter</th><th>Kind</th><th>Accounted as</th></tr></thead><tbody>

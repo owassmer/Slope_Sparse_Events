@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.7.0",
+  "registry_version": "3.8.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -58,7 +58,7 @@
     },
     "snapshot_sweep": {
       "primitive": "noul+choice",
-      "trigger": "host, once per snapshot before investigation",
+      "trigger": "host, once per snapshot before investigation: every section, then every paragraph and table row of the flagged sections",
       "questions": [
         "matter_inventory",
         "matter_kind"
@@ -73,11 +73,9 @@
     },
     "inventory_coverage": {
       "primitive": "choice",
-      "trigger": "host, on every inventory item the agent marks covered, duplicate or not decision-relevant (one request per flagged section chunk)",
+      "trigger": "host, at submission, on every paragraph or table row an accepted finding cites",
       "questions": [
-        "coverage_supported",
-        "adds_matter",
-        "decision_relevance"
+        "coverage_supported"
       ]
     }
   },
@@ -97,9 +95,7 @@
     "company": "The borrower's legal name.",
     "statement": "Agent-written text to check (an effect's model consequence or the packet conclusion).",
     "cited_findings": "The accepted findings the statement rests on: proposition plus verbatim quotes.",
-    "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs).",
-    "covered_passage": "The passage of an inventory item already accounted for by accepted findings, which the agent says this passage duplicates.",
-    "review_date": "The date of the credit review; the question concerns what could matter from that date on."
+    "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs)."
   },
   "observation_record": {
     "call_fields": [
@@ -599,68 +595,25 @@
     },
     {
       "id": "coverage_supported",
-      "version": "3.7.0",
+      "version": "3.8.0",
       "profile": "inventory_coverage",
       "primitive": "choice",
-      "question": "Do these findings account for the specific matter this passage describes?",
-      "applies_when": "The agent marks an inventory item as covered by accepted findings (asked once per flagged section).",
+      "question": "Do the findings that cite this paragraph or table row state each payment, obligation, restriction, covenant, default term and earnings item it describes?",
+      "applies_when": "At submission, once for every atomic unit (paragraph or table row) that accepted findings cite.",
       "state_fields": [
         "passage",
         "cited_findings"
       ],
       "prompt": {
-        "instructions": "Do state.cited_findings account for the specific matter that state.passage describes? A finding accounts for the matter when it states what the passage establishes about that matter's payments, obligations, restrictions, covenants, default terms and earnings items, including that one was paid, released or superseded. Other detail (ownership, governance, procedure, legal reasoning, presentation, ordinary balances) needs no finding. Each finding comes with its verbatim quotes; use them to tell which matter it concerns. Findings about a different matter do not account for it.",
+        "instructions": "state.passage is one paragraph or one table row (shown with its header row) that state.cited_findings quote. Do the findings state each payment, obligation, restriction, covenant, default term and earnings item that the passage describes, including that one was paid, released or superseded? Other detail (ownership, governance, procedure, legal reasoning, presentation, ordinary operating balances) needs no finding. Each finding comes with its verbatim quotes.",
         "criteria": {
-          "covered": "The findings state each payment, obligation, restriction, covenant, default term and earnings item the passage describes for its matter.",
-          "partly_covered": "The findings address the matter but a payment, obligation, restriction, covenant, default term or earnings item the passage describes (for example an accounting gain) is not stated.",
-          "not_covered": "The findings concern a different matter or aspect.",
-          "unclear": "Cannot tell what matter the passage describes or what the findings state."
+          "covered": "The findings state each payment, obligation, restriction, covenant, default term and earnings item the passage describes.",
+          "partly_covered": "A payment, obligation, restriction, covenant, default term or earnings item the passage describes (for example an accounting gain beside a loan) is not stated by the findings.",
+          "not_covered": "The findings state none of the passage's payments, obligations, restrictions, covenants or earnings items.",
+          "unclear": "Cannot tell what the passage describes or what the findings state."
         }
       },
-      "application": "A narrow check on the flagged matter: a clear gap is closed with a finding, a verified duplicate, or escalation; never overridden. Completeness beyond the flagged matter is the independent reviewer's job."
-    },
-    {
-      "id": "adds_matter",
-      "version": "3.3.0",
-      "profile": "inventory_coverage",
-      "primitive": "choice",
-      "question": "Does this passage describe a specific matter or item that the covered passage does not?",
-      "applies_when": "The agent marks an inventory item as a duplicate of an item already covered by accepted findings.",
-      "state_fields": [
-        "covered_passage",
-        "passage"
-      ],
-      "prompt": {
-        "instructions": "Does state.passage describe any specific matter, or a distinct item of one (such as its payment status or an accounting gain, loss or accrual), that state.covered_passage does not also describe? A specific matter is a lawsuit or claim, a settlement, a loan or other financing agreement and its terms, a covenant or consent requirement, a restriction on cash, or an accounting gain, loss or accrual arising from one of these. Routine accounting policies, ordinary operating balances (receivables, payables, inventory, taxes, equity compensation) and generic disclosures are not specific matters. The same matter reported at a different date or with an updated balance is not a new item.",
-        "criteria": {
-          "nothing_new": "Every specific matter and item in the passage is also described in the covered passage.",
-          "adds_item": "The passage describes at least one specific matter or item the covered passage does not.",
-          "unclear": "Cannot tell what either passage describes."
-        }
-      },
-      "application": "A duplicate claim clears an inventory item only when the passage adds nothing to an item already covered."
-    },
-    {
-      "id": "decision_relevance",
-      "version": "3.3.0",
-      "profile": "inventory_coverage",
-      "primitive": "choice",
-      "question": "Does this passage describe a specific matter that could change the borrower's cash, obligations, the earnings used in underwriting, or its ability to repay, from the review date on?",
-      "applies_when": "The agent marks an inventory item as not decision-relevant.",
-      "state_fields": [
-        "company",
-        "review_date",
-        "passage"
-      ],
-      "prompt": {
-        "instructions": "Does state.passage describe a specific matter that could change state.company's future cash, its obligations outstanding at or after state.review_date, the historical earnings a lender would use in underwriting, or its ability to repay, from state.review_date on? A specific matter is a lawsuit or claim, a settlement, a loan or other financing agreement and its terms, a covenant or consent requirement, a restriction on cash, or an accounting gain, loss or accrual arising from one of these. Routine accounting policies, ordinary operating balances (receivables, payables, inventory, taxes, equity compensation) and generic disclosures are not specific matters. A matter fully paid, released or closed before the review date, with no remaining obligation, restriction or earnings effect, could not. Do not judge how large or likely any change is.",
-        "criteria": {
-          "could_change": "It describes a specific matter (an obligation, restriction, contingency, financing term or matter-related earnings item) that could change cash, obligations, underwriting earnings or repayment ability from the review date.",
-          "could_not_change": "It describes no specific matter, only routine policies, ordinary balances or generic text, or a matter fully closed before the review date.",
-          "unclear": "Cannot tell what the passage describes."
-        }
-      },
-      "application": "A clear could_change blocks the not-decision-relevant label; the agent covers, dedupes or escalates the item instead."
+      "application": "Gate at submission over the agent's own reading: a clear gap is closed with a finding or escalated to the reviewer's checklist; never overridden. Units no finding cites are the reviewer's, not Jev's."
     }
   ]
 }

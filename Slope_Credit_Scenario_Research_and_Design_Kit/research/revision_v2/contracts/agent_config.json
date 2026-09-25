@@ -106,7 +106,6 @@
           "mcp__credit__run_sensitivity",
           "mcp__credit__request_missing_fact",
           "mcp__credit__read_inventory",
-          "mcp__credit__account_for_items",
           "mcp__credit__escalate_effect",
           "mcp__credit__resolve_reconciliation",
           "mcp__credit__submit_packet"
@@ -205,9 +204,7 @@
         "inventory_coverage": {
           "trigger": "host, per section, on every inventory item the agent marks covered, duplicate or not decision-relevant",
           "questions": [
-            "coverage_supported",
-            "adds_matter",
-            "decision_relevance"
+            "coverage_supported"
           ]
         }
       },
@@ -270,8 +267,7 @@
       "run_sensitivity": "Run deterministic thresholds or ledger sensitivities over explicit parameter bounds and return which values change the result.",
       "request_missing_fact": "Record the exact requested fact/document and the action consequences. This tool sends no communication.",
       "submit_packet": "Lock the investigation graph, source hashes, findings, effects and calculation versions for review. No lending action.",
-      "read_inventory": "List the host sweep inventory: specific matters flagged in the admissible evidence, with their accounting status.",
-      "account_for_items": "Account for inventory items (a reading list, not an audit): covered by accepted findings for the matter each flagged section describes, a duplicate of a covered item, or not decision-relevant with a reason; each claim is checked. A failed check is closed with a new finding or a verified duplicate, or escalated with the failed observation ID and what is missing (the item is disputed and stays open for the reviewer). The packet cannot be submitted while items are open.",
+      "read_inventory": "The reading list: paragraphs and table rows the host sweep flagged as describing a specific matter, and whether an accepted finding cites each.",
       "escalate_effect": "Escalate an effect the category guard rejected: it becomes disputed, creates no cash stream and is left for the reviewer; a disputed cash-moving effect makes the run INCOMPLETE_REVIEW.",
       "resolve_reconciliation": "Resolve an open reconciliation task with a note on how the statements relate."
     },
@@ -296,7 +292,7 @@
     "budget_policy": "Ceilings, not targets. Record actual elapsed time, token usage, requests and spend. Finish early when further accessible evidence cannot change the action across the stated sensitivity range.",
     "jev_max_physical_attempts_including_retries": 400,
     "turn_counting": "A turn is one distinct model response (message_id), counted by the host and enforced by interrupting the session. The SDK's num_turns counts differently and is recorded only for reference.",
-    "sweep_max_physical_attempts_per_snapshot": 800,
+    "sweep_max_physical_attempts_per_snapshot": 1500,
     "sweep_spend_cap_usd_per_snapshot": "0.10",
     "search_default_results": 8
   },
@@ -329,7 +325,7 @@
       "unrecoverable_source_or_model_service_failure": "INCOMPLETE_REVIEW",
       "unresolved_material_review_error_after_one_repair": "INCOMPLETE_REVIEW",
       "escalated_cash_moving_effect_dispute": "INCOMPLETE_REVIEW",
-      "escalated_inventory_item": "reviewer_checklist (INCOMPLETE_REVIEW only if the reviewer finds a material gap that one repair pass does not close)"
+      "escalated_cited_unit_coverage_gap": "reviewer_checklist (INCOMPLETE_REVIEW only if the reviewer finds a material gap that one repair pass does not close)"
     },
     "failure_recommendation_policy": "Keep any prior provisional recommendation in the trace, but do not publish it as a completed result. Set final lending recommendation UNDETERMINED unless an independently completed supported decision packet exists. Execution failure itself is never a reason for DECLINE_REQUEST.",
     "complete_with_pivotal_gap": "A reviewed packet may finish with UNDETERMINED and a precise borrower question plus action map. It must not claim that the financing decision has been resolved.",
@@ -493,7 +489,6 @@
       "remove_allowed_and_exposed_tools": [
         "mcp__credit__judge",
         "mcp__credit__read_inventory",
-        "mcp__credit__account_for_items",
         "mcp__credit__escalate_effect",
         "mcp__credit__resolve_reconciliation"
       ],

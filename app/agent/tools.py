@@ -30,7 +30,7 @@ from app.agent.jev_profiles import Semantics, is_ambiguous
 from app.agent.meanings import NOT_SETTLED, meaning
 from app.agent.mission import project_mission
 from app.agent.run_store import RunStore
-from app.agent.sweep import chunks
+from app.agent.sweep import unit_of
 from app.config import ConfigurationError
 from app.domain.investigation import (
     CASH_FREE_MECHANISMS,
@@ -39,7 +39,6 @@ from app.domain.investigation import (
     Disposition,
     EconomicEffectProposal,
     EvidenceCandidate,
-    InventoryItem,
     ParameterRequirement,
     ReconciliationTask,
     SemanticObservation,
@@ -507,80 +506,19 @@ async def request_missing_fact(ctx: RunContext, args: dict) -> dict:
 
 
 async def read_inventory(ctx: RunContext, _args: dict) -> dict:
-    items = sorted(ctx.run.graph["inventory"].values(), key=lambda i: (i.status != "open", i.item_id))
+    """The reading list: atomic units the sweep flagged, and whether an accepted finding cites each one yet."""
     titles = {s["source_id"]: s["title"] for s in ctx.evidence.list_sources()}
-    return {"note": ("The host screened every admissible section for specific legal matters, settlements, debt agreements, "
-                     "covenants, cash restrictions and matter-related accounting items. Account for every open item before "
-                     "submitting. A flag is a pointer to read, not a finding. Each claim is checked: covered (the findings must "
-                     "account for every section), duplicate_of a covered item (the passage must add nothing), or not decision-"
-                     "relevant (it must not be able to change cash, obligations, underwriting earnings or repayment ability). "
-                     "A failed check is resolved with a new finding, a duplicate, or by escalating it as disputed."),
-            "open": sum(i.status == "open" for i in items),
-            "items": [{"item_id": i.item_id, "status": i.status, "kind": i.kind, "source": titles.get(i.source_id, i.source_id),
-                       "heading": " > ".join(i.heading_path[-2:]) or "(whole document)", "section_ids": list(i.section_ids),
-                       "excerpt": i.excerpt[:200], **({"finding_ids": list(i.finding_ids)} if i.finding_ids else {}),
-                       **({"duplicate_of": i.duplicate_of} if i.duplicate_of else {}),
-                       **({"note": i.note} if i.note else {})} for i in items]}
-
-
-async def account_for_items(ctx: RunContext, args: dict) -> dict:
-    """Each entry is judged on its own: accepted entries are recorded, rejected ones come back with their reason and the
-    failed check's observation ID. There is no free-text override: a failed check is closed with a new finding (then the
-    entry is re-checked), a verified duplicate of a covered item, or escalation as a disputed item for the reviewer."""
-    entries = args.get("items", [])
-    # Independent entries are checked in parallel; duplicates run afterwards so they can cite items covered in this batch.
-    first = [e for e in entries if e.get("disposition") != "duplicate_of"]
-    later = [e for e in entries if e.get("disposition") == "duplicate_of"]
-    if len({e.get("item_id") for e in entries}) != len(entries):
-        raise ToolError("Each item may appear once per batch")
-    results = await asyncio.gather(*(_account_one(ctx, e) for e in first))
-    results += [await _account_one(ctx, e) for e in later]
-    accepted = [r for r in results if isinstance(r, str)]
-    rejected = [r for r in results if isinstance(r, dict)]
-    return {"accounted": accepted, "rejected": rejected,
-            "open": sum(i.status == "open" for i in ctx.run.graph["inventory"].values())}
-
-
-async def _account_one(ctx: RunContext, entry: dict) -> str | dict:
-    """Account for one inventory entry: the item ID when recorded, or {item_id, reason} when rejected."""
-    try:
-        item = ctx.run.get("inventory", entry["item_id"])
-        if item.status != "open":
-            raise ToolError(f"{item.item_id} is already {item.status}")
-        disposition = entry.get("disposition")
-        reason = (entry.get("reason") or "").strip()
-        if disposition == "covered_by_findings":
-            fids = tuple(entry.get("finding_ids") or [])
-            bad = [f for f in fids if f not in ctx.run.graph["findings"] or ctx.run.graph["findings"][f].status != "accepted"]
-            if not fids or bad:
-                raise ToolError(f"{item.item_id}: covered_by_findings needs accepted finding IDs (not accepted: {bad or 'none given'})")
-            checks = await _check_coverage(ctx, item, fids) if ctx.semantics is not None else []
-            update = item.model_copy(update={"status": "covered", "finding_ids": fids, "note": reason,
-                                             "observation_ids": tuple(o.observation_id for o in checks)})
-        elif disposition == "duplicate_of":
-            other = ctx.run.get("inventory", entry.get("duplicate_of") or "")
-            if other.status != "covered" or other.item_id == item.item_id:
-                raise ToolError(f"{item.item_id}: duplicate_of must name another item that is already covered "
-                                f"({other.item_id} is {other.status})")
-            checks = await _check_duplicate(ctx, item, other) if ctx.semantics is not None else []
-            update = item.model_copy(update={"status": "covered", "finding_ids": other.finding_ids, "note": reason,
-                                             "duplicate_of": other.item_id,
-                                             "observation_ids": tuple(o.observation_id for o in checks)})
-        elif disposition == "not_decision_relevant":
-            if len(reason) < OVERRIDE_NOTE_MIN:
-                raise ToolError(f"{item.item_id}: say why it does not bear on the financing decision")
-            checks = await _check_relevance(ctx, item) if ctx.semantics is not None else []
-            update = item.model_copy(update={"status": "not_decision_relevant", "note": reason,
-                                             "observation_ids": tuple(o.observation_id for o in checks)})
-        elif disposition == "escalate" and ctx.semantics is not None:
-            update = _escalate_item(ctx, item, entry.get("observation_id") or "", (entry.get("missing") or "").strip())
-        else:
-            raise ToolError(f"{entry.get('item_id')}: disposition must be covered_by_findings, duplicate_of, "
-                            "not_decision_relevant or escalate")
-        ctx.run.put("inventory_accounted", update)
-        return update.item_id
-    except (ToolError, KeyError) as e:
-        return {"item_id": entry.get("item_id"), "reason": str(e).strip("'")}
+    cited = _cited_by(ctx)
+    items = sorted(ctx.run.graph["inventory"].values(), key=lambda i: i.item_id)
+    return {"note": ("The host screened the admissible evidence paragraph by paragraph and table row by table row for specific "
+                     "legal matters, settlements, debt agreements, covenants, cash restrictions and matter-related accounting "
+                     "items. This is a reading list, not a checklist: a flag is a pointer to read, not a finding. Units no "
+                     "accepted finding cites go to the independent reviewer."),
+            "uncited": sum(not cited.get(i.item_id) for i in items),
+            "items": [{"item_id": i.item_id, "kind": i.kind, "source": titles.get(i.source_id, i.source_id),
+                       "heading": " > ".join(i.heading_path[-2:]) or "(whole document)", "section_id": i.section_ids[0],
+                       "unit": i.unit_kind, "excerpt": i.excerpt[:200],
+                       **({"cited_by": cited[i.item_id]} if cited.get(i.item_id) else {})} for i in items]}
 
 
 async def escalate_effect(ctx: RunContext, args: dict) -> dict:
@@ -619,18 +557,19 @@ async def submit_packet(ctx: RunContext, args: dict) -> dict:
         eff = ctx.run.graph["effects"].get(eid)
         if eff is None or eff.status != "validated":
             raise ToolError(f"{eid} is {'unknown' if eff is None else eff.status}; list only validated effects as supported")
+    escalated: list[dict] = []
     if ctx.semantics is not None:
-        open_items = [i.item_id for i in ctx.run.graph["inventory"].values() if i.status == "open"]
-        if open_items:
-            raise ToolError(f"{len(open_items)} inventory items are still open: {open_items[:12]}. Use read_inventory and account_for_items.")
         open_tasks = [t.task_id for t in ctx.run.graph["reconciliations"].values() if t.status == "open"]
         if open_tasks:
             raise ToolError(f"Open reconciliation tasks: {open_tasks}. Resolve them with resolve_reconciliation.")
+        escalated = await _check_cited_units(ctx, args.get("coverage_escalations") or [])
         await _check_conclusion(ctx, args)
+        _record_reading_list(ctx)
     summary = {k: args.get(k) for k in ("summary", "pivotal_unknowns", "supported_effect_ids", "conclusion")}
-    disputes = _disputes(ctx)
+    disputes = _disputes(ctx, escalated)
     ctx.incomplete_reasons += [d["reason"] for d in disputes if d["blocking"]]
     summary["disputes"] = disputes
+    summary["reviewer_checklist"] = _reviewer_checklist(ctx, disputes)
     summary["incomplete_reasons"] = ctx.incomplete_reasons
     summary["configuration_failure"] = ctx.configuration_failure
     if (args.get("conclusion_reply_to_failed_check") or {}).get("reason"):
@@ -641,21 +580,25 @@ async def submit_packet(ctx: RunContext, args: dict) -> dict:
             **({"disputes": disputes} if disputes else {})}
 
 
-def _disputes(ctx: RunContext) -> list[dict]:
-    """Escalated items and effects, open for the independent reviewer. An escalated inventory item is a reviewer checklist
-    item: the reviewer decides whether it is material (one repair pass; a material gap left open makes the run
-    INCOMPLETE_REVIEW). A disputed cash-moving effect blocks at once: the category guard protects a critical error."""
-    out = []
-    for i in ctx.run.graph["inventory"].values():
-        if i.status == "disputed":
-            out.append({"id": i.item_id, "kind": i.kind, "blocking": False, "for": "reviewer_checklist",
-                        "reason": f"disputed inventory item {i.item_id} ({i.kind.replace('_', ' ')}): {i.note}"})
+def _disputes(ctx: RunContext, escalated: list[dict]) -> list[dict]:
+    """Escalations, open for the independent reviewer. A coverage escalation is a reviewer checklist item (the reviewer
+    decides whether it is material; one repair pass; a material gap left open makes the run INCOMPLETE_REVIEW). A disputed
+    cash-moving effect blocks at once: the category guard protects a critical error."""
+    out = [{"id": e["unit"], "kind": "cited_unit_coverage", "blocking": False, "for": "reviewer_checklist",
+            "reason": f"coverage escalated on {e['unit']} ({e['observation_id']}): {e['missing']}"} for e in escalated]
     for e in ctx.run.graph["effects"].values():
         if e.status == "disputed":
             out.append({"id": e.effect_id, "kind": e.mechanism, "blocking": e.mechanism not in CASH_FREE_MECHANISMS,
                         "for": "reviewer_checklist",
                         "reason": f"disputed effect {e.effect_id} ({e.mechanism.replace('_', ' ')}): {e.dispute}"})
     return out
+
+
+def _reviewer_checklist(ctx: RunContext, disputes: list[dict]) -> dict:
+    """What the independent reviewer starts from: flagged units no accepted finding cites, plus every escalation."""
+    uncited = [{"item_id": i.item_id, "section_id": i.section_ids[0], "kind": i.kind, "excerpt": i.excerpt[:200]}
+               for i in ctx.run.graph["inventory"].values() if i.status == "uncited"]
+    return {"uncited_flagged_units": uncited, "escalations": [d for d in disputes if d["for"] == "reviewer_checklist"]}
 
 
 # --- 4c host checks --------------------------------------------------------------------------------
@@ -678,102 +621,102 @@ def _attribute_screen(ctx: RunContext, finding: AtomicFinding) -> None:
         _dispose(ctx, unused, "used_in_finding", f"screened passage cited in {finding.finding_id}")
 
 
-def _matter_passages(ctx: RunContext, item: InventoryItem) -> list[tuple[str, dict, str]]:
-    """(section_id, flagged chunk, source hash) for every section of the matter, located by the sweep's excerpts."""
-    excerpts = list(item.section_excerpts) or [item.excerpt] * len(item.section_ids)
-    out = []
-    for sid, excerpt in zip(item.section_ids, excerpts, strict=False):
-        sec = ctx.evidence.read_section(sid)
-        pieces = chunks(sec["text"])
-        piece = next((p for p in pieces if excerpt and excerpt[:120] in p), pieces[0])
-        out.append((sid, {"heading_path": " > ".join(sec["heading_path"]), "text": piece}, sec["source"]["sha256"]))
+def _cited_units(ctx: RunContext) -> dict[str, dict]:
+    """Every atomic unit (paragraph or table row) an accepted finding cites, with the findings that cite it."""
+    out: dict[str, dict] = {}
+    for f in ctx.run.graph["findings"].values():
+        if f.status != "accepted":
+            continue
+        for sp in f.spans:
+            sec = ctx.evidence.read_section(sp.section_id)
+            u = unit_of(sec["text"], sp.start)
+            if u is None:
+                continue
+            key = f"{sp.section_id}:{u['start']}-{u['end']}"
+            entry = out.setdefault(key, {"section_id": sp.section_id, "unit": u, "sha": sec["source"]["sha256"],
+                                         "heading_path": " > ".join(sec["heading_path"]), "finding_ids": []})
+            if f.finding_id not in entry["finding_ids"]:
+                entry["finding_ids"].append(f.finding_id)
     return out
 
 
-async def _per_section(ctx: RunContext, item: InventoryItem, ask, failing: set[str], label: str, advice: str,
-                       reuse=None) -> list[SemanticObservation]:
-    """Run one host check per flagged section chunk, in parallel. A clear failing answer on any section rejects the entry
-    and names the observation the agent may escalate; there is no free-text override. `reuse(section_id)` may return an
-    earlier passing observation that still holds, so a retry re-checks only the sections that failed."""
-    passages = _matter_passages(ctx, item)
-    kept = {sid: reuse(sid) for sid, _, _ in passages} if reuse else {}
-
-    async def one(sid, passage, sha):
-        return [kept[sid]] if kept.get(sid) is not None else await ask(sid, passage, sha)
-    try:
-        results = await asyncio.gather(*(one(sid, passage, sha) for sid, passage, sha in passages))
-    except Exception as e:
-        _record_jev_failure(ctx, e)
-        raise ToolError(f"{item.item_id}: {label} could not be checked ({e})") from e
-    obs = [o for r in results for o in r]
-    failed = [(sid, o) for (sid, _, _), o in zip(passages, obs, strict=True) if o.answer in failing and not is_ambiguous(o)]
-    fresh = [o for (sid, _, _), o in zip(passages, obs, strict=True) if kept.get(sid) is None]
-    if failed:
-        _dispose(ctx, [o for _, o in failed], "challenged_agent_draft", f"{label} on {item.item_id}")
-        detail = "; ".join(f"{key}: {meaning(o.question_id, o.answer)} ({o.observation_id})" for key, o in failed)
-        passed = len(passages) - len(failed)
-        raise ToolError(f"{item.item_id}: {label} failed on {len(failed)} of {len(passages)} sections ({passed} passed and "
-                        f"will not be re-checked). {detail}. {advice} If you disagree, escalate the item with the "
-                        "observation_id and what is not accounted for; it will stay open for the reviewer.")
-    _dispose(ctx, [o for o in fresh if o.downstream_disposition == "unused" and not o.disposition_note],
-             "used_in_finding", f"{label} on {item.item_id}")
-    return obs
+def _cited_by(ctx: RunContext) -> dict[str, list[str]]:
+    """Reading-list item ID -> accepted findings whose spans fall inside that unit."""
+    out: dict[str, list[str]] = {}
+    for i in ctx.run.graph["inventory"].values():
+        if i.unit_start < 0:
+            continue
+        out[i.item_id] = [f.finding_id for f in ctx.run.graph["findings"].values() if f.status == "accepted"
+                          and any(sp.section_id == i.section_ids[0] and i.unit_start <= sp.start < i.unit_end for sp in f.spans)]
+    return out
 
 
-async def _check_coverage(ctx: RunContext, item: InventoryItem, fids: tuple[str, ...]) -> list[SemanticObservation]:
-    """Host check that 'covered' is true: for each flagged section, the cited findings must address the matter the sweep
-    flagged there, including a distinct item of it such as an accounting gain. Completeness beyond the flagged matter is
-    the independent reviewer's job (step 6), not Jev's."""
-    cited = [ctx.run.graph["findings"][f] for f in fids]
+def _record_reading_list(ctx: RunContext) -> None:
+    """At submission, record for each reading-list unit whether an accepted finding cites it (a host record, not a check)."""
+    for item_id, fids in _cited_by(ctx).items():
+        item = ctx.run.get("inventory", item_id)
+        ctx.run.put("inventory_accounted", item.model_copy(update={"status": "cited" if fids else "uncited",
+                                                                  "finding_ids": tuple(fids)}))
 
-    def reuse(sid: str) -> SemanticObservation | None:
-        # More findings cannot uncover a section: an earlier clear pass with a subset of these findings still holds.
+
+async def _check_cited_units(ctx: RunContext, escalations: list[dict]) -> list[dict]:
+    """Gate at submission: for every paragraph or table row an accepted finding cites, the findings citing it must state
+    each payment, obligation, restriction, covenant, default term or earnings item it describes. A clear gap is closed with
+    a finding, or escalated to the reviewer's checklist by naming the failed observation; never overridden."""
+    units = _cited_units(ctx)
+    findings = ctx.run.graph["findings"]
+    esc_by_key: dict[str, dict] = {}
+    for e in escalations:
+        o = ctx.run.graph["observations"].get(e.get("observation_id") or "")
+        missing = (e.get("missing") or "").strip()
+        if (o is None or o.question_id != "coverage_supported" or len(o.subject_ids) < 2 or o.subject_ids[0] != "unit"
+                or o.answer not in ("partly_covered", "not_covered") or is_ambiguous(o)):
+            raise ToolError(f"coverage_escalations: {e.get('observation_id')} is not a failed cited-unit coverage check")
+        if len(missing) < OVERRIDE_NOTE_MIN:
+            raise ToolError(f"coverage_escalations: say what {o.observation_id} found missing and why no finding states it")
+        key = o.subject_ids[1]
+        if key in units and tuple(o.subject_ids[2:]) == tuple(units[key]["finding_ids"]):
+            esc_by_key[key] = {"unit": key, "observation_id": o.observation_id, "missing": missing}
+
+    def passed_before(key: str, fids: list[str]) -> SemanticObservation | None:
+        # More findings cannot uncover a unit: an earlier clear pass with a subset of these findings still holds.
         for o in ctx.run.graph["observations"].values():
-            if (o.question_id == "coverage_supported" and o.subject_ids[:2] == (item.item_id, sid)
+            if (o.question_id == "coverage_supported" and o.subject_ids[:2] == ("unit", key)
                     and set(o.subject_ids[2:]) <= set(fids) and o.answer == "covered" and not is_ambiguous(o)):
                 return o
         return None
-    return await _per_section(
-        ctx, item, lambda sid, passage, sha: ctx.semantics.coverage(passage, cited, (item.item_id, sid, *fids), (sha,)),
-        {"partly_covered", "not_covered"}, "coverage check",
-        "Read the failed section, propose and accept a finding for the matter it describes (or the distinct item the findings "
-        "miss), then account for the item again citing all its findings.", reuse=reuse)
 
-
-async def _check_duplicate(ctx: RunContext, item: InventoryItem, other: InventoryItem) -> list[SemanticObservation]:
-    """A duplicate adds nothing: each section must describe no matter or item beyond the covered item's passages."""
-    covered = _matter_passages(ctx, other)[:MAX_DUPLICATE_PASSAGES]
-    covered_passage = covered[0][1] if len(covered) == 1 else [p for _, p, _ in covered]
-    covered_hashes = tuple(dict.fromkeys(h for _, _, h in covered))
-    return await _per_section(
-        ctx, item, lambda sid, passage, sha: ctx.semantics.adds_matter(
-            covered_passage, passage, (item.item_id, sid, other.item_id), tuple(dict.fromkeys((sha, *covered_hashes)))),
-        {"adds_item"}, f"duplicate check against {other.item_id}",
-        "Cover what the passage adds with a finding instead.")
-
-
-async def _check_relevance(ctx: RunContext, item: InventoryItem) -> list[SemanticObservation]:
-    """'Not decision-relevant' is checked: the passage must describe nothing that could change the decision inputs."""
-    company = ctx.inputs["baseline_profile"]["borrower"]
-    review_date = str(ctx.evidence.snapshot_info()["cutoff"])[:10]
-    return await _per_section(
-        ctx, item, lambda sid, passage, sha: ctx.semantics.relevance(company, review_date, passage, (item.item_id, sid), (sha,)),
-        {"could_change"}, "decision-relevance check",
-        "Cover it with a finding (a paid or closed matter can be recorded as a cited finding) or show it is a duplicate.")
-
-
-def _escalate_item(ctx: RunContext, item: InventoryItem, observation_id: str, missing: str) -> InventoryItem:
-    """Escalation answers a specific failed check on this item; the item is disputed and stays open for the reviewer."""
-    obs = ctx.run.graph["observations"].get(observation_id)
-    failing = {"coverage_supported": {"partly_covered", "not_covered"}, "adds_matter": {"adds_item"},
-               "decision_relevance": {"could_change"}}
-    if (obs is None or not obs.subject_ids or obs.subject_ids[0] != item.item_id
-            or obs.answer not in failing.get(obs.question_id, set()) or is_ambiguous(obs)):
-        raise ToolError(f"{item.item_id}: escalate needs the observation_id of a failed host check on this item")
-    if len(missing) < OVERRIDE_NOTE_MIN:
-        raise ToolError(f"{item.item_id}: say what the check found missing and why you could not account for it")
-    _dispose(ctx, [obs], "flagged_conflict", f"escalated {item.item_id}: {missing}")
-    return item.model_copy(update={"status": "disputed", "note": missing, "observation_ids": (obs.observation_id,)})
+    todo = [(k, v) for k, v in units.items() if k not in esc_by_key and passed_before(k, v["finding_ids"]) is None]
+    try:
+        answers = await asyncio.gather(*(ctx.semantics.coverage(
+            {"heading_path": v["heading_path"], "text": v["unit"]["text"]}, [findings[f] for f in v["finding_ids"]],
+            ("unit", k, *v["finding_ids"]), (v["sha"],)) for k, v in todo))
+    except Exception as e:
+        _record_jev_failure(ctx, e)
+        raise ToolError(f"The cited paragraphs could not be checked: {e}") from e
+    failed, rows = [], []
+    for (k, v), [o] in zip(todo, answers, strict=True):
+        bad = o.answer in ("partly_covered", "not_covered") and not is_ambiguous(o)
+        _dispose(ctx, [o], "challenged_agent_draft" if bad else "used_in_finding", f"cited-unit check on {k}")
+        rows.append({"unit": k, "finding_ids": v["finding_ids"], "observation_id": o.observation_id, "answer": o.answer,
+                     "ambiguous": is_ambiguous(o), "passed": not bad})
+        if bad:
+            failed.append((k, v, o))
+    ctx.run.append("cited_units_checked", object_ids=tuple(r["observation_id"] for r in rows),
+                   payload={"checked": rows, "reused_passes": len(units) - len(todo) - len(esc_by_key),
+                            "escalated": list(esc_by_key.values()), "cited_units": len(units)})
+    for e in esc_by_key.values():
+        o = ctx.run.get("observations", e["observation_id"])
+        if o.downstream_disposition != "flagged_conflict":
+            _dispose(ctx, [o], "flagged_conflict", f"escalated to the reviewer: {e['missing']}")
+    if failed:
+        detail = "\n".join(f"- {k} ({v['heading_path'][-60:]}): {meaning('coverage_supported', o.answer)} ({o.observation_id}); "
+                           f"cited by {', '.join(v['finding_ids'])}. Text: {v['unit']['text'][:220]!r}" for k, v, o in failed)
+        raise ToolError(f"{len(failed)} cited paragraphs or rows describe a payment, obligation, restriction, covenant, "
+                        f"default term or earnings item that the findings citing them do not state:\n{detail}\nAdd the "
+                        "missing findings and resubmit, or resubmit with coverage_escalations [{observation_id, missing}] "
+                        "if you genuinely disagree (they go to the reviewer's checklist).")
+    return list(esc_by_key.values())
 
 
 def _consequence_reply(ctx: RunContext, effect: EconomicEffectProposal, reply: dict | None) -> tuple[SemanticObservation, str] | None:
@@ -998,27 +941,22 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
      "would resolve it and what changes if it is resolved. Sends no message.",
      obj({"dependency_id": S, "fact": S, "why_pivotal": S, "acceptable_evidence": S, "if_resolved": S},
          ["fact", "why_pivotal", "acceptable_evidence"]), request_missing_fact),
-    ("read_inventory", "List the matters the host sweep flagged in the admissible evidence and their accounting status.",
-     obj({}, []), read_inventory),
-    ("account_for_items", "Account for inventory items in a batch. Each entry is checked on its own: covered_by_findings "
-     "(accepted finding_ids that address the matter each flagged section describes), duplicate_of (another item already covered; the passage must add "
-     "nothing), not_decision_relevant (with a reason; checked), or escalate (the observation_id of a failed check on the item "
-     "and what is missing; the item stays open for the reviewer).",
-     obj({"items": {"type": "array", "items": obj({"item_id": S, "disposition": {"type": "string", "enum": [
-         "covered_by_findings", "duplicate_of", "not_decision_relevant", "escalate"]}, "finding_ids": {"type": "array", "items": S},
-         "duplicate_of": S, "reason": S, "observation_id": S, "missing": S},
-         ["item_id", "disposition"])}}, ["items"]), account_for_items),
+    ("read_inventory", "The reading list: paragraphs and table rows the host sweep flagged as describing a specific matter, "
+     "and whether an accepted finding cites each one yet.", obj({}, []), read_inventory),
     ("escalate_effect", "Escalate an effect the category guard rejected when you disagree with the check: it becomes disputed, "
      "creates no cash stream, and is left for the reviewer (a disputed cash-moving effect makes the run incomplete).",
      obj({"effect_id": S, "reason": S}, ["effect_id", "reason"]), escalate_effect),
     ("resolve_reconciliation", "Resolve an open reconciliation task: explain how the statements relate and which finding stands.",
      obj({"task_id": S, "note": S}, ["task_id", "note"]), resolve_reconciliation),
     ("submit_packet", "Lock the investigation for review with a summary, the pivotal unknowns, the supported effect IDs and the "
-     "conclusion. The conclusion is checked against accepted findings, validated effects and sensitivity results. "
-     "No lending action is taken.",
+     "conclusion. Every paragraph or table row your accepted findings cite is checked for payments, obligations, "
+     "restrictions, covenants, default terms and earnings items the findings do not state, and the conclusion is checked "
+     "against accepted findings, validated effects and sensitivity results. No lending action is taken.",
      obj({"summary": S, "pivotal_unknowns": {"type": "array", "items": S},
           "supported_effect_ids": {"type": "array", "items": S}, "conclusion": S,
-          "conclusion_reply_to_failed_check": obj({"observation_id": S, "reason": S}, ["observation_id", "reason"])},
+          "conclusion_reply_to_failed_check": obj({"observation_id": S, "reason": S}, ["observation_id", "reason"]),
+          "coverage_escalations": {"type": "array", "items": obj({"observation_id": S, "missing": S},
+                                                                 ["observation_id", "missing"])}},
          ["summary", "conclusion"]), submit_packet),
 ]
 

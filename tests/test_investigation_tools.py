@@ -22,7 +22,7 @@ INPUTS = json.loads((CASES_DIR / SNAP / "run_inputs.json").read_text())
 DEFAULT_ANSWERS = {"claim_posture": "agreed_contractually", "obligation_status": "required", "entity_scope": "target",
                    "claims_supported": "all_supported", "finding_support": "supports", "finding_atomicity": "one_claim",
                    "context_sufficiency": "enough", "economic_role": "existing_cash_obligation", "statement_relation": "agree",
-                   "coverage_supported": "covered", "adds_matter": "nothing_new", "decision_relevance": "could_not_change"}
+                   "coverage_supported": "covered"}
 
 
 class FakeJev:
@@ -273,12 +273,8 @@ def test_near_even_unsupported_passes_but_is_not_counted_as_used(make_ctx):
     assert eff["status"] == "validated" and support and all(o.downstream_disposition == "unused" for o in support)
 
 
-def test_inventory_and_reconciliations_gate_submission(make_ctx):
-    from app.domain.investigation import InventoryItem
+def test_reconciliations_gate_submission(make_ctx):
     ctx = make_ctx(answers={"statement_relation": "conflict"}, name="gates")
-    note11 = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")["id"]
-    ctx.run.put("inventory_loaded", InventoryItem(item_id="inv_001", section_ids=(note11,), source_id="synergy_s1a_20240813",
-                                                 heading_path=("Note 11",), kind="debt_or_financing_agreement", signal=0.9))
     dep, fid = _accepted_settlement_finding(ctx)
     hvl = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")
     second = call(T.propose_finding, ctx, {"dependency_id": dep, "proposition": "The settlement loan balance was $4,802,445.",
@@ -288,11 +284,6 @@ def test_inventory_and_reconciliations_gate_submission(make_ctx):
     res = call(T.resolve_finding, ctx, {"finding_id": second["finding_id"], "decision": "accept", "dispositions": disp})
     task = res["relation_checks"][0]["reconciliation_task"]
     submit = {"summary": "s", "conclusion": "The settlement loan requires future payments."}
-    with pytest.raises(T.ToolError, match="inventory items are still open"):
-        call(T.submit_packet, ctx, submit)
-    bad = call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "covered_by_findings", "finding_ids": ["fnd_999"]}]})
-    assert bad["accounted"] == [] and "needs accepted" in bad["rejected"][0]["reason"]
-    call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "covered_by_findings", "finding_ids": [fid]}]})
     with pytest.raises(T.ToolError, match="Open reconciliation"):
         call(T.submit_packet, ctx, submit)
     call(T.resolve_reconciliation, ctx, {"task_id": task, "note": "Different measures of the same loan: balance vs schedule."})
@@ -315,61 +306,44 @@ def test_submit_refuses_unvalidated_supported_effects(make_ctx):
         asyncio.run(T.submit_packet(ctx, {"conclusion": "x", "supported_effect_ids": ["eff_999"]}))
 
 
-def test_sweep_chunks_and_groups():
-    from app.agent.sweep import chunks, inventory_groups
+def test_sweep_units_are_atomic():
+    from app.agent.sweep import chunks, unit_of, units
     parts = chunks("a" * 9000 + "\n\n" + "b" * 10)
     assert all(len(x) <= 8000 for x in parts) and "".join(parts).replace("\n", "").count("a") == 9000
-    sweep = {"records": [
-        {"flagged": True, "source_id": "court", "heading_path": ["Page 1"], "kind": "legal_matter_or_settlement", "section_id": "c#1", "signal": 0.9, "excerpt": "x"},
-        {"flagged": True, "source_id": "court", "heading_path": ["Page 2"], "kind": "legal_matter_or_settlement", "section_id": "c#2", "signal": 0.95, "excerpt": "y"},
-        {"flagged": True, "source_id": "s1a", "heading_path": ["NOTES", "Note 11"], "kind": "debt_or_financing_agreement", "section_id": "s#1", "signal": 0.9, "excerpt": "z"},
-        {"flagged": False, "source_id": "s1a", "heading_path": ["RISK"], "kind": "none_or_generic", "section_id": "s#2", "signal": 0.2, "excerpt": ""}]}
-    groups = inventory_groups(sweep)
-    assert len(groups) == 2 and groups[0]["section_ids"] == ["c#1", "c#2"] and groups[0]["excerpt"] == "y"
+    text = ("The notes payable are as follows, at the dates shown below:\n\n[t1]\n| | 2024 | 2023 |\n| Knight | 12 | 13 |\n"
+            "| Sanders | 9 | 10 |\n\nShort\n\nThe settlement resulted in a gain reflected as a reduction of cost of sales.")
+    us = units(text)
+    assert [u["kind"] for u in us] == ["paragraph", "table_row", "table_row", "paragraph"]  # "Short" is not a unit
+    assert us[1]["text"] == "| | 2024 | 2023 |\n| Knight | 12 | 13 |"  # each row carries its header
+    assert text[us[2]["start"]:us[2]["end"]] == "| Sanders | 9 | 10 |"
+    assert unit_of(text, text.index("gain"))["kind"] == "paragraph"
 
 
-def test_covered_claims_are_checked(make_ctx):
+def test_cited_units_gate_submission(make_ctx):
+    from app.agent.sweep import unit_of
     from app.domain.investigation import InventoryItem
-    ctx = make_ctx(answers={"coverage_supported": "not_covered"}, name="coverage")
-    note11 = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")["id"]
-    ctx.run.put("inventory_loaded", InventoryItem(item_id="inv_001", section_ids=(note11,), source_id="synergy_s1a_20240813",
-                                                 heading_path=("Note 11",), kind="accounting_item_from_a_matter", signal=0.9))
+    ctx = make_ctx(answers={"coverage_supported": "partly_covered"}, name="cited")
     _, fid = _accepted_settlement_finding(ctx)
-    entry = {"item_id": "inv_001", "disposition": "covered_by_findings", "finding_ids": [fid]}
-    out = call(T.account_for_items, ctx, {"items": [entry]})
-    assert out["accounted"] == [] and "different matter" in out["rejected"][0]["reason"]
-    assert ctx.run.get("inventory", "inv_001").status == "open"
-    # no free-text override of a coverage gap
-    still = call(T.account_for_items, ctx, {"items": [{**entry, "override_reason": "The schedule is the matter; the gain is elsewhere."}]})
-    assert still["open"] == 1
+    span = ctx.run.get("findings", fid).spans[0]
+    text = ctx.evidence.read_section(span.section_id)["text"]
+    u = unit_of(text, span.start)
+    other = next(x for x in __import__("app.agent.sweep", fromlist=["units"]).units(text) if x["start"] != u["start"])
+    for iid, unit in (("inv_001", u), ("inv_002", other)):  # the cited unit and another flagged unit nobody cites
+        ctx.run.put("inventory_loaded", InventoryItem(item_id=iid, section_ids=(span.section_id,), source_id=span.source_id,
+                                                     heading_path=("Note 11",), kind="debt_or_financing_agreement", signal=0.9,
+                                                     unit_kind=unit["kind"], unit_start=unit["start"], unit_end=unit["end"]))
+    submit = {"summary": "s", "conclusion": "The settlement loan requires future payments."}
+    with pytest.raises(T.ToolError, match="cited paragraphs or rows") as err:
+        call(T.submit_packet, ctx, submit)
     failed = next(o.observation_id for o in ctx.run.graph["observations"].values() if o.question_id == "coverage_supported")
-    missing = "The accounting gain on the settlement is not accounted for by any finding."
-    bad = call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "escalate", "observation_id": "obs_999",
-                                                     "missing": missing}]})
-    assert "failed host check" in bad["rejected"][0]["reason"]
-    call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "escalate", "observation_id": failed,
-                                               "missing": missing}]})
-    assert ctx.run.get("inventory", "inv_001").status == "disputed"
-    call(T.submit_packet, ctx, {"summary": "s", "conclusion": "The settlement loan requires future payments."})
-    assert not ctx.incomplete_reasons  # an escalated item goes to the reviewer's checklist, not straight to INCOMPLETE
-    submitted = next(e.payload for e in ctx.run.events if e.kind == "packet_submitted")
-    assert [d["id"] for d in submitted["disputes"] if d["for"] == "reviewer_checklist"] == ["inv_001"]
-
-
-def test_duplicate_and_relevance_claims_are_checked(make_ctx):
-    from app.domain.investigation import InventoryItem
-    ctx = make_ctx(answers={"adds_matter": "adds_item", "decision_relevance": "could_change"}, name="dup")
-    note11 = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")["id"]
-    for iid in ("inv_001", "inv_002", "inv_003"):
-        ctx.run.put("inventory_loaded", InventoryItem(item_id=iid, section_ids=(note11,), source_id="synergy_s1a_20240813",
-                                                     heading_path=("Note 11",), kind="debt_or_financing_agreement", signal=0.9))
-    _, fid = _accepted_settlement_finding(ctx)
-    call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "covered_by_findings", "finding_ids": [fid]}]})
-    out = call(T.account_for_items, ctx, {"items": [
-        {"item_id": "inv_002", "disposition": "duplicate_of", "duplicate_of": "inv_003"},  # not covered
-        {"item_id": "inv_003", "disposition": "duplicate_of", "duplicate_of": "inv_001"}]})  # Jev: adds an item
-    reasons = [r["reason"] for r in out["rejected"]]
-    assert out["accounted"] == [] and "already covered" in reasons[0] and "duplicate check" in reasons[1]
-    out = call(T.account_for_items, ctx, {"items": [
-        {"item_id": "inv_002", "disposition": "not_decision_relevant", "reason": "An old matter with no bearing on the draw."}]})
-    assert "decision-relevance check failed" in out["rejected"][0]["reason"]
+    assert failed in str(err.value)
+    with pytest.raises(T.ToolError, match="say what"):
+        call(T.submit_packet, ctx, {**submit, "coverage_escalations": [{"observation_id": failed, "missing": "no"}]})
+    missing = "The paragraph also reports the accounting gain, which no finding states."
+    call(T.submit_packet, ctx, {**submit, "coverage_escalations": [{"observation_id": failed, "missing": missing}]})
+    assert not ctx.incomplete_reasons  # an escalation goes to the reviewer's checklist, not straight to INCOMPLETE
+    packet = next(e.payload for e in ctx.run.events if e.kind == "packet_submitted")
+    checklist = packet["reviewer_checklist"]
+    assert [e["kind"] for e in checklist["escalations"]] == ["cited_unit_coverage"]
+    assert [x["item_id"] for x in checklist["uncited_flagged_units"]] == ["inv_002"]
+    assert ctx.run.get("inventory", "inv_001").status == "cited" and ctx.run.get("inventory", "inv_002").status == "uncited"

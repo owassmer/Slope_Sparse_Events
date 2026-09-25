@@ -127,9 +127,10 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
     inventory = [{"id": i.item_id, "kind": i.kind.replace("_", " "), "source": titles.get(i.source_id, i.source_id),
                   "heading": " › ".join(i.heading_path[-2:]) or "(whole document)", "sections": len(i.section_ids),
                   "status": i.status.replace("_", " "), "findings": list(i.finding_ids), "note": i.note,
-                  "duplicate_of": i.duplicate_of,
+                  "duplicate_of": i.duplicate_of, "unit_kind": i.unit_kind.replace("_", " "), "excerpt": i.excerpt,
                   "coverage_checks": coverage_by_item.get(i.item_id, [])}
                  for i in sorted(g["inventory"].values(), key=lambda i: i.item_id)]
+    cited_checks = [e.payload for e in run.events if e.kind == "cited_units_checked"]
     conclusion_checks = [e.payload for e in run.events if e.kind == "conclusion_checked"]
     conclusion_check = conclusion_checks[-1] if conclusion_checks else None
     return {
@@ -144,6 +145,10 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
         "reconciliations": [t.model_dump() for t in g["reconciliations"].values()],
         "jev_ledger": dict(ledger), "jev_calls": len(g["jev_calls"]), "observations": len(g["observations"]),
         "inventory": inventory, "conclusion_check": conclusion_check, "conclusion_checks": conclusion_checks,
+        "atomic_inventory": any(i.unit_start >= 0 for i in g["inventory"].values()),
+        "cited_checks": [{**c, "checked": [{**r, "meaning": meaning("coverage_supported", r["answer"])} for r in c["checked"]]}
+                         for c in cited_checks],
+        "reviewer_checklist": submitted.get("reviewer_checklist"),
         "sweep": next((e.payload for e in run.events if e.kind == "inventory_loaded"), None),
     }
 
