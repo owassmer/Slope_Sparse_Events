@@ -53,6 +53,12 @@ WORKING_METHOD = """Working method
   and give a reason whenever you override one.
 - propose_effect for each supported economic mechanism, stating its baseline treatment, parameters (unknown stays unknown) and the
   plain-language model consequence. Existing liabilities are scheduled once, never added again.
+- Account for every disclosed legal matter, settlement and settlement-related accounting item you encounter. When one has no
+  future cash effect (for example it is reported paid, or it is an accounting entry rather than cash), record that as a cited
+  finding and an effect with mechanism resolved_obligation or noncash_normalization and cash_direction none, so the reviewer can
+  see why it does not change cash.
+- If you connect a name, label or table row to an obligation by matching amounts or dates, mark that finding is_inference and
+  describe the link as an inference in your conclusion.
 - run_sensitivity on validated settlement effects to see which unknown changes the cash requirement.
 - request_missing_fact for each pivotal fact the evidence cannot supply, then submit_packet.
 - Use only the evidence returned by the tools; do not rely on remembered facts about this company or later events.

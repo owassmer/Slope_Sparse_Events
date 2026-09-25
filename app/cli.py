@@ -118,5 +118,13 @@ def investigate(
     raise typer.Exit(0 if record["status"] == "CANDIDATE_READY" else 1)
 
 
+@cli.command()
+def viewer(port: int = typer.Option(8000), host: str = typer.Option("127.0.0.1", help="Local only by default.")) -> None:
+    """Serve the read-only investigation viewer for recorded runs."""
+    import uvicorn
+
+    uvicorn.run("app.web.app:app", host=host, port=port)
+
+
 def main() -> None:
     cli()

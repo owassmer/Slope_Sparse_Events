@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Recorded investigations{% endblock %}
+{% block body %}
+<h2>Recorded investigations</h2>
+<p class="muted">Read-only. Each run is rebuilt from its hash-chained event log and verified before display.</p>
+{% if runs %}
+<table>
+  <thead><tr><th>Run</th><th>Status</th><th>Arm</th><th>Started</th><th>Findings</th><th>Effects</th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+    <tr><td><a href="/runs/{{ r.run_id }}">{{ r.run_id }}</a></td><td>{{ r.status }}</td><td>{{ r.arm }}</td>
+        <td>{{ r.started_at[:19] if r.started_at else "" }}</td><td>{{ r.counts.findings }}</td><td>{{ r.counts.effects }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>No recorded runs yet. Run <code>uv run slope investigate</code>.</p>{% endif %}
+{% endblock %}

@@ -1,0 +1,11 @@
+<div class="card">
+  <span class="tag finding">Agent finding</span><span class="tag">{{ f.status }}</span>{% if f.is_inference %}<span class="tag">Inference</span>{% endif %}
+  <p style="margin:.3rem 0"><strong>{{ f.proposition }}</strong></p>
+  {% for q in f.quotes %}<span class="tag source">Source</span><span class="muted">{{ q.source }}</span><blockquote>“{{ q.quote }}”</blockquote>{% endfor %}
+  {% for o in f.jev %}
+    <p style="margin:.2rem 0"><span class="tag jev">Jev interpretation</span><strong>{{ o.meaning }}</strong>{% if o.ambiguous %} <span class="tag warn">Ambiguous</span>{% endif %}
+      <span class="muted"> · {{ o.question }} · {{ o.disposition }}{% if o.note %}: {{ o.note }}{% endif %}</span></p>
+    <details><summary class="muted">Judgment details</summary><pre>{{ o.details | tojson(indent=2) }}</pre></details>
+  {% endfor %}
+  {% if f.resolution_note %}<p class="muted">Agent note: {{ f.resolution_note }}</p>{% endif %}
+</div>
