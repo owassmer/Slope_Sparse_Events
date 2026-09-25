@@ -605,6 +605,14 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
     title, counterparty = (args.get("title") or "").strip(), (args.get("counterparty") or "").strip()
     if not title or not counterparty:
         raise ToolError("Give the dispute a short title and name the counterparty")
+    live = {d.instance_id: d for d in ctx.run.graph["disputes"].values() if d.status != "superseded"}
+    replaced = args.get("supersedes")
+    if replaced and replaced not in live:
+        raise ToolError(f"{replaced} is not a live dispute instance")
+    overlap = [d.instance_id for d in live.values() if set(d.finding_ids) & set(fids) and d.instance_id != replaced]
+    if overlap:
+        raise ToolError(f"These findings are already instantiated as {overlap}; a dispute is modelled once. To "
+                        "correct it, pass supersedes with that instance ID.")
     quotes = " ".join(s.quote for f in findings for s in f.spans)
     review = _review_date(ctx)
     judgment_date = None
@@ -622,6 +630,7 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
         instance_id=ctx.run.new_id("dispute"), dependency_id=dep.dependency_id, model_id=model["model_id"],
         model_version=model["model_version"], title=title, borrower_role=args["borrower_role"],
         counterparty=counterparty, finding_ids=fids, amount=_dispute_amount(args.get("amount") or {}, quotes),
+        amount_includes_interest=bool((args.get("amount") or {}).get("includes_post_judgment_interest")),
         judgment_date=judgment_date, proposed_extension=(args.get("proposed_extension") or "").strip())
     judge = None
     if ctx.semantics is not None:
@@ -641,6 +650,9 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
     if instance.observation_ids:
         used = [ctx.run.get("observations", o) for o in instance.observation_ids]
         _dispose(ctx, used, "used_in_finding", f"dispute model for {instance.instance_id}")
+    if replaced:
+        ctx.run.put("dispute_instantiated", live[replaced].model_copy(update={"status": "superseded",
+                                                                              "superseded_by": instance.instance_id}))
     ctx.run.put("dispute_instantiated", instance)
     stages = model["stages"]
     return {"instance_id": instance.instance_id, "status": instance.status,
@@ -1131,13 +1143,16 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
      "onto the host's post-judgment dispute model. Cite the accepted findings about it; say whether the borrower is the "
      "debtor (owes) or the creditor (is owed); name the counterparty; give the amount (value_cents, or "
      "lower_cents/upper_cents; state `basis` if it is not quoted in the findings) and the judgment's entry date if one "
-     "has been entered (it must appear in the cited quotes). The host places the stage, judges each transition with Jev "
+     "has been entered (it must appear in the cited quotes). Say if the amount already includes post-judgment interest. "
+     "A dispute is modelled once; to correct one, pass `supersedes` with its instance ID. The host places the stage, judges each transition with Jev "
      "and sets every date and amount from the model's rules. You may give your own `stage` reading and a "
      "`proposed_extension` if the model lacks a step the record shows; an extension is flagged, not used.",
      obj({"dependency_id": S, "title": S, "finding_ids": {"type": "array", "items": S},
           "borrower_role": {"type": "string", "enum": ["debtor", "creditor"]}, "counterparty": S,
           "amount": obj({"value_cents": {"type": "integer"}, "lower_cents": {"type": "integer"},
-                         "upper_cents": {"type": "integer"}, "basis": S}, []),
+                         "upper_cents": {"type": "integer"}, "basis": S,
+                         "includes_post_judgment_interest": {"type": "boolean"}}, []),
+          "supersedes": S,
           "judgment_date": S, "stage": {"type": "string", "enum": ["amount_pending", "judgment_entered",
                                                                      "appeal_pending", "enforcement"]},
           "proposed_extension": S},

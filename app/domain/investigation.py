@@ -244,6 +244,7 @@ class TransitionJudgment(Frozen):
     stage: str
     premise: tuple[str, ...] = ()  # transition IDs taken so far on this path
     weights_bps: dict[str, int] = Field(default_factory=dict)  # transition_id -> conditional weight; empty if not judged
+    initial_weights_bps: dict[str, int] = Field(default_factory=dict)  # before refinement, when refined
     uncertain: bool = False
     decision_relevant: bool = False
     refined: bool = False  # re-asked with factor results
@@ -285,6 +286,7 @@ class DisputeInstance(Frozen):
     counterparty: str
     finding_ids: tuple[str, ...] = Field(min_length=1)
     amount: EvidenceValue
+    amount_includes_interest: bool = False  # the documented amount already includes post-judgment interest
     judgment_date: date | None = None
     stage: str | None = None
     stage_weights_bps: dict[str, int] = Field(default_factory=dict)
@@ -294,7 +296,8 @@ class DisputeInstance(Frozen):
     pruned_weight_bps: int = 0
     evidence_requests: tuple[EvidenceRequest, ...] = ()
     proposed_extension: str = ""  # flagged for the reviewer; never used by the host
-    status: Literal["evaluated", "outside_model", "not_judged"] = "evaluated"
+    status: Literal["evaluated", "outside_model", "not_judged", "superseded"] = "evaluated"
+    superseded_by: str = ""
     observation_ids: tuple[str, ...] = ()
     validation_messages: tuple[str, ...] = ()
 

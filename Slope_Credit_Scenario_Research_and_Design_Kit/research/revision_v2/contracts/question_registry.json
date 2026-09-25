@@ -108,7 +108,7 @@
     "cited_findings": "The accepted findings the statement rests on: proposition plus verbatim quotes.",
     "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs).",
     "record": "The accepted findings the dispute rests on: proposition plus verbatim quotes, with source dates.",
-    "dispute": "The dispute as instantiated: its title, the borrower and its side (judgment debtor or creditor), the counterparty, and which party owes.",
+    "dispute": "The dispute as instantiated: its title, the borrower and its side (judgment debtor or creditor), the counterparty, which party owes, the review date and the date the financing horizon ends.",
     "finding": "One accepted finding: its proposition and verbatim quotes, with the source date.",
     "stage": "The model stage the transition leaves from, with its description.",
     "premise": "The transitions taken so far on this path (a branch being evaluated, not an established fact).",
@@ -722,7 +722,7 @@
         "factor_results"
       ],
       "prompt": {
-        "instructions": "state.stage is where this path of state.dispute stands; state.premise lists the transitions taken so far on this path (a branch under evaluation, not an established fact). Using only state.record and, when present, state.factor_results, judge which listed transition is the next development the record most supports within the financing horizon: the parties' stated intentions, the court's orders so far, and each party's conduct in this dispute. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
+        "instructions": "state.stage is where this path of state.dispute stands; state.premise lists the transitions taken so far on this path (a branch under evaluation, not an established fact). Using only state.record and, when present, state.factor_results, judge which listed transition is the next development the record most supports by state.dispute.financing_horizon_ends: the parties' stated intentions, the court's orders so far, and each party's conduct in this dispute. Do not use outside knowledge of how this dispute ended. Do not judge amounts or dates; code sets them from rules.",
         "criteria_from_host": true,
         "criteria": {}
       },

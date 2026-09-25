@@ -36,8 +36,11 @@
   <div class="card">
     <h5>{{ "Bank data only" if view == "bank_only" else "With the disputes' paths" }}</h5>
     <p><strong>{{ r.label }}</strong>{% if not r.requested_passes %} <span class="tag warn">below the request</span>{% endif %}</p>
-    <p class="muted">Limit {{ r.limit }} ({{ r.limit_set_by }}) · order limit {{ r.order_limit }} · lowest projected cash {{ r.lowest }} on {{ r.binding.on }}{% if r.binding.scenario %} in {{ r.binding.scenario | join(" / ") }} ({{ r.binding.placement }}){% endif %}
-    {% if r.requested_reasons %}<br>Request: {{ r.requested_reasons | join("; ") }}{% endif %}</p>
+    {% macro figs(f, head) %}<br><strong>{{ head }}</strong>: limit {{ f.limit }} ({{ f.limit_set_by }}) · order limit {{ f.order_limit }} · lowest projected cash {{ f.lowest }} on {{ f.lowest_cash_on }}{% if f.lowest_cash_scenario %} in {{ f.lowest_cash_scenario | join(" / ") }} ({{ f.lowest_cash_placement }}){% endif %}{% if f.reasons %} · fails: {{ f.reasons | join("; ") }}{% else %} · passes{% endif %}{% endmacro %}
+    <p class="muted">{% if r.requested_passes %}{{ figs(r.at_requested, "At the requested amount") }}{% else %}{{ figs(r.at_requested, "At the requested " ~ r.at_requested.amount) }}
+    {% if r.structure != "decline" %}{{ figs(r.at_recommended, "At the recommended " ~ r.at_recommended.amount) }}{% endif %}
+    {% if r.next_amount_up %}{{ figs(r.next_amount_up, "Next amount up, " ~ r.next_amount_up.amount) }}{% endif %}{% endif %}
+    {% if r.incomplete %}<br><span class="tag warn">Incomplete</span> Not modelled: {{ r.incomplete | join("; ") }}{% endif %}</p>
   </div>{% endfor %}
 </div>
 {% if d.conditions %}<p><strong>Conditions</strong></p><ul>{% for c in d.conditions %}<li>{{ c.action }} <span class="muted">If satisfied: {{ c.if_satisfied }} If not: {{ c.if_not }}</span></li>{% endfor %}</ul>{% endif %}

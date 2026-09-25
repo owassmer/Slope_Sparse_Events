@@ -31,15 +31,19 @@ def request_from_inputs(inputs: dict, review: date) -> Request:
                    funding=funding, requested_term_id=inputs["permitted_offers"]["requested_term_id"])
 
 
+def live(disputes: list[DisputeInstance]) -> list[DisputeInstance]:
+    return [d for d in disputes if d.status != "superseded"]
+
+
 def modelled(disputes: list[DisputeInstance]) -> list[DisputeInstance]:
-    return [d for d in disputes if d.paths]
+    return [d for d in live(disputes) if d.paths]
 
 
 def conditions(disputes: list[DisputeInstance], inputs: dict) -> list[dict]:
     """Funding conditions as actions (what to do, what follows if it is satisfied, and if not), generated from the
     dispute model's rules and evidence requests and from the existing lenders."""
     out, borrower = [], inputs["baseline_profile"]["borrower"]
-    for d in disputes:
+    for d in live(disputes):
         amount = d.amount.value if d.amount.value is not None else d.amount.upper
         if any(c.kind == "lock" for p in d.paths for c in p.cash):
             out.append({"action": f"Confirm how {borrower} would secure a stay pending appeal of the {usd(amount)} owed "
@@ -71,6 +75,9 @@ def decide(snapshot_id: str, inputs: dict, disputes: list[DisputeInstance], revi
     comp = compare(feed, terms, req, [list(d.paths) for d in used])
     summary = summarize(comp, terms)
     model = load_model()
+    unmodelled = [d.title for d in live(disputes) if not d.paths]
+    if unmodelled:  # a dispute the model could not place is never silently treated as having no cash
+        summary["recommendation"][list(summary["recommendation"])[-1]]["incomplete"] = unmodelled
     summary.update({
         "request": {"amount_cents": req.amount_cents, "term_id": req.requested_term_id, "funding": req.funding.isoformat(),
                     "invoice_due": req.invoice_due.isoformat()},
@@ -79,7 +86,9 @@ def decide(snapshot_id: str, inputs: dict, disputes: list[DisputeInstance], revi
         "dispute_model": {"model_id": model["model_id"], "model_version": model["model_version"]},
         "disputes": [{"instance_id": d.instance_id, "title": d.title, "stage": d.stage, "status": d.status,
                       "paths": [{"path_id": p.path_id, "labels": list(p.labels), "weight_bps": p.weight_bps}
-                                for p in d.paths], "pruned_weight_bps": d.pruned_weight_bps} for d in disputes],
+                                for p in d.paths], "pruned_weight_bps": d.pruned_weight_bps} for d in live(disputes)],
+        "assumptions": ["The financed invoice is a purchase beyond the contract-manufacturing run rate in the bank "
+                        "projection, so it is added once on top of it (conservative for the borrower's cash)."],
         "conditions": conditions(disputes, inputs),
         "weights_label": model["weights_label"] + (" Distinct disputes are combined as independent." if len(used) > 1
                                                    else ""),
@@ -93,20 +102,22 @@ def export(summary: dict, out_dir: Path) -> tuple[Path, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     js = out_dir / "scenarios.json"
     js.write_text(json.dumps(summary, indent=1, default=str) + "\n")
-    rows = ["structure,view,series,paths,placement,weight_bps,date,amount_cents"]
+    rows = ["structure,view,series,paths,placement,weight_bps,weight_basis,date,amount_cents"]
+    basis = "model_judgment" if summary["disputes"] else ""
     for name, entry in summary["structures"].items():
         for view, v in entry["views"].items():
             if "contractual" not in v:
                 continue
-            rows.append(f"{name},{view},disbursement,,,,{summary['request']['funding']},"
+            rows.append(f"{name},{view},disbursement,,,,,{summary['request']['funding']},"
                         f"-{sum(r['principal_cents'] for r in v['contractual'])}")
-            rows += [f"{name},{view},contractual,,,,{r['due']},{r['amount_cents']}" for r in v["contractual"]]
+            rows += [f"{name},{view},contractual,,,,,{r['due']},{r['amount_cents']}" for r in v["contractual"]]
             for sc in v["scenarios"]:
                 paths = "+".join(sc["paths"]) or "bank_only"
-                weight = "" if sc["weight_bps"] is None else sc["weight_bps"]
-                rows += [f"{name},{view},conditional,{paths},{sc['placement']},{weight},{c['date']},{c['amount_cents']}"
-                         for c in sc["collections"]]
-            rows += [f"{name},{view},expected,,central,,{c['date']},{c['amount_cents']}"
+                central = sc["placement"] == "central" and sc["weight_bps"] is not None
+                weight, wb = (sc["weight_bps"], basis if sc["paths"] else "") if central else ("", "")
+                rows += [f"{name},{view},conditional,{paths},{sc['placement']},{weight},{wb},{c['date']},"
+                         f"{c['amount_cents']}" for c in sc["collections"]]
+            rows += [f"{name},{view},expected,,central,,{basis},{c['date']},{c['amount_cents']}"
                      for c in v.get("expected_collections") or []]
     csv = out_dir / "collections.csv"
     csv.write_text("\n".join(rows) + "\n")

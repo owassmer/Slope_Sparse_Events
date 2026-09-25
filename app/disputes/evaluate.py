@@ -75,7 +75,9 @@ class Evaluator:
         self.review, self.horizon, self.request_cents, self.agent_stage = review, horizon, request_cents, agent_stage
         debtor, creditor = (borrower, draft.counterparty) if draft.borrower_role == "debtor" else (draft.counterparty, borrower)
         self.dispute = {"title": draft.title, "borrower": borrower, "judgment_debtor": debtor,
-                        "judgment_creditor": creditor, "amount": "set by code from the record; not for judgment"}
+                        "judgment_creditor": creditor, "review_date": review.isoformat(),
+                        "financing_horizon_ends": horizon.isoformat(),
+                        "amount": "set by code from the record; not for judgment"}
         self.record = [self._finding(f, source_dates) for f in findings]
         self.subject = (draft.instance_id, *draft.finding_ids)
         self.obs: list[str] = []
@@ -164,7 +166,8 @@ class Evaluator:
         return {o for t in self.m["transitions"][stage] for o in self._option_outcomes(t, at)}
 
     def _option_outcomes(self, t: dict, at: Window) -> set[int]:
-        cash = cash_for(self.m, t["rule"], self.d.borrower_role, self.d.amount, at, self.review, self.horizon, ())
+        cash = cash_for(self.m, t["rule"], self.d.borrower_role, self.d.amount, at, self.review, self.horizon, (),
+                        self.d.amount_includes_interest)
         here = sum(amount_range(c.amount)[1] * (1 if c.kind == "inflow" else -1) for c in cash)
         return {here + o for o in self._outcomes(t["to"], next_window(self.m, t["rule"], t["to"], at, self.review))}
 
@@ -188,13 +191,14 @@ class Evaluator:
         relevant = max(outcomes) - min(outcomes) >= self.request_cents * ref[
             "decision_relevant_if_cash_spread_at_least_share_of_request_bps"] // 10_000
         uncertain = not weights or max(weights.values()) < ref["uncertain_if_top_below_bps"]
-        refined, factor_ids = False, tuple(dict.fromkeys(f for t in options_spec for f in t["factors"]))
+        refined, factor_ids, initial = False, tuple(dict.fromkeys(f for t in options_spec for f in t["factors"])), {}
         if uncertain and relevant:
             results = [await self.factor(f) for f in factor_ids]
             known = [{"factor": r.label, "level": r.level_label, "finding_ids": list(r.finding_ids)}
                      for r in results if r.level is not None]
             o = self._record(await self.judge.transition(self.dispute, self.record, stage_state, premise_text, known,
                                                          options, self.subject))
+            initial = weights
             weights, refined = to_bps(o.probabilities, keys) or weights, True
             oids.append(o.observation_id)
             uncertain = not weights or max(weights.values()) < ref["uncertain_if_top_below_bps"]
@@ -204,7 +208,7 @@ class Evaluator:
                         self.requests[r.factor_id] = EvidenceRequest(factor_id=r.factor_id,
                                                                      **self.m["factors"][r.factor_id]["evidence_request"])
         j = TransitionJudgment(stage=stage, premise=tuple(p["transition_id"] for p in premise), weights_bps=weights,
-                               uncertain=uncertain, decision_relevant=relevant, refined=refined,
+                               initial_weights_bps=initial, uncertain=uncertain, decision_relevant=relevant, refined=refined,
                                factor_ids=factor_ids if refined else (), observation_ids=tuple(oids))
         self.judgments.append(j)
         return j
@@ -219,7 +223,7 @@ class Evaluator:
                 pruned.append(w)
                 continue
             step = cash_for(self.m, t["rule"], self.d.borrower_role, self.d.amount, at, self.review, self.horizon,
-                            self.d.finding_ids)
+                            self.d.finding_ids, self.d.amount_includes_interest)
             path = [*premise, t]
             if self.m["stages"][t["to"]]["terminal"]:
                 out.append((path, t["to"], w, cash + tuple(step)))
@@ -232,12 +236,16 @@ class Evaluator:
         update: dict = {"stage": stage, "stage_weights_bps": stage_weights, "model_id": self.m["model_id"],
                         "model_version": self.m["model_version"]}
         if stage is None:
-            return self.d.model_copy(update={**update, "status": "outside_model" if self.judge else "not_judged",
+            req = EvidenceRequest(factor_id="stage", action=f"Obtain the docket for {self.d.title} to place it on the "
+                                                            "dispute model.",
+                                  if_satisfied="The dispute's paths and their cash enter the event-adjusted view.",
+                                  if_not="The event-adjusted recommendation stays incomplete for this dispute.")
+            return self.d.model_copy(update={**update, "status": "outside_model", "evidence_requests": (req,),
                                              "observation_ids": tuple(self.obs)})
         if stage in DATED_STAGES and self.d.judgment_date is None:
             req = EvidenceRequest(factor_id="judgment_date", action="Confirm the judgment's entry date from the docket.",
                                   if_satisfied="The dispute's paths are dated from it.",
-                                  if_not="The dispute stays unmodelled; its cash is not in the event-adjusted view.")
+                                  if_not="The event-adjusted recommendation stays incomplete for this dispute.")
             return self.d.model_copy(update={**update, "status": "outside_model", "evidence_requests": (req,),
                                              "observation_ids": tuple(self.obs)})
         at = Window(self.d.judgment_date, self.d.judgment_date) if stage in DATED_STAGES else Window(self.review, self.review)

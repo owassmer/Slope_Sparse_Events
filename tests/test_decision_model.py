@@ -5,7 +5,7 @@ import asyncio
 from datetime import date, timedelta
 
 from app.agent.tools import _date_in_text
-from app.decisions.scenarios import AMOUNT_STEP_CENTS, Request, compare, policy_checks, simulate, summarize
+from app.decisions.scenarios import AMOUNT_STEP_CENTS, Request, compare, simulate, summarize
 from app.disputes.evaluate import Evaluator
 from app.domain.investigation import (
     AtomicFinding,
@@ -140,7 +140,7 @@ def test_a_lock_lowers_cash_by_its_amount_and_zero_cash_paths_reproduce_bank_onl
 
 def test_the_supported_amount_is_sized_on_its_own_paths_and_names_what_binds():
     feed, terms = load_feed(SNAP), load_terms()
-    bond = BranchCash(kind="lock", label="bond", amount=ev(2_600_000_000), window_start=FUNDING,
+    bond = BranchCash(kind="lock", label="bond", amount=ev(1_225_000_000), window_start=FUNDING,
                       window_end=date(2024, 9, 30))
 
     paths = [DisputePath(path_id="p1", transitions=("appeal_bonded",), labels=("bond",), terminal="t", weight_bps=10_000,
@@ -148,12 +148,12 @@ def test_the_supported_amount_is_sized_on_its_own_paths_and_names_what_binds():
     comp = compare(feed, terms, REQ, [paths])
     s = summarize(comp, terms)
     rec = s["recommendation"]["event_adjusted"]
-    assert not rec["requested_passes"] and rec["binding"]["on"]
-    if rec["structure"] != "decline":
-        chosen = comp.structures[rec["structure"]]
-        assert policy_checks(comp, terms, chosen.offer_id, "event_adjusted")["passes"]
-        bigger = f"inst_90_{(chosen.amount_cents + AMOUNT_STEP_CENTS) // 100}"
-        assert bigger not in comp.structures or not policy_checks(comp, terms, bigger, "event_adjusted")["passes"]
+    assert not rec["requested_passes"] and not rec["at_requested"]["passes"] and rec["at_requested"]["lowest_cash_on"]
+    assert rec["structure"] != "decline" and rec["at_recommended"]["passes"]
+    chosen = comp.structures[rec["structure"]]
+    assert chosen.amount_cents <= rec["at_recommended"]["order_limit_cents"]  # the card's own figures are consistent
+    up = rec["next_amount_up"]
+    assert up["amount_cents"] == chosen.amount_cents + AMOUNT_STEP_CENTS and not up["passes"]
     for sc in s["structures"]["inst_90_2000000"]["views"]["event_adjusted"]["scenarios"]:
         assert "collections" in sc and "economics" in sc  # per-branch collections and economics
 
@@ -221,3 +221,23 @@ def test_combined_dispute_weights_sum_to_one_and_expected_never_exceeds_contract
     assert sum(sc.weight_bps for sc in central) == 10_000
     for v in summarize(comp, terms)["structures"]["inst_90_2000000"]["views"].values():
         assert sum(c["amount_cents"] for c in v["expected_collections"]) <= sum(r["amount_cents"] for r in v["contractual"])
+
+
+def test_an_unmodelled_or_superseded_dispute_is_never_silently_dropped_or_counted():
+    import json
+
+    from app.config import CASES_DIR
+    from app.decisions.case import decide
+
+    inputs = json.loads((CASES_DIR / SNAP / "run_inputs.json").read_text())
+    de = evaluate("debtor", 980_000_000, None, DE_QUOTE, "cdxc_2024q2_10q",
+                  StubJudge("amount_pending", {"amount_pending": "amount_fixed", "judgment_entered": "appeal_bonded"}))
+    unplaced = instance("creditor", 250_000_000, None, "fnd_009").model_copy(
+        update={"instance_id": "dispute_002", "status": "outside_model", "title": "unplaced"})
+    duplicate = de.model_copy(update={"instance_id": "dispute_003", "status": "superseded"})
+    s = decide(SNAP, inputs, [de, unplaced, duplicate], REVIEW)
+    assert s["recommendation"]["event_adjusted"]["incomplete"] == ["unplaced"]
+    assert len(s["disputes"]) == 2  # the superseded instance is neither shown nor counted
+    once = decide(SNAP, inputs, [de], REVIEW)
+    assert once["recommendation"]["event_adjusted"]["structure"] == s["recommendation"]["event_adjusted"]["structure"]
+

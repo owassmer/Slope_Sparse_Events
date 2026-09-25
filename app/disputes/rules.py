@@ -81,32 +81,36 @@ def next_window(model: dict, rule: str, to: str, at: Window, review: date) -> Wi
 
 
 def cash_for(model: dict, rule: str, role: str, amount: EvidenceValue, at: Window, review: date, horizon: date,
-             finding_ids: tuple[str, ...]) -> list[BranchCash]:
+             finding_ids: tuple[str, ...], interest_included: bool = False) -> list[BranchCash]:
     """The dated cash one transition moves for the borrower, from the rule and the borrower's side. Items whose
-    window opens after the horizon are left out; windows are clipped to the horizon."""
+    window opens after the horizon are left out; a window that runs past the horizon keeps its real end, so a
+    placement after the horizon falls outside the scenario rather than on its last day."""
     stay = timedelta(days=param(model, "automatic_stay_days"))
     first = review + timedelta(days=1)
     pays = "outflow" if role == "debtor" else "inflow"
     items: list[tuple[str, str, int, int, Window, str]] = []
 
     def win(start: date, end: date) -> Window:
-        return Window(max(start, first), min(end, horizon))
+        return Window(max(start, first), end)
 
     if rule == "pay" or rule == "collect":
         days = param(model, "voluntary_payment_days_after_stay" if rule == "pay" else "enforcement_period_days")
         w = win(at.start + (stay if rule == "pay" else timedelta(0)), at.end + (stay if rule == "pay" else timedelta(0))
                 + timedelta(days=days))
-        lo, hi = _with_interest(model, amount, at, w)
+        lo, hi = amount_range(amount) if interest_included else _with_interest(model, amount, at, w)
         how = ("paid after the automatic stay (Fed. R. Civ. P. 62(a))" if rule == "pay"
                else "collected by enforcement (Fed. R. Civ. P. 69(a))")
+        interest = ("(the documented amount already includes post-judgment interest)" if interest_included
+                    else "plus post-judgment interest (28 U.S.C. § 1961)")
         items.append((pays, "Judgment " + ("paid" if rule == "pay" else "collected"), lo, hi, w,
-                      f"The judgment amount plus post-judgment interest (28 U.S.C. § 1961), {how}, within {days} days."))
+                      f"The judgment amount {interest}, {how}, within {days} days."))
     elif rule == "bond" and role == "debtor":
         lo, hi = bond_collateral(model, amount)
-        items.append(("lock", "Appeal bond collateral", lo, hi, win(at.start, at.end + stay),
+        notice = timedelta(days=param(model, "appeal_notice_days"))
+        items.append(("lock", "Appeal bond collateral", lo, hi, win(at.start, at.end + min(stay, notice)),
                       "Supersedeas bond at 125% of the judgment (Fed. R. Civ. P. 62(b), model multiple), with 50% to "
-                      "100% taken as cash collateral, posted before the automatic stay ends; held while the appeal is "
-                      "pending."))
+                      "100% taken as cash collateral, posted with the notice of appeal (Fed. R. App. P. 4(a)(1)(A)) "
+                      "before the automatic stay ends; held while the appeal is pending."))
     elif rule in ("settle", "settle_release"):
         s_lo, s_hi = param_range(model, "settlement_share_bps")
         lo, hi = _scale(amount, s_lo, s_hi)

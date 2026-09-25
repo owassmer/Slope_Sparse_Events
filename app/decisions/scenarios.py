@@ -198,28 +198,29 @@ def policy_checks(comp: Comparison, terms: dict, name: str, view: str) -> dict:
     return {**result, "passes": not reasons, "reasons": reasons}
 
 
-def _supported_amount(comp: Comparison, terms: dict, view: str) -> SlopeOffer | None:
-    """Largest amount on the requested term, on a USD 10k grid, that passes policy on its own cash paths. Larger
-    amounts carry larger payments and fees, so cash paths and the cash-based limit fall as the amount rises: the pass
-    set is a lower interval, found by bisection and verified at the boundary."""
+def _supported_amount(comp: Comparison, terms: dict, view: str) -> tuple[SlopeOffer | None, str | None]:
+    """Largest amount on the requested term, on a USD 10k grid below the request, that passes policy on its own cash
+    paths: a full downward scan (no monotonicity assumed), so the first amount that passes is the largest. Returns it
+    and the next grid amount above it (which fails), both kept in the comparison for the explanation."""
     req = comp.request
-
-    def passes(cents: int) -> bool:
+    failed, added = None, set()
+    for cents in range(req.amount_cents // AMOUNT_STEP_CENTS * AMOUNT_STEP_CENTS, 0, -AMOUNT_STEP_CENTS):
         o = offer(terms, req.requested_term_id, cents, comp.tier)
         if o.offer_id not in comp.structures:
             comp.structures[o.offer_id] = o
             comp.outcomes += _run(comp, o.offer_id)
-        return policy_checks(comp, terms, o.offer_id, view)["passes"]
+            added.add(o.offer_id)
+        if policy_checks(comp, terms, o.offer_id, view)["passes"]:
+            return o, failed
+        if failed in added:
+            _drop(comp, failed)  # keep only the amount just above the answer
+        failed = o.offer_id
+    return None, failed
 
-    lo, hi = 0, req.amount_cents // AMOUNT_STEP_CENTS
-    if hi and passes(hi * AMOUNT_STEP_CENTS):
-        return comp.structures[f"{req.requested_term_id}_{hi * AMOUNT_STEP_CENTS // 100}"]
-    while hi - lo > 1:
-        mid = (lo + hi) // 2
-        lo, hi = (mid, hi) if passes(mid * AMOUNT_STEP_CENTS) else (lo, mid)
-    if lo == 0 or not passes(lo * AMOUNT_STEP_CENTS):
-        return None
-    return comp.structures[f"{req.requested_term_id}_{lo * AMOUNT_STEP_CENTS // 100}"]
+
+def _drop(comp: Comparison, name: str) -> None:
+    comp.structures.pop(name, None)
+    comp.outcomes = [o for o in comp.outcomes if o.structure != name]
 
 
 def compare(feed: BankFeed, terms: dict, request: Request, disputes: list[list[DisputePath]],
@@ -313,20 +314,29 @@ def summarize(comp: Comparison, terms: dict) -> dict:
 def recommend(comp: Comparison, terms: dict, view: str) -> dict:
     """Declared objective, per view: the requested structure if it passes policy in every scenario and placement;
     otherwise the largest amount on the requested term that passes (sized on its own cash paths); otherwise decline.
-    The explanation names what binds: the requested structure's failing reasons and where cash is lowest."""
+    The explanation keeps each amount's own figures (its limit, order limit and lowest cash, which fall as the amount
+    rises), and names the next grid amount above the recommendation and why it fails."""
     req = comp.request
     requested = f"{req.requested_term_id}_{req.amount_cents // 100}"
     req_check = policy_checks(comp, terms, requested, view)
+    next_up = None
     if req_check["passes"]:
         chosen = requested
     else:
-        sized = _supported_amount(comp, terms, view)
+        sized, next_up = _supported_amount(comp, terms, view)
         chosen = sized.offer_id if sized else "decline"
-    chosen_check = policy_checks(comp, terms, chosen, view)
+
+    def figures(name: str) -> dict:
+        c = policy_checks(comp, terms, name, view)
+        s = comp.structures[name]
+        return {"structure": name, "amount_cents": s.amount_cents if s else 0, "passes": c["passes"],
+                "reasons": c["reasons"], "limit_cents": c["limit_cents"], "order_limit_cents": c["order_limit_cents"],
+                "limit_set_by": c["limit_set_by"], "lowest_projected_cash_cents": c["lowest_projected_cash_cents"],
+                "lowest_cash_on": c["lowest_cash_on"], "lowest_cash_scenario": c["lowest_cash_scenario"],
+                "lowest_cash_placement": c["lowest_cash_placement"]}
+
+    at_chosen = figures(chosen)
     return {"structure": chosen, "requested": requested, "requested_passes": chosen == requested,
-            "requested_reasons": req_check["reasons"],
-            "limit_cents": chosen_check["limit_cents"], "order_limit_cents": chosen_check["order_limit_cents"],
-            "limit_set_by": chosen_check["limit_set_by"],
-            "binding": {"lowest_projected_cash_cents": req_check["lowest_projected_cash_cents"],
-                        "on": req_check["lowest_cash_on"], "scenario": req_check["lowest_cash_scenario"],
-                        "placement": req_check["lowest_cash_placement"]}}
+            "limit_cents": at_chosen["limit_cents"], "order_limit_cents": at_chosen["order_limit_cents"],
+            "at_recommended": at_chosen, "at_requested": figures(requested),
+            "next_amount_up": figures(next_up) if next_up and next_up != requested else None}

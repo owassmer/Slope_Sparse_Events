@@ -180,8 +180,14 @@ def _decision(run_dir: Path) -> dict | None:
                          "apr": f"{econ['apr_equivalent_bps'] / 100:.1f}%" if econ else "",
                          "collected": f"repaid in full in {full} of {len(scen)} scenarios" if econ else ""}
         rows.append(row)
-    rec = {view: {**r, "limit": usd(r["limit_cents"]), "order_limit": usd(r["order_limit_cents"]),
-                  "lowest": usd(r["binding"]["lowest_projected_cash_cents"]),
+    def fig(f: dict | None) -> dict | None:
+        if not f:
+            return None
+        return {**f, "amount": usd(f["amount_cents"]), "limit": usd(f["limit_cents"]),
+                "order_limit": usd(f["order_limit_cents"]), "lowest": usd(f["lowest_projected_cash_cents"])}
+
+    rec = {view: {**r, "at_requested": fig(r["at_requested"]), "at_recommended": fig(r["at_recommended"]),
+                  "next_amount_up": fig(r["next_amount_up"]), "incomplete": r.get("incomplete", []),
                   "label": s["structures"][r["structure"]]["label"] if r["structure"] in s["structures"] else r["structure"]}
            for view, r in s["recommendation"].items()}
     return {"views": views, "rows": rows, "recommendation": rec, "conditions": s["conditions"], "tier": s["tier"],
