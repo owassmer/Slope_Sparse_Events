@@ -1,7 +1,7 @@
 {
   "artifact": "jev_semantic_boundary_cases",
-  "version": "1.8.0",
-  "registry_version": "3.6.0",
+  "version": "1.9.0",
+  "registry_version": "3.7.0",
   "access_class": "host_evaluator_only",
   "policy": "Labelled semantic boundary cases for sanity-checking Jev questions and the code-owned routing thresholds. Non-synthetic passages are sliced verbatim from admissible decision-date snapshot text, with the snapshot's source metadata. Never mount into an agent or reviewer run.",
   "cases": [

@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.6.0",
+  "registry_version": "3.7.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -599,7 +599,7 @@
     },
     {
       "id": "coverage_supported",
-      "version": "3.6.0",
+      "version": "3.7.0",
       "profile": "inventory_coverage",
       "primitive": "choice",
       "question": "Do these findings account for the specific matter this passage describes?",
@@ -609,10 +609,10 @@
         "cited_findings"
       ],
       "prompt": {
-        "instructions": "Do state.cited_findings account for the specific matter that state.passage describes? A finding accounts for the matter when it states what the passage establishes about that matter's cash, obligation, restriction or accounting treatment. Each finding comes with its verbatim quotes; use them to tell which matter it concerns. Findings about a different matter, or about a different aspect than the one the passage describes, do not account for it.",
+        "instructions": "Do state.cited_findings account for the specific matter that state.passage describes? A finding accounts for the matter when it states what the passage establishes about that matter's payments, obligations, restrictions, covenants, default terms and earnings items, including that one was paid, released or superseded. Other detail (ownership, governance, procedure, legal reasoning, presentation, ordinary balances) needs no finding. Each finding comes with its verbatim quotes; use them to tell which matter it concerns. Findings about a different matter do not account for it.",
         "criteria": {
-          "covered": "The findings state what the passage establishes about its specific matter.",
-          "partly_covered": "The findings address the matter but miss a distinct item the passage describes (for example an accounting gain, a covenant or a payment status).",
+          "covered": "The findings state each payment, obligation, restriction, covenant, default term and earnings item the passage describes for its matter.",
+          "partly_covered": "The findings address the matter but a payment, obligation, restriction, covenant, default term or earnings item the passage describes (for example an accounting gain) is not stated.",
           "not_covered": "The findings concern a different matter or aspect.",
           "unclear": "Cannot tell what matter the passage describes or what the findings state."
         }

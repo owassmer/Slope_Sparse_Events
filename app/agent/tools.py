@@ -78,10 +78,6 @@ TREATMENT_MEANING = {
 }
 MAX_TEXT = 20_000
 OVERRIDE_NOTE_MIN = 20
-# An escalated (disputed) inventory item of these kinds leaves a matter unaccounted for, so the run is INCOMPLETE_REVIEW.
-# Other kinds (e.g. "unscreened") stay visible warnings.
-BLOCKING_KINDS = {"legal_matter_or_settlement", "debt_or_financing_agreement", "covenant_or_restriction", "cash_restriction",
-                  "accounting_item_from_a_matter"}
 MAX_DUPLICATE_PASSAGES = 6
 
 
@@ -646,15 +642,18 @@ async def submit_packet(ctx: RunContext, args: dict) -> dict:
 
 
 def _disputes(ctx: RunContext) -> list[dict]:
-    """Escalated items and effects, open for the reviewer. Those that leave a matter or a cash effect unresolved block."""
+    """Escalated items and effects, open for the independent reviewer. An escalated inventory item is a reviewer checklist
+    item: the reviewer decides whether it is material (one repair pass; a material gap left open makes the run
+    INCOMPLETE_REVIEW). A disputed cash-moving effect blocks at once: the category guard protects a critical error."""
     out = []
     for i in ctx.run.graph["inventory"].values():
         if i.status == "disputed":
-            out.append({"id": i.item_id, "kind": i.kind, "blocking": i.kind in BLOCKING_KINDS,
+            out.append({"id": i.item_id, "kind": i.kind, "blocking": False, "for": "reviewer_checklist",
                         "reason": f"disputed inventory item {i.item_id} ({i.kind.replace('_', ' ')}): {i.note}"})
     for e in ctx.run.graph["effects"].values():
         if e.status == "disputed":
             out.append({"id": e.effect_id, "kind": e.mechanism, "blocking": e.mechanism not in CASH_FREE_MECHANISMS,
+                        "for": "reviewer_checklist",
                         "reason": f"disputed effect {e.effect_id} ({e.mechanism.replace('_', ' ')}): {e.dispute}"})
     return out
 

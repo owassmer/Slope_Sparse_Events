@@ -69,7 +69,7 @@ JEV_METHOD = """- read_inventory early: the host screened every admissible secti
   the findings for a matter are accepted. Covered: cite the accepted findings for the matter the section describes. Not
   decision-relevant: give your reason. A duplicate of a covered item: name it. Each claim is checked; if a check fails, add
   the missing finding and account again, or escalate the item with the failed observation_id if you genuinely disagree.
-  An escalated legal, settlement, debt, covenant, cash-restriction or accounting item leaves the review incomplete.
+  An escalated item goes to the independent reviewer's checklist with your note; say plainly what it should confirm.
 - The host checks each proposed effect: its supporting findings' posture and status must fit the mechanism, and its model
   consequence must be supported by the cited findings. It also checks your conclusion at submission and checks accepted findings
   under the same question against each other. Revise when a check fails. If you disagree with a failed support check, reply to

@@ -328,7 +328,8 @@
       "quota_or_deadline_exhaustion": "INCOMPLETE_REVIEW",
       "unrecoverable_source_or_model_service_failure": "INCOMPLETE_REVIEW",
       "unresolved_material_review_error_after_one_repair": "INCOMPLETE_REVIEW",
-      "escalated_matter_inventory_item_or_cash_moving_effect_dispute": "INCOMPLETE_REVIEW"
+      "escalated_cash_moving_effect_dispute": "INCOMPLETE_REVIEW",
+      "escalated_inventory_item": "reviewer_checklist (INCOMPLETE_REVIEW only if the reviewer finds a material gap that one repair pass does not close)"
     },
     "failure_recommendation_policy": "Keep any prior provisional recommendation in the trace, but do not publish it as a completed result. Set final lending recommendation UNDETERMINED unless an independently completed supported decision packet exists. Execution failure itself is never a reason for DECLINE_REQUEST.",
     "complete_with_pivotal_gap": "A reviewed packet may finish with UNDETERMINED and a precise borrower question plus action map. It must not claim that the financing decision has been resolved.",

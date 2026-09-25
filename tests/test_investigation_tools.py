@@ -351,7 +351,9 @@ def test_covered_claims_are_checked(make_ctx):
                                                "missing": missing}]})
     assert ctx.run.get("inventory", "inv_001").status == "disputed"
     call(T.submit_packet, ctx, {"summary": "s", "conclusion": "The settlement loan requires future payments."})
-    assert any("disputed inventory item inv_001" in r for r in ctx.incomplete_reasons)  # a matter kind: INCOMPLETE_REVIEW
+    assert not ctx.incomplete_reasons  # an escalated item goes to the reviewer's checklist, not straight to INCOMPLETE
+    submitted = next(e.payload for e in ctx.run.events if e.kind == "packet_submitted")
+    assert [d["id"] for d in submitted["disputes"] if d["for"] == "reviewer_checklist"] == ["inv_001"]
 
 
 def test_duplicate_and_relevance_claims_are_checked(make_ctx):
