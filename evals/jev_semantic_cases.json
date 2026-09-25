@@ -847,29 +847,6 @@
       "why": "The Sanders row is a different loan from the Knight finding."
     },
     {
-      "case_id": "syn_entity_counterparty_unnamed",
-      "borrower": "synergy",
-      "profile": "claim_interpretation",
-      "question_id": "entity_scope",
-      "state": {
-        "target": "Synergy CHC Corp. — a settlement with an unnamed former supplier",
-        "source": {
-          "source_id": "synergy_s1a_20240813",
-          "title": "Synergy CHC Corp. Form S-1/A registration statement (Amendment No. 2)",
-          "publisher": "SEC EDGAR",
-          "document_kind": "sec_registration_statement",
-          "available_at": "2024-08-13T23:59:59-04:00"
-        },
-        "passage": {
-          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 13 — Commitments & Contingencies",
-          "text": "During May 2024, the Company paid in full the settlement."
-        },
-        "claim": "The Company paid in full the settlement in May 2024."
-      },
-      "expected": "unknown",
-      "why": "One question: the passage names no counterparty, so identity cannot be resolved."
-    },
-    {
       "case_id": "syn_entity_named_counterparty",
       "borrower": "synergy",
       "profile": "claim_interpretation",
