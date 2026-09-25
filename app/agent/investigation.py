@@ -52,7 +52,7 @@ WORKING_METHOD = """Working method
 - search_evidence for that dependency, read_evidence for the passages you need (including their surrounding context), and cite
   only text you have read. Quote exactly.
 {jev_method}- propose_finding for one atomic proposition at a time, then resolve_finding. Record how each linked observation was used,
-  and give a reason whenever you override one.
+  and give a reason whenever you disagree with one.
 - propose_effect for each supported economic mechanism, stating its baseline treatment, parameters (unknown stays unknown) and the
   plain-language model consequence. Existing liabilities are scheduled once, never added again.
 - When a matter has no future cash effect, record that as a cited finding and an effect with cash_direction none, so the
@@ -65,10 +65,14 @@ WORKING_METHOD = """Working method
 - Work efficiently: the run stops at {turn_budget} turns; submit before then."""
 
 JEV_METHOD = """- read_inventory early: the host screened every admissible section and lists the specific matters it found. Before
-  submitting, account_for_items for every item: covered by accepted findings, or not decision-relevant with a reason.
+  submitting, account_for_items for every item: covered by accepted findings, a duplicate of a covered item, or not
+  decision-relevant with a reason. Each claim is checked section by section. When a check finds something unaccounted for, add a
+  finding for it and account again; if you cannot, escalate the item with the failed observation_id and what is missing. An
+  escalated legal, settlement, debt, covenant, cash-restriction or accounting item leaves the review incomplete.
 - The host checks each proposed effect: its supporting findings' posture and status must fit the mechanism, and its model
   consequence must be supported by the cited findings. It also checks your conclusion at submission and checks accepted findings
-  under the same question against each other. Revise when a check fails; override only with a stated reason.
+  under the same question against each other. Revise when a check fails. If you disagree with a failed support check, reply to
+  that observation with your reason; if you disagree with a failed category guard, escalate_effect for the reviewer.
 - Search results carry a semantic screen label; all results are shown and you decide what to read.
 - When the posture, status or entity of a statement matters, call judge (claim_interpretation) with one claim, a precise target
   and the verbatim anchor_quote, and link the observations to the finding. When two statements may conflict, use

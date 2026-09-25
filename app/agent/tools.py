@@ -15,6 +15,8 @@ Host rules enforced here:
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import re
 from dataclasses import dataclass, field
@@ -31,6 +33,7 @@ from app.agent.run_store import RunStore
 from app.agent.sweep import chunks
 from app.config import ConfigurationError
 from app.domain.investigation import (
+    CASH_FREE_MECHANISMS,
     AtomicFinding,
     DecisionDependency,
     Disposition,
@@ -75,6 +78,11 @@ TREATMENT_MEANING = {
 }
 MAX_TEXT = 20_000
 OVERRIDE_NOTE_MIN = 20
+# An escalated (disputed) inventory item of these kinds leaves a matter unaccounted for, so the run is INCOMPLETE_REVIEW.
+# Other kinds (e.g. "unscreened") stay visible warnings.
+BLOCKING_KINDS = {"legal_matter_or_settlement", "debt_or_financing_agreement", "covenant_or_restriction", "cash_restriction",
+                  "accounting_item_from_a_matter"}
+MAX_DUPLICATE_PASSAGES = 6
 
 
 class ToolError(Exception):
@@ -395,6 +403,7 @@ async def propose_effect(ctx: RunContext, args: dict) -> dict:
             model_consequence=args.get("model_consequence", ""))
     except (ValueError, KeyError) as e:
         raise ToolError(f"Effect rejected: {e}") from e
+    reply = _consequence_reply(ctx, effect, args.get("reply_to_failed_check")) if ctx.semantics is not None else None
     ctx.run.put("effect_proposed", effect)
     findings = {k: v for k, v in ctx.run.graph["findings"].items()}
     problems = validate_effect(effect, findings, verify_span=lambda sp: verify(ctx.evidence, sp))
@@ -410,23 +419,23 @@ async def propose_effect(ctx: RunContext, args: dict) -> dict:
         except Exception as e:
             _record_jev_failure(ctx, e)
     guard_obs: list[SemanticObservation] = []
-    overrides = {k: v.strip() for k, v in (args.get("override_reasons") or {}).items() if isinstance(v, str)}
     if ctx.semantics is not None and not problems:
         try:
             guard_problems, guard_obs = await _category_guard(ctx, effect, findings)
-            support_problems, support_obs = await _consequence_support(ctx, effect, findings)
+            if reply is None:
+                support_problems, support_obs = await _consequence_support(ctx, effect, findings)
+            else:  # the agent's reasoned disagreement with a specific failed check on this same consequence text
+                support_problems, support_obs = [], [reply[0]]
         except ToolError:
             raise
         except Exception as e:
             _record_jev_failure(ctx, e)
             raise ToolError(f"Effect {effect.effect_id} could not be checked, so it is not validated: {e}") from e
         guard_obs += support_obs
-        for name, found in (("category_guard", guard_problems), ("consequence_support", support_problems)):
-            if found and len(overrides.get(name, "")) >= OVERRIDE_NOTE_MIN:
-                warnings.append({"overridden": name, "reason": overrides[name], "problems": found})
-                _dispose(ctx, [o for o in guard_obs if _guard_name(o) == name], "overridden_by_agent_with_reason", overrides[name])
-            elif found:
-                problems += found
+        problems += guard_problems + support_problems
+        if reply is not None and not problems:
+            warnings.append({"overridden": "consequence_support", "reason": reply[1], "replies_to": reply[0].observation_id})
+            _dispose(ctx, [reply[0]], "overridden_by_agent_with_reason", f"{effect.effect_id}: {reply[1]}")
         undisposed = [o for o in guard_obs if (cur := ctx.run.get("observations", o.observation_id)).downstream_disposition
                       == "unused" and not cur.disposition_note]  # a note means already disposed (e.g. near-even: unused)
         _dispose(ctx, undisposed, "challenged_agent_draft" if problems else "used_in_finding", f"effect guard for {effect.effect_id}")
@@ -439,8 +448,9 @@ async def propose_effect(ctx: RunContext, args: dict) -> dict:
     return {"effect_id": validated.effect_id, "status": validated.status, "problems": problems,
             "checks": [_obs_view(o) for o in guard_obs], "warnings": warnings,
             "note": ("Validated means structurally sound, semantically consistent and supported; it does not activate any "
-                     "cash flow. To proceed past a failed check, revise, or pass override_reasons "
-                     "{category_guard|consequence_support: reason} if you have a stated reason.")}
+                     "cash flow. If a check fails, revise. If you disagree with a failed consequence-support check, re-propose "
+                     "the same model consequence with reply_to_failed_check {observation_id, reason}. If you disagree with "
+                     "a failed category guard, escalate_effect: the effect becomes disputed and is left for the reviewer.")}
 
 
 async def run_sensitivity(ctx: RunContext, args: dict) -> dict:
@@ -505,19 +515,22 @@ async def read_inventory(ctx: RunContext, _args: dict) -> dict:
     titles = {s["source_id"]: s["title"] for s in ctx.evidence.list_sources()}
     return {"note": ("The host screened every admissible section for specific legal matters, settlements, debt agreements, "
                      "covenants, cash restrictions and matter-related accounting items. Account for every open item before "
-                     "submitting. A flag is a pointer to read, not a finding."),
+                     "submitting. A flag is a pointer to read, not a finding. Each claim is checked: covered (the findings must "
+                     "account for every section), duplicate_of a covered item (the passage must add nothing), or not decision-"
+                     "relevant (it must not be able to change cash, obligations, underwriting earnings or repayment ability). "
+                     "A failed check is resolved with a new finding, a duplicate, or by escalating it as disputed."),
             "open": sum(i.status == "open" for i in items),
             "items": [{"item_id": i.item_id, "status": i.status, "kind": i.kind, "source": titles.get(i.source_id, i.source_id),
                        "heading": " > ".join(i.heading_path[-2:]) or "(whole document)", "section_ids": list(i.section_ids),
                        "excerpt": i.excerpt[:200], **({"finding_ids": list(i.finding_ids)} if i.finding_ids else {}),
+                       **({"duplicate_of": i.duplicate_of} if i.duplicate_of else {}),
                        **({"note": i.note} if i.note else {})} for i in items]}
 
 
 async def account_for_items(ctx: RunContext, args: dict) -> dict:
-    """Each entry is judged on its own: accepted entries are recorded, rejected ones come back with their reason.
-
-    (A failure no longer aborts the batch, so earlier entries are not re-checked on retry.)
-    """
+    """Each entry is judged on its own: accepted entries are recorded, rejected ones come back with their reason and the
+    failed check's observation ID. There is no free-text override: a failed check is closed with a new finding (then the
+    entry is re-checked), a verified duplicate of a covered item, or escalation as a disputed item for the reviewer."""
     accepted, rejected = [], []
     for entry in args.get("items", []):
         try:
@@ -525,30 +538,63 @@ async def account_for_items(ctx: RunContext, args: dict) -> dict:
             if item.status != "open":
                 raise ToolError(f"{item.item_id} is already {item.status}")
             disposition = entry.get("disposition")
+            reason = (entry.get("reason") or "").strip()
             if disposition == "covered_by_findings":
                 fids = tuple(entry.get("finding_ids") or [])
                 bad = [f for f in fids if f not in ctx.run.graph["findings"] or ctx.run.graph["findings"][f].status != "accepted"]
                 if not fids or bad:
                     raise ToolError(f"{item.item_id}: covered_by_findings needs accepted finding IDs (not accepted: {bad or 'none given'})")
-                if ctx.semantics is not None:
-                    problem = await _check_coverage(ctx, item, fids, entry.get("override_reason", ""))
-                    if problem:
-                        raise ToolError(problem)
-                update = item.model_copy(update={"status": "covered", "finding_ids": fids,
-                                                 "note": entry.get("override_reason") or entry.get("reason", "")})
+                checks = await _check_coverage(ctx, item, fids) if ctx.semantics is not None else []
+                update = item.model_copy(update={"status": "covered", "finding_ids": fids, "note": reason,
+                                                 "observation_ids": tuple(o.observation_id for o in checks)})
+            elif disposition == "duplicate_of":
+                other = ctx.run.get("inventory", entry.get("duplicate_of") or "")
+                if other.status != "covered" or other.item_id == item.item_id:
+                    raise ToolError(f"{item.item_id}: duplicate_of must name another item that is already covered "
+                                    f"({other.item_id} is {other.status})")
+                checks = await _check_duplicate(ctx, item, other) if ctx.semantics is not None else []
+                update = item.model_copy(update={"status": "covered", "finding_ids": other.finding_ids, "note": reason,
+                                                 "duplicate_of": other.item_id,
+                                                 "observation_ids": tuple(o.observation_id for o in checks)})
             elif disposition == "not_decision_relevant":
-                reason = (entry.get("reason") or "").strip()
                 if len(reason) < OVERRIDE_NOTE_MIN:
                     raise ToolError(f"{item.item_id}: say why it does not bear on the financing decision")
-                update = item.model_copy(update={"status": "not_decision_relevant", "note": reason})
+                checks = await _check_relevance(ctx, item) if ctx.semantics is not None else []
+                update = item.model_copy(update={"status": "not_decision_relevant", "note": reason,
+                                                 "observation_ids": tuple(o.observation_id for o in checks)})
+            elif disposition == "escalate" and ctx.semantics is not None:
+                update = _escalate_item(ctx, item, entry.get("observation_id") or "", (entry.get("missing") or "").strip())
             else:
-                raise ToolError(f"{entry.get('item_id')}: disposition must be covered_by_findings or not_decision_relevant")
+                raise ToolError(f"{entry.get('item_id')}: disposition must be covered_by_findings, duplicate_of, "
+                                "not_decision_relevant or escalate")
             ctx.run.put("inventory_accounted", update)
             accepted.append(update.item_id)
         except (ToolError, KeyError) as e:
             rejected.append({"item_id": entry.get("item_id"), "reason": str(e).strip("'")})
     return {"accounted": accepted, "rejected": rejected,
             "open": sum(i.status == "open" for i in ctx.run.graph["inventory"].values())}
+
+
+async def escalate_effect(ctx: RunContext, args: dict) -> dict:
+    """Disagreement with the category guard is escalated, never overridden: the effect becomes disputed, creates no cash
+    stream, and is left open for the human reviewer."""
+    eff: EconomicEffectProposal = ctx.run.get("effects", args["effect_id"])
+    reason = (args.get("reason") or "").strip()
+    if eff.status != "rejected" or not eff.validation_messages:
+        raise ToolError(f"{eff.effect_id} is {eff.status}; only an effect rejected by the category guard can be escalated")
+    other = [m for m in eff.validation_messages if not m.startswith("Category guard")]
+    if other:
+        raise ToolError(f"{eff.effect_id} has problems other than the category guard; revise it: {other}")
+    if len(reason) < OVERRIDE_NOTE_MIN:
+        raise ToolError("Say why you disagree with the failed check and what the reviewer must decide")
+    failed = [ctx.run.get("observations", o) for o in eff.observation_ids]
+    _dispose(ctx, [o for o in failed if o.downstream_disposition == "challenged_agent_draft"], "flagged_conflict",
+             f"escalated with {eff.effect_id}: {reason}")
+    ctx.run.put("effect_disputed", eff.model_copy(update={"status": "disputed", "dispute": reason}))
+    blocking = eff.mechanism not in CASH_FREE_MECHANISMS
+    return {"effect_id": eff.effect_id, "status": "disputed",
+            "note": ("Recorded for the reviewer. A disputed effect creates no cash stream"
+                     + (" and, because its mechanism moves cash, the run will be INCOMPLETE_REVIEW." if blocking else "."))}
 
 
 async def resolve_reconciliation(ctx: RunContext, args: dict) -> dict:
@@ -574,13 +620,31 @@ async def submit_packet(ctx: RunContext, args: dict) -> dict:
             raise ToolError(f"Open reconciliation tasks: {open_tasks}. Resolve them with resolve_reconciliation.")
         await _check_conclusion(ctx, args)
     summary = {k: args.get(k) for k in ("summary", "pivotal_unknowns", "supported_effect_ids", "conclusion")}
+    disputes = _disputes(ctx)
+    ctx.incomplete_reasons += [d["reason"] for d in disputes if d["blocking"]]
+    summary["disputes"] = disputes
     summary["incomplete_reasons"] = ctx.incomplete_reasons
     summary["configuration_failure"] = ctx.configuration_failure
-    if args.get("conclusion_override_reason"):
-        summary["conclusion_override_reason"] = args["conclusion_override_reason"]
+    if (args.get("conclusion_reply_to_failed_check") or {}).get("reason"):
+        summary["conclusion_reply_to_failed_check"] = args["conclusion_reply_to_failed_check"]
     path = ctx.run.lock(summary)
     ctx.submitted = True
-    return {"locked": True, "packet": path.name, "chain_head": ctx.run.head}
+    return {"locked": True, "packet": path.name, "chain_head": ctx.run.head,
+            **({"disputes": disputes} if disputes else {})}
+
+
+def _disputes(ctx: RunContext) -> list[dict]:
+    """Escalated items and effects, open for the reviewer. Those that leave a matter or a cash effect unresolved block."""
+    out = []
+    for i in ctx.run.graph["inventory"].values():
+        if i.status == "disputed":
+            out.append({"id": i.item_id, "kind": i.kind, "blocking": i.kind in BLOCKING_KINDS,
+                        "reason": f"disputed inventory item {i.item_id} ({i.kind.replace('_', ' ')}): {i.note}"})
+    for e in ctx.run.graph["effects"].values():
+        if e.status == "disputed":
+            out.append({"id": e.effect_id, "kind": e.mechanism, "blocking": e.mechanism not in CASH_FREE_MECHANISMS,
+                        "reason": f"disputed effect {e.effect_id} ({e.mechanism.replace('_', ' ')}): {e.dispute}"})
+    return out
 
 
 # --- 4c host checks --------------------------------------------------------------------------------
@@ -590,10 +654,6 @@ def _dispose(ctx: RunContext, observations: list[SemanticObservation], dispositi
         current = ctx.run.get("observations", o.observation_id)
         ctx.run.put("observation_disposition", current.model_copy(update={"downstream_disposition": disposition,
                                                                           "disposition_note": note}))
-
-
-def _guard_name(o: SemanticObservation) -> str:
-    return "consequence_support" if o.question_id == "claims_supported" else "category_guard"
 
 
 def _attribute_screen(ctx: RunContext, finding: AtomicFinding) -> None:
@@ -607,35 +667,100 @@ def _attribute_screen(ctx: RunContext, finding: AtomicFinding) -> None:
         _dispose(ctx, unused, "used_in_finding", f"screened passage cited in {finding.finding_id}")
 
 
-def _matter_passage(ctx: RunContext, item: InventoryItem) -> tuple[dict | list[dict], tuple[str, ...]]:
-    """The flagged chunk of each section in the group (up to 4), located by the sweep's excerpts."""
+def _matter_passages(ctx: RunContext, item: InventoryItem) -> list[tuple[str, dict, str]]:
+    """(section_id, flagged chunk, source hash) for every section of the matter, located by the sweep's excerpts."""
     excerpts = list(item.section_excerpts) or [item.excerpt] * len(item.section_ids)
-    passages, hashes = [], []
-    for sid, excerpt in list(zip(item.section_ids, excerpts, strict=False))[:4]:
+    out = []
+    for sid, excerpt in zip(item.section_ids, excerpts, strict=False):
         sec = ctx.evidence.read_section(sid)
         pieces = chunks(sec["text"])
         piece = next((p for p in pieces if excerpt and excerpt[:120] in p), pieces[0])
-        passages.append({"heading_path": " > ".join(sec["heading_path"]), "text": piece})
-        hashes.append(sec["source"]["sha256"])
-    return (passages[0] if len(passages) == 1 else passages), tuple(dict.fromkeys(hashes))
+        out.append((sid, {"heading_path": " > ".join(sec["heading_path"]), "text": piece}, sec["source"]["sha256"]))
+    return out
 
 
-async def _check_coverage(ctx: RunContext, item: InventoryItem, fids: tuple[str, ...], override: str) -> str | None:
-    """Host check that 'covered' is true: the cited findings must account for the flagged matter."""
-    passage, hashes = _matter_passage(ctx, item)
+async def _per_section(ctx: RunContext, item: InventoryItem, ask, failing: set[str], label: str,
+                       advice: str) -> list[SemanticObservation]:
+    """Run one host check per section (in parallel). A clear failing answer on any section rejects the entry and names the
+    observation the agent may escalate; there is no free-text override."""
+    passages = _matter_passages(ctx, item)
     try:
-        [obs] = await ctx.semantics.coverage(passage, [ctx.run.graph["findings"][f] for f in fids], (item.item_id, *fids), hashes)
+        results = await asyncio.gather(*(ask(sid, passage, sha) for sid, passage, sha in passages))
     except Exception as e:
         _record_jev_failure(ctx, e)
-        return f"{item.item_id}: coverage could not be checked ({e})"
-    clear_gap = obs.answer in ("partly_covered", "not_covered") and not is_ambiguous(obs)
-    if clear_gap and len(override.strip()) < OVERRIDE_NOTE_MIN:
-        _dispose(ctx, [obs], "challenged_agent_draft", f"coverage check on {item.item_id}")
-        return (f"{item.item_id}: {meaning('coverage_supported', obs.answer)}. Add a finding for what this passage establishes "
-                f"(read {item.section_ids[0]}), cite different findings, or give override_reason.")
-    _dispose(ctx, [obs], "overridden_by_agent_with_reason" if clear_gap else "used_in_finding",
-             override.strip() if clear_gap else f"coverage check on {item.item_id}")
-    return None
+        raise ToolError(f"{item.item_id}: {label} could not be checked ({e})") from e
+    obs = [o for r in results for o in r]
+    failed = [(sid, o) for (sid, _, _), o in zip(passages, obs, strict=True) if o.answer in failing and not is_ambiguous(o)]
+    if failed:
+        _dispose(ctx, [o for _, o in failed], "challenged_agent_draft", f"{label} on {item.item_id}")
+        detail = "; ".join(f"{sid}: {meaning(o.question_id, o.answer)} ({o.observation_id})" for sid, o in failed)
+        raise ToolError(f"{item.item_id}: {label} failed. {detail}. {advice} If you disagree, escalate the item with the "
+                        "observation_id and what is not accounted for; it will stay open for the reviewer.")
+    _dispose(ctx, obs, "used_in_finding", f"{label} on {item.item_id}")
+    return obs
+
+
+async def _check_coverage(ctx: RunContext, item: InventoryItem, fids: tuple[str, ...]) -> list[SemanticObservation]:
+    """Host check that 'covered' is true for every section: the cited findings must account for what it describes."""
+    cited = [ctx.run.graph["findings"][f] for f in fids]
+    return await _per_section(
+        ctx, item, lambda sid, passage, sha: ctx.semantics.coverage(passage, cited, (item.item_id, sid, *fids), (sha,)),
+        {"partly_covered", "not_covered"}, "coverage check",
+        "Read the section, propose and accept a finding for what it establishes, then account for the item again with it.")
+
+
+async def _check_duplicate(ctx: RunContext, item: InventoryItem, other: InventoryItem) -> list[SemanticObservation]:
+    """A duplicate adds nothing: each section must describe no matter or item beyond the covered item's passages."""
+    covered = _matter_passages(ctx, other)[:MAX_DUPLICATE_PASSAGES]
+    covered_passage = covered[0][1] if len(covered) == 1 else [p for _, p, _ in covered]
+    covered_hashes = tuple(dict.fromkeys(h for _, _, h in covered))
+    return await _per_section(
+        ctx, item, lambda sid, passage, sha: ctx.semantics.adds_matter(
+            covered_passage, passage, (item.item_id, sid, other.item_id), tuple(dict.fromkeys((sha, *covered_hashes)))),
+        {"adds_item"}, f"duplicate check against {other.item_id}",
+        "Cover what the passage adds with a finding instead.")
+
+
+async def _check_relevance(ctx: RunContext, item: InventoryItem) -> list[SemanticObservation]:
+    """'Not decision-relevant' is checked: the passage must describe nothing that could change the decision inputs."""
+    company = ctx.inputs["baseline_profile"]["borrower"]
+    review_date = str(ctx.evidence.snapshot_info()["cutoff"])[:10]
+    return await _per_section(
+        ctx, item, lambda sid, passage, sha: ctx.semantics.relevance(company, review_date, passage, (item.item_id, sid), (sha,)),
+        {"could_change"}, "decision-relevance check",
+        "Cover it with a finding (a paid or closed matter can be recorded as a cited finding) or show it is a duplicate.")
+
+
+def _escalate_item(ctx: RunContext, item: InventoryItem, observation_id: str, missing: str) -> InventoryItem:
+    """Escalation answers a specific failed check on this item; the item is disputed and stays open for the reviewer."""
+    obs = ctx.run.graph["observations"].get(observation_id)
+    failing = {"coverage_supported": {"partly_covered", "not_covered"}, "adds_matter": {"adds_item"},
+               "decision_relevance": {"could_change"}}
+    if (obs is None or not obs.subject_ids or obs.subject_ids[0] != item.item_id
+            or obs.answer not in failing.get(obs.question_id, set()) or is_ambiguous(obs)):
+        raise ToolError(f"{item.item_id}: escalate needs the observation_id of a failed host check on this item")
+    if len(missing) < OVERRIDE_NOTE_MIN:
+        raise ToolError(f"{item.item_id}: say what the check found missing and why you could not account for it")
+    _dispose(ctx, [obs], "flagged_conflict", f"escalated {item.item_id}: {missing}")
+    return item.model_copy(update={"status": "disputed", "note": missing, "observation_ids": (obs.observation_id,)})
+
+
+def _consequence_reply(ctx: RunContext, effect: EconomicEffectProposal, reply: dict | None) -> tuple[SemanticObservation, str] | None:
+    """A consequence-support disagreement must answer a specific failed check on the same consequence text."""
+    if not reply:
+        return None
+    obs = ctx.run.graph["observations"].get(reply.get("observation_id") or "")
+    reason = (reply.get("reason") or "").strip()
+    earlier = ctx.run.graph["effects"].get(obs.subject_ids[0]) if obs is not None and obs.subject_ids else None
+    if (obs is None or obs.question_id != "claims_supported" or obs.answer != "some_unsupported" or is_ambiguous(obs)
+            or earlier is None or earlier.status != "rejected"):
+        raise ToolError("reply_to_failed_check needs the observation_id of a failed consequence-support check on a rejected effect")
+    if earlier.model_consequence.strip() != effect.model_consequence.strip():
+        raise ToolError(f"The reply must keep the model consequence that {obs.observation_id} checked; a revised consequence "
+                        "is checked afresh (omit reply_to_failed_check)")
+    if len(reason) < OVERRIDE_NOTE_MIN:
+        raise ToolError("Say which claim the check marked unsupported and why the cited findings support it")
+    return obs, reason
 
 
 async def _auto_relations(ctx: RunContext, finding: AtomicFinding) -> list[dict]:
@@ -727,6 +852,23 @@ async def _consequence_support(ctx: RunContext, effect: EconomicEffectProposal,
 
 async def _check_conclusion(ctx: RunContext, args: dict) -> None:
     conclusion = (args.get("conclusion") or "").strip()
+    digest = hashlib.sha256(conclusion.encode()).hexdigest()
+    reply = args.get("conclusion_reply_to_failed_check")
+    if reply:  # a reasoned disagreement with the latest failed check on this exact conclusion text
+        last = next((e for e in reversed(ctx.run.events) if e.kind == "conclusion_checked"), None)
+        reason = (reply.get("reason") or "").strip()
+        if (last is None or last.object_ids[:1] != (reply.get("observation_id"),) or last.payload.get("passed")
+                or last.payload.get("conclusion_sha256") != digest):
+            raise ToolError("conclusion_reply_to_failed_check must name the latest failed conclusion check, and the conclusion "
+                            "must be unchanged; a revised conclusion is checked afresh")
+        if len(reason) < OVERRIDE_NOTE_MIN:
+            raise ToolError("Say which claim the check marked unsupported and why the findings or engine results support it")
+        obs = ctx.run.get("observations", last.object_ids[0])
+        ctx.run.append("conclusion_checked", object_ids=(obs.observation_id,),
+                       payload={"answer": obs.answer, "ambiguous": is_ambiguous(obs), "passed": False,
+                                "conclusion_sha256": digest, "reply_reason": reason})
+        _dispose(ctx, [obs], "overridden_by_agent_with_reason", reason)
+        return
     accepted = [f for f in ctx.run.graph["findings"].values() if f.status == "accepted"]
     effects = [f"{e.effect_id} ({e.mechanism}, {e.target}): {e.model_consequence}"
                for e in ctx.run.graph["effects"].values() if e.status == "validated"]
@@ -740,16 +882,17 @@ async def _check_conclusion(ctx: RunContext, args: dict) -> None:
         _record_jev_failure(ctx, e)
         raise ToolError(f"The conclusion could not be checked: {e}") from e
     ok = not (obs.answer == "some_unsupported" and not is_ambiguous(obs))  # same gating as consequence support
-    reason = (args.get("conclusion_override_reason") or "").strip()
     ctx.run.append("conclusion_checked", object_ids=(obs.observation_id,),
-                   payload={"answer": obs.answer, "ambiguous": is_ambiguous(obs), "override_reason": reason or None})
-    if not ok and len(reason) < OVERRIDE_NOTE_MIN:
+                   payload={"answer": obs.answer, "ambiguous": is_ambiguous(obs), "passed": ok, "conclusion_sha256": digest})
+    if not ok:
         _dispose(ctx, [obs], "challenged_agent_draft", "conclusion check")
-        raise ToolError(f"Conclusion check: {meaning('claims_supported', obs.answer)}"
-                        f"{' (ambiguous)' if is_ambiguous(obs) else ''}. Revise the conclusion to what accepted findings, "
-                        "validated effects and sensitivity results support, or give conclusion_override_reason.")
-    _dispose(ctx, [obs], "used_in_finding" if ok else "overridden_by_agent_with_reason",
-             "conclusion check" if ok else reason)
+        raise ToolError(f"Conclusion check ({obs.observation_id}): {meaning('claims_supported', obs.answer)}. Revise the "
+                        "conclusion to what accepted findings, validated effects and sensitivity results support. If you "
+                        "disagree, resubmit the same conclusion with conclusion_reply_to_failed_check {observation_id, reason}.")
+    if obs.answer == "all_supported":
+        _dispose(ctx, [obs], "used_in_finding", "conclusion check")
+    else:
+        _dispose(ctx, [obs], "unused", "near-even support answer; not blocking")
 
 
 # --- tool schemas ------------------------------------------------------------------------------------
@@ -814,7 +957,7 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
                                                             "exclude_already_paid_obligation", "modify_available_funding"]},
           "parameters": {"type": "array", "items": PARAM}, "linked_effect_ids": {"type": "array", "items": S},
           "double_count_guard": S, "model_consequence": S,
-          "override_reasons": obj({"category_guard": S, "consequence_support": S}, [])},
+          "reply_to_failed_check": obj({"observation_id": S, "reason": S}, ["observation_id", "reason"])},
          ["finding_ids", "mechanism", "target", "cash_direction", "baseline_treatment", "model_consequence"]), propose_effect),
     ("run_sensitivity", "Deterministic remaining-period cash requirement for validated settlement effects across scenarios of "
      "how much was paid since the measurement date. Optionally state an assumed unavailable share of reported cash.",
@@ -826,19 +969,25 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
          ["fact", "why_pivotal", "acceptable_evidence"]), request_missing_fact),
     ("read_inventory", "List the matters the host sweep flagged in the admissible evidence and their accounting status.",
      obj({}, []), read_inventory),
-    ("account_for_items", "Account for inventory items in a batch: covered_by_findings (accepted finding_ids) or "
-     "not_decision_relevant (with a reason).",
+    ("account_for_items", "Account for inventory items in a batch. Each entry is checked on its own: covered_by_findings "
+     "(accepted finding_ids that account for every section), duplicate_of (another item already covered; the passage must add "
+     "nothing), not_decision_relevant (with a reason; checked), or escalate (the observation_id of a failed check on the item "
+     "and what is missing; the item stays open for the reviewer).",
      obj({"items": {"type": "array", "items": obj({"item_id": S, "disposition": {"type": "string", "enum": [
-         "covered_by_findings", "not_decision_relevant"]}, "finding_ids": {"type": "array", "items": S}, "reason": S,
-         "override_reason": S},
+         "covered_by_findings", "duplicate_of", "not_decision_relevant", "escalate"]}, "finding_ids": {"type": "array", "items": S},
+         "duplicate_of": S, "reason": S, "observation_id": S, "missing": S},
          ["item_id", "disposition"])}}, ["items"]), account_for_items),
+    ("escalate_effect", "Escalate an effect the category guard rejected when you disagree with the check: it becomes disputed, "
+     "creates no cash stream, and is left for the reviewer (a disputed cash-moving effect makes the run incomplete).",
+     obj({"effect_id": S, "reason": S}, ["effect_id", "reason"]), escalate_effect),
     ("resolve_reconciliation", "Resolve an open reconciliation task: explain how the statements relate and which finding stands.",
      obj({"task_id": S, "note": S}, ["task_id", "note"]), resolve_reconciliation),
     ("submit_packet", "Lock the investigation for review with a summary, the pivotal unknowns, the supported effect IDs and the "
      "conclusion. The conclusion is checked against accepted findings, validated effects and sensitivity results. "
      "No lending action is taken.",
      obj({"summary": S, "pivotal_unknowns": {"type": "array", "items": S},
-          "supported_effect_ids": {"type": "array", "items": S}, "conclusion": S, "conclusion_override_reason": S},
+          "supported_effect_ids": {"type": "array", "items": S}, "conclusion": S,
+          "conclusion_reply_to_failed_check": obj({"observation_id": S, "reason": S}, ["observation_id", "reason"])},
          ["summary", "conclusion"]), submit_packet),
 ]
 

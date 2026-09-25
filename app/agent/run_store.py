@@ -42,7 +42,7 @@ EVENT_COLLECTION: dict[str, str | None] = {
     "observation_recorded": "observations", "observation_disposition": "observations",
     "finding_proposed": "findings", "finding_resolved": "findings", "reconciliation_opened": "reconciliations",
     "reconciliation_resolved": "reconciliations", "effect_proposed": "effects", "effect_validated": "effects",
-    "inventory_loaded": "inventory", "inventory_accounted": "inventory",
+    "inventory_loaded": "inventory", "inventory_accounted": "inventory", "effect_disputed": "effects",
 }
 ID_FIELD = {"dependencies": "dependency_id", "candidates": "candidate_id", "jev_calls": "call_id",
             "observations": "observation_id", "findings": "finding_id", "reconciliations": "task_id",

@@ -197,6 +197,18 @@ class Semantics:
         return await self._ask("inventory_coverage", ["coverage_supported"],
                                {"passage": passage, "cited_findings": cited_state}, subject_ids, source_hashes)
 
+    async def adds_matter(self, covered_passage: dict | list[dict], passage: dict, subject_ids: tuple[str, ...],
+                          source_hashes: tuple[str, ...]) -> list[SemanticObservation]:
+        """inventory_coverage: does this passage add a matter or item to one already covered?"""
+        return await self._ask("inventory_coverage", ["adds_matter"], {"covered_passage": covered_passage, "passage": passage},
+                               subject_ids, source_hashes)
+
+    async def relevance(self, company: str, review_date: str, passage: dict, subject_ids: tuple[str, ...],
+                        source_hashes: tuple[str, ...]) -> list[SemanticObservation]:
+        """inventory_coverage: could the passage change the decision inputs from the review date?"""
+        return await self._ask("inventory_coverage", ["decision_relevance"],
+                               {"company": company, "review_date": review_date, "passage": passage}, subject_ids, source_hashes)
+
     async def baseline_overlap(self, effect_description: str, baseline_item: str, subject_ids: tuple[str, ...],
                                source_hashes: tuple[str, ...] = ()) -> list[SemanticObservation]:
         """Warning signal only; obligation IDs and host validation decide double counting."""

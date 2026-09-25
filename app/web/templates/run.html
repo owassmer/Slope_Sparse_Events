@@ -21,10 +21,11 @@
     <h5>Conclusion</h5>
     <p>{{ v.submitted.conclusion or "No packet conclusion submitted." }}</p>
     {% for c in v.conclusion_checks %}<p class="muted"><span class="tag jev">Jev check {{ loop.index }}/{{ v.conclusion_checks | length }}</span>Conclusion claims:
-      {% if c.answer == "some_unsupported" and not c.ambiguous %}<strong>some unsupported</strong>{% if c.override_reason %} · overridden: {{ c.override_reason }}{% elif not loop.last %} · rejected; the agent revised{% endif %}
+      {% if c.answer == "some_unsupported" and not c.ambiguous %}<strong>some unsupported</strong>{% if c.reply_reason %} · the agent disagreed with this failed check: {{ c.reply_reason }}{% elif c.override_reason %} · overridden: {{ c.override_reason }}{% elif not loop.last %} · rejected; the agent revised{% endif %}
       {% elif c.answer == "all_supported" and not c.ambiguous %}supported by findings and engine results
       {% else %}{{ c.answer.replace("_", " ") }} (near-even; not blocking){% if c.override_reason %} · agent's recorded reason: {{ c.override_reason }}{% endif %}{% endif %}</p>{% endfor %}
     {% if v.submitted.incomplete_reasons %}<p><span class="tag warn">Incomplete</span> {{ v.submitted.incomplete_reasons | join("; ") }}</p>{% endif %}
+    {% for d in v.submitted.disputes or [] %}{% if not d.blocking %}<p class="muted"><span class="tag warn">Open for the reviewer</span> {{ d.reason }}</p>{% endif %}{% endfor %}
   </div>
 </div>
 
@@ -41,7 +42,7 @@
 <p class="muted">Each card is a proposed economic effect. <em>Validated</em> means supported by accepted, verbatim-cited findings and structurally sound; it does not activate a cash flow by itself.</p>
 {% for e in v.effects %}
 <div class="card">
-  <span class="tag finding">Agent effect</span>{% if e.status == "validated" %}<span class="tag engine">Validated</span>{% else %}<span class="tag warn">{{ e.status }}</span>{% endif %}
+  <span class="tag finding">Agent effect</span>{% if e.status == "validated" %}<span class="tag engine">Validated</span>{% elif e.status == "disputed" %}<span class="tag warn">Disputed: open for the reviewer, no cash stream</span>{% else %}<span class="tag warn">{{ e.status }}</span>{% endif %}
   <h5 style="margin:.3rem 0">{{ e.mechanism }} · {{ e.target }}</h5>
   <p class="consequence">Model consequence: {{ e.consequence or "—" }}</p>
   <p class="muted">Cash direction: {{ e.cash_direction }} · Baseline treatment: {{ e.baseline_treatment }}{% if e.guard %} · Double-count guard: {{ e.guard }}{% endif %}</p>
@@ -49,11 +50,12 @@
   <table><thead><tr><th>Parameter</th><th>Value</th><th>Status</th></tr></thead><tbody>
     {% for p in e.parameters %}<tr><td>{{ p.name }}<br><span class="muted">{{ p.description }}</span></td><td>{{ p.value }}{% if p.basis %}<br><span class="muted">{{ p.basis }}</span>{% endif %}</td><td>{{ p.status }}</td></tr>{% endfor %}
   </tbody></table>{% endif %}
-  {% if e.problems %}<p><span class="tag warn">Rejected</span> {{ e.problems | join("; ") }}</p>{% endif %}
+  {% if e.problems %}<p><span class="tag warn">{{ "Failed check" if e.status == "disputed" else "Rejected" }}</span> {{ e.problems | join("; ") }}</p>{% endif %}
+  {% if e.dispute %}<p><span class="tag warn">Agent disagrees</span> {{ e.dispute }}</p>{% endif %}
   {% if e.checks %}<details><summary>Host checks ({{ e.checks | length }})</summary>
     {% for o in e.checks %}<p style="margin:.2rem 0"><span class="tag jev">Jev</span><strong>{{ o.meaning }}</strong>{% if o.ambiguous %} <span class="tag warn">Ambiguous</span>{% endif %}
       <span class="muted"> · {{ o.question }} · {{ o.disposition }}</span></p>{% endfor %}
-    {% for k, r in e.overrides.items() %}<p class="muted"><span class="tag warn">Override</span> {{ k.replace("_", " ") }}: {{ r }}</p>{% endfor %}
+    {% for k, r in e.overrides.items() %}<p class="muted"><span class="tag warn">Agent disagreed with a failed check</span> {{ k.replace("_", " ") }}: {{ r }}</p>{% endfor %}
   </details>{% endif %}
   <details><summary>Supporting findings ({{ e.findings | length }})</summary>
     {% for f in e.findings %}{% include "_finding.html" %}{% endfor %}
@@ -76,11 +78,11 @@
 
 {% if v.inventory %}
 <h3>Inventory <span class="tag jev">Host sweep</span></h3>
-<p class="muted">Jev read every admissible section once and flagged specific matters; the agent had to account for each before submitting.</p>
+<p class="muted">Jev read every admissible section once and flagged specific matters. The agent had to account for each before submitting, and Jev checked each claim section by section. A <em>disputed</em> item failed a check the agent could not resolve; it is open for the reviewer.</p>
 <table><thead><tr><th>Matter</th><th>Kind</th><th>Accounted as</th></tr></thead><tbody>
 {% for i in v.inventory %}<tr><td>{{ i.source }}<br><span class="muted">{{ i.heading }} ({{ i.sections }} section{{ "s" if i.sections != 1 }})</span></td>
-  <td>{{ i.kind }}</td><td>{{ i.status }}{% if i.findings %}<br><span class="muted">{{ i.findings | join(", ") }}</span>{% endif %}{% if i.note %}<br><span class="muted">{{ i.note }}</span>{% endif %}
-    {% for c in i.coverage_checks %}<br><span class="tag jev">Coverage</span><span class="muted">{{ c.meaning }}{% if c.ambiguous %} (ambiguous){% endif %} · {{ c.findings | join(", ") }} · {{ c.disposition }}{% if c.note and c.disposition == "overridden by agent with reason" %}: {{ c.note }}{% endif %}</span>{% endfor %}</td></tr>{% endfor %}
+  <td>{{ i.kind }}</td><td>{% if i.status == "disputed" %}<span class="tag warn">Disputed: open</span>{% else %}{{ i.status }}{% endif %}{% if i.duplicate_of %} (duplicate of {{ i.duplicate_of }}){% endif %}{% if i.findings %}<br><span class="muted">{{ i.findings | join(", ") }}</span>{% endif %}{% if i.note %}<br><span class="muted">{{ i.note }}</span>{% endif %}
+    {% for c in i.coverage_checks %}<br><span class="tag jev">{{ c.label }}</span><span class="muted">{{ c.meaning }}{% if c.ambiguous %} (ambiguous){% endif %} · {{ c.findings | join(", ") }} · {{ c.disposition }}{% if c.note and c.disposition in ("overridden by agent with reason", "flagged conflict") %}: {{ c.note }}{% endif %}</span>{% endfor %}</td></tr>{% endfor %}
 </tbody></table>
 {% endif %}
 

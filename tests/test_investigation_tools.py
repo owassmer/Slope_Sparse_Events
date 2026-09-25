@@ -22,7 +22,7 @@ INPUTS = json.loads((CASES_DIR / SNAP / "run_inputs.json").read_text())
 DEFAULT_ANSWERS = {"claim_posture": "agreed_contractually", "obligation_status": "required", "entity_scope": "target",
                    "claims_supported": "all_supported", "finding_support": "supports", "finding_atomicity": "one_claim",
                    "context_sufficiency": "enough", "economic_role": "existing_cash_obligation", "statement_relation": "agree",
-                   "coverage_supported": "covered"}
+                   "coverage_supported": "covered", "adds_matter": "nothing_new", "decision_relevance": "could_not_change"}
 
 
 class FakeJev:
@@ -236,11 +236,18 @@ def test_category_guard_blocks_a_disputed_amount_from_becoming_a_payment(make_ct
     _, fid = _accepted_settlement_finding(ctx)
     eff = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT})
     assert eff["status"] == "rejected" and any("Claimed or disputed" in p for p in eff["problems"])
-    short = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT, "override_reasons": {"category_guard": "no"}})
-    assert short["status"] == "rejected"  # an override needs a stated reason
-    ok = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT, "override_reasons": {
-        "category_guard": "The schedule is an agreed settlement loan; the disputed reading concerns the original claim."}})
-    assert ok["status"] == "validated" and ctx.run.get("effects", ok["effect_id"]).override_reasons
+    # no free-text override: disagreement escalates, the effect is disputed, creates no cash stream, and the run is incomplete
+    again = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT, "override_reasons": {"category_guard": "x" * 40}})
+    assert again["status"] == "rejected"
+    with pytest.raises(T.ToolError, match="Say why"):
+        call(T.escalate_effect, ctx, {"effect_id": eff["effect_id"], "reason": "no"})
+    call(T.escalate_effect, ctx, {"effect_id": eff["effect_id"],
+                                  "reason": "The schedule is an agreed settlement loan; the disputed reading concerns the claim."})
+    assert ctx.run.get("effects", eff["effect_id"]).status == "disputed"
+    with pytest.raises(T.ToolError, match="disputed; list only validated"):
+        call(T.submit_packet, ctx, {"summary": "s", "conclusion": "c", "supported_effect_ids": [eff["effect_id"]]})
+    call(T.submit_packet, ctx, {"summary": "s", "conclusion": "The settlement loan requires future payments."})
+    assert any("disputed effect" in r for r in ctx.incomplete_reasons)
 
 
 def test_unsupported_consequence_is_rejected(make_ctx):
@@ -248,6 +255,14 @@ def test_unsupported_consequence_is_rejected(make_ctx):
     _, fid = _accepted_settlement_finding(ctx)
     eff = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT})
     assert eff["status"] == "rejected" and any("Consequence support" in p for p in eff["problems"])
+    failed = next(c["observation_id"] for c in eff["checks"] if c["question_id"] == "claims_supported")
+    reason = "The finding quotes the $2,000,000 2024 row of the settlement schedule."
+    with pytest.raises(T.ToolError, match="keep the model consequence"):
+        call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT, "model_consequence": "Something else entirely.",
+                                     "reply_to_failed_check": {"observation_id": failed, "reason": reason}})
+    ok = call(T.propose_effect, ctx, {"finding_ids": [fid], **SETTLEMENT,
+                                      "reply_to_failed_check": {"observation_id": failed, "reason": reason}})
+    assert ok["status"] == "validated" and ctx.run.get("observations", failed).downstream_disposition == "overridden_by_agent_with_reason"
 
 
 def test_near_even_unsupported_passes_but_is_not_counted_as_used(make_ctx):
@@ -324,5 +339,34 @@ def test_covered_claims_are_checked(make_ctx):
     out = call(T.account_for_items, ctx, {"items": [entry]})
     assert out["accounted"] == [] and "different matter" in out["rejected"][0]["reason"]
     assert ctx.run.get("inventory", "inv_001").status == "open"
-    ok = call(T.account_for_items, ctx, {"items": [{**entry, "override_reason": "The schedule is the matter; the gain is covered elsewhere."}]})
-    assert ok["open"] == 0
+    # no free-text override of a coverage gap
+    still = call(T.account_for_items, ctx, {"items": [{**entry, "override_reason": "The schedule is the matter; the gain is elsewhere."}]})
+    assert still["open"] == 1
+    failed = next(o.observation_id for o in ctx.run.graph["observations"].values() if o.question_id == "coverage_supported")
+    missing = "The accounting gain on the settlement is not accounted for by any finding."
+    bad = call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "escalate", "observation_id": "obs_999",
+                                                     "missing": missing}]})
+    assert "failed host check" in bad["rejected"][0]["reason"]
+    call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "escalate", "observation_id": failed,
+                                               "missing": missing}]})
+    assert ctx.run.get("inventory", "inv_001").status == "disputed"
+    call(T.submit_packet, ctx, {"summary": "s", "conclusion": "The settlement loan requires future payments."})
+    assert any("disputed inventory item inv_001" in r for r in ctx.incomplete_reasons)  # a matter kind: INCOMPLETE_REVIEW
+
+
+def test_duplicate_and_relevance_claims_are_checked(make_ctx):
+    from app.domain.investigation import InventoryItem
+    ctx = make_ctx(answers={"adds_matter": "adds_item", "decision_relevance": "could_change"}, name="dup")
+    note11 = next(h for h in ctx.evidence.search("December 28, 2023 settlement 802,445") if h["kind"] == "section")["id"]
+    for iid in ("inv_001", "inv_002", "inv_003"):
+        ctx.run.put("inventory_loaded", InventoryItem(item_id=iid, section_ids=(note11,), source_id="synergy_s1a_20240813",
+                                                     heading_path=("Note 11",), kind="debt_or_financing_agreement", signal=0.9))
+    _, fid = _accepted_settlement_finding(ctx)
+    call(T.account_for_items, ctx, {"items": [{"item_id": "inv_001", "disposition": "covered_by_findings", "finding_ids": [fid]}]})
+    out = call(T.account_for_items, ctx, {"items": [
+        {"item_id": "inv_002", "disposition": "duplicate_of", "duplicate_of": "inv_003"},  # not covered
+        {"item_id": "inv_003", "disposition": "duplicate_of", "duplicate_of": "inv_001"},  # Jev: adds an item
+        {"item_id": "inv_002", "disposition": "not_decision_relevant", "reason": "An old matter with no bearing on the draw."}]})
+    reasons = [r["reason"] for r in out["rejected"]]
+    assert out["accounted"] == [] and "already covered" in reasons[0] and "duplicate check" in reasons[1]
+    assert "decision-relevance check failed" in reasons[2]

@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.2.0",
+  "registry_version": "3.3.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -73,9 +73,11 @@
     },
     "inventory_coverage": {
       "primitive": "choice",
-      "trigger": "host, on every inventory item marked covered",
+      "trigger": "host, on every inventory item the agent marks covered, duplicate or not decision-relevant (one request per section)",
       "questions": [
-        "coverage_supported"
+        "coverage_supported",
+        "adds_matter",
+        "decision_relevance"
       ]
     }
   },
@@ -95,7 +97,9 @@
     "company": "The borrower's legal name.",
     "statement": "Agent-written text to check (an effect's model consequence or the packet conclusion).",
     "cited_findings": "The accepted findings the statement rests on: proposition plus verbatim quotes.",
-    "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs)."
+    "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs).",
+    "covered_passage": "The passage of an inventory item already accounted for by accepted findings, which the agent says this passage duplicates.",
+    "review_date": "The date of the credit review; the question concerns what could matter from that date on."
   },
   "observation_record": {
     "call_fields": [
@@ -595,25 +599,68 @@
     },
     {
       "id": "coverage_supported",
-      "version": "3.2.0",
+      "version": "3.3.0",
       "profile": "inventory_coverage",
       "primitive": "choice",
-      "question": "Do these findings account for the specific matter this passage describes?",
-      "applies_when": "The agent marks an inventory item as covered by accepted findings.",
+      "question": "Do these findings account for each specific matter this passage describes?",
+      "applies_when": "The agent marks an inventory item as covered by accepted findings (asked once per section).",
       "state_fields": [
         "passage",
         "cited_findings"
       ],
       "prompt": {
-        "instructions": "Do state.cited_findings account for the specific matter that state.passage describes? A finding accounts for the matter when it states what the passage establishes about that matter's cash, obligation, restriction or accounting treatment. Findings about a different matter, or about a different aspect than the one the passage describes, do not account for it.",
+        "instructions": "Do state.cited_findings account for each specific matter that state.passage describes? A specific matter is one lawsuit, settlement, loan or other agreement, restriction, or accounting gain, loss or accrual; a passage may describe several. A finding accounts for a matter when it states what the passage establishes about that matter's cash, obligation, restriction or accounting treatment. Presentation details of a matter the findings already state, such as a current and long-term split or a subtotal, are part of that matter. Findings about a different matter, or about a different aspect than the one the passage describes, do not account for it.",
         "criteria": {
-          "covered": "The findings state what the passage establishes about its specific matter.",
-          "partly_covered": "The findings address the matter but miss a distinct item the passage describes (for example an accounting gain, a covenant or a payment status).",
+          "covered": "The findings account for each specific matter the passage describes.",
+          "partly_covered": "The findings account for some matters but miss another specific matter the passage describes, or a distinct item of one (for example another loan, an accounting gain, a covenant or a payment status).",
           "not_covered": "The findings concern a different matter or aspect.",
-          "unclear": "Cannot tell what matter the passage describes or what the findings state."
+          "unclear": "Cannot tell what the passage describes or what the findings state."
         }
       },
-      "application": "An inventory item marked covered must actually be covered; otherwise add a finding or give a reason."
+      "application": "An inventory item marked covered must actually be covered. A clear gap is closed with a finding, shown to be a duplicate of a covered item, or escalated as disputed; it is never overridden."
+    },
+    {
+      "id": "adds_matter",
+      "version": "3.3.0",
+      "profile": "inventory_coverage",
+      "primitive": "choice",
+      "question": "Does this passage describe a specific matter or item that the covered passage does not?",
+      "applies_when": "The agent marks an inventory item as a duplicate of an item already covered by accepted findings.",
+      "state_fields": [
+        "covered_passage",
+        "passage"
+      ],
+      "prompt": {
+        "instructions": "Does state.passage describe any specific matter or item (for example a legal matter, settlement, loan, covenant, restriction, payment status, or an accounting gain, loss or accrual) that state.covered_passage does not also describe? The same matter reported at a different date or with an updated balance is not a new item.",
+        "criteria": {
+          "nothing_new": "Every specific matter and item in the passage is also described in the covered passage.",
+          "adds_item": "The passage describes at least one specific matter or item the covered passage does not.",
+          "unclear": "Cannot tell what either passage describes."
+        }
+      },
+      "application": "A duplicate claim clears an inventory item only when the passage adds nothing to an item already covered."
+    },
+    {
+      "id": "decision_relevance",
+      "version": "3.3.0",
+      "profile": "inventory_coverage",
+      "primitive": "choice",
+      "question": "Could what this passage describes change the borrower's cash, obligations, the earnings used in underwriting, or its ability to repay, from the review date on?",
+      "applies_when": "The agent marks an inventory item as not decision-relevant.",
+      "state_fields": [
+        "company",
+        "review_date",
+        "passage"
+      ],
+      "prompt": {
+        "instructions": "Could what state.passage describes change state.company's future cash, its obligations outstanding at or after state.review_date, the historical earnings a lender would use in underwriting, or its ability to repay, from state.review_date on? A matter fully paid, released or closed before the review date, with no remaining obligation, restriction or earnings effect, could not. Do not judge how large or likely any change is.",
+        "criteria": {
+          "could_change": "It describes an obligation, restriction, cash item, contingency or earnings item that could change cash, obligations, underwriting earnings or repayment ability from the review date.",
+          "could_not_change": "It describes nothing that could change these from the review date.",
+          "unclear": "Cannot tell what the passage describes."
+        }
+      },
+      "application": "A clear could_change blocks the not-decision-relevant label; the agent covers, dedupes or escalates the item instead."
     }
   ]
 }

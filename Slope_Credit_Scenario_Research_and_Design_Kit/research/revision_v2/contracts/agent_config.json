@@ -1,6 +1,6 @@
 {
   "configuration_id": "slope_external_event_cashflow_investigation",
-  "configuration_version": "3.1.0-design",
+  "configuration_version": "3.2.0-design",
   "status": "design_template_not_implemented_or_live_validated",
   "scope": "One local investigation of a real borrower and a proposed new discretionary advance, followed by loan cash-flow scenario comparison and independent review. Analysis candidates are not claims of actual Slope offers or customers.",
   "default_mission": {
@@ -107,6 +107,7 @@
           "mcp__credit__request_missing_fact",
           "mcp__credit__read_inventory",
           "mcp__credit__account_for_items",
+          "mcp__credit__escalate_effect",
           "mcp__credit__resolve_reconciliation",
           "mcp__credit__submit_packet"
         ],
@@ -202,9 +203,11 @@
           ]
         },
         "inventory_coverage": {
-          "trigger": "host, on every inventory item the agent marks covered",
+          "trigger": "host, per section, on every inventory item the agent marks covered, duplicate or not decision-relevant",
           "questions": [
-            "coverage_supported"
+            "coverage_supported",
+            "adds_matter",
+            "decision_relevance"
           ]
         }
       },
@@ -225,7 +228,7 @@
       "max_repair_cycles": 1
     }
   },
-  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, and propose atomic findings that quote the evidence exactly. Jev screens retrieved evidence and checks narrow semantic claims; you reconcile its judgments with the evidence and may override one with a stated reason. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer, change an account, or know Slope's private policy.",
+  "role_instruction": "Investigate an external event only to the extent needed to evaluate the financing request. Record the decision-relevant unknowns, search and read admissible evidence, and propose atomic findings that quote the evidence exactly. Jev screens retrieved evidence and checks narrow semantic claims; you reconcile its judgments with the evidence and may disagree with a failed check by replying to it with a stated reason, or escalate it for the reviewer where the host requires escalation. Translate accepted findings into economic effect proposals and use the sensitivity tool to see which unknowns change the result. Code computes dates, money, schedules and cash flows. Finish with the pivotal unresolved inputs and the supported effects, or the exact missing fact that prevents a conclusion. Do not claim to send an offer, change an account, or know Slope's private policy.",
   "invariants": [
     "Start with the same baseline profile, existing obligations, decision date and candidate financing request for the before/after comparison.",
     "Keep borrower cash flows, contractual loan payments, scenario collections and funding-facility cash flows distinct.",
@@ -268,7 +271,8 @@
       "request_missing_fact": "Record the exact requested fact/document and the action consequences. This tool sends no communication.",
       "submit_packet": "Lock the investigation graph, source hashes, findings, effects and calculation versions for review. No lending action.",
       "read_inventory": "List the host sweep inventory: specific matters flagged in the admissible evidence, with their accounting status.",
-      "account_for_items": "Account for inventory items: covered by named accepted findings, or not decision-relevant with a reason. The packet cannot be submitted while items are open.",
+      "account_for_items": "Account for inventory items: covered by named accepted findings, a duplicate of a covered item, or not decision-relevant with a reason; each claim is checked per section. A failed check is closed with a new finding or a verified duplicate, or escalated with the failed observation ID and what is missing (the item is disputed and stays open for the reviewer). The packet cannot be submitted while items are open.",
+      "escalate_effect": "Escalate an effect the category guard rejected: it becomes disputed, creates no cash stream and is left for the reviewer; a disputed cash-moving effect makes the run INCOMPLETE_REVIEW.",
       "resolve_reconciliation": "Resolve an open reconciliation task with a note on how the statements relate."
     },
     "disallowed_capabilities": [
@@ -323,7 +327,8 @@
       "missing_required_jev_credential_before_agent_plus_jev_run": "FAILED_CONFIGURATION",
       "quota_or_deadline_exhaustion": "INCOMPLETE_REVIEW",
       "unrecoverable_source_or_model_service_failure": "INCOMPLETE_REVIEW",
-      "unresolved_material_review_error_after_one_repair": "INCOMPLETE_REVIEW"
+      "unresolved_material_review_error_after_one_repair": "INCOMPLETE_REVIEW",
+      "escalated_matter_inventory_item_or_cash_moving_effect_dispute": "INCOMPLETE_REVIEW"
     },
     "failure_recommendation_policy": "Keep any prior provisional recommendation in the trace, but do not publish it as a completed result. Set final lending recommendation UNDETERMINED unless an independently completed supported decision packet exists. Execution failure itself is never a reason for DECLINE_REQUEST.",
     "complete_with_pivotal_gap": "A reviewed packet may finish with UNDETERMINED and a precise borrower question plus action map. It must not claim that the financing decision has been resolved.",
@@ -488,6 +493,7 @@
         "mcp__credit__judge",
         "mcp__credit__read_inventory",
         "mcp__credit__account_for_items",
+        "mcp__credit__escalate_effect",
         "mcp__credit__resolve_reconciliation"
       ],
       "expose_jev_registry": false,

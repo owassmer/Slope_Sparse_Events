@@ -163,8 +163,11 @@ class InventoryItem(Frozen):
     signal: float  # matter_inventory Noul value (a judgment, not a probability of anything)
     excerpt: str = ""
     section_excerpts: tuple[str, ...] = ()  # the flagged chunk start for each section, in section_ids order
-    status: Literal["open", "covered", "not_decision_relevant"] = "open"
+    # disputed: a host check failed and the agent escalated it; it stays open for the human reviewer
+    status: Literal["open", "covered", "not_decision_relevant", "disputed"] = "open"
     finding_ids: tuple[str, ...] = ()
+    duplicate_of: str = ""  # covered as a duplicate of this (covered) item
+    observation_ids: tuple[str, ...] = ()  # the host checks that decided the status
     note: str = ""
 
 
@@ -194,8 +197,10 @@ class EconomicEffectProposal(Frozen):
     double_count_guard: str = ""
     model_consequence: str = ""  # plain-language "so what?" for the reviewer
     observation_ids: tuple[str, ...] = ()  # host guard checks (posture/status per finding, statement support)
-    override_reasons: dict[str, str] = Field(default_factory=dict)  # guard -> agent's stated reason
-    status: Literal["proposed", "validated", "rejected"] = "proposed"
+    override_reasons: dict[str, str] = Field(default_factory=dict)  # guard -> agent's reply to a failed check
+    # disputed: rejected by the category guard and escalated by the agent; never a cash stream, open for the reviewer
+    status: Literal["proposed", "validated", "rejected", "disputed"] = "proposed"
+    dispute: str = ""
     validation_messages: tuple[str, ...] = ()
 
 
@@ -204,7 +209,7 @@ EventKind = Literal[
     "observation_recorded", "observation_disposition", "finding_proposed", "finding_resolved",
     "reconciliation_opened", "reconciliation_resolved", "effect_proposed", "effect_validated",
     "sensitivity_run", "missing_fact_requested", "packet_submitted", "run_failed",
-    "inventory_loaded", "inventory_accounted", "conclusion_checked",
+    "inventory_loaded", "inventory_accounted", "conclusion_checked", "effect_disputed",
 ]
 
 

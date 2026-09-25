@@ -218,7 +218,7 @@ def test_agent_only_arm_has_no_jev_surface():
     assert "mcp__credit__judge" in allowed_tools("agent_plus_jev")
     only = allowed_tools("agent_only")
     assert not any(n in t for t in only for n in ("judge", "inventory", "account_for_items", "reconciliation"))
-    assert len(only) == len(allowed_tools()) - 4
+    assert len(only) == len(allowed_tools()) - 5
 
 
 def test_registry_questions_are_generic_and_well_formed():
