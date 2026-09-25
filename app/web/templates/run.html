@@ -3,7 +3,7 @@
 {% block body %}
 <hgroup>
   <h2>{{ v.borrower }}</h2>
-  <p>Review date {{ v.review_date }} · Incremental working-capital draw · <strong>{{ v.status }}</strong>{% if v.late_failure %}
+  <p>Review date {{ v.review_date }} · Financing request · <strong>{{ v.status }}</strong>{% if v.late_failure %}
     · <span class="tag warn">Runner reported after lock</span> {{ v.late_failure }} (from run.json, outside the hash chain){% endif %}</p>
 </hgroup>
 <p class="muted">Run {{ v.run_id }} · arm {{ v.meta.arm }} · event chain verified ({{ v.verified_head }}…) ·
@@ -15,7 +15,7 @@
     <h5>Request <span class="tag assumption">Assumption</span></h5>
     <p>{{ v.request.requested_use.value if v.request.requested_use }}<br>
        {{ (v.request.requested_amount.value / 100) | round | int if v.request.requested_amount }} USD over
-       {{ v.request.requested_term.value if v.request.requested_term }} months; {{ v.request.requested_pricing.value if v.request.requested_pricing }}</p>
+       {{ v.request.requested_term.value if v.request.requested_term }}{% if v.request.requested_term and v.request.requested_term.value is number %} months{% endif %}; {{ v.request.requested_pricing.value if v.request.requested_pricing }}</p>
   </div>
   <div class="card">
     <h5>Conclusion</h5>
@@ -28,6 +28,30 @@
     {% for d in v.submitted.disputes or [] %}{% if not d.blocking %}<p class="muted"><span class="tag warn">Open for the reviewer</span> {{ d.reason }}</p>{% endif %}{% endfor %}
   </div>
 </div>
+
+{% if v.decision %}{% set d = v.decision %}
+<h3>Financing decision <span class="tag engine">Engine result</span></h3>
+<div class="grid2">
+  {% for view in d.views %}{% set r = d.recommendation[view] %}
+  <div class="card">
+    <h5>{{ "Bank data only" if view == "bank_only" else "With the dispute's branches" }}</h5>
+    <p><strong>{{ r.label }}</strong>{% if not r.requested_passes %} <span class="tag warn">below the request</span>{% endif %}</p>
+    <p class="muted">Limit {{ r.limit }} · order limit {{ r.order_limit }}{% if r.requested_reasons %} · request: {{ r.requested_reasons | join("; ") }}{% endif %}</p>
+  </div>{% endfor %}
+</div>
+{% if d.conditions %}<p><strong>Conditions</strong></p><ul>{% for c in d.conditions %}<li>{{ c.action }} <span class="muted">({{ c.why }})</span></li>{% endfor %}</ul>{% endif %}
+{% for n in v.dispute_nodes %}<div class="card"><h5>{{ n.decision_point }}</h5>
+  {% for b in n.branches %}<p style="margin:.2rem 0"><span class="tag jev">{{ b.weight }}</span><strong>{{ b.label }}</strong>: {{ b.description }}
+    {% for c in b.cash %}<br><span class="muted">{{ c.kind }} {{ c.amount }} ({{ c.label }}), {{ c.window }}</span>{% endfor %}</p>{% endfor %}
+</div>{% endfor %}
+{% if v.dispute_nodes %}<p class="muted">{{ d.weights_label }}</p>{% endif %}
+<table><thead><tr><th>Structure</th>{% for view in d.views %}<th>{{ "Bank only" if view == "bank_only" else "With dispute" }}</th>{% endfor %}</tr></thead><tbody>
+{% for row in d.rows %}<tr><td>{{ row.label }}{% if row[d.views[0]].fee %}<br><span class="muted">fee {{ row[d.views[0]].fee }} · {{ row[d.views[0]].apr }} effective</span>{% endif %}</td>
+  {% for view in d.views %}{% set c = row[view] %}<td>{% if c.passes %}<span class="tag engine">passes</span>{% else %}<span class="tag warn">fails</span>{% endif %}
+    <span class="muted">lowest cash {{ c.lowest }}{% if c.npv %} · NPV {{ c.npv }}{% endif %}{% if c.reasons %}<br>{{ c.reasons | join("; ") }}{% endif %}</span></td>{% endfor %}</tr>{% endfor %}
+</tbody></table>
+<p class="muted">Risk tier {{ d.tier }} from connected bank data. {{ d.bank_feed.provenance }} {{ d.slope_terms.provenance }}</p>
+{% endif %}
 
 {% if v.submitted.pivotal_unknowns or v.missing_facts %}
 <h3>Pivotal unresolved inputs</h3>

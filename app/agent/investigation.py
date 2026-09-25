@@ -59,6 +59,10 @@ WORKING_METHOD = """Working method
   reviewer can see why it does not change cash.
 - If you connect a name, label or table row to an obligation by matching amounts or dates, mark that finding is_inference and
   describe the link as an inference in your conclusion.
+- When a dispute is still live on the review date, model each pending decision (for example a ruling on an amount, an
+  appeal and its bond, whether a judgment debtor pays) with propose_dispute_node: mutually exclusive branches, each with its
+  dated cash consequences drawn from the findings. Then run_scenarios to see how each financing structure performs
+  bank-only and with the dispute's branches, and which branch changes the choice.
 - run_sensitivity on validated settlement effects to see which unknown changes the cash requirement.
 - request_missing_fact for each pivotal fact the evidence cannot supply, then submit_packet.
 - Use only the evidence returned by the tools; do not rely on remembered facts about this company or later events.

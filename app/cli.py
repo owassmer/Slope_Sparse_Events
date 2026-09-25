@@ -103,6 +103,35 @@ def jev_check_cases() -> None:
 
 
 @cli.command()
+def compare(run: str = typer.Option(..., help="Recorded run ID (runs/recorded/<id>)."),
+            root: str = typer.Option("", help="Directory holding the run (default runs/recorded).")) -> None:
+    """Scenarios, economics and recommendation for a recorded run on Slope's terms; writes scenarios.json and
+    collections.csv into the run directory."""
+    from datetime import date
+    from pathlib import Path
+
+    from app.agent.run_store import RunStore
+    from app.config import ROOT
+    from app.decisions.case import decide, export
+
+    base = Path(root) if root else ROOT / "runs" / "recorded"
+    store = RunStore(run, root=base)
+    meta = store.events[0].payload
+    inputs = meta["run_inputs"]
+    from app.evidence.store import EvidenceStore
+
+    review = date.fromisoformat(str(EvidenceStore(meta["snapshot_id"]).snapshot_info()["cutoff"])[:10])
+    summary = decide(meta["snapshot_id"], inputs, list(store.graph["dispute_nodes"].values()), review)
+    js, csv = export(summary, base / run)
+    for view, rec in summary["recommendation"].items():
+        typer.echo(f"{view:15s} -> {rec['structure']} (limit {rec['limit_cents'] / 100:,.0f}, "
+                   f"order limit {rec['order_limit_cents'] / 100:,.0f})")
+    for c in summary["conditions"]:
+        typer.echo(f"  condition: {c['action']}")
+    typer.echo(f"wrote {js.name} and {csv.name}")
+
+
+@cli.command()
 def investigate(
     snapshot: str = typer.Option("synergy_20240813", help="Dated evidence snapshot / case."),
     arm: str = typer.Option("agent_plus_jev", help="agent_plus_jev or agent_only."),

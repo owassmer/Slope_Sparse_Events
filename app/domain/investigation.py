@@ -14,6 +14,7 @@ Runtime objects cite snapshot spans and finding IDs, never the builder's facts r
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import date
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -209,12 +210,49 @@ class EconomicEffectProposal(Frozen):
     validation_messages: tuple[str, ...] = ()
 
 
+class BranchCash(Frozen):
+    """One dated cash consequence of a branch: an outflow, an inflow, or cash locked (and later released).
+
+    The amount is an EvidenceValue: documented when it is quoted in the node's findings, otherwise derived with its
+    derivation stated. The window bounds when it can happen; scenarios place it early and late in the window."""
+
+    kind: Literal["outflow", "inflow", "lock"]
+    label: str
+    amount: EvidenceValue
+    window_start: date
+    window_end: date
+    finding_ids: tuple[str, ...] = ()
+
+
+class DisputeBranch(Frozen):
+    branch_id: str
+    label: str  # plain words, e.g. "ChromaDex appeals and posts a bond"
+    description: str  # what happens, as Jev's answer option
+    cash: tuple[BranchCash, ...] = ()
+
+
+class DisputeNode(Frozen):
+    """A pending decision in a live dispute, split into mutually exclusive branches. Jev judges which branch the record
+    supports; its distribution weights the branches (labelled model judgment). Code sets every amount and date."""
+
+    node_id: str
+    dependency_id: str
+    decision_point: str
+    finding_ids: tuple[str, ...] = Field(min_length=1)
+    branches: tuple[DisputeBranch, ...] = Field(min_length=2, max_length=5)
+    observation_ids: tuple[str, ...] = ()
+    weights_bps: dict[str, int] = Field(default_factory=dict)  # branch_id -> weight; empty if not judged
+    status: Literal["proposed", "accepted", "rejected"] = "proposed"
+    validation_messages: tuple[str, ...] = ()
+
+
 EventKind = Literal[
     "run_started", "dependency_recorded", "search", "candidate_screened", "evidence_read", "jev_call",
     "observation_recorded", "observation_disposition", "finding_proposed", "finding_resolved",
     "reconciliation_opened", "reconciliation_resolved", "effect_proposed", "effect_validated",
     "sensitivity_run", "missing_fact_requested", "packet_submitted", "run_failed",
     "inventory_loaded", "inventory_accounted", "conclusion_checked", "effect_disputed", "cited_units_checked",
+    "dispute_node_recorded", "scenarios_run",
 ]
 
 

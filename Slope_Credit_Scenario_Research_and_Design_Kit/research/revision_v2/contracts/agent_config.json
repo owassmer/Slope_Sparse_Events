@@ -104,6 +104,8 @@
           "mcp__credit__resolve_finding",
           "mcp__credit__propose_effect",
           "mcp__credit__run_sensitivity",
+          "mcp__credit__propose_dispute_node",
+          "mcp__credit__run_scenarios",
           "mcp__credit__request_missing_fact",
           "mcp__credit__read_inventory",
           "mcp__credit__escalate_effect",
@@ -195,6 +197,12 @@
             "matter_kind"
           ]
         },
+        "dispute_branching": {
+          "trigger": "host, when the agent proposes a decision node of a live dispute",
+          "questions": [
+            "dispute_branch"
+          ]
+        },
         "statement_support": {
           "trigger": "host, on every propose_effect consequence and on submit_packet conclusion",
           "questions": [
@@ -266,6 +274,8 @@
       "propose_effect": "Propose an economic effect from accepted findings: mechanism, target stream, parameter requirements, baseline treatment and linked effects. Validated by the finance engine; never activated by Jev output.",
       "run_sensitivity": "Run deterministic thresholds or ledger sensitivities over explicit parameter bounds and return which values change the result.",
       "request_missing_fact": "Record the exact requested fact/document and the action consequences. This tool sends no communication.",
+      "propose_dispute_node": "Model one pending decision of a live dispute as 2-5 mutually exclusive branches with dated cash consequences (documented amounts, or derived with a stated basis; windows after the review date). In the Jev arm, Jev judges which branch the record supports and its distribution weights the branches (labelled model judgment).",
+      "run_scenarios": "Run the deterministic engine on the accepted dispute nodes: every Slope structure, bank-only vs event-adjusted, with policy tests, limits, lowest projected cash and funding conditions.",
       "submit_packet": "Lock the investigation graph, source hashes, findings, effects and calculation versions for review. No lending action.",
       "read_inventory": "The reading list: paragraphs and table rows the host sweep flagged as describing a specific matter, and whether an accepted finding cites each.",
       "escalate_effect": "Escalate an effect the category guard rejected: it becomes disputed, creates no cash stream and is left for the reviewer; a disputed cash-moving effect makes the run INCOMPLETE_REVIEW.",

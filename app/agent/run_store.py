@@ -20,6 +20,7 @@ from app.config import VAR
 from app.domain.investigation import (
     AtomicFinding,
     DecisionDependency,
+    DisputeNode,
     EconomicEffectProposal,
     EventKind,
     EvidenceCandidate,
@@ -35,7 +36,7 @@ REMOVED_FIELDS = {("inventory", "exclusions")}  # recorded by run 13 under a des
 COLLECTIONS: dict[str, type[BaseModel]] = {
     "dependencies": DecisionDependency, "candidates": EvidenceCandidate, "jev_calls": JevCallRecord,
     "observations": SemanticObservation, "findings": AtomicFinding, "reconciliations": ReconciliationTask,
-    "effects": EconomicEffectProposal, "inventory": InventoryItem,
+    "effects": EconomicEffectProposal, "inventory": InventoryItem, "dispute_nodes": DisputeNode,
 }
 # Which collection each event kind writes its object into (None = log-only event).
 EVENT_COLLECTION: dict[str, str | None] = {
@@ -44,10 +45,11 @@ EVENT_COLLECTION: dict[str, str | None] = {
     "finding_proposed": "findings", "finding_resolved": "findings", "reconciliation_opened": "reconciliations",
     "reconciliation_resolved": "reconciliations", "effect_proposed": "effects", "effect_validated": "effects",
     "inventory_loaded": "inventory", "inventory_accounted": "inventory", "effect_disputed": "effects",
+    "dispute_node_recorded": "dispute_nodes",
 }
 ID_FIELD = {"dependencies": "dependency_id", "candidates": "candidate_id", "jev_calls": "call_id",
             "observations": "observation_id", "findings": "finding_id", "reconciliations": "task_id",
-            "effects": "effect_id", "inventory": "item_id"}
+            "effects": "effect_id", "inventory": "item_id", "dispute_nodes": "node_id"}
 
 
 class LockedRunError(RuntimeError):

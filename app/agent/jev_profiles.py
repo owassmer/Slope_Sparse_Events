@@ -198,6 +198,22 @@ class Semantics:
         return await self._ask("inventory_coverage", ["coverage_supported"],
                                {"passage": passage, "cited_findings": cited_state}, subject_ids, source_hashes)
 
+    async def dispute_branch(self, node, findings: list[AtomicFinding], sources: dict[str, str],
+                             source_hashes: tuple[str, ...]) -> list[SemanticObservation]:
+        """dispute_branching: which branch of a pending decision does the record support? Branches are the options."""
+        record = [{"finding_id": f.finding_id, "proposition": f.proposition, "quotes": [s.quote for s in f.spans],
+                   "source_dates": sorted({sources.get(s.source_id, "") for s in f.spans})} for f in findings]
+        criteria = {b.branch_id: f"{b.label}: {b.description}" for b in node.branches}
+        call, observations = await self.jev.judge(
+            profile="dispute_branching", question_ids=["dispute_branch"],
+            state={"decision_point": node.decision_point, "record": record},
+            subject_ids=(node.node_id, *node.finding_ids), source_content_hashes=source_hashes,
+            criteria={"dispute_branch": criteria})
+        self.run.put("jev_call", call)
+        for o in observations:
+            self.run.put("observation_recorded", o)
+        return observations
+
     async def baseline_overlap(self, effect_description: str, baseline_item: str, subject_ids: tuple[str, ...],
                                source_hashes: tuple[str, ...] = ()) -> list[SemanticObservation]:
         """Warning signal only; obligation IDs and host validation decide double counting."""

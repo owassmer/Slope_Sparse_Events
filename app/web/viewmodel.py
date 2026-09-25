@@ -145,12 +145,47 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
         "reconciliations": [t.model_dump() for t in g["reconciliations"].values()],
         "jev_ledger": dict(ledger), "jev_calls": len(g["jev_calls"]), "observations": len(g["observations"]),
         "inventory": inventory, "conclusion_check": conclusion_check, "conclusion_checks": conclusion_checks,
+        "decision": _decision(root / run_id),
+        "dispute_nodes": [{"id": n.node_id, "decision_point": n.decision_point, "findings": list(n.finding_ids),
+                           "branches": [{"label": b.label, "description": b.description,
+                                         "weight": (f"{n.weights_bps[b.branch_id] / 100:.0f}%" if b.branch_id in n.weights_bps
+                                                    else "not judged"),
+                                         "cash": [{"kind": c.kind, "label": c.label, "amount": _money(c.amount.model_dump(mode="json")),
+                                                   "window": f"{c.window_start.isoformat()} to {c.window_end.isoformat()}"}
+                                                  for c in b.cash]} for b in n.branches]}
+                          for n in g.get("dispute_nodes", {}).values()],
         "atomic_inventory": any(i.unit_start >= 0 for i in g["inventory"].values()),
         "cited_checks": [{**c, "checked": [{**r, "meaning": meaning("coverage_supported", r["answer"])} for r in c["checked"]]}
                          for c in cited_checks],
         "reviewer_checklist": submitted.get("reviewer_checklist"),
         "sweep": next((e.payload for e in run.events if e.kind == "inventory_loaded"), None),
     }
+
+
+def _decision(run_dir: Path) -> dict | None:
+    """The deterministic decision written by `slope compare` next to the recorded run, if present."""
+    path = run_dir / "scenarios.json"
+    if not path.exists():
+        return None
+    s = json.loads(path.read_text())
+    views = list(s["recommendation"])
+    rows = []
+    for name, e in s["structures"].items():
+        row = {"name": name, "label": e["label"]}
+        for view in views:
+            v = e["views"][view]
+            row[view] = {"passes": v["policy"]["passes"], "lowest": usd(v["lowest_cash_cents"]),
+                         "reasons": v["policy"]["reasons"],
+                         "fee": usd(v["economics"]["fee_cents"]) if "economics" in v else "",
+                         "apr": f"{v['economics']['apr_equivalent_bps'] / 100:.1f}%" if "economics" in v else "",
+                         "npv": usd(v["economics"]["npv_at_cost_of_funds_cents"]) if "economics" in v else ""}
+        rows.append(row)
+    rec = {view: {**r, "limit": usd(r["limit_cents"]), "order_limit": usd(r["order_limit_cents"]),
+                  "label": s["structures"][r["structure"]]["label"] if r["structure"] in s["structures"] else r["structure"]}
+           for view, r in s["recommendation"].items()}
+    return {"views": views, "rows": rows, "recommendation": rec, "conditions": s["conditions"], "tier": s["tier"],
+            "bank_feed": s["bank_feed"], "slope_terms": s["slope_terms"], "weights_label": s["weights_label"],
+            "request": s["request"]}
 
 
 def run_source_title(inputs: dict, source_id: str) -> str:

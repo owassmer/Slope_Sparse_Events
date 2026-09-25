@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.8.0",
+  "registry_version": "3.9.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -77,6 +77,13 @@
       "questions": [
         "coverage_supported"
       ]
+    },
+    "dispute_branching": {
+      "primitive": "choice",
+      "trigger": "host, when the agent proposes a decision node of a live dispute",
+      "questions": [
+        "dispute_branch"
+      ]
     }
   },
   "state_contract": {
@@ -95,7 +102,9 @@
     "company": "The borrower's legal name.",
     "statement": "Agent-written text to check (an effect's model consequence or the packet conclusion).",
     "cited_findings": "The accepted findings the statement rests on: proposition plus verbatim quotes.",
-    "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs)."
+    "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs).",
+    "decision_point": "One pending decision in a live dispute, in the agent's words (who decides what, next).",
+    "record": "The accepted findings the node rests on: proposition plus verbatim quotes, with source dates."
   },
   "observation_record": {
     "call_fields": [
@@ -614,6 +623,24 @@
         }
       },
       "application": "Gate at submission over the agent's own reading: a clear gap is closed with a finding or escalated to the reviewer's checklist; never overridden. Units no finding cites are the reviewer's, not Jev's."
+    },
+    {
+      "id": "dispute_branch",
+      "version": "3.9.0",
+      "profile": "dispute_branching",
+      "primitive": "choice",
+      "question": "Which branch of this pending decision does the record most support as what happens next?",
+      "applies_when": "The agent proposes a decision node of a live dispute with two to five mutually exclusive branches.",
+      "state_fields": [
+        "decision_point",
+        "record"
+      ],
+      "prompt": {
+        "instructions": "state.decision_point is one decision still pending in a live dispute on the review date. state.record holds the accepted findings about it, with their verbatim quotes. Using only the record, judge which branch is the next development the record most supports: the parties' stated intentions, the court's orders so far, the procedural posture, and each party's past conduct in this dispute. Do not use outside knowledge of how the dispute ended. Do not judge amounts or dates; code sets those for each branch.",
+        "criteria_from_host": true,
+        "criteria": {}
+      },
+      "application": "The distribution becomes each branch's weight, labelled once as model judgment (calibrated by TypeSafe to frontier-model consensus, not to observed litigation outcomes). It never sets an amount, a date or the credit decision; conditional results for every branch are always shown."
     }
   ]
 }

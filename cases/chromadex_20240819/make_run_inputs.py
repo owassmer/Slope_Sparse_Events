@@ -93,6 +93,16 @@ inputs = {
                                "invoice for ChromaDex Corporation. ChromaDex's public filings describe long-running "
                                "litigation with Elysium Health, a former customer, in several federal courts."),
     },
+    "financing_plan": {
+        "funding": "next business day after the review date (Slope pays the supplier)",
+        "invoice_due_days_after_funding": 30,
+        "basis": "operator_request",
+        "note": "Without Slope, ChromaDex would pay this invoice itself on its due date.",
+    },
+    "permitted_offers": {"permitted_offer_set_id": "slope_menu_v1", "terms_file": "cases/slope_terms.json",
+                         "requested_term_id": "inst_120"},
+    "policy": {"policy_config_id": "slope_policy_v1", "terms_file": "cases/slope_terms.json"},
+    "bank_feed": "cases/chromadex_20240819/bank_feed.json",
     "baseline_profile": {
         "baseline_profile_id": "chromadex_ordinary_baseline_v1",
         "borrower": "ChromaDex Corporation",

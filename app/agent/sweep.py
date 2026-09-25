@@ -169,8 +169,13 @@ def build_sweep(snapshot_id: str, company: str, *, force: bool = False) -> dict[
     evidence = EvidenceStore(snapshot_id)
     adapter = JevAdapter(run_id=f"sweep-{snapshot_id}", max_attempts=b["sweep_max_physical_attempts_per_snapshot"],
                          spend_cap_usd=b["sweep_spend_cap_usd_per_snapshot"])
-    records, calls = asyncio.run(_sweep(evidence, adapter, company))
-    unit_records, unit_calls = asyncio.run(_sweep_units(evidence, adapter, company, records))
+    async def both() -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+        # One event loop for both passes: the adapter's HTTP client is bound to the loop it first runs on.
+        recs, cls = await _sweep(evidence, adapter, company)
+        units, ucls = await _sweep_units(evidence, adapter, company, recs)
+        return recs, cls, units, ucls
+
+    records, calls, unit_records, unit_calls = asyncio.run(both())
     calls += unit_calls
     summary = {"sections": len(records), "flagged": sum(r["flagged"] for r in records),
                "unscreened": sum(r["unscreened"] for r in records), "chunks": sum(r["chunks"] for r in records),

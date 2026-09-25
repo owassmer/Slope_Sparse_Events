@@ -114,9 +114,15 @@ class JevAdapter:
         return attempts, estimate
 
     async def judge(self, *, profile: str, question_ids: list[str], state: dict, subject_ids: tuple[str, ...] = (),
-                    source_content_hashes: tuple[str, ...] = ()) -> tuple[JevCallRecord, list[SemanticObservation]]:
-        """Ask independent questions about one state in a single request."""
+                    source_content_hashes: tuple[str, ...] = (),
+                    criteria: dict[str, dict[str, str]] | None = None) -> tuple[JevCallRecord, list[SemanticObservation]]:
+        """Ask independent questions about one state in a single request. `criteria` supplies host-built answer
+        options for questions whose registry entry says so (e.g. the branches of a dispute decision node)."""
         entries = {qid: registry_question(qid) for qid in question_ids}
+        for qid, crit in (criteria or {}).items():
+            if not entries[qid]["prompt"].get("criteria_from_host"):
+                raise ConfigurationError(f"{qid} does not take host-built criteria")
+            entries[qid] = {**entries[qid], "prompt": {**entries[qid]["prompt"], "criteria": crit}}
         registry_version = question_registry()["registry_version"]
         questions = {qid: build_question(e) for qid, e in entries.items()}
         # Key on the exact built question text and criteria, so an edit without a version bump cannot hit.
