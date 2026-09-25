@@ -1,0 +1,5437 @@
+{
+  "locked_at": "2026-09-25T01:48:05.262068+00:00",
+  "chain_head": "b3bb34b8d0584355336a493495c99bcb2ed0bb502619088a8b5e2ca2c80f518b",
+  "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+  "head": "b3bb34b8d0584355336a493495c99bcb2ed0bb502619088a8b5e2ca2c80f518b",
+  "event_count": 277,
+  "dependencies": [
+    {
+      "dependency_id": "dep_001",
+      "question": "What cash payments remain due from Synergy CHC Corp. under the settlement with HVL, LLC d/b/a Atrium Innovations (former contract manufacturer), and when are they due after August 13, 2024?",
+      "premises": [
+        "Synergy litigated with HVL/Atrium, a former contract manufacturer",
+        "A settlement may require remaining cash payments by Synergy"
+      ],
+      "affects": "Remaining current-year settlement cash outflow reducing cash available to repay the incremental advance",
+      "resolvable_by": "S-1/A legal proceedings, subsequent events, and notes payable disclosures",
+      "target": "Synergy CHC Corp. settlement payment obligation to HVL, LLC d/b/a Atrium Innovations"
+    },
+    {
+      "dependency_id": "dep_002",
+      "question": "What cash payments remain due in 2024 under Synergy CHC Corp.'s March 27, 2024 confidential settlement with a supplier ($3,020,824 loan, table row 'VitBest')?",
+      "premises": [
+        "The March 27, 2024 settlement created a loan payable with a 2024 payment schedule",
+        "Payments made between June 30 and August 13, 2024 are not disclosed"
+      ],
+      "affects": "Remaining 2024 settlement cash outflow competing with repayment of the incremental advance",
+      "resolvable_by": "S-1/A Note 11 schedule; borrower payment records after June 30, 2024",
+      "target": "Synergy CHC Corp. settlement loan payable to supplier under March 27, 2024 confidential settlement (Note 11 row 'VitBest')"
+    },
+    {
+      "dependency_id": "dep_003",
+      "question": "Does Synergy CHC Corp.'s amended senior secured loan with Knight Therapeutics prohibit adding new debt (such as the incremental advance) without first paying out Knight, and has Knight consented?",
+      "premises": [
+        "Knight loan is senior secured against all current and future assets",
+        "A new advance would be additional debt"
+      ],
+      "affects": "Permissibility of any new advance; cross-default and acceleration risk of ~$12.3M Knight loan and ~$9.8M Sanders loan",
+      "resolvable_by": "S-1/A Note 11; Knight written consent or waiver",
+      "target": "Synergy CHC Corp. negative covenant in amended Knight Therapeutics senior secured loan (no additional debt without paying out KTI)"
+    },
+    {
+      "dependency_id": "dep_004",
+      "question": "Do the Valenti (FOCUSfactor advertising) and L.O.D.C. Group settlements leave any remaining cash payment due from Synergy CHC Corp. after August 13, 2024?",
+      "premises": [
+        "Both matters were settled",
+        "Payment status is disclosed in the S-1/A"
+      ],
+      "affects": "Whether any additional settlement cash outflow must be scheduled",
+      "resolvable_by": "S-1/A Legal Proceedings",
+      "target": "Synergy CHC Corp. settlement payments to Barbara Valenti ($340,000) and L.O.D.C. Group, Ltd. (confidential)"
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "cand_001",
+      "dependency_id": "dep_001",
+      "search_id": "search_001",
+      "query": "Atrium settlement payment",
+      "rank": 0,
+      "item_id": "synergy_s1a_20240813#s0210",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS",
+        "Note 13 \u2014 Commitments & Contingencies"
+      ],
+      "snippet": " \u2026 The case was settled during April 2024 by way of a confidential [settlement] agreement and mutual release, the [settlement] of the claim has been accounted for and reported as a charge to \u2026 ",
+      "screen": {
+        "route": "conflict",
+        "observation_ids": [
+          "obs_001",
+          "obs_002",
+          "obs_003",
+          "obs_004"
+        ],
+        "signals": {
+          "gap_relevance": 0.61,
+          "usable_evidence": 0.61,
+          "premise_conflict": 0.55,
+          "instruction_like_text": 0.07
+        },
+        "error": ""
+      }
+    },
+    {
+      "candidate_id": "cand_002",
+      "dependency_id": "dep_001",
+      "search_id": "search_001",
+      "query": "Atrium settlement payment",
+      "rank": 1,
+      "item_id": "synergy_s1a_20240813#s0121",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "BUSINESS",
+        "Legal Proceedings"
+      ],
+      "snippet": " \u2026 The case was settled during April 2024 by way of a confidential [settlement] agreement and mutual release, the [settlement] of the claim has been accounted for and reported as a charge to \u2026 ",
+      "screen": {
+        "route": "direct_evidence",
+        "observation_ids": [
+          "obs_005",
+          "obs_006",
+          "obs_007",
+          "obs_008"
+        ],
+        "signals": {
+          "gap_relevance": 0.69,
+          "usable_evidence": 0.73,
+          "premise_conflict": 0.37,
+          "instruction_like_text": 0.13
+        },
+        "error": ""
+      }
+    },
+    {
+      "candidate_id": "cand_003",
+      "dependency_id": "dep_001",
+      "search_id": "search_001",
+      "query": "Atrium settlement payment",
+      "rank": 2,
+      "item_id": "synergy_s1a_20240813#s0255",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "SYNERGY CHC CORP. NOTES TO CONSOLIDATED FINANCIAL STATEMENTS",
+        "Note 13 \u2014 Commitments and Contingencies"
+      ],
+      "snippet": " \u2026 The case was settled during April 2024 by way of a confidential [settlement] agreement and mutual release, the [settlement] of the claim has been accounted for and reported as a charge to \u2026 ",
+      "screen": {
+        "route": "direct_evidence",
+        "observation_ids": [
+          "obs_009",
+          "obs_010",
+          "obs_011",
+          "obs_012"
+        ],
+        "signals": {
+          "gap_relevance": 0.64,
+          "usable_evidence": 0.62,
+          "premise_conflict": 0.42,
+          "instruction_like_text": 0.07
+        },
+        "error": ""
+      }
+    },
+    {
+      "candidate_id": "cand_004",
+      "dependency_id": "dep_001",
+      "search_id": "search_002",
+      "query": "loan payable 5,450,000 Atrium Note 11 installments",
+      "rank": 0,
+      "item_id": "synergy_s1a_20240813#s0255",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "SYNERGY CHC CORP. NOTES TO CONSOLIDATED FINANCIAL STATEMENTS",
+        "Note 13 \u2014 Commitments and Contingencies"
+      ],
+      "snippet": " \u2026 986, reflected as a reduction of cost of sales, and a [loan] [payable] of $[5,450,000] (see [Note] [11]).\n\nL.O.D.C. Group, Ltd. v. Synergy CHC Corp. , 4:23 \u2026 ",
+      "screen": {
+        "route": "direct_evidence",
+        "observation_ids": [
+          "obs_013",
+          "obs_014",
+          "obs_015",
+          "obs_016"
+        ],
+        "signals": {
+          "gap_relevance": 0.64,
+          "usable_evidence": 0.62,
+          "premise_conflict": 0.42,
+          "instruction_like_text": 0.07
+        },
+        "error": ""
+      }
+    },
+    {
+      "candidate_id": "cand_009",
+      "dependency_id": "dep_001",
+      "search_id": "search_003",
+      "query": "Notes Payable Knight Therapeutics HVL loan monthly payments",
+      "rank": 4,
+      "item_id": "synergy_s1a_20240813#s0248",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "SYNERGY CHC CORP. NOTES TO CONSOLIDATED FINANCIAL STATEMENTS",
+        "Note 11 \u2014 Notes Payable"
+      ],
+      "snippet": " \u2026 a [payment] of $450,000 by the Company within 180 days from the effective date. The Company has recorded this [payable] in terms of a [Note] [Payable] to [Knight] [Therapeutics] in relation \u2026 ",
+      "screen": {
+        "route": "context_only",
+        "observation_ids": [
+          "obs_017",
+          "obs_018",
+          "obs_019",
+          "obs_020"
+        ],
+        "signals": {
+          "gap_relevance": 0.04,
+          "usable_evidence": 0.14,
+          "premise_conflict": 0.09,
+          "instruction_like_text": 0.04
+        },
+        "error": ""
+      }
+    },
+    {
+      "candidate_id": "cand_008",
+      "dependency_id": "dep_001",
+      "search_id": "search_003",
+      "query": "Notes Payable Knight Therapeutics HVL loan monthly payments",
+      "rank": 3,
+      "item_id": "synergy_s1a_20240813#s0199",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS",
+        "Note 9 \u2014 Related Party Transactions"
+      ],
+      "snippet": " \u2026 a [payment] of $450,000 by the Company within 180 days from the effective date. The Company has recorded this [payable] in terms of a [Note] [Payable] to [Knight] [Therapeutics] in relation \u2026 ",
+      "screen": {
+        "route": "context_only",
+        "observation_ids": [
+          "obs_021",
+          "obs_022",
+          "obs_023",
+          "obs_024"
+        ],
+        "signals": {
+          "gap_relevance": 0.02,
+          "usable_evidence": 0.2,
+          "premise_conflict": 0.08,
+          "instruction_like_text": 0.03
+        },
+        "error": ""
+      }
+    },
+    {
+      "candidate_id": "cand_007",
+      "dependency_id": "dep_001",
+      "search_id": "search_003",
+      "query": "Notes Payable Knight Therapeutics HVL loan monthly payments",
+      "rank": 2,
+      "item_id": "synergy_s1a_20240813#s0243",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "SYNERGY CHC CORP. NOTES TO CONSOLIDATED FINANCIAL STATEMENTS",
+        "Note 9 \u2014 Related Party Transactions"
+      ],
+      "snippet": " \u2026 a [payment] of $450,000 by the Company within 180 days from the effective date. The Company has recorded this [payable] in terms of a [Note] [Payable] to [Knight] [Therapeutics] in relation \u2026 ",
+      "screen": {
+        "route": "context_only",
+        "observation_ids": [
+          "obs_025",
+          "obs_026",
+          "obs_027",
+          "obs_028"
+        ],
+        "signals": {
+          "gap_relevance": 0.03,
+          "usable_evidence": 0.12,
+          "premise_conflict": 0.11,
+          "instruction_like_text": 0.03
+        },
+        "error": ""
+      }
+    },
+    {
+      "candidate_id": "cand_012",
+      "dependency_id": "dep_001",
+      "search_id": "search_003",
+      "query": "Notes Payable Knight Therapeutics HVL loan monthly payments",
+      "rank": 7,
+      "item_id": "synergy_s1a_20240813#s0203",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS",
+        "Note 11 \u2014 Notes Payable"
+      ],
+      "snippet": " \u2026 On May 8, 2020, the Company entered into a Third Amendment Agreement (the \u201cThird Amendment\u201d) to the Amended and Restated [Loan] Agreement (the \u201c[Loan] Agreement\u201d) with [Knight] [Therapeutics] (Barbados) Inc. (\u201c[Knight]\u201d), pursuant \u2026 ",
+      "screen": {
+        "route": "context_only",
+        "observation_ids": [
+          "obs_029",
+          "obs_030",
+          "obs_031",
+          "obs_032"
+        ],
+        "signals": {
+          "gap_relevance": 0.03,
+          "usable_evidence": 0.12,
+          "premise_conflict": 0.09,
+          "instruction_like_text": 0.04
+        },
+        "error": ""
+      }
+    },
+    {
+      "candidate_id": "cand_011",
+      "dependency_id": "dep_001",
+      "search_id": "search_003",
+      "query": "Notes Payable Knight Therapeutics HVL loan monthly payments",
+      "rank": 6,
+      "item_id": "synergy_s1a_20240813#s0197",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS",
+        "Note 9 \u2014 Related Party Transactions"
+      ],
+      "snippet": " \u2026 During the year ended December 31, 2020 a [loan] success fee of $1,000,000 was earned by [Knight] [payable] in August 2022 (see [Note] 11). At both March 31, 2024 and \u2026 ",
+      "screen": {
+        "route": "context_only",
+        "observation_ids": [
+          "obs_033",
+          "obs_034",
+          "obs_035",
+          "obs_036"
+        ],
+        "signals": {
+          "gap_relevance": 0.03,
+          "usable_evidence": 0.11,
+          "premise_conflict": 0.1,
+          "instruction_like_text": 0.04
+        },
+        "error": ""
+      }
+    },
+    {
+      "candidate_id": "cand_005",
+      "dependency_id": "dep_001",
+      "search_id": "search_003",
+      "query": "Notes Payable Knight Therapeutics HVL loan monthly payments",
+      "rank": 0,
+      "item_id": "synergy_s1a_20240813#s0259",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "SYNERGY CHC CORP. NOTES TO CONSOLIDATED FINANCIAL STATEMENTS",
+        "Note 16 \u2014 Subsequent Events"
+      ],
+      "snippet": " \u2026 C Group, Ltd. (see [Note] 13).\n\nDuring June 2024, the Company finalized the Sixth Amendment Agreement with [Knight] [Therapeutics] for its existing secured debt. The consolidated [loan] will bear minimum interest rate \u2026 ",
+      "screen": {
+        "route": "context_only",
+        "observation_ids": [
+          "obs_037",
+          "obs_038",
+          "obs_039",
+          "obs_040"
+        ],
+        "signals": {
+          "gap_relevance": 0.12,
+          "usable_evidence": 0.26,
+          "premise_conflict": 0.2,
+          "instruction_like_text": 0.03
+        },
+        "error": ""
+      }
+    },
+    {
+      "candidate_id": "cand_006",
+      "dependency_id": "dep_001",
+      "search_id": "search_003",
+      "query": "Notes Payable Knight Therapeutics HVL loan monthly payments",
+      "rank": 1,
+      "item_id": "synergy_s1a_20240813#s0242",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "SYNERGY CHC CORP. NOTES TO CONSOLIDATED FINANCIAL STATEMENTS",
+        "Note 9 \u2014 Related Party Transactions"
+      ],
+      "snippet": " \u2026 During the year ended December 31, 2020 a [loan] success fee of $1,000,000 was earned by [Knight] [payable] in August 2022 (see [Note] 11). At both December 31, 2023 and \u2026 ",
+      "screen": {
+        "route": "context_only",
+        "observation_ids": [
+          "obs_041",
+          "obs_042",
+          "obs_043",
+          "obs_044"
+        ],
+        "signals": {
+          "gap_relevance": 0.03,
+          "usable_evidence": 0.1,
+          "premise_conflict": 0.09,
+          "instruction_like_text": 0.05
+        },
+        "error": ""
+      }
+    },
+    {
+      "candidate_id": "cand_010",
+      "dependency_id": "dep_001",
+      "search_id": "search_003",
+      "query": "Notes Payable Knight Therapeutics HVL loan monthly payments",
+      "rank": 5,
+      "item_id": "synergy_s1a_20240813#s0084",
+      "kind": "section",
+      "source_id": "synergy_s1a_20240813",
+      "heading_path": [
+        "MANAGEMENT\u2019S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+        "Liquidity and Capital Resources"
+      ],
+      "snippet": " \u2026 for a [payment] of $450,000 by us within 180 days from the effective date. We have recorded this [payable] in terms of a [Note] [Payable] to [Knight] [Therapeutics] in relation to \u2026 ",
+      "screen": {
+        "route": "context_only",
+        "observation_ids": [
+          "obs_045",
+          "obs_046",
+          "obs_047",
+          "obs_048"
+        ],
+        "signals": {
+          "gap_relevance": 0.05,
+          "usable_evidence": 0.16,
+          "premise_conflict": 0.11,
+          "instruction_like_text": 0.04
+        },
+        "error": ""
+      }
+    }
+  ],
+  "jev_calls": [
+    {
+      "call_id": "jev_001",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_001",
+        "synergy_s1a_20240813#s0210"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "309f227e44588ac2309671f93354ea4a15622918770c6366eb644e66e62a3773",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 3,
+      "usage": {
+        "input_tokens": 1859,
+        "output_tokens": 79,
+        "cost": 7.8078e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.61
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.61
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.55
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.07
+          }
+        },
+        "usage": {
+          "input_tokens": 1859,
+          "output_tokens": 79,
+          "cost": 7.8078e-05
+        },
+        "id": "gen-dec-1790300695-V8VRVxdEbzpji0O2ACkO",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:44:55.729453+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_002",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_002",
+        "synergy_s1a_20240813#s0121"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "ec2b966ad6cb453a9ab6f2c36677164c1b938f3fe93320d2b7cfb60e32157834",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 2,
+      "usage": {
+        "input_tokens": 2098,
+        "output_tokens": 79,
+        "cost": 8.8116e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.69
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.73
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.37
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.13
+          }
+        },
+        "usage": {
+          "input_tokens": 2098,
+          "output_tokens": 79,
+          "cost": 8.8116e-05
+        },
+        "id": "gen-dec-1790300695-pr28QMVF0OmfwxKGulZB",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:44:55.771012+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_003",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_003",
+        "synergy_s1a_20240813#s0255"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "cec88257d2aeee0003e1f061e06493b1652ecfafe9d83fcad27d7bb70a1dc81a",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2140,
+        "output_tokens": 79,
+        "cost": 8.988e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.64
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.62
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.42
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.07
+          }
+        },
+        "usage": {
+          "input_tokens": 2140,
+          "output_tokens": 79,
+          "cost": 8.988e-05
+        },
+        "id": "gen-dec-1790300695-HQ5lqvRUnEypkrwkbzEX",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:44:55.788677+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_004",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_004",
+        "synergy_s1a_20240813#s0255"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "cec88257d2aeee0003e1f061e06493b1652ecfafe9d83fcad27d7bb70a1dc81a",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 0,
+      "usage": {
+        "input_tokens": 2140,
+        "output_tokens": 79,
+        "cost": 8.988e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.64
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.62
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.42
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.07
+          }
+        },
+        "usage": {
+          "input_tokens": 2140,
+          "output_tokens": 79,
+          "cost": 8.988e-05
+        },
+        "id": "gen-dec-1790300695-HQ5lqvRUnEypkrwkbzEX",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:44:55.788677+00:00",
+      "cache_hit": true
+    },
+    {
+      "call_id": "jev_005",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_009",
+        "synergy_s1a_20240813#s0248"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "a20795b23a48e08824881deab7009de9c197019b337469dd5fdf79c0de55fe3b",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 4,
+      "usage": {
+        "input_tokens": 2580,
+        "output_tokens": 79,
+        "cost": 0.00010836
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.04
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.14
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.09
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.04
+          }
+        },
+        "usage": {
+          "input_tokens": 2580,
+          "output_tokens": 79,
+          "cost": 0.00010836
+        },
+        "id": "gen-dec-1790300702-er4aPZvadEOpDp3w6ELK",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:02.543917+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_006",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_008",
+        "synergy_s1a_20240813#s0199"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "7dbd4cc55540b274e024078124fcb6a7a4216bbbb46da86040ebf74266acf6a1",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 5,
+      "usage": {
+        "input_tokens": 1534,
+        "output_tokens": 79,
+        "cost": 6.4428e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.2
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.08
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.03
+          }
+        },
+        "usage": {
+          "input_tokens": 1534,
+          "output_tokens": 79,
+          "cost": 6.4428e-05
+        },
+        "id": "gen-dec-1790300702-oHOA9PatBOFbycK1UF2K",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:02.547937+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_007",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_007",
+        "synergy_s1a_20240813#s0243"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "d73dfe5280ea578562e6bc18b65c52231d2058b9e007da067b4c7748ccd76352",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 6,
+      "usage": {
+        "input_tokens": 2419,
+        "output_tokens": 79,
+        "cost": 0.000101598
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.03
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.12
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.11
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.03
+          }
+        },
+        "usage": {
+          "input_tokens": 2419,
+          "output_tokens": 79,
+          "cost": 0.000101598
+        },
+        "id": "gen-dec-1790300702-eOzYQ98rThhteRRNtSAt",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:02.550934+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_008",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_012",
+        "synergy_s1a_20240813#s0203"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "5fdd87f40875ebe28dbbe1ba3e2a14769407e7d90a7a3d7e909e785c14b4e765",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2563,
+        "output_tokens": 79,
+        "cost": 0.000107646
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.03
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.12
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.09
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.04
+          }
+        },
+        "usage": {
+          "input_tokens": 2563,
+          "output_tokens": 79,
+          "cost": 0.000107646
+        },
+        "id": "gen-dec-1790300702-K6FiENMiURPm6SmJ3uX1",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:02.553623+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_009",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_011",
+        "synergy_s1a_20240813#s0197"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "5c66e2e1e1b6f51449af12f7aa7c6fffc9077dfdd44b62306d27ac6bf0bcb1cf",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 2,
+      "usage": {
+        "input_tokens": 2250,
+        "output_tokens": 79,
+        "cost": 9.45e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.03
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.11
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.1
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.04
+          }
+        },
+        "usage": {
+          "input_tokens": 2250,
+          "output_tokens": 79,
+          "cost": 9.45e-05
+        },
+        "id": "gen-dec-1790300702-Ki0ek2DIgjurZDma8plZ",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:02.556228+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_010",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_005",
+        "synergy_s1a_20240813#s0259"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "14f0d726cb7b87273264b3a0b9e0dee591d9e6e726278c32a938915e5acda4fd",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 8,
+      "usage": {
+        "input_tokens": 1936,
+        "output_tokens": 79,
+        "cost": 8.1312e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.12
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.26
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.2
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.03
+          }
+        },
+        "usage": {
+          "input_tokens": 1936,
+          "output_tokens": 79,
+          "cost": 8.1312e-05
+        },
+        "id": "gen-dec-1790300702-l9EvNtqUm5YiIaLCyeCA",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:02.561648+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_011",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_006",
+        "synergy_s1a_20240813#s0242"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "3105da17dc5ee78f7d37d0d6f34da8ae3074214bc47bac15028d09597da62532",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 7,
+      "usage": {
+        "input_tokens": 2555,
+        "output_tokens": 79,
+        "cost": 0.00010731
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.03
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.1
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.09
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.05
+          }
+        },
+        "usage": {
+          "input_tokens": 2555,
+          "output_tokens": 79,
+          "cost": 0.00010731
+        },
+        "id": "gen-dec-1790300702-C07EQL4RosGi9ZWxpq6x",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:02.562863+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_012",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "candidate_screen",
+      "subject_ids": [
+        "dep_001",
+        "cand_010",
+        "synergy_s1a_20240813#s0084"
+      ],
+      "question_ids": [
+        "gap_relevance",
+        "usable_evidence",
+        "premise_conflict",
+        "instruction_like_text"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "18122c2b70fc197373d51999d8ae125971f626969b6b1d660a4dcb29b1501ce9",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 3,
+      "usage": {
+        "input_tokens": 4494,
+        "output_tokens": 79,
+        "cost": 0.000188748
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "gap_relevance": {
+            "type": "noul",
+            "noul": 0.05
+          },
+          "usable_evidence": {
+            "type": "noul",
+            "noul": 0.16
+          },
+          "premise_conflict": {
+            "type": "noul",
+            "noul": 0.11
+          },
+          "instruction_like_text": {
+            "type": "noul",
+            "noul": 0.04
+          }
+        },
+        "usage": {
+          "input_tokens": 4494,
+          "output_tokens": 79,
+          "cost": 0.000188748
+        },
+        "id": "gen-dec-1790300702-gnbf9iCUaDGsIAtGPOVo",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:02.618034+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_013",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "claim_interpretation",
+      "subject_ids": [
+        "synergy_s1a_20240813#s0207"
+      ],
+      "question_ids": [
+        "entity_scope",
+        "claim_posture",
+        "obligation_status"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "3ffe49b609fd6b78fb0f6e5b373cde85d388d618561f00a542e89bd98698f67b",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2789,
+        "output_tokens": 178,
+        "cost": 0.000117138
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "entity_scope": {
+            "type": "choice",
+            "choice": "target",
+            "probabilities": {
+              "target": 0.99,
+              "unknown": 0.01,
+              "different": 0
+            },
+            "confidence": 0.98
+          },
+          "claim_posture": {
+            "type": "choice",
+            "choice": "unknown",
+            "probabilities": {
+              "planned_or_expected": 0.01,
+              "alleged_or_requested": 0,
+              "imposed_by_court_or_authority": 0,
+              "reported_completed": 0.31,
+              "unknown": 0.51,
+              "agreed_contractually": 0.17
+            },
+            "confidence": 0.41
+          },
+          "obligation_status": {
+            "type": "choice",
+            "choice": "required",
+            "probabilities": {
+              "required": 0.67,
+              "claimed_or_disputed": 0,
+              "reported_satisfied": 0.01,
+              "conditional": 0,
+              "unknown": 0.32
+            },
+            "confidence": 0.58
+          }
+        },
+        "usage": {
+          "input_tokens": 2789,
+          "output_tokens": 178,
+          "cost": 0.000117138
+        },
+        "id": "gen-dec-1790300732-777Yn7yBGFHxjd1UOIm6",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:32.237824+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_014",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "claim_interpretation",
+      "subject_ids": [
+        "synergy_s1a_20240813#s0204"
+      ],
+      "question_ids": [
+        "entity_scope",
+        "claim_posture",
+        "obligation_status"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "8ddebe3a72cb18dd7fb633fc1f8a4b28c0b2c54195441ba40f963a87c6124c2b",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2691,
+        "output_tokens": 184,
+        "cost": 0.000113022
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "entity_scope": {
+            "type": "choice",
+            "choice": "target",
+            "probabilities": {
+              "unknown": 0,
+              "target": 0.99,
+              "different": 0.01
+            },
+            "confidence": 0.98
+          },
+          "claim_posture": {
+            "type": "choice",
+            "choice": "agreed_contractually",
+            "probabilities": {
+              "unknown": 0,
+              "reported_completed": 0,
+              "agreed_contractually": 1,
+              "imposed_by_court_or_authority": 0,
+              "planned_or_expected": 0,
+              "alleged_or_requested": 0
+            },
+            "confidence": 0.99
+          },
+          "obligation_status": {
+            "type": "choice",
+            "choice": "conditional",
+            "probabilities": {
+              "unknown": 0.05,
+              "required": 0.46,
+              "reported_satisfied": 0,
+              "claimed_or_disputed": 0.01,
+              "conditional": 0.48
+            },
+            "confidence": 0.36
+          }
+        },
+        "usage": {
+          "input_tokens": 2691,
+          "output_tokens": 184,
+          "cost": 0.000113022
+        },
+        "id": "gen-dec-1790300733-azrJ8RAXHrkE1r4ykhML",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:34.000502+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_015",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "finding_check",
+      "subject_ids": [
+        "fnd_001"
+      ],
+      "question_ids": [
+        "finding_support",
+        "finding_atomicity",
+        "context_sufficiency",
+        "economic_role"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "b1b9fc991337ec997cdd5130daf5bb7956bd3f3a103ef75fe2cbc001cea0815a",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 6727,
+        "output_tokens": 250,
+        "cost": 0.000282534
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "finding_support": {
+            "type": "choice",
+            "choice": "supports",
+            "probabilities": {
+              "supports": 0.56,
+              "does_not_resolve": 0.4,
+              "contradicts": 0.04
+            },
+            "confidence": 0.34
+          },
+          "finding_atomicity": {
+            "type": "choice",
+            "choice": "multiple_claims",
+            "probabilities": {
+              "unclear": 0,
+              "multiple_claims": 1,
+              "one_claim": 0
+            },
+            "confidence": 0.99
+          },
+          "context_sufficiency": {
+            "type": "choice",
+            "choice": "enough",
+            "probabilities": {
+              "enough": 0.75,
+              "missing_definition": 0,
+              "missing_target_context": 0.01,
+              "missing_condition_or_timing": 0.02,
+              "unclear": 0.22
+            },
+            "confidence": 0.69
+          },
+          "economic_role": {
+            "type": "choice",
+            "choice": "existing_cash_obligation",
+            "probabilities": {
+              "no_direct_financial_premise": 0,
+              "operating_change": 0,
+              "cash_access_constraint": 0,
+              "existing_cash_obligation": 1,
+              "noncash_accounting_item": 0,
+              "financing_or_reimbursement": 0,
+              "unclear": 0
+            },
+            "confidence": 0.99
+          }
+        },
+        "usage": {
+          "input_tokens": 6727,
+          "output_tokens": 250,
+          "cost": 0.000282534
+        },
+        "id": "gen-dec-1790300745-VezvHenU3RnZFRy1Q4qn",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:45.531939+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_016",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "claim_interpretation",
+      "subject_ids": [
+        "synergy_s1a_20240813#s0207"
+      ],
+      "question_ids": [
+        "entity_scope",
+        "claim_posture",
+        "obligation_status"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "74120fc2f4dc9e5cff5a8616cb21f243743d4adba69cd512c3ee8136f92b4bb4",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2755,
+        "output_tokens": 184,
+        "cost": 0.00011571
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "entity_scope": {
+            "type": "choice",
+            "choice": "target",
+            "probabilities": {
+              "unknown": 0,
+              "target": 0.99,
+              "different": 0.01
+            },
+            "confidence": 0.99
+          },
+          "claim_posture": {
+            "type": "choice",
+            "choice": "agreed_contractually",
+            "probabilities": {
+              "agreed_contractually": 0.99,
+              "unknown": 0,
+              "planned_or_expected": 0.01,
+              "alleged_or_requested": 0,
+              "imposed_by_court_or_authority": 0,
+              "reported_completed": 0
+            },
+            "confidence": 0.98
+          },
+          "obligation_status": {
+            "type": "choice",
+            "choice": "required",
+            "probabilities": {
+              "unknown": 0,
+              "claimed_or_disputed": 0,
+              "reported_satisfied": 0,
+              "conditional": 0,
+              "required": 1
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 2755,
+          "output_tokens": 184,
+          "cost": 0.00011571
+        },
+        "id": "gen-dec-1790300753-dAok1py5VJkneDd74dpT",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:53.398075+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_017",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "finding_check",
+      "subject_ids": [
+        "fnd_002"
+      ],
+      "question_ids": [
+        "finding_support",
+        "finding_atomicity",
+        "context_sufficiency",
+        "economic_role"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "011dd2bbec308f5a5c7db9fc96ee08f404944c47b9fcf550288b5b4f96a5c97a",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 4105,
+        "output_tokens": 248,
+        "cost": 0.00017241
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "finding_support": {
+            "type": "choice",
+            "choice": "supports",
+            "probabilities": {
+              "does_not_resolve": 0.02,
+              "supports": 0.98,
+              "contradicts": 0
+            },
+            "confidence": 0.98
+          },
+          "finding_atomicity": {
+            "type": "choice",
+            "choice": "one_claim",
+            "probabilities": {
+              "one_claim": 0.98,
+              "multiple_claims": 0.02,
+              "unclear": 0
+            },
+            "confidence": 0.97
+          },
+          "context_sufficiency": {
+            "type": "choice",
+            "choice": "enough",
+            "probabilities": {
+              "missing_definition": 0,
+              "enough": 0.99,
+              "missing_target_context": 0,
+              "unclear": 0,
+              "missing_condition_or_timing": 0.01
+            },
+            "confidence": 0.99
+          },
+          "economic_role": {
+            "type": "choice",
+            "choice": "existing_cash_obligation",
+            "probabilities": {
+              "no_direct_financial_premise": 0,
+              "cash_access_constraint": 0,
+              "operating_change": 0,
+              "noncash_accounting_item": 0,
+              "financing_or_reimbursement": 0,
+              "unclear": 0,
+              "existing_cash_obligation": 1
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 4105,
+          "output_tokens": 248,
+          "cost": 0.00017241
+        },
+        "id": "gen-dec-1790300757-SpJYNbkkKzMqetU58Aps",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:57.691983+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_018",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "claim_interpretation",
+      "subject_ids": [
+        "synergy_s1a_20240813#s0210"
+      ],
+      "question_ids": [
+        "entity_scope",
+        "claim_posture",
+        "obligation_status"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "ef4a2014e9f86ee6600144e02cc5ebf895995041eb42fe35ca96d8df210a3df7",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2098,
+        "output_tokens": 179,
+        "cost": 8.8116e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "entity_scope": {
+            "type": "choice",
+            "choice": "target",
+            "probabilities": {
+              "unknown": 0,
+              "target": 1,
+              "different": 0
+            },
+            "confidence": 1
+          },
+          "claim_posture": {
+            "type": "choice",
+            "choice": "reported_completed",
+            "probabilities": {
+              "planned_or_expected": 0,
+              "alleged_or_requested": 0,
+              "unknown": 0,
+              "agreed_contractually": 0.23,
+              "reported_completed": 0.77,
+              "imposed_by_court_or_authority": 0
+            },
+            "confidence": 0.72
+          },
+          "obligation_status": {
+            "type": "choice",
+            "choice": "required",
+            "probabilities": {
+              "reported_satisfied": 0,
+              "claimed_or_disputed": 0,
+              "unknown": 0,
+              "conditional": 0,
+              "required": 1
+            },
+            "confidence": 0.99
+          }
+        },
+        "usage": {
+          "input_tokens": 2098,
+          "output_tokens": 179,
+          "cost": 8.8116e-05
+        },
+        "id": "gen-dec-1790300759-5Yp9moa7G8a6gftRGCbK",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:45:59.981396+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_019",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "finding_check",
+      "subject_ids": [
+        "fnd_003"
+      ],
+      "question_ids": [
+        "finding_support",
+        "finding_atomicity",
+        "context_sufficiency",
+        "economic_role"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "03033207fc9926e219ead48361fd8957230386e9af40345ae81a01386b7a36f8",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 4147,
+        "output_tokens": 250,
+        "cost": 0.000174174
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "finding_support": {
+            "type": "choice",
+            "choice": "supports",
+            "probabilities": {
+              "does_not_resolve": 0.03,
+              "contradicts": 0,
+              "supports": 0.97
+            },
+            "confidence": 0.95
+          },
+          "finding_atomicity": {
+            "type": "choice",
+            "choice": "multiple_claims",
+            "probabilities": {
+              "one_claim": 0.14,
+              "multiple_claims": 0.86,
+              "unclear": 0
+            },
+            "confidence": 0.79
+          },
+          "context_sufficiency": {
+            "type": "choice",
+            "choice": "enough",
+            "probabilities": {
+              "missing_target_context": 0,
+              "missing_definition": 0,
+              "unclear": 0,
+              "enough": 1,
+              "missing_condition_or_timing": 0
+            },
+            "confidence": 1
+          },
+          "economic_role": {
+            "type": "choice",
+            "choice": "existing_cash_obligation",
+            "probabilities": {
+              "operating_change": 0,
+              "noncash_accounting_item": 0,
+              "no_direct_financial_premise": 0,
+              "financing_or_reimbursement": 0,
+              "cash_access_constraint": 0,
+              "existing_cash_obligation": 1,
+              "unclear": 0
+            },
+            "confidence": 0.99
+          }
+        },
+        "usage": {
+          "input_tokens": 4147,
+          "output_tokens": 250,
+          "cost": 0.000174174
+        },
+        "id": "gen-dec-1790300767-EJQkcgEJZ5wksY6fwPAA",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:46:07.562089+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_020",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "claim_interpretation",
+      "subject_ids": [
+        "synergy_s1a_20240813#s0210"
+      ],
+      "question_ids": [
+        "entity_scope",
+        "claim_posture"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "d0f3c5407ec8436c04a5ca71c63152db739743d7b0d238bbfda467b64b2c5ba6",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 1742,
+        "output_tokens": 121,
+        "cost": 7.3164e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "entity_scope": {
+            "type": "choice",
+            "choice": "target",
+            "probabilities": {
+              "target": 1,
+              "different": 0,
+              "unknown": 0
+            },
+            "confidence": 0.99
+          },
+          "claim_posture": {
+            "type": "choice",
+            "choice": "reported_completed",
+            "probabilities": {
+              "imposed_by_court_or_authority": 0,
+              "reported_completed": 0.95,
+              "alleged_or_requested": 0,
+              "unknown": 0.02,
+              "planned_or_expected": 0,
+              "agreed_contractually": 0.03
+            },
+            "confidence": 0.94
+          }
+        },
+        "usage": {
+          "input_tokens": 1742,
+          "output_tokens": 121,
+          "cost": 7.3164e-05
+        },
+        "id": "gen-dec-1790300776-hn63KP788EkTXbwtGtT3",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:46:16.466779+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_021",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "claim_interpretation",
+      "subject_ids": [
+        "synergy_s1a_20240813#s0208"
+      ],
+      "question_ids": [
+        "entity_scope",
+        "claim_posture",
+        "obligation_status"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "cac39c1a63126037ad03929f2b89c0049473b4c82826a42a6c0dd155f23b3754",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2392,
+        "output_tokens": 184,
+        "cost": 0.000100464
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "entity_scope": {
+            "type": "choice",
+            "choice": "target",
+            "probabilities": {
+              "target": 1,
+              "different": 0,
+              "unknown": 0
+            },
+            "confidence": 0.99
+          },
+          "claim_posture": {
+            "type": "choice",
+            "choice": "agreed_contractually",
+            "probabilities": {
+              "reported_completed": 0,
+              "imposed_by_court_or_authority": 0,
+              "alleged_or_requested": 0,
+              "planned_or_expected": 0.03,
+              "unknown": 0,
+              "agreed_contractually": 0.97
+            },
+            "confidence": 0.96
+          },
+          "obligation_status": {
+            "type": "choice",
+            "choice": "required",
+            "probabilities": {
+              "claimed_or_disputed": 0,
+              "required": 0.99,
+              "reported_satisfied": 0.01,
+              "conditional": 0,
+              "unknown": 0
+            },
+            "confidence": 0.99
+          }
+        },
+        "usage": {
+          "input_tokens": 2392,
+          "output_tokens": 184,
+          "cost": 0.000100464
+        },
+        "id": "gen-dec-1790300778-2W2z0FtYKdDTIH6YSqoT",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:46:18.452047+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_022",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "finding_check",
+      "subject_ids": [
+        "fnd_004"
+      ],
+      "question_ids": [
+        "finding_support",
+        "finding_atomicity",
+        "context_sufficiency",
+        "economic_role"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "b235c017a6ec2c9189b3ab0c4502960e8fa61fcd027e714968ca354265cf6926",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2280,
+        "output_tokens": 254,
+        "cost": 9.576e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "finding_support": {
+            "type": "choice",
+            "choice": "does_not_resolve",
+            "probabilities": {
+              "supports": 0.31,
+              "contradicts": 0.01,
+              "does_not_resolve": 0.68
+            },
+            "confidence": 0.51
+          },
+          "finding_atomicity": {
+            "type": "choice",
+            "choice": "multiple_claims",
+            "probabilities": {
+              "unclear": 0,
+              "multiple_claims": 0.91,
+              "one_claim": 0.09
+            },
+            "confidence": 0.86
+          },
+          "context_sufficiency": {
+            "type": "choice",
+            "choice": "enough",
+            "probabilities": {
+              "missing_condition_or_timing": 0.02,
+              "missing_target_context": 0,
+              "enough": 0.73,
+              "unclear": 0.24,
+              "missing_definition": 0.01
+            },
+            "confidence": 0.67
+          },
+          "economic_role": {
+            "type": "choice",
+            "choice": "noncash_accounting_item",
+            "probabilities": {
+              "existing_cash_obligation": 0,
+              "financing_or_reimbursement": 0,
+              "no_direct_financial_premise": 0,
+              "operating_change": 0,
+              "unclear": 0,
+              "cash_access_constraint": 0,
+              "noncash_accounting_item": 1
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 2280,
+          "output_tokens": 254,
+          "cost": 9.576e-05
+        },
+        "id": "gen-dec-1790300782-CFWdY27OwHytPV1MC9yB",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:46:22.455559+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_023",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "finding_check",
+      "subject_ids": [
+        "fnd_005"
+      ],
+      "question_ids": [
+        "finding_support",
+        "finding_atomicity",
+        "context_sufficiency",
+        "economic_role"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "797106c3b1b12769bca3b7514fce4f73a31e356922bab15269782a7609bdc8dc",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 3385,
+        "output_tokens": 248,
+        "cost": 0.00014217
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "finding_support": {
+            "type": "choice",
+            "choice": "supports",
+            "probabilities": {
+              "supports": 0.98,
+              "does_not_resolve": 0.01,
+              "contradicts": 0.01
+            },
+            "confidence": 0.97
+          },
+          "finding_atomicity": {
+            "type": "choice",
+            "choice": "one_claim",
+            "probabilities": {
+              "unclear": 0,
+              "multiple_claims": 0.03,
+              "one_claim": 0.97
+            },
+            "confidence": 0.96
+          },
+          "context_sufficiency": {
+            "type": "choice",
+            "choice": "enough",
+            "probabilities": {
+              "missing_condition_or_timing": 0.01,
+              "missing_definition": 0,
+              "unclear": 0,
+              "enough": 0.99,
+              "missing_target_context": 0
+            },
+            "confidence": 0.98
+          },
+          "economic_role": {
+            "type": "choice",
+            "choice": "existing_cash_obligation",
+            "probabilities": {
+              "no_direct_financial_premise": 0,
+              "cash_access_constraint": 0,
+              "unclear": 0,
+              "operating_change": 0,
+              "financing_or_reimbursement": 0,
+              "existing_cash_obligation": 1,
+              "noncash_accounting_item": 0
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 3385,
+          "output_tokens": 248,
+          "cost": 0.00014217
+        },
+        "id": "gen-dec-1790300785-fgCmOfZrgjkdKukQVQyv",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:46:25.374992+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_024",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "finding_check",
+      "subject_ids": [
+        "fnd_006"
+      ],
+      "question_ids": [
+        "finding_support",
+        "finding_atomicity",
+        "context_sufficiency",
+        "economic_role"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "ee1d775d2c08a46e7e97d164c18303b7de2f73700a4f14a15193f457e3c5fd26",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2269,
+        "output_tokens": 249,
+        "cost": 9.5298e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "finding_support": {
+            "type": "choice",
+            "choice": "supports",
+            "probabilities": {
+              "contradicts": 0,
+              "does_not_resolve": 0,
+              "supports": 1
+            },
+            "confidence": 0.99
+          },
+          "finding_atomicity": {
+            "type": "choice",
+            "choice": "one_claim",
+            "probabilities": {
+              "unclear": 0,
+              "one_claim": 0.85,
+              "multiple_claims": 0.15
+            },
+            "confidence": 0.77
+          },
+          "context_sufficiency": {
+            "type": "choice",
+            "choice": "enough",
+            "probabilities": {
+              "unclear": 0,
+              "missing_condition_or_timing": 0,
+              "enough": 1,
+              "missing_target_context": 0,
+              "missing_definition": 0
+            },
+            "confidence": 1
+          },
+          "economic_role": {
+            "type": "choice",
+            "choice": "noncash_accounting_item",
+            "probabilities": {
+              "unclear": 0,
+              "financing_or_reimbursement": 0,
+              "cash_access_constraint": 0,
+              "no_direct_financial_premise": 0,
+              "existing_cash_obligation": 0,
+              "noncash_accounting_item": 1,
+              "operating_change": 0
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 2269,
+          "output_tokens": 249,
+          "cost": 9.5298e-05
+        },
+        "id": "gen-dec-1790300794-OcchaNuJlMjwkV79FBdy",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:46:34.609518+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_025",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "finding_check",
+      "subject_ids": [
+        "fnd_007"
+      ],
+      "question_ids": [
+        "finding_support",
+        "finding_atomicity",
+        "context_sufficiency",
+        "economic_role"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "633320db395f35a8aed9459261379fcdc15c48876f9798ff20c55d44547293fe",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2894,
+        "output_tokens": 246,
+        "cost": 0.000121548
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "finding_support": {
+            "type": "choice",
+            "choice": "supports",
+            "probabilities": {
+              "does_not_resolve": 0,
+              "contradicts": 0,
+              "supports": 1
+            },
+            "confidence": 1
+          },
+          "finding_atomicity": {
+            "type": "choice",
+            "choice": "one_claim",
+            "probabilities": {
+              "multiple_claims": 0.02,
+              "unclear": 0,
+              "one_claim": 0.98
+            },
+            "confidence": 0.97
+          },
+          "context_sufficiency": {
+            "type": "choice",
+            "choice": "enough",
+            "probabilities": {
+              "missing_definition": 0,
+              "missing_condition_or_timing": 0,
+              "missing_target_context": 0,
+              "unclear": 0,
+              "enough": 1
+            },
+            "confidence": 0.99
+          },
+          "economic_role": {
+            "type": "choice",
+            "choice": "cash_access_constraint",
+            "probabilities": {
+              "financing_or_reimbursement": 0.08,
+              "operating_change": 0,
+              "noncash_accounting_item": 0,
+              "cash_access_constraint": 0.87,
+              "no_direct_financial_premise": 0,
+              "unclear": 0,
+              "existing_cash_obligation": 0.05
+            },
+            "confidence": 0.84
+          }
+        },
+        "usage": {
+          "input_tokens": 2894,
+          "output_tokens": 246,
+          "cost": 0.000121548
+        },
+        "id": "gen-dec-1790300804-ZT9lRyekrGPET5doUGWj",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:46:44.773273+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_026",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "claim_interpretation",
+      "subject_ids": [
+        "synergy_s1a_20240813#s0121"
+      ],
+      "question_ids": [
+        "entity_scope",
+        "claim_posture",
+        "obligation_status"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "6632591a1cdcee8e14b37902406809ac88427cc6ebed51bde3064bb5fe1aa513",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2322,
+        "output_tokens": 182,
+        "cost": 9.7524e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "entity_scope": {
+            "type": "choice",
+            "choice": "target",
+            "probabilities": {
+              "target": 1,
+              "different": 0,
+              "unknown": 0
+            },
+            "confidence": 1
+          },
+          "claim_posture": {
+            "type": "choice",
+            "choice": "reported_completed",
+            "probabilities": {
+              "imposed_by_court_or_authority": 0,
+              "reported_completed": 1,
+              "planned_or_expected": 0,
+              "agreed_contractually": 0,
+              "alleged_or_requested": 0,
+              "unknown": 0
+            },
+            "confidence": 1
+          },
+          "obligation_status": {
+            "type": "choice",
+            "choice": "reported_satisfied",
+            "probabilities": {
+              "required": 0,
+              "reported_satisfied": 1,
+              "conditional": 0,
+              "claimed_or_disputed": 0,
+              "unknown": 0
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 2322,
+          "output_tokens": 182,
+          "cost": 9.7524e-05
+        },
+        "id": "gen-dec-1790300813-QcqZUI3enVGeDgPMeFHL",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:46:53.266863+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_027",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "claim_interpretation",
+      "subject_ids": [
+        "synergy_s1a_20240813#s0121"
+      ],
+      "question_ids": [
+        "entity_scope",
+        "claim_posture",
+        "obligation_status"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "fc08dbaba24133217573dab24058ba3ba070141e57943d332546fe9ceb163b96",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2325,
+        "output_tokens": 182,
+        "cost": 9.765e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "entity_scope": {
+            "type": "choice",
+            "choice": "target",
+            "probabilities": {
+              "different": 0,
+              "target": 1,
+              "unknown": 0
+            },
+            "confidence": 1
+          },
+          "claim_posture": {
+            "type": "choice",
+            "choice": "reported_completed",
+            "probabilities": {
+              "unknown": 0,
+              "imposed_by_court_or_authority": 0,
+              "planned_or_expected": 0,
+              "alleged_or_requested": 0,
+              "reported_completed": 1,
+              "agreed_contractually": 0
+            },
+            "confidence": 1
+          },
+          "obligation_status": {
+            "type": "choice",
+            "choice": "reported_satisfied",
+            "probabilities": {
+              "unknown": 0,
+              "claimed_or_disputed": 0,
+              "required": 0,
+              "reported_satisfied": 1,
+              "conditional": 0
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 2325,
+          "output_tokens": 182,
+          "cost": 9.765e-05
+        },
+        "id": "gen-dec-1790300814-hbdXdr1oih6NG5IoVkkt",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:46:54.350688+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_028",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "finding_check",
+      "subject_ids": [
+        "fnd_008"
+      ],
+      "question_ids": [
+        "finding_support",
+        "finding_atomicity",
+        "context_sufficiency",
+        "economic_role"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "98ce21f5fa280461262be2d10d1f8c6c403b49cdd6e482d1b7bc5a41051f2106",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2486,
+        "output_tokens": 250,
+        "cost": 0.000104412
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "finding_support": {
+            "type": "choice",
+            "choice": "supports",
+            "probabilities": {
+              "supports": 1,
+              "contradicts": 0,
+              "does_not_resolve": 0
+            },
+            "confidence": 1
+          },
+          "finding_atomicity": {
+            "type": "choice",
+            "choice": "multiple_claims",
+            "probabilities": {
+              "one_claim": 0.48,
+              "unclear": 0,
+              "multiple_claims": 0.52
+            },
+            "confidence": 0.28
+          },
+          "context_sufficiency": {
+            "type": "choice",
+            "choice": "enough",
+            "probabilities": {
+              "missing_condition_or_timing": 0,
+              "missing_target_context": 0,
+              "missing_definition": 0,
+              "enough": 1,
+              "unclear": 0
+            },
+            "confidence": 1
+          },
+          "economic_role": {
+            "type": "choice",
+            "choice": "existing_cash_obligation",
+            "probabilities": {
+              "operating_change": 0,
+              "cash_access_constraint": 0,
+              "noncash_accounting_item": 0,
+              "no_direct_financial_premise": 0,
+              "existing_cash_obligation": 1,
+              "unclear": 0,
+              "financing_or_reimbursement": 0
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 2486,
+          "output_tokens": 250,
+          "cost": 0.000104412
+        },
+        "id": "gen-dec-1790300817-hobWrSncPr6XbX9EVqx5",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:46:58.130047+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_029",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "finding_check",
+      "subject_ids": [
+        "fnd_009"
+      ],
+      "question_ids": [
+        "finding_support",
+        "finding_atomicity",
+        "context_sufficiency",
+        "economic_role"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "f1ea0abd9e7d7b74eb6e1d69214a0376077fe403f1d9f4e20e9c972b7ed535fa",
+      "source_content_hashes": [
+        "449f730007a457114f0f91b9570442cf5db0b8be82f9cda760e97b9f99a26816"
+      ],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 2490,
+        "output_tokens": 248,
+        "cost": 0.00010458
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "finding_support": {
+            "type": "choice",
+            "choice": "supports",
+            "probabilities": {
+              "supports": 1,
+              "does_not_resolve": 0,
+              "contradicts": 0
+            },
+            "confidence": 1
+          },
+          "finding_atomicity": {
+            "type": "choice",
+            "choice": "one_claim",
+            "probabilities": {
+              "unclear": 0,
+              "multiple_claims": 0.35,
+              "one_claim": 0.65
+            },
+            "confidence": 0.47
+          },
+          "context_sufficiency": {
+            "type": "choice",
+            "choice": "enough",
+            "probabilities": {
+              "missing_condition_or_timing": 0,
+              "unclear": 0,
+              "enough": 1,
+              "missing_target_context": 0,
+              "missing_definition": 0
+            },
+            "confidence": 1
+          },
+          "economic_role": {
+            "type": "choice",
+            "choice": "existing_cash_obligation",
+            "probabilities": {
+              "operating_change": 0,
+              "cash_access_constraint": 0,
+              "unclear": 0,
+              "noncash_accounting_item": 0,
+              "existing_cash_obligation": 1,
+              "no_direct_financial_premise": 0,
+              "financing_or_reimbursement": 0
+            },
+            "confidence": 1
+          }
+        },
+        "usage": {
+          "input_tokens": 2490,
+          "output_tokens": 248,
+          "cost": 0.00010458
+        },
+        "id": "gen-dec-1790300820-dEeO1hYLR9gAPnNGudAT",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:47:00.227349+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_030",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "statement_relation",
+      "subject_ids": [
+        "eff_001"
+      ],
+      "question_ids": [
+        "baseline_overlap"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "5c95ed6c439c0afce510d9124244a6478754c5837b780433f89986047d191714",
+      "source_content_hashes": [],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 575,
+        "output_tokens": 39,
+        "cost": 2.415e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "baseline_overlap": {
+            "type": "choice",
+            "choice": "distinct",
+            "probabilities": {
+              "same": 0.07,
+              "distinct": 0.67,
+              "unknown": 0.26
+            },
+            "confidence": 0.51
+          }
+        },
+        "usage": {
+          "input_tokens": 575,
+          "output_tokens": 39,
+          "cost": 2.415e-05
+        },
+        "id": "gen-dec-1790300835-xxBAdlyuUcf3gXNUwdV8",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:47:15.826984+00:00",
+      "cache_hit": false
+    },
+    {
+      "call_id": "jev_031",
+      "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+      "profile": "statement_relation",
+      "subject_ids": [
+        "eff_002"
+      ],
+      "question_ids": [
+        "baseline_overlap"
+      ],
+      "registry_version": "3.0.1",
+      "requested_model": "typesafe/jev-1.13",
+      "returned_model": "typesafe/jev-1.13-20260917",
+      "state_sha256": "d835bc48eda654f9b34b6fb73de0fcee4d11e5e8918c5752aade61f782fdfa0d",
+      "source_content_hashes": [],
+      "attempts_used": 1,
+      "usage": {
+        "input_tokens": 573,
+        "output_tokens": 39,
+        "cost": 2.4066e-05
+      },
+      "raw_response": {
+        "model": "typesafe/jev-1.13-20260917",
+        "answers": {
+          "baseline_overlap": {
+            "type": "choice",
+            "choice": "distinct",
+            "probabilities": {
+              "distinct": 0.69,
+              "unknown": 0.22,
+              "same": 0.09
+            },
+            "confidence": 0.54
+          }
+        },
+        "usage": {
+          "input_tokens": 573,
+          "output_tokens": 39,
+          "cost": 2.4066e-05
+        },
+        "id": "gen-dec-1790300839-PJxc1BNaeI4Laf781e4T",
+        "provider": "TypeSafe"
+      },
+      "created_at": "2026-09-25T01:47:19.626098+00:00",
+      "cache_hit": false
+    }
+  ],
+  "observations": [
+    {
+      "observation_id": "obs_001",
+      "call_id": "jev_001",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": true,
+      "probabilities": null,
+      "noul_value": 0.61,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_001",
+        "synergy_s1a_20240813#s0210"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_002",
+      "call_id": "jev_001",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": true,
+      "probabilities": null,
+      "noul_value": 0.61,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_001",
+        "synergy_s1a_20240813#s0210"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_003",
+      "call_id": "jev_001",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": true,
+      "probabilities": null,
+      "noul_value": 0.55,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_001",
+        "synergy_s1a_20240813#s0210"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_004",
+      "call_id": "jev_001",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.07,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_001",
+        "synergy_s1a_20240813#s0210"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_005",
+      "call_id": "jev_002",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": true,
+      "probabilities": null,
+      "noul_value": 0.69,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_002",
+        "synergy_s1a_20240813#s0121"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_006",
+      "call_id": "jev_002",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": true,
+      "probabilities": null,
+      "noul_value": 0.73,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_002",
+        "synergy_s1a_20240813#s0121"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_007",
+      "call_id": "jev_002",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.37,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_002",
+        "synergy_s1a_20240813#s0121"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_008",
+      "call_id": "jev_002",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.13,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_002",
+        "synergy_s1a_20240813#s0121"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_009",
+      "call_id": "jev_003",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": true,
+      "probabilities": null,
+      "noul_value": 0.64,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_003",
+        "synergy_s1a_20240813#s0255"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_010",
+      "call_id": "jev_003",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": true,
+      "probabilities": null,
+      "noul_value": 0.62,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_003",
+        "synergy_s1a_20240813#s0255"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_011",
+      "call_id": "jev_003",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.42,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_003",
+        "synergy_s1a_20240813#s0255"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_012",
+      "call_id": "jev_003",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.07,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_003",
+        "synergy_s1a_20240813#s0255"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_013",
+      "call_id": "jev_004",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": true,
+      "probabilities": null,
+      "noul_value": 0.64,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_004",
+        "synergy_s1a_20240813#s0255"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_014",
+      "call_id": "jev_004",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": true,
+      "probabilities": null,
+      "noul_value": 0.62,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_004",
+        "synergy_s1a_20240813#s0255"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_015",
+      "call_id": "jev_004",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.42,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_004",
+        "synergy_s1a_20240813#s0255"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_016",
+      "call_id": "jev_004",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.07,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_004",
+        "synergy_s1a_20240813#s0255"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_017",
+      "call_id": "jev_005",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.04,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_009",
+        "synergy_s1a_20240813#s0248"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_018",
+      "call_id": "jev_005",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.14,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_009",
+        "synergy_s1a_20240813#s0248"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_019",
+      "call_id": "jev_005",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.09,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_009",
+        "synergy_s1a_20240813#s0248"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_020",
+      "call_id": "jev_005",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.04,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_009",
+        "synergy_s1a_20240813#s0248"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_021",
+      "call_id": "jev_006",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.02,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_008",
+        "synergy_s1a_20240813#s0199"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_022",
+      "call_id": "jev_006",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.2,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_008",
+        "synergy_s1a_20240813#s0199"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_023",
+      "call_id": "jev_006",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.08,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_008",
+        "synergy_s1a_20240813#s0199"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_024",
+      "call_id": "jev_006",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.03,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_008",
+        "synergy_s1a_20240813#s0199"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_025",
+      "call_id": "jev_007",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.03,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_007",
+        "synergy_s1a_20240813#s0243"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_026",
+      "call_id": "jev_007",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.12,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_007",
+        "synergy_s1a_20240813#s0243"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_027",
+      "call_id": "jev_007",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.11,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_007",
+        "synergy_s1a_20240813#s0243"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_028",
+      "call_id": "jev_007",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.03,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_007",
+        "synergy_s1a_20240813#s0243"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_029",
+      "call_id": "jev_008",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.03,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_012",
+        "synergy_s1a_20240813#s0203"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_030",
+      "call_id": "jev_008",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.12,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_012",
+        "synergy_s1a_20240813#s0203"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_031",
+      "call_id": "jev_008",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.09,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_012",
+        "synergy_s1a_20240813#s0203"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_032",
+      "call_id": "jev_008",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.04,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_012",
+        "synergy_s1a_20240813#s0203"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_033",
+      "call_id": "jev_009",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.03,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_011",
+        "synergy_s1a_20240813#s0197"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_034",
+      "call_id": "jev_009",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.11,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_011",
+        "synergy_s1a_20240813#s0197"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_035",
+      "call_id": "jev_009",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.1,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_011",
+        "synergy_s1a_20240813#s0197"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_036",
+      "call_id": "jev_009",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.04,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_011",
+        "synergy_s1a_20240813#s0197"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_037",
+      "call_id": "jev_010",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.12,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_005",
+        "synergy_s1a_20240813#s0259"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_038",
+      "call_id": "jev_010",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.26,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_005",
+        "synergy_s1a_20240813#s0259"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_039",
+      "call_id": "jev_010",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.2,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_005",
+        "synergy_s1a_20240813#s0259"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_040",
+      "call_id": "jev_010",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.03,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_005",
+        "synergy_s1a_20240813#s0259"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_041",
+      "call_id": "jev_011",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.03,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_006",
+        "synergy_s1a_20240813#s0242"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_042",
+      "call_id": "jev_011",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.1,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_006",
+        "synergy_s1a_20240813#s0242"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_043",
+      "call_id": "jev_011",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.09,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_006",
+        "synergy_s1a_20240813#s0242"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_044",
+      "call_id": "jev_011",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.05,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_006",
+        "synergy_s1a_20240813#s0242"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_045",
+      "call_id": "jev_012",
+      "profile": "candidate_screen",
+      "question_id": "gap_relevance",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.05,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_010",
+        "synergy_s1a_20240813#s0084"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_046",
+      "call_id": "jev_012",
+      "profile": "candidate_screen",
+      "question_id": "usable_evidence",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.16,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_010",
+        "synergy_s1a_20240813#s0084"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_047",
+      "call_id": "jev_012",
+      "profile": "candidate_screen",
+      "question_id": "premise_conflict",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.11,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_010",
+        "synergy_s1a_20240813#s0084"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_048",
+      "call_id": "jev_012",
+      "profile": "candidate_screen",
+      "question_id": "instruction_like_text",
+      "question_version": "3.0.0",
+      "primitive": "noul",
+      "answer": false,
+      "probabilities": null,
+      "noul_value": 0.04,
+      "confidence": null,
+      "subject_ids": [
+        "dep_001",
+        "cand_010",
+        "synergy_s1a_20240813#s0084"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_049",
+      "call_id": "jev_013",
+      "profile": "claim_interpretation",
+      "question_id": "entity_scope",
+      "question_version": "3.0.1",
+      "primitive": "choice",
+      "answer": "target",
+      "probabilities": {
+        "target": 0.99,
+        "unknown": 0.01,
+        "different": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.98,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0207"
+      ],
+      "downstream_disposition": "caused_research_redirect",
+      "disposition_note": "Entity scope confirmed; reused in split findings"
+    },
+    {
+      "observation_id": "obs_050",
+      "call_id": "jev_013",
+      "profile": "claim_interpretation",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "unknown",
+      "probabilities": {
+        "planned_or_expected": 0.01,
+        "alleged_or_requested": 0.0,
+        "imposed_by_court_or_authority": 0.0,
+        "reported_completed": 0.31,
+        "unknown": 0.51,
+        "agreed_contractually": 0.17
+      },
+      "noul_value": null,
+      "confidence": 0.41,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0207"
+      ],
+      "downstream_disposition": "challenged_agent_draft",
+      "disposition_note": "Posture unclear because the claim mixed several facts"
+    },
+    {
+      "observation_id": "obs_051",
+      "call_id": "jev_013",
+      "profile": "claim_interpretation",
+      "question_id": "obligation_status",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "required",
+      "probabilities": {
+        "required": 0.67,
+        "claimed_or_disputed": 0.0,
+        "reported_satisfied": 0.01,
+        "conditional": 0.0,
+        "unknown": 0.32
+      },
+      "noul_value": null,
+      "confidence": 0.58,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0207"
+      ],
+      "downstream_disposition": "caused_research_redirect",
+      "disposition_note": "Required status carried into narrower finding"
+    },
+    {
+      "observation_id": "obs_052",
+      "call_id": "jev_014",
+      "profile": "claim_interpretation",
+      "question_id": "entity_scope",
+      "question_version": "3.0.1",
+      "primitive": "choice",
+      "answer": "target",
+      "probabilities": {
+        "unknown": 0.0,
+        "target": 0.99,
+        "different": 0.01
+      },
+      "noul_value": null,
+      "confidence": 0.98,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0204"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_053",
+      "call_id": "jev_014",
+      "profile": "claim_interpretation",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "agreed_contractually",
+      "probabilities": {
+        "unknown": 0.0,
+        "reported_completed": 0.0,
+        "agreed_contractually": 1.0,
+        "imposed_by_court_or_authority": 0.0,
+        "planned_or_expected": 0.0,
+        "alleged_or_requested": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0204"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_054",
+      "call_id": "jev_014",
+      "profile": "claim_interpretation",
+      "question_id": "obligation_status",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "conditional",
+      "probabilities": {
+        "unknown": 0.05,
+        "required": 0.46,
+        "reported_satisfied": 0.0,
+        "claimed_or_disputed": 0.01,
+        "conditional": 0.48
+      },
+      "noul_value": null,
+      "confidence": 0.36,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0204"
+      ],
+      "downstream_disposition": "overridden_by_agent_with_reason",
+      "disposition_note": "The finding is a restriction (a covenant), not a payment obligation, so required-versus-conditional payment status does not apply. The text makes a repayoff of Knight a precondition to any new debt. The finding claims only that the covenant exists as stated, not that a payment is owed. Whether Knight consents or would enforce is recorded as a missing fact."
+    },
+    {
+      "observation_id": "obs_055",
+      "call_id": "jev_015",
+      "profile": "finding_check",
+      "question_id": "finding_support",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "supports",
+      "probabilities": {
+        "supports": 0.56,
+        "does_not_resolve": 0.4,
+        "contradicts": 0.04
+      },
+      "noul_value": null,
+      "confidence": 0.34,
+      "subject_ids": [
+        "fnd_001"
+      ],
+      "downstream_disposition": "challenged_agent_draft",
+      "disposition_note": "Support ambiguous across combined claims"
+    },
+    {
+      "observation_id": "obs_056",
+      "call_id": "jev_015",
+      "profile": "finding_check",
+      "question_id": "finding_atomicity",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "multiple_claims",
+      "probabilities": {
+        "unclear": 0.0,
+        "multiple_claims": 1.0,
+        "one_claim": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "fnd_001"
+      ],
+      "downstream_disposition": "challenged_agent_draft",
+      "disposition_note": "Multiple claims; split"
+    },
+    {
+      "observation_id": "obs_057",
+      "call_id": "jev_015",
+      "profile": "finding_check",
+      "question_id": "context_sufficiency",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "enough",
+      "probabilities": {
+        "enough": 0.75,
+        "missing_definition": 0.0,
+        "missing_target_context": 0.01,
+        "missing_condition_or_timing": 0.02,
+        "unclear": 0.22
+      },
+      "noul_value": null,
+      "confidence": 0.69,
+      "subject_ids": [
+        "fnd_001"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_058",
+      "call_id": "jev_015",
+      "profile": "finding_check",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "existing_cash_obligation",
+      "probabilities": {
+        "no_direct_financial_premise": 0.0,
+        "operating_change": 0.0,
+        "cash_access_constraint": 0.0,
+        "existing_cash_obligation": 1.0,
+        "noncash_accounting_item": 0.0,
+        "financing_or_reimbursement": 0.0,
+        "unclear": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "fnd_001"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_059",
+      "call_id": "jev_016",
+      "profile": "claim_interpretation",
+      "question_id": "entity_scope",
+      "question_version": "3.0.1",
+      "primitive": "choice",
+      "answer": "target",
+      "probabilities": {
+        "unknown": 0.0,
+        "target": 0.99,
+        "different": 0.01
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0207"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_060",
+      "call_id": "jev_016",
+      "profile": "claim_interpretation",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "agreed_contractually",
+      "probabilities": {
+        "agreed_contractually": 0.99,
+        "unknown": 0.0,
+        "planned_or_expected": 0.01,
+        "alleged_or_requested": 0.0,
+        "imposed_by_court_or_authority": 0.0,
+        "reported_completed": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.98,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0207"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_061",
+      "call_id": "jev_016",
+      "profile": "claim_interpretation",
+      "question_id": "obligation_status",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "required",
+      "probabilities": {
+        "unknown": 0.0,
+        "claimed_or_disputed": 0.0,
+        "reported_satisfied": 0.0,
+        "conditional": 0.0,
+        "required": 1.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0207"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_062",
+      "call_id": "jev_017",
+      "profile": "finding_check",
+      "question_id": "finding_support",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "supports",
+      "probabilities": {
+        "does_not_resolve": 0.02,
+        "supports": 0.98,
+        "contradicts": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.98,
+      "subject_ids": [
+        "fnd_002"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_063",
+      "call_id": "jev_017",
+      "profile": "finding_check",
+      "question_id": "finding_atomicity",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "one_claim",
+      "probabilities": {
+        "one_claim": 0.98,
+        "multiple_claims": 0.02,
+        "unclear": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.97,
+      "subject_ids": [
+        "fnd_002"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_064",
+      "call_id": "jev_017",
+      "profile": "finding_check",
+      "question_id": "context_sufficiency",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "enough",
+      "probabilities": {
+        "missing_definition": 0.0,
+        "enough": 0.99,
+        "missing_target_context": 0.0,
+        "unclear": 0.0,
+        "missing_condition_or_timing": 0.01
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "fnd_002"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_065",
+      "call_id": "jev_017",
+      "profile": "finding_check",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "existing_cash_obligation",
+      "probabilities": {
+        "no_direct_financial_premise": 0.0,
+        "cash_access_constraint": 0.0,
+        "operating_change": 0.0,
+        "noncash_accounting_item": 0.0,
+        "financing_or_reimbursement": 0.0,
+        "unclear": 0.0,
+        "existing_cash_obligation": 1.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_002"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_066",
+      "call_id": "jev_018",
+      "profile": "claim_interpretation",
+      "question_id": "entity_scope",
+      "question_version": "3.0.1",
+      "primitive": "choice",
+      "answer": "target",
+      "probabilities": {
+        "unknown": 0.0,
+        "target": 1.0,
+        "different": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0210"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_067",
+      "call_id": "jev_018",
+      "profile": "claim_interpretation",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "reported_completed",
+      "probabilities": {
+        "planned_or_expected": 0.0,
+        "alleged_or_requested": 0.0,
+        "unknown": 0.0,
+        "agreed_contractually": 0.23,
+        "reported_completed": 0.77,
+        "imposed_by_court_or_authority": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.72,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0210"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_068",
+      "call_id": "jev_018",
+      "profile": "claim_interpretation",
+      "question_id": "obligation_status",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "required",
+      "probabilities": {
+        "reported_satisfied": 0.0,
+        "claimed_or_disputed": 0.0,
+        "unknown": 0.0,
+        "conditional": 0.0,
+        "required": 1.0
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0210"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_069",
+      "call_id": "jev_019",
+      "profile": "finding_check",
+      "question_id": "finding_support",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "supports",
+      "probabilities": {
+        "does_not_resolve": 0.03,
+        "contradicts": 0.0,
+        "supports": 0.97
+      },
+      "noul_value": null,
+      "confidence": 0.95,
+      "subject_ids": [
+        "fnd_003"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_070",
+      "call_id": "jev_019",
+      "profile": "finding_check",
+      "question_id": "finding_atomicity",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "multiple_claims",
+      "probabilities": {
+        "one_claim": 0.14,
+        "multiple_claims": 0.86,
+        "unclear": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.79,
+      "subject_ids": [
+        "fnd_003"
+      ],
+      "downstream_disposition": "overridden_by_agent_with_reason",
+      "disposition_note": "The single proposition is the identity of the Atrium settlement loan with the Note 11 loan. The balance figure is the evidence that links them (row label and amount match), not an independent claim. The finding is marked as an inference."
+    },
+    {
+      "observation_id": "obs_071",
+      "call_id": "jev_019",
+      "profile": "finding_check",
+      "question_id": "context_sufficiency",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "enough",
+      "probabilities": {
+        "missing_target_context": 0.0,
+        "missing_definition": 0.0,
+        "unclear": 0.0,
+        "enough": 1.0,
+        "missing_condition_or_timing": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_003"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_072",
+      "call_id": "jev_019",
+      "profile": "finding_check",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "existing_cash_obligation",
+      "probabilities": {
+        "operating_change": 0.0,
+        "noncash_accounting_item": 0.0,
+        "no_direct_financial_premise": 0.0,
+        "financing_or_reimbursement": 0.0,
+        "cash_access_constraint": 0.0,
+        "existing_cash_obligation": 1.0,
+        "unclear": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "fnd_003"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_073",
+      "call_id": "jev_020",
+      "profile": "claim_interpretation",
+      "question_id": "entity_scope",
+      "question_version": "3.0.1",
+      "primitive": "choice",
+      "answer": "target",
+      "probabilities": {
+        "target": 1.0,
+        "different": 0.0,
+        "unknown": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0210"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_074",
+      "call_id": "jev_020",
+      "profile": "claim_interpretation",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "reported_completed",
+      "probabilities": {
+        "imposed_by_court_or_authority": 0.0,
+        "reported_completed": 0.95,
+        "alleged_or_requested": 0.0,
+        "unknown": 0.02,
+        "planned_or_expected": 0.0,
+        "agreed_contractually": 0.03
+      },
+      "noul_value": null,
+      "confidence": 0.94,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0210"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_075",
+      "call_id": "jev_021",
+      "profile": "claim_interpretation",
+      "question_id": "entity_scope",
+      "question_version": "3.0.1",
+      "primitive": "choice",
+      "answer": "target",
+      "probabilities": {
+        "target": 1.0,
+        "different": 0.0,
+        "unknown": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0208"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_076",
+      "call_id": "jev_021",
+      "profile": "claim_interpretation",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "agreed_contractually",
+      "probabilities": {
+        "reported_completed": 0.0,
+        "imposed_by_court_or_authority": 0.0,
+        "alleged_or_requested": 0.0,
+        "planned_or_expected": 0.03,
+        "unknown": 0.0,
+        "agreed_contractually": 0.97
+      },
+      "noul_value": null,
+      "confidence": 0.96,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0208"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_077",
+      "call_id": "jev_021",
+      "profile": "claim_interpretation",
+      "question_id": "obligation_status",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "required",
+      "probabilities": {
+        "claimed_or_disputed": 0.0,
+        "required": 0.99,
+        "reported_satisfied": 0.01,
+        "conditional": 0.0,
+        "unknown": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0208"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_078",
+      "call_id": "jev_022",
+      "profile": "finding_check",
+      "question_id": "finding_support",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "does_not_resolve",
+      "probabilities": {
+        "supports": 0.31,
+        "contradicts": 0.01,
+        "does_not_resolve": 0.68
+      },
+      "noul_value": null,
+      "confidence": 0.51,
+      "subject_ids": [
+        "fnd_004"
+      ],
+      "downstream_disposition": "challenged_agent_draft",
+      "disposition_note": "Noncash characterization not stated verbatim"
+    },
+    {
+      "observation_id": "obs_079",
+      "call_id": "jev_022",
+      "profile": "finding_check",
+      "question_id": "finding_atomicity",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "multiple_claims",
+      "probabilities": {
+        "unclear": 0.0,
+        "multiple_claims": 0.91,
+        "one_claim": 0.09
+      },
+      "noul_value": null,
+      "confidence": 0.86,
+      "subject_ids": [
+        "fnd_004"
+      ],
+      "downstream_disposition": "challenged_agent_draft",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_080",
+      "call_id": "jev_022",
+      "profile": "finding_check",
+      "question_id": "context_sufficiency",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "enough",
+      "probabilities": {
+        "missing_condition_or_timing": 0.02,
+        "missing_target_context": 0.0,
+        "enough": 0.73,
+        "unclear": 0.24,
+        "missing_definition": 0.01
+      },
+      "noul_value": null,
+      "confidence": 0.67,
+      "subject_ids": [
+        "fnd_004"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_081",
+      "call_id": "jev_022",
+      "profile": "finding_check",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "noncash_accounting_item",
+      "probabilities": {
+        "existing_cash_obligation": 0.0,
+        "financing_or_reimbursement": 0.0,
+        "no_direct_financial_premise": 0.0,
+        "operating_change": 0.0,
+        "unclear": 0.0,
+        "cash_access_constraint": 0.0,
+        "noncash_accounting_item": 1.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_004"
+      ],
+      "downstream_disposition": "caused_research_redirect",
+      "disposition_note": "Jev classifies the item as a noncash accounting item; used in the restated finding"
+    },
+    {
+      "observation_id": "obs_082",
+      "call_id": "jev_023",
+      "profile": "finding_check",
+      "question_id": "finding_support",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "supports",
+      "probabilities": {
+        "supports": 0.98,
+        "does_not_resolve": 0.01,
+        "contradicts": 0.01
+      },
+      "noul_value": null,
+      "confidence": 0.97,
+      "subject_ids": [
+        "fnd_005"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_083",
+      "call_id": "jev_023",
+      "profile": "finding_check",
+      "question_id": "finding_atomicity",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "one_claim",
+      "probabilities": {
+        "unclear": 0.0,
+        "multiple_claims": 0.03,
+        "one_claim": 0.97
+      },
+      "noul_value": null,
+      "confidence": 0.96,
+      "subject_ids": [
+        "fnd_005"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_084",
+      "call_id": "jev_023",
+      "profile": "finding_check",
+      "question_id": "context_sufficiency",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "enough",
+      "probabilities": {
+        "missing_condition_or_timing": 0.01,
+        "missing_definition": 0.0,
+        "unclear": 0.0,
+        "enough": 0.99,
+        "missing_target_context": 0.0
+      },
+      "noul_value": null,
+      "confidence": 0.98,
+      "subject_ids": [
+        "fnd_005"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_085",
+      "call_id": "jev_023",
+      "profile": "finding_check",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "existing_cash_obligation",
+      "probabilities": {
+        "no_direct_financial_premise": 0.0,
+        "cash_access_constraint": 0.0,
+        "unclear": 0.0,
+        "operating_change": 0.0,
+        "financing_or_reimbursement": 0.0,
+        "existing_cash_obligation": 1.0,
+        "noncash_accounting_item": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_005"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_086",
+      "call_id": "jev_024",
+      "profile": "finding_check",
+      "question_id": "finding_support",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "supports",
+      "probabilities": {
+        "contradicts": 0.0,
+        "does_not_resolve": 0.0,
+        "supports": 1.0
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "fnd_006"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_087",
+      "call_id": "jev_024",
+      "profile": "finding_check",
+      "question_id": "finding_atomicity",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "one_claim",
+      "probabilities": {
+        "unclear": 0.0,
+        "one_claim": 0.85,
+        "multiple_claims": 0.15
+      },
+      "noul_value": null,
+      "confidence": 0.77,
+      "subject_ids": [
+        "fnd_006"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_088",
+      "call_id": "jev_024",
+      "profile": "finding_check",
+      "question_id": "context_sufficiency",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "enough",
+      "probabilities": {
+        "unclear": 0.0,
+        "missing_condition_or_timing": 0.0,
+        "enough": 1.0,
+        "missing_target_context": 0.0,
+        "missing_definition": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_006"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_089",
+      "call_id": "jev_024",
+      "profile": "finding_check",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "noncash_accounting_item",
+      "probabilities": {
+        "unclear": 0.0,
+        "financing_or_reimbursement": 0.0,
+        "cash_access_constraint": 0.0,
+        "no_direct_financial_premise": 0.0,
+        "existing_cash_obligation": 0.0,
+        "noncash_accounting_item": 1.0,
+        "operating_change": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_006"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": "Supports noncash_normalization treatment"
+    },
+    {
+      "observation_id": "obs_090",
+      "call_id": "jev_025",
+      "profile": "finding_check",
+      "question_id": "finding_support",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "supports",
+      "probabilities": {
+        "does_not_resolve": 0.0,
+        "contradicts": 0.0,
+        "supports": 1.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_007"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_091",
+      "call_id": "jev_025",
+      "profile": "finding_check",
+      "question_id": "finding_atomicity",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "one_claim",
+      "probabilities": {
+        "multiple_claims": 0.02,
+        "unclear": 0.0,
+        "one_claim": 0.98
+      },
+      "noul_value": null,
+      "confidence": 0.97,
+      "subject_ids": [
+        "fnd_007"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_092",
+      "call_id": "jev_025",
+      "profile": "finding_check",
+      "question_id": "context_sufficiency",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "enough",
+      "probabilities": {
+        "missing_definition": 0.0,
+        "missing_condition_or_timing": 0.0,
+        "missing_target_context": 0.0,
+        "unclear": 0.0,
+        "enough": 1.0
+      },
+      "noul_value": null,
+      "confidence": 0.99,
+      "subject_ids": [
+        "fnd_007"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_093",
+      "call_id": "jev_025",
+      "profile": "finding_check",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "cash_access_constraint",
+      "probabilities": {
+        "financing_or_reimbursement": 0.08,
+        "operating_change": 0.0,
+        "noncash_accounting_item": 0.0,
+        "cash_access_constraint": 0.87,
+        "no_direct_financial_premise": 0.0,
+        "unclear": 0.0,
+        "existing_cash_obligation": 0.05
+      },
+      "noul_value": null,
+      "confidence": 0.84,
+      "subject_ids": [
+        "fnd_007"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": "Supports funding_constraint mechanism"
+    },
+    {
+      "observation_id": "obs_094",
+      "call_id": "jev_026",
+      "profile": "claim_interpretation",
+      "question_id": "entity_scope",
+      "question_version": "3.0.1",
+      "primitive": "choice",
+      "answer": "target",
+      "probabilities": {
+        "target": 1.0,
+        "different": 0.0,
+        "unknown": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0121"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_095",
+      "call_id": "jev_026",
+      "profile": "claim_interpretation",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "reported_completed",
+      "probabilities": {
+        "imposed_by_court_or_authority": 0.0,
+        "reported_completed": 1.0,
+        "planned_or_expected": 0.0,
+        "agreed_contractually": 0.0,
+        "alleged_or_requested": 0.0,
+        "unknown": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0121"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_096",
+      "call_id": "jev_026",
+      "profile": "claim_interpretation",
+      "question_id": "obligation_status",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "reported_satisfied",
+      "probabilities": {
+        "required": 0.0,
+        "reported_satisfied": 1.0,
+        "conditional": 0.0,
+        "claimed_or_disputed": 0.0,
+        "unknown": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0121"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_097",
+      "call_id": "jev_027",
+      "profile": "claim_interpretation",
+      "question_id": "entity_scope",
+      "question_version": "3.0.1",
+      "primitive": "choice",
+      "answer": "target",
+      "probabilities": {
+        "different": 0.0,
+        "target": 1.0,
+        "unknown": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0121"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_098",
+      "call_id": "jev_027",
+      "profile": "claim_interpretation",
+      "question_id": "claim_posture",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "reported_completed",
+      "probabilities": {
+        "unknown": 0.0,
+        "imposed_by_court_or_authority": 0.0,
+        "planned_or_expected": 0.0,
+        "alleged_or_requested": 0.0,
+        "reported_completed": 1.0,
+        "agreed_contractually": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0121"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_099",
+      "call_id": "jev_027",
+      "profile": "claim_interpretation",
+      "question_id": "obligation_status",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "reported_satisfied",
+      "probabilities": {
+        "unknown": 0.0,
+        "claimed_or_disputed": 0.0,
+        "required": 0.0,
+        "reported_satisfied": 1.0,
+        "conditional": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "synergy_s1a_20240813#s0121"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_100",
+      "call_id": "jev_028",
+      "profile": "finding_check",
+      "question_id": "finding_support",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "supports",
+      "probabilities": {
+        "supports": 1.0,
+        "contradicts": 0.0,
+        "does_not_resolve": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_008"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_101",
+      "call_id": "jev_028",
+      "profile": "finding_check",
+      "question_id": "finding_atomicity",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "multiple_claims",
+      "probabilities": {
+        "one_claim": 0.48,
+        "unclear": 0.0,
+        "multiple_claims": 0.52
+      },
+      "noul_value": null,
+      "confidence": 0.28,
+      "subject_ids": [
+        "fnd_008"
+      ],
+      "downstream_disposition": "overridden_by_agent_with_reason",
+      "disposition_note": "One payment event: full payment of the LODC settlement. 'May 2024' is when it happened, not a separate claim. The text is a verbatim restatement of one sentence."
+    },
+    {
+      "observation_id": "obs_102",
+      "call_id": "jev_028",
+      "profile": "finding_check",
+      "question_id": "context_sufficiency",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "enough",
+      "probabilities": {
+        "missing_condition_or_timing": 0.0,
+        "missing_target_context": 0.0,
+        "missing_definition": 0.0,
+        "enough": 1.0,
+        "unclear": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_008"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_103",
+      "call_id": "jev_028",
+      "profile": "finding_check",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "existing_cash_obligation",
+      "probabilities": {
+        "operating_change": 0.0,
+        "cash_access_constraint": 0.0,
+        "noncash_accounting_item": 0.0,
+        "no_direct_financial_premise": 0.0,
+        "existing_cash_obligation": 1.0,
+        "unclear": 0.0,
+        "financing_or_reimbursement": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_008"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": "The obligation existed but is reported satisfied, so it is treated as resolved_obligation"
+    },
+    {
+      "observation_id": "obs_104",
+      "call_id": "jev_029",
+      "profile": "finding_check",
+      "question_id": "finding_support",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "supports",
+      "probabilities": {
+        "supports": 1.0,
+        "does_not_resolve": 0.0,
+        "contradicts": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_009"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_105",
+      "call_id": "jev_029",
+      "profile": "finding_check",
+      "question_id": "finding_atomicity",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "one_claim",
+      "probabilities": {
+        "unclear": 0.0,
+        "multiple_claims": 0.35,
+        "one_claim": 0.65
+      },
+      "noul_value": null,
+      "confidence": 0.47,
+      "subject_ids": [
+        "fnd_009"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_106",
+      "call_id": "jev_029",
+      "profile": "finding_check",
+      "question_id": "context_sufficiency",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "enough",
+      "probabilities": {
+        "missing_condition_or_timing": 0.0,
+        "unclear": 0.0,
+        "enough": 1.0,
+        "missing_target_context": 0.0,
+        "missing_definition": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_009"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_107",
+      "call_id": "jev_029",
+      "profile": "finding_check",
+      "question_id": "economic_role",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "existing_cash_obligation",
+      "probabilities": {
+        "operating_change": 0.0,
+        "cash_access_constraint": 0.0,
+        "unclear": 0.0,
+        "noncash_accounting_item": 0.0,
+        "existing_cash_obligation": 1.0,
+        "no_direct_financial_premise": 0.0,
+        "financing_or_reimbursement": 0.0
+      },
+      "noul_value": null,
+      "confidence": 1.0,
+      "subject_ids": [
+        "fnd_009"
+      ],
+      "downstream_disposition": "used_in_finding",
+      "disposition_note": "Reported satisfied, so treated as resolved_obligation"
+    },
+    {
+      "observation_id": "obs_108",
+      "call_id": "jev_030",
+      "profile": "statement_relation",
+      "question_id": "baseline_overlap",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "distinct",
+      "probabilities": {
+        "same": 0.07,
+        "distinct": 0.67,
+        "unknown": 0.26
+      },
+      "noul_value": null,
+      "confidence": 0.51,
+      "subject_ids": [
+        "eff_001"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    },
+    {
+      "observation_id": "obs_109",
+      "call_id": "jev_031",
+      "profile": "statement_relation",
+      "question_id": "baseline_overlap",
+      "question_version": "3.0.0",
+      "primitive": "choice",
+      "answer": "distinct",
+      "probabilities": {
+        "distinct": 0.69,
+        "unknown": 0.22,
+        "same": 0.09
+      },
+      "noul_value": null,
+      "confidence": 0.54,
+      "subject_ids": [
+        "eff_002"
+      ],
+      "downstream_disposition": "unused",
+      "disposition_note": ""
+    }
+  ],
+  "findings": [
+    {
+      "finding_id": "fnd_001",
+      "dependency_id": "dep_001",
+      "proposition": "The December 2023 settlement of Synergy CHC Corp. v. HVL, LLC d/b/a Atrium Innovations created a loan payable of $5,450,000. At June 30, 2024 the outstanding balance was $4,802,445, and the schedule requires $2,000,000 in 2024, $2,000,000 in 2025 and $802,445 in 2026. Linking the Note 11 '$5,450,000 December 28, 2023 Loan' (described as a settlement with a 'former supplier') to Atrium, and to the 'Atrium' row in the notes-payable table, is an inference based on Note 13's cross-reference and the matching $5,450,000 and $4,802,445 amounts. The unchanged balance between Dec 31, 2023 and June 30, 2024 suggests that none of the 2024 installment was paid by June 30 (also an inference).",
+      "target": "Synergy CHC Corp. settlement payment obligation to HVL, LLC d/b/a Atrium Innovations",
+      "subject_kind": "obligation",
+      "subject": "$5,450,000 December 28, 2023 settlement loan (Note 11 row 'Atrium')",
+      "is_inference": true,
+      "spans": [
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0210",
+          "item_id": "synergy_s1a_20240813#s0210",
+          "start": 912,
+          "end": 1099,
+          "quote": "The case was settled during December 2023, resulting in a net gain to the company of $2,235,986, reflected as a reduction of cost of sales, and a loan payable of $5,450,000 (see Note 11)."
+        },
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0207",
+          "item_id": "synergy_s1a_20240813#s0207",
+          "start": 2610,
+          "end": 2829,
+          "quote": "On December 28, 2023, the Company entered into a confidential settlement agreement and mutual general release with a former supplier. The loan bears interest at 5% per annum and is payable in full with the last payment."
+        },
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0207",
+          "item_id": "synergy_s1a_20240813#s0207",
+          "start": 3030,
+          "end": 3150,
+          "quote": "The outstanding loan balance at both June 30, 2024 and December 31, 2023 was $4,802,445, including interest of $352,445."
+        },
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0207",
+          "item_id": "synergy_s1a_20240813#s0207",
+          "start": 3242,
+          "end": 3263,
+          "quote": "| 2024 | $2,000,000 |"
+        },
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0201",
+          "item_id": "synergy_s1a_20240813#s0201",
+          "start": 271,
+          "end": 305,
+          "quote": "| Atrium | 4,802,445 | 4,802,445 |"
+        }
+      ],
+      "observation_ids": [
+        "obs_049",
+        "obs_050",
+        "obs_051",
+        "obs_055",
+        "obs_056",
+        "obs_057",
+        "obs_058"
+      ],
+      "status": "rejected",
+      "resolution_note": "Rejected as non-atomic; will be split into (a) the settlement-to-loan link and (b) the 2024 scheduled amount."
+    },
+    {
+      "finding_id": "fnd_002",
+      "dependency_id": "dep_001",
+      "proposition": "Under the December 28, 2023 settlement loan's future payment schedule, Synergy CHC Corp. must pay $2,000,000 during calendar 2024.",
+      "target": "Synergy CHC Corp. 2024 scheduled payment on the $5,450,000 December 28, 2023 settlement loan",
+      "subject_kind": "obligation",
+      "subject": "2024 installment of the December 28, 2023 settlement loan",
+      "is_inference": false,
+      "spans": [
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0207",
+          "item_id": "synergy_s1a_20240813#s0207",
+          "start": 2574,
+          "end": 2608,
+          "quote": "$5,450,000 December 28, 2023 Loan:"
+        },
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0207",
+          "item_id": "synergy_s1a_20240813#s0207",
+          "start": 3242,
+          "end": 3263,
+          "quote": "| 2024 | $2,000,000 |"
+        }
+      ],
+      "observation_ids": [
+        "obs_059",
+        "obs_060",
+        "obs_061",
+        "obs_062",
+        "obs_063",
+        "obs_064",
+        "obs_065"
+      ],
+      "status": "accepted",
+      "resolution_note": ""
+    },
+    {
+      "finding_id": "fnd_003",
+      "dependency_id": "dep_001",
+      "proposition": "The Atrium settlement loan payable is the Note 11 '$5,450,000 December 28, 2023 Loan', which had a $4,802,445 balance at June 30, 2024. This is an inference: Note 13 cross-references Note 11, and the notes-payable table's 'Atrium' row matches that loan's $4,802,445 balance.",
+      "target": "Synergy CHC Corp. loan payable arising from settlement with HVL, LLC d/b/a Atrium Innovations",
+      "subject_kind": "obligation",
+      "subject": "Atrium settlement loan payable",
+      "is_inference": true,
+      "spans": [
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0210",
+          "item_id": "synergy_s1a_20240813#s0210",
+          "start": 912,
+          "end": 1099,
+          "quote": "The case was settled during December 2023, resulting in a net gain to the company of $2,235,986, reflected as a reduction of cost of sales, and a loan payable of $5,450,000 (see Note 11)."
+        },
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0207",
+          "item_id": "synergy_s1a_20240813#s0207",
+          "start": 3030,
+          "end": 3150,
+          "quote": "The outstanding loan balance at both June 30, 2024 and December 31, 2023 was $4,802,445, including interest of $352,445."
+        },
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0201",
+          "item_id": "synergy_s1a_20240813#s0201",
+          "start": 271,
+          "end": 305,
+          "quote": "| Atrium | 4,802,445 | 4,802,445 |"
+        }
+      ],
+      "observation_ids": [
+        "obs_066",
+        "obs_067",
+        "obs_068",
+        "obs_069",
+        "obs_070",
+        "obs_071",
+        "obs_072"
+      ],
+      "status": "accepted",
+      "resolution_note": "Accepted as an inference-marked identity link. The $4,802,445 balance is the matching key for the identity, not a separate claim."
+    },
+    {
+      "finding_id": "fnd_004",
+      "dependency_id": "dep_001",
+      "proposition": "Synergy recorded the $2,235,986 net gain from the Atrium settlement as a reduction of cost of sales, which is an accounting entry and not a cash receipt.",
+      "target": "Synergy CHC Corp. $2,235,986 settlement gain recorded on HVL/Atrium settlement",
+      "subject_kind": "other",
+      "subject": "Atrium settlement net gain",
+      "is_inference": false,
+      "spans": [
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0210",
+          "item_id": "synergy_s1a_20240813#s0210",
+          "start": 955,
+          "end": 1050,
+          "quote": "resulting in a net gain to the company of $2,235,986, reflected as a reduction of cost of sales"
+        }
+      ],
+      "observation_ids": [
+        "obs_073",
+        "obs_074",
+        "obs_078",
+        "obs_079",
+        "obs_080",
+        "obs_081"
+      ],
+      "status": "rejected",
+      "resolution_note": "The passage does not say 'not a cash receipt'. Restating it as the reported accounting treatment only."
+    },
+    {
+      "finding_id": "fnd_005",
+      "dependency_id": "dep_002",
+      "proposition": "Under the March 27, 2024 supplier settlement loan's future payment schedule, Synergy CHC Corp. must pay $600,000 during calendar 2024.",
+      "target": "Synergy CHC Corp. 2024 scheduled payment on the $3,020,824 March 27, 2024 supplier settlement loan",
+      "subject_kind": "obligation",
+      "subject": "2024 installment of March 27, 2024 settlement loan",
+      "is_inference": false,
+      "spans": [
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0208",
+          "item_id": "synergy_s1a_20240813#s0208",
+          "start": 482,
+          "end": 605,
+          "quote": "On March 27, 2024, the Company entered into a confidential settlement agreement and mutual general release with a supplier."
+        },
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0208",
+          "item_id": "synergy_s1a_20240813#s0208",
+          "start": 829,
+          "end": 848,
+          "quote": "| 2024 | $600,000 |"
+        }
+      ],
+      "observation_ids": [
+        "obs_075",
+        "obs_076",
+        "obs_077",
+        "obs_082",
+        "obs_083",
+        "obs_084",
+        "obs_085"
+      ],
+      "status": "accepted",
+      "resolution_note": ""
+    },
+    {
+      "finding_id": "fnd_006",
+      "dependency_id": "dep_001",
+      "proposition": "Synergy reported the $2,235,986 net gain on the Atrium settlement as a reduction of cost of sales.",
+      "target": "Synergy CHC Corp. $2,235,986 settlement gain recorded on HVL/Atrium settlement",
+      "subject_kind": "other",
+      "subject": "Atrium settlement net gain",
+      "is_inference": false,
+      "spans": [
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0210",
+          "item_id": "synergy_s1a_20240813#s0210",
+          "start": 955,
+          "end": 1050,
+          "quote": "resulting in a net gain to the company of $2,235,986, reflected as a reduction of cost of sales"
+        }
+      ],
+      "observation_ids": [
+        "obs_073",
+        "obs_074",
+        "obs_086",
+        "obs_087",
+        "obs_088",
+        "obs_089"
+      ],
+      "status": "accepted",
+      "resolution_note": ""
+    },
+    {
+      "finding_id": "fnd_007",
+      "dependency_id": "dep_003",
+      "proposition": "The amended Knight Therapeutics loan terms state that Synergy shall not add any other debt without first paying out Knight (KTI).",
+      "target": "Synergy CHC Corp. negative covenant in amended Knight Therapeutics senior secured loan (no additional debt without paying out KTI)",
+      "subject_kind": "obligation",
+      "subject": "Knight Therapeutics consolidated secured loan",
+      "is_inference": false,
+      "spans": [
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0204",
+          "item_id": "synergy_s1a_20240813#s0204",
+          "start": 2364,
+          "end": 2609,
+          "quote": "Security: This loan shall be senior secured against all current and future assets (cash, intellectual property, real property, etc.) of Synergy, its affiliates, and subsidiaries. Synergy shall not add any other debt without paying out KTI first."
+        }
+      ],
+      "observation_ids": [
+        "obs_052",
+        "obs_053",
+        "obs_054",
+        "obs_090",
+        "obs_091",
+        "obs_092",
+        "obs_093"
+      ],
+      "status": "accepted",
+      "resolution_note": ""
+    },
+    {
+      "finding_id": "fnd_008",
+      "dependency_id": "dep_004",
+      "proposition": "Synergy paid the L.O.D.C. Group settlement in full in May 2024.",
+      "target": "Synergy CHC Corp. settlement payment to L.O.D.C. Group, Ltd.",
+      "subject_kind": "obligation",
+      "subject": "LODC confidential settlement",
+      "is_inference": false,
+      "spans": [
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0121",
+          "item_id": "synergy_s1a_20240813#s0121",
+          "start": 2735,
+          "end": 2814,
+          "quote": "During May 2024, the Company paid in full the settlement to L.O.D.C Group, Ltd."
+        }
+      ],
+      "observation_ids": [
+        "obs_094",
+        "obs_095",
+        "obs_096",
+        "obs_100",
+        "obs_101",
+        "obs_102",
+        "obs_103"
+      ],
+      "status": "accepted",
+      "resolution_note": ""
+    },
+    {
+      "finding_id": "fnd_009",
+      "dependency_id": "dep_004",
+      "proposition": "Synergy fully paid the $340,000 Valenti settlement during 2023.",
+      "target": "Synergy CHC Corp. $340,000 settlement payment to Barbara Valenti",
+      "subject_kind": "obligation",
+      "subject": "Valenti settlement",
+      "is_inference": false,
+      "spans": [
+        {
+          "source_id": "synergy_s1a_20240813",
+          "section_id": "synergy_s1a_20240813#s0121",
+          "item_id": "synergy_s1a_20240813#s0121",
+          "start": 1199,
+          "end": 1258,
+          "quote": "During 2023, we fully paid the $340,000, per the agreement."
+        }
+      ],
+      "observation_ids": [
+        "obs_097",
+        "obs_098",
+        "obs_099",
+        "obs_104",
+        "obs_105",
+        "obs_106",
+        "obs_107"
+      ],
+      "status": "accepted",
+      "resolution_note": ""
+    }
+  ],
+  "reconciliations": [],
+  "effects": [
+    {
+      "effect_id": "eff_001",
+      "finding_ids": [
+        "fnd_002",
+        "fnd_003"
+      ],
+      "mechanism": "settlement_payment_timing",
+      "target": "Synergy CHC Corp. 2024 installment on Atrium settlement loan ($5,450,000 Dec 28, 2023 loan)",
+      "cash_direction": "outflow",
+      "baseline_treatment": "already_in_baseline_reclassify_timing",
+      "parameters": [
+        {
+          "name": "remaining_current_year_bucket_cents",
+          "description": "Scheduled 2024 payment on Atrium settlement loan as of June 30, 2024 schedule",
+          "status": "known",
+          "value": {
+            "status": "exact",
+            "unit": "USD_cents",
+            "value": 200000000,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "documented_evidence",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Scheduled 2024 payment on Atrium settlement loan as of June 30, 2024 schedule"
+            }
+          },
+          "finding_ids": [
+            "fnd_002"
+          ],
+          "resolves_via": ""
+        },
+        {
+          "name": "paid_between_20240630_and_20240813_cents",
+          "description": "Portion of 2024 installment paid after June 30, 2024 and before decision date",
+          "status": "unknown",
+          "value": null,
+          "finding_ids": [],
+          "resolves_via": "Borrower payment records / Atrium settlement payment schedule with dates"
+        },
+        {
+          "name": "installment_due_dates_2024",
+          "description": "Specific due dates of the 2024 installment(s) within Aug 13 - Dec 31, 2024",
+          "status": "unknown",
+          "value": null,
+          "finding_ids": [],
+          "resolves_via": "Confidential settlement agreement terms"
+        }
+      ],
+      "linked_effect_ids": [],
+      "double_count_guard": "This installment is already part of the $31,514,434 total notes payable (Atrium row $4,802,445) and very likely part of the ~$4.1M of indebtedness due in 2024. Schedule it once as a dated outflow inside that aggregate; do not add it on top of the $4.1M.",
+      "model_consequence": "Up to $2.0M of settlement cash is due by Dec 31, 2024, against about $2.0M of reported cash on Aug 12, 2024. Unless part of it was already paid, this installment alone could use up all reported cash before the $200K reserve and the ~$44K monthly payments on the $250K advance are covered.",
+      "status": "validated",
+      "validation_messages": []
+    },
+    {
+      "effect_id": "eff_002",
+      "finding_ids": [
+        "fnd_005"
+      ],
+      "mechanism": "settlement_payment_timing",
+      "target": "Synergy CHC Corp. 2024 installment on March 27, 2024 supplier settlement loan ($3,020,824)",
+      "cash_direction": "outflow",
+      "baseline_treatment": "already_in_baseline_reclassify_timing",
+      "parameters": [
+        {
+          "name": "remaining_current_year_bucket_cents",
+          "description": "Scheduled 2024 payment on the March 27, 2024 settlement loan, per the June 30, 2024 schedule",
+          "status": "known",
+          "value": {
+            "status": "exact",
+            "unit": "USD_cents",
+            "value": 60000000,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "documented_evidence",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Scheduled 2024 payment on the March 27, 2024 settlement loan, per the June 30, 2024 schedule"
+            }
+          },
+          "finding_ids": [
+            "fnd_005"
+          ],
+          "resolves_via": ""
+        },
+        {
+          "name": "paid_between_20240630_and_20240813_cents",
+          "description": "Portion paid after June 30, 2024",
+          "status": "unknown",
+          "value": null,
+          "finding_ids": [],
+          "resolves_via": "Borrower payment records"
+        }
+      ],
+      "linked_effect_ids": [],
+      "double_count_guard": "Already inside total notes payable (inferred to be the 'VitBest' row, $2,920,824) and likely inside the ~$4.1M due in 2024. Schedule it once.",
+      "model_consequence": "Adds up to $600K of 2024 settlement outflow that competes with the advance's payments.",
+      "status": "validated",
+      "validation_messages": []
+    },
+    {
+      "effect_id": "eff_003",
+      "finding_ids": [
+        "fnd_006"
+      ],
+      "mechanism": "noncash_normalization",
+      "target": "Synergy CHC Corp. $2,235,986 Atrium settlement gain in cost of sales (FY2023)",
+      "cash_direction": "none",
+      "baseline_treatment": "normalization_only",
+      "parameters": [
+        {
+          "name": "settlement_gain_cents",
+          "description": "Non-recurring gain credited to cost of sales in FY2023",
+          "status": "known",
+          "value": {
+            "status": "exact",
+            "unit": "USD_cents",
+            "value": 223598600,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "documented_evidence",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Non-recurring gain credited to cost of sales in FY2023"
+            }
+          },
+          "finding_ids": [
+            "fnd_006"
+          ],
+          "resolves_via": ""
+        }
+      ],
+      "linked_effect_ids": [],
+      "double_count_guard": "Exclude this from any FY2023 margin or EBITDA used to project repayment capacity. It is not a cash inflow and does not recur.",
+      "model_consequence": "Normalized FY2023 gross margin and EBITDA are about $2.24M lower than reported (reported FY2023 EBITDA was $10.8M), which weakens any argument for repayment capacity based on 2023 profitability. There is no cash effect.",
+      "status": "validated",
+      "validation_messages": []
+    },
+    {
+      "effect_id": "eff_004",
+      "finding_ids": [
+        "fnd_008",
+        "fnd_009"
+      ],
+      "mechanism": "resolved_obligation",
+      "target": "Synergy CHC Corp. Valenti ($340,000, paid 2023) and L.O.D.C. Group (paid May 2024) settlements",
+      "cash_direction": "none",
+      "baseline_treatment": "normalization_only",
+      "parameters": [],
+      "linked_effect_ids": [],
+      "double_count_guard": "Both are reported paid in full before the decision date. Do not schedule any further outflow.",
+      "model_consequence": "No future cash effect. These matters do not change cash available for the advance.",
+      "status": "validated",
+      "validation_messages": []
+    },
+    {
+      "effect_id": "eff_005",
+      "finding_ids": [
+        "fnd_007"
+      ],
+      "mechanism": "funding_constraint",
+      "target": "Synergy CHC Corp. Knight Therapeutics senior secured loan negative covenant (no other debt without paying out KTI first)",
+      "cash_direction": "unknown",
+      "baseline_treatment": "normalization_only",
+      "parameters": [
+        {
+          "name": "knight_consent_or_waiver",
+          "description": "Whether Knight has consented to or waived the covenant for a new $100K-$250K advance",
+          "status": "unknown",
+          "value": null,
+          "finding_ids": [],
+          "resolves_via": "Written Knight consent/waiver or intercreditor acknowledgment"
+        },
+        {
+          "name": "knight_balance_cents",
+          "description": "Knight consolidated loan outstanding at June 30, 2024",
+          "status": "known",
+          "value": {
+            "status": "exact",
+            "unit": "USD_cents",
+            "value": 1233305300,
+            "lower": null,
+            "upper": null,
+            "observed_on": null,
+            "provenance": {
+              "basis": "documented_evidence",
+              "source_fact_ids": [],
+              "assumption_id": null,
+              "derivation": null,
+              "note": "Knight consolidated loan outstanding at June 30, 2024"
+            }
+          },
+          "finding_ids": [
+            "fnd_007"
+          ],
+          "resolves_via": ""
+        }
+      ],
+      "linked_effect_ids": [],
+      "double_count_guard": "This does not change the existing Knight schedule (no 2024 principal due). It only governs whether the new advance is permitted and the risk of acceleration or cross-default. Do not assume acceleration, and do not assume the advance ranks senior.",
+      "model_consequence": "Without Knight's consent, any of the permitted offers could breach the Knight covenant. Knight's loan is senior-secured on all assets, so the advance would rank behind it, and a breach could trigger default provisions tied to a $12.3M loan and cross-default into the Sanders loan. None of the offers can be treated as permissible until consent is confirmed.",
+      "status": "validated",
+      "validation_messages": []
+    }
+  ]
+}

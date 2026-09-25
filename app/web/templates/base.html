@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Investigation viewer{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    :root { --pico-font-size: 97%; }
+    .tag { display:inline-block; font-size:.72rem; font-weight:600; letter-spacing:.02em; padding:.1rem .45rem;
+           border-radius:.3rem; border:1px solid var(--pico-muted-border-color); margin-right:.35rem; white-space:nowrap; }
+    .tag.source { border-color:#6b7280; } .tag.jev { border-color:#7c3aed; } .tag.finding { border-color:#0f766e; }
+    .tag.assumption { border-color:#b45309; } .tag.engine { border-color:#1d4ed8; } .tag.warn { border-color:#b91c1c; }
+    .card { border:1px solid var(--pico-muted-border-color); border-radius:.5rem; padding:1rem 1.1rem; margin-bottom:1rem; }
+    .consequence { font-weight:600; margin:.4rem 0; }
+    blockquote { margin:.4rem 0; padding:.35rem .8rem; font-size:.9rem; }
+    .muted { color:var(--pico-muted-color); font-size:.85rem; }
+    .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(18rem,1fr)); gap:1rem; }
+    table { font-size:.88rem; } details { margin:.4rem 0; } summary { font-size:.92rem; }
+    pre { font-size:.75rem; white-space:pre-wrap; }
+  </style>
+</head>
+<body>
+<main class="container">
+{% block body %}{% endblock %}
+</main>
+</body>
+</html>

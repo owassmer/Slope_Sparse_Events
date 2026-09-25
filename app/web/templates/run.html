@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ v.borrower }}: investigation{% endblock %}
+{% block body %}
+<hgroup>
+  <h2>{{ v.borrower }}</h2>
+  <p>Review date {{ v.review_date }} · Incremental working-capital draw · <strong>{{ v.status }}</strong>{% if v.late_failure %}
+    · <span class="tag warn">Runner reported after lock</span> {{ v.late_failure }} (from run.json, outside the hash chain){% endif %}</p>
+</hgroup>
+<p class="muted">Run {{ v.run_id }} · arm {{ v.meta.arm }} · event chain verified ({{ v.verified_head }}…) ·
+  {{ v.jev_calls }} Jev calls, {{ v.observations }} semantic observations{% if not v.inputs_locked %} ·
+  <span class="tag warn">Inputs not locked in this run</span> (recorded before inputs were chained; showing the current case file){% endif %}</p>
+
+<div class="grid2">
+  <div class="card">
+    <h5>Request <span class="tag assumption">Assumption</span></h5>
+    <p>{{ v.request.requested_use.value if v.request.requested_use }}<br>
+       {{ (v.request.requested_amount.value / 100) | round | int if v.request.requested_amount }} USD over
+       {{ v.request.requested_term.value if v.request.requested_term }} months; {{ v.request.requested_pricing.value if v.request.requested_pricing }}</p>
+  </div>
+  <div class="card">
+    <h5>Conclusion</h5>
+    <p>{{ v.submitted.conclusion or "No packet conclusion submitted." }}</p>
+    {% if v.submitted.incomplete_reasons %}<p><span class="tag warn">Incomplete</span> {{ v.submitted.incomplete_reasons | join("; ") }}</p>{% endif %}
+  </div>
+</div>
+
+{% if v.submitted.pivotal_unknowns or v.missing_facts %}
+<h3>Pivotal unresolved inputs</h3>
+{% for m in v.missing_facts %}
+<div class="card"><strong>{{ m.fact }}</strong>
+  <p class="muted">Why it matters: {{ m.why_pivotal }}<br>Acceptable evidence: {{ m.acceptable_evidence }}{% if m.if_resolved %}<br>If resolved: {{ m.if_resolved }}{% endif %}</p></div>
+{% endfor %}
+{% if not v.missing_facts %}<ul>{% for u in v.submitted.pivotal_unknowns %}<li>{{ u }}</li>{% endfor %}</ul>{% endif %}
+{% endif %}
+
+<h3>What changed from the baseline</h3>
+<p class="muted">Each card is a proposed economic effect. <em>Validated</em> means supported by accepted, verbatim-cited findings and structurally sound; it does not activate a cash flow by itself.</p>
+{% for e in v.effects %}
+<div class="card">
+  <span class="tag finding">Agent effect</span>{% if e.status == "validated" %}<span class="tag engine">Validated</span>{% else %}<span class="tag warn">{{ e.status }}</span>{% endif %}
+  <h5 style="margin:.3rem 0">{{ e.mechanism }} · {{ e.target }}</h5>
+  <p class="consequence">Model consequence: {{ e.consequence or "—" }}</p>
+  <p class="muted">Cash direction: {{ e.cash_direction }} · Baseline treatment: {{ e.baseline_treatment }}{% if e.guard %} · Double-count guard: {{ e.guard }}{% endif %}</p>
+  {% if e.parameters %}
+  <table><thead><tr><th>Parameter</th><th>Value</th><th>Status</th></tr></thead><tbody>
+    {% for p in e.parameters %}<tr><td>{{ p.name }}<br><span class="muted">{{ p.description }}</span></td><td>{{ p.value }}{% if p.basis %}<br><span class="muted">{{ p.basis }}</span>{% endif %}</td><td>{{ p.status }}</td></tr>{% endfor %}
+  </tbody></table>{% endif %}
+  {% if e.problems %}<p><span class="tag warn">Rejected</span> {{ e.problems | join("; ") }}</p>{% endif %}
+  <details><summary>Supporting findings ({{ e.findings | length }})</summary>
+    {% for f in e.findings %}{% include "_finding.html" %}{% endfor %}
+  </details>
+</div>
+{% else %}<p>No effects proposed.</p>{% endfor %}
+
+{% if v.sensitivities %}
+<h3>Sensitivity <span class="tag engine">Engine result</span></h3>
+{% for s in v.sensitivities %}
+<div class="card">
+  <p class="muted">{{ s.calculation }}<br>Opening cash: {{ s.opening_cash_basis }} · Reserve: {{ s.reserve_basis }} · Unavailable share of reported cash: {{ s.unavailable_opening_cash }}</p>
+  <table><thead><tr><th>Share of the bucket already paid since measurement</th><th>Required net cash before new-loan service</th></tr></thead><tbody>
+  {% for r in s.scenarios %}<tr><td>{{ r.share_of_bucket_paid_since_measurement }}</td>
+    <td>{% if r.required_net_cash_cents is not none %}${{ "{:,.0f}".format(r.required_net_cash_cents / 100) }}{% else %}unknown ({{ r.missing }}){% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+  <p class="muted">{{ s.reading }}</p>
+</div>
+{% endfor %}{% endif %}
+
+<h3>Investigation</h3>
+<p class="muted">Jev contribution: {% for k, n in v.jev_ledger.items() %}{{ k.replace("_", " ") }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+{% for d in v.dependencies %}
+<details class="card">
+  <summary><strong>{{ d.question }}</strong><br><span class="muted">Target: {{ d.target }} · Could change: {{ d.affects }}</span></summary>
+  {% for label, rows in d.searches.items() %}
+    <p class="muted" style="margin-top:.8rem">Search {{ label }}</p>
+    <table><tbody>{% for c in rows %}<tr><td>{% if c.route %}<span class="tag jev">{{ c.route }}</span>{% endif %}</td>
+      <td>{{ c.heading }}<br><span class="muted">{{ c.snippet }}</span></td></tr>{% endfor %}</tbody></table>
+  {% endfor %}
+  {% for f in d.findings %}{% include "_finding.html" %}{% endfor %}
+</details>
+{% endfor %}
+{% endblock %}

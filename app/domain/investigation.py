@@ -35,6 +35,17 @@ Mechanism = Literal[
     "resolved_obligation",  # removes an obsolete prospective charge
 ]
 CASH_FREE_MECHANISMS = {"noncash_normalization", "resolved_obligation"}
+# Baseline treatments that fit each mechanism (kit Effect schema vocabulary plus the two added here).
+TREATMENTS = {
+    "settlement_payment_timing": {"already_in_baseline_reclassify_timing", "new_to_baseline"},
+    "noncash_normalization": {"normalization_only"},
+    "resolved_obligation": {"exclude_already_paid_obligation", "remove_from_baseline"},
+    "funding_constraint": {"modify_available_funding"},
+    "restricted_funds": {"modify_available_funding", "new_to_baseline"},
+    "expense_funding": {"modify_available_funding", "new_to_baseline"},
+    "receipt_delay": {"already_in_baseline_reclassify_timing", "new_to_baseline"},
+    "operating_interruption": {"new_to_baseline", "already_in_baseline_reclassify_timing"},
+}
 
 
 class Frozen(BaseModel):
@@ -58,6 +69,7 @@ class DecisionDependency(Frozen):
     premises: tuple[str, ...] = ()  # assumptions embedded in the question (screened for conflict)
     affects: str  # the financial quantity or action that could change
     resolvable_by: str = ""  # evidence that could resolve it
+    target: str = ""  # entity plus the specific obligation, counterparty, asset or activity (named precisely)
 
 
 class CandidateScreen(Frozen):
@@ -158,8 +170,8 @@ class EconomicEffectProposal(Frozen):
     mechanism: Mechanism
     target: str  # obligation, stream or activity the effect applies to
     cash_direction: Literal["inflow", "outflow", "none", "unknown"]
-    baseline_treatment: Literal["already_in_baseline_reclassify_timing", "new_to_baseline",
-                                "remove_from_baseline", "normalization_only"]
+    baseline_treatment: Literal["already_in_baseline_reclassify_timing", "new_to_baseline", "remove_from_baseline",
+                                "normalization_only", "exclude_already_paid_obligation", "modify_available_funding"]
     parameters: tuple[ParameterRequirement, ...] = ()
     linked_effect_ids: tuple[str, ...] = ()
     double_count_guard: str = ""
@@ -217,6 +229,9 @@ def validate_effect(effect: EconomicEffectProposal, findings: dict[str, AtomicFi
         stray = set(p.finding_ids) - set(effect.finding_ids)
         if stray:
             problems.append(f"Parameter {p.name} cites findings outside this effect: {sorted(stray)}")
+    if effect.baseline_treatment not in TREATMENTS.get(effect.mechanism, set()):
+        problems.append(f"Baseline treatment {effect.baseline_treatment} does not fit {effect.mechanism}; use one of "
+                        f"{sorted(TREATMENTS.get(effect.mechanism, set()))}")
     if effect.mechanism in CASH_FREE_MECHANISMS and effect.cash_direction != "none":
         problems.append(f"{effect.mechanism} cannot create a cash {effect.cash_direction}")
     if effect.mechanism == "noncash_normalization" and effect.baseline_treatment != "normalization_only":
