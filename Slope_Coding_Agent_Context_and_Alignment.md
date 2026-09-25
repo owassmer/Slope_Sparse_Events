@@ -42,33 +42,29 @@ The intended result is a useful follow-up conversation about how this could fit 
 
 ## 2. The approved synthesis
 
-**Build a module that researches an unusual external event, translates the evidence into financial scenario adjustments, and shows how those adjustments change a financing decision and the loan’s cash flows.**
+**Thesis: domain-informed probabilistic judgments turn unusual qualitative evidence into a useful, measurable financial signal.**
+
+**Build a module that researches an unusual external event, turns the evidence into probabilistic financial scenarios, and shows how they change the distribution of a loan's dated cash flows.**
 
 The complete chain is:
 
-1. Begin with a real business, a specific financing decision and a baseline assessment.
+1. Begin with a real business, supplied financing terms and its connected-bank baseline.
 2. Investigate a material external event using an agent and Jev.
-3. Establish the economic effects supported by the evidence.
-4. Apply those effects to the borrower’s cash available for repayment.
-5. Calculate conditional collections under specific loan structures.
-6. Compare the financing choices and identify the binding conditions.
-7. Show the resulting change in capital needs and cash available for future lending.
+3. Establish what the evidence says about the present state, one judgment target at a time.
+4. Ask Jev for conditional probabilities of the specific future developments that move cash.
+5. Compose those probabilities into event paths and simulate the borrower's cash against realistic operating variability.
+6. Carry the result into the loan: collections, collection timing, outstanding exposure, discounted cash flows and capital tied up.
+7. Show which uncertainty matters most to those outcomes.
 
-This connects Russell’s credit-research problem to his scenario-modeling and portfolio-cash-flow interests. The first implementation completes that chain for an individual borrower and exports results that a portfolio model can consume.
+This connects Russell's credit-research problem to his scenario-modeling and portfolio-cash-flow interests. The module ends at the financial analysis, which a lending or capital-markets model can consume.
 
-## 3. Start from Slope’s decision
+## 3. Where the module stops
 
-The product is organized around a review **before a new discretionary advance or increase in exposure**. Its operator is a credit reviewer deciding what financing to offer given the borrower’s current position and the external event.
+The financing terms are inputs: the amount, schedule, fee and funding date. The module does not recommend, size, tier or condition the loan. A lending decision brings in risk appetite, pricing objectives, portfolio constraints and other credit signals that the sparse-event research does not establish; attaching one would make those assumptions look like conclusions of the research. Slope's broader underwriting consumes the analysis and decides.
 
-Slope’s public workflow research supports using a specialist module within a broader underwriting process. The module can receive an existing financial baseline, bank-derived cash-flow understanding, relevant debt obligations and an available product menu. That interface is important: the work should be straightforward to connect to a lender’s existing assessment.
+The use of proceeds matters. An inventory advance can create sales and receipts; a different amount changes the purchase. Controls on the financed amount keep that visible.
 
-The decision has practical controls: how much to advance, over what term, on what payment schedule, at what supplied price, and subject to which funding conditions. The output should speak in those terms.
-
-Useful results include a supportable amount, a better-fitting schedule, a condition that makes a particular offer feasible, or a quantified explanation that the tested structures cannot be supported. Each result should show the effect on projected lender receipts.
-
-The use of proceeds also matters. An inventory advance can create sales and cash receipts. Comparing different advance sizes therefore requires the associated purchase and operating plans to change with them. This is part of understanding the actual financing decision.
-
-Use a concrete test when choosing an implementation detail: **How does this help the reviewer decide what to fund, and understand the cash that comes back?**
+Use a concrete test when choosing an implementation detail: **Does this help Russell see what the researched evidence does to the loan's cash flows, and which uncertainty matters?** Russell should be able to move naturally from what the research learned, to what might happen and how likely it is, to what that does to cash and to the loan, to which uncertainty matters most. Work that does not strengthen that sequence is deferred.
 
 ## 4. What the financial model means in plain language
 
@@ -88,17 +84,17 @@ Each effect should carry enough explanation for a reviewer to understand why the
 
 Timing deserves as much attention as amount. A loan that ultimately repays in full can still return capital later, require additional funding and produce different economics. The interface should make that visible.
 
-Keep contractual payments, scenario-conditioned collections and probability-weighted expected collections distinct. Scenario weights, where used, need an explicit basis. Jev’s response confidence describes its judgment, not a borrower’s probability of repayment.
+Keep contractual payments, path-conditioned collections and probability-weighted collections distinct. The weights are Jev's conditional probabilities of specific future events, composed along each path by code, labelled once as model judgment. Jev's confidence statistic is separate and never used as a probability.
 
 ## 5. The before-and-after comparison
 
 Owen wants the effect of the research to be directly observable.
 
-The baseline and event-adjusted views use the same decision date, common financial assumptions and financing request. The enriched view applies the specific information obtained through the investigation. The reviewer can see which inputs changed and which loan outcomes changed as a result.
+The baseline and event-adjusted views use the same decision date, common financial assumptions, supplied financing and operating draws. The enriched view applies the specific information obtained through the investigation. The reviewer can see which inputs changed and which loan outcomes changed as a result.
 
 Sometimes the valuable adjustment is the timing of an obligation already recorded in the accounts. Sometimes it is recognizing that a historical accounting item has a different cash implication. Sometimes it is establishing that a potential future charge has already been satisfied. The financial treatment should reflect the actual mechanism.
 
-The measured impact can be a different feasible amount, schedule, funding condition, projected collection date or liquidity requirement. The demonstration should make the economic significance clear even when the overall lending stance stays the same.
+The measured impact is the change in the distribution: expected and downside cash, collection timing, uncollected balance, discounted lender cash flows and capital tied up. Both views use identical operating draws, so the difference is the research's effect. If the loan's collections do not change, that is a legitimate result, shown plainly.
 
 Later events belong in a separate outcome view. First establish what the system could conclude from the evidence available at the decision date. Then reveal what happened and evaluate which mechanisms the analysis captured.
 
@@ -108,7 +104,7 @@ Owen wants the demonstration grounded in actual businesses, actual legal events,
 
 ### ChromaDex: lead demonstration
 
-The lead decision date is **19 August 2024**. ChromaDex is a consumer supplement brand that buys finished goods from contract manufacturers. On that date its disputes with Elysium Health, a former customer, are live and move money both ways: a Delaware fee award whose amount awaits a ruling (about $9.8 million sought, and ChromaDex intends to appeal, which needs a bond), and a California judgment ordering Elysium to pay ChromaDex $2.5 million with no payment date. These are the forward-looking, branching questions that bank data cannot answer. The request is reconstructed as Slope bill-pay financing of a contract-manufacturer invoice, and most resolution events fall inside that financing's life (the December settlement payment lands just after a 120-day term).
+The lead decision date is **19 August 2024**. ChromaDex is a consumer supplement brand that buys finished goods from contract manufacturers. On that date its disputes with Elysium Health, a former customer, are live and move money both ways: a Delaware fee award whose amount awaits a ruling (about $9.8 million sought, and ChromaDex intends to appeal, which needs a bond), and a California judgment ordering Elysium to pay ChromaDex $2.5 million with no payment date. These are the forward-looking, branching questions that bank data cannot answer. The financing is reconstructed as Slope bill-pay financing of a contract-manufacturer invoice ($2.0M, three monthly installments, 3.7% fee), analysed over a 180-day horizon in which most resolution events fall.
 
 ### Synergy CHC: secondary demonstration
 
@@ -134,15 +130,16 @@ The application should reuse the core evidence, economic-effect, scenario and de
 
 ## 7. How agents and Jev contribute
 
-The agent should perform a real investigation. It receives a mission and baseline, identifies a material gap, chooses evidence to inspect, interprets the findings, tests their financial relevance and decides what to investigate next.
+The agent performs a real investigation. It receives a mission and baseline, identifies material gaps, chooses evidence to inspect, records atomic sourced findings and groups the evidence about each live dispute. Its prose never pre-answers a Jev question.
 
-Jev supplies focused judgments at useful points in that process. Examples include whether a passage concerns the borrower, describes an allegation or completed event, establishes a payment obligation, supports an offset, or identifies an operating restriction. It also helps evaluate whether a research step addresses the selected gap.
+Jev makes the judgments, in two stages:
 
-The agent integrates those judgments with the other evidence and the financial model. Deterministic code handles arithmetic, schedules, cash allocation and comparisons. This division gives each component a clear role.
+- **Present-state interpretation:** what a passage establishes about one target (who pays whom, whether an amount is sought or fixed, which procedural events have happened, what a party states it intends).
+- **Conditional forecasting:** the probability of one defined future development under stated assumptions and a code-set window (for example, "assuming the amount is fixed and no settlement intervenes, will the company appeal within 30 days?"). Present-state readings are evidence for the forecast, never its probability: "intends to appeal" is not "will appeal".
 
-Research priority should follow decision sensitivity. If resolving a payment date would change the feasible offer, that is a valuable next step. The financial model should help the agent identify such dependencies.
+**Atomic means one judgment target, not minimal context.** Each question gets enough surrounding evidence to reason well: the section around the passage, dates, parties, procedural position and related passages.
 
-Make the workflow observable enough to evaluate: what the agent sought, what Jev judged, what evidence was accepted, what model input changed and what happened to the financing choice. This should support useful review and debugging without overwhelming the operator’s primary decision view.
+Deterministic code sets every date, window and amount, composes the conditional probabilities along each path, simulates cash and computes the loan's outcomes. No hand-written coefficients stand between Jev's judgments and the numbers. A low probability never deletes a feasible adverse path: stress is a separate view.
 
 ## 8. Owen’s broader approach to this work
 
@@ -150,7 +147,7 @@ Owen approaches these projects through **domain formalization, operational decis
 
 Domain formalization means learning the actual work well enough to define its objects, relationships, rules, uncertainties and choices. Operational decision systems connect that understanding to actions a real operator can take. Agent evaluation establishes whether the system performs that work effectively and where it needs improvement.
 
-This project should demonstrate all three. The domain work is understanding lending and the economic consequences of external events. The operational decision is a financing choice. The evaluation examines whether the agent’s research and judgments lead to supported adjustments and useful financial outputs.
+This project should demonstrate all three. The domain work is understanding lending and the economic consequences of external events. The operational output is the loan's cash-flow analysis that a financing decision consumes. The evaluation examines whether the agent’s research and judgments lead to supported adjustments and useful financial outputs.
 
 Owen brings financial-mathematics training, financial-sector experience, credit-model and policy tooling, and experience building agentic applications. Relevant prior work includes credit decision workspaces with pricing, limits and scenario comparisons, as well as autonomous credit-policy research. He wants to apply that background to a specific problem Russell recognizes.
 
@@ -180,35 +177,25 @@ The research and design phase has produced the specification, acquired sources, 
 
 ## 11. The demonstration Owen wants to show Russell
 
-The presentation should follow the lender’s reasoning:
+One analysis page carries the causal chain **evidence → Jev judgment → financial mechanism → financial impact**:
 
-1. Here is the business, the financing request and the baseline repayment picture.
-2. Here is the external event the agent investigates.
-3. Here is the relevant evidence and how the agent and Jev interpret it.
-4. Here are the specific financial adjustments that follow.
-5. Here is the effect on the requested loan and alternative offers.
-6. Here is how collections and funding needs change over time.
-7. Here is the subsequent public outcome, revealed after the historical analysis.
+1. The business, the supplied financing and what the research learned.
+2. The future developments that could move cash, and how likely Jev judges each, given the evidence.
+3. What those developments do to the borrower's cash, against ordinary operating variability.
+4. What that does to the loan: dated collections, timing, exposure, discounted cash flows and capital tied up.
+5. Which judgments matter most, at 0%, Jev's value and 100%, with a drill-down from each to its source passage.
 
-The most compelling moment is when Russell can inspect a finding, follow it into a financial assumption, and see the resulting change in a loan decision or cash-flow path. The second case should demonstrate that the same approach handles a different economic mechanism.
-
-The interface should make the decision and financial impact immediately legible, with supporting evidence available where it helps the reviewer assess the result.
+The most compelling moment is when Russell follows a real passage into Jev's probabilistic judgment, sees it move the loan's cash-flow distribution, and changes it himself. There are no approval recommendations, provenance banners or verification displays on the page; the investigation record is a secondary link.
 
 ## 12. What success means
 
-The build succeeds when a reviewer can answer all of these questions from the working demonstration:
+The build succeeds when Russell can answer these questions from the working demonstration:
 
-- What decision is being made, for which borrower, at what time?
-- What did the external research establish that matters to that decision?
-- What contribution did the agent make, and where did Jev help?
-- Which financial inputs changed, and why?
-- What happens to the loan’s collections under the resulting scenarios?
-- Which financing structures are supportable under the stated inputs and policy?
-- What condition or missing fact could change the choice?
-- How does the collection pattern affect capital needs?
-- What does the later evidence tell us about the analysis?
-
-Evaluation should address economic correctness, evidence interpretation, useful research choices, consistency of recommendations, and the contribution of Jev. Provenance serves those judgments by making the reasoning inspectable and the calculations reproducible.
+- What did the research learn about the borrower's live disputes, and from which passages?
+- Which future developments could move cash, and how likely are they given that evidence?
+- How do they change the borrower's cash, against ordinary operating variability?
+- How do they change the loan's collections, timing, exposure, discounted cash flows and capital tied up?
+- Which judgment matters most to the lender's outcome?
 
 ## 13. Using this context during implementation
 
@@ -216,4 +203,4 @@ Use this brief to guide product judgment; use the specification and kit for deta
 
 This is **builder context**. It includes the intended case mechanisms and demonstration narrative. Keep it separate from the historical investigator’s runtime inputs and the blind reviewer’s evidence bundle. Those components receive the scoped mission and admissible evidence defined by the application, so their performance can be evaluated meaningfully.
 
-When a technical choice requires judgment, prioritize the choice that makes the completed decision workflow more useful, financially sound and understandable to Russell and Slope.
+When a technical choice requires judgment, prioritize the choice that makes the completed analysis more useful, financially sound and understandable to Russell and Slope.

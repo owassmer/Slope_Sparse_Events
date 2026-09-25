@@ -229,6 +229,6 @@ def test_registry_questions_are_generic_and_well_formed():
     for profile in reg["profiles"].values():
         assert set(profile["questions"]) <= ids
     for q in reg["questions"]:
-        assert q["primitive"] in ("noul", "choice")
-        if q["primitive"] == "noul":
+        assert q["primitive"] in ("noul", "choice", "score")
+        if q["primitive"] == "noul" and not q["prompt"].get("criteria_from_host"):
             assert set(q["prompt"]["criteria"]) == {"true", "false"}

@@ -23,6 +23,7 @@ dependencies = [
     "typer>=0.12",
     "pypdf>=6.19.0",
     "httpx2>=2.13,<3",
+    "numpy>=2.5.3",
 ]
 
 [dependency-groups]

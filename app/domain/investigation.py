@@ -14,6 +14,7 @@ Runtime objects cite snapshot spans and finding IDs, never the builder's facts r
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import date
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -119,10 +120,11 @@ class SemanticObservation(Frozen):
     profile: str
     question_id: str
     question_version: str
-    primitive: Literal["choice", "noul"]
-    answer: str | bool | None
-    probabilities: dict[str, float] | None = None  # Choice distribution; a judgment, never an event probability
+    primitive: Literal["choice", "noul", "score"]
+    answer: str | bool | None  # Score: the most supported rubric level, as its index
+    probabilities: dict[str, float] | None = None  # Choice/Score distribution; a judgment, never an event probability
     noul_value: float | None = None  # Noul score in [0, 1]
+    score_value: float | None = None  # Score: expected rubric level
     confidence: float | None = None
     subject_ids: tuple[str, ...] = ()
     downstream_disposition: Disposition = "unused"
@@ -209,12 +211,93 @@ class EconomicEffectProposal(Frozen):
     validation_messages: tuple[str, ...] = ()
 
 
+class Decisive(Frozen):
+    """The passage a reading rests on: which finding, its source date and the verbatim quote."""
+
+    finding_id: str
+    source_date: str
+    quote: str
+
+
+class FindingReading(Frozen):
+    """Jev's present-state reading of one cited finding, judged against one obligation with the passage's surrounding
+    evidence (never a forecast). Full distributions are kept; code derives structural facts from them."""
+
+    finding_id: str
+    source_date: str
+    payer: dict[str, float] = Field(default_factory=dict)  # borrower | counterparty | not_stated -> probability
+    amount_status: dict[str, float] = Field(default_factory=dict)  # sought | estimated | fixed | paid | not_stated
+    includes_interest: float | None = None  # Noul value
+    events: dict[str, float | None] = Field(default_factory=dict)  # procedural event -> Noul value
+    bears_on: dict[str, float | None] = Field(default_factory=dict)  # factor -> Noul value (presence, for a present factor)
+    levels: dict[str, dict[str, float]] = Field(default_factory=dict)  # graded factor -> rubric level -> probability
+    observation_ids: tuple[str, ...] = ()
+
+
+class FactorResult(Frozen):
+    """One factor, aggregated from the passages routed to it by the factor's own rule, with its full distribution.
+    Unknown stays unknown; passages of the same date that disagree are kept as a conflict."""
+
+    factor_id: str
+    label: str
+    kind: Literal["graded", "present"]
+    aggregate: str
+    distribution: dict[str, float] = Field(default_factory=dict)  # rubric level label -> probability (graded)
+    probability: float | None = None  # present-or-absent factors: the strongest routed Noul value
+    level_label: str = "unknown"  # the most probable level, for display
+    conflict: bool = False
+    decisive: Decisive | None = None
+    finding_ids: tuple[str, ...] = ()
+
+
+class EvidenceRequest(Frozen):
+    """What to obtain, and what follows either way."""
+
+    factor_id: str
+    action: str
+    if_satisfied: str
+    if_not: str
+
+
+class DisputeInstance(Frozen):
+    """A live dispute grouped by the agent and read by Jev. The agent supplies the findings, a docket reference, the
+    obligation's nature, the counterparty, the quoted amount and any judgment date; Jev reads each finding with its
+    surrounding evidence (who pays, the amount's status, procedural events, factors); code places the stage and
+    records the constraints an established fact imposes. Forecasts and cash paths are built by the analysis."""
+
+    instance_id: str
+    dependency_id: str
+    model_id: str
+    model_version: str
+    title: str
+    order_reference: str
+    nature: str
+    counterparty: str
+    finding_ids: tuple[str, ...] = Field(min_length=1)
+    amount: EvidenceValue
+    judgment_date: date | None = None
+    borrower_role: Literal["debtor", "creditor"] | None = None  # from Jev's readings (the agent's, in the agent-only arm)
+    amount_status: str = "unknown"
+    amount_includes_interest: bool = False
+    stage: str | None = None
+    established: dict[str, Decisive] = Field(default_factory=dict)  # procedural event -> the passage establishing it
+    readings: tuple[FindingReading, ...] = ()
+    factors: tuple[FactorResult, ...] = ()
+    constraints: dict[str, str] = Field(default_factory=dict)  # removed branch -> the established fact that removes it
+    evidence_requests: tuple[EvidenceRequest, ...] = ()
+    proposed_extension: str = ""  # flagged; never used by the host
+    status: Literal["interpreted", "outside_model", "not_judged", "superseded", "resolved"] = "interpreted"
+    superseded_by: str = ""
+    observation_ids: tuple[str, ...] = ()
+
+
 EventKind = Literal[
     "run_started", "dependency_recorded", "search", "candidate_screened", "evidence_read", "jev_call",
     "observation_recorded", "observation_disposition", "finding_proposed", "finding_resolved",
     "reconciliation_opened", "reconciliation_resolved", "effect_proposed", "effect_validated",
     "sensitivity_run", "missing_fact_requested", "packet_submitted", "run_failed",
     "inventory_loaded", "inventory_accounted", "conclusion_checked", "effect_disputed", "cited_units_checked",
+    "dispute_instantiated",
 ]
 
 

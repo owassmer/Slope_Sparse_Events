@@ -1,13 +1,13 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.8.0",
+  "registry_version": "3.12.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
-  "sdk_mapping": "For each question, prefix prompt.instructions with the global_rules text and construct typesafe_sdk.Noul(instructions, criteria) or typesafe_sdk.Choice(instructions, criteria) according to primitive. Questions in one profile that share a state are sent in one request. Other entry metadata is enforced by the host and not forwarded.",
-  "purpose": "Narrow semantic judgments at the boundaries where retrieved text becomes a finding, a finding becomes an economic effect, or evidence conflicts. No question estimates a default probability, produces an amount or date, or makes the lending decision.",
+  "sdk_mapping": "For each question, prefix prompt.instructions with the global_rules text and construct typesafe_sdk.Noul(instructions, criteria), typesafe_sdk.Choice(instructions, criteria) or typesafe_sdk.Score(instructions, criteria) according to primitive. Questions in one profile that share a state are sent in one request. Other entry metadata is enforced by the host and not forwarded.",
+  "purpose": "Narrow semantic judgments where retrieved text becomes a finding, a finding becomes an economic effect, or evidence conflicts; and, for live disputes, present-state readings plus conditional probabilities of defined future events. No question produces an amount or date, or makes a lending decision.",
   "global_rules": [
-    "Answer only from the supplied state. Do not use remembered facts about this company, dispute or later events.",
+    "Answer only from the supplied state. Do not use remembered facts about this company, these parties, this dispute or later events; if you recognise the case, ignore what you remember about what happened later.",
     "Each question concerns one statement, one target and the supplied passage. If the input combines claims, choose the unknown or unclear option rather than an arbitrary category.",
     "Source authority and claim posture are separate: a regulatory filing can report an allegation or an expectation.",
     "Do not compute or compare amounts or dates; code does that separately.",
@@ -77,6 +77,41 @@
       "questions": [
         "coverage_supported"
       ]
+    },
+    "dispute_interpretation": {
+      "primitive": "choice+noul+score",
+      "trigger": "host, per cited finding of an instantiated dispute: a reading request, a relevance request, and a level request per routed graded factor; each state is hydrated from the evidence store",
+      "questions": [
+        "obligation_direction",
+        "amount_status",
+        "amount_includes_interest",
+        "event_entitlement_decided",
+        "event_amount_fixed",
+        "event_judgment_entered",
+        "event_appeal_filed",
+        "event_stay_secured",
+        "event_paid",
+        "bears_on_amount_finality",
+        "bears_on_appeal_intent",
+        "bears_on_appeal_barred",
+        "bears_on_debtor_resistance",
+        "bears_on_debtor_liquidity",
+        "bears_on_settlement_signals",
+        "factor_level"
+      ]
+    },
+    "dispute_forecast": {
+      "primitive": "noul+choice",
+      "trigger": "host, when the analysis is built: one request per forecast node and parent context (cached); a later same-counterparty dispute is asked once per outcome class of the earlier one",
+      "questions": [
+        "forecast_settlement",
+        "forecast_amount_fixed",
+        "forecast_appeal",
+        "forecast_secured_stay",
+        "forecast_voluntary_payment",
+        "forecast_enforcement_collects",
+        "forecast_security_form"
+      ]
     }
   },
   "state_contract": {
@@ -95,7 +130,14 @@
     "company": "The borrower's legal name.",
     "statement": "Agent-written text to check (an effect's model consequence or the packet conclusion).",
     "cited_findings": "The accepted findings the statement rests on: proposition plus verbatim quotes.",
-    "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs)."
+    "engine_results": "Deterministic results the statement may cite (validated effects, sensitivity outputs).",
+    "factor": "One factor of the dispute model: its label and question.",
+    "obligation": "One obligation in a live dispute: its docket reference and nature, and the two parties (unordered). Once the host establishes it, which party pays.",
+    "evidence": "The judged passage (verbatim quotes, the surrounding section text, source title, heading and date) plus the related passages the same obligation cites. Agent-written propositions are never included.",
+    "case": "For a forecast: the as-of date, the payer and payee, the obligation, the amount and its status, and the procedural events established so far, each with its date.",
+    "assumptions": "For a forecast: the parent conditions to take as true, in words, with dates set by code.",
+    "question": "For a forecast: the one future event and the window (dates) in which it must happen.",
+    "readings": "For a forecast: Jev's present-state readings of the relevant factors, as full distributions over the rubric levels, with the passage each comes from."
   },
   "observation_record": {
     "call_fields": [
@@ -614,6 +656,488 @@
         }
       },
       "application": "Gate at submission over the agent's own reading: a clear gap is closed with a finding or escalated to the reviewer's checklist; never overridden. Units no finding cites are the reviewer's, not Jev's."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "obligation_direction",
+      "primitive": "choice",
+      "question": "According to the cited text, which party must pay the other under this obligation?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "According to state.evidence, which party must pay the other under state.obligation? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria_from_host": true,
+        "criteria": {}
+      },
+      "application": "Code takes the direction the cited passages establish; passages that disagree are kept as a conflict and the dispute is not modelled until it is resolved."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "amount_status",
+      "primitive": "choice",
+      "question": "What is the status of this obligation's amount in the cited text?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "What is the status of the amount of state.obligation, as state.evidence describes it? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "sought": "A party seeks or claims this amount; no court has fixed it.",
+          "estimated": "A party estimates the amount it expects to owe or receive; no court has fixed it.",
+          "fixed": "A court order or judgment fixes this amount.",
+          "paid": "The text says this amount has been paid.",
+          "not_stated": "The text does not state this obligation's amount or its status."
+        }
+      },
+      "application": "Code takes the most advanced status any passage establishes; an amount that is sought or estimated is never shown as owed."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "amount_includes_interest",
+      "primitive": "noul",
+      "question": "Does the cited text say this obligation's amount includes post-judgment interest?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text say this obligation's amount includes post-judgment interest? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text says the amount includes post-judgment interest (or an estimate of it).",
+          "false": "The text does not say so."
+        }
+      },
+      "application": "Code then does not add statutory post-judgment interest again."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "event_entitlement_decided",
+      "primitive": "noul",
+      "question": "Does the cited text establish that the court has decided the payer is liable for this obligation?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that the court has decided the payer is liable for this obligation? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that the court has decided the payer is liable for this obligation.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "event_amount_fixed",
+      "primitive": "noul",
+      "question": "Does the cited text establish that the court has fixed this obligation's amount?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that the court has fixed this obligation's amount? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that the court has fixed this obligation's amount.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "event_judgment_entered",
+      "primitive": "noul",
+      "question": "Does the cited text establish that a money judgment for this obligation has been entered?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that a money judgment for this obligation has been entered? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that a money judgment for this obligation has been entered.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "event_appeal_filed",
+      "primitive": "noul",
+      "question": "Does the cited text establish that the payer has filed a notice of appeal against this obligation?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that the payer has filed a notice of appeal against this obligation? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that the payer has filed a notice of appeal against this obligation.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "event_stay_secured",
+      "primitive": "noul",
+      "question": "Does the cited text establish that the payer has stayed this obligation with a bond or other security?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that the payer has stayed this obligation with a bond or other security? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that the payer has stayed this obligation with a bond or other security.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "event_paid",
+      "primitive": "noul",
+      "question": "Does the cited text establish that this obligation has been paid?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that this obligation has been paid? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that this obligation has been paid.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "bears_on_amount_finality",
+      "primitive": "noul",
+      "question": "Does the quoted text say how far this obligation's amount has progressed (claimed, briefed or submitted for decision, fixed)?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text say how far this obligation's amount has progressed (claimed, briefed or submitted for decision, fixed)? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "bears_on_appeal_intent",
+      "primitive": "noul",
+      "question": "Does the quoted text say whether the payer will appeal this obligation?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text say whether the payer will appeal this obligation? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "bears_on_appeal_barred",
+      "primitive": "noul",
+      "question": "Does the quoted text state that the payer waived, or is barred from, appealing this obligation itself (not some other claim or order)?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text state that the payer waived, or is barred from, appealing this obligation itself (not some other claim or order)? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "bears_on_debtor_resistance",
+      "primitive": "noul",
+      "question": "Does the quoted text describe how the payer has responded to this obligation or to the court's orders about it?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text describe how the payer has responded to this obligation or to the court's orders about it? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "bears_on_debtor_liquidity",
+      "primitive": "noul",
+      "question": "Does the quoted text describe the payer's own cash, finances or ability to pay an amount of this size?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text describe the payer's own cash, finances or ability to pay an amount of this size? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "bears_on_settlement_signals",
+      "primitive": "noul",
+      "question": "Does the quoted text say anything about the parties settling this obligation?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the quoted text say anything about the parties settling this obligation? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "Yes, for this obligation.",
+          "false": "No, or only about a different claim, order or party."
+        }
+      },
+      "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence",
+        "factor"
+      ],
+      "id": "factor_level",
+      "primitive": "score",
+      "question": "Which level of this factor does the cited text establish?",
+      "applies_when": "A passage routed to a graded factor.",
+      "prompt": {
+        "instructions": "state.factor is one factor of the dispute model. Using only state.evidence, choose the rubric level the text establishes for state.obligation. Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria_from_host": true,
+        "criteria": []
+      },
+      "application": "Code aggregates the levels by the factor's own rule (most advanced, or latest by source date, keeping same-date conflicts) and uses them only to close paths an established fact rules out and to mark where the record points."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_forecast",
+      "state_fields": [
+        "case",
+        "assumptions",
+        "question",
+        "evidence",
+        "readings"
+      ],
+      "applies_when": "The host builds a dispute's event paths for the analysis (once per node and parent context; cached).",
+      "id": "forecast_settlement",
+      "primitive": "noul",
+      "question": "Will the parties settle this obligation within the window?",
+      "prompt": {
+        "instructions": "state.question.event is one future development in state.case. Take every item in state.assumptions as true. Using state.evidence and state.readings, judge whether that event happens within state.question.window. A stated intention or a reading is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. Do not judge amounts or dates.",
+        "criteria": {
+          "true": "The event happens within the window, under the assumptions.",
+          "false": "The event does not happen within the window."
+        }
+      },
+      "application": "The value is the event's conditional probability (model judgment). Code uses it and its complement for the two branches, multiplies along each path, and never deletes a branch for low probability."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_forecast",
+      "state_fields": [
+        "case",
+        "assumptions",
+        "question",
+        "evidence",
+        "readings"
+      ],
+      "applies_when": "The host builds a dispute's event paths for the analysis (once per node and parent context; cached).",
+      "id": "forecast_amount_fixed",
+      "primitive": "noul",
+      "question": "Will the court fix the amount of this obligation within the window?",
+      "prompt": {
+        "instructions": "state.question.event is one future development in state.case. Take every item in state.assumptions as true. Using state.evidence and state.readings, judge whether that event happens within state.question.window. A stated intention or a reading is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. Do not judge amounts or dates.",
+        "criteria": {
+          "true": "The event happens within the window, under the assumptions.",
+          "false": "The event does not happen within the window."
+        }
+      },
+      "application": "The value is the event's conditional probability (model judgment). Code uses it and its complement for the two branches, multiplies along each path, and never deletes a branch for low probability."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_forecast",
+      "state_fields": [
+        "case",
+        "assumptions",
+        "question",
+        "evidence",
+        "readings"
+      ],
+      "applies_when": "The host builds a dispute's event paths for the analysis (once per node and parent context; cached).",
+      "id": "forecast_appeal",
+      "primitive": "noul",
+      "question": "Will the payer file a notice of appeal against this obligation within the window?",
+      "prompt": {
+        "instructions": "state.question.event is one future development in state.case. Take every item in state.assumptions as true. Using state.evidence and state.readings, judge whether that event happens within state.question.window. A stated intention or a reading is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. Do not judge amounts or dates.",
+        "criteria": {
+          "true": "The event happens within the window, under the assumptions.",
+          "false": "The event does not happen within the window."
+        }
+      },
+      "application": "The value is the event's conditional probability (model judgment). Code uses it and its complement for the two branches, multiplies along each path, and never deletes a branch for low probability."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_forecast",
+      "state_fields": [
+        "case",
+        "assumptions",
+        "question",
+        "evidence",
+        "readings"
+      ],
+      "applies_when": "The host builds a dispute's event paths for the analysis (once per node and parent context; cached).",
+      "id": "forecast_secured_stay",
+      "primitive": "noul",
+      "question": "Will the payer obtain a stay of this obligation secured by a bond or other security within the window?",
+      "prompt": {
+        "instructions": "state.question.event is one future development in state.case. Take every item in state.assumptions as true. Using state.evidence and state.readings, judge whether that event happens within state.question.window. A stated intention or a reading is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. Do not judge amounts or dates.",
+        "criteria": {
+          "true": "The event happens within the window, under the assumptions.",
+          "false": "The event does not happen within the window."
+        }
+      },
+      "application": "The value is the event's conditional probability (model judgment). Code uses it and its complement for the two branches, multiplies along each path, and never deletes a branch for low probability."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_forecast",
+      "state_fields": [
+        "case",
+        "assumptions",
+        "question",
+        "evidence",
+        "readings"
+      ],
+      "applies_when": "The host builds a dispute's event paths for the analysis (once per node and parent context; cached).",
+      "id": "forecast_voluntary_payment",
+      "primitive": "noul",
+      "question": "Will the payer pay this obligation within the window?",
+      "prompt": {
+        "instructions": "state.question.event is one future development in state.case. Take every item in state.assumptions as true. Using state.evidence and state.readings, judge whether that event happens within state.question.window. A stated intention or a reading is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. Do not judge amounts or dates.",
+        "criteria": {
+          "true": "The event happens within the window, under the assumptions.",
+          "false": "The event does not happen within the window."
+        }
+      },
+      "application": "The value is the event's conditional probability (model judgment). Code uses it and its complement for the two branches, multiplies along each path, and never deletes a branch for low probability."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_forecast",
+      "state_fields": [
+        "case",
+        "assumptions",
+        "question",
+        "evidence",
+        "readings"
+      ],
+      "applies_when": "The host builds a dispute's event paths for the analysis (once per node and parent context; cached).",
+      "id": "forecast_enforcement_collects",
+      "primitive": "noul",
+      "question": "Will enforcement collect this obligation from the payer within the window?",
+      "prompt": {
+        "instructions": "state.question.event is one future development in state.case. Take every item in state.assumptions as true. Using state.evidence and state.readings, judge whether that event happens within state.question.window. A stated intention or a reading is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. Do not judge amounts or dates.",
+        "criteria": {
+          "true": "The event happens within the window, under the assumptions.",
+          "false": "The event does not happen within the window."
+        }
+      },
+      "application": "The value is the event's conditional probability (model judgment). Code uses it and its complement for the two branches, multiplies along each path, and never deletes a branch for low probability."
+    },
+    {
+      "version": "3.12.0",
+      "profile": "dispute_forecast",
+      "state_fields": [
+        "case",
+        "assumptions",
+        "question",
+        "evidence",
+        "readings"
+      ],
+      "applies_when": "The host builds a dispute's event paths for the analysis (once per node and parent context; cached).",
+      "id": "forecast_security_form",
+      "primitive": "choice",
+      "question": "How will the payer secure the stay of this obligation?",
+      "prompt": {
+        "instructions": "state.question.event concerns how the payer in state.case secures a stay pending appeal. Take every item in state.assumptions as true. Using state.evidence and state.readings, choose how the stay is secured. A stated intention or a reading is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. Do not judge amounts or dates.",
+        "criteria": {
+          "cash_deposit": "a cash deposit with the court (locks the judgment amount in cash)",
+          "surety_bond": "a surety bond (the surety takes cash collateral of 50% to 100% of a bond at 125% of the amount)",
+          "letter_of_credit": "a bond backed by a letter of credit (uses credit-line capacity of 125% of the amount, locks no cash)"
+        }
+      },
+      "application": "The distribution weights the three security branches; code sets the encumbrance each implies."
     }
   ]
 }

@@ -59,7 +59,17 @@ WORKING_METHOD = """Working method
   reviewer can see why it does not change cash.
 - If you connect a name, label or table row to an obligation by matching amounts or dates, mark that finding is_inference and
   describe the link as an inference in your conclusion.
-- run_sensitivity on validated settlement effects to see which unknown changes the cash requirement.
+- Group every dispute that is still live on the review date (a money judgment not yet paid, or a liability ruling
+  whose amount is still open), whichever side the borrower is on: an amount owed to the borrower matters as much as
+  one it owes. Group each with instantiate_dispute: the accepted findings about one obligation (cite the passages that
+  show what the court has decided, the amount, any party's stated position, and the parties' resources), the docket
+  reference only, the obligation's nature, the counterparty, the amount figure and any judgment date. Jev reads who
+  pays, the amount's status and the procedural position from the passages; after your run the host asks Jev for the
+  probabilities of each future development and builds the financial analysis of the supplied loan.
+- Finish with a concise summary of what the research established and why it matters to the borrower's cash and the
+  loan's collections. Do not recommend, size or condition the financing.
+- run_sensitivity on validated settlement effects (fixed-installment cases) to see which unknown changes the cash
+  requirement.
 - request_missing_fact for each pivotal fact the evidence cannot supply, then submit_packet.
 - Use only the evidence returned by the tools; do not rely on remembered facts about this company or later events.
 - Work efficiently: the run stops at {turn_budget} turns; submit before then."""

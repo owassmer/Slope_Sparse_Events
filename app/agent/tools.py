@@ -20,6 +20,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -37,6 +38,7 @@ from app.domain.investigation import (
     AtomicFinding,
     DecisionDependency,
     Disposition,
+    DisputeInstance,
     EconomicEffectProposal,
     EvidenceCandidate,
     ParameterRequirement,
@@ -154,11 +156,35 @@ async def get_mission(ctx: RunContext, _args: dict) -> dict:
             "admissible_sources": sources, "evaluation_arm_note": "Tools and evidence are scoped to this review date."}
 
 
+def _review_date(ctx: RunContext) -> date:
+    return date.fromisoformat(str(ctx.evidence.snapshot_info()["cutoff"])[:10])
+
+
 async def read_baseline_profile(ctx: RunContext, _args: dict) -> dict:
+    from app.analysis.setup import is_slope_case
+
+    if is_slope_case(ctx.inputs):
+        from app.finance.bank import load_feed, summary
+
+        return {"baseline_profile": ctx.inputs["baseline_profile"], "financing_plan": ctx.inputs["financing_plan"],
+                "connected_bank_data": summary(load_feed(ctx.evidence.snapshot_info()["snapshot_id"]))}
     return {"baseline_profile": ctx.inputs["baseline_profile"], "policy": ctx.inputs["policy"]}
 
 
 async def read_loan_terms(ctx: RunContext, _args: dict) -> dict:
+    from app.analysis.setup import is_slope_case, setup_from_inputs
+
+    if is_slope_case(ctx.inputs):
+        st = setup_from_inputs(ctx.inputs, _review_date(ctx))
+        o = st.offer
+        return {"product": ctx.inputs["financing_plan"]["supplied_terms"]["product"],
+                "supplied_terms": {"amount_cents": o.amount_cents, "installments": o.installments, "days": o.days,
+                                   "fee_bps": o.fee_bps, "fee_cents": o.fee_cents,
+                                   "apr_equivalent_bps": o.apr_equivalent_bps(st.funding)},
+                "funding_date": st.funding.isoformat(), "invoice_due_without_slope": st.invoice_due.isoformat(),
+                "schedule": [{"due": p.due.isoformat(), "amount_cents": p.amount_cents} for p in o.schedule(st.funding)],
+                "existing_loans": ctx.inputs["baseline_profile"]["existing_loans"],
+                "note": "The terms are supplied inputs; the host analyses the loan's cash flows after the run."}
     offers = []
     for o in ctx.inputs["permitted_offers"]["offers"]:
         offer = FixedInstallmentOffer(proposal_id=o["proposal_id"], advance_cents=o["advance_cents"],
@@ -450,6 +476,10 @@ async def propose_effect(ctx: RunContext, args: dict) -> dict:
 
 async def run_sensitivity(ctx: RunContext, args: dict) -> dict:
     """Remaining-period required net cash across explicit paid-since-measurement scenarios."""
+    from app.analysis.setup import is_slope_case
+
+    if is_slope_case(ctx.inputs):
+        raise ToolError("run_sensitivity applies to fixed-installment cases; on Slope's terms the host builds the analysis after the run")
     opening = _baseline_item(ctx, "opening_cash_observation_id")
     if opening is None:
         raise ToolError("This case's baseline names no opening-cash observation")
@@ -496,6 +526,148 @@ async def run_sensitivity(ctx: RunContext, args: dict) -> dict:
            "reading": "A necessary cumulative condition, not a dated feasibility test and not an observed shortfall."}
     ctx.run.append("sensitivity_run", object_ids=tuple(effect_ids), payload=out)
     return out
+
+
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December")
+
+
+def _date_in_text(d: date, text: str) -> bool:
+    """Whether a docket date appears in cited text, in the forms filings use."""
+    flat = " ".join(text.split())
+    m = MONTHS[d.month - 1]
+    forms = {d.isoformat(), f"{m} {d.day}, {d.year}", f"{m[:3]}. {d.day}, {d.year}", f"{m[:3]} {d.day}, {d.year}",
+             f"{d.day} {m} {d.year}", f"{d.month}/{d.day}/{d.year}", f"{d.month:02d}/{d.day:02d}/{d.year}",
+             f"{d.month}/{d.day}/{d.year % 100:02d}", f"{d.month:02d}/{d.day:02d}/{d.year % 100:02d}"}
+    return any(re.search(rf"(?<![\d/]){re.escape(f)}(?![\d/])", flat) for f in forms)
+
+
+def _dispute_amount(item: dict, quotes: str) -> EvidenceValue:
+    """The dispute's amount: documented when it is quoted in the cited findings; otherwise derived, with its basis."""
+    basis_note = (item.get("basis") or "").strip()
+    if item.get("value_cents") is not None:
+        cents = int(item["value_cents"])
+        if cents <= 0:
+            raise ToolError("The amount is positive; Jev reads which way it flows")
+        if _cents_in_text(cents, quotes):
+            return EvidenceValue(status=Status.EXACT, unit=Unit.CENTS, value=cents,
+                                 provenance=Provenance(basis=Basis.DOCUMENTED, note=basis_note or None))
+        if not basis_note:
+            raise ToolError(f"{cents} cents is not in the cited quotes; state how it is derived in `basis`")
+        return EvidenceValue(status=Status.EXACT, unit=Unit.CENTS, value=cents,
+                             provenance=Provenance(basis=Basis.DERIVED, derivation=basis_note))
+    lo, hi = item.get("lower_cents"), item.get("upper_cents")
+    if lo is None or hi is None or not 0 < int(lo) <= int(hi):
+        raise ToolError("Give value_cents, or positive lower_cents and upper_cents")
+    quoted = _cents_in_text(int(lo), quotes) and _cents_in_text(int(hi), quotes)
+    if not quoted and not basis_note:
+        raise ToolError("A range not quoted in the findings needs `basis` explaining it")
+    return EvidenceValue(status=Status.RANGE, unit=Unit.CENTS, lower=int(lo), upper=int(hi), provenance=Provenance(
+        basis=Basis.DOCUMENTED if quoted else Basis.DERIVED, derivation=None if quoted else basis_note))
+
+
+REFERENCE_CHARS = 80
+DOCKET = re.compile(r"\b\d{1,2}:\d{2}-[a-z]{2,4}-\d{2,6}\b|\bDkt\.?\s*\d+|\bNo\.\s*\S*\d", re.I)
+LOADED = re.compile(r"\$|\bmillion\b|\d{1,3}(,\d{3})+|\b(payable|owed|owes|owing|award(ed)? to|due|intends?|"
+                    r"appeal\w*|pay|paid|sought|seeks|fixed|estimated?|against)\b", re.I)
+
+
+def _neutral_reference(ref: str, parties: list[str]) -> str:
+    """A docket reference that cannot pre-answer a Jev question: no party names, amounts, direction or status words."""
+    ref = " ".join((ref or "").split())
+    names = [w for p in parties for w in re.findall(r"[A-Za-z]{4,}", p)[:1]]
+    if not ref or len(ref) > REFERENCE_CHARS or not DOCKET.search(ref):
+        raise ToolError(f"order_reference is the docket reference only (at most {REFERENCE_CHARS} characters), e.g. "
+                        "'D. Del. 1:18-cv-01434, Dkt. 399'")
+    if LOADED.search(ref) or any(n.lower() in ref.lower() for n in names):
+        raise ToolError("order_reference names the docket only: no party names, amounts, direction or status words. "
+                        "Jev reads who pays, the amount's status and the procedural position from the passages.")
+    return ref
+
+
+async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
+    """Group one live dispute's evidence for the host's dispute model. The agent supplies the accepted findings, a
+    neutral docket reference, the obligation's nature, the counterparty, the amount figure and any judgment date (both
+    checked against the quotes). Jev reads each finding with its surrounding evidence: who pays, the amount's status,
+    the procedural events, the factors. The host builds the forecasts and the financial analysis after the run."""
+    from app.agent.jev_profiles import DisputeProfile
+    from app.disputes.hydrate import evidence_state
+    from app.disputes.interpret import Interpreter
+    from app.disputes.rules import load_model
+
+    model = load_model()
+    dep = ctx.run.get("dependencies", args["dependency_id"])
+    fids = tuple(dict.fromkeys(args.get("finding_ids") or []))
+    findings = [ctx.run.graph["findings"].get(f) for f in fids]
+    bad = [f for f, x in zip(fids, findings, strict=True) if x is None or x.status != "accepted"]
+    if not fids or bad:
+        raise ToolError(f"A dispute rests on accepted findings (not accepted: {bad or 'none given'})")
+    title, counterparty = (args.get("title") or "").strip(), (args.get("counterparty") or "").strip()
+    if not title or not counterparty:
+        raise ToolError("Give the dispute a short title and name the counterparty")
+    if args.get("nature") not in model["natures"]:
+        raise ToolError(f"nature is one of {sorted(model['natures'])}")
+    borrower = ctx.inputs["baseline_profile"]["borrower"]
+    reference = _neutral_reference(args.get("order_reference", ""), [borrower, counterparty])
+    live = {d.instance_id: d for d in ctx.run.graph["disputes"].values() if d.status != "superseded"}
+    replaced = args.get("supersedes")
+    if replaced and replaced not in live:
+        raise ToolError(f"{replaced} is not a live dispute instance")
+    overlap = [d.instance_id for d in live.values() if set(d.finding_ids) & set(fids) and d.instance_id != replaced]
+    if overlap:
+        raise ToolError(f"These findings are already instantiated as {overlap}; a dispute is modelled once. To "
+                        "correct it, pass supersedes with that instance ID.")
+    quotes = " ".join(s.quote for f in findings for s in f.spans)
+    review = _review_date(ctx)
+    judgment_date = None
+    if args.get("judgment_date"):
+        try:
+            judgment_date = date.fromisoformat(args["judgment_date"])
+        except ValueError as e:
+            raise ToolError("judgment_date is YYYY-MM-DD") from e
+        if judgment_date > review:
+            raise ToolError(f"judgment_date is after the review date {review}")
+        if not _date_in_text(judgment_date, quotes):
+            raise ToolError(f"{judgment_date} is not in the cited quotes; cite the finding that dates the judgment")
+    draft = DisputeInstance(
+        instance_id=ctx.run.new_id("dispute"), dependency_id=dep.dependency_id, model_id=model["model_id"],
+        model_version=model["model_version"], title=title, order_reference=reference, nature=args["nature"],
+        counterparty=counterparty, finding_ids=fids, amount=_dispute_amount(args.get("amount") or {}, quotes),
+        judgment_date=judgment_date, proposed_extension=(args.get("proposed_extension") or "").strip())
+    sources = {s["source_id"]: (s["title"], s["available_at"][:10]) for s in ctx.evidence.list_sources()}
+    judge = None
+    if ctx.semantics is not None:
+        hashes = tuple(dict.fromkeys(ctx.evidence.read(f.spans[0].item_id)["source"]["sha256"] for f in findings))
+        judge = DisputeProfile(ctx.semantics.jev, ctx.run.put, hashes)
+    interpreter = Interpreter(draft, findings, judge=judge, borrower=borrower, sources=sources,
+                              hydrate=lambda f: evidence_state(ctx.evidence, f, findings, sources),
+                              agent_reading={k: args.get(k) for k in ("borrower_role", "stage")}, model=model)
+    try:
+        instance = await interpreter.run()
+    except Exception as e:
+        if judge is not None:
+            _record_jev_failure(ctx, e)
+        raise ToolError(f"The dispute could not be read: {e}") from e
+    if instance.observation_ids:
+        used = [ctx.run.get("observations", o) for o in instance.observation_ids]
+        _dispose(ctx, used, "used_in_finding", f"dispute reading for {instance.instance_id}")
+    if replaced:
+        ctx.run.put("dispute_instantiated", live[replaced].model_copy(update={"status": "superseded",
+                                                                              "superseded_by": instance.instance_id}))
+    ctx.run.put("dispute_instantiated", instance)
+    labels = model["readings"]["amount_status_labels"]
+    return {"instance_id": instance.instance_id, "status": instance.status,
+            "borrower": {"debtor": "pays", "creditor": "is paid"}.get(instance.borrower_role or "", "not established"),
+            "amount_status": labels.get(instance.amount_status, instance.amount_status),
+            "stage": instance.stage,
+            "established_events": {k: v.finding_id for k, v in instance.established.items()},
+            "factors": [{"factor": f.label, "reading": f.level_label} for f in instance.factors
+                        if f.level_label != "unknown"],
+            "constraints": instance.constraints,
+            "evidence_requests": [r.action for r in instance.evidence_requests],
+            **({"proposed_extension": "recorded and flagged; the model is unchanged"} if instance.proposed_extension else {}),
+            "note": ("Jev read the present state from the passages. After your run the host asks Jev for the conditional "
+                     "probabilities of each future development and builds the financial analysis.")}
 
 
 async def request_missing_fact(ctx: RunContext, args: dict) -> dict:
@@ -948,6 +1120,26 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
      "how much was paid since the measurement date. Optionally state an assumed unavailable share of reported cash.",
      obj({"effect_ids": {"type": "array", "items": S}, "paid_fractions": {"type": "array", "items": S},
           "unavailable_opening_cash_cents": {"type": "integer"}}, ["effect_ids"]), run_sensitivity),
+    ("instantiate_dispute", "Group one live dispute (a money judgment, or a liability ruling whose amount is still open) "
+     "for the host's dispute model. Cite the accepted findings about one obligation, including the passages that show "
+     "what the court has decided, the amount and any party's stated position; give a short title, the docket reference "
+     "only (for example 'D. Del. 1:18-cv-01434, Dkt. 399': no party names, amounts, direction or status words), the "
+     "obligation's nature, the counterparty, the amount figure (value_cents, or lower_cents/upper_cents; state `basis` if "
+     "it is not quoted in the findings) and the judgment's entry date if one has been entered (it must appear in the "
+     "cited quotes). Jev reads who pays, the amount's status and the procedural position from the passages. A dispute is "
+     "grouped once; to correct one, pass `supersedes` with its instance ID. borrower_role and stage are used only when "
+     "no Jev is available.",
+     obj({"dependency_id": S, "title": S, "order_reference": S,
+          "nature": {"type": "string", "enum": ["fee_and_cost_award", "money_judgment", "damages_award",
+                                                "settlement_payment"]},
+          "finding_ids": {"type": "array", "items": S}, "counterparty": S,
+          "amount": obj({"value_cents": {"type": "integer"}, "lower_cents": {"type": "integer"},
+                         "upper_cents": {"type": "integer"}, "basis": S}, []),
+          "judgment_date": S, "supersedes": S, "proposed_extension": S,
+          "borrower_role": {"type": "string", "enum": ["debtor", "creditor"]},
+          "stage": {"type": "string", "enum": ["amount_pending", "judgment_entered", "appeal_pending", "enforcement"]}},
+         ["dependency_id", "title", "order_reference", "nature", "finding_ids", "counterparty", "amount"]),
+     instantiate_dispute),
     ("request_missing_fact", "Record a pivotal fact the evidence cannot supply: what it is, why it is pivotal, what evidence "
      "would resolve it and what changes if it is resolved. Sends no message.",
      obj({"dependency_id": S, "fact": S, "why_pivotal": S, "acceptable_evidence": S, "if_resolved": S},

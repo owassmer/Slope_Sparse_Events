@@ -3,7 +3,7 @@
 {% block body %}
 <hgroup>
   <h2>{{ v.borrower }}</h2>
-  <p>Review date {{ v.review_date }} · Incremental working-capital draw · <strong>{{ v.status }}</strong>{% if v.late_failure %}
+  <p>Review date {{ v.review_date }} · Financing request · <strong>{{ v.status }}</strong>{% if v.late_failure %}
     · <span class="tag warn">Runner reported after lock</span> {{ v.late_failure }} (from run.json, outside the hash chain){% endif %}</p>
 </hgroup>
 <p class="muted">Run {{ v.run_id }} · arm {{ v.meta.arm }} · event chain verified ({{ v.verified_head }}…) ·
@@ -15,7 +15,7 @@
     <h5>Request <span class="tag assumption">Assumption</span></h5>
     <p>{{ v.request.requested_use.value if v.request.requested_use }}<br>
        {{ (v.request.requested_amount.value / 100) | round | int if v.request.requested_amount }} USD over
-       {{ v.request.requested_term.value if v.request.requested_term }} months; {{ v.request.requested_pricing.value if v.request.requested_pricing }}</p>
+       {{ v.request.requested_term.value if v.request.requested_term }}{% if v.request.requested_term and v.request.requested_term.value is number %} months{% endif %}; {{ v.request.requested_pricing.value if v.request.requested_pricing }}</p>
   </div>
   <div class="card">
     <h5>Conclusion</h5>

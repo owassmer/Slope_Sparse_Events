@@ -6,13 +6,15 @@ call and its observations in the run's investigation graph. The agent never supp
 question IDs, and nothing outside the snapshot and the run can enter a Jev state.
 
 Profiles (registry v3): candidate_screen (host, every search result), claim_interpretation (agent),
-finding_check (host, every proposed finding), statement_relation (agent; host for baseline overlap).
+finding_check (host, every proposed finding), statement_relation (agent; host for baseline overlap),
+dispute_model (host, when the agent instantiates a live dispute; see DisputeProfile).
 """
 
 from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Callable
 
 from app.agent.jev import NOUL_THRESHOLD, JevAdapter, JevBudgetExceeded
 from app.agent.run_store import RunStore
@@ -204,3 +206,48 @@ class Semantics:
         return await self._ask("statement_relation", ["baseline_overlap"],
                                {"effect_description": effect_description, "baseline_item": baseline_item},
                                subject_ids, source_hashes)
+
+
+class DisputeProfile:
+    """Live-dispute judgments (registry 3.12): present-state interpretation of each cited finding, hydrated with its
+    surrounding evidence (a reading request, a relevance request, a level request per routed graded factor), and
+    conditional forecasts (one request per forecast node and parent context). Calls and observations go to `record`:
+    the run store during an investigation, the analysis sidecar afterwards."""
+
+    def __init__(self, jev: JevAdapter, record: Callable[[str, object], None], source_hashes: tuple[str, ...] = ()) -> None:
+        self.jev, self.record, self.hashes = jev, record, source_hashes
+
+    async def _ask(self, profile: str, qids: list[str], state: dict, subject_ids: tuple[str, ...],
+                   criteria: dict | None = None) -> list[SemanticObservation]:
+        call, observations = await self.jev.judge(profile=profile, question_ids=qids, state=state,
+                                                  subject_ids=subject_ids, source_content_hashes=self.hashes,
+                                                  criteria=criteria)
+        self.record("jev_call", call)
+        for o in observations:
+            self.record("observation_recorded", o)
+        return observations
+
+    async def read(self, obligation, evidence, direction, subject_ids):
+        from app.disputes.rules import load_model
+
+        qids = ["obligation_direction", "amount_status", "amount_includes_interest",
+                *(f"event_{ev}" for ev in load_model()["readings"]["events"])]
+        return await self._ask("dispute_interpretation", qids, {"obligation": obligation, "evidence": evidence},
+                               subject_ids, {"obligation_direction": direction})
+
+    async def relevance(self, obligation, evidence, subject_ids):
+        from app.disputes.rules import load_model
+
+        qids = [f"bears_on_{f}" for f in load_model()["factors"]]
+        return await self._ask("dispute_interpretation", qids, {"obligation": obligation, "evidence": evidence},
+                               subject_ids)
+
+    async def level(self, obligation, evidence, factor, rubric, subject_ids):
+        [o] = await self._ask("dispute_interpretation", ["factor_level"],
+                              {"obligation": obligation, "evidence": evidence, "factor": factor}, subject_ids,
+                              {"factor_level": list(rubric)})
+        return o
+
+    async def forecast(self, question_id, state, subject_ids):
+        [o] = await self._ask("dispute_forecast", [question_id], state, subject_ids)
+        return o
