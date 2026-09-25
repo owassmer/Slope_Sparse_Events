@@ -95,8 +95,10 @@ async def _session(ctx: RunContext, options: ClaudeAgentOptions, stats: dict[str
         async for msg in client.receive_response():
             if isinstance(msg, AssistantMessage):
                 stats["models"].add(msg.model)
-                stats["assistant_turns"] += 1
-                if stats["assistant_turns"] > max_turns and not stats["turn_limit_hit"]:
+                # One model response can arrive as several messages; a turn is one distinct response.
+                stats["turn_ids"].add(msg.message_id or msg.uuid or id(msg))
+                ctx.turns_used = len(stats["turn_ids"])
+                if ctx.turns_used > max_turns and not stats["turn_limit_hit"]:
                     stats["turn_limit_hit"] = True
                     await client.interrupt()
                 for block in msg.content:
@@ -148,7 +150,8 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         cwd=tempfile.mkdtemp(prefix="slope-run-"), env=AGENT_PROCESS_ENV, system_prompt=system_prompt(arm, max_turns),
         output_format={"type": "json_schema", "schema": InvestigationOutcome.model_json_schema()})
 
-    stats: dict[str, Any] = {"models": set(), "tool_calls": {}, "assistant_turns": 0, "turn_limit_hit": False}
+    stats: dict[str, Any] = {"models": set(), "tool_calls": {}, "turn_ids": set(), "turn_limit_hit": False}
+    ctx.max_turns = max_turns
     result, failure = None, None
     try:
         result = asyncio.run(asyncio.wait_for(_session(ctx, options, stats, max_turns), timeout=wall_clock_s))
@@ -157,10 +160,10 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
     except Exception as e:  # service failure: incomplete review, never a decline
         failure = f"{type(e).__name__}: {e}"[:500]
 
-    if result is not None and result.is_error:
-        failure = failure or f"agent session ended with an error: {result.subtype} {result.result or ''}"[:500]
     if stats["turn_limit_hit"] or (result is not None and result.subtype == "error_max_turns"):
         failure = failure or f"turn budget of {max_turns} reached"
+    if result is not None and result.is_error:
+        failure = failure or f"agent session ended with an error: {result.subtype} {result.result or ''}"[:500]
     if not ctx.submitted:
         run.lock({"summary": None, "configuration_failure": ctx.configuration_failure,
                   "incomplete_reasons": ctx.incomplete_reasons + [failure or "packet not submitted"]})
@@ -176,7 +179,7 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         "run_id": run_id, "status": status, "failure": failure, "incomplete_reasons": ctx.incomplete_reasons,
         "finished_at": datetime.now(UTC).isoformat(),
         "returned_models": sorted(stats["models"] | set((result.model_usage or {}) if result else {})),
-        "tool_calls": stats["tool_calls"], "assistant_turns": stats["assistant_turns"], "max_turns": max_turns,
+        "tool_calls": stats["tool_calls"], "turns_used": len(stats["turn_ids"]), "max_turns": max_turns,
         "claude": None if result is None else {"num_turns": result.num_turns, "duration_ms": result.duration_ms,
                                                 "usage": result.usage, "notional_cost_usd": result.total_cost_usd,
                                                 "structured_output": result.structured_output},

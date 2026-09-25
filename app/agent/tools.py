@@ -64,6 +64,8 @@ class RunContext:
     incomplete_reasons: list[str] = field(default_factory=list)
     configuration_failure: str | None = None
     submitted: bool = False
+    turns_used: int = 0
+    max_turns: int | None = None
 
     @property
     def case_id(self) -> str:
@@ -535,6 +537,9 @@ def build_server(ctx: RunContext, allowed: list[str]):
                 return {"content": [{"type": "text", "text": "The packet is locked; no further actions."}], "is_error": True}
             try:
                 result = await _h(ctx, args)
+                if ctx.max_turns and ctx.max_turns - ctx.turns_used <= 20:
+                    result = {**result, "turn_budget": f"{max(0, ctx.max_turns - ctx.turns_used)} turns remain; propose effects, "
+                                                       "record missing facts and submit the packet before the run stops."}
                 return {"content": [{"type": "text", "text": json.dumps(result, default=str)}]}
             except (ToolError, KeyError, ValueError) as e:
                 return {"content": [{"type": "text", "text": f"Rejected: {e}"}], "is_error": True}
