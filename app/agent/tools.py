@@ -63,6 +63,14 @@ CATEGORY_RULES: dict[str, tuple[str, str, set[str], set[str]]] = {
                         {"agreed_contractually", "reported_completed"}),
 }
 POSTURE_ONLY = {"funding_constraint", "receipt_delay"}  # posture must not be an allegation, plan or unknown
+TREATMENT_MEANING = {
+    "already_in_baseline_reclassify_timing": "an obligation already in the balance sheet is placed on a dated payment calendar, counted once",
+    "new_to_baseline": "a new cash stream is added to the model",
+    "remove_from_baseline": "an item is removed from the model's future cash streams",
+    "normalization_only": "historical earnings are normalized; no cash stream is created or removed",
+    "exclude_already_paid_obligation": "a paid obligation creates no future cash outflow in the model",
+    "modify_available_funding": "the amount of cash or financing treated as available is reduced or limited in the model",
+}
 MAX_TEXT = 20_000
 OVERRIDE_NOTE_MIN = 20
 
@@ -644,7 +652,11 @@ async def _consequence_support(ctx: RunContext, effect: EconomicEffectProposal,
     if not effect.model_consequence.strip():
         return ["Model consequence is empty; state what this effect means for the cash model"], []
     cited = [findings[f] for f in effect.finding_ids]
-    engine = [f"{p.name}: {p.value.value if p.value and p.value.value is not None else 'unknown'}" for p in effect.parameters]
+    # The effect's own modelling treatment is part of what its consequence may rely on: "excluded from available cash"
+    # follows from modify_available_funding, not from a finding. New facts still have to come from the findings.
+    engine = [f"Modelling treatment of this effect: {TREATMENT_MEANING.get(effect.baseline_treatment, effect.baseline_treatment)}; "
+              f"mechanism {effect.mechanism.replace('_', ' ')}; cash direction {effect.cash_direction}."]
+    engine += [f"{p.name}: {p.value.value if p.value and p.value.value is not None else 'unknown'}" for p in effect.parameters]
     [obs] = await ctx.semantics.support(effect.model_consequence, cited, engine, (effect.effect_id,))
     # Reject only a clear "some unsupported"; a near-even answer is recorded (visible in checks) but does not block,
     # because false alarms here cost the agent turns without protecting the cash model.
