@@ -182,6 +182,16 @@ class Semantics:
         return await self._ask("statement_relation", ["statement_relation"], state,
                                (a.finding_id, b.finding_id), hashes)
 
+    async def support(self, statement: str, cited: list[AtomicFinding], engine_results: list[str],
+                      subject_ids: tuple[str, ...], *, with_quotes: bool = True) -> list[SemanticObservation]:
+        """statement_support: are the factual claims in an agent-written statement supported by what it cites?"""
+        cited_state = [{"finding_id": f.finding_id, "proposition": f.proposition,
+                        **({"quotes": [s.quote for s in f.spans]} if with_quotes else {})} for f in cited]
+        hashes = tuple(dict.fromkeys(self.evidence.source(s.source_id)["sha256"] for f in cited for s in f.spans))
+        return await self._ask("statement_support", ["claims_supported"],
+                               {"statement": statement, "cited_findings": cited_state, "engine_results": engine_results},
+                               subject_ids, hashes)
+
     async def baseline_overlap(self, effect_description: str, baseline_item: str, subject_ids: tuple[str, ...],
                                source_hashes: tuple[str, ...] = ()) -> list[SemanticObservation]:
         """Warning signal only; obligation IDs and host validation decide double counting."""

@@ -95,7 +95,9 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
                                         "basis": ("in cited quote" if p.value and p.value.provenance.basis == "documented_evidence"
                                                   else "agent-stated, not in cited quote" if p.value else "")}
                                        for p in e.parameters],
-                        "findings": [findings[f] for f in e.finding_ids if f in findings]})
+                        "findings": [findings[f] for f in e.finding_ids if f in findings],
+                        "checks": [obs_view(o) for o in e.observation_ids if o in g["observations"]],
+                        "overrides": dict(e.override_reasons)})
 
     deps = []
     for d in g["dependencies"].values():
@@ -111,6 +113,12 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
                                                         if g["findings"][v["id"]].dependency_id == d.dependency_id]})
 
     ledger = Counter(o.downstream_disposition for o in g["observations"].values())
+    titles = {sid: run_source_title(inputs, sid) for sid in {i.source_id for i in g["inventory"].values()}}
+    inventory = [{"id": i.item_id, "kind": i.kind.replace("_", " "), "source": titles.get(i.source_id, i.source_id),
+                  "heading": " › ".join(i.heading_path[-2:]) or "(whole document)", "sections": len(i.section_ids),
+                  "status": i.status.replace("_", " "), "findings": list(i.finding_ids), "note": i.note}
+                 for i in sorted(g["inventory"].values(), key=lambda i: i.item_id)]
+    conclusion_check = next((e.payload for e in reversed(run.events) if e.kind == "conclusion_checked"), None)
     return {
         "late_failure": (record.get("status") not in (None, status)) and (record.get("failure") or record.get("status")),
         "run_id": run_id, "verified_head": run.head[:16], "record": record, "meta": meta, "status": status,
@@ -122,6 +130,8 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
         "sensitivities": [e.payload for e in run.events if e.kind == "sensitivity_run"],
         "reconciliations": [t.model_dump() for t in g["reconciliations"].values()],
         "jev_ledger": dict(ledger), "jev_calls": len(g["jev_calls"]), "observations": len(g["observations"]),
+        "inventory": inventory, "conclusion_check": conclusion_check,
+        "sweep": next((e.payload for e in run.events if e.kind == "inventory_loaded"), None),
     }
 
 

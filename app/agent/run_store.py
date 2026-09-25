@@ -23,6 +23,7 @@ from app.domain.investigation import (
     EconomicEffectProposal,
     EventKind,
     EvidenceCandidate,
+    InventoryItem,
     InvestigationEvent,
     JevCallRecord,
     ReconciliationTask,
@@ -33,7 +34,7 @@ GENESIS = "0" * 64
 COLLECTIONS: dict[str, type[BaseModel]] = {
     "dependencies": DecisionDependency, "candidates": EvidenceCandidate, "jev_calls": JevCallRecord,
     "observations": SemanticObservation, "findings": AtomicFinding, "reconciliations": ReconciliationTask,
-    "effects": EconomicEffectProposal,
+    "effects": EconomicEffectProposal, "inventory": InventoryItem,
 }
 # Which collection each event kind writes its object into (None = log-only event).
 EVENT_COLLECTION: dict[str, str | None] = {
@@ -41,10 +42,11 @@ EVENT_COLLECTION: dict[str, str | None] = {
     "observation_recorded": "observations", "observation_disposition": "observations",
     "finding_proposed": "findings", "finding_resolved": "findings", "reconciliation_opened": "reconciliations",
     "reconciliation_resolved": "reconciliations", "effect_proposed": "effects", "effect_validated": "effects",
+    "inventory_loaded": "inventory", "inventory_accounted": "inventory",
 }
 ID_FIELD = {"dependencies": "dependency_id", "candidates": "candidate_id", "jev_calls": "call_id",
             "observations": "observation_id", "findings": "finding_id", "reconciliations": "task_id",
-            "effects": "effect_id"}
+            "effects": "effect_id", "inventory": "item_id"}
 
 
 class LockedRunError(RuntimeError):
@@ -71,9 +73,8 @@ class RunStore:
             self.verify()
             if self.locked:  # a locked run's log must still end exactly where the packet says
                 packet = json.loads((self.dir / "packet.json").read_text())
-                body = {k: v for k, v in packet.items() if k not in ("locked_at", "chain_head")}
                 if (packet["chain_head"] != self.head or packet["event_count"] != len(self.events)
-                        or json.loads(json.dumps(body, default=str)) != json.loads(json.dumps(self.export(), default=str))):
+                        or not self._packet_matches(packet)):
                     raise ValueError(f"Locked run {run_id}: event log does not match its packet")
         elif meta is not None:
             self.append("run_started", payload={"run_id": run_id, **meta})
@@ -123,6 +124,26 @@ class RunStore:
             prefix, _, n = key.rpartition("_")
             if prefix and n.isdigit():
                 self.counters[prefix] = max(self.counters.get(prefix, 0), int(n))
+
+    def _packet_matches(self, packet: dict[str, Any]) -> bool:
+        """Every collection and field recorded in the packet must equal the replayed log.
+
+        Schema evolution only adds collections or defaulted fields; those are not in older packets, so they are
+        not compared. Any altered or missing recorded value still fails.
+        """
+        current = json.loads(json.dumps(self.export(), default=str))
+        for name in COLLECTIONS:
+            if name not in packet:
+                continue
+            ids = ID_FIELD[name]
+            recorded = {o[ids]: o for o in packet[name]}
+            replayed = {o[ids]: o for o in current.get(name, [])}
+            if recorded.keys() != replayed.keys():
+                return False
+            for key, obj in recorded.items():
+                if any(replayed[key].get(field) != value for field, value in obj.items()):
+                    return False
+        return True
 
     def verify(self) -> None:
         prev = GENESIS

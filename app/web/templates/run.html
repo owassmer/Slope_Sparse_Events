@@ -20,6 +20,8 @@
   <div class="card">
     <h5>Conclusion</h5>
     <p>{{ v.submitted.conclusion or "No packet conclusion submitted." }}</p>
+    {% if v.conclusion_check %}<p class="muted"><span class="tag jev">Jev check</span>Conclusion claims:
+      {{ "supported by findings and engine results" if v.conclusion_check.answer == "all_supported" else v.conclusion_check.answer.replace("_", " ") }}{% if v.conclusion_check.override_reason %} · overridden: {{ v.conclusion_check.override_reason }}{% endif %}</p>{% endif %}
     {% if v.submitted.incomplete_reasons %}<p><span class="tag warn">Incomplete</span> {{ v.submitted.incomplete_reasons | join("; ") }}</p>{% endif %}
   </div>
 </div>
@@ -46,6 +48,11 @@
     {% for p in e.parameters %}<tr><td>{{ p.name }}<br><span class="muted">{{ p.description }}</span></td><td>{{ p.value }}{% if p.basis %}<br><span class="muted">{{ p.basis }}</span>{% endif %}</td><td>{{ p.status }}</td></tr>{% endfor %}
   </tbody></table>{% endif %}
   {% if e.problems %}<p><span class="tag warn">Rejected</span> {{ e.problems | join("; ") }}</p>{% endif %}
+  {% if e.checks %}<details><summary>Host checks ({{ e.checks | length }})</summary>
+    {% for o in e.checks %}<p style="margin:.2rem 0"><span class="tag jev">Jev</span><strong>{{ o.meaning }}</strong>{% if o.ambiguous %} <span class="tag warn">Ambiguous</span>{% endif %}
+      <span class="muted"> · {{ o.question }} · {{ o.disposition }}</span></p>{% endfor %}
+    {% for k, r in e.overrides.items() %}<p class="muted"><span class="tag warn">Override</span> {{ k.replace("_", " ") }}: {{ r }}</p>{% endfor %}
+  </details>{% endif %}
   <details><summary>Supporting findings ({{ e.findings | length }})</summary>
     {% for f in e.findings %}{% include "_finding.html" %}{% endfor %}
   </details>
@@ -64,6 +71,15 @@
   <p class="muted">{{ s.reading }}</p>
 </div>
 {% endfor %}{% endif %}
+
+{% if v.inventory %}
+<h3>Inventory <span class="tag jev">Host sweep</span></h3>
+<p class="muted">Jev read every admissible section once and flagged specific matters; the agent had to account for each before submitting.</p>
+<table><thead><tr><th>Matter</th><th>Kind</th><th>Accounted as</th></tr></thead><tbody>
+{% for i in v.inventory %}<tr><td>{{ i.source }}<br><span class="muted">{{ i.heading }} ({{ i.sections }} section{{ "s" if i.sections != 1 }})</span></td>
+  <td>{{ i.kind }}</td><td>{{ i.status }}{% if i.findings %}<br><span class="muted">{{ i.findings | join(", ") }}</span>{% endif %}{% if i.note %}<br><span class="muted">{{ i.note }}</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table>
+{% endif %}
 
 <h3>Investigation</h3>
 <p class="muted">Jev contribution: {% for k, n in v.jev_ledger.items() %}{{ k.replace("_", " ") }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</p>

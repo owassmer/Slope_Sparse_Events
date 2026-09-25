@@ -46,7 +46,23 @@ from app.evidence.store import EvidenceAccessError, EvidenceStore
 from app.finance.fixed_installment import FixedInstallmentOffer
 from app.finance.thresholds import remaining_period_required_net_cash
 
-MAX_SEARCH_RESULTS = 8
+MAX_SEARCH_RESULTS = 12
+DEFAULT_SEARCH_RESULTS = 8
+RELATION_CHECKS_PER_ACCEPTANCE = 2
+# Category-error guard (code-owned): the semantic status a finding must have to support each mechanism.
+CATEGORY_RULES: dict[str, tuple[str, str, set[str], set[str]]] = {
+    # mechanism: (subject_kind, status question, allowed statuses, allowed postures)
+    "settlement_payment_timing": ("obligation", "obligation_status", {"required"},
+                                  {"agreed_contractually", "imposed_by_court_or_authority", "reported_completed"}),
+    "resolved_obligation": ("obligation", "obligation_status", {"reported_satisfied"}, {"reported_completed"}),
+    "restricted_funds": ("cash_pool", "cash_access", {"access_prohibited", "access_limited"},
+                         {"agreed_contractually", "imposed_by_court_or_authority", "reported_completed"}),
+    "operating_interruption": ("activity", "activity_status", {"unavailable", "limited"},
+                               {"reported_completed", "imposed_by_court_or_authority", "agreed_contractually"}),
+    "expense_funding": ("offset", "offset_status", {"committed", "committed_subject_to_condition", "received_or_paid_for_borrower"},
+                        {"agreed_contractually", "reported_completed"}),
+}
+POSTURE_ONLY = {"funding_constraint", "receipt_delay"}  # posture must not be an allegation, plan or unknown
 MAX_TEXT = 20_000
 OVERRIDE_NOTE_MIN = 20
 
@@ -154,7 +170,7 @@ async def record_dependency(ctx: RunContext, args: dict) -> dict:
 
 async def search_evidence(ctx: RunContext, args: dict) -> dict:
     dep = ctx.run.get("dependencies", args["dependency_id"])
-    limit = max(1, min(int(args.get("limit", 6)), MAX_SEARCH_RESULTS))
+    limit = max(1, min(int(args.get("limit", DEFAULT_SEARCH_RESULTS)), MAX_SEARCH_RESULTS))
     try:
         hits = ctx.evidence.search(args["query"], source_ids=args.get("source_ids") or None, limit=limit)
     except EvidenceAccessError as e:
@@ -269,6 +285,7 @@ async def propose_finding(ctx: RunContext, args: dict) -> dict:
                             subject_kind=args.get("subject_kind", "other"), subject=args.get("subject", ""),
                             is_inference=bool(args.get("is_inference", False)), spans=tuple(spans), observation_ids=linked)
     ctx.run.put("finding_proposed", finding)
+    _attribute_screen(ctx, finding)
     checks: list[SemanticObservation] = []
     if ctx.semantics is not None:
         try:
@@ -326,7 +343,10 @@ async def resolve_finding(ctx: RunContext, args: dict) -> dict:
     resolved = finding.model_copy(update={"status": "accepted" if decision == "accept" else "rejected",
                                           "resolution_note": args.get("note", "")})
     ctx.run.put("finding_resolved", resolved)
-    return {"finding_id": resolved.finding_id, "status": resolved.status}
+    out: dict[str, Any] = {"finding_id": resolved.finding_id, "status": resolved.status}
+    if resolved.status == "accepted" and ctx.semantics is not None:
+        out["relation_checks"] = await _auto_relations(ctx, resolved)
+    return out
 
 
 def _parameter(p: dict, findings: dict[str, AtomicFinding]) -> ParameterRequirement:
@@ -376,12 +396,37 @@ async def propose_effect(ctx: RunContext, args: dict) -> dict:
                 warnings = [_obs_view(o) for o in overlap]
         except Exception as e:
             _record_jev_failure(ctx, e)
+    guard_obs: list[SemanticObservation] = []
+    overrides = {k: v.strip() for k, v in (args.get("override_reasons") or {}).items() if isinstance(v, str)}
+    if ctx.semantics is not None and not problems:
+        try:
+            guard_problems, guard_obs = await _category_guard(ctx, effect, findings)
+            support_problems, support_obs = await _consequence_support(ctx, effect, findings)
+        except ToolError:
+            raise
+        except Exception as e:
+            _record_jev_failure(ctx, e)
+            raise ToolError(f"Effect {effect.effect_id} could not be checked, so it is not validated: {e}") from e
+        guard_obs += support_obs
+        for name, found in (("category_guard", guard_problems), ("consequence_support", support_problems)):
+            if found and len(overrides.get(name, "")) >= OVERRIDE_NOTE_MIN:
+                warnings.append({"overridden": name, "reason": overrides[name], "problems": found})
+                _dispose(ctx, [o for o in guard_obs if _guard_name(o) == name], "overridden_by_agent_with_reason", overrides[name])
+            elif found:
+                problems += found
+        _dispose(ctx, [o for o in guard_obs if ctx.run.get("observations", o.observation_id).downstream_disposition == "unused"],
+                 "challenged_agent_draft" if problems else "used_in_finding", f"effect guard for {effect.effect_id}")
     validated = effect.model_copy(update={"status": "rejected" if problems else "validated",
-                                          "validation_messages": tuple(problems)})
+                                          "validation_messages": tuple(problems),
+                                          "observation_ids": tuple(o.observation_id for o in guard_obs),
+                                          "override_reasons": {w["overridden"]: w["reason"] for w in warnings
+                                                               if isinstance(w, dict) and "overridden" in w}})
     ctx.run.put("effect_validated", validated)
     return {"effect_id": validated.effect_id, "status": validated.status, "problems": problems,
-            "baseline_overlap_warning": warnings,
-            "note": "Validated means structurally sound and supported; it does not activate any cash flow."}
+            "checks": [_obs_view(o) for o in guard_obs], "warnings": warnings,
+            "note": ("Validated means structurally sound, semantically consistent and supported; it does not activate any "
+                     "cash flow. To proceed past a failed check, revise, or pass override_reasons "
+                     "{category_guard|consequence_support: reason} if you have a stated reason.")}
 
 
 async def run_sensitivity(ctx: RunContext, args: dict) -> dict:
@@ -441,13 +486,199 @@ async def request_missing_fact(ctx: RunContext, args: dict) -> dict:
     return {"fact_request_id": fact_id, "note": "Recorded internally; no message is sent."}
 
 
+async def read_inventory(ctx: RunContext, _args: dict) -> dict:
+    items = sorted(ctx.run.graph["inventory"].values(), key=lambda i: (i.status != "open", i.item_id))
+    titles = {s["source_id"]: s["title"] for s in ctx.evidence.list_sources()}
+    return {"note": ("The host screened every admissible section for specific legal matters, settlements, debt agreements, "
+                     "covenants, cash restrictions and matter-related accounting items. Account for every open item before "
+                     "submitting. A flag is a pointer to read, not a finding."),
+            "open": sum(i.status == "open" for i in items),
+            "items": [{"item_id": i.item_id, "status": i.status, "kind": i.kind, "source": titles.get(i.source_id, i.source_id),
+                       "heading": " > ".join(i.heading_path[-2:]) or "(whole document)", "section_ids": list(i.section_ids),
+                       "excerpt": i.excerpt[:200], **({"finding_ids": list(i.finding_ids)} if i.finding_ids else {}),
+                       **({"note": i.note} if i.note else {})} for i in items]}
+
+
+async def account_for_items(ctx: RunContext, args: dict) -> dict:
+    updates = []
+    for entry in args.get("items", []):
+        item = ctx.run.get("inventory", entry["item_id"])
+        disposition = entry.get("disposition")
+        if disposition == "covered_by_findings":
+            fids = tuple(entry.get("finding_ids") or [])
+            bad = [f for f in fids if f not in ctx.run.graph["findings"] or ctx.run.graph["findings"][f].status != "accepted"]
+            if not fids or bad:
+                raise ToolError(f"{item.item_id}: covered_by_findings needs accepted finding IDs (not accepted: {bad or 'none given'})")
+            updates.append(item.model_copy(update={"status": "covered", "finding_ids": fids, "note": entry.get("reason", "")}))
+        elif disposition == "not_decision_relevant":
+            reason = (entry.get("reason") or "").strip()
+            if len(reason) < OVERRIDE_NOTE_MIN:
+                raise ToolError(f"{item.item_id}: say why it does not bear on the financing decision")
+            updates.append(item.model_copy(update={"status": "not_decision_relevant", "note": reason}))
+        else:
+            raise ToolError(f"{entry.get('item_id')}: disposition must be covered_by_findings or not_decision_relevant")
+    for u in updates:  # all validated before any write
+        ctx.run.put("inventory_accounted", u)
+    return {"accounted": [u.item_id for u in updates],
+            "open": sum(i.status == "open" for i in ctx.run.graph["inventory"].values())}
+
+
+async def resolve_reconciliation(ctx: RunContext, args: dict) -> dict:
+    task = ctx.run.get("reconciliations", args["task_id"])
+    note = (args.get("note") or "").strip()
+    if len(note) < OVERRIDE_NOTE_MIN:
+        raise ToolError("Explain how the statements relate and which finding stands")
+    ctx.run.put("reconciliation_resolved", task.model_copy(update={"status": "resolved", "note": f"{task.note} | {note}"}))
+    return {"task_id": task.task_id, "status": "resolved"}
+
+
 async def submit_packet(ctx: RunContext, args: dict) -> dict:
+    if ctx.semantics is not None:
+        open_items = [i.item_id for i in ctx.run.graph["inventory"].values() if i.status == "open"]
+        if open_items:
+            raise ToolError(f"{len(open_items)} inventory items are still open: {open_items[:12]}. Use read_inventory and account_for_items.")
+        open_tasks = [t.task_id for t in ctx.run.graph["reconciliations"].values() if t.status == "open"]
+        if open_tasks:
+            raise ToolError(f"Open reconciliation tasks: {open_tasks}. Resolve them with resolve_reconciliation.")
+        await _check_conclusion(ctx, args)
     summary = {k: args.get(k) for k in ("summary", "pivotal_unknowns", "supported_effect_ids", "conclusion")}
     summary["incomplete_reasons"] = ctx.incomplete_reasons
     summary["configuration_failure"] = ctx.configuration_failure
+    if args.get("conclusion_override_reason"):
+        summary["conclusion_override_reason"] = args["conclusion_override_reason"]
     path = ctx.run.lock(summary)
     ctx.submitted = True
     return {"locked": True, "packet": path.name, "chain_head": ctx.run.head}
+
+
+# --- 4c host checks --------------------------------------------------------------------------------
+
+def _dispose(ctx: RunContext, observations: list[SemanticObservation], disposition: str, note: str) -> None:
+    for o in observations:
+        current = ctx.run.get("observations", o.observation_id)
+        ctx.run.put("observation_disposition", current.model_copy(update={"downstream_disposition": disposition,
+                                                                          "disposition_note": note}))
+
+
+def _guard_name(o: SemanticObservation) -> str:
+    return "consequence_support" if o.question_id == "claims_supported" else "category_guard"
+
+
+def _attribute_screen(ctx: RunContext, finding: AtomicFinding) -> None:
+    """Reliance attribution: screen observations on passages this finding cites are recorded as used."""
+    cited = {s.item_id for s in finding.spans} | {s.section_id for s in finding.spans}
+    for c in ctx.run.graph["candidates"].values():
+        if c.screen is None or c.item_id not in cited:
+            continue
+        unused = [ctx.run.get("observations", o) for o in c.screen.observation_ids
+                  if ctx.run.get("observations", o).downstream_disposition == "unused"]
+        _dispose(ctx, unused, "used_in_finding", f"screened passage cited in {finding.finding_id}")
+
+
+async def _auto_relations(ctx: RunContext, finding: AtomicFinding) -> list[dict]:
+    """Relation check against the most recent accepted findings under the same dependency; conflicts open tasks."""
+    dep = ctx.run.get("dependencies", finding.dependency_id)
+    others = [f for f in ctx.run.graph["findings"].values()
+              if f.dependency_id == finding.dependency_id and f.status == "accepted" and f.finding_id != finding.finding_id]
+    out = []
+    for other in others[-RELATION_CHECKS_PER_ACCEPTANCE:]:
+        try:
+            [rel] = await ctx.semantics.relate(finding, other, dep.question)
+        except Exception as e:
+            _record_jev_failure(ctx, e)
+            out.append({"with": other.finding_id, "error": str(e)[:200]})
+            continue
+        row = {"with": other.finding_id, **_obs_view(rel)}
+        if rel.answer == "conflict" or is_ambiguous(rel):
+            task = ReconciliationTask(task_id=ctx.run.new_id("recon"), finding_ids=(finding.finding_id, other.finding_id),
+                                      observation_ids=(rel.observation_id,),
+                                      note=f"{meaning(rel.question_id, rel.answer)}: {dep.question}")
+            ctx.run.put("reconciliation_opened", task)
+            _dispose(ctx, [rel], "flagged_conflict", f"opened {task.task_id}")
+            row["reconciliation_task"] = task.task_id
+        out.append(row)
+    return out
+
+
+async def _category_guard(ctx: RunContext, effect: EconomicEffectProposal,
+                          findings: dict[str, AtomicFinding]) -> tuple[list[str], list[SemanticObservation]]:
+    """Posture and status of each supporting finding must fit the effect's mechanism (host-run, not agent-optional)."""
+    problems, obs_all = [], []
+    rule = CATEGORY_RULES.get(effect.mechanism)
+    for fid in effect.finding_ids:
+        f = findings[fid]
+        if effect.mechanism == "noncash_normalization":
+            roles = [ctx.run.get("observations", o) for o in f.observation_ids]
+            roles = [o for o in roles if o.question_id == "economic_role"]
+            if not any(o.answer == "noncash_accounting_item" and not is_ambiguous(o) for o in roles):
+                got = ", ".join(meaning(o.question_id, o.answer) for o in roles) or "no economic-role check"
+                problems.append(f"Category guard: {fid} is not established as a noncash accounting item ({got})")
+            continue
+        if rule is None and effect.mechanism not in POSTURE_ONLY:
+            continue
+        subject_kind = rule[0] if rule else "other"
+        obs = await ctx.semantics.interpret(item_id=f.spans[0].item_id, claim=f.proposition, target=f.target,
+                                            subject_kind=subject_kind, subject=effect.target, anchor_quote=f.spans[0].quote)
+        obs_all += obs
+        by_q = {o.question_id: o for o in obs}
+        posture = by_q.get("claim_posture")
+        allowed_postures = rule[3] if rule else {"agreed_contractually", "imposed_by_court_or_authority", "reported_completed"}
+        if posture is None or is_ambiguous(posture) or posture.answer not in allowed_postures:
+            problems.append(f"Category guard: {fid} posture is {meaning('claim_posture', posture.answer if posture else None)}"
+                            f"{' (ambiguous)' if posture and is_ambiguous(posture) else ''}; {effect.mechanism} needs "
+                            f"{sorted(allowed_postures)}")
+        if rule:
+            status = by_q.get(rule[1])
+            if status is None or is_ambiguous(status) or status.answer not in rule[2]:
+                problems.append(f"Category guard: {fid} {rule[1]} is {meaning(rule[1], status.answer if status else None)}"
+                                f"{' (ambiguous)' if status and is_ambiguous(status) else ''}; {effect.mechanism} needs "
+                                f"{sorted(rule[2])}")
+        entity = by_q.get("entity_scope")
+        if entity is not None and (is_ambiguous(entity) or entity.answer != "target"):
+            problems.append(f"Category guard: {fid} does not clearly concern {effect.target} ({meaning('entity_scope', entity.answer)})")
+    return problems, obs_all
+
+
+async def _consequence_support(ctx: RunContext, effect: EconomicEffectProposal,
+                               findings: dict[str, AtomicFinding]) -> tuple[list[str], list[SemanticObservation]]:
+    if not effect.model_consequence.strip():
+        return ["Model consequence is empty; state what this effect means for the cash model"], []
+    cited = [findings[f] for f in effect.finding_ids]
+    engine = [f"{p.name}: {p.value.value if p.value and p.value.value is not None else 'unknown'}" for p in effect.parameters]
+    [obs] = await ctx.semantics.support(effect.model_consequence, cited, engine, (effect.effect_id,))
+    # Reject only a clear "some unsupported"; a near-even answer is recorded (visible in checks) but does not block,
+    # because false alarms here cost the agent turns without protecting the cash model.
+    if obs.answer == "some_unsupported" and not is_ambiguous(obs):
+        return [f"Consequence support: {meaning('claims_supported', obs.answer)}. Revise the model consequence to what the "
+                "cited findings support"], [obs]
+    return [], [obs]
+
+
+async def _check_conclusion(ctx: RunContext, args: dict) -> None:
+    conclusion = (args.get("conclusion") or "").strip()
+    accepted = [f for f in ctx.run.graph["findings"].values() if f.status == "accepted"]
+    effects = [f"{e.effect_id} ({e.mechanism}, {e.target}): {e.model_consequence}"
+               for e in ctx.run.graph["effects"].values() if e.status == "validated"]
+    sens = [json.dumps({"buckets": e.payload.get("buckets"), "unavailable_opening_cash": e.payload.get("unavailable_opening_cash"),
+                        "scenarios": [(r["share_of_bucket_paid_since_measurement"], r["required_net_cash_cents"])
+                                      for r in e.payload.get("scenarios", [])]})
+            for e in ctx.run.events if e.kind == "sensitivity_run"]
+    try:
+        [obs] = await ctx.semantics.support(conclusion, accepted, effects + sens, ("conclusion",), with_quotes=False)
+    except Exception as e:
+        _record_jev_failure(ctx, e)
+        raise ToolError(f"The conclusion could not be checked: {e}") from e
+    ok = not (obs.answer == "some_unsupported" and not is_ambiguous(obs))  # same gating as consequence support
+    reason = (args.get("conclusion_override_reason") or "").strip()
+    ctx.run.append("conclusion_checked", object_ids=(obs.observation_id,),
+                   payload={"answer": obs.answer, "ambiguous": is_ambiguous(obs), "override_reason": reason or None})
+    if not ok and len(reason) < OVERRIDE_NOTE_MIN:
+        _dispose(ctx, [obs], "challenged_agent_draft", "conclusion check")
+        raise ToolError(f"Conclusion check: {meaning('claims_supported', obs.answer)}"
+                        f"{' (ambiguous)' if is_ambiguous(obs) else ''}. Revise the conclusion to what accepted findings, "
+                        "validated effects and sensitivity results support, or give conclusion_override_reason.")
+    _dispose(ctx, [obs], "used_in_finding" if ok else "overridden_by_agent_with_reason",
+             "conclusion check" if ok else reason)
 
 
 # --- tool schemas ------------------------------------------------------------------------------------
@@ -511,8 +742,9 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
                                                             "remove_from_baseline", "normalization_only",
                                                             "exclude_already_paid_obligation", "modify_available_funding"]},
           "parameters": {"type": "array", "items": PARAM}, "linked_effect_ids": {"type": "array", "items": S},
-          "double_count_guard": S, "model_consequence": S},
-         ["finding_ids", "mechanism", "target", "cash_direction", "baseline_treatment"]), propose_effect),
+          "double_count_guard": S, "model_consequence": S,
+          "override_reasons": obj({"category_guard": S, "consequence_support": S}, [])},
+         ["finding_ids", "mechanism", "target", "cash_direction", "baseline_treatment", "model_consequence"]), propose_effect),
     ("run_sensitivity", "Deterministic remaining-period cash requirement for validated settlement effects across scenarios of "
      "how much was paid since the measurement date. Optionally state an assumed unavailable share of reported cash.",
      obj({"effect_ids": {"type": "array", "items": S}, "paid_fractions": {"type": "array", "items": S},
@@ -521,10 +753,21 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
      "would resolve it and what changes if it is resolved. Sends no message.",
      obj({"dependency_id": S, "fact": S, "why_pivotal": S, "acceptable_evidence": S, "if_resolved": S},
          ["fact", "why_pivotal", "acceptable_evidence"]), request_missing_fact),
+    ("read_inventory", "List the matters the host sweep flagged in the admissible evidence and their accounting status.",
+     obj({}, []), read_inventory),
+    ("account_for_items", "Account for inventory items in a batch: covered_by_findings (accepted finding_ids) or "
+     "not_decision_relevant (with a reason).",
+     obj({"items": {"type": "array", "items": obj({"item_id": S, "disposition": {"type": "string", "enum": [
+         "covered_by_findings", "not_decision_relevant"]}, "finding_ids": {"type": "array", "items": S}, "reason": S},
+         ["item_id", "disposition"])}}, ["items"]), account_for_items),
+    ("resolve_reconciliation", "Resolve an open reconciliation task: explain how the statements relate and which finding stands.",
+     obj({"task_id": S, "note": S}, ["task_id", "note"]), resolve_reconciliation),
     ("submit_packet", "Lock the investigation for review with a summary, the pivotal unknowns, the supported effect IDs and the "
-     "conclusion. No lending action is taken.",
+     "conclusion. The conclusion is checked against accepted findings, validated effects and sensitivity results. "
+     "No lending action is taken.",
      obj({"summary": S, "pivotal_unknowns": {"type": "array", "items": S},
-          "supported_effect_ids": {"type": "array", "items": S}, "conclusion": S}, ["summary", "conclusion"]), submit_packet),
+          "supported_effect_ids": {"type": "array", "items": S}, "conclusion": S, "conclusion_override_reason": S},
+         ["summary", "conclusion"]), submit_packet),
 ]
 
 

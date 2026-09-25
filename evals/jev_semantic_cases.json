@@ -1,7 +1,7 @@
 {
   "artifact": "jev_semantic_boundary_cases",
-  "version": "1.1.0",
-  "registry_version": "3.0.1",
+  "version": "1.2.0",
+  "registry_version": "3.1.1",
   "access_class": "host_evaluator_only",
   "policy": "Labelled semantic boundary cases for sanity-checking Jev questions and the code-owned routing thresholds. Non-synthetic passages are sliced verbatim from admissible decision-date snapshot text, with the snapshot's source metadata. Never mount into an agent or reviewer run.",
   "cases": [
@@ -651,6 +651,93 @@
       },
       "expected": "different_scope",
       "why": "Different obligations, not a conflict."
+    },
+    {
+      "case_id": "syn_sweep_specific_matter",
+      "borrower": "synergy",
+      "profile": "snapshot_sweep",
+      "question_id": "matter_inventory",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "passage": {
+          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 13 — Commitments & Contingencies",
+          "text": "On July 28, 2023, L.O.D.C. Group (“LODC”) asserted claims of over $1,000,000 against Synergy for breach of contract arising from their alleged failure to comply with contracts related to the delivery of hand sanitizer."
+        }
+      },
+      "expected": true,
+      "why": "A named claim against the company."
+    },
+    {
+      "case_id": "syn_sweep_generic_risk",
+      "borrower": "synergy",
+      "profile": "snapshot_sweep",
+      "question_id": "matter_inventory",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "passage": {
+          "heading_path": "PROSPECTUS SUMMARY > Summary Risk Factors",
+          "text": "If our outside suppliers and manufacturers fail to supply products in sufficient quantities and in a timely fashion, our business could suffer"
+        }
+      },
+      "expected": false,
+      "why": "A generic risk factor names no matter."
+    },
+    {
+      "case_id": "syn_sweep_kind_accounting",
+      "borrower": "synergy",
+      "profile": "snapshot_sweep",
+      "question_id": "matter_kind",
+      "state": {
+        "company": "Synergy CHC Corp.",
+        "passage": {
+          "heading_path": "SYNERGY CHC CORP. NOTES TO UNAUDITED CONDENSED CONSOLIDATED FINANCIAL STATEMENTS > Note 13 — Commitments & Contingencies",
+          "text": "The case was settled during December 2023, resulting in a net gain to the company of $2,235,986, reflected as a reduction of cost of sales, and a loan payable of $5,450,000 (see Note 11)."
+        }
+      },
+      "expected": "legal_matter_or_settlement",
+      "why": "The passage mainly describes the case's settlement (the gain is secondary); accounting_item_from_a_matter is the defensible alternative."
+    },
+    {
+      "case_id": "syn_support_all",
+      "borrower": "synergy",
+      "profile": "statement_support",
+      "question_id": "claims_supported",
+      "state": {
+        "statement": "Up to $2,000,000 of settlement loan payments fall due in 2024.",
+        "cited_findings": [
+          {
+            "finding_id": "fnd_a",
+            "proposition": "The December 28, 2023 settlement loan requires payments of $2,000,000 in 2024.",
+            "quotes": [
+              "| 2024 | $2,000,000 |"
+            ]
+          }
+        ],
+        "engine_results": []
+      },
+      "expected": "all_supported",
+      "why": "Restates the finding."
+    },
+    {
+      "case_id": "syn_support_extra_claim",
+      "borrower": "synergy",
+      "profile": "statement_support",
+      "question_id": "claims_supported",
+      "state": {
+        "statement": "Up to $2,000,000 of settlement loan payments fall due in 2024, which triggers the cross-default on the Sanders note and cuts FY2023 EBITDA of $10.8 million.",
+        "cited_findings": [
+          {
+            "finding_id": "fnd_a",
+            "proposition": "The December 28, 2023 settlement loan requires payments of $2,000,000 in 2024.",
+            "quotes": [
+              "| 2024 | $2,000,000 |"
+            ]
+          }
+        ],
+        "engine_results": []
+      },
+      "expected": "some_unsupported",
+      "why": "Cross-default and EBITDA are not in the finding."
     }
   ]
 }

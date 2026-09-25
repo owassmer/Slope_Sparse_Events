@@ -151,6 +151,22 @@ class ReconciliationTask(Frozen):
     note: str = ""
 
 
+class InventoryItem(Frozen):
+    """A matter the host sweep flagged (one or more sections of one source under one heading and kind);
+    the agent must account for it before submitting."""
+
+    item_id: str
+    section_ids: tuple[str, ...]
+    source_id: str
+    heading_path: tuple[str, ...]
+    kind: str  # matter_kind answer
+    signal: float  # matter_inventory Noul value (a judgment, not a probability of anything)
+    excerpt: str = ""
+    status: Literal["open", "covered", "not_decision_relevant"] = "open"
+    finding_ids: tuple[str, ...] = ()
+    note: str = ""
+
+
 class ParameterRequirement(Frozen):
     """A value the effect needs. Unknown stays unknown; a value carries its basis and citations."""
 
@@ -176,6 +192,8 @@ class EconomicEffectProposal(Frozen):
     linked_effect_ids: tuple[str, ...] = ()
     double_count_guard: str = ""
     model_consequence: str = ""  # plain-language "so what?" for the reviewer
+    observation_ids: tuple[str, ...] = ()  # host guard checks (posture/status per finding, statement support)
+    override_reasons: dict[str, str] = Field(default_factory=dict)  # guard -> agent's stated reason
     status: Literal["proposed", "validated", "rejected"] = "proposed"
     validation_messages: tuple[str, ...] = ()
 
@@ -185,6 +203,7 @@ EventKind = Literal[
     "observation_recorded", "observation_disposition", "finding_proposed", "finding_resolved",
     "reconciliation_opened", "reconciliation_resolved", "effect_proposed", "effect_validated",
     "sensitivity_run", "missing_fact_requested", "packet_submitted", "run_failed",
+    "inventory_loaded", "inventory_accounted", "conclusion_checked",
 ]
 
 

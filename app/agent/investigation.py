@@ -30,6 +30,7 @@ from app.agent.jev import JevAdapter, canonical_sha256
 from app.agent.jev_profiles import Semantics
 from app.agent.run_store import RunStore
 from app.agent.smoke import preflight
+from app.agent.sweep import build_sweep, inventory_groups
 from app.agent.tools import RunContext, build_server
 from app.config import (
     AGENT_PROCESS_ENV,
@@ -41,6 +42,7 @@ from app.config import (
     main_agent_settings,
     question_registry,
 )
+from app.domain.investigation import InventoryItem
 from app.evidence.store import EvidenceStore
 
 WORKING_METHOD = """Working method
@@ -53,10 +55,8 @@ WORKING_METHOD = """Working method
   and give a reason whenever you override one.
 - propose_effect for each supported economic mechanism, stating its baseline treatment, parameters (unknown stays unknown) and the
   plain-language model consequence. Existing liabilities are scheduled once, never added again.
-- Account for every disclosed legal matter, settlement and settlement-related accounting item you encounter. When one has no
-  future cash effect (for example it is reported paid, or it is an accounting entry rather than cash), record that as a cited
-  finding and an effect with mechanism resolved_obligation or noncash_normalization and cash_direction none, so the reviewer can
-  see why it does not change cash.
+- When a matter has no future cash effect, record that as a cited finding and an effect with cash_direction none, so the
+  reviewer can see why it does not change cash.
 - If you connect a name, label or table row to an obligation by matching amounts or dates, mark that finding is_inference and
   describe the link as an inference in your conclusion.
 - run_sensitivity on validated settlement effects to see which unknown changes the cash requirement.
@@ -64,7 +64,12 @@ WORKING_METHOD = """Working method
 - Use only the evidence returned by the tools; do not rely on remembered facts about this company or later events.
 - Work efficiently: the run stops at {turn_budget} turns; submit before then."""
 
-JEV_METHOD = """- Search results carry a semantic screen label; all results are shown and you decide what to read.
+JEV_METHOD = """- read_inventory early: the host screened every admissible section and lists the specific matters it found. Before
+  submitting, account_for_items for every item: covered by accepted findings, or not decision-relevant with a reason.
+- The host checks each proposed effect: its supporting findings' posture and status must fit the mechanism, and its model
+  consequence must be supported by the cited findings. It also checks your conclusion at submission and checks accepted findings
+  under the same question against each other. Revise when a check fails; override only with a stated reason.
+- Search results carry a semantic screen label; all results are shown and you decide what to read.
 - When the posture, status or entity of a statement matters, call judge (claim_interpretation) with one claim, a precise target
   and the verbatim anchor_quote, and link the observations to the finding. When two statements may conflict, use
   statement_relation. An ambiguous or unsettled judgment means: read more context or narrow the target, not accept.
@@ -142,6 +147,21 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         return {**record, "run_id": run_id, "status": "FAILED_CONFIGURATION", "error": str(e)}
     ctx = RunContext(run=run, evidence=evidence, inputs=inputs, arm=arm,
                      semantics=Semantics(run, evidence, jev) if jev else None)
+    if jev is not None:  # host sweep inventory (cached per snapshot; its own budget)
+        try:
+            sweep = build_sweep(snapshot_id, inputs["baseline_profile"]["borrower"])
+        except Exception as e:  # noqa: BLE001 - any sweep failure stops before the agent runs
+            status = "FAILED_CONFIGURATION" if isinstance(e, ConfigurationError) else "INCOMPLETE_REVIEW"
+            run.lock({"summary": None, "configuration_failure": str(e) if status == "FAILED_CONFIGURATION" else None,
+                      "incomplete_reasons": [f"snapshot sweep failed: {e}"]})
+            return {**record, "run_id": run_id, "status": status, "error": f"snapshot sweep failed: {e}"}
+        for g in inventory_groups(sweep):
+            run.put("inventory_loaded", InventoryItem(
+                item_id=run.new_id("inv"), section_ids=tuple(g["section_ids"]), source_id=g["source_id"],
+                heading_path=tuple(g["heading_path"]), kind=g["kind"], signal=g["signal"], excerpt=g["excerpt"]),
+                payload={"sweep_sha256": sweep["sweep_sha256"], "registry_version": sweep["registry_version"]})
+        record["sweep"] = {"sweep_sha256": sweep["sweep_sha256"], **sweep["summary"], "jev_usage": sweep["jev_usage"],
+                           "inventory_items": len(run.graph["inventory"])}
     allowed = allowed_tools(arm)
     options = ClaudeAgentOptions(
         model=settings["model"], effort=settings["effort"], tools=[], allowed_tools=allowed,
