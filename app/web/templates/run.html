@@ -3,7 +3,8 @@
 {% block body %}
 <hgroup>
   <h2>{{ v.borrower }}</h2>
-  <p>Review date {{ v.review_date }} · Incremental working-capital draw · <strong>{{ v.status }}</strong></p>
+  <p>Review date {{ v.review_date }} · Incremental working-capital draw · <strong>{{ v.status }}</strong>{% if v.late_failure %}
+    · <span class="tag warn">Runner reported after lock</span> {{ v.late_failure }} (from run.json, outside the hash chain){% endif %}</p>
 </hgroup>
 <p class="muted">Run {{ v.run_id }} · arm {{ v.meta.arm }} · event chain verified ({{ v.verified_head }}…) ·
   {{ v.jev_calls }} Jev calls, {{ v.observations }} semantic observations{% if not v.inputs_locked %} ·

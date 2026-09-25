@@ -265,7 +265,8 @@
     "consecutive_no_progress_actions": 3,
     "no_progress_definition": "An action produces no new eligible evidence, no corrected finding, no resolved/narrowed gap, no new valid patch and no changed sensitivity result. Repeating the same query alone is not progress.",
     "budget_policy": "Ceilings, not targets. Record actual elapsed time, token usage, requests and spend. Finish early when further accessible evidence cannot change the action across the stated sensitivity range.",
-    "jev_max_physical_attempts_including_retries": 150
+    "jev_max_physical_attempts_including_retries": 150,
+    "turn_counting": "A turn is one distinct model response (message_id), counted by the host and enforced by interrupting the session. The SDK's num_turns counts differently and is recorded only for reference."
   },
   "completion_and_decisions": {
     "execution_states": [

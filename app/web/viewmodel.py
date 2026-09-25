@@ -112,6 +112,7 @@ def build(run_id: str, root: Path = RECORDED) -> dict[str, Any]:
 
     ledger = Counter(o.downstream_disposition for o in g["observations"].values())
     return {
+        "late_failure": (record.get("status") not in (None, status)) and (record.get("failure") or record.get("status")),
         "run_id": run_id, "verified_head": run.head[:16], "record": record, "meta": meta, "status": status,
         "inputs_locked": inputs_locked,
         "borrower": inputs.get("baseline_profile", {}).get("borrower", meta.get("case_id")),

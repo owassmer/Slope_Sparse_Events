@@ -16,6 +16,7 @@ Host rules enforced here:
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
@@ -100,10 +101,11 @@ def _cents_in_text(cents: int, text: str) -> bool:
     """Whether an amount appears in cited text, as written in filings ($2,000,000 / 2,000,000 / $2.0 million)."""
     flat = " ".join(text.replace("$ ", "$").split())
     dollars, rem = divmod(abs(cents), 100)
-    forms = {f"{dollars:,}" + (f".{rem:02d}" if rem else "")}
+    forms = {f"{dollars:,}.{rem:02d}"} if rem else {f"{dollars:,}", f"{dollars:,}.00"}
     if rem == 0 and dollars >= 1_000_000:
         forms |= {f"{dollars / 1_000_000:.1f} million", f"{dollars / 1_000_000:g} million"}
-    return any(f in flat for f in forms)
+    # A digit, comma or decimal point may not touch the match: "600,000" must not match "$2,600,000".
+    return any(re.search(rf"(?<![\d,.]){re.escape(f)}(?![\d,]|\.\d)", flat) for f in forms)
 
 
 def _baseline_item(ctx: RunContext, key: str) -> dict | None:
@@ -212,14 +214,25 @@ async def read_evidence(ctx: RunContext, args: dict) -> dict:
 async def judge(ctx: RunContext, args: dict) -> dict:
     if ctx.semantics is None:
         raise ToolError("Semantic judgments are not available in this run")
-    profile = args["profile"]
+    profile = args.get("profile")
+    # Validate the agent's arguments first: its own mistakes are rejected calls, not Jev failures.
+    if profile == "claim_interpretation":
+        missing = [k for k in ("item_id", "claim", "target") if not args.get(k)]
+        if missing:
+            raise ToolError(f"claim_interpretation needs {missing}")
+    elif profile == "statement_relation":
+        ids = list(dict.fromkeys(args.get("finding_ids") or []))
+        if len(ids) != 2 or not args.get("proposed_fact"):
+            raise ToolError("statement_relation needs exactly two distinct finding_ids and a proposed_fact")
+        a, b = (ctx.run.get("findings", f) for f in ids)
+    else:
+        raise ToolError("profile must be claim_interpretation or statement_relation")
     try:
         if profile == "claim_interpretation":
             obs = await ctx.semantics.interpret(item_id=args["item_id"], claim=args["claim"], target=args["target"],
                                                 subject_kind=args.get("subject_kind", "other"),
                                                 subject=args.get("subject", ""), anchor_quote=args.get("anchor_quote"))
-        elif profile == "statement_relation":
-            a, b = (ctx.run.get("findings", f) for f in args["finding_ids"][:2])
+        else:
             obs = await ctx.semantics.relate(a, b, args["proposed_fact"])
             rel = obs[0]
             if rel.answer == "conflict" or is_ambiguous(rel):
@@ -227,8 +240,6 @@ async def judge(ctx: RunContext, args: dict) -> dict:
                                           observation_ids=(rel.observation_id,),
                                           note=f"{meaning(rel.question_id, rel.answer)}: {args['proposed_fact']}")
                 ctx.run.put("reconciliation_opened", task)
-        else:
-            raise ToolError("profile must be claim_interpretation or statement_relation")
     except (EvidenceAccessError, ToolError) as e:
         raise ToolError(str(e)) from e
     except Exception as e:
@@ -331,8 +342,12 @@ def _parameter(p: dict, findings: dict[str, AtomicFinding]) -> ParameterRequirem
                 basis=Basis.DERIVED, derivation="agent-stated",
                 note="Agent-stated amount not found verbatim in the cited findings' quotes"))
     elif p.get("lower_cents") is not None and p.get("upper_cents") is not None:
-        value = EvidenceValue(status=Status.RANGE, unit=Unit.CENTS, lower=int(p["lower_cents"]), upper=int(p["upper_cents"]),
-                              provenance=Provenance(basis=Basis.DOCUMENTED, note=p.get("description")))
+        lo, hi = int(p["lower_cents"]), int(p["upper_cents"])
+        quotes = " ".join(s.quote for f in p.get("finding_ids", []) if f in findings for s in findings[f].spans)
+        quoted = bool(p.get("finding_ids")) and _cents_in_text(lo, quotes) and _cents_in_text(hi, quotes)
+        value = EvidenceValue(status=Status.RANGE, unit=Unit.CENTS, lower=lo, upper=hi, provenance=Provenance(
+            basis=Basis.DOCUMENTED if quoted else Basis.DERIVED, derivation=None if quoted else "agent-stated",
+            note=p.get("description") if quoted else "Agent-stated range not found verbatim in the cited findings' quotes"))
     return ParameterRequirement(name=p["name"], description=p.get("description", ""), status=p.get("status", "unknown"),
                                 value=value, finding_ids=tuple(p.get("finding_ids", [])), resolves_via=p.get("resolves_via", ""))
 
