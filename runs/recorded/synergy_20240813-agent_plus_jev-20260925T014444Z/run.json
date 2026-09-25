@@ -1,0 +1,112 @@
+{
+  "snapshot_id": "synergy_20240813",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T01:44:44.727856+00:00",
+  "configuration_version": "3.0.0-design",
+  "registry_version": "3.0.1",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "run_id": "synergy_20240813-agent_plus_jev-20260925T014444Z",
+  "status": "CANDIDATE_READY",
+  "failure": null,
+  "incomplete_reasons": [],
+  "finished_at": "2026-09-25T01:48:11.626994+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "record_dependency": 4,
+    "search_evidence": 3,
+    "read_evidence": 12,
+    "judge": 8,
+    "propose_finding": 9,
+    "resolve_finding": 9,
+    "propose_effect": 5,
+    "run_sensitivity": 4,
+    "request_missing_fact": 2,
+    "submit_packet": 1,
+    "StructuredOutput": 1
+  },
+  "claude": {
+    "num_turns": 62,
+    "duration_ms": 205100,
+    "usage": {
+      "input_tokens": 56,
+      "cache_creation_input_tokens": 69013,
+      "cache_read_input_tokens": 1080970,
+      "output_tokens": 22953,
+      "output_tokens_details": {
+        "thinking_tokens": 2908
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 69013,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 703,
+          "cache_read_input_tokens": 71128,
+          "cache_creation_input_tokens": 1495,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 1495
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 1.227582,
+    "structured_output": {
+      "conclusion": "No conclusion yet on whether to fund; two pivotal facts are missing. (1) Knight Therapeutics' senior-secured loan says 'Synergy shall not add any other debt without paying out KTI first', so no offer can be treated as permissible without Knight's consent, a waiver or a carve-out. (2) The 2024 settlement installments (Atrium $2,000,000; March 2024 supplier settlement $600,000) were apparently unpaid or barely paid by June 30, and payments since then are not disclosed. If still unpaid, they alone use up the ~$2.0M of reported cash and the $200K reserve, needing $800K\u2013$900K of net operating cash by year-end. That need falls to zero if at least half was paid. The Atrium $2.24M FY2023 gain is noncash and nonrecurring. The Valenti and LODC settlements are paid and have no cash effect. Linking the Note 11 loans to the 'Atrium' and 'VitBest' rows is an inference from matching amounts. If Knight consents and enough of the installments were paid, assess the $100K and then the $250K 6-month offers on operating receipts. The 3-month $250K offer has the largest payments and is least compatible with the year-end settlement cash demand.",
+      "pivotal_unknowns": [
+        "Amount of the $2,000,000 Atrium and $600,000 supplier 2024 settlement installments paid between 2024-06-30 and 2024-08-13, and due dates of the remainder",
+        "Whether Knight Therapeutics consents to or carves out new debt despite 'Synergy shall not add any other debt without paying out KTI first'",
+        "Whether the ~$2.0M cash figure at 2024-08-12 includes the $100,000 restricted cash"
+      ],
+      "supported_effect_ids": [
+        "eff_001",
+        "eff_002",
+        "eff_003",
+        "eff_004",
+        "eff_005"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 30,
+    "cache_hits": 1,
+    "physical_attempts": 30,
+    "attempt_ceiling": 150,
+    "spent_usd": "0.003253866",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 4,
+    "candidates": 12,
+    "jev_calls": 31,
+    "observations": 109,
+    "findings": 9,
+    "reconciliations": 0,
+    "effects": 5
+  },
+  "chain_head": "b3bb34b8d0584355336a493495c99bcb2ed0bb502619088a8b5e2ca2c80f518b"
+}

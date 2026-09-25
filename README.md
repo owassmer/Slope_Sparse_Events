@@ -12,4 +12,8 @@ uv sync
 uv run slope --help
 uv run slope evidence build                     # dated evidence DBs in var/evidence/
 uv run slope evidence search synergy_20240813 "future payments settlement"
+uv run slope finance check                      # reproduce the kit's reference arithmetic
+uv run slope jev check-cases                    # live labelled Jev boundary cases (separately billed)
+uv run slope investigate                        # recorded Synergy investigation (Claude subscription + Jev)
+uv run slope viewer                             # read-only viewer at http://127.0.0.1:8000
 ```
