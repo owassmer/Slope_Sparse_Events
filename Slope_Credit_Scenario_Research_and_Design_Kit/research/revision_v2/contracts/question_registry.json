@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "3.12.0",
+  "registry_version": "3.13.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -899,7 +899,7 @@
       "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
     },
     {
-      "version": "3.12.0",
+      "version": "3.13.0",
       "profile": "dispute_interpretation",
       "state_fields": [
         "obligation",
@@ -907,10 +907,10 @@
       ],
       "id": "bears_on_debtor_resistance",
       "primitive": "noul",
-      "question": "Does the quoted text describe how the payer has responded to this obligation or to the court's orders about it?",
+      "question": "Does the quoted text describe whether the payer has paid, or refused to pay, an amount due under this obligation, or resisted its collection? Contesting the amount in court, appealing, or stating an intention to appeal is not refusal to pay: answer no for a passage that describes only those.",
       "applies_when": "Every accepted finding the agent cites for a live dispute.",
       "prompt": {
-        "instructions": "Does the quoted text describe how the payer has responded to this obligation or to the court's orders about it? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "instructions": "Does the quoted text describe whether the payer has paid, or refused to pay, an amount due under this obligation, or resisted its collection? Contesting the amount in court, appealing, or stating an intention to appeal is not refusal to pay: answer no for a passage that describes only those. Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
         "criteria": {
           "true": "Yes, for this obligation.",
           "false": "No, or only about a different claim, order or party."
@@ -959,7 +959,7 @@
       "application": "Code routes the passage to the factor; for a present-or-absent factor this answer is the reading itself."
     },
     {
-      "version": "3.12.0",
+      "version": "3.13.0",
       "profile": "dispute_interpretation",
       "state_fields": [
         "obligation",
@@ -975,7 +975,7 @@
         "criteria_from_host": true,
         "criteria": []
       },
-      "application": "Code aggregates the levels by the factor's own rule (most advanced, or latest by source date, keeping same-date conflicts) and uses them only to close paths an established fact rules out and to mark where the record points."
+      "application": "Code aggregates the levels by the factor's own rule (most advanced, or latest by source date, keeping same-date conflicts) and passes the distributions to the forecasts as context; they never change the tree or become probabilities themselves."
     },
     {
       "version": "3.12.0",

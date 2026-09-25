@@ -79,8 +79,7 @@ def _dispute_meta(d: DisputeInstance, borrower: str, model: dict) -> dict:
                          "probability": f.probability, "conflict": f.conflict,
                          "finding": f.decisive.finding_id if f.decisive else None,
                          "quote": f.decisive.quote if f.decisive else None}
-                        for f in d.factors if f.distribution or f.probability is not None],
-            "constraints": d.constraints}
+                        for f in d.factors if f.distribution or f.probability is not None]}
 
 
 def _judgment_meta(j: Judgment, disputes: dict[str, DisputeInstance], order: dict[str, DisputeInstance | None],

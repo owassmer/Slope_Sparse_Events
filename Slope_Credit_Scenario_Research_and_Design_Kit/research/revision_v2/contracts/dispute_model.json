@@ -1,13 +1,13 @@
 {
   "model_id": "post_judgment_money_dispute",
-  "model_version": "3.0.0",
+  "model_version": "3.1.0",
   "status": "host_owned_design_contract",
   "scope": "Post-judgment slice of a US federal civil money dispute, bounded by cash: only developments that can move cash, collections, collateral or credit capacity within the analysis horizon. It ends in payment, settlement, an unresolved amount, a pending secured appeal or an uncollected balance, and never forecasts appellate merits.",
   "design": "Two Jev stages. (1) Present-state interpretation of each cited finding, hydrated with its surrounding evidence: who pays, the amount's status, which procedural events it establishes, which factors it bears on and at what level. Established events place the stage; an established waiver or payment constrains the graph. (2) Conditional forecasting: at each node, Jev returns the probability of one defined future event under named parent assumptions and a code-set window, given the relevant hydrated passages and the interpretation distributions. Code multiplies conditional probabilities along each path, draws event dates and amounts inside code-owned windows and ranges, and keeps every structurally feasible path (zero-probability paths stay available for stress).",
   "roles": {
     "agent": "Groups the accepted findings about one obligation and gives its order reference (a docket reference, checked), its nature (from `natures`), the counterparty, the amount figure (checked against the quotes) and any judgment date (checked against the quotes). Its prose never reaches Jev.",
     "jev": "Answers present-state and conditional forecast questions. Never sets a date, an amount or a path.",
-    "host": "Hydrates evidence, asks the questions, applies stage and constraint rules, composes probabilities, simulates cash."
+    "host": "Hydrates evidence, asks the questions, applies the stage rules, composes probabilities, simulates cash."
   },
   "probability_label": "Model judgment: Jev's conditional probabilities of defined future events, composed along each path by code.",
   "natures": {
@@ -139,15 +139,15 @@
       "relevance": "Does the quoted text state that the payer waived, or is barred from, appealing this obligation itself (not some other claim or order)?"
     },
     "debtor_resistance": {
-      "label": "The payer's conduct on this obligation",
+      "label": "The payer's willingness to pay this obligation",
       "kind": "graded",
       "aggregate": "latest",
-      "relevance": "Does the quoted text describe how the payer has responded to this obligation or to the court's orders about it?",
+      "relevance": "Does the quoted text describe whether the payer has paid, or refused to pay, an amount due under this obligation, or resisted its collection? Contesting the amount in court, appealing, or stating an intention to appeal is not refusal to pay: answer no for a passage that describes only those.",
       "levels": [
-        "The payer has complied promptly",
-        "The passage describes no conduct by the payer on this obligation",
-        "The payer contested or delayed but complied in the end",
-        "The payer has refused, or contested enforcement of, this obligation"
+        "The payer has paid this obligation or complied with the court's payment orders on it",
+        "The passage describes no payment conduct by the payer on this obligation",
+        "The payer paid or complied late, or only after a court order or a motion by the payee",
+        "The payer has refused to pay an amount that is due, or has resisted its collection"
       ]
     },
     "debtor_liquidity": {
@@ -312,5 +312,5 @@
     "uncollected": "Unpaid and uncollected at the horizon: no cash."
   },
   "dependence": "Disputes with the same counterparty are evaluated in order, borrower-as-payer first. A later dispute's forecast questions are asked once per outcome class of the earlier one for that counterparty (the counterparty received payment within the horizon, or did not); the joint probability is P(earlier path) x P(later path | class).",
-  "constraints": "Only an established fact changes the graph: an established payment ends the dispute; an established appeal waiver covering this obligation removes the appeal branch. Silence and stated intentions change nothing structurally; they are evidence for the forecasts."
+  "constraints": "Only a fact that makes an event impossible changes the graph: an event that has already occurred sets the stage, and an established payment ends the dispute. Everything else (a waiver of appeal, silence, a stated intention) is evidence for the forecasts: parties litigate waivers, so a waiver makes an appeal less likely rather than impossible."
 }

@@ -2,10 +2,11 @@
 evidence, against one obligation; code derives the structural facts.
 
 Jev returns full distributions (Choice, Noul, Score), all kept. Code derives only what is structural: who pays (the
-readings must agree), the amount's status (the most advanced established), which procedural events are established
-(and so the stage), and the constraints an established fact imposes (a waiver covering this obligation removes the
-appeal branch; payment resolves the dispute). Factor distributions are aggregated by each factor's rule and passed to
-the forecasts as context; they never become probabilities themselves.
+readings must agree), the amount's status (the most advanced established), and which procedural events are
+established (and so the stage). Only a fact that makes an event impossible changes structure: an event that has already
+occurred sets the stage, and payment resolves the dispute. Everything else, a waiver included, is evidence: factor
+distributions are aggregated by each factor's rule and passed to the forecasts as context; they never become
+probabilities themselves.
 """
 
 from __future__ import annotations
@@ -189,14 +190,9 @@ class Interpreter:
         stage = next((rule["stage"] for rule in self.m["readings"]["stage_rules"] if rule["event"] in established), None)
         if status == "fixed" and stage == "amount_pending":
             stage = "judgment_entered"
-        constraints = {}
-        waiver = next((f for f in factors if f.factor_id == "appeal_barred"), None)
-        if waiver and waiver.probability is not None and waiver.probability >= ESTABLISHED and waiver.decisive:
-            constraints["appeal"] = (f"An appeal of this obligation is waived or barred ({waiver.decisive.finding_id}: "
-                                     f"“{waiver.decisive.quote}”)")
         update.update({"borrower_role": role, "amount_status": status, "amount_includes_interest": interest,
                        "readings": tuple(readings), "factors": tuple(factors), "established": established,
-                       "stage": stage, "constraints": constraints})
+                       "stage": stage})
         if stage == "paid" or status == "paid":
             return self.d.model_copy(update={**update, "status": "resolved", "observation_ids": tuple(self.obs)})
         if stage is None:

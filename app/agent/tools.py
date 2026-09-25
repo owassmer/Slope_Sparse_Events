@@ -663,7 +663,6 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
             "established_events": {k: v.finding_id for k, v in instance.established.items()},
             "factors": [{"factor": f.label, "reading": f.level_label} for f in instance.factors
                         if f.level_label != "unknown"],
-            "constraints": instance.constraints,
             "evidence_requests": [r.action for r in instance.evidence_requests],
             **({"proposed_extension": "recorded and flagged; the model is unchanged"} if instance.proposed_extension else {}),
             "note": ("Jev read the present state from the passages. After your run the host asks Jev for the conditional "

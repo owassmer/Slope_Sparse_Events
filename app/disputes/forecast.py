@@ -3,9 +3,10 @@
 The tree is bounded by cash: settlement, the amount being fixed, an appeal, a secured stay and its form, voluntary
 payment, collection by enforcement, and settlement during a secured appeal. At each node Jev is asked for the
 probability of one defined event, under the parent assumptions of that node (in words, with dates set by code), given
-the relevant hydrated passages and the present-state factor distributions. Only an established fact changes the tree
-(an appeal waiver covering the obligation removes the appeal branch). Every structurally feasible path is enumerated,
-whatever its probability.
+the relevant hydrated passages and the present-state factor distributions. Only a fact that makes an event impossible
+changes the tree (an event already occurred sets the stage; payment resolves the dispute). A waiver of appeal is
+evidence for the appeal forecast, not a pruned branch: parties litigate waivers. Every structurally feasible path is
+enumerated, whatever its probability.
 
 Dependence: a later dispute with the same counterparty is asked once per outcome class of the earlier dispute (whether
 the counterparty receives or pays cash in it within the horizon); joint probability = P(earlier path) x P(later | class).
@@ -202,9 +203,6 @@ class Forecaster:
         def judgment(prefix):
             emit(prefix + [("settle_after_judgment", "", "yes")], "settled")
             p = prefix + [("settle_after_judgment", "", "no")]
-            if "appeal" in d.constraints:
-                payment(p, "no_appeal")
-                return
             a = p + [("appeal", "", "yes")]
             s = a + [("secured_stay", "", "yes")]
             if d.borrower_role == "debtor":
