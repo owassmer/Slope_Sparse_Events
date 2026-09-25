@@ -196,16 +196,6 @@
             "matter_kind"
           ]
         },
-        "dispute_model": {
-          "trigger": "host, when the agent instantiates a live dispute onto the dispute model (contracts/dispute_model.json)",
-          "questions": [
-            "dispute_stage",
-            "factor_routing",
-            "factor_level",
-            "factor_present",
-            "dispute_transition"
-          ]
-        },
         "statement_support": {
           "trigger": "host, on every propose_effect consequence and on submit_packet conclusion",
           "questions": [
@@ -216,6 +206,39 @@
           "trigger": "host, at submission, on every paragraph or table row an accepted finding cites",
           "questions": [
             "coverage_supported"
+          ]
+        },
+        "dispute_interpretation": {
+          "trigger": "host, per cited finding of an instantiated dispute: a reading request, a relevance request, and a level request per routed graded factor; each state is hydrated from the evidence store",
+          "questions": [
+            "obligation_direction",
+            "amount_status",
+            "amount_includes_interest",
+            "event_entitlement_decided",
+            "event_amount_fixed",
+            "event_judgment_entered",
+            "event_appeal_filed",
+            "event_stay_secured",
+            "event_paid",
+            "bears_on_amount_finality",
+            "bears_on_appeal_intent",
+            "bears_on_appeal_barred",
+            "bears_on_debtor_resistance",
+            "bears_on_debtor_liquidity",
+            "bears_on_settlement_signals",
+            "factor_level"
+          ]
+        },
+        "dispute_forecast": {
+          "trigger": "host, when the analysis is built: one request per forecast node and parent context (cached); a later same-counterparty dispute is asked once per outcome class of the earlier one",
+          "questions": [
+            "forecast_settlement",
+            "forecast_amount_fixed",
+            "forecast_appeal",
+            "forecast_secured_stay",
+            "forecast_voluntary_payment",
+            "forecast_enforcement_collects",
+            "forecast_security_form"
           ]
         }
       },
