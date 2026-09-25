@@ -1,0 +1,135 @@
+{
+  "snapshot_id": "chromadex_20240819",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-25T20:50:24.711102+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "3.12.0",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "2935977d12a4e4cad83724bfe8a6d947ce30419c8f4f6d5b0117df72103c91e3",
+    "sections": 520,
+    "flagged": 169,
+    "unscreened": 0,
+    "chunks": 539,
+    "units": 1069,
+    "flagged_units": 534,
+    "unscreened_units": 0,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 1448,
+      "cache_hits": 160,
+      "physical_attempts": 1448,
+      "attempt_ceiling": 1500,
+      "spent_usd": "0.073763634",
+      "spend_cap_usd": "0.10"
+    },
+    "inventory_items": 534
+  },
+  "run_id": "chromadex_20240819-agent_plus_jev-20260925T205024Z",
+  "status": "CANDIDATE_READY",
+  "failure": null,
+  "incomplete_reasons": [],
+  "finished_at": "2026-09-25T20:56:27.546627+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "record_dependency": 3,
+    "search_evidence": 7,
+    "read_evidence": 9,
+    "judge": 2,
+    "propose_finding": 19,
+    "resolve_finding": 19,
+    "resolve_reconciliation": 3,
+    "instantiate_dispute": 2,
+    "propose_effect": 7,
+    "request_missing_fact": 3,
+    "submit_packet": 3,
+    "StructuredOutput": 1
+  },
+  "turns_used": 32,
+  "max_turns": 120,
+  "claude": {
+    "num_turns": 83,
+    "duration_ms": 334160,
+    "usage": {
+      "input_tokens": 64,
+      "cache_creation_input_tokens": 120147,
+      "cache_read_input_tokens": 2165550,
+      "output_tokens": 36881,
+      "output_tokens_details": {
+        "thinking_tokens": 5596
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 120147,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 572,
+          "cache_read_input_tokens": 118823,
+          "cache_creation_input_tokens": 1324,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 1324
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 2.132162,
+    "structured_output": {
+      "conclusion": "The Delaware court has granted Elysium's motion for attorneys' fees and costs against ChromaDex, but the amount is not yet fixed. ChromaDex estimates the amount sought at about $9.8 million including post-judgment interest, states it intends to appeal, and assesses the liability as reasonably possible; the payment date is unknown. The California final judgment of August 13, 2024 orders Elysium to pay ChromaDex $2.5 million with no appeals permitted; the receipt date is unknown. At June 30, 2024 ChromaDex reported $27.9 million of cash, including $152,000 restricted, and no borrowings under its Western Alliance revolving line of up to $10.0 million. The line's available amount and covenant thresholds are not disclosed.",
+      "pivotal_unknowns": [
+        "Amount and payment date of the D. Del. fee and cost award owed to Elysium (up to ~$9.8M per ChromaDex's estimate), and whether ChromaDex must pay, bond or post cash collateral while its intended appeal is pending during the Sept\u2013Nov 2024 installment window.",
+        "Whether and when Elysium has paid the $2.5M ordered by C.D. Cal. Dkt. 618.",
+        "Amount currently available under the Western Alliance revolver and its numeric covenant thresholds, including whether the additional-indebtedness covenant limits supplier-invoice financing."
+      ],
+      "supported_effect_ids": [
+        "eff_005",
+        "eff_006"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 171,
+    "cache_hits": 27,
+    "physical_attempts": 171,
+    "attempt_ceiling": 400,
+    "spent_usd": "0.016668918",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 3,
+    "candidates": 55,
+    "jev_calls": 198,
+    "observations": 586,
+    "findings": 19,
+    "reconciliations": 3,
+    "effects": 7,
+    "inventory": 534,
+    "disputes": 2
+  },
+  "chain_head": "927f0e211240263ab6d063987eabca3f28e7b98ae306c5f944461995577aa8d8"
+}

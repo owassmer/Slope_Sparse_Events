@@ -18,8 +18,9 @@ WITH_EFFECTS = [r for r in RUNS if json.loads((RECORDED / r / "run.json").read_t
 def test_recorded_run_renders_with_its_causal_chain():
     c = TestClient(app)
     assert c.get("/").status_code == 200
-    assert all(c.get(f"/runs/{r}").status_code == 200 for r in RUNS)  # every recorded run verifies and renders
-    page = c.get(f"/runs/{WITH_EFFECTS[-1]}")
+    assert all(c.get(f"/runs/{r}").status_code == 200 for r in RUNS)  # every recorded run renders (analysis or record)
+    assert all(c.get(f"/runs/{r}/investigation").status_code == 200 for r in RUNS)  # every record verifies
+    page = c.get(f"/runs/{WITH_EFFECTS[-1]}/investigation")
     assert page.status_code == 200
     for text in ("event chain verified", "Model consequence", "Agent finding", "Source"):
         assert text in page.text
