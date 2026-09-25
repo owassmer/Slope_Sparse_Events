@@ -79,10 +79,13 @@ def event_cash(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict,
     multiple = param(model, "supersedeas_multiple_bps") / 10_000
 
     def offset(a, b, *key):
-        """A day offset from the review date (1 = the day after) drawn inside [a, b]; payments early in stress."""
-        a, b = np.maximum(np.asarray(a), 1), np.maximum(np.asarray(b), 1)
+        """A day offset from the review date (1 = the day after) drawn inside [a, b] clipped to the horizon; payments
+        early in stress. A window that opens after the horizon returns a day past it, so nothing is booked there and
+        nothing that depends on it (a release, a payment) is either."""
+        a, b = np.maximum(np.asarray(a), 1), np.minimum(np.maximum(np.asarray(b), 1), days)
         u = draws.u(iid, *key, adverse_high=not debtor)
-        return np.minimum(a + np.floor(u * (b - a + 1)).astype(np.int64), b)
+        inside = np.minimum(a + np.floor(u * (b - a + 1)).astype(np.int64), b)
+        return np.where(a > b, np.maximum(a, days + 1), inside)  # a window opening after the horizon books nothing
 
     def book(arr, when, cents):
         idx = when - 1

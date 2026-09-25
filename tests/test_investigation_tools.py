@@ -375,9 +375,11 @@ def test_a_dispute_is_modelled_once(make_ctx):
     amount = EvidenceValue(status=Status.EXACT, unit=Unit.CENTS, value=200_000_000,
                            provenance=Provenance(basis=Basis.DOCUMENTED))
     ctx.run.put("dispute_instantiated", DisputeInstance(
-        instance_id="dispute_001", dependency_id=dep, model_id="m", model_version="1", title="t", borrower_role="debtor",
-        counterparty="c", finding_ids=(fid,), amount=amount))
-    args = {"dependency_id": dep, "title": "t", "obligation": "o", "finding_ids": [fid], "counterparty": "c",
+        instance_id="dispute_001", dependency_id=dep, model_id="m", model_version="3", title="t",
+        order_reference="D. Del. 1:18-cv-01434", nature="fee_and_cost_award", counterparty="c", finding_ids=(fid,),
+        amount=amount))
+    args = {"dependency_id": dep, "title": "t", "order_reference": "D. Del. 1:18-cv-01434", "nature": "fee_and_cost_award",
+            "finding_ids": [fid], "counterparty": "Elysium Health, Inc.",
             "amount": {"value_cents": 200_000_000}}
     with pytest.raises(T.ToolError, match="already instantiated"):
         call(T.instantiate_dispute, ctx, args)  # the same findings again would count the dispute twice
