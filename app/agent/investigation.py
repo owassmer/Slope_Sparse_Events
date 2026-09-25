@@ -30,7 +30,7 @@ from app.agent.jev import JevAdapter, canonical_sha256
 from app.agent.jev_profiles import Semantics
 from app.agent.run_store import RunStore
 from app.agent.smoke import preflight
-from app.agent.sweep import build_sweep, inventory_groups
+from app.agent.sweep import build_sweep, inventory_groups, sweep_path
 from app.agent.tools import RunContext, build_server
 from app.config import (
     AGENT_PROCESS_ENV,
@@ -162,6 +162,7 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
                 payload={"sweep_sha256": sweep["sweep_sha256"], "registry_version": sweep["registry_version"]})
         record["sweep"] = {"sweep_sha256": sweep["sweep_sha256"], **sweep["summary"], "jev_usage": sweep["jev_usage"],
                            "inventory_items": len(run.graph["inventory"])}
+        shutil.copyfile(sweep_path(snapshot_id), run.dir / "sweep.json")  # recorded with the run for provenance
     allowed = allowed_tools(arm)
     options = ClaudeAgentOptions(
         model=settings["model"], effort=settings["effort"], tools=[], allowed_tools=allowed,
