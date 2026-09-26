@@ -160,7 +160,7 @@
       hover: (t) => [["P95", money(v.cash_p95[t])], ["Median", money(v.cash_p50[t])], ["P5", money(v.cash_p5[t])], ["30-day need", money(D.need_mean[t])]] });
   }
   const COLS = [["drawn", "Drawn"], ["due", "Due"], ["collected", "Collected"], ["past_due", "Past due"], ["frozen_due", "Frozen, due"], ["frozen_not_due", "Frozen, not yet due"],
-                ["clawback", "Clawback exposure"], ["above_need_p5", "Cash above 30-day need at due dates, P5"]];
+                ["clawback", "Clawback exposure"], ["above_need_p5", "Cash above 30-day need after the amount due, P5"]];
   function collections(host) {
     const rows = cur().monthly, hl = { unrecovered: ["past_due", "frozen_due", "frozen_not_due"], stayed: ["frozen_due", "frozen_not_due"], preference: ["clawback"] }[S.tile] || [S.tile];
     const mname = (m) => `${MON[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
@@ -254,7 +254,7 @@
   function renderProbs() {
     if (S.detail !== null) return renderDetail();
     const lo = Math.min(...sens.map((s) => Math.min(s.lo, s.hi))), hi = Math.max(...sens.map((s) => Math.max(s.lo, s.hi)));
-    const label = NEUTRAL ? D.meta.judgments_note : `Jev's probabilities are model judgment. ${D.meta.probability_label || ""}`;
+    const label = NEUTRAL ? D.meta.judgments_note : D.meta.probability_label || "";  // says 'Model judgment' once
     let html = `<div class="ohead"><span class="ctx">${esc(label)}</span><div class="sp" style="flex:1"></div>${Object.keys(S.overrides).length ? '<button id="rsall">Reset all</button>' : ""}</div>`;
     for (const g of DECIDERS) {
       const rows = D.nodes.map((n, i) => i).filter((i) => D.nodes[i].decider === g).sort((a, b) => sens[b].range - sens[a].range);
@@ -289,7 +289,7 @@
     const facts = (det.assumptions || []).map((a) => `<li>Given: ${esc(a)}</li>`).join("")
       + Object.entries(det.facts || {}).map(([k, v]) => `<li>${esc(k.replace(/_/g, " "))}: ${esc(typeof v === "object" ? JSON.stringify(v) : v)}</li>`).join("");
     const quotes = (det.quotes || []).map((q) => `<blockquote>“${esc(q.quote)}”<br><span class="ctx">${esc(q.source)}${q.date ? `, ${esc(q.date)}` : ""}${q.link ? ` · <a href="${esc(q.link)}" target="_blank" rel="noopener">source</a>` : ""}</span></blockquote>`).join("");
-    const ans = det.answer ? `<pre>${esc(JSON.stringify(det.answer, null, 1))}</pre><div class="ctx">Model judgment.</div>` : `<p class="ctx">No Jev answer yet.</p>`;
+    const ans = det.answer ? `<pre>${esc(JSON.stringify(det.answer, null, 1))}</pre>` : `<p class="ctx">No Jev answer yet.</p>`;
     $("rpanel").innerHTML = `<div class="detail"><button class="back" id="back">← Probabilities</button>
       <div style="font-weight:600">${esc(n.question)}</div><div class="ctx">${esc(n.context)} · decided by ${esc(n.actor)}</div>
       <p><b>${dl}</b>${n.key in S.overrides ? " (changed)" : ""}</p>

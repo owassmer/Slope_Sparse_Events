@@ -389,7 +389,7 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         "meta": {"borrower": borrower, "review": setup.review.isoformat(), "horizon": setup.horizon.isoformat(),
                  "limit_cents": int(a.line.limit[:, 0].min()), "draws": a.ops.draws, "paths": len(model.combos),
                  "judgments": "neutral" if neutral else "jev",
-                 "judgments_note": "No Jev answers yet: every question at 50% (a choice uniform)" if neutral else "",
+                 "judgments_note": "No Jev answers yet: all questions at even odds" if neutral else "",
                  "probability_label": m["probability_label"]},
         "dates": [(setup.review + timedelta(days=t + 1)).isoformat() for t in range(a.days)], "months": months,
         "need_mean": np.rint(a.line.need.mean(axis=0)).astype(np.int64).tolist(),
