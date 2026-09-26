@@ -24,7 +24,7 @@ Law and the record fix the structure. Ruling dates come from data: this judge's 
 
 **Decided.** Bank-feed anchoring: Decision D1 amended to option (c) (Owen, 25 Sep 2026; §6).
 
-**Decisions for Owen.**
+**Approved (Owen, 26 Sep 2026).** This decomposition, with the three decisions below as recommended.
 1. **Remittitur:** two declared, unweighted scenarios. The verdict stands ($31.3M), or it is remitted to $23.1M. $305,000 is not a scenario.
 2. **Fees:** $12,116,123.30 if awarded, otherwise $0 (D4 (a)).
 3. **Stay:** the bond is the full judgment plus interest and costs, with 100% collateral (80% lower bound). The stay remains a court question, although the company's own cash cannot fund it.
