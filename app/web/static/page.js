@@ -99,6 +99,10 @@
   // --- charts -----------------------------------------------------------------------------------------------------
   const days = D.dates.length, ix = (iso) => D.dates.indexOf(iso);
   function niceMax(v) { if (v <= 0) return 1; const e = 10 ** Math.floor(Math.log10(v)), m = v / e; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * e; }
+  const HALO = ' stroke="#fff" stroke-width="3" paint-order="stroke"';
+  // Axis money: whole thousands ($500k), millions to one decimal only when needed ($1.5M, $2M).
+  const axisMoney = (c) => { const v = c / 100, a = Math.abs(v), s = v < 0 ? "−" : "";
+    if (a >= 1e6) return `${s}$${+(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}k`; return `${s}$${Math.round(a)}`; };
   function chart(host, o) {
     const W = Math.max(host.clientWidth, 300), H = Math.max(host.clientHeight - 22, 160);
     const m = { l: 62, r: o.right ? 46 : 12, t: 10, b: 22 }, w = W - m.l - m.r, h = H - m.t - m.b;
@@ -110,19 +114,33 @@
     let g = "";
     for (let k = 0; k <= 4; k++) {
       const v = lo + ((hi - lo) * k) / 4;
-      g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="#f1f5f9"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${money(v, 1)}</text>`;
-      if (o.right) g += `<text x="${m.l + w + 6}" y="${Y2(k / 4) + 4}">${(25 * k).toFixed(0)}%</text>`;
+      g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="#f1f5f9"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${axisMoney(v)}</text>`;
     }
-    D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 6}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text><line x1="${X(t)}" x2="${X(t)}" y1="${m.t + h}" y2="${m.t + h + 4}" stroke="#d1d5db"/>`; });
+    // The probability axis has its own ticks (20% steps, never on the money gridlines) and no gridlines of its own.
+    if (o.right) for (let p = 0; p <= 1.001; p += 0.2) g += `<line x1="${m.l + w}" x2="${m.l + w + 4}" y1="${Y2(p)}" y2="${Y2(p)}" stroke="#b91c1c"/><text x="${m.l + w + 7}" y="${Y2(p) + 4}" fill="#b91c1c">${Math.round(100 * p)}%</text>`;
+    let yearShown = null;  // the year once, on the first month label (and again only if the year changes)
+    D.dates.forEach((d, t) => {
+      if (!d.endsWith("-01")) return;
+      const yr = d.slice(0, 4), lab = MON[+d.slice(5, 7) - 1] + (yr !== yearShown ? ` ${yr}` : "");
+      yearShown = yr;
+      g += `<text x="${X(t)}" y="${H - 6}" text-anchor="middle">${lab}</text><line x1="${X(t)}" x2="${X(t)}" y1="${m.t + h}" y2="${m.t + h + 4}" stroke="#d1d5db"/>`;
+    });
     for (const b of o.windows || []) {
       const a = Math.max(0, ix(b.from) < 0 ? 0 : ix(b.from)), z = ix(b.to) < 0 ? days - 1 : ix(b.to);
-      g += `<rect x="${X(a)}" y="${m.t}" width="${Math.max(X(z) - X(a), 1)}" height="${h}" fill="#fef3c7" opacity=".55"/><text x="${X(a) + 4}" y="${m.t + 12}" fill="#92400e">${esc(b.label)}</text>`;
+      // the band's label sits at its foot, clear of the pin labels along the top
+      g += `<rect x="${X(a)}" y="${m.t}" width="${Math.max(X(z) - X(a), 1)}" height="${h}" fill="#fef3c7" opacity=".55"/><text x="${(X(a) + X(z)) / 2}" y="${m.t + h - 6}" text-anchor="middle" fill="#92400e"${HALO}>${esc(b.label)}</text>`;
     }
     for (const b of o.bands || []) g += `<path d="${path(b.hi, Y)}L${[...b.lo].reverse().map((v, k) => `${X(days - 1 - k).toFixed(1)},${Y(v).toFixed(1)}`).join("L")}Z" fill="${b.color}" opacity=".18"/>`;
     for (const s of o.series) g += `<path d="${path(s.y, s.right ? Y2 : Y)}" fill="none" stroke="${s.color}" stroke-width="${s.width || 1.8}"${s.dash ? ' stroke-dasharray="5 4"' : ""}/>`;
+    for (const s of o.series.filter((x) => x.right && x.tag)) {  // the probability line labelled at its end
+      const v = s.y[days - 1];
+      g += `<text x="${m.l + w - 4}" y="${Math.max(Y2(v) - 6, m.t + 10)}" text-anchor="end" fill="${s.color}" font-weight="600"${HALO}>${esc(s.tag(v))}</text>`;
+    }
     for (const p of o.pins || []) {
       const t = ix(p.date); if (t < 0) continue;
-      g += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + h}" stroke="var(--pin)" stroke-dasharray="3 3"/><text x="${t > 0.85 * days ? X(t) - 3 : X(t) + 3}" y="${m.t + 24 + 12 * (p.row || 0)}" fill="#92400e"${t > 0.85 * days ? ' text-anchor="end"' : ""}>${esc(p.label)}</text>`;
+      // a label runs right of its pin unless it would cross the plot's right edge; each pin keeps its own row
+      const flip = X(t) + 3 + 6.2 * p.label.length > m.l + w;
+      g += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + h}" stroke="var(--pin)" stroke-dasharray="3 3"/><text x="${flip ? X(t) - 3 : X(t) + 3}" y="${m.t + 12 + 13 * (p.row || 0)}" fill="#92400e"${flip ? ' text-anchor="end"' : ""}${HALO}>${esc(p.label)}</text>`;
     }
     g += `<line id="hx" x1="0" x2="0" y1="${m.t}" y2="${m.t + h}" stroke="#9ca3af" visibility="hidden"/><rect x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent" id="hov"/>`;
     host.querySelector("svg").setAttribute("viewBox", `0 0 ${W} ${H}`);
@@ -147,7 +165,7 @@
     const series = [{ y: v.limit_mean, color: "#94a3b8", dash: true, width: 1.4 },
                     { y: v.outstanding_mean, color: col, width: hl === "outstanding" ? 3 : 2 },
                     { y: v.frozen_mean, color: "#ea580c", width: hl === "frozen" ? 3 : 1.5 },
-                    { y: v.petition_cum_p, color: "#b91c1c", right: true, width: hl === "petition" ? 3 : 1.6 }];
+                    { y: v.petition_cum_p, color: "#b91c1c", right: true, width: hl === "petition" ? 3 : 1.6, tag: (p) => `Bankruptcy ${pct(p)} by ${fdate(D.meta.horizon)}` }];
     host.innerHTML = legend([["Limit", "#94a3b8", "dash"], ["Outstanding", col], ["Frozen by bankruptcy", "#ea580c"], ["Bankruptcy probability, cumulative (right axis)", "#b91c1c"]]) + `<svg class="chart"></svg>`;
     chart(host, { series, pins, windows, right: true, hover: (t) => [["Limit", money(v.limit_mean[t])], ["Outstanding", money(v.outstanding_mean[t])],
       ["Frozen by bankruptcy", money(v.frozen_mean[t])], ["Bankruptcy probability", pct(v.petition_cum_p[t])]] });
