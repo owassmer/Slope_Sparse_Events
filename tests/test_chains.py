@@ -120,11 +120,31 @@ def test_frap_tolling_moves_the_post_ruling_windows_with_the_drawn_ruling(base):
                                  ("settle", "I2", "no"), ("stay", "post", "no"), ("debtor_response", "post", "neither"))]
     assert all((x == c.F).all() for x in days[1:5]) and (days[5] == c.F).all()  # no increase: enforceable at once
     up = chain(base)
-    up.step("ruling", "", "beyond:11292377711:1211612330")  # an increase waits 30 days (L8 base)
-    assert (up.EF == up.F + 30).all()
+    up.step("ruling", "", "beyond:11292377711:1211612330")  # only the increase waits 30 days (L8(a) base)
+    assert (up.EF == up.F).all() and (up.EI == up.F + 30).all()
     ripe = up.step("judgment_default", "post", "no")
     inside = ripe < 10**6
-    assert (ripe[inside] == up.EF[inside] + 60).all()
+    assert (ripe[inside] == up.F[inside] + 60).all()
+    whole = chain(base, sens={"stay_restart_on_increase_days": True})  # sensitivity: the whole amount waits
+    whole.step("ruling", "", "beyond:11292377711:1211612330")
+    assert (whole.EF == whole.F + 30).all() and (whole.EI == whole.F + 30).all()
+
+
+def test_an_increase_is_levied_only_once_its_own_stay_ends_and_the_original_at_once(base):
+    rich = replace(base[1], cash=base[1].cash + 20_000_000_000)  # every trajectory can cover the whole amount
+    c = Chain(judgment(), SETUP, M, Draws(rich.cash.shape[0], basis=rich))
+    total = 11_292_377_711
+    c.step("ruling", "", f"amt:{total}:0")
+    lag = int(M["parameters"]["levy_lag_days"]["value"])
+    first, second = c.F + lag, c.EI
+    ok = (second < N) & (first < second)
+    assert ok.any()
+    c.levy(c.F)
+    r = c.rows[ok]
+    original = -c.ev.cash[r, first[ok]]
+    assert (original <= c.entered * 1.05).all() and (original >= c.entered).all()  # the surviving amount, at once
+    assert (-c.ev.cash[r, second[ok]] >= total - c.entered).all()  # the increase, once enforceable
+    assert (c.taken[ok] >= total).all()
 
 
 def test_pay_is_removed_only_where_no_trajectory_can_fund_it(full, base):

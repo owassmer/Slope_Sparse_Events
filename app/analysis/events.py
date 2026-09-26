@@ -245,7 +245,8 @@ class Chain:
         e = max(d.judgment_date + timedelta(days=stay + 1), self.s.review) if d.judgment_date else self.s.review
         self.E0 = max(self.ix(e), 0)  # execution may issue (Rule 62(a) ended; not before the day after review)
         self.e_ix = self.ix(e)
-        self.EF = self.F.copy()  # enforceable after the ruling; + 30 days on increases (L8 base), set by the ruling
+        self.EF = self.F.copy()  # the post-ruling amount enforceable (L8 base: the surviving amount, from F)
+        self.EI = self.F.copy()  # an increase enforceable: its own Rule 62(a) stay, F + 30 (set by the ruling)
 
     # --- state at a day ---
     def cash_at(self, day: np.ndarray) -> np.ndarray:
@@ -253,7 +254,8 @@ class Chain:
         t = np.clip(day, 0, self.N - 1)
         return cum[self.rows, t]
 
-    def owed_at(self, day: np.ndarray) -> np.ndarray:
+    def owed_at(self, day: np.ndarray, enforceable: bool = False) -> np.ndarray:
+        """The amount owed at the day; enforceable: an increase not yet out of its own Rule 62(a) stay is left out."""
         day = np.asarray(day)
         since_entry = day - self.ix(self.d.judgment_date) if self.d.judgment_date else np.zeros(self.n)
         before = self.entered + interest_1961(self.entered, 0, since_entry, 0, self.bps)
@@ -263,6 +265,9 @@ class Chain:
             base = min(self.cls_amount, self.entered)
             after = self.cls_amount + interest_1961(base, self.cls_amount - base, since_entry, day - self.F, self.bps)
             after = after - np.where(day < self.fee_day, self.cls_fees, 0)  # fees are owed once quantified
+            if enforceable and self.increase:
+                after = np.where(day < self.EI, np.minimum(after, base + interest_1961(base, 0, since_entry, 0,
+                                                                                       self.bps)), after)
             out = np.where(day >= self.F, after, before)
         return np.where(day >= self.resolved, 0, np.maximum(out - self.taken, 0))
 
@@ -294,9 +299,16 @@ class Chain:
         self.ev.cash -= np.where(stop, self.basis.legal, 0)  # legal outflows are negative: adding them back
 
     def levy(self, day: np.ndarray) -> None:
+        """A writ on the enforceable amount; where it comes before an increase is enforceable (L8 base), a second
+        writ on the increase once it is."""
         day = np.asarray(day) + int(self.p("levy_lag_days"))
+        self._take(day)
+        if self.increase:
+            self._take(np.where(day < self.EI, self.EI, BIG))
+
+    def _take(self, day: np.ndarray) -> None:
         ok = self.live(day) & (day < self.stayed_from) & (day < self.N)
-        take = np.where(ok, np.minimum(self.owed_at(day), np.maximum(self.cash_at(day), 0)), 0)
+        take = np.where(ok, np.minimum(self.owed_at(day, enforceable=True), np.maximum(self.cash_at(day), 0)), 0)
         self.book(self.ev.cash, day, -take)
         self.taken += take
         self.levied |= take > 0
@@ -445,8 +457,11 @@ class Chain:
             else:
                 _, total, fees = branch.split(":")
                 self.cls_amount, self.cls_fees = int(total), int(fees)
-            increase = (self.cls_amount or 0) > self.entered
-            self.EF = self.F + (int(self.p("stay_restart_on_increase_days")) if increase else 0)
+            self.increase = max((self.cls_amount or 0) - self.entered, 0)
+            restart = self.m["parameters"]["stay_restart_on_increase_days"]
+            mode = restart["sensitivity"] if self.sens.get("stay_restart_on_increase_days") else restart["base"]
+            self.EI = self.F + (int(restart["value"]) if self.increase else 0)
+            self.EF = self.EI.copy() if mode == "whole_amount" else self.F.copy()  # L8(a): base increases_only
             return self.F
         if node == "appeal":
             self.appealed = branch == "yes"
