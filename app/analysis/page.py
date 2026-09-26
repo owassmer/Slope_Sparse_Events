@@ -318,18 +318,22 @@ CHART = ("limit_mean", "outstanding_mean", "petition_cum_p", "frozen_mean", "cas
 
 
 def monthly_table(r, probs: np.ndarray, d: dict, months: list[tuple[int, int]]) -> list[dict]:
-    """Drawn, due, collected, past due at month end, frozen at month end, clawback-exposed collections and the P5 of
-    cash above the 30-day need at the month's due dates (after the installment), expected under `probs`."""
+    """Per month, expected under `probs`: drawn, due, collected; at month end, past due and frozen by a filing, split
+    into installments already due and not yet due; clawback-exposed collections; and the P5 of cash above the 30-day
+    need at the month's due dates, after the amount due. Cumulatively, due - collected = past due + frozen (due), and
+    frozen (due) + frozen (not yet due) = the frozen claim."""
     head = r.counts["headroom"].weighted(probs)
     q5 = r.bins["headroom"].quantiles(head, (0.05,))[0]
     due = np.diff(np.concatenate([[0], d["contractual"]]))
+    coll = np.diff(np.concatenate([[0], d["collected_mean"]]))  # from the cumulative series, so the sums telescope
     rows = []
     for i, (y, m) in enumerate(months):
         idx = np.flatnonzero(r.month_of_day == i)
         last = int(idx[-1])
         rows.append({"month": f"{y}-{m:02d}", "drawn": int(sum(d["fundings_mean"][t] for t in idx)),
-                     "due": int(due[idx].sum()), "collected": int(sum(d["collections_mean"][t] for t in idx)),
-                     "past_due": d["past_due_mean"][last], "frozen": d["frozen_mean"][last],
+                     "due": int(due[idx].sum()), "collected": int(coll[idx].sum()),
+                     "past_due": d["past_due_mean"][last], "frozen_due": d["frozen_due_mean"][last],
+                     "frozen_not_due": d["frozen_mean"][last] - d["frozen_due_mean"][last],
                      "clawback": int(sum(d["clawback_mean"][t] for t in idx)),
                      "above_need_p5": int(q5[i]) if head[i].sum() > 0 else None})
     return rows
@@ -447,7 +451,7 @@ SETTINGS = [
      "value": False, "options": [[False, "The increase"], [True, "The whole amount"]]},
 ]
 LINE_KEYS = {s["key"] for s in SETTINGS if s["kind"] == "line"}
-PAGE_FORMAT = 2  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
+PAGE_FORMAT = 3  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
 def build_dev(settings: dict | None = None, progress=None) -> dict:

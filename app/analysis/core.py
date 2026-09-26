@@ -101,7 +101,7 @@ def _scalars(t: Trajectories) -> dict[str, np.ndarray]:
 CASH_BINS, COLLECTED_BINS, HEADROOM_BINS = 128, 128, 1024
 # Per-day sums over draws kept for every path (expectations reweight them exactly).
 DAILY = ("cash", "backup", "collected", "due_cum", "drawn", "fundings", "collections", "outstanding", "locked",
-         "capacity", "petitioned", "frozen", "past_due", "clawback")
+         "capacity", "petitioned", "frozen", "frozen_due", "past_due", "clawback")
 
 
 @dataclass
@@ -212,6 +212,7 @@ class Reduction:
         d["petitioned"][i] = by_day.sum(axis=0)
         d["frozen"][i] = (by_day * t.stayed[:, None]).sum(axis=0)
         d["past_due"][i] = ((cum_due - cum_coll) * ~by_day).sum(axis=0)
+        d["frozen_due"][i] = ((cum_due - cum_coll) * by_day).sum(axis=0)  # frozen installments already due
         d["clawback"][i] = (t.collections * window).sum(axis=0)
         self.counts["cash"].add(self.bins["cash"].flat(t.cash))
         self.counts["collected"].add(self.bins["collected"].flat(cum_coll))
@@ -297,7 +298,7 @@ class Reduction:
             "locked_mean": ints(E["locked"]), "capacity_mean": ints(E["capacity"]),
             "limit_mean": ints(lim.mean(axis=0)), "limit_p5": ints(np.quantile(lim, 0.05, axis=0, method="lower")),
             "petition_cum_p": [float(x) for x in cum_p], "petition_exposure_mean": ints(exposure),
-            "frozen_mean": ints(E["frozen"]), "past_due_mean": ints(E["past_due"]),
+            "frozen_mean": ints(E["frozen"]), "frozen_due_mean": ints(E["frozen_due"]), "past_due_mean": ints(E["past_due"]),
             "clawback_mean": ints(E["clawback"]),
         }
 

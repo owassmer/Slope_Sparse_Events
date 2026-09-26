@@ -129,3 +129,26 @@ def test_filed_shares_sum_to_the_bankruptcy_probability(small_page):
         tile = float(np.dot(probs, p["paths"]["scalars"]["petition_p"]))
         assert float(probs @ cm[:, filed].sum(axis=1)) == pytest.approx(tile, abs=1e-12)
         assert tile == pytest.approx(a.expected(probs)["petition_p"], abs=1e-4)
+
+
+def test_the_collections_table_reconciles(small_page):
+    """Cumulatively, due - collected = past due + frozen (installments already due); frozen (due) + frozen (not yet
+    due) on the last row = the Frozen tile; past due + both frozen columns = the Unrecovered tile (to a few cents)."""
+    import numpy as np
+
+    a, m, state = small_page
+    p = state["payload"]
+    for view in ("event", "bank"):
+        rows = p[view]["monthly"]
+        due = coll = 0
+        for r in rows:
+            due, coll = due + r["due"], coll + r["collected"]
+            assert abs((due - coll) - (r["past_due"] + r["frozen_due"])) <= 2, (view, r["month"])
+        if view == "event":
+            probs = m.probs()
+            frozen, unrec = (float(np.dot(probs, a.r.means[k])) for k in ("stayed", "unrecovered"))
+        else:
+            frozen, unrec = (p["bank"]["scalars"][k] for k in ("stayed", "unrecovered"))
+        last = rows[-1]
+        assert abs(last["frozen_due"] + last["frozen_not_due"] - frozen) <= 2, view
+        assert abs(last["past_due"] + last["frozen_due"] + last["frozen_not_due"] - unrec) <= 2, view

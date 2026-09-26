@@ -159,10 +159,10 @@
       series: [{ y: v.cash_p50, color: col }, { y: D.need_mean, color: "#111827", dash: true, width: 1.3 }],
       hover: (t) => [["P95", money(v.cash_p95[t])], ["Median", money(v.cash_p50[t])], ["P5", money(v.cash_p5[t])], ["30-day need", money(D.need_mean[t])]] });
   }
-  const COLS = [["drawn", "Drawn"], ["due", "Due"], ["collected", "Collected"], ["past_due", "Past due"], ["frozen", "Frozen by bankruptcy"],
+  const COLS = [["drawn", "Drawn"], ["due", "Due"], ["collected", "Collected"], ["past_due", "Past due"], ["frozen_due", "Frozen, due"], ["frozen_not_due", "Frozen, not yet due"],
                 ["clawback", "Clawback exposure"], ["above_need_p5", "Cash above 30-day need at due dates, P5"]];
   function collections(host) {
-    const rows = cur().monthly, hl = S.tile === "unrecovered" ? ["past_due", "frozen"] : [S.tile === "preference" ? "clawback" : S.tile];
+    const rows = cur().monthly, hl = { unrecovered: ["past_due", "frozen_due", "frozen_not_due"], stayed: ["frozen_due", "frozen_not_due"], preference: ["clawback"] }[S.tile] || [S.tile];
     const mname = (m) => `${MON[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
     host.innerHTML = `<table class="t"><tr><th>Month</th>${COLS.map(([k, l]) => `<th class="${hl.includes(k) ? "hl" : ""}">${l}</th>`).join("")}</tr>
       ${rows.map((r) => `<tr><td>${mname(r.month)}</td>${COLS.map(([k]) => `<td class="${hl.includes(k) ? "hl" : ""}">${r[k] === null ? "–" : money(r[k])}</td>`).join("")}</tr>`).join("")}</table>
