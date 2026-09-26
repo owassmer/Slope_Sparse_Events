@@ -188,6 +188,7 @@ class _Prefix:
     collateral: list
     petition: np.ndarray
     digest: bytes
+    cause: np.ndarray | None = None  # per draw: the rule that booked the earliest petition (events.PETITION_CAUSES)
 
     @classmethod
     def of(cls, tr) -> _Prefix:
@@ -195,7 +196,8 @@ class _Prefix:
         h = hashlib.blake2b(digest_size=32)
         for a in (ev.cash, ev.lock, ev.capacity, ev.petition):
             h.update(np.ascontiguousarray(a).tobytes())
-        return cls(tr.day, tr.cash, tr.owed, tr.collateral, ev.petition.copy(), h.digest())
+        return cls(tr.day, tr.cash, tr.owed, tr.collateral, ev.petition.copy(), h.digest(),
+                   None if tr.cause is None else tr.cause.copy())
 
 
 MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "patent_jmol", "trebling", "fees_awarded",

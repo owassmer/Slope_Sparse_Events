@@ -291,21 +291,25 @@ def test_statutory_interest_is_8_percent_simple_on_surviving_compensatory_only()
 # 4. The notes -------------------------------------------------------------------------------------------------------
 
 def test_the_judgment_default_fires_only_at_ripeness_unpaid_unstayed_and_noticed(base):
-    ripe = ix(date(2024, 8, 19))  # enforceable from 20 Jun (Rule 62(a) ended) + 60 days (§7.01(i))
+    # L11 is Law: with post-trial motions pending the judgment is not final, so §7.01(i) cannot ripen before the ruling.
+    pre = chain(base)
+    pre.step("execute_pre_ruling", "I1", "no")
+    assert (pre.step("judgment_default", "I1", "yes") >= 10**6).all() and (pre.ev.petition == -1).all()
+    # After the ruling it ripens 60 days on, and the holders' notice and acceleration bring the petition.
     c = chain(base)
-    c.step("execute_pre_ruling", "I1", "no")
-    c.step("judgment_default", "I1", "yes")
-    assert (c.ev.petition == ripe).all()
+    for s in (("execute_pre_ruling", "I1", "no"), ("ruling", "", "beyond:3010000000:0"), ("appeal", "", "no"),
+              ("settle", "I2", "no"), ("stay", "post", "no")):
+        c.step(*s)
+    ripe = c.step("judgment_default", "post", "yes")
+    inside = ripe < N
+    assert inside.any() and (ripe[inside] == c.F[inside] + 60).all()
+    assert (c.ev.petition[inside] == ripe[inside]).all()
     quiet = chain(base)
-    quiet.step("execute_pre_ruling", "I1", "no")
-    quiet.step("judgment_default", "I1", "no")  # no notice and acceleration: no default consequence
+    for s in (("execute_pre_ruling", "I1", "no"), ("ruling", "", "beyond:3010000000:0"), ("appeal", "", "no"),
+              ("settle", "I2", "no"), ("stay", "post", "no")):
+        quiet.step(*s)
+    quiet.step("judgment_default", "post", "no")  # no notice and acceleration: no default consequence
     assert (quiet.ev.petition == -1).all()
-    stayed = chain(base)
-    for s in (("execute_pre_ruling", "I1", "yes"), ("stay", "I1", "yes"), ("judgment_default", "I1", "yes")):
-        stayed.step(*s)
-    early = stayed.stayed_from <= ripe  # stayed before it ripens: no default on that trajectory
-    assert early.any() and (~early).any()
-    assert (stayed.ev.petition[early] == -1).all() and (stayed.ev.petition[~early] == ripe).all()
     small = judgment(components=(), motions=(), stage="judgment_entered",
                      amount=judgment().amount.model_copy(update={"value": 900_000_000}))  # below the $10.0M threshold
     low = chain(base, small)

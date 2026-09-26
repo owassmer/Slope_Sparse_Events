@@ -178,6 +178,9 @@ def interest_1961(principal: int, increase: int, since_entry: np.ndarray, since_
 BIG = 10**6  # a day index meaning "not in this path / never"
 
 
+PETITION_CAUSES = ("none", "enforcement", "notes", "cash_floor")  # the rule that booked a trajectory's petition
+
+
 @dataclass
 class Trace:
     """One path's event cash plus, per step, the decision day and the path facts code computes at it."""
@@ -186,6 +189,7 @@ class Trace:
     cash: list[np.ndarray] = field(default_factory=list)  # per step: available cash at the decision day
     owed: list[np.ndarray] = field(default_factory=list)  # per step: amount owed at the decision day
     collateral: list[np.ndarray] = field(default_factory=list)  # per step: the bond collateral the law requires
+    cause: np.ndarray | None = None  # per draw: which rule booked the earliest petition (PETITION_CAUSES index)
 
 
 class Chain:
@@ -197,6 +201,7 @@ class Chain:
         self.n, self.N = draws.n, (setup.horizon - setup.review).days
         self.basis = draws.basis
         self.ev = EventCash.zeros(self.n, self.N)
+        self.pet_cause = np.zeros(self.n, dtype=np.int8)  # PETITION_CAUSES index of the earliest petition
         self.rows = np.arange(self.n)
         self.iid = d.instance_id
         self.fin = next((f for f in d.financing if f.status != "superseded"), None)
@@ -282,11 +287,13 @@ class Chain:
         ok = (day >= 0) & (day < self.N) & (cents != 0)
         np.add.at(arr, (self.rows[ok], day[ok]), cents[ok])
 
-    def petition(self, day: np.ndarray, where: np.ndarray | None = None) -> None:
+    def petition(self, day: np.ndarray, where: np.ndarray | None = None, cause: str = "enforcement") -> None:
         day = np.asarray(day) + int(self.p("petition_lag_days"))
         ok = (day >= 0) & (day < self.N) & (True if where is None else where)
         cur = self.ev.petition
-        self.ev.petition = np.where(ok & ((cur < 0) | (day < cur)), day, cur)
+        win = ok & ((cur < 0) | (day < cur))
+        self.ev.petition = np.where(win, day, cur)
+        self.pet_cause = np.where(win, PETITION_CAUSES.index(cause), self.pet_cause).astype(np.int8)
 
     def live(self, day: np.ndarray) -> np.ndarray:
         """No petition before the day and the judgment not resolved by it."""
@@ -463,15 +470,17 @@ class Chain:
         if node == "judgment_default":
             f = self.fin
             if ctx == "I1":
+                # L11 (rule indenture_final_judgment): while the post-trial motions are pending the entered judgment
+                # is not final, so §7.01(i) cannot ripen before the ruling.
                 ripe = full(self.e_ix + f.judgment_default_days)
-                cond = (self.F > ripe) & (self.entered - f.insured_cents > f.judgment_default_threshold_cents)
+                cond = full(False).astype(bool)
             else:
                 ripe = np.maximum(self.EF, self.e_ix) + f.judgment_default_days
                 amount = (self.cls_amount or 0) - f.insured_cents
                 cond = (self.F >= 0) & (amount > f.judgment_default_threshold_cents)
             cond = cond & (self.stayed_from > ripe) & self.live(ripe) & (self.owed_at(ripe) > 0)
             if branch == "yes":
-                self.petition(ripe + int(self.p("holder_notice_lag_days")), cond)
+                self.petition(ripe + int(self.p("holder_notice_lag_days")), cond, cause="notes")
             return np.where(cond, ripe, BIG)
         if node == "ruling":
             self.retrial = branch == "retrial" or branch.endswith(":retrial")
@@ -512,14 +521,14 @@ class Chain:
             return full(dates["vote_call"])
         if node == "delisting_notes":
             if branch == "petition_delist":
-                self.petition(self.delisted + int(self.p("holder_notice_lag_days")))
+                self.petition(self.delisted + int(self.p("holder_notice_lag_days")), cause="notes")
             elif branch == "petition_repurchase":
-                self.petition(full(self.repurchase_day(int(self.delisted[0]))))
+                self.petition(full(self.repurchase_day(int(self.delisted[0]))), cause="notes")
             return self.delisted
         if node == "cash_floor":
             t = self.tau()
             if branch == "yes":
-                self.petition(t, t < N)
+                self.petition(t, t < N, cause="cash_floor")
             return t
         raise ValueError(f"Unknown chain step {node}")
 
@@ -541,6 +550,7 @@ class Chain:
         after = (pet[:, None] >= 0) & (np.arange(self.N)[None, :] >= pet[:, None])
         self.ev.cash[after] = 0  # §362: nothing is collected from or paid by the estate after the petition
         tr.events = self.ev
+        tr.cause = np.where(self.ev.petition >= 0, self.pet_cause, 0).astype(np.int8)
         return tr
 
 

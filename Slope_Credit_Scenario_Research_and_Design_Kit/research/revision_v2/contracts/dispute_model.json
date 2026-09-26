@@ -139,6 +139,12 @@
       "modality": "may (trustee)",
       "value": 90,
       "unit": "days"
+    },
+    "indenture_final_judgment": {
+      "citation": "Indenture §7.01(i) ('a final judgment ... entered ... undischarged, unpaid or unstayed for a period ... of 60 days'); Banister v. Davis, 590 U.S. 504 (2020) and Osterneck v. Ernst & Whinney, 489 U.S. 169, 174 (1989): a timely Rule 50(b)/59 motion 'suspends the finality' of the judgment, 'there is no longer a final judgment', and only the court's disposition of the motion restores finality (FRAP 4(a)(4)(A)).",
+      "modality": "shall",
+      "value": "after_post_trial_ruling",
+      "meaning": "L11 settled: while timely post-trial motions are pending the entered judgment is not final; it becomes final at the ruling that disposes of them, whether or not an appeal follows (the clause does not say 'non-appealable'). The 60-day period runs from the ruling (the surviving amount), not from entry."
     }
   },
   "readings": {
@@ -1058,7 +1064,7 @@
             "amount_class"
           ],
           "residual_question": "forecast_holders_act_judgment",
-          "note": "Whether a judgment still subject to post-trial motions is 'final' (L11) is open: evidence for this question, not a structural gate."
+          "note": "L11 is Law (rule indenture_final_judgment): the judgment is final only once the post-trial motions are decided, so the default ripens 60 days after the ruling, never before it."
         },
         "holders_act_delisting": {
           "actor": "holders",

@@ -144,7 +144,11 @@ def filing_cause(steps: tuple) -> str:
     return "filed_enforcement"
 
 
-def outcome_shares(steps: tuple, outcome: str, petition_p: float) -> dict[str, float]:
+FILED_BY = {1: "Akoustis files", 2: "Noteholders accelerate; filing", 3: "Akoustis files at the cash floor"}
+CAUSE_CLASS = {1: "filed_enforcement", 2: "filed_notes", 3: "filed_cash"}  # events.PETITION_CAUSES indices
+
+
+def outcome_shares(steps: tuple, outcome: str, petition_p: float, cause: np.ndarray | None = None) -> dict[str, float]:
     """The path's draws by outcome class at the end of the period, classed by draw, not by path: the draws whose
     petition falls inside the horizon are Filed (by the path's filing cause); the rest are the class the path is in
     without the filing (Unresolved unless it is otherwise settled, paid, stayed or vacated). So the Filed shares,
@@ -152,7 +156,14 @@ def outcome_shares(steps: tuple, outcome: str, petition_p: float) -> dict[str, f
     rest = OUTCOME_CLASS.get(outcome, "unresolved")
     out = {rest: 1.0 - petition_p} if petition_p < 1.0 else {}
     if petition_p > 0.0:
-        out[filing_cause(steps)] = petition_p
+        filed = cause[cause > 0] if cause is not None else np.zeros(0)
+        if filed.size:  # by the rule that booked each trajectory's earliest petition
+            for code, name in CAUSE_CLASS.items():
+                n = int((filed == code).sum())
+                if n:
+                    out[name] = out.get(name, 0.0) + petition_p * n / filed.size
+        else:
+            out[filing_cause(steps)] = petition_p
     return out
 
 
@@ -205,22 +216,30 @@ def step_phrase(node: str, ctx: str, branch: str, ranges: dict[str, tuple[int, i
 
 
 def sequence(steps: tuple, day: list, petition: np.ndarray, review: date, days: int,
-             ranges: dict[str, tuple[int, int]]) -> str:
+             ranges: dict[str, tuple[int, int]], cause: np.ndarray | None = None) -> str:
     """The path's events in order, each dated by its median day across the draws where it falls inside the period:
     'Ruling leaves $38.6M (Nov) → Qorvo levies (Dec) → Akoustis files (5 Dec)'."""
-    out = []
+    # Listed by date, not by the tree's order: a filing at the cash floor is a tail step in the tree but can fall
+    # before a later decision on the same path.
+    out: list[tuple[float, str]] = []
     for i, (node, ctx, branch) in enumerate(steps):
         text = step_phrase(node, ctx, branch, ranges)
         if text is None:
             continue
         if (node, branch) in FILING:
-            p = petition[(petition >= 0) & (petition < days)]
-            out.append(f"{text} ({_when(review, p, exact=True)})" if p.size else f"{text} after 17 Dec")
+            inside_p = (petition >= 0) & (petition < days)
+            p = petition[inside_p]
+            if cause is not None and p.size:  # named by the rule that booked most of these petitions
+                codes, counts = np.unique(cause[inside_p], return_counts=True)
+                text = FILED_BY.get(int(codes[np.argmax(counts)]), text)
+            out.append((float(np.median(p)), f"{text} ({_when(review, p, exact=True)})") if p.size
+                       else (float("inf"), f"{text} after 17 Dec"))
             break
         d = np.asarray(day[i]) if i < len(day) else np.zeros(0)
         inside = d[d < days]
-        out.append(f"{text} ({_when(review, inside)})" if inside.size else f"{text}, after the period")
-    return " → ".join(out) or "Nothing decided in the period"
+        out.append((float(np.median(inside)), f"{text} ({_when(review, inside)})") if inside.size
+                   else (float("inf"), f"{text}, after the period"))
+    return " → ".join(t for _, t in sorted(out, key=lambda x: x[0])) or "Nothing decided in the period"
 
 
 def encode_paths(combos: list, judgments: dict) -> dict:
@@ -440,11 +459,12 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
     pet = np.round(a.r.means["petition_p"], 4)  # the tile's own per-path values, so Filed sums to the tile exactly
     shares = []
     for i, p in enumerate(lead):
-        sh = outcome_shares(p.steps, p.outcome, float(pet[i]))
+        tr = fc.trace(d0, p.steps) if d0 is not None and p.steps else None
+        sh = outcome_shares(p.steps, p.outcome, float(pet[i]), tr.cause if tr is not None else None)
         shares.append(sh)
         classes.append(max(sh, key=sh.get))  # the main class, for the worst-paths table
-        tr = fc.trace(d0, p.steps) if d0 is not None and p.steps else None
-        text = sequence(p.steps, tr.day, tr.petition, setup.review, a.days, ranges) if tr else "No dispute events"
+        text = (sequence(p.steps, tr.day, tr.petition, setup.review, a.days, ranges, tr.cause) if tr
+                else "No dispute events")
         seqs.append(seq_ix.setdefault(text, len(seq_ix)))
     cls_ix = {c: i for i, (c, _) in enumerate(CLASSES)}
     probs = model.probs() if probs is None else probs
