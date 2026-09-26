@@ -19,6 +19,7 @@
     if (a >= 1e3) return `${s}$${(a / 1e3).toFixed(dp ?? 0)}k`;
     return `${s}$${a.toFixed(0)}`;
   };
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const pct = (p, dp = 1) => `${(100 * p).toFixed(dp)}%`;
   const fdate = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   const fdateY = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -70,11 +71,11 @@
     attribution();
     $("tiles").innerHTML = TILES.map((t) => {
       const [b, , e] = steps[t.key], d = e - b, main = S.view === "bank" ? b : e;
-      const dcls = Math.abs(d) < 1e-9 ? "" : (d > 0) === (t.good < 0) ? "up" : t.good ? "down" : "";
+      const dcls = Math.abs(d) < 1e-9 || !t.good ? "" : (d > 0) === (t.good < 0) ? "up" : "down";
       const dtxt = (d >= 0 ? "+" : "") + (t.key === "petition_p" ? pct(d) : money(d));
       return `<div class="tile${S.tile === t.key ? " sel" : ""}" data-k="${t.key}"><div class="l">${t.label}</div>
         <div class="v">${t.fmt(main)}</div>
-        <div class="s">Bank only ${t.fmt(b)} · With litigation ${t.fmt(e)} · <span class="d ${dcls}">${dtxt}</span></div></div>`;
+        <div class="s">Bank only ${t.fmt(b)} · With litigation ${t.fmt(e)}</div><div class="s">Difference <span class="d ${dcls}">${dtxt}</span></div></div>`;
     }).join("");
     document.querySelectorAll(".tile").forEach((el) => {
       el.onclick = () => { const t = TILES.find((x) => x.key === el.dataset.k); S.tile = t.key; S.mtab = t.tab; renderTabs(); renderTiles(); renderMain(); };
@@ -111,7 +112,7 @@
       g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="#f1f5f9"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${money(v, 1)}</text>`;
       if (o.right) g += `<text x="${m.l + w + 6}" y="${Y2(k / 4) + 4}">${(25 * k).toFixed(0)}%</text>`;
     }
-    D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 6}" text-anchor="middle">${new Date(d + "T12:00:00").toLocaleDateString("en-GB", { month: "short" })}</text><line x1="${X(t)}" x2="${X(t)}" y1="${m.t + h}" y2="${m.t + h + 4}" stroke="#d1d5db"/>`; });
+    D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 6}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text><line x1="${X(t)}" x2="${X(t)}" y1="${m.t + h}" y2="${m.t + h + 4}" stroke="#d1d5db"/>`; });
     for (const b of o.windows || []) {
       const a = Math.max(0, ix(b.from) < 0 ? 0 : ix(b.from)), z = ix(b.to) < 0 ? days - 1 : ix(b.to);
       g += `<rect x="${X(a)}" y="${m.t}" width="${Math.max(X(z) - X(a), 1)}" height="${h}" fill="#fef3c7" opacity=".55"/><text x="${X(a) + 4}" y="${m.t + 12}" fill="#92400e">${esc(b.label)}</text>`;
@@ -120,7 +121,7 @@
     for (const s of o.series) g += `<path d="${path(s.y, s.right ? Y2 : Y)}" fill="none" stroke="${s.color}" stroke-width="${s.width || 1.8}"${s.dash ? ' stroke-dasharray="5 4"' : ""}/>`;
     for (const p of o.pins || []) {
       const t = ix(p.date); if (t < 0) continue;
-      g += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + h}" stroke="var(--pin)" stroke-dasharray="3 3"/><text x="${X(t) + 3}" y="${m.t + 24 + 12 * (p.row || 0)}" fill="#92400e">${esc(p.label)}</text>`;
+      g += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + h}" stroke="var(--pin)" stroke-dasharray="3 3"/><text x="${t > 0.85 * days ? X(t) - 3 : X(t) + 3}" y="${m.t + 24 + 12 * (p.row || 0)}" fill="#92400e"${t > 0.85 * days ? ' text-anchor="end"' : ""}>${esc(p.label)}</text>`;
     }
     g += `<line id="hx" x1="0" x2="0" y1="${m.t}" y2="${m.t + h}" stroke="#9ca3af" visibility="hidden"/><rect x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent" id="hov"/>`;
     host.querySelector("svg").setAttribute("viewBox", `0 0 ${W} ${H}`);
@@ -161,7 +162,7 @@
                 ["clawback", "Clawback exposure"], ["above_need_p5", "Cash above 30-day need at due dates, P5"]];
   function collections(host) {
     const rows = cur().monthly, hl = S.tile === "unrecovered" ? ["past_due", "frozen"] : [S.tile === "preference" ? "clawback" : S.tile];
-    const mname = (m) => new Date(m + "-15T12:00:00").toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+    const mname = (m) => `${MON[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
     host.innerHTML = `<table class="t"><tr><th>Month</th>${COLS.map(([k, l]) => `<th class="${hl.includes(k) ? "hl" : ""}">${l}</th>`).join("")}</tr>
       ${rows.map((r) => `<tr><td>${mname(r.month)}</td>${COLS.map(([k]) => `<td class="${hl.includes(k) ? "hl" : ""}">${r[k] === null ? "–" : money(r[k])}</td>`).join("")}</tr>`).join("")}</table>
       <p><button id="csv">Export CSV</button></p>`;
@@ -179,7 +180,7 @@
   }
   function renderTabs() {
     document.querySelectorAll("#mtabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === S.mtab));
-    document.querySelectorAll("#rtabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === S.rtab));
+    document.querySelectorAll("#rtabs button[data-t]").forEach((b) => b.classList.toggle("on", b.dataset.t === S.rtab));
     document.querySelectorAll("#viewsw button").forEach((b) => b.classList.toggle("on", b.dataset.v === S.view));
   }
 
@@ -334,10 +335,12 @@
   const lim = Math.floor(D.meta.limit_cents / 100).toLocaleString("en-US");
   $("title").textContent = `${D.meta.borrower.replace(/,? Inc\.?$/, "")} · Review date ${fdateY(D.meta.review)} · Limit $${lim} · Through ${fdateY(D.meta.horizon)}`;
   document.querySelectorAll("#mtabs button").forEach((b) => (b.onclick = () => { S.mtab = b.dataset.t; renderTabs(); renderMain(); }));
-  document.querySelectorAll("#rtabs button").forEach((b) => (b.onclick = () => { S.rtab = b.dataset.t; S.detail = null; renderTabs(); renderRight(); }));
+  document.querySelectorAll("#rtabs button[data-t]").forEach((b) => (b.onclick = () => { S.rtab = b.dataset.t; S.detail = null; renderTabs(); renderRight(); }));
   document.querySelectorAll("#viewsw button").forEach((b) => (b.onclick = () => { S.view = b.dataset.v; renderTabs(); renderTiles(); renderMain(); }));
   $("drawer").onclick = () => $("right").classList.toggle("open");
+  $("drawer-close").onclick = () => $("right").classList.remove("open");
   let rz = null;
   window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(renderMain, 120); });
   computeSens(); renderTabs(); renderTiles(); renderOutcomes(); renderRight(); renderMain();
+  refreshCharts();  // warms the server's reweight, so the first slider move is as quick as the rest
 })();

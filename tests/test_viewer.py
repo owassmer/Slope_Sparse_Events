@@ -37,3 +37,79 @@ def test_tampered_run_fails_verification(tmp_path):
     events.write_text("\n".join(lines) + "\n")
     with pytest.raises(ValueError):
         viewmodel.build(RUNS[-1], root=tmp_path)
+
+
+# The analysis page ------------------------------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def small_page():
+    """The page payload on the $2M small judgment (tests/test_analysis.py SMALL), neutral judgments."""
+    import numpy as np
+    from akoustis_fixture import REVIEW, SETUP, SNAP, basis, judgment
+
+    from app.analysis.core import Analysis, EventModel, stress
+    from app.analysis.page import page_payload
+    from app.disputes.forecast import Forecaster, Judgment, neutral_map
+    from app.finance.bank import load_feed
+
+    feed, b = basis()
+    d = judgment(stage="judgment_entered", motions=(), components=(), financing=(),
+                 amount=judgment().amount.model_copy(update={"value": 200_000_000}))
+    fc = Forecaster([d], {}, borrower="Akoustis Technologies, Inc.", review=REVIEW, horizon=SETUP.horizon,
+                    hydrate=lambda f: {}, setup=SETUP, basis=b)
+    per = fc.all_paths()
+    js = {n.key: Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
+                          event=n.event, assumptions=n.assumptions, window=n.window,
+                          distribution={x: 1 / len(n.branches) for x in n.branches}) for n in fc.nodes.values()}
+    m = EventModel({x.instance_id: x for x in fc.disputes}, js, per, fc.ordered(), neutral=neutral_map(js))
+    a = Analysis(feed, SETUP, m)
+    rows = [{"index": r["index"], **r} for r in stress(load_feed(SNAP), SETUP, m)]
+    p = page_payload(a, m, fc, borrower="Akoustis Technologies, Inc.", snapshot_id=SNAP, neutral=True, stress_rows=rows)
+    state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": m, "months": a.months,
+             "class_of_path": np.array(p["paths"]["class"])}
+    return a, m, state
+
+
+def test_the_page_renders_from_its_payload_and_reweights(small_page, monkeypatch):
+    from app.analysis.page import DevPage
+    from app.web import app as web
+
+    _, _, state = small_page
+    page = DevPage()
+    page.state = state
+    monkeypatch.setattr(web, "_DEV", page)
+    c = TestClient(app)
+    r = c.get("/dev/akoustis")
+    assert r.status_code == 200 and "page-data" in r.text and "Bank data only" in r.text
+    assert state["payload"]["meta"]["judgments"] == "neutral" and "No Jev answers yet" in r.text
+    node = state["payload"]["nodes"][0]
+    out = c.post("/dev/akoustis/reweight", json={"overrides": {node["key"]: [0.9] + [0.1 / (len(node["branches"]) - 1)]
+                                                               * (len(node["branches"]) - 1)}}).json()
+    assert len(out["daily"]["outstanding_mean"]) == len(state["payload"]["dates"]) and out["monthly"]
+
+
+def test_the_browser_reweight_arithmetic_matches_the_analysis_for_one_override(small_page):
+    """What page.js computes from the payload (path probabilities from the encoded edges, the slider's
+    renormalisation, tile expectations from per-path means) equals the analysis under the same override."""
+    import numpy as np
+
+    from app.analysis.page import decode_probs, reweight, with_branch
+
+    a, m, state = small_page
+    p = state["payload"]
+    enc = {"keys": [n["key"] for n in p["nodes"]], "composites": p["composites"], "paths": p["paths"]["edges"]}
+    i = max(range(len(p["nodes"])), key=lambda k: len(p["nodes"][k]["branches"]))  # a choice node if there is one
+    node = p["nodes"][i]
+    moved = with_branch(node["jev"], len(node["branches"]) - 1, 0.7)
+    assert sum(moved) == pytest.approx(1.0) and moved[-1] == 0.7
+    if len(moved) > 2:  # the other branches keep their proportions
+        assert moved[0] / moved[1] == pytest.approx(node["jev"][0] / node["jev"][1])
+    override = {node["key"]: dict(zip(node["branches"], moved, strict=True))}
+    dist = {n["key"]: (moved if n["key"] == node["key"] else n["jev"]) for n in p["nodes"]}
+    probs = decode_probs(enc, dist)
+    assert np.allclose(probs, m.probs(override), atol=1e-12)
+    ref = a.expected(m.probs(override))
+    for k in ("collected", "unrecovered", "petition_p", "stayed", "preference", "peak_outstanding"):
+        assert float(np.dot(probs, p["paths"]["scalars"][k])) == pytest.approx(ref[k], rel=1e-6, abs=1.0), k
+    out = reweight(state, {node["key"]: moved})
+    assert out["daily"]["outstanding_mean"] == a.r.daily(m.probs(override))["outstanding_mean"]
