@@ -1032,7 +1032,7 @@
         "interest": "§16.02: interest dates; shares unless the company elects cash"
       },
       "clocks": {
-        "judgment_default_ripe": "the later of the Rule 62(a) stay's end and the review date, + N days, if the judgment is unpaid and unstayed throughout; again on the post-ruling judgment's enforceable date + N (instrument terms); holder notice + holder_notice_lag_days",
+        "judgment_default_ripe": "never before the post-trial ruling (L11, rule indenture_final_judgment: the judgment is not final while post-trial motions are pending); the post-ruling judgment's enforceable date + N days (instrument terms), if it is unpaid and unstayed throughout; holder notice + holder_notice_lag_days",
         "listing": "split effective by the vote date; Staff Determination the day after the compliance deadline; suspension + suspension_after_determination_days without a hearing; panel decision + panel_decision_days with one; 'not listed' per form25_after_panel_days"
       },
       "nodes": {
