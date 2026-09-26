@@ -299,6 +299,7 @@ class Forecaster:
         for atoms_, o in leaves:
             a = ruling_amounts(d, o, self.m)
             total = sum(a.values())
+            retrial = "new_trial" in (o.get("damages"), o.get("remittitur"))  # the dispute goes on (legal spend too)
             if total == 0:
                 c = "none"
             elif self.reach is not None and total * lower > self.reach:
@@ -306,15 +307,18 @@ class Forecaster:
                 c = "beyond_up" if total > entered else "beyond"
             else:
                 c = f"amt:{total}:{a['fees']}"
+            c = (c, retrial)
             classes.setdefault(c, []).append(atoms_)
             members.setdefault(c, []).append((total, a["fees"]))
         out = {}
-        for c, parts in classes.items():
+        for (c0, retrial), parts in classes.items():
+            c = (c0, retrial)
             lo = min(members[c])
-            label = f"{c}:{lo[0]}:{lo[1]}" if c.startswith("beyond") else c
+            label = f"{c0}:{lo[0]}:{lo[1]}" if c0.startswith("beyond") else c0
+            label = ("retrial" if label == "none" else f"{label}:retrial") if retrial else label
             out[label] = parts
             self.class_members[label] = members[c]
-            if c.startswith("beyond"):  # what Jev is told: the class's range, never one figure
+            if c0.startswith("beyond"):  # what Jev is told: the class's range, never one figure
                 self.class_range[_label(label)] = (lo[0], max(members[c])[0])
         return out
 
@@ -470,7 +474,8 @@ class _S:
 
 
 def _label(c: str) -> str:
-    return c.split(":")[0] + (c.split(":")[1] if c.startswith("amt:") else "")
+    return c.split(":")[0] + (c.split(":")[1] if c.startswith("amt:") else "") + (
+        "_retrial" if c.endswith(":retrial") else "")
 
 
 class _Walk:
@@ -602,6 +607,8 @@ class _Walk:
             y = s.add(("ruling", "", c), (composite(parts), "yes"), cls=_label(c))
             if c == "none":
                 self.tail(y, "vacated")
+            elif c == "retrial":
+                self.tail(y, "new_trial")
             else:
                 self.post(y)
 

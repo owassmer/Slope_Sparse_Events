@@ -205,6 +205,7 @@ class Chain:
         self._timeline()
         self.cls_amount = None  # the path amount after the ruling (None: the judgment as entered)
         self.increase = 0
+        self.retrial = False  # the ruling orders a new trial: the dispute goes on after any payment
         self.q1 = False
         self.appealed = False
         self.early_registration = np.full(self.n, BIG)
@@ -292,7 +293,8 @@ class Chain:
         return (np.asarray(day) < pet) & (np.asarray(day) < self.resolved)
 
     def resolve(self, day: np.ndarray, where: np.ndarray) -> None:
-        """The dispute ends (payment or settlement): legal spend in the feed stops from that day."""
+        """The dispute ends (payment, settlement or vacatur; a petition zeroes the feed's cash after it): legal spend
+        in the feed stops from that day."""
         day = np.where(where & (day < self.N), day, BIG)
         old, self.resolved = self.resolved, np.minimum(self.resolved, day)
         t = np.arange(self.N)
@@ -429,7 +431,7 @@ class Chain:
                 amt = np.where(ok, self.owed_at(milestone), 0)
                 self.book(self.ev.cash, milestone, -amt)
                 self.taken += amt
-                self.resolve(milestone, ok)
+                self.resolve(milestone, ok & (not self.retrial))  # under a new trial the dispute goes on
             elif branch == "file":
                 self.petition(milestone, self.live(milestone))
             return milestone
@@ -454,11 +456,14 @@ class Chain:
                 self.petition(ripe + int(self.p("holder_notice_lag_days")), cond)
             return np.where(cond, ripe, BIG)
         if node == "ruling":
-            if branch == "none":
+            self.retrial = branch == "retrial" or branch.endswith(":retrial")
+            if branch in ("none", "retrial"):
                 self.cls_amount = 0
             else:
-                _, total, fees = branch.split(":")
+                _, total, fees = branch.split(":")[:3]
                 self.cls_amount, self.cls_fees = int(total), int(fees)
+            if branch == "none":  # vacated: the dispute ends on the ruling, and legal spend stops
+                self.resolve(np.maximum(self.F, 0), self.live(self.F))
             self.increase = max((self.cls_amount or 0) - self.entered, 0)
             restart = self.m["parameters"]["stay_restart_on_increase_days"]
             mode = restart["sensitivity"] if self.sens.get("stay_restart_on_increase_days") else restart["base"]

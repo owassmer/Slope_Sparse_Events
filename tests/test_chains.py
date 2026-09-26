@@ -62,7 +62,7 @@ def chain(base, d=None, sens=None) -> Chain:
 
 def test_composition_sums_to_one_and_keeps_every_path(full):
     fc, paths = full
-    assert 1_000 < len(paths) < 5_000  # low thousands: collapsed by interval and amount class
+    assert 1_000 < len(paths) < 6_000  # low thousands: collapsed by interval and amount class
     assert {n.question_id for n in fc.nodes.values()} == {q for t in M["templates"].values()
                                                           for q in (s["residual_question"] for s in t["nodes"].values())}
     js = stub(fc)
@@ -88,8 +88,8 @@ def test_the_ruling_classes_are_the_chain_rule_over_the_merits(full):
         for e in ruling_edges:
             rulings[e[0]] = e
     assert sum(dist[k]["yes"] for k in rulings) == pytest.approx(1.0)  # the classes partition the outcomes
-    assert {s[2].split(":")[0] for p in paths for s in p.steps if s[0] == "ruling"} == {"none", "amt", "beyond",
-                                                                                            "beyond_up"}
+    assert {s[2].split(":")[0] for p in paths for s in p.steps if s[0] == "ruling"} == {"none", "retrial", "amt",
+                                                                                            "beyond", "beyond_up"}
 
 
 def test_every_merged_ruling_class_is_cash_and_date_identical_and_jev_gets_its_range(full, base):
@@ -361,6 +361,27 @@ def test_coupon_in_shares_by_default_and_legal_spend_stops_on_settlement(base):
     paid = c.ev.cash[:, pd] - (-legal[:, pd])
     assert (paid <= 0).all() and (c.ev.cash[:, pd + 1:] == -legal[:, pd + 1:]).all()  # spend added back from pd
     assert (c.ev.cash[:, :pd] == 0).all()
+
+
+def test_legal_spend_stops_on_vacatur_and_continues_on_a_new_trial(base, full):
+    fc, paths = full
+    legal = base[1].legal
+    pre = (("settle", "I1", "no"), ("execute_pre_ruling", "I1", "no"), ("judgment_default", "I1", "no"))
+    after = None
+    for branch in ("none", "retrial"):
+        c = chain(base)
+        ev = c.run(pre + (("ruling", "", branch),)).events
+        after = np.arange(N)[None, :] >= c.F[:, None]
+        if branch == "none":  # vacated: the feed's legal outflows are added back from the ruling
+            assert (c.resolved == np.where(c.F < N, c.F, 10**6)).all()
+            assert (ev.cash[after] == -legal[after]).all() and (ev.cash[~after] == 0).all() and legal[after].any()
+        else:  # a new trial: the dispute goes on
+            assert (c.resolved >= 10**6).all() and not ev.cash.any()
+    assert any(p.outcome == "vacated" for p in paths) and any(p.outcome == "new_trial" for p in paths)
+    rt = next(c for c in fc.class_members if c.endswith(":retrial"))  # paying what survives a new trial ends nothing
+    c = chain(base)
+    c.run(pre + (("ruling", "", rt), ("debtor_response", "post", "pay")))
+    assert (c.resolved >= 10**6).all()
 
 
 def test_neutral_residuals_reproduce_attribution_step_two(base):
