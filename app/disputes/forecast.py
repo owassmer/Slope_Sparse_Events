@@ -554,8 +554,9 @@ class _Walk:
         k = composite(parts)
         y = self.take(s, ("judgment_default", phase, "yes"), (k, "yes"), (h1, a5, h3))
         tr = self.fc.trace(self.d, y.steps)
-        if (tr.events.petition >= 0).all():
-            self.emit(y, "petition")  # the petition falls on every trajectory: nothing later can move cash
+        if (tr.events.petition >= 0).all():  # a petition on every trajectory: only an earlier one (tau) can matter
+            tau = self.fc.trace(self.d, y.steps + (("cash_floor", "", "no"),)).day[-1]
+            self.floor(y, "petition", bool((tau < tr.events.petition).any()))
         else:
             then(y)
         then(self.take(s, ("judgment_default", phase, "no"), (k, "no"), (h1, a5, h3)))
