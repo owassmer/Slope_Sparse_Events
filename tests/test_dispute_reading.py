@@ -1,6 +1,6 @@
 """Present-state reading of a live dispute: factor aggregation by each factor's rule, and a waiver of appeal kept as
-forecast evidence rather than a pruned branch. ChromaDex owes Elysium Health the Delaware fee award (D. Del.
-1:18-cv-01434); no network, the judge is a stub returning fixed readings."""
+forecast evidence rather than a pruned branch. Akoustis owes Qorvo the 20 May 2024 judgment (D. Del. 1:21-cv-01417,
+D.I. 602); no network, the judge is a stub returning fixed readings (the waiver is a fixture, not a fact of the case)."""
 
 import asyncio
 from datetime import date, timedelta
@@ -16,10 +16,10 @@ from app.domain.investigation import (
 )
 from app.domain.values import Basis, EvidenceValue, Provenance, Status, Unit
 
-BORROWER, PAYEE = "ChromaDex Corporation", "Elysium Health, Inc."
-REVIEW = date(2024, 8, 19)
-SOURCES = {"q1_10q": ("sec_10q", "2024-05-08"), "q2_10q": ("sec_10q", "2024-08-07"),
-           "q2_release": ("press_release", "2024-08-07")}
+BORROWER, PAYEE = "Akoustis Technologies, Inc.", "Qorvo, Inc."
+REVIEW = date(2024, 6, 20)
+SOURCES = {"q3_10q": ("sec_10q", "2024-05-13"), "verdict_8k": ("sec_8k", "2024-05-20"),
+           "qorvo_release": ("press_release", "2024-05-20")}
 
 
 def finding(fid: str, source: str) -> AtomicFinding:
@@ -30,10 +30,10 @@ def finding(fid: str, source: str) -> AtomicFinding:
 
 def draft() -> DisputeInstance:
     return DisputeInstance(
-        instance_id="fee", dependency_id="dep", model_id="m", model_version="3", title="Delaware fee award",
-        order_reference="D. Del. 1:18-cv-01434", nature="fee_and_cost_award", counterparty=PAYEE,
-        finding_ids=("a", "b", "c"), judgment_date=date(2024, 8, 13),
-        amount=EvidenceValue(status=Status.EXACT, unit=Unit.CENTS, value=150_000_000,
+        instance_id="judgment", dependency_id="dep", model_id="m", model_version="3", title="Judgment (D.I. 602)",
+        order_reference="D. Del. 1:21-cv-01417", nature="money_judgment", counterparty=PAYEE,
+        finding_ids=("a", "b", "c"), judgment_date=date(2024, 5, 20),
+        amount=EvidenceValue(status=Status.EXACT, unit=Unit.CENTS, value=3_859_502_300,
                              provenance=Provenance(basis=Basis.DOCUMENTED)))
 
 
@@ -44,17 +44,17 @@ def interpreter(findings: list[AtomicFinding], judge=None) -> Interpreter:
 def test_latest_passage_wins_and_same_date_disagreement_stays_a_conflict():
     intends, considering, none = ("The payer states it intends to appeal", "The payer is considering or reserves the "
                                   "right to appeal", "The passage states no position on an appeal")
-    fs = [finding("a", "q1_10q"), finding("b", "q2_10q"), finding("c", "q2_release")]
+    fs = [finding("a", "q3_10q"), finding("b", "verdict_8k"), finding("c", "qorvo_release")]
     it = interpreter(fs)
-    older = FindingReading(finding_id="a", source_date="2024-05-08", levels={"appeal_intent": {considering: 0.8, none: 0.2}})
-    newer = FindingReading(finding_id="b", source_date="2024-08-07", levels={"appeal_intent": {intends: 0.9, none: 0.1}})
+    older = FindingReading(finding_id="a", source_date="2024-05-13", levels={"appeal_intent": {considering: 0.8, none: 0.2}})
+    newer = FindingReading(finding_id="b", source_date="2024-05-20", levels={"appeal_intent": {intends: 0.9, none: 0.1}})
     by = {f.factor_id: f for f in it._aggregate([older, newer])}
     assert by["appeal_intent"].level_label == intends and not by["appeal_intent"].conflict
-    assert by["appeal_intent"].distribution[considering] == 0  # the May reading is superseded, not averaged in
+    assert by["appeal_intent"].distribution[considering] == 0  # the 13 May reading is superseded, not averaged in
     assert by["appeal_intent"].decisive.finding_id == "b"
 
     # Two passages of the same date disagree: kept as a conflict, never resolved to either level.
-    same_day = FindingReading(finding_id="c", source_date="2024-08-07", levels={"appeal_intent": {none: 0.85, intends: 0.15}})
+    same_day = FindingReading(finding_id="c", source_date="2024-05-20", levels={"appeal_intent": {none: 0.85, intends: 0.15}})
     f = {f.factor_id: f for f in it._aggregate([older, newer, same_day])}["appeal_intent"]
     assert f.conflict and f.level_label == "conflicting readings"
     assert abs(f.distribution[intends] - 0.525) < 1e-9 and abs(f.distribution[none] - 0.475) < 1e-9
@@ -63,7 +63,7 @@ def test_latest_passage_wins_and_same_date_disagreement_stays_a_conflict():
 
 
 class WaiverJudge:
-    """ChromaDex pays; judgment entered; one passage states an appeal of this award is waived."""
+    """Akoustis pays; judgment entered; one passage states an appeal of this judgment is waived."""
 
     def _o(self, qid: str, **kw) -> SemanticObservation:
         prim = "noul" if "noul_value" in kw else "choice"
@@ -77,7 +77,7 @@ class WaiverJudge:
                 self._o("event_judgment_entered", noul_value=entered)]
 
     async def relevance(self, obligation, evidence, subject_ids, factor_ids):
-        assert "debtor_liquidity" not in factor_ids  # ChromaDex pays: its own cash comes from the bank data
+        assert "debtor_liquidity" not in factor_ids  # Akoustis pays: its own cash comes from the bank data
         waived = subject_ids[0] == "a"
         return [self._o(f"bears_on_{f}", noul_value=(0.9 if waived and f == "appeal_barred" else 0.05))
                 for f in factor_ids]
@@ -87,7 +87,7 @@ class WaiverJudge:
 
 
 def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
-    fs = [finding("a", "q2_10q"), finding("b", "q2_release")]
+    fs = [finding("a", "q3_10q"), finding("b", "verdict_8k")]
     d = asyncio.run(interpreter(fs, WaiverJudge()).run())
     assert d.status == "interpreted" and d.stage == "judgment_entered" and d.borrower_role == "debtor"
     barred = next(f for f in d.factors if f.factor_id == "appeal_barred")
@@ -95,7 +95,7 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
 
     fc = Forecaster([d], {f.finding_id: f for f in fs}, borrower=BORROWER, review=REVIEW,
                     horizon=REVIEW + timedelta(days=180), hydrate=lambda f: {"finding": f.finding_id},
-                    borrower_cash_cents=2_758_025_275)
+                    borrower_cash_cents=1_716_309_524)
     paths = fc.paths(d)
     assert {"appeal_pending", "settled_during_appeal"} <= {p.outcome for p in paths}
     assert any(("appeal", "", "yes") in p.steps for p in paths)
@@ -105,11 +105,11 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     assert "a" in fids  # with the passage that states it, chosen only because it bears on the waiver
     settle = next(n for n in fc.nodes.values() if n.node == "settle_after_judgment")
     assert "a" not in fc.state(settle)[1]  # a node that does not weigh the waiver never sees it
-    assert state["case"]["payer_available_cash"].startswith("$27,580,252.75")  # the payer's cash is data, not a reading
+    assert state["case"]["payer_available_cash"].startswith("$17,163,095.24")  # the payer's cash is data, not a reading
 
 
 class FiledJudge(WaiverJudge):
-    """As above, and the passages establish that ChromaDex has filed its notice of appeal."""
+    """As above, and the passages establish that Akoustis has filed its notice of appeal."""
 
     async def read(self, obligation, evidence, direction, subject_ids):
         return [*await super().read(obligation, evidence, direction, subject_ids),
@@ -117,7 +117,7 @@ class FiledJudge(WaiverJudge):
 
 
 def test_a_filed_appeal_sets_the_stage_and_is_not_forecast():
-    fs = [finding("a", "q2_10q"), finding("b", "q2_release")]
+    fs = [finding("a", "q3_10q"), finding("b", "verdict_8k")]
     d = asyncio.run(interpreter(fs, FiledJudge()).run())
     assert d.stage == "appeal_filed"
     fc = Forecaster([d], {f.finding_id: f for f in fs}, borrower=BORROWER, review=REVIEW,

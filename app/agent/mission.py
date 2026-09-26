@@ -10,7 +10,7 @@ from typing import Any
 
 from app.config import ConfigurationError, agent_config
 
-MISSION_KEYS = {"chromadex_elysium_2024": "lead_mission", "synergy_chc_2024": "default_mission",
+MISSION_KEYS = {"akoustis_qorvo_2024": "lead_mission", "synergy_chc_2024": "default_mission",
                 "barfresh_schreiber_2024": "transfer_mission"}
 
 
