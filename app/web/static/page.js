@@ -280,6 +280,7 @@
     panel.querySelectorAll(".rs").forEach((b) => (b.onclick = () => { delete S.overrides[D.nodes[+b.dataset.i].key]; recompute(); }));
     panel.querySelectorAll(".q").forEach((q) => (q.onclick = () => { S.detail = +q.dataset.i; renderProbs(); }));
     if ($("rsall")) $("rsall").onclick = () => { S.overrides = {}; recompute(); };
+    atEnd();
   }
   function recompute() { probs = pathProbs((k) => dist(k)); computeSens(); renderTiles(); renderOutcomes(); renderRight(); refreshCharts(); }
 
@@ -298,6 +299,7 @@
       <div class="ghead">Sources</div>${quotes || '<p class="ctx">No quoted passages on this page yet.</p>'}
       <div class="ghead">Jev's answer</div>${ans}</div>`;
     $("back").onclick = () => { S.detail = null; renderProbs(); };
+    atEnd();
   }
   function renderTerms() {
     const t = D.case_terms;
@@ -337,7 +339,9 @@
     S.event = D.event; S.overrides = {}; S.cls = null; S.settings = {};
     recompute();
   }
-  function renderRight() { ({ probs: renderProbs, terms: renderTerms, settings: () => renderSettings() })[S.rtab](); }
+  function renderRight() { ({ probs: renderProbs, terms: renderTerms, settings: () => renderSettings() })[S.rtab](); atEnd(); }
+  // The bottom fade shows while more of the list lies below.
+  function atEnd() { const p = $("rpanel"); $("right").classList.toggle("atend", p.scrollTop + p.clientHeight >= p.scrollHeight - 2); }
 
   // --- init -------------------------------------------------------------------------------------------------------
   const lim = Math.floor(D.meta.limit_cents / 100).toLocaleString("en-US");
@@ -345,7 +349,8 @@
   document.querySelectorAll("#mtabs button").forEach((b) => (b.onclick = () => { S.mtab = b.dataset.t; renderTabs(); renderMain(); }));
   document.querySelectorAll("#rtabs button[data-t]").forEach((b) => (b.onclick = () => { S.rtab = b.dataset.t; S.detail = null; renderTabs(); renderRight(); }));
   document.querySelectorAll("#viewsw button").forEach((b) => (b.onclick = () => { S.view = b.dataset.v; renderTabs(); renderTiles(); renderMain(); }));
-  $("drawer").onclick = () => $("right").classList.toggle("open");
+  $("rpanel").addEventListener("scroll", atEnd);
+  $("drawer").onclick = () => { $("right").classList.toggle("open"); atEnd(); };
   $("drawer-close").onclick = () => $("right").classList.remove("open");
   let rz = null;
   window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(renderMain, 120); });

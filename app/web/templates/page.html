@@ -57,8 +57,14 @@
   .skeys { display:flex; flex-wrap:wrap; gap:4px 14px; margin:5px 0; font-size:12px; color:var(--mute); }
   .skeys span { cursor:pointer; } .skeys i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
   .seqs div { padding:2px 0; font-size:12.5px; } .seqs b { font-variant-numeric:tabular-nums; margin-right:6px; }
-  .right { display:grid; grid-template-rows:auto 1fr; min-height:0; background:var(--panel); }
-  .panel { min-height:0; overflow:auto; padding:8px 12px; }
+  .right { display:grid; grid-template-rows:auto 1fr; min-height:0; background:var(--panel); position:relative; }
+  /* the list scrolls: a visible scrollbar, a fade at the bottom while more lies below, room for the last row */
+  .panel { min-height:0; overflow-y:scroll; padding:8px 12px 24px; scrollbar-width:auto; scrollbar-color:#9ca3af #eef0f3; }
+  .panel::-webkit-scrollbar { width:10px; } .panel::-webkit-scrollbar-track { background:#eef0f3; }
+  .panel::-webkit-scrollbar-thumb { background:#9ca3af; border-radius:5px; border:2px solid #eef0f3; }
+  .right::after { content:""; position:absolute; left:0; right:10px; bottom:0; height:30px; pointer-events:none;
+                  background:linear-gradient(rgba(255,255,255,0), var(--panel)); transition:opacity .15s; }
+  .right.atend::after { opacity:0; }
   .ghead { font-weight:600; margin:10px 0 4px; color:var(--mute); font-size:12px; text-transform:none; }
   .row { background:#fff; border:1px solid var(--line); border-radius:6px; padding:6px 8px; margin-bottom:6px; }
   .row.changed { border-left:3px solid var(--lit); }
