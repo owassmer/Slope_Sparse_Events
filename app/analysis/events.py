@@ -209,6 +209,7 @@ class Chain:
         self.q1 = False
         self.appealed = False
         self.early_registration = np.full(self.n, BIG)
+        self.pending_levy: np.ndarray | None = None  # the pre-ruling levy day (J9 order + levy lag), not yet booked
         self.stayed_from = np.full(self.n, BIG)
         self.resolved = np.full(self.n, BIG)
         self.delisted = np.full(self.n, BIG)
@@ -301,10 +302,10 @@ class Chain:
         stop = (t[None, :] >= self.resolved[:, None]) & (t[None, :] < old[:, None])
         self.ev.cash -= np.where(stop, self.basis.legal, 0)  # legal outflows are negative: adding them back
 
-    def levy(self, day: np.ndarray) -> None:
+    def levy(self, day: np.ndarray, lagged: bool = False) -> None:
         """A writ on the enforceable amount; where it comes before an increase is enforceable (L8 base), a second
-        writ on the increase once it is."""
-        day = np.asarray(day) + int(self.p("levy_lag_days"))
+        writ on the increase once it is. lagged: the day already includes levy_lag_days."""
+        day = np.asarray(day) + (0 if lagged else int(self.p("levy_lag_days")))
         self._take(day)
         if self.increase:
             self._take(np.where(day < self.EI, self.EI, BIG))
@@ -316,6 +317,13 @@ class Chain:
         self.taken += take
         self.levied |= take > 0
         self.writs.append((day, take))
+
+    def flush_levy(self) -> None:
+        """Book the pending pre-ruling levy. It waits one step so the debtor's response on the levy day (A4, I1) acts
+        first: a petition or a payment that day pre-empts it (`live`)."""
+        if self.pending_levy is not None:
+            day, self.pending_levy = self.pending_levy, None
+            self.levy(day, lagged=True)
 
     def settle(self, start: np.ndarray, end: np.ndarray) -> np.ndarray:
         """D5: the feasibility bound (available cash less 30-day need, floored at 0, capped at the amount owed) on
@@ -407,6 +415,8 @@ class Chain:
     def step(self, node: str, ctx: str, branch: str) -> np.ndarray:
         """Book one step's effects; return its decision day per draw (BIG where it never arises)."""
         N, full = self.N, (lambda v: np.full(self.n, v, dtype=np.int64))
+        if (node, ctx) != ("debtor_response", "I1"):
+            self.flush_levy()
         if node == "settle":
             start = {"I1": full(-1), "I2": self.F, "I3": self.EF, "I4": self.stayed_from}[ctx]
             start = np.maximum(start, -1)  # an interval that began before the review date runs from it
@@ -425,7 +435,12 @@ class Chain:
                 self.stay(motion, f"stay_{ctx}")
             return motion
         if node == "debtor_response":
-            milestone = full(self.E0) if ctx == "I1" else np.maximum(self.EF, 0)
+            if ctx == "I1":  # T1-a step 6 / T1-d: the levy the early registration order (J9) makes possible, where it
+                # comes before stay approval and before the ruling; nowhere else does an act reach cash before it
+                lv = self.pending_levy if self.pending_levy is not None else full(BIG)
+                milestone = np.where((lv < self.stayed_from) & (lv < self.F), lv, BIG)
+            else:
+                milestone = np.maximum(self.EF, 0)
             if branch == "pay":
                 ok = self.live(milestone) & (milestone < N) & (self.cash_at(milestone) >= self.owed_at(milestone))
                 amt = np.where(ok, self.owed_at(milestone), 0)
@@ -433,14 +448,17 @@ class Chain:
                 self.taken += amt
                 self.resolve(milestone, ok & (not self.retrial))  # under a new trial the dispute goes on
             elif branch == "file":
-                self.petition(milestone, self.live(milestone))
-            return milestone
+                self.petition(milestone, self.live(milestone) & (milestone < N))
+            return milestone  # the levy is booked at the next step (or the path's end): the response comes first
         if node == "registration_early":
             motion = full(self.E0) if ctx == "I1" else self.F
             order = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, f"registration_{ctx}")
             if branch == "yes":
                 self.early_registration = np.minimum(self.early_registration, order)
-                self.levy(order)
+                if ctx == "I1":  # booked at the next step, after the debtor's response on the levy day
+                    self.pending_levy = order + int(self.p("levy_lag_days"))
+                else:
+                    self.levy(order)
             return motion
         if node == "judgment_default":
             f = self.fin
@@ -509,6 +527,8 @@ class Chain:
         self.instrument_cash()
         tr = Trace(self.ev)
         for node, ctx, branch in steps:
+            if (node, ctx) != ("debtor_response", "I1"):
+                self.flush_levy()  # an earlier levy is in the cash the next decision sees
             before_cash = self.basis.cash + np.cumsum(self.ev.cash - self.ev.lock, axis=1)
             day = self.step(node, ctx, branch)
             t = np.clip(day, 0, self.N - 1)
@@ -516,6 +536,7 @@ class Chain:
             tr.cash.append(before_cash[self.rows, t])
             tr.owed.append(self.owed_at(day))
             tr.collateral.append(self.collateral_required.copy())
+        self.flush_levy()
         pet = self.ev.petition
         after = (pet[:, None] >= 0) & (np.arange(self.N)[None, :] >= pet[:, None])
         self.ev.cash[after] = 0  # §362: nothing is collected from or paid by the estate after the petition
