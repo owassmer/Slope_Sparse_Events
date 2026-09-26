@@ -76,7 +76,8 @@
       const dtxt = (d >= 0 ? "+" : "") + (t.key === "petition_p" ? pct(d) : money(d));
       return `<div class="tile${S.tile === t.key ? " sel" : ""}" data-k="${t.key}"><div class="l">${t.label}</div>
         <div class="v">${t.fmt(main)}</div>
-        <div class="s">Bank only ${t.fmt(b)} · With litigation ${t.fmt(e)}</div><div class="s">Difference <span class="d ${dcls}">${dtxt}</span></div></div>`;
+        <div class="s"><span>Bank only</span><span>${t.fmt(b)}</span></div><div class="s"><span>With litigation</span><span>${t.fmt(e)}</span></div>
+        <div class="s"><span>Difference</span><span class="d ${dcls}">${dtxt}</span></div></div>`;
     }).join("");
     document.querySelectorAll(".tile").forEach((el) => {
       el.onclick = () => { const t = TILES.find((x) => x.key === el.dataset.k); S.tile = t.key; S.mtab = t.tab; renderTabs(); renderTiles(); renderMain(); };
