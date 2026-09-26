@@ -109,6 +109,41 @@ def test_attribution_is_three_reweightings_of_the_same_trajectories():
         {key: {"yes": 1.0, "no": 0.0}}
 
 
+def test_the_reduced_analysis_matches_the_full_trajectories():
+    """Memory-bounded reduction against the full per-path trajectories: expectations equal, per-draw quantiles
+    exact, headroom and daily cash and collections quantiles within one bin width."""
+    m = model_with([SMALL], p=0.3)
+    a = Analysis(load_feed(SNAP), SETUP, m)
+    trajs = [run(a.line, a.opening, a.event_cash(c)) for c in m.combos]
+    w = np.repeat(m.probs() / DRAWS, DRAWS)
+    s = lambda k: np.concatenate([getattr(t, k) for t in trajs])  # noqa: E731
+    v = a.views()["event_adjusted"]
+    met, day = v["metrics"], v["daily"]
+    for key, x in (("collected_cents", s("collected")), ("stayed_claim_cents", s("stayed")),
+                   ("preference_exposed_cents", s("preference")), ("lender_pv_cents", s("lender_pv")),
+                   ("dollar_days", s("dollar_days")), ("drawn_cents", s("drawn")), ("petition_p", s("petition") >= 0),
+                   ("peak_outstanding_cents", s("outstanding").max(axis=1)),
+                   ("uncollected_maturity_cents", s("stayed") + s("uncollected"))):
+        assert met[key] == pytest.approx(float(w @ x), rel=1e-12, abs=1e-6), key
+    assert met["min_cash_p5_cents"] == weighted_quantiles(s("min_cash").astype(np.float64), w, (0.05,))[0]
+    rows = np.concatenate([t.headroom_rows + i * DRAWS for i, t in enumerate(trajs)])
+    hw = w[rows]
+    hq = weighted_quantiles(s("headroom").astype(np.float64), hw / hw.sum(), (0.05, 0.5, 0.95))
+    got = [met["headroom_at_due"][k] for k in ("p5_cents", "p50_cents", "p95_cents")]
+    assert np.abs(np.array(got) - hq).max() <= a.r.bins["headroom"].width[0]
+    assert met["headroom_at_due"]["negative_p"] == pytest.approx(float(hw @ (s("headroom") < 0) / hw.sum()))
+    for key, x in (("cash_mean", s("cash")), ("outstanding_mean", s("outstanding")),
+                   ("collected_mean", np.cumsum(s("collections"), axis=1)), ("locked_mean", s("locked"))):
+        assert np.abs(np.array(day[key]) - w @ x).max() <= 1, key
+    pet = s("petition")[:, None]
+    assert np.allclose(day["petition_cum_p"], w @ ((pet >= 0) & (pet <= np.arange(a.days))), atol=1e-12)
+    for name, x in (("cash", s("cash")), ("collected", np.cumsum(s("collections"), axis=1))):
+        bins = a.r.bins[name]
+        exact = weighted_quantiles(x.astype(np.float64), w, (0.05, 0.5, 0.95))
+        for i, q in enumerate(("p5", "p50", "p95")):
+            assert (np.abs(np.array(day[f"{name}_{q}"]) - exact[i]) <= bins.width).all(), (name, q)
+
+
 # 6. Weighted statistics ---------------------------------------------------------------------------------
 
 def test_weighted_expectations_and_quantiles_match_a_fixture():
