@@ -3,9 +3,10 @@
 The tree is bounded by cash: settlement, the amount being fixed, an appeal, a secured stay and its form, voluntary
 payment, collection by enforcement, and settlement during a secured appeal. At each node Jev is asked for the
 probability of one defined event, under the parent assumptions of that node (in words, with dates set by code), given
-the relevant hydrated passages and the present-state factor distributions. Only an established fact changes the tree
-(an appeal waiver covering the obligation removes the appeal branch). Every structurally feasible path is enumerated,
-whatever its probability.
+the relevant hydrated passages and the present-state factor distributions. Only a fact that makes an event impossible
+changes the tree (an event already occurred sets the stage; payment resolves the dispute). A waiver of appeal is
+evidence for the appeal forecast, not a pruned branch: parties litigate waivers. Every structurally feasible path is
+enumerated, whatever its probability.
 
 Dependence: a later dispute with the same counterparty is asked once per outcome class of the earlier dispute (whether
 the counterparty receives or pays cash in it within the horizon); joint probability = P(earlier path) x P(later | class).
@@ -83,8 +84,9 @@ def fmt(d: date) -> str:
 class Forecaster:
     def __init__(self, disputes: list[DisputeInstance], findings: dict[str, AtomicFinding], *, borrower: str,
                  review: date, horizon: date, hydrate: Callable[[AtomicFinding], dict],
-                 model: dict | None = None) -> None:
+                 model: dict | None = None, borrower_cash_cents: int | None = None) -> None:
         self.m = model or load_model()
+        self.borrower_cash = borrower_cash_cents  # available cash on the review date, from the connected-bank data
         self.disputes = [d for d in disputes if d.status == "interpreted"]
         self.findings, self.borrower, self.review, self.horizon, self.hydrate = findings, borrower, review, horizon, hydrate
         self.nodes: dict[str, Node] = {}
@@ -199,13 +201,7 @@ class Forecaster:
             emit(prefix + [("settle_during_appeal", "", "yes")], "settled_during_appeal")
             emit(prefix + [("settle_during_appeal", "", "no")], "appeal_pending")
 
-        def judgment(prefix):
-            emit(prefix + [("settle_after_judgment", "", "yes")], "settled")
-            p = prefix + [("settle_after_judgment", "", "no")]
-            if "appeal" in d.constraints:
-                payment(p, "no_appeal")
-                return
-            a = p + [("appeal", "", "yes")]
+        def appealed(a):  # the payer has appealed: a secured stay or not
             s = a + [("secured_stay", "", "yes")]
             if d.borrower_role == "debtor":
                 for form in self.m["nodes"]["security_form"]["options"]:
@@ -213,6 +209,11 @@ class Forecaster:
             else:
                 appeal_pending(s)
             payment(a + [("secured_stay", "", "no")], "appeal_unsecured")
+
+        def judgment(prefix):
+            emit(prefix + [("settle_after_judgment", "", "yes")], "settled")
+            p = prefix + [("settle_after_judgment", "", "no")]
+            appealed(p + [("appeal", "", "yes")])
             payment(p + [("appeal", "", "no")], "no_appeal")
 
         if d.stage == "amount_pending":
@@ -222,6 +223,8 @@ class Forecaster:
             judgment(p + [("amount_fixed", "", "yes")])
         elif d.stage == "judgment_entered":
             judgment([])
+        elif d.stage == "appeal_filed":  # the appeal already happened: never forecast, and no "no appeal" path
+            appealed([])
         elif d.stage == "appeal_pending":
             appeal_pending([])
         elif d.stage == "enforcement":
@@ -246,11 +249,14 @@ class Forecaster:
         payer, payee = (self.borrower, d.counterparty) if d.borrower_role == "debtor" else (d.counterparty, self.borrower)
         amount = d.amount.value if d.amount.value is not None else d.amount.upper
         status = self.m["readings"]["amount_status_labels"].get(d.amount_status, "status not established")
-        return {"as_of": fmt(self.review), "analysis_period_ends": fmt(self.horizon), "payer": payer, "payee": payee,
+        case = {"as_of": fmt(self.review), "analysis_period_ends": fmt(self.horizon), "payer": payer, "payee": payee,
                 "obligation": f"{self.m['natures'].get(d.nature, d.nature)}, {d.order_reference}",
                 "amount": f"{usd(amount)} ({status})",
                 "established": [f"{self.m['readings']['events'][k]} (passage dated {v.source_date})"
                                 for k, v in d.established.items()]}
+        if d.borrower_role == "debtor" and self.borrower_cash is not None:
+            case["payer_available_cash"] = f"{usd(self.borrower_cash)} (connected-bank data on {fmt(self.review)})"
+        return case
 
     def _evidence(self, d: DisputeInstance, node: str) -> tuple[list[dict], tuple[str, ...]]:
         factors = set(self.m["nodes"][node]["context_factors"])
@@ -264,10 +270,13 @@ class Forecaster:
         return [self.hydrate(self.findings[fid]) for fid in dated], tuple(dated)
 
     def _readings(self, d: DisputeInstance, node: str) -> dict:
+        payer = "borrower" if d.borrower_role == "debtor" else "counterparty"
         out = {}
         for f in d.factors:
             if f.factor_id not in self.m["nodes"][node]["context_factors"]:
                 continue
+            if self.m["factors"].get(f.factor_id, {}).get("payer", payer) != payer:
+                continue  # scoped to the other payer (the borrower's own cash is the bank figure in the case)
             if f.kind == "present" and f.probability is not None:
                 out[f.label] = {"probability_present": round(f.probability, 3)}
             elif f.distribution:

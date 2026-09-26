@@ -663,7 +663,6 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
             "established_events": {k: v.finding_id for k, v in instance.established.items()},
             "factors": [{"factor": f.label, "reading": f.level_label} for f in instance.factors
                         if f.level_label != "unknown"],
-            "constraints": instance.constraints,
             "evidence_requests": [r.action for r in instance.evidence_requests],
             **({"proposed_extension": "recorded and flagged; the model is unchanged"} if instance.proposed_extension else {}),
             "note": ("Jev read the present state from the passages. After your run the host asks Jev for the conditional "
@@ -1137,7 +1136,8 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
                          "upper_cents": {"type": "integer"}, "basis": S}, []),
           "judgment_date": S, "supersedes": S, "proposed_extension": S,
           "borrower_role": {"type": "string", "enum": ["debtor", "creditor"]},
-          "stage": {"type": "string", "enum": ["amount_pending", "judgment_entered", "appeal_pending", "enforcement"]}},
+          "stage": {"type": "string", "enum": ["amount_pending", "judgment_entered", "appeal_filed", "appeal_pending",
+                                                  "enforcement"]}},
          ["dependency_id", "title", "order_reference", "nature", "finding_ids", "counterparty", "amount"]),
      instantiate_dispute),
     ("request_missing_fact", "Record a pivotal fact the evidence cannot supply: what it is, why it is pivotal, what evidence "

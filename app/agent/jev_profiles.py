@@ -235,10 +235,8 @@ class DisputeProfile:
         return await self._ask("dispute_interpretation", qids, {"obligation": obligation, "evidence": evidence},
                                subject_ids, {"obligation_direction": direction})
 
-    async def relevance(self, obligation, evidence, subject_ids):
-        from app.disputes.rules import load_model
-
-        qids = [f"bears_on_{f}" for f in load_model()["factors"]]
+    async def relevance(self, obligation, evidence, subject_ids, factor_ids):
+        qids = [f"bears_on_{f}" for f in factor_ids]
         return await self._ask("dispute_interpretation", qids, {"obligation": obligation, "evidence": evidence},
                                subject_ids)
 

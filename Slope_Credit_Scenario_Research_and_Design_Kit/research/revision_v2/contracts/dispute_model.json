@@ -1,13 +1,13 @@
 {
   "model_id": "post_judgment_money_dispute",
-  "model_version": "3.0.0",
+  "model_version": "3.3.0",
   "status": "host_owned_design_contract",
   "scope": "Post-judgment slice of a US federal civil money dispute, bounded by cash: only developments that can move cash, collections, collateral or credit capacity within the analysis horizon. It ends in payment, settlement, an unresolved amount, a pending secured appeal or an uncollected balance, and never forecasts appellate merits.",
-  "design": "Two Jev stages. (1) Present-state interpretation of each cited finding, hydrated with its surrounding evidence: who pays, the amount's status, which procedural events it establishes, which factors it bears on and at what level. Established events place the stage; an established waiver or payment constrains the graph. (2) Conditional forecasting: at each node, Jev returns the probability of one defined future event under named parent assumptions and a code-set window, given the relevant hydrated passages and the interpretation distributions. Code multiplies conditional probabilities along each path, draws event dates and amounts inside code-owned windows and ranges, and keeps every structurally feasible path (zero-probability paths stay available for stress).",
+  "design": "Two Jev stages. (1) Present-state interpretation of each cited finding, hydrated with its surrounding evidence: who pays, the amount's status, which procedural events it establishes, which factors it bears on and at what level. Established events place the stage and an established payment ends the dispute; everything else, a waiver of appeal included, is evidence for the forecasts. (2) Conditional forecasting: at each node, Jev returns the probability of one defined future event under named parent assumptions and a code-set window, given the relevant hydrated passages and the interpretation distributions. Code multiplies conditional probabilities along each path, draws event dates and amounts inside code-owned windows and ranges, and keeps every structurally feasible path (zero-probability paths stay available for stress).",
   "roles": {
     "agent": "Groups the accepted findings about one obligation and gives its order reference (a docket reference, checked), its nature (from `natures`), the counterparty, the amount figure (checked against the quotes) and any judgment date (checked against the quotes). Its prose never reaches Jev.",
     "jev": "Answers present-state and conditional forecast questions. Never sets a date, an amount or a path.",
-    "host": "Hydrates evidence, asks the questions, applies stage and constraint rules, composes probabilities, simulates cash."
+    "host": "Hydrates evidence, asks the questions, applies the stage rules, composes probabilities, simulates cash."
   },
   "probability_label": "Model judgment: Jev's conditional probabilities of defined future events, composed along each path by code.",
   "natures": {
@@ -80,7 +80,8 @@
       "judgment_entered": "a money judgment for this obligation has been entered",
       "appeal_filed": "the payer has filed a notice of appeal against this obligation",
       "stay_secured": "the payer has stayed this obligation with a bond or other security",
-      "paid": "this obligation has been paid"
+      "paid": "this obligation has been paid",
+      "mediation_ordered": "the court has ordered the parties to mediate or attend a settlement conference on this obligation"
     },
     "stage_rules": [
       {
@@ -90,6 +91,10 @@
       {
         "event": "stay_secured",
         "stage": "appeal_pending"
+      },
+      {
+        "event": "appeal_filed",
+        "stage": "appeal_filed"
       },
       {
         "event": "judgment_entered",
@@ -104,7 +109,7 @@
         "stage": "amount_pending"
       }
     ],
-    "stage_rules_note": "The stage is the most advanced procedural event any cited passage establishes. No established event leaves the dispute outside the model, with an evidence request."
+    "stage_rules_note": "The stage is the most advanced procedural event any cited passage establishes. A filed appeal starts the tree at the secured stay: the appeal is no longer forecast, whether a stay is secured still is. No established event leaves the dispute outside the model, with an evidence request."
   },
   "factors": {
     "amount_finality": {
@@ -128,9 +133,9 @@
         "The payer accepts the judgment or says it will not appeal",
         "The passage states no position on an appeal",
         "The payer is considering or reserves the right to appeal",
-        "The payer states it intends to appeal",
-        "The payer has filed a notice of appeal"
-      ]
+        "The payer states it intends to appeal"
+      ],
+      "note": "A filed notice of appeal is the procedural event appeal_filed, not a level of intent."
     },
     "appeal_barred": {
       "label": "An appeal of this obligation is waived or barred",
@@ -139,37 +144,40 @@
       "relevance": "Does the quoted text state that the payer waived, or is barred from, appealing this obligation itself (not some other claim or order)?"
     },
     "debtor_resistance": {
-      "label": "The payer's conduct on this obligation",
+      "label": "The payer's willingness to pay this obligation",
       "kind": "graded",
       "aggregate": "latest",
-      "relevance": "Does the quoted text describe how the payer has responded to this obligation or to the court's orders about it?",
+      "relevance": "Does the quoted text describe whether the payer has paid, or refused to pay, an amount due under this obligation, or resisted its collection? Contesting the amount in court, appealing, or stating an intention to appeal is not refusal to pay: answer no for a passage that describes only those.",
       "levels": [
-        "The payer has complied promptly",
-        "The passage describes no conduct by the payer on this obligation",
-        "The payer contested or delayed but complied in the end",
-        "The payer has refused, or contested enforcement of, this obligation"
-      ]
+        "The payer paid amounts due under this obligation when they fell due",
+        "The passage describes no payment conduct by the payer on this obligation",
+        "The payer paid late, or only after a motion or an enforcement step by the payee",
+        "The payer has refused to pay an amount that is due, or has resisted its collection"
+      ],
+      "note": "One dimension: the timeliness of the payer's payment conduct relative to when payment fell due. The court order that creates the obligation is not itself a compulsion to pay."
     },
     "debtor_liquidity": {
-      "label": "The payer's ability to pay",
+      "label": "The payer's ability to fund this obligation",
       "kind": "graded",
       "aggregate": "latest",
-      "relevance": "Does the quoted text describe the payer's own cash, finances or ability to pay an amount of this size?",
+      "relevance": "Does the quoted text say whether the payer can fund this obligation: its cash, its financing, or a statement about its ability to pay an amount of this size?",
       "levels": [
-        "The payer reports it cannot pay or doubts it can continue as a going concern",
-        "The payer's resources look constrained relative to the amount",
-        "The payer's resources look adequate for the amount",
-        "The payer's resources are ample relative to the amount"
-      ]
+        "The text indicates the payer cannot fund this obligation",
+        "The text indicates the payer could fund it only with strain (new financing, asset sales or cuts to operations)",
+        "The text indicates the payer can fund it without strain"
+      ],
+      "payer": "counterparty",
+      "payer_note": "Asked only when the counterparty pays. When the borrower pays, its available cash comes from the connected-bank data and is given to the forecasts directly."
     },
     "settlement_signals": {
       "label": "Settlement signals",
       "kind": "graded",
       "aggregate": "latest",
-      "relevance": "Does the quoted text say anything about the parties settling this obligation?",
+      "relevance": "Does the quoted text say anything about the parties' willingness or efforts to settle this obligation, including a refusal to settle or failed talks?",
       "levels": [
+        "A party refuses to settle, or settlement talks have failed",
         "The passage describes no settlement discussion",
-        "A party expresses general willingness to settle, or mediation is ordered",
+        "A party expresses general willingness to settle",
         "The parties disclose active settlement negotiations",
         "The parties have an agreement in principle or a term sheet"
       ]
@@ -312,5 +320,5 @@
     "uncollected": "Unpaid and uncollected at the horizon: no cash."
   },
   "dependence": "Disputes with the same counterparty are evaluated in order, borrower-as-payer first. A later dispute's forecast questions are asked once per outcome class of the earlier one for that counterparty (the counterparty received payment within the horizon, or did not); the joint probability is P(earlier path) x P(later path | class).",
-  "constraints": "Only an established fact changes the graph: an established payment ends the dispute; an established appeal waiver covering this obligation removes the appeal branch. Silence and stated intentions change nothing structurally; they are evidence for the forecasts."
+  "constraints": "Only a fact that makes an event impossible changes the graph: an event that has already occurred sets the stage, and an established payment ends the dispute. Everything else (a waiver of appeal, silence, a stated intention) is evidence for the forecasts: parties litigate waivers, so a waiver makes an appeal less likely rather than impossible."
 }

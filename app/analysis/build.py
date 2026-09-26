@@ -79,8 +79,7 @@ def _dispute_meta(d: DisputeInstance, borrower: str, model: dict) -> dict:
                          "probability": f.probability, "conflict": f.conflict,
                          "finding": f.decisive.finding_id if f.decisive else None,
                          "quote": f.decisive.quote if f.decisive else None}
-                        for f in d.factors if f.distribution or f.probability is not None],
-            "constraints": d.constraints}
+                        for f in d.factors if f.distribution or f.probability is not None]}
 
 
 def _judgment_meta(j: Judgment, disputes: dict[str, DisputeInstance], order: dict[str, DisputeInstance | None],
@@ -92,6 +91,8 @@ def _judgment_meta(j: Judgment, disputes: dict[str, DisputeInstance], order: dic
     cond = [CONDITION.get((j.node, ctx), "")]
     if disputes[j.instance_id].stage != "amount_pending" and cond[0] == "once the amount is fixed":
         cond = [""]  # the judgment is already entered
+    if disputes[j.instance_id].stage == "appeal_filed" and cond[0] == "if it appeals":
+        cond = [""]  # the appeal is already filed
     parent = order.get(j.instance_id)
     if cls and parent is not None:
         who = short_name(parent.counterparty)
@@ -192,9 +193,17 @@ def build(run_id: str, root: Path, refresh: bool = False) -> dict:
     borrower = inputs["baseline_profile"]["borrower"]
     findings: dict[str, AtomicFinding] = {k: f for k, f in store.graph["findings"].items() if f.status == "accepted"}
     live = [d for d in store.graph["disputes"].values() if d.status != "superseded"]
+    current = load_model()["model_version"]
+    stale = sorted({d.model_version for d in live if d.model_version != current})
+    if stale and not refresh:
+        raise RuntimeError(f"{run_id}: disputes were interpreted under dispute model {', '.join(stale)}, not the current "
+                           f"{current}; their readings do not fit the current tree. Re-interpret the run, or pass "
+                           f"refresh to build anyway.")
     sources = {s["source_id"]: (s["title"], s["available_at"][:10]) for s in evidence.list_sources()}
+    feed = load_feed(meta["snapshot_id"])
     fc = Forecaster(live, findings, borrower=borrower, review=review, horizon=setup.horizon,
-                    hydrate=lambda f: evidence_state(evidence, f, [], sources)["passage"])
+                    hydrate=lambda f: evidence_state(evidence, f, [], sources)["passage"],
+                    borrower_cash_cents=feed.available_cents)
     per = fc.all_paths()
     records: list = []
     jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
@@ -203,7 +212,7 @@ def build(run_id: str, root: Path, refresh: bool = False) -> dict:
     model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered())
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in live if d.status not in ("interpreted", "resolved")]
-    data = payload(load_feed(meta["snapshot_id"]), setup, model, meta_for(model, borrower, not_modelled))
+    data = payload(feed, setup, model, meta_for(model, borrower, not_modelled))
     data["model"] = _model_json(model)
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
     data["base_setup"] = setup_json(setup)

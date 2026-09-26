@@ -32,7 +32,8 @@ from app.domain.investigation import (
 )
 
 GENESIS = "0" * 64
-REMOVED_FIELDS = {("inventory", "exclusions")}  # recorded by run 13 under a design later removed
+REMOVED_FIELDS = {("inventory", "exclusions"),  # recorded by run 13 under a design later removed
+                  ("disputes", "constraints")}  # a waiver once pruned the appeal branch; it is now forecast evidence
 COLLECTIONS: dict[str, type[BaseModel]] = {
     "dependencies": DecisionDependency, "candidates": EvidenceCandidate, "jev_calls": JevCallRecord,
     "observations": SemanticObservation, "findings": AtomicFinding, "reconciliations": ReconciliationTask,

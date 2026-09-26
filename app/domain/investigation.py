@@ -262,8 +262,8 @@ class EvidenceRequest(Frozen):
 class DisputeInstance(Frozen):
     """A live dispute grouped by the agent and read by Jev. The agent supplies the findings, a docket reference, the
     obligation's nature, the counterparty, the quoted amount and any judgment date; Jev reads each finding with its
-    surrounding evidence (who pays, the amount's status, procedural events, factors); code places the stage and
-    records the constraints an established fact imposes. Forecasts and cash paths are built by the analysis."""
+    surrounding evidence (who pays, the amount's status, procedural events, factors); code places the stage.
+    Forecasts and cash paths are built by the analysis."""
 
     instance_id: str
     dependency_id: str
@@ -283,7 +283,6 @@ class DisputeInstance(Frozen):
     established: dict[str, Decisive] = Field(default_factory=dict)  # procedural event -> the passage establishing it
     readings: tuple[FindingReading, ...] = ()
     factors: tuple[FactorResult, ...] = ()
-    constraints: dict[str, str] = Field(default_factory=dict)  # removed branch -> the established fact that removes it
     evidence_requests: tuple[EvidenceRequest, ...] = ()
     proposed_extension: str = ""  # flagged; never used by the host
     status: Literal["interpreted", "outside_model", "not_judged", "superseded", "resolved"] = "interpreted"
