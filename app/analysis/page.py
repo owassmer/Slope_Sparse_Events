@@ -171,6 +171,14 @@ def encode_paths(combos: list, judgments: dict) -> dict:
     return {"keys": keys, "branches": branches, "composites": table, "paths": paths}
 
 
+def with_branch(dist: list[float], b: int, x: float) -> list[float]:
+    """The slider's rule (page.js withBranch): branch b takes x; the other branches keep their proportions (uniform
+    if they were all zero)."""
+    rest = sum(v for k, v in enumerate(dist) if k != b)
+    n = len(dist)
+    return [x if k == b else (1 - x) * v / rest if rest > 0 else (1 - x) / (n - 1) for k, v in enumerate(dist)]
+
+
 def decode_probs(enc: dict, dist: dict[str, list[float]]) -> np.ndarray:
     """The browser's arithmetic in Python (tests/test_viewer.py): path probabilities from the encoded edges and each
     node's distribution (branch order as encoded)."""

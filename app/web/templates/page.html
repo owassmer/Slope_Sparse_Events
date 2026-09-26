@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ data.meta.borrower }} · loan cash flows</title>
+<style>
+  :root { --ink:#111827; --mute:#6b7280; --line:#e5e7eb; --bg:#fff; --panel:#f9fafb; --bank:#64748b; --lit:#7c3aed;
+          --warn:#b91c1c; --ok:#15803d; --pin:#b45309; font: 13px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:var(--ink); }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; background:var(--bg); }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:#fff; border-radius:4px; padding:3px 8px; }
+  button:disabled { cursor:default; color:var(--mute); }
+  .app { height:100vh; display:grid; grid-template-rows:auto auto 1fr; }
+  .top { display:flex; align-items:center; gap:14px; padding:8px 14px; border-bottom:1px solid var(--line); }
+  .top .title { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .top .sp { flex:1; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:5px; overflow:hidden; }
+  .seg button { border:0; border-radius:0; padding:4px 10px; }
+  .seg button.on { background:var(--ink); color:#fff; }
+  .top a, .top .muted { color:var(--mute); text-decoration:none; white-space:nowrap; }
+  .tiles { display:grid; grid-template-columns:repeat(6, 1fr); gap:8px; padding:8px 14px; }
+  .tile { border:1px solid var(--line); border-radius:6px; padding:6px 10px; cursor:pointer; position:relative; }
+  .tile.sel { border-color:var(--ink); }
+  .tile .l { color:var(--mute); font-size:12px; }
+  .tile .v { font-size:20px; font-weight:650; margin:1px 0; }
+  .tile .s { font-size:11.5px; color:var(--mute); white-space:nowrap; }
+  .tile .d.up { color:var(--warn); } .tile .d.down { color:var(--ok); }
+  .tip { position:absolute; z-index:20; background:#fff; border:1px solid var(--line); border-radius:6px; padding:8px 10px;
+         box-shadow:0 4px 14px rgba(0,0,0,.08); font-size:12px; pointer-events:none; display:none; white-space:nowrap; }
+  .tip table td { padding:1px 6px; } .tip td:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+  .body { display:grid; grid-template-columns:65% 35%; min-height:0; border-top:1px solid var(--line); }
+  .left { display:grid; grid-template-rows:1fr auto; min-height:0; border-right:1px solid var(--line); }
+  .pane { display:grid; grid-template-rows:auto 1fr; min-height:0; }
+  .tabs { display:flex; gap:2px; padding:6px 12px 0; border-bottom:1px solid var(--line); align-items:flex-end; }
+  .tabs button { border:0; border-bottom:2px solid transparent; border-radius:0; padding:5px 10px; color:var(--mute); }
+  .tabs button.on { border-bottom-color:var(--ink); color:var(--ink); font-weight:600; }
+  .tabs .sp { flex:1; }
+  .view { min-height:0; overflow:auto; padding:8px 12px; position:relative; }
+  .legend { display:flex; gap:14px; color:var(--mute); font-size:12px; margin-bottom:4px; flex-wrap:wrap; }
+  .legend i { display:inline-block; width:14px; height:3px; vertical-align:middle; margin-right:5px; background:var(--c); }
+  .legend i.dash { background:repeating-linear-gradient(90deg, var(--c) 0 4px, transparent 4px 7px); }
+  .legend i.band { height:9px; opacity:.25; }
+  svg.chart { width:100%; height:calc(100% - 22px); display:block; }
+  svg text { font-size:11px; fill:var(--mute); }
+  table.t { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+  table.t th, table.t td { padding:5px 8px; border-bottom:1px solid var(--line); text-align:right; }
+  table.t th:first-child, table.t td:first-child { text-align:left; }
+  table.t th { color:var(--mute); font-weight:500; font-size:12px; }
+  table.t .hl { background:#f5f3ff; }
+  .outcomes { border-top:1px solid var(--line); padding:8px 12px; height:190px; overflow:auto; }
+  .ohead { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .ohead b { font-weight:600; }
+  .sbar { display:flex; height:26px; border-radius:4px; overflow:hidden; border:1px solid var(--line); }
+  .sbar div { cursor:pointer; min-width:2px; position:relative; }
+  .sbar div.sel { outline:2px solid var(--ink); outline-offset:-2px; }
+  .skeys { display:flex; flex-wrap:wrap; gap:4px 14px; margin:5px 0; font-size:12px; color:var(--mute); }
+  .skeys span { cursor:pointer; } .skeys i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  .seqs div { padding:2px 0; font-size:12.5px; } .seqs b { font-variant-numeric:tabular-nums; margin-right:6px; }
+  .right { display:grid; grid-template-rows:auto 1fr; min-height:0; background:var(--panel); }
+  .panel { min-height:0; overflow:auto; padding:8px 12px; }
+  .ghead { font-weight:600; margin:10px 0 4px; color:var(--mute); font-size:12px; text-transform:none; }
+  .row { background:#fff; border:1px solid var(--line); border-radius:6px; padding:6px 8px; margin-bottom:6px; }
+  .row.changed { border-left:3px solid var(--lit); }
+  .row .q { cursor:pointer; } .row .q:hover { text-decoration:underline; }
+  .row .ctx { color:var(--mute); font-size:11.5px; }
+  .row .ctl { display:grid; grid-template-columns:auto 1fr 44px auto; gap:6px; align-items:center; margin-top:4px; }
+  .row input[type=range] { width:100%; margin:0; }
+  .row select { font:inherit; font-size:11.5px; max-width:130px; }
+  .row .p { text-align:right; font-weight:600; font-variant-numeric:tabular-nums; }
+  .rng { position:relative; height:16px; margin-top:4px; }
+  .rng .ln { position:absolute; top:7px; height:2px; background:#d1d5db; }
+  .rng .mk { position:absolute; top:3px; width:2px; height:10px; background:var(--ink); }
+  .rng .mk.j { background:var(--lit); width:3px; }
+  .rng .lab { position:absolute; top:0; font-size:10.5px; color:var(--mute); transform:translateX(-50%); white-space:nowrap; }
+  .rngv { display:flex; justify-content:space-between; font-size:11px; color:var(--mute); }
+  .detail .back { margin-bottom:8px; }
+  .step { display:grid; grid-template-columns:86px 1fr; gap:8px; padding:5px 0; border-bottom:1px solid var(--line); }
+  .tag { font-size:11px; font-weight:600; border-radius:3px; padding:1px 5px; height:fit-content; text-align:center; }
+  .tag.Law { background:#e0f2fe; } .tag.Record { background:#dcfce7; } .tag.Data { background:#fef3c7; }
+  .tag.Calculation { background:#e5e7eb; } .tag.Jev { background:#ede9fe; }
+  blockquote { margin:6px 0; padding:4px 10px; border-left:3px solid var(--line); color:#374151; }
+  pre { white-space:pre-wrap; font-size:11.5px; background:#fff; border:1px solid var(--line); padding:6px; border-radius:4px; }
+  .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--lit); margin-left:5px; }
+  .setting { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); gap:8px; }
+  .prog { height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin:8px 0; }
+  .prog i { display:block; height:100%; background:var(--lit); width:0; }
+  .drawer-btn { display:none; }
+  @media (max-width: 1100px) {
+    .body { grid-template-columns:1fr; }
+    .left { border-right:0; }
+    .right { position:fixed; top:0; right:0; bottom:0; width:min(440px, 92vw); z-index:30; transform:translateX(100%);
+             transition:transform .2s; box-shadow:-6px 0 18px rgba(0,0,0,.12); }
+    .right.open { transform:none; }
+    .drawer-btn { display:inline-block; }
+    .tiles { grid-template-columns:repeat(3, 1fr); }
+    .outcomes { height:160px; }
+  }
+</style>
+</head>
+<body>
+<script id="page-data" type="application/json">{{ data | tojson }}</script>
+<div class="app" data-api="{{ api }}">
+  <div class="top">
+    <div class="title" id="title"></div>
+    <div class="sp"></div>
+    <div class="seg" id="viewsw"><button data-v="bank">Bank data only</button><button data-v="lit" class="on">With litigation</button></div>
+    {% if has_record %}<a href="{{ record_url }}">Investigation log</a>{% else %}<span class="muted" title="No recorded investigation for this page yet">Investigation log</span>{% endif %}
+    <button id="actual" disabled title="Reveal comes with the recorded run">Actual outcome</button>
+    <button class="drawer-btn" id="drawer">Probabilities</button>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div class="body">
+    <div class="left">
+      <div class="pane">
+        <div class="tabs" id="mtabs"><button data-t="exposure" class="on">Exposure</button><button data-t="cash">Cash</button><button data-t="collections">Collections</button><div class="sp"></div><span class="muted" id="filter"></span></div>
+        <div class="view" id="mview"></div>
+      </div>
+      <div class="outcomes" id="outcomes"></div>
+    </div>
+    <div class="right" id="right">
+      <div class="tabs" id="rtabs"><button data-t="probs" class="on">Probabilities</button><button data-t="terms">Case terms</button><button data-t="settings">Settings</button></div>
+      <div class="panel" id="rpanel"></div>
+    </div>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+<script src="/static/page.js"></script>
+</body>
+</html>
