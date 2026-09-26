@@ -1,0 +1,1913 @@
+{
+ "feed_id": "akoustis_connected_bank_v1",
+ "provenance": "Synthetic connected-bank reconstruction, consistent with Akoustis's filed cash-flow figures; April to June flows are anchored to balances later reported for periods before 20 June 2024. Payroll, litigation-counsel and vendor splits are labelled assumptions.",
+ "borrower": "Akoustis Technologies, Inc.",
+ "accounts": [
+  "Operating account"
+ ],
+ "restricted_cents": 0,
+ "opening": {
+  "date": "2023-12-31",
+  "balance_cents": 1287500000
+ },
+ "period": {
+  "start": "2024-01-01",
+  "end": "2024-06-20"
+ },
+ "transactions": [
+  {
+   "date": "2024-01-03",
+   "amount_cents": 35594316,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00001"
+  },
+  {
+   "date": "2024-01-03",
+   "amount_cents": 20965772,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00002"
+  },
+  {
+   "date": "2024-01-03",
+   "amount_cents": -9896792,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00003"
+  },
+  {
+   "date": "2024-01-03",
+   "amount_cents": -11709842,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00004"
+  },
+  {
+   "date": "2024-01-03",
+   "amount_cents": -29376748,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00005"
+  },
+  {
+   "date": "2024-01-10",
+   "amount_cents": 31331800,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00006"
+  },
+  {
+   "date": "2024-01-10",
+   "amount_cents": 17858854,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00007"
+  },
+  {
+   "date": "2024-01-10",
+   "amount_cents": -8960135,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00008"
+  },
+  {
+   "date": "2024-01-10",
+   "amount_cents": -13653436,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00009"
+  },
+  {
+   "date": "2024-01-10",
+   "amount_cents": -23693431,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00010"
+  },
+  {
+   "date": "2024-01-12",
+   "amount_cents": -38856525,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00011"
+  },
+  {
+   "date": "2024-01-12",
+   "amount_cents": -72718200,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00012"
+  },
+  {
+   "date": "2024-01-17",
+   "amount_cents": 30031223,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00013"
+  },
+  {
+   "date": "2024-01-17",
+   "amount_cents": 17704084,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00014"
+  },
+  {
+   "date": "2024-01-17",
+   "amount_cents": -9081828,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00015"
+  },
+  {
+   "date": "2024-01-17",
+   "amount_cents": -9856452,
+   "counterparty": "Capital equipment, net of investment tax credits",
+   "category": "operations_other",
+   "transaction_id": "txn_00016"
+  },
+  {
+   "date": "2024-01-17",
+   "amount_cents": -11601745,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00017"
+  },
+  {
+   "date": "2024-01-17",
+   "amount_cents": -25008491,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00018"
+  },
+  {
+   "date": "2024-01-24",
+   "amount_cents": 33108781,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00019"
+  },
+  {
+   "date": "2024-01-24",
+   "amount_cents": 24389945,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00020"
+  },
+  {
+   "date": "2024-01-24",
+   "amount_cents": -10105483,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00021"
+  },
+  {
+   "date": "2024-01-24",
+   "amount_cents": -11664297,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00022"
+  },
+  {
+   "date": "2024-01-24",
+   "amount_cents": -27577258,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00023"
+  },
+  {
+   "date": "2024-01-26",
+   "amount_cents": -41699658,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00024"
+  },
+  {
+   "date": "2024-01-26",
+   "amount_cents": -73531800,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00025"
+  },
+  {
+   "date": "2024-01-29",
+   "amount_cents": 1040700000,
+   "counterparty": "Underwritten public offering, net proceeds",
+   "category": "equity_proceeds",
+   "transaction_id": "txn_00026"
+  },
+  {
+   "date": "2024-01-31",
+   "amount_cents": 38723074,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00027"
+  },
+  {
+   "date": "2024-01-31",
+   "amount_cents": 18211506,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00028"
+  },
+  {
+   "date": "2024-01-31",
+   "amount_cents": -10289472,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00029"
+  },
+  {
+   "date": "2024-01-31",
+   "amount_cents": -15815626,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00030"
+  },
+  {
+   "date": "2024-01-31",
+   "amount_cents": -23233965,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00031"
+  },
+  {
+   "date": "2024-01-31",
+   "amount_cents": -63333333,
+   "counterparty": "Litigation counsel",
+   "category": "legal_fees",
+   "transaction_id": "txn_00032"
+  },
+  {
+   "date": "2024-02-07",
+   "amount_cents": 41658163,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00033"
+  },
+  {
+   "date": "2024-02-07",
+   "amount_cents": 20701629,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00034"
+  },
+  {
+   "date": "2024-02-07",
+   "amount_cents": -12353451,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00035"
+  },
+  {
+   "date": "2024-02-07",
+   "amount_cents": -16759190,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00036"
+  },
+  {
+   "date": "2024-02-07",
+   "amount_cents": -29960705,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00037"
+  },
+  {
+   "date": "2024-02-09",
+   "amount_cents": -35820676,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00038"
+  },
+  {
+   "date": "2024-02-09",
+   "amount_cents": -73879095,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00039"
+  },
+  {
+   "date": "2024-02-14",
+   "amount_cents": 34694120,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00040"
+  },
+  {
+   "date": "2024-02-14",
+   "amount_cents": 27247097,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00041"
+  },
+  {
+   "date": "2024-02-14",
+   "amount_cents": -9964159,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00042"
+  },
+  {
+   "date": "2024-02-14",
+   "amount_cents": -13300035,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00043"
+  },
+  {
+   "date": "2024-02-14",
+   "amount_cents": -27798493,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00044"
+  },
+  {
+   "date": "2024-02-15",
+   "amount_cents": -9387096,
+   "counterparty": "Capital equipment, net of investment tax credits",
+   "category": "operations_other",
+   "transaction_id": "txn_00045"
+  },
+  {
+   "date": "2024-02-21",
+   "amount_cents": 47584539,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00046"
+  },
+  {
+   "date": "2024-02-21",
+   "amount_cents": 20283706,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00047"
+  },
+  {
+   "date": "2024-02-21",
+   "amount_cents": -12465757,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00048"
+  },
+  {
+   "date": "2024-02-21",
+   "amount_cents": -15556549,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00049"
+  },
+  {
+   "date": "2024-02-21",
+   "amount_cents": -29153936,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00050"
+  },
+  {
+   "date": "2024-02-23",
+   "amount_cents": -38404458,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00051"
+  },
+  {
+   "date": "2024-02-23",
+   "amount_cents": -72370905,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00052"
+  },
+  {
+   "date": "2024-02-28",
+   "amount_cents": 36814791,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00053"
+  },
+  {
+   "date": "2024-02-28",
+   "amount_cents": 26177245,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00054"
+  },
+  {
+   "date": "2024-02-28",
+   "amount_cents": -9751714,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00055"
+  },
+  {
+   "date": "2024-02-28",
+   "amount_cents": -13764333,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00056"
+  },
+  {
+   "date": "2024-02-28",
+   "amount_cents": -31847081,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00057"
+  },
+  {
+   "date": "2024-02-29",
+   "amount_cents": -63333333,
+   "counterparty": "Litigation counsel",
+   "category": "legal_fees",
+   "transaction_id": "txn_00058"
+  },
+  {
+   "date": "2024-03-06",
+   "amount_cents": 33741162,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00059"
+  },
+  {
+   "date": "2024-03-06",
+   "amount_cents": 26456239,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00060"
+  },
+  {
+   "date": "2024-03-06",
+   "amount_cents": -10356834,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00061"
+  },
+  {
+   "date": "2024-03-06",
+   "amount_cents": -18045458,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00062"
+  },
+  {
+   "date": "2024-03-06",
+   "amount_cents": -30863232,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00063"
+  },
+  {
+   "date": "2024-03-08",
+   "amount_cents": -36081622,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00064"
+  },
+  {
+   "date": "2024-03-08",
+   "amount_cents": -73049506,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00065"
+  },
+  {
+   "date": "2024-03-13",
+   "amount_cents": 45850892,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00066"
+  },
+  {
+   "date": "2024-03-13",
+   "amount_cents": 27458616,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00067"
+  },
+  {
+   "date": "2024-03-13",
+   "amount_cents": -12468631,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00068"
+  },
+  {
+   "date": "2024-03-13",
+   "amount_cents": -14115432,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00069"
+  },
+  {
+   "date": "2024-03-13",
+   "amount_cents": -30573815,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00070"
+  },
+  {
+   "date": "2024-03-15",
+   "amount_cents": -9856452,
+   "counterparty": "Capital equipment, net of investment tax credits",
+   "category": "operations_other",
+   "transaction_id": "txn_00071"
+  },
+  {
+   "date": "2024-03-20",
+   "amount_cents": 46441702,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00072"
+  },
+  {
+   "date": "2024-03-20",
+   "amount_cents": 23237850,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00073"
+  },
+  {
+   "date": "2024-03-20",
+   "amount_cents": -12739689,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00074"
+  },
+  {
+   "date": "2024-03-20",
+   "amount_cents": -18088826,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00075"
+  },
+  {
+   "date": "2024-03-20",
+   "amount_cents": -34375601,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00076"
+  },
+  {
+   "date": "2024-03-22",
+   "amount_cents": -44474561,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00077"
+  },
+  {
+   "date": "2024-03-22",
+   "amount_cents": -73200494,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00078"
+  },
+  {
+   "date": "2024-03-27",
+   "amount_cents": 42755438,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00079"
+  },
+  {
+   "date": "2024-03-27",
+   "amount_cents": 21977456,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00080"
+  },
+  {
+   "date": "2024-03-27",
+   "amount_cents": -12768556,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00081"
+  },
+  {
+   "date": "2024-03-27",
+   "amount_cents": -14195230,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00082"
+  },
+  {
+   "date": "2024-03-27",
+   "amount_cents": -33077245,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00083"
+  },
+  {
+   "date": "2024-03-29",
+   "amount_cents": -63333333,
+   "counterparty": "Litigation counsel",
+   "category": "legal_fees",
+   "transaction_id": "txn_00084"
+  },
+  {
+   "date": "2024-04-03",
+   "amount_cents": 30976653,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00085"
+  },
+  {
+   "date": "2024-04-03",
+   "amount_cents": 15327128,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00086"
+  },
+  {
+   "date": "2024-04-03",
+   "amount_cents": -7316121,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00087"
+  },
+  {
+   "date": "2024-04-03",
+   "amount_cents": -9917931,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00088"
+  },
+  {
+   "date": "2024-04-03",
+   "amount_cents": -23912730,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00089"
+  },
+  {
+   "date": "2024-04-05",
+   "amount_cents": -35715772,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00090"
+  },
+  {
+   "date": "2024-04-05",
+   "amount_cents": -73468365,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00091"
+  },
+  {
+   "date": "2024-04-10",
+   "amount_cents": 25529411,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00092"
+  },
+  {
+   "date": "2024-04-10",
+   "amount_cents": 19211870,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00093"
+  },
+  {
+   "date": "2024-04-10",
+   "amount_cents": -9215693,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00094"
+  },
+  {
+   "date": "2024-04-10",
+   "amount_cents": -13506590,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00095"
+  },
+  {
+   "date": "2024-04-10",
+   "amount_cents": -22350377,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00096"
+  },
+  {
+   "date": "2024-04-16",
+   "amount_cents": 4644444,
+   "counterparty": "Capital equipment, net of investment tax credits",
+   "category": "operations_other",
+   "transaction_id": "txn_00097"
+  },
+  {
+   "date": "2024-04-17",
+   "amount_cents": 29069642,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00098"
+  },
+  {
+   "date": "2024-04-17",
+   "amount_cents": 18738723,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00099"
+  },
+  {
+   "date": "2024-04-17",
+   "amount_cents": -9533046,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00100"
+  },
+  {
+   "date": "2024-04-17",
+   "amount_cents": -10954793,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00101"
+  },
+  {
+   "date": "2024-04-17",
+   "amount_cents": -22232313,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00102"
+  },
+  {
+   "date": "2024-04-19",
+   "amount_cents": -34616966,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00103"
+  },
+  {
+   "date": "2024-04-19",
+   "amount_cents": -72781635,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00104"
+  },
+  {
+   "date": "2024-04-24",
+   "amount_cents": 28011053,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00105"
+  },
+  {
+   "date": "2024-04-24",
+   "amount_cents": 14125756,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00106"
+  },
+  {
+   "date": "2024-04-24",
+   "amount_cents": -8212275,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00107"
+  },
+  {
+   "date": "2024-04-24",
+   "amount_cents": -10664021,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00108"
+  },
+  {
+   "date": "2024-04-24",
+   "amount_cents": -22920922,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00109"
+  },
+  {
+   "date": "2024-04-30",
+   "amount_cents": 27037241,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00110"
+  },
+  {
+   "date": "2024-04-30",
+   "amount_cents": 15185221,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00111"
+  },
+  {
+   "date": "2024-04-30",
+   "amount_cents": 488889,
+   "counterparty": "Employee stock purchase plan",
+   "category": "equity_proceeds",
+   "transaction_id": "txn_00112"
+  },
+  {
+   "date": "2024-04-30",
+   "amount_cents": -7922508,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00113"
+  },
+  {
+   "date": "2024-04-30",
+   "amount_cents": -11222856,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00114"
+  },
+  {
+   "date": "2024-04-30",
+   "amount_cents": -21116039,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00115"
+  },
+  {
+   "date": "2024-04-30",
+   "amount_cents": -63333333,
+   "counterparty": "Litigation counsel",
+   "category": "legal_fees",
+   "transaction_id": "txn_00116"
+  },
+  {
+   "date": "2024-05-01",
+   "amount_cents": 34107261,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00117"
+  },
+  {
+   "date": "2024-05-01",
+   "amount_cents": 15779144,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00118"
+  },
+  {
+   "date": "2024-05-01",
+   "amount_cents": -8806257,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00119"
+  },
+  {
+   "date": "2024-05-01",
+   "amount_cents": -12508574,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00120"
+  },
+  {
+   "date": "2024-05-01",
+   "amount_cents": -24243061,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00121"
+  },
+  {
+   "date": "2024-05-03",
+   "amount_cents": -26662764,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00122"
+  },
+  {
+   "date": "2024-05-03",
+   "amount_cents": -48386795,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00123"
+  },
+  {
+   "date": "2024-05-08",
+   "amount_cents": 26347198,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00124"
+  },
+  {
+   "date": "2024-05-08",
+   "amount_cents": 13899024,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00125"
+  },
+  {
+   "date": "2024-05-08",
+   "amount_cents": -7313011,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00126"
+  },
+  {
+   "date": "2024-05-08",
+   "amount_cents": -10349989,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00127"
+  },
+  {
+   "date": "2024-05-08",
+   "amount_cents": -19040284,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00128"
+  },
+  {
+   "date": "2024-05-15",
+   "amount_cents": 30321970,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00129"
+  },
+  {
+   "date": "2024-05-15",
+   "amount_cents": 16279932,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00130"
+  },
+  {
+   "date": "2024-05-15",
+   "amount_cents": -7757121,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00131"
+  },
+  {
+   "date": "2024-05-15",
+   "amount_cents": -10404862,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00132"
+  },
+  {
+   "date": "2024-05-15",
+   "amount_cents": -21252818,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00133"
+  },
+  {
+   "date": "2024-05-16",
+   "amount_cents": 4644445,
+   "counterparty": "Capital equipment, net of investment tax credits",
+   "category": "operations_other",
+   "transaction_id": "txn_00134"
+  },
+  {
+   "date": "2024-05-17",
+   "amount_cents": -21904971,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00135"
+  },
+  {
+   "date": "2024-05-17",
+   "amount_cents": -48295631,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00136"
+  },
+  {
+   "date": "2024-05-22",
+   "amount_cents": 25522862,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00137"
+  },
+  {
+   "date": "2024-05-22",
+   "amount_cents": 17275272,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00138"
+  },
+  {
+   "date": "2024-05-22",
+   "amount_cents": -9930304,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00139"
+  },
+  {
+   "date": "2024-05-22",
+   "amount_cents": -12392239,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00140"
+  },
+  {
+   "date": "2024-05-22",
+   "amount_cents": -23420730,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00141"
+  },
+  {
+   "date": "2024-05-24",
+   "amount_cents": 920800000,
+   "counterparty": "Registered direct offering and pre-funded warrants, net proceeds",
+   "category": "equity_proceeds",
+   "transaction_id": "txn_00142"
+  },
+  {
+   "date": "2024-05-29",
+   "amount_cents": 24324709,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00143"
+  },
+  {
+   "date": "2024-05-29",
+   "amount_cents": 19355327,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00144"
+  },
+  {
+   "date": "2024-05-29",
+   "amount_cents": -8392950,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00145"
+  },
+  {
+   "date": "2024-05-29",
+   "amount_cents": -10610526,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00146"
+  },
+  {
+   "date": "2024-05-29",
+   "amount_cents": -24575488,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00147"
+  },
+  {
+   "date": "2024-05-31",
+   "amount_cents": 488889,
+   "counterparty": "Employee stock purchase plan",
+   "category": "equity_proceeds",
+   "transaction_id": "txn_00148"
+  },
+  {
+   "date": "2024-05-31",
+   "amount_cents": -21765003,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00149"
+  },
+  {
+   "date": "2024-05-31",
+   "amount_cents": -49567574,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00150"
+  },
+  {
+   "date": "2024-05-31",
+   "amount_cents": -63333333,
+   "counterparty": "Litigation counsel",
+   "category": "legal_fees",
+   "transaction_id": "txn_00151"
+  },
+  {
+   "date": "2024-06-05",
+   "amount_cents": 26807328,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00152"
+  },
+  {
+   "date": "2024-06-05",
+   "amount_cents": 14659310,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00153"
+  },
+  {
+   "date": "2024-06-05",
+   "amount_cents": -6984527,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00154"
+  },
+  {
+   "date": "2024-06-05",
+   "amount_cents": -9627994,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00155"
+  },
+  {
+   "date": "2024-06-05",
+   "amount_cents": -18297220,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00156"
+  },
+  {
+   "date": "2024-06-11",
+   "amount_cents": 2744444,
+   "counterparty": "Capital equipment, net of investment tax credits",
+   "category": "operations_other",
+   "transaction_id": "txn_00157"
+  },
+  {
+   "date": "2024-06-12",
+   "amount_cents": 32160353,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00158"
+  },
+  {
+   "date": "2024-06-12",
+   "amount_cents": 16029147,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00159"
+  },
+  {
+   "date": "2024-06-12",
+   "amount_cents": -6669224,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00160"
+  },
+  {
+   "date": "2024-06-12",
+   "amount_cents": -10235968,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00161"
+  },
+  {
+   "date": "2024-06-12",
+   "amount_cents": -21255147,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00162"
+  },
+  {
+   "date": "2024-06-14",
+   "amount_cents": -36671648,
+   "counterparty": "Tai-Saw Technology (contract manufacturing)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00163"
+  },
+  {
+   "date": "2024-06-14",
+   "amount_cents": -100065789,
+   "counterparty": "Payroll",
+   "category": "payroll",
+   "transaction_id": "txn_00164"
+  },
+  {
+   "date": "2024-06-17",
+   "amount_cents": -44200000,
+   "counterparty": "6.0% convertible senior notes due 2027: interest, cash portion",
+   "category": "debt_service",
+   "transaction_id": "txn_00165"
+  },
+  {
+   "date": "2024-06-18",
+   "amount_cents": 24128319,
+   "counterparty": "RF filter customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00166"
+  },
+  {
+   "date": "2024-06-18",
+   "amount_cents": 18113956,
+   "counterparty": "RFMi and foundry services customers",
+   "category": "customer_receipts",
+   "transaction_id": "txn_00167"
+  },
+  {
+   "date": "2024-06-18",
+   "amount_cents": -8349238,
+   "counterparty": "Other vendors (facilities, utilities, services)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00168"
+  },
+  {
+   "date": "2024-06-18",
+   "amount_cents": -9473357,
+   "counterparty": "Process gas and metals suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00169"
+  },
+  {
+   "date": "2024-06-18",
+   "amount_cents": -19122270,
+   "counterparty": "Wafer and substrate suppliers (fab materials)",
+   "category": "supplier_invoice",
+   "transaction_id": "txn_00170"
+  },
+  {
+   "date": "2024-06-20",
+   "amount_cents": 288889,
+   "counterparty": "Employee stock purchase plan",
+   "category": "equity_proceeds",
+   "transaction_id": "txn_00171"
+  },
+  {
+   "date": "2024-06-20",
+   "amount_cents": -43333333,
+   "counterparty": "Litigation counsel",
+   "category": "legal_fees",
+   "transaction_id": "txn_00172"
+  }
+ ],
+ "daily_balances": [
+  {
+   "date": "2024-01-01",
+   "closing_cents": 1287500000
+  },
+  {
+   "date": "2024-01-02",
+   "closing_cents": 1287500000
+  },
+  {
+   "date": "2024-01-03",
+   "closing_cents": 1293076706
+  },
+  {
+   "date": "2024-01-04",
+   "closing_cents": 1293076706
+  },
+  {
+   "date": "2024-01-05",
+   "closing_cents": 1293076706
+  },
+  {
+   "date": "2024-01-06",
+   "closing_cents": 1293076706
+  },
+  {
+   "date": "2024-01-07",
+   "closing_cents": 1293076706
+  },
+  {
+   "date": "2024-01-08",
+   "closing_cents": 1293076706
+  },
+  {
+   "date": "2024-01-09",
+   "closing_cents": 1293076706
+  },
+  {
+   "date": "2024-01-10",
+   "closing_cents": 1295960358
+  },
+  {
+   "date": "2024-01-11",
+   "closing_cents": 1295960358
+  },
+  {
+   "date": "2024-01-12",
+   "closing_cents": 1184385633
+  },
+  {
+   "date": "2024-01-13",
+   "closing_cents": 1184385633
+  },
+  {
+   "date": "2024-01-14",
+   "closing_cents": 1184385633
+  },
+  {
+   "date": "2024-01-15",
+   "closing_cents": 1184385633
+  },
+  {
+   "date": "2024-01-16",
+   "closing_cents": 1184385633
+  },
+  {
+   "date": "2024-01-17",
+   "closing_cents": 1176572424
+  },
+  {
+   "date": "2024-01-18",
+   "closing_cents": 1176572424
+  },
+  {
+   "date": "2024-01-19",
+   "closing_cents": 1176572424
+  },
+  {
+   "date": "2024-01-20",
+   "closing_cents": 1176572424
+  },
+  {
+   "date": "2024-01-21",
+   "closing_cents": 1176572424
+  },
+  {
+   "date": "2024-01-22",
+   "closing_cents": 1176572424
+  },
+  {
+   "date": "2024-01-23",
+   "closing_cents": 1176572424
+  },
+  {
+   "date": "2024-01-24",
+   "closing_cents": 1184724112
+  },
+  {
+   "date": "2024-01-25",
+   "closing_cents": 1184724112
+  },
+  {
+   "date": "2024-01-26",
+   "closing_cents": 1069492654
+  },
+  {
+   "date": "2024-01-27",
+   "closing_cents": 1069492654
+  },
+  {
+   "date": "2024-01-28",
+   "closing_cents": 1069492654
+  },
+  {
+   "date": "2024-01-29",
+   "closing_cents": 2110192654
+  },
+  {
+   "date": "2024-01-30",
+   "closing_cents": 2110192654
+  },
+  {
+   "date": "2024-01-31",
+   "closing_cents": 2054454838
+  },
+  {
+   "date": "2024-02-01",
+   "closing_cents": 2054454838
+  },
+  {
+   "date": "2024-02-02",
+   "closing_cents": 2054454838
+  },
+  {
+   "date": "2024-02-03",
+   "closing_cents": 2054454838
+  },
+  {
+   "date": "2024-02-04",
+   "closing_cents": 2054454838
+  },
+  {
+   "date": "2024-02-05",
+   "closing_cents": 2054454838
+  },
+  {
+   "date": "2024-02-06",
+   "closing_cents": 2054454838
+  },
+  {
+   "date": "2024-02-07",
+   "closing_cents": 2057741284
+  },
+  {
+   "date": "2024-02-08",
+   "closing_cents": 2057741284
+  },
+  {
+   "date": "2024-02-09",
+   "closing_cents": 1948041513
+  },
+  {
+   "date": "2024-02-10",
+   "closing_cents": 1948041513
+  },
+  {
+   "date": "2024-02-11",
+   "closing_cents": 1948041513
+  },
+  {
+   "date": "2024-02-12",
+   "closing_cents": 1948041513
+  },
+  {
+   "date": "2024-02-13",
+   "closing_cents": 1948041513
+  },
+  {
+   "date": "2024-02-14",
+   "closing_cents": 1958920043
+  },
+  {
+   "date": "2024-02-15",
+   "closing_cents": 1949532947
+  },
+  {
+   "date": "2024-02-16",
+   "closing_cents": 1949532947
+  },
+  {
+   "date": "2024-02-17",
+   "closing_cents": 1949532947
+  },
+  {
+   "date": "2024-02-18",
+   "closing_cents": 1949532947
+  },
+  {
+   "date": "2024-02-19",
+   "closing_cents": 1949532947
+  },
+  {
+   "date": "2024-02-20",
+   "closing_cents": 1949532947
+  },
+  {
+   "date": "2024-02-21",
+   "closing_cents": 1960224950
+  },
+  {
+   "date": "2024-02-22",
+   "closing_cents": 1960224950
+  },
+  {
+   "date": "2024-02-23",
+   "closing_cents": 1849449587
+  },
+  {
+   "date": "2024-02-24",
+   "closing_cents": 1849449587
+  },
+  {
+   "date": "2024-02-25",
+   "closing_cents": 1849449587
+  },
+  {
+   "date": "2024-02-26",
+   "closing_cents": 1849449587
+  },
+  {
+   "date": "2024-02-27",
+   "closing_cents": 1849449587
+  },
+  {
+   "date": "2024-02-28",
+   "closing_cents": 1857078495
+  },
+  {
+   "date": "2024-02-29",
+   "closing_cents": 1793745162
+  },
+  {
+   "date": "2024-03-01",
+   "closing_cents": 1793745162
+  },
+  {
+   "date": "2024-03-02",
+   "closing_cents": 1793745162
+  },
+  {
+   "date": "2024-03-03",
+   "closing_cents": 1793745162
+  },
+  {
+   "date": "2024-03-04",
+   "closing_cents": 1793745162
+  },
+  {
+   "date": "2024-03-05",
+   "closing_cents": 1793745162
+  },
+  {
+   "date": "2024-03-06",
+   "closing_cents": 1794677039
+  },
+  {
+   "date": "2024-03-07",
+   "closing_cents": 1794677039
+  },
+  {
+   "date": "2024-03-08",
+   "closing_cents": 1685545911
+  },
+  {
+   "date": "2024-03-09",
+   "closing_cents": 1685545911
+  },
+  {
+   "date": "2024-03-10",
+   "closing_cents": 1685545911
+  },
+  {
+   "date": "2024-03-11",
+   "closing_cents": 1685545911
+  },
+  {
+   "date": "2024-03-12",
+   "closing_cents": 1685545911
+  },
+  {
+   "date": "2024-03-13",
+   "closing_cents": 1701697541
+  },
+  {
+   "date": "2024-03-14",
+   "closing_cents": 1701697541
+  },
+  {
+   "date": "2024-03-15",
+   "closing_cents": 1691841089
+  },
+  {
+   "date": "2024-03-16",
+   "closing_cents": 1691841089
+  },
+  {
+   "date": "2024-03-17",
+   "closing_cents": 1691841089
+  },
+  {
+   "date": "2024-03-18",
+   "closing_cents": 1691841089
+  },
+  {
+   "date": "2024-03-19",
+   "closing_cents": 1691841089
+  },
+  {
+   "date": "2024-03-20",
+   "closing_cents": 1696316525
+  },
+  {
+   "date": "2024-03-21",
+   "closing_cents": 1696316525
+  },
+  {
+   "date": "2024-03-22",
+   "closing_cents": 1578641470
+  },
+  {
+   "date": "2024-03-23",
+   "closing_cents": 1578641470
+  },
+  {
+   "date": "2024-03-24",
+   "closing_cents": 1578641470
+  },
+  {
+   "date": "2024-03-25",
+   "closing_cents": 1578641470
+  },
+  {
+   "date": "2024-03-26",
+   "closing_cents": 1578641470
+  },
+  {
+   "date": "2024-03-27",
+   "closing_cents": 1583333333
+  },
+  {
+   "date": "2024-03-28",
+   "closing_cents": 1583333333
+  },
+  {
+   "date": "2024-03-29",
+   "closing_cents": 1520000000
+  },
+  {
+   "date": "2024-03-30",
+   "closing_cents": 1520000000
+  },
+  {
+   "date": "2024-03-31",
+   "closing_cents": 1520000000
+  },
+  {
+   "date": "2024-04-01",
+   "closing_cents": 1520000000
+  },
+  {
+   "date": "2024-04-02",
+   "closing_cents": 1520000000
+  },
+  {
+   "date": "2024-04-03",
+   "closing_cents": 1525156999
+  },
+  {
+   "date": "2024-04-04",
+   "closing_cents": 1525156999
+  },
+  {
+   "date": "2024-04-05",
+   "closing_cents": 1415972862
+  },
+  {
+   "date": "2024-04-06",
+   "closing_cents": 1415972862
+  },
+  {
+   "date": "2024-04-07",
+   "closing_cents": 1415972862
+  },
+  {
+   "date": "2024-04-08",
+   "closing_cents": 1415972862
+  },
+  {
+   "date": "2024-04-09",
+   "closing_cents": 1415972862
+  },
+  {
+   "date": "2024-04-10",
+   "closing_cents": 1415641483
+  },
+  {
+   "date": "2024-04-11",
+   "closing_cents": 1415641483
+  },
+  {
+   "date": "2024-04-12",
+   "closing_cents": 1415641483
+  },
+  {
+   "date": "2024-04-13",
+   "closing_cents": 1415641483
+  },
+  {
+   "date": "2024-04-14",
+   "closing_cents": 1415641483
+  },
+  {
+   "date": "2024-04-15",
+   "closing_cents": 1415641483
+  },
+  {
+   "date": "2024-04-16",
+   "closing_cents": 1420285927
+  },
+  {
+   "date": "2024-04-17",
+   "closing_cents": 1425374140
+  },
+  {
+   "date": "2024-04-18",
+   "closing_cents": 1425374140
+  },
+  {
+   "date": "2024-04-19",
+   "closing_cents": 1317975539
+  },
+  {
+   "date": "2024-04-20",
+   "closing_cents": 1317975539
+  },
+  {
+   "date": "2024-04-21",
+   "closing_cents": 1317975539
+  },
+  {
+   "date": "2024-04-22",
+   "closing_cents": 1317975539
+  },
+  {
+   "date": "2024-04-23",
+   "closing_cents": 1317975539
+  },
+  {
+   "date": "2024-04-24",
+   "closing_cents": 1318315130
+  },
+  {
+   "date": "2024-04-25",
+   "closing_cents": 1318315130
+  },
+  {
+   "date": "2024-04-26",
+   "closing_cents": 1318315130
+  },
+  {
+   "date": "2024-04-27",
+   "closing_cents": 1318315130
+  },
+  {
+   "date": "2024-04-28",
+   "closing_cents": 1318315130
+  },
+  {
+   "date": "2024-04-29",
+   "closing_cents": 1318315130
+  },
+  {
+   "date": "2024-04-30",
+   "closing_cents": 1257431745
+  },
+  {
+   "date": "2024-05-01",
+   "closing_cents": 1261760258
+  },
+  {
+   "date": "2024-05-02",
+   "closing_cents": 1261760258
+  },
+  {
+   "date": "2024-05-03",
+   "closing_cents": 1186710699
+  },
+  {
+   "date": "2024-05-04",
+   "closing_cents": 1186710699
+  },
+  {
+   "date": "2024-05-05",
+   "closing_cents": 1186710699
+  },
+  {
+   "date": "2024-05-06",
+   "closing_cents": 1186710699
+  },
+  {
+   "date": "2024-05-07",
+   "closing_cents": 1186710699
+  },
+  {
+   "date": "2024-05-08",
+   "closing_cents": 1190253637
+  },
+  {
+   "date": "2024-05-09",
+   "closing_cents": 1190253637
+  },
+  {
+   "date": "2024-05-10",
+   "closing_cents": 1190253637
+  },
+  {
+   "date": "2024-05-11",
+   "closing_cents": 1190253637
+  },
+  {
+   "date": "2024-05-12",
+   "closing_cents": 1190253637
+  },
+  {
+   "date": "2024-05-13",
+   "closing_cents": 1190253637
+  },
+  {
+   "date": "2024-05-14",
+   "closing_cents": 1190253637
+  },
+  {
+   "date": "2024-05-15",
+   "closing_cents": 1197440738
+  },
+  {
+   "date": "2024-05-16",
+   "closing_cents": 1202085183
+  },
+  {
+   "date": "2024-05-17",
+   "closing_cents": 1131884581
+  },
+  {
+   "date": "2024-05-18",
+   "closing_cents": 1131884581
+  },
+  {
+   "date": "2024-05-19",
+   "closing_cents": 1131884581
+  },
+  {
+   "date": "2024-05-20",
+   "closing_cents": 1131884581
+  },
+  {
+   "date": "2024-05-21",
+   "closing_cents": 1131884581
+  },
+  {
+   "date": "2024-05-22",
+   "closing_cents": 1128939442
+  },
+  {
+   "date": "2024-05-23",
+   "closing_cents": 1128939442
+  },
+  {
+   "date": "2024-05-24",
+   "closing_cents": 2049739442
+  },
+  {
+   "date": "2024-05-25",
+   "closing_cents": 2049739442
+  },
+  {
+   "date": "2024-05-26",
+   "closing_cents": 2049739442
+  },
+  {
+   "date": "2024-05-27",
+   "closing_cents": 2049739442
+  },
+  {
+   "date": "2024-05-28",
+   "closing_cents": 2049739442
+  },
+  {
+   "date": "2024-05-29",
+   "closing_cents": 2049840514
+  },
+  {
+   "date": "2024-05-30",
+   "closing_cents": 2049840514
+  },
+  {
+   "date": "2024-05-31",
+   "closing_cents": 1915663493
+  },
+  {
+   "date": "2024-06-01",
+   "closing_cents": 1915663493
+  },
+  {
+   "date": "2024-06-02",
+   "closing_cents": 1915663493
+  },
+  {
+   "date": "2024-06-03",
+   "closing_cents": 1915663493
+  },
+  {
+   "date": "2024-06-04",
+   "closing_cents": 1915663493
+  },
+  {
+   "date": "2024-06-05",
+   "closing_cents": 1922220390
+  },
+  {
+   "date": "2024-06-06",
+   "closing_cents": 1922220390
+  },
+  {
+   "date": "2024-06-07",
+   "closing_cents": 1922220390
+  },
+  {
+   "date": "2024-06-08",
+   "closing_cents": 1922220390
+  },
+  {
+   "date": "2024-06-09",
+   "closing_cents": 1922220390
+  },
+  {
+   "date": "2024-06-10",
+   "closing_cents": 1922220390
+  },
+  {
+   "date": "2024-06-11",
+   "closing_cents": 1924964834
+  },
+  {
+   "date": "2024-06-12",
+   "closing_cents": 1934993995
+  },
+  {
+   "date": "2024-06-13",
+   "closing_cents": 1934993995
+  },
+  {
+   "date": "2024-06-14",
+   "closing_cents": 1798256558
+  },
+  {
+   "date": "2024-06-15",
+   "closing_cents": 1798256558
+  },
+  {
+   "date": "2024-06-16",
+   "closing_cents": 1798256558
+  },
+  {
+   "date": "2024-06-17",
+   "closing_cents": 1754056558
+  },
+  {
+   "date": "2024-06-18",
+   "closing_cents": 1759353968
+  },
+  {
+   "date": "2024-06-19",
+   "closing_cents": 1759353968
+  },
+  {
+   "date": "2024-06-20",
+   "closing_cents": 1716309524
+  }
+ ]
+}
