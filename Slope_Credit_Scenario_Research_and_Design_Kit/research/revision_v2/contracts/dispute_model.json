@@ -27,6 +27,22 @@
       "citation": "Fed. R. Civ. P. 62(b): a party may obtain a stay by providing a bond or other security; \"The stay takes effect when the court approves the bond or other security\".",
       "modality": "may; effective on approval"
     },
+    "ebay_2006": {
+      "citation": "eBay Inc. v. MercExchange, L.L.C., 547 U.S. 388 (2006): a permanent injunction issues only on the four-factor test (irreparable injury; remedies at law inadequate; balance of hardships; public interest), never automatically on a finding of liability.",
+      "modality": "may, on the four factors"
+    },
+    "usc18_1836_b3a": {
+      "citation": "18 U.S.C. §1836(b)(3)(A) (DTSA): in a civil action for trade-secret misappropriation a court \"may\" grant an injunction to prevent any actual or threatened misappropriation, on such terms as the court deems reasonable.",
+      "modality": "may"
+    },
+    "nc_66_154_a": {
+      "citation": "N.C. Gen. Stat. §66-154(a): actual or threatened misappropriation of a trade secret \"shall be permanently enjoined upon judgment finding misappropriation\" for the period the trade secret exists plus any further period the court deems necessary.",
+      "modality": "shall, on a judgment finding misappropriation"
+    },
+    "frcp_62c": {
+      "citation": "Fed. R. Civ. P. 62(c)(1): unless the court orders otherwise, an interlocutory or final judgment in an action for an injunction is not stayed after being entered, even if an appeal is taken.",
+      "modality": "shall, unless the court orders otherwise"
+    },
     "frap_4a1a": {
       "citation": "Fed. R. App. P. 4(a)(1)(A): notice of appeal within 30 days after entry of the judgment or order.",
       "modality": "shall",
@@ -709,7 +725,10 @@
           "actor": "court",
           "decision": "enters the requested trade-secret injunction",
           "standard": [
-            "frcp_62b"
+            "ebay_2006",
+            "usc18_1836_b3a",
+            "nc_66_154_a",
+            "frcp_62c"
           ],
           "record_items": [
             "the proposed injunction",
@@ -944,9 +963,7 @@
         "settlement_offer": {
           "actor": "judgment debtor",
           "decision": "offers settlement terms within its feasibility bound",
-          "standard": [
-            "frcp_62b"
-          ],
+          "standard": [],
           "record_items": [
             "settlement statements",
             "mediation orders"
@@ -973,9 +990,7 @@
         "settlement_accept": {
           "actor": "judgment creditor",
           "decision": "accepts the offered terms",
-          "standard": [
-            "frcp_62b"
-          ],
+          "standard": [],
           "record_items": [
             "settlement statements",
             "the creditor's statements on the judgment"

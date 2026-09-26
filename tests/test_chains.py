@@ -345,6 +345,13 @@ def test_readings_are_routed_evidence_and_merits_questions_carry_no_cash(base, f
     assert a4["question"]["branches"] == ["seek_sale_or_financing", "file", "neither"]  # pay removed (arithmetic)
 
 
+def test_the_injunction_and_settlement_questions_cite_their_own_law():
+    nodes = M["templates"]["federal_post_judgment"]["nodes"]
+    assert nodes["injunction"]["standard"] == ["ebay_2006", "usc18_1836_b3a", "nc_66_154_a", "frcp_62c"]
+    assert "547 U.S. 388" in M["rules"]["ebay_2006"]["citation"] and "62(c)" in M["rules"]["frcp_62c"]["citation"]
+    assert all("frcp_62b" not in nodes[n]["standard"] for n in ("injunction", "settlement_offer", "settlement_accept"))
+
+
 # 7. Cash conventions ------------------------------------------------------------------------------------------------
 
 def test_coupon_in_shares_by_default_and_legal_spend_stops_on_settlement(base):
