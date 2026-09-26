@@ -45,9 +45,10 @@
     return out;
   }
   const expect = (probs, key) => { const x = D.paths.scalars[key]; let s = 0; for (let i = 0; i < P; i++) s += probs[i] * x[i]; return s; };
-  // A slider sets the selected branch; the other branches keep their proportions (uniform if they were all zero).
-  function withBranch(i, b, x) {
-    const base = dist(i), rest = base.reduce((s, v, k) => s + (k === b ? 0 : v), 0), n = base.length;
+  // A slider sets the selected branch; the other branches keep their proportions in `base`, the distribution when
+  // the drag started (uniform if they were all zero), so the result depends only on where the slider ends up.
+  function withBranch(i, b, x, base = dist(i)) {
+    const rest = base.reduce((s, v, k) => s + (k === b ? 0 : v), 0), n = base.length;
     return base.map((v, k) => (k === b ? x : rest > 0 ? (1 - x) * v / rest : (1 - x) / (n - 1)));
   }
 
@@ -227,6 +228,7 @@
   const DECIDERS = ["Court", "Qorvo", "Akoustis", "Noteholders and Nasdaq"];
   const selB = (i) => S.sel[D.nodes[i].key] ?? 0;
   let sens = [];
+  const dragBase = {};  // node index -> its distribution when the current drag started (cleared on change)
   function computeSens() {
     const at = expect(probs, "unrecovered");
     sens = D.nodes.map((n, i) => {
@@ -259,14 +261,17 @@
     panel.innerHTML = html;
     panel.scrollTop = top;
     panel.querySelectorAll("input[type=range]").forEach((r) => {
+      const start = () => { const i = +r.dataset.i; if (!(i in dragBase)) dragBase[i] = dist(i).slice(); };
+      r.onpointerdown = start;
       r.oninput = () => {
+        start();
         const t0 = performance.now(), i = +r.dataset.i, b = selB(i);
-        S.overrides[D.nodes[i].key] = withBranch(i, b, r.value / 1000);
+        S.overrides[D.nodes[i].key] = withBranch(i, b, r.value / 1000, dragBase[i]);
         probs = pathProbs((k) => dist(k));
         $(`p${i}`).textContent = pct(r.value / 1000, 0);
         renderTiles(); renderOutcomes(); refreshCharts(t0);
       };
-      r.onchange = () => { computeSens(); renderProbs(); };
+      r.onchange = () => { delete dragBase[+r.dataset.i]; computeSens(); renderProbs(); };
     });
     panel.querySelectorAll("select").forEach((s) => (s.onchange = () => { S.sel[D.nodes[+s.dataset.i].key] = +s.value; computeSens(); renderProbs(); }));
     panel.querySelectorAll(".rs").forEach((b) => (b.onclick = () => { delete S.overrides[D.nodes[+b.dataset.i].key]; recompute(); }));
