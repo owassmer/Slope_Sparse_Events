@@ -112,7 +112,7 @@
     if (lo < 0) lo = -niceMax(-lo);
     const X = (t) => m.l + (w * t) / (days - 1), Y = (v) => m.t + h - (h * (v - lo)) / (hi - lo), Y2 = (p) => m.t + h - h * p;
     const path = (ys, f) => ys.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${f(v).toFixed(1)}`).join("");
-    let g = "";
+    let g = "", labels = "";  // labels are drawn after every line, on a white halo
     for (let k = 0; k <= 4; k++) {
       const v = lo + ((hi - lo) * k) / 4;
       g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="#f1f5f9"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${axisMoney(v)}</text>`;
@@ -129,20 +129,23 @@
     for (const b of o.windows || []) {
       const a = Math.max(0, ix(b.from) < 0 ? 0 : ix(b.from)), z = ix(b.to) < 0 ? days - 1 : ix(b.to);
       // the band's label sits at its foot, clear of the pin labels along the top
-      g += `<rect x="${X(a)}" y="${m.t}" width="${Math.max(X(z) - X(a), 1)}" height="${h}" fill="#fef3c7" opacity=".55"/><text x="${(X(a) + X(z)) / 2}" y="${m.t + h - 6}" text-anchor="middle" fill="#92400e"${HALO}>${esc(b.label)}</text>`;
+      g += `<rect x="${X(a)}" y="${m.t}" width="${Math.max(X(z) - X(a), 1)}" height="${h}" fill="#fef3c7" opacity=".55"/>`;
+      labels += `<text x="${X(a) + 4}" y="${m.t + h - 6}" fill="#92400e"${HALO}>${esc(b.label)}</text>`;
     }
     for (const b of o.bands || []) g += `<path d="${path(b.hi, Y)}L${[...b.lo].reverse().map((v, k) => `${X(days - 1 - k).toFixed(1)},${Y(v).toFixed(1)}`).join("L")}Z" fill="${b.color}" opacity=".18"/>`;
     for (const s of o.series) g += `<path d="${path(s.y, s.right ? Y2 : Y)}" fill="none" stroke="${s.color}" stroke-width="${s.width || 1.8}"${s.dash ? ' stroke-dasharray="5 4"' : ""}/>`;
     for (const s of o.series.filter((x) => x.right && x.tag)) {  // the probability line labelled at its end
       const v = s.y[days - 1];
-      g += `<text x="${m.l + w - 4}" y="${Math.max(Y2(v) - 6, m.t + 10)}" text-anchor="end" fill="${s.color}" font-weight="600"${HALO}>${esc(s.tag(v))}</text>`;
+      labels += `<text x="${m.l + w - 10}" y="${Math.min(Y2(v) + 16, m.t + h - 22)}" text-anchor="end" fill="${s.color}" font-weight="600"${HALO}>${esc(s.tag(v))}</text>`;
     }
     for (const p of o.pins || []) {
       const t = ix(p.date); if (t < 0) continue;
       // a label runs right of its pin unless it would cross the plot's right edge; each pin keeps its own row
       const flip = X(t) + 3 + 6.2 * p.label.length > m.l + w;
-      g += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + h}" stroke="var(--pin)" stroke-dasharray="3 3"/><text x="${flip ? X(t) - 3 : X(t) + 3}" y="${m.t + 12 + 13 * (p.row || 0)}" fill="#92400e"${flip ? ' text-anchor="end"' : ""}${HALO}>${esc(p.label)}</text>`;
+      g += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + h}" stroke="var(--pin)" stroke-dasharray="3 3"/>`;
+      labels += `<text x="${flip ? X(t) - 4 : X(t) + 4}" y="${m.t + 12 + 13 * (p.row || 0)}" fill="#92400e"${flip ? ' text-anchor="end"' : ""}${HALO}>${esc(p.label)}</text>`;
     }
+    g += labels;
     g += `<line id="hx" x1="0" x2="0" y1="${m.t}" y2="${m.t + h}" stroke="#9ca3af" visibility="hidden"/><rect x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent" id="hov"/>`;
     host.querySelector("svg").setAttribute("viewBox", `0 0 ${W} ${H}`);
     host.querySelector("svg").innerHTML = g;
@@ -259,14 +262,18 @@
       return { lo, hi, at, range: Math.abs(hi - lo) };
     });
   }
-  // The effect bar: a line from the value at 0% to the value at 100%, an arrowhead at the 100% end (the way 'yes'
-  // moves Unrecovered) and a mark at the current value, all on the panel's shared scale.
-  function effBar(s, pos) {
-    const a = Math.min(s.lo, s.hi), z = Math.max(s.lo, s.hi), up = s.hi >= s.lo;
-    return `<div class="ln" style="left:${pos(a)};width:calc(${pos(z)} - ${pos(a)})"></div>
-      <div class="mk" style="left:${pos(s.lo)}" title="At 0% ${money(s.lo)}"></div>
-      <div class="ah ${up ? "r" : "l"}" style="left:${pos(s.hi)}" title="At 100% ${money(s.hi)}"></div>
-      <div class="mk j" style="left:${pos(s.at)}" title="Now ${money(s.at)}"></div>`;
+  // The effect row: Unrecovered is linear in the question's probability, so a track from its value at 0% (left) to
+  // its value at 100% (right, arrowhead) carries the current value at the current probability. Red if 'yes' raises
+  // it, green if it lowers it. Values to $0.1k when the move is small, so the numbers agree with the stated change.
+  function effRow(s, p, yesName) {
+    const dv = s.hi - s.lo, fine = Math.abs(dv) < 2e6, fm = (v) => money(v, fine && Math.abs(v) >= 1e5 && Math.abs(v) < 1e8 ? 1 : undefined);
+    const flat = Math.abs(dv) < 100, col = flat ? "#9ca3af" : dv > 0 ? "var(--warn)" : "var(--ok)";
+    const say = flat ? "No effect on Unrecovered" : `${esc(yesName)} ${dv > 0 ? "raises" : "lowers"} Unrecovered by ${fm(Math.abs(dv))}`;
+    // same columns as the slider row, so the marker sits under the slider's thumb and each end value at its end
+    return `<div class="effw" style="--c:${col}"><div class="effg"><span class="v0">0%: <b>${fm(s.lo)}</b></span>
+      <div class="eff"><div class="trk"></div><div class="ah"></div><div class="mk j" style="left:calc(8px + ${p} * (100% - 16px))"></div></div>
+      <span class="v1">100%: <b>${fm(s.hi)}</b></span></div>
+      <div class="dir">Now <b>${fm(s.at)}</b> · ${say}</div></div>`;
   }
   function rowHtml(i, scale) {
     const n = D.nodes[i], b = selB(i), d = dist(i), ch = n.key in S.overrides, s = sens[i];
@@ -276,8 +283,7 @@
     return `<div class="row${ch ? " changed" : ""}" data-i="${i}"><div class="q" data-i="${i}" title="${esc(n.question)}">${esc(n.label || n.question)}${ch ? '<span class="dot"></span>' : ""}</div>
       ${n.sub ? `<div class="ctx">${esc(n.sub)}</div>` : ""}
       <div class="ctl">${sel}<input type="range" min="0" max="1000" value="${Math.round(1000 * d[b])}" data-i="${i}"><span class="p" id="p${i}">${pct(d[b], 0)}</span>${ch ? `<button class="rs" data-i="${i}">Reset</button>` : "<span></span>"}</div>
-      <div class="eff"><div class="rng">${effBar(s, pos)}</div><span class="dir">${Math.abs(s.hi - s.lo) < 100 ? "No effect on Unrecovered" : `${esc(yesName)} ${s.hi > s.lo ? "raises" : "lowers"} Unrecovered ${money(Math.abs(s.hi - s.lo))}`}</span></div>
-      <div class="rngv"><span>0%: <b>${money(s.lo)}</b></span><span>${NEUTRAL ? "now" : "Jev"}: <b>${money(s.at)}</b></span><span>100%: <b>${money(s.hi)}</b></span></div></div>`;
+      ${effRow(s, d[b], yesName)}</div>`;
   }
   function renderProbs() {
     if (S.detail !== null) return renderDetail();
@@ -300,6 +306,8 @@
         S.overrides[D.nodes[i].key] = withBranch(i, b, r.value / 1000, dragBase[i]);
         probs = pathProbs((k) => dist(k));
         $(`p${i}`).textContent = pct(r.value / 1000, 0);
+        const row = r.closest(".row"), x = r.value / 1000;  // the effect row follows the slider (linear in x)
+        row.querySelector(".mk.j").style.left = `calc(8px + ${x} * (100% - 16px))`;
         renderTiles(); renderOutcomes(); refreshCharts(t0);
       };
       r.onchange = () => { delete dragBase[+r.dataset.i]; computeSens(); renderProbs(); };
