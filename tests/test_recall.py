@@ -4,17 +4,45 @@ judge on the small $2.0M fixture; no network."""
 
 import copy
 import json
+import re
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from akoustis_fixture import REVIEW, SETUP, basis, judgment
 
 from app.agent.jev import build_question, registry_question
+from app.disputes.akoustis_pre_d import NOTES
+from app.disputes.akoustis_pre_d import judgment as akoustis_judgment
 from app.disputes.forecast import Forecaster, answer_distribution
-from app.disputes.recall import MOVED, Roles, aliases, recall_check
+from app.disputes.recall import MOVED, Roles, recall_check, roles_for
 from app.domain.investigation import SemanticObservation
 
 BORROWER = "Akoustis Technologies, Inc."
+FIXTURE = Path(__file__).parent / "fixtures" / "recall_passages.json"  # real pre-D passages from the snapshot
+# Written by hand (PR #16 review and the record), not taken from recall.py: nothing here may reach Jev in the roles
+# pass. Lower case; quotes and whitespace are normalised before matching.
+MUST_NOT_SURVIVE = [
+    "akoustis", "qorvo", "qoorvo", "akts", "qrvo", "1584754", "1604778", "001-38029", "33-1229046",  # parties
+    "grinding & dicing", "grinding and dicing", "gdsi", "rfm integrated", "rfmi", "xbaw",  # subsidiaries, product
+    "aichele", "shealy", "boller", "bruggeworth", "geiss", "denbaars", "petock", "mcmahon", "mcguire",  # officers
+    "7,522,018", "9,735,755", "10,256,786", "7522018", "9735755", "10256786", "'755", "'018", "'786",  # patents
+    "21-cv-01417", "21-cv-1417", "21-1417", "1:21-cv", "76727",  # the case
+    "mccalla", "mccal", "phipps", "judge jon", "jon p",  # the judge
+    "huntersville", "canandaigua", "greensboro", "northcross", "thorndike", "28078",  # headquarters
+    "tigan", "blumenfeld", "raucci", "mr. masters", "defosse", "morris, nichols", "sheppard", "warder",  # plaintiff
+    "brauerman", "golden iii", "golden, ronald", "lemieux", "elkins", "jakopin", "bayard", "pillsbury",  # defendant
+    "squire patton", "k&l gates", "selness",
+    "bennis", "shanfield", "lebby", "bravman", "faison",  # experts and trial staff
+]
+
+REVIEW_FINDINGS = ["aichele", "shealy", "boller", "bruggeworth", "grinding & dicing", "gdsi", "rfm integrated",
+                   "7,522,018", "9,735,755", "judge jon p mccalla", "huntersville", "canandaigua", "greensboro",
+                   "tigan", "brauerman", "morris, nichols", "bayard", "pillsbury"]
+
+
+def normal(s: str) -> str:
+    return re.sub(r"\s+", " ", s.replace("’", "'").replace("‘", "'")).lower()
 PASSAGE = {"source": "Akoustis Technologies Form 10-Q (AKTS)", "date": "2024-05-20", "heading": "Qorvo, Inc. v. Akoustis",
            "quotes": ["Judge Jon P. McCalla entered judgment for QORVO in C.A. No. 21-1417-JPM"],
            "context": "The Bank of New York Mellon Trust Company, N.A., as trustee; akoustis XBAW filters; QRVO; "
@@ -57,13 +85,11 @@ def test_role_prompts_name_no_party_and_deltas_are_right(fc):
     before = copy.deepcopy({k: j.distribution for k, j in judgments.items()})
     second = Stub()
     rc = recall_check(fc, judgments, second, BORROWER)
-    table = aliases(fc.disputes, BORROWER)
-    assert {"Qorvo", "AKTS", "QRVO", "McCalla", "1:21-cv-01417"} <= set(table)
     assert len(second.seen) == len(judgments)
     for qid, text, _ in second.seen:
         entry = registry_question(qid)
-        prompt = (text + build_question(entry).model_dump_json()).lower()
-        leaked = [a for a in table if a and a.lower() in prompt]
+        prompt = normal(text + build_question(entry).model_dump_json())
+        leaked = [a for a in MUST_NOT_SURVIVE if a in prompt]
         assert not leaked, (qid, leaked)
     assert {k: j.distribution for k, j in judgments.items()} == before  # never changes the analysis's probabilities
     for k, j in judgments.items():
@@ -85,3 +111,28 @@ def test_role_prompts_name_no_party_and_deltas_are_right(fc):
 def test_roles_replace_case_insensitively_and_leave_other_text():
     r = Roles({"Akoustis": "the defendant", "QRVO": "the plaintiff"})
     assert r({"a": ["AKOUSTIS sued by qrvo", 3]}) == {"a": ["the defendant sued by the plaintiff", 3]}
+
+
+def test_real_snapshot_passages_keep_no_identifier_after_the_roles_pass():
+    """Real passages (verdict release, captions, signature and service blocks, the indenture's parties, 10-Q risk
+    factors, officer signatures, the docket) against the hand-written list above, case-insensitively."""
+    passages = json.loads(FIXTURE.read_text())["passages"]
+    assert FIXTURE.stat().st_size < 50_000 and all(p["available_at"] <= "2024-06-20T23:59:59-04:00" for p in passages)
+    raw = normal(" ".join(p["text"] for p in passages))
+    assert not [a for a in REVIEW_FINDINGS if a not in raw]  # the passages do carry what the review found
+    roles = roles_for([akoustis_judgment().model_copy(update={"financing": (NOTES,)})], BORROWER)
+    after = {p["section_id"]: normal(roles(p["text"])) for p in passages}
+    leaked = {k: [a for a in MUST_NOT_SURVIVE if a in t] for k, t in after.items()}
+    assert not {k: v for k, v in leaked.items() if v}, leaked
+
+
+def test_name_forms_in_the_record_become_roles():
+    roles = roles_for([], BORROWER)
+    for raw, want in [("Signed by Judge Jon P McCalla on 5/20/2024.", "Signed by the judge on 5/20/2024."),
+                      ("(Golden, Ronald) (Entered: 01/06/2022)", "(counsel for the defendant) (Entered: 01/06/2022)"),
+                      ("U.S. Patent Nos. 7,522,018 and 9,735,755", "the first patent in suit and the second patent in suit"),
+                      ("the ’755 Patent", "the second patent in suit"),
+                      ("Grinding and Dicing Services, Inc. (GDSI)", "the defendant's subsidiary (the defendant's subsidiary)"),
+                      ("Huntersville , NC 28078", "the defendant's headquarters town"),
+                      ("30 days of the Court", "30 days of the Court"), ("party litigant", "party litigant")]:
+        assert roles(raw) == want, raw
