@@ -1,5 +1,5 @@
-"""Probabilistic analysis: probability composition, the signal reaching finance, no scenario deletion, cash
-conservation, paired simulation and weighted statistics. No network: judgments are supplied directly."""
+"""Probabilistic analysis: probability composition, no scenario deletion, cash conservation of event effects and
+weighted statistics (the line and petition are in test_line.py). No network: judgments are supplied directly."""
 
 import json
 from dataclasses import replace
@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 
 from app.agent.tools import ToolError, _date_in_text, _neutral_reference
-from app.analysis.core import Analysis, EventModel, stress
-from app.analysis.engine import run, schedule_arrays
+from app.analysis.core import Analysis, EventModel, neutral_overrides, stress
+from app.analysis.engine import run
 from app.analysis.events import Draws, EventCash, event_cash
 from app.analysis.setup import DRAWS, Setup
 from app.analysis.stats import weighted_quantiles
@@ -81,28 +81,6 @@ def test_conditional_probabilities_compose_and_conserve_mass():
     assert abs(m.probs({key: {"cash_deposit": 1, "surety_bond": 0, "letter_of_credit": 0}}).sum() - 1) < 1e-12
 
 
-# 2. The signal reaches finance --------------------------------------------------------------------------
-
-def test_a_node_probability_moves_dated_collections_by_a_hand_computable_amount():
-    # Tight cash: opening $1.0M, no operating flows, $900k financed at no fee (three $300k installments). On path A a
-    # $950k payment leaves $50k, so the first installment collects $50k and nothing more; on path B all is collected.
-    st = replace(SETUP, invoice_cents=90_000_000, amount_cents=90_000_000, fee_bps=0)
-    days, n = 180, 4
-    ops = np.zeros((n, days), dtype=np.int64)
-    hit = EventCash.zeros(n, days)
-    hit.cash[:, 0] = -95_000_000
-    a = run(st, 100_000_000, ops, hit)
-    b = run(st, 100_000_000, ops, EventCash.zeros(n, days))
-    due, maturity, _, total = schedule_arrays(st)
-    first = int(np.nonzero(due)[0][0])
-    assert (a.collections[:, first] == 5_000_000).all() and (b.collections[:, first] == 30_000_000).all()
-    assert (a.uncollected_maturity == 85_000_000).all() and (b.uncollected_maturity == 0).all()
-    for p in (0.0, 0.4, 1.0):  # expected uncollected balance is linear in the node probability
-        expected = p * a.uncollected_maturity.mean() + (1 - p) * b.uncollected_maturity.mean()
-        assert expected == pytest.approx(p * 85_000_000)
-    assert (a.lender_pv < b.lender_pv).all() and (a.dollar_days > b.dollar_days).all()  # capital tied up longer
-
-
 # 3. No scenario deletion --------------------------------------------------------------------------------
 
 def test_a_zero_probability_path_stays_in_the_stress_set():
@@ -141,18 +119,6 @@ def test_collateral_and_credit_capacity_are_released_exactly_on_the_settlement_d
             assert (ec.cash <= 0).all() and ec.cash.sum(axis=1).min() < 0
 
 
-def test_the_invoice_remainder_is_paid_once_and_collections_never_exceed_the_contract():
-    st = replace(SETUP, amount_cents=150_000_000)
-    ops = np.zeros((2, 180), dtype=np.int64)
-    financed = run(st, 1_000_000_000, ops, EventCash.zeros(2, 180))
-    full = run(SETUP, 1_000_000_000, ops, EventCash.zeros(2, 180))
-    _, _, _, total = schedule_arrays(st)
-    assert financed.collections.sum(axis=1).tolist() == [total, total]
-    # financed $1.5M: the borrower pays the $500k remainder once, and less to Slope; nothing else differs
-    diff = full.cash[0, -1] - financed.cash[0, -1]
-    assert diff == -((full.collections[0].sum() - financed.collections[0].sum()) - 50_000_000)
-
-
 def test_events_keep_the_full_window_jev_was_asked_about():
     # Enforcement runs 30-120 days after the ruling, which is drawn over the whole period: part of it falls past the
     # horizon. Those draws book nothing; no date is squeezed into the period.
@@ -163,18 +129,40 @@ def test_events_keep_the_full_window_jev_was_asked_about():
     assert 0.3 < inside < 0.95
 
 
-# 5. Paired simulation -----------------------------------------------------------------------------------
+# 5. Paired simulation and attribution -------------------------------------------------------------------
 
-def test_views_match_without_events_and_a_fixed_event_moves_cash_exactly():
+def test_views_match_without_events_and_event_cash_is_conserved():
     feed = load_feed(SNAP)
+    a = Analysis(feed, SETUP, EventModel({}, {}, {}, []))
+    v = a.views()
+    assert v["bank_only"] == v["event_adjusted"]  # no events: the same draws, the same line, identical outputs
     m = model_with([DE], p=0.5)
-    quiet = replace(m, per={"de": {"": [p for p in m.per["de"][""] if p.outcome in ("unresolved",)]}}, combos=[])
-    a = Analysis(feed, SETUP, quiet)
-    assert all((t.cash == a.bank.cash).all() for t in a.paths)  # no cash event: identical draws, identical results
-    ev_ = EventCash.zeros(DRAWS, 180)
-    ev_.cash[:, 29] = -300_000_000
-    moved = run(SETUP, feed.available_cents, a.ops, ev_)
-    assert (a.bank.cash[:, 29:] - moved.cash[:, 29:] == 300_000_000).all() and (a.bank.cash[:, :29] == moved.cash[:, :29]).all()
+    quiet = replace(m, per={"de": {"": [p for p in m.per["de"][""] if p.outcome == "unresolved"]}}, combos=[])
+    b = Analysis(feed, SETUP, quiet)
+    assert all((t.cash == b.bank.cash).all() and (t.collections == b.bank.collections).all() for t in b.paths)
+    hit = EventCash.zeros(DRAWS, 180)
+    hit.cash[:, 29] = -300_000_000
+    moved = run(b.line, feed.available_cents, hit)
+    step = np.where(np.arange(180) >= 29, 300_000_000, 0)
+    assert (b.bank.cash - moved.cash == step + np.cumsum(moved.collections - b.bank.collections, axis=1)
+            - np.cumsum(moved.fundings - b.bank.fundings, axis=1)).all()
+
+
+def test_attribution_is_three_reweightings_of_the_same_trajectories():
+    m = model_with([DE], p=0.3)
+    a = Analysis(load_feed(SNAP), SETUP, m)
+    steps = a.attribution()
+    assert [s["step"] for s in steps] == ["bank_only", "record", "jev"]
+    assert steps[0]["metrics"] == a.views()["bank_only"]["metrics"]
+    assert steps[2]["metrics"] == a.views()["event_adjusted"]["metrics"]
+    neutral = neutral_overrides(m)
+    assert all(sum(d.values()) == pytest.approx(1) and len(set(d.values())) == 1 for d in neutral.values())
+    assert steps[1]["metrics"] == a.views(neutral)["event_adjusted"]["metrics"]
+    assert steps[2]["delta"]["lender_pv_cents"] == steps[2]["metrics"]["lender_pv_cents"] - \
+        steps[1]["metrics"]["lender_pv_cents"]
+    key = next(iter(m.judgments))  # the event model's own neutral map, when it supplies one, is used as given
+    assert neutral_overrides(replace(m, neutral={key: {"yes": 1.0, "no": 0.0}}, combos=m.combos)) == \
+        {key: {"yes": 1.0, "no": 0.0}}
 
 
 # 6. Weighted statistics ---------------------------------------------------------------------------------
