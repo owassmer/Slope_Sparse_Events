@@ -125,3 +125,19 @@ def test_a_filed_appeal_sets_the_stage_and_is_not_forecast():
     paths = fc.paths(d)
     assert not any(n.node in ("appeal", "settle_after_judgment") for n in fc.nodes.values())
     assert all(p.steps[0][0] == "secured_stay" for p in paths)  # the stay is still open; "no appeal" is not a path
+
+
+
+class PostTrialJudge(WaiverJudge):
+    """As above, and the passages establish that timely post-trial motions against the judgment are pending."""
+
+    async def read(self, obligation, evidence, direction, subject_ids):
+        return [*await super().read(obligation, evidence, direction, subject_ids),
+                self._o("event_post_trial_motions_pending", noul_value=0.95)]
+
+
+def test_pending_post_trial_motions_place_the_judgment_in_post_trial():
+    fs = [finding("a", "q3_10q"), finding("b", "verdict_8k")]
+    d = asyncio.run(interpreter(fs, PostTrialJudge()).run())
+    assert d.stage == "post_trial" and d.status == "interpreted"
+    assert set(d.established) == {"judgment_entered", "post_trial_motions_pending"}

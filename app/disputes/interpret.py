@@ -27,7 +27,7 @@ from app.domain.investigation import (
 )
 
 ESTABLISHED = 0.5  # code-owned: a Noul value at or above this establishes a present-state fact
-DATED_STAGES = ("judgment_entered", "appeal_filed", "appeal_pending", "enforcement")
+DATED_STAGES = ("post_trial", "judgment_entered", "appeal_filed", "appeal_pending", "enforcement")
 QUOTE_CHARS = 300
 
 

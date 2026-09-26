@@ -246,6 +246,15 @@ class DisputeProfile:
                               {"factor_level": list(rubric)})
         return o
 
-    async def forecast(self, question_id, state, subject_ids):
-        [o] = await self._ask("dispute_forecast", [question_id], state, subject_ids)
+    async def forecast(self, question_id, state, subject_ids, branches: tuple[str, ...] | None = None):
+        """One residual question (registry 4.0.0), asked under its own profile. `branches` narrows a Choice to the
+        options the path's arithmetic leaves (e.g. no 'pay' where the amount exceeds cash on every trajectory)."""
+        from app.agent.jev import registry_question
+
+        entry = registry_question(question_id)
+        criteria = None
+        if branches is not None and entry["primitive"] == "choice":
+            full = entry["prompt"]["criteria"]
+            criteria = {question_id: {b: full[b] for b in branches}}
+        [o] = await self._ask(entry["profile"], [question_id], state, subject_ids, criteria)
         return o

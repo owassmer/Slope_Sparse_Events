@@ -1402,7 +1402,8 @@
           "seek_sale_or_financing": "seeks a sale, strategic transaction or new financing: timing only, it defers the filing decision to the next milestone and books no cash",
           "file": "files a petition (restructuring or insolvency)",
           "neither": "does none of these"
-        }
+        },
+        "criteria_from_host": true
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
     },
