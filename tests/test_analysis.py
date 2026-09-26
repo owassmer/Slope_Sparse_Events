@@ -130,7 +130,19 @@ def test_the_reduced_analysis_matches_the_full_trajectories():
     hw = w[rows]
     hq = weighted_quantiles(s("headroom").astype(np.float64), hw / hw.sum(), (0.05, 0.5, 0.95))
     got = [met["headroom_at_due"][k] for k in ("p5_cents", "p50_cents", "p95_cents")]
-    assert np.abs(np.array(got) - hq).max() <= a.r.bins["headroom"].width[0]
+    hb = a.r.bins["headroom"]
+    assert np.abs(np.array(got) - hq).max() <= hb.width.max()
+    month = a.r.month_of_day[np.concatenate([t.headroom_days for t in trajs])]
+    q5 = hb.quantiles(a.r.counts["headroom"].weighted(m.probs()), (0.05,))[0]
+    for k in np.unique(month):  # each month's P5 within half of that month's bin
+        sel = month == k
+        assert abs(q5[k] - weighted_quantiles(s("headroom")[sel].astype(np.float64), hw[sel] / hw[sel].sum(),
+                                              (0.05,))[0]) <= hb.width[k] / 2 + 1
+    # the bins are bounded by the limit, not by the invoices the borrower would route: small against the amounts
+    assert hb.width.max() < 0.01 * float(np.abs(hq).max()) and a.r.bins["collected"].width.max() < 0.05 * met["collected_p95_cents"]
+    exact_c = weighted_quantiles(s("collected").astype(np.float64), w, (0.05, 0.5, 0.95))  # exact at the horizon
+    assert [met[f"collected_{q}_cents"] for q in ("p5", "p50", "p95")] == list(exact_c)
+    assert [day[f"collected_{q}"][-1] for q in ("p5", "p50", "p95")] == list(np.rint(exact_c).astype(int))
     assert met["headroom_at_due"]["negative_p"] == pytest.approx(float(hw @ (s("headroom") < 0) / hw.sum()))
     for key, x in (("cash_mean", s("cash")), ("outstanding_mean", s("outstanding")),
                    ("collected_mean", np.cumsum(s("collections"), axis=1)), ("locked_mean", s("locked"))):

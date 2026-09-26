@@ -7,8 +7,10 @@ Memory is bounded by reducing each joint path as soon as it is simulated. Per pa
 scalars' means, the per-draw lowest cash and lowest headroom, the headroom values at each due date, per-day sums over
 draws (cash, collections, outstanding, petitions, frozen claim, ...) and per-day fixed-bin histograms of available cash
 and cumulative collections. Every expectation is exact (a probability-weighted sum of per-path means); a quantile of the
-daily cash or collections is read from the summed histograms, within one bin width of the exact weighted quantile. The
-bins are fixed across paths per day, from a first pass over the event cash alone, so no trajectory falls outside them.
+daily cash or collections is read from the summed histograms, within one bin width of the exact weighted quantile;
+collected at the horizon and the lowest cash and headroom are exact, from per-draw values. The bins are fixed across
+paths per day (headroom per month), from a first pass over the event cash and the line's limit (not the invoices the
+borrower would route), so no trajectory falls outside them and a bin is small against what the line moves.
 
 Each trajectory (joint path p, operating draw d) has weight P(p) / draws. Every structurally feasible path is simulated,
 whatever its probability; a zero-probability path simply carries no weight in the distribution and stays in stress.
@@ -96,7 +98,7 @@ def _scalars(t: Trajectories) -> dict[str, np.ndarray]:
     return out
 
 
-CASH_BINS, COLLECTED_BINS, HEADROOM_BINS = 128, 64, 256
+CASH_BINS, COLLECTED_BINS, HEADROOM_BINS = 128, 128, 1024
 # Per-day sums over draws kept for every path (expectations reweight them exactly).
 DAILY = ("cash", "backup", "collected", "due_cum", "drawn", "fundings", "collections", "outstanding", "locked",
          "capacity", "petitioned", "frozen", "past_due", "clawback")
@@ -128,6 +130,14 @@ class Bins:
         cum = np.cumsum(h, axis=1)
         return np.stack([self.lo[:len(h)] + (np.argmax(cum >= q - 1e-12, axis=1) + 0.5) * self.width[:len(h)]
                          for q in qs])
+
+
+    def pooled_quantiles(self, h: np.ndarray, qs: tuple[float, ...]) -> np.ndarray:
+        """Quantiles over all rows together from weighted counts h [rows, n] (rows with their own bins): each bin
+        at its midpoint, so within half of its row's bin width of the exact quantile."""
+        mids = self.lo[:len(h), None] + (np.arange(self.n) + 0.5) * self.width[:len(h), None]
+        keep = h.ravel() > 0
+        return weighted_quantiles(mids.ravel()[keep], h.ravel()[keep] / h.sum(), qs)
 
 
 class Counts:
@@ -175,6 +185,7 @@ class Reduction:
         self.means: dict[str, np.ndarray] = {}
         self.min_cash = np.empty((n, draws), dtype=np.int64)
         self.min_headroom = np.empty((n, draws), dtype=np.int64)
+        self.collected = np.empty((n, draws), dtype=np.int64)  # per draw, at the horizon (exact quantiles)
         self.per_day = {k: np.zeros((n, days)) for k in DAILY}
         self.counts = {"cash": Counts(days, bins["cash"].n), "collected": Counts(days, bins["collected"].n),
                        "headroom": Counts(len(bins["headroom"].lo), bins["headroom"].n)}
@@ -185,7 +196,7 @@ class Reduction:
     def add(self, i: int, t: Trajectories) -> None:
         for k, v in _scalars(t).items():
             self.means.setdefault(k, np.zeros(self.n))[i] = float(v.mean())
-        self.min_cash[i], self.min_headroom[i] = t.min_cash, t.min_headroom
+        self.min_cash[i], self.min_headroom[i], self.collected[i] = t.min_cash, t.min_headroom, t.collected
         idx, pet = np.arange(self.days), t.petition[:, None]
         by_day = (pet >= 0) & (pet <= idx)
         window = (pet >= 0) & (idx >= pet - PREFERENCE_DAYS) & (idx < pet)
@@ -227,16 +238,17 @@ class Reduction:
         # headroom at each due date, pooled over (trajectory, due date), each weighted by its trajectory
         headroom, hw = None, probs @ self.hr_count
         if hw > 0:
-            pooled = self.counts["headroom"].weighted(probs, normalise=False).sum(axis=0, keepdims=True)
-            hq = self.bins["headroom"].quantiles(pooled / pooled.sum(), QS)[:, 0]
+            hq = self.bins["headroom"].pooled_quantiles(self.counts["headroom"].weighted(probs, normalise=False), QS)
             headroom = {"p5_cents": float(hq[0]), "p50_cents": float(hq[1]), "p95_cents": float(hq[2]),
                         "negative_p": float(probs @ self.hr_negative / hw)}
         mins = self.min_headroom[live].ravel()
         has = mins != NO_DUE
         low = weighted_quantiles(mins[has].astype(np.float64), w[has] / w[has].sum(), QS) if has.any() else None
+        kq = self.collected_quantiles(probs)
         return {
             "drawn_cents": e["drawn"], "fees_cents": e["fees"], "contractual_cents": e["contractual"],
             "collected_cents": e["collected"], "stayed_claim_cents": e["stayed"],
+            "collected_p5_cents": float(kq[0]), "collected_p50_cents": float(kq[1]), "collected_p95_cents": float(kq[2]),
             "stayed_claim_recovery": "unknown: stayed from the petition, recovered (if at all) after the horizon",
             "stayed_principal_cents": e["stayed_principal"], "preference_exposed_cents": e["preference"],
             "not_yet_due_cents": e["not_yet_due"], "uncollected_horizon_cents": e["uncollected"],
@@ -255,11 +267,19 @@ class Reduction:
             "uncollected_maturity_cents": e["unrecovered"],
         }
 
+    def collected_quantiles(self, probs: np.ndarray) -> np.ndarray:
+        """P5 / P50 / P95 of collected at the horizon, exact from each trajectory's total."""
+        probs = np.asarray(probs, dtype=np.float64)
+        live = probs > 0
+        w = np.repeat(probs[live] / probs[live].sum(), self.draws) / self.draws
+        return weighted_quantiles(self.collected[live].ravel().astype(np.float64), w, QS)
+
     def daily(self, probs: np.ndarray) -> dict:
         probs = np.asarray(probs, dtype=np.float64)
         E = {k: (probs @ v) / self.draws for k, v in self.per_day.items()}
         cq = self.bins["cash"].quantiles(self.counts["cash"].weighted(probs), QS)
         kq = self.bins["collected"].quantiles(self.counts["collected"].weighted(probs), QS)
+        kq[:, -1] = self.collected_quantiles(probs)  # at the horizon, exact from the per-draw totals
         cum_p = E["petitioned"]
         exposure = np.divide(E["frozen"], cum_p, out=np.zeros(self.days), where=cum_p > 0)
         lim = self.limit  # the reassessed limit is set by operating draws alone, so it is the same on every path
@@ -309,10 +329,11 @@ class Analysis:
                 self.stress_rows.append(self._stress_row(c))
                 self._tick("stress", i, len(model.combos))
             return
-        bins = self._bins()
         days = [setup.review + timedelta(days=t + 1) for t in range(self.days)]
         self.months = sorted({(d.year, d.month) for d in days})
         month_of_day = np.array([self.months.index((d.year, d.month)) for d in days], dtype=np.int64)
+        self.month_of_day = month_of_day
+        bins = self._bins()
 
         def make(n: int) -> Reduction:
             return Reduction(n, DRAWS, self.days, setup, self.line.limit, bins, month_of_day)
@@ -329,10 +350,15 @@ class Analysis:
         self.means = self.r.means
 
     def _bins(self) -> dict[str, Bins]:
-        """Per-day ranges that hold every trajectory: the bank-only cash, moved by the cumulative event cash (a first
-        pass over the event cash alone) and by at most the line's own swing (funded less collected lies between
-        -fee x routed and the highest limit); cumulative collections lie between 0 and routed x (1 + fee); headroom
-        at a due date (one range for every month) lies within the cash range, less need and at most all owed."""
+        """Per-day ranges that hold every trajectory, bounded by what the line can move (its limit), not by the
+        invoices the borrower would route:
+        - funded by day t <= the highest limit so far + principal repaid, and only draws whose first installment has
+          fallen due can have been repaid, so cumulative collections C(t) <= (1 + fee) x limit + C(first due of a draw
+          made after t's last repayable draw); funded F(t) <= limit + C(t) / (1 + fee);
+        - available cash: the bank-only cash, moved by the cumulative event cash (a first pass over the event cash
+          alone) and by at most the line's own swing (funded less collected lies between -fee x F and the limit);
+        - headroom at a due date, per month: that month's cash range, less the need and at most all owed, and owed
+          is at most (1 + fee) x principal outstanding <= (1 + fee) x the highest limit."""
         lo_ev, hi_ev = np.zeros(self.days), np.zeros(self.days)
         for i, c in enumerate(self.model.combos):
             self._tick("bins", i, len(self.model.combos))
@@ -340,16 +366,24 @@ class Analysis:
             cum = np.cumsum(ev.cash - ev.lock, axis=1)
             np.minimum(lo_ev, cum.min(axis=0), out=lo_ev)
             np.maximum(hi_ev, cum.max(axis=0), out=hi_ev)
-        routed = np.cumsum(self.line.routes.sum(axis=2), axis=1).max(axis=0)
         fee = (self.setup.fee_bps + 1) / 10_000  # + 1 bp covers the half-up cent on each draw
-        margin = float(self.line.limit.max()) + routed * fee + 10_000
+        lim = np.maximum.accumulate(self.line.limit.max(axis=0).astype(np.float64)) + 10_000
+        first_due = self.line.due_idx[:, 0]
+        coll, fund = np.zeros(self.days), np.zeros(self.days)
+        for t in range(self.days):
+            repayable = np.flatnonzero(first_due <= t)  # draws made on these days may have been collected by t
+            prev = coll[int(repayable.max())] if repayable.size else 0.0
+            coll[t] = (1 + fee) * lim[t] + prev if repayable.size else 0.0
+            fund[t] = lim[t] + coll[t] / (1 + fee)
+        coll = np.maximum.accumulate(coll) + 10_000
+        margin = lim + fund * fee + 10_000
         lo, hi = self.bank.cash.min(axis=0) + lo_ev - margin, self.bank.cash.max(axis=0) + hi_ev + margin
-        owed = float(routed[-1]) * (1 + fee) + 10_000
-        months = len({(d.year, d.month) for d in (self.setup.review + timedelta(days=t + 1) for t in range(self.days))})
-        h_lo = float(lo.min()) - float(self.line.need.max()) - owed - float(self.line.routes.sum(axis=2).max())
-        return {"cash": Bins.spanning(lo, hi, CASH_BINS),
-                "collected": Bins.spanning(np.zeros(self.days), routed * (1 + fee) + 10_000, COLLECTED_BINS),
-                "headroom": Bins.spanning(np.full(months, h_lo), np.full(months, float(hi.max()) + owed), HEADROOM_BINS)}
+        owed = (1 + fee) * float(lim.max()) + 10_000
+        low = lo - self.line.need[:, :self.days].max(axis=0) - owed
+        h_lo = np.array([low[self.month_of_day == k].min() for k in range(len(self.months))])
+        h_hi = np.array([hi[self.month_of_day == k].max() for k in range(len(self.months))])
+        return {"cash": Bins.spanning(lo, hi, CASH_BINS), "collected": Bins.spanning(np.zeros(self.days), coll, COLLECTED_BINS),
+                "headroom": Bins.spanning(h_lo, h_hi, HEADROOM_BINS)}
 
     def event_cash(self, combo: tuple[DisputePath, ...]) -> EventCash:
         ev = EventCash.zeros(DRAWS, self.days)
