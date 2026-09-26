@@ -186,10 +186,13 @@
   }
 
   // --- outcomes ---------------------------------------------------------------------------------------------------
-  function classProbs() { const c = new Float64Array(D.classes.length); for (let i = 0; i < P; i++) c[D.paths.class[i]] += probs[i]; return c; }
+  // Each path carries its share of draws in each class ([class, share] pairs): a path's draws whose petition falls
+  // inside the horizon are Filed, the rest keep the path's other outcome. So the Filed shares sum to the tile.
+  function classProbs() { const c = new Float64Array(D.classes.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
+  const shareIn = (i, cls) => { for (const [k, s] of D.paths.class[i]) if (k === cls) return s; return 0; };
   function topSequences(cls, n = 3) {
     const m = new Map();
-    for (let i = 0; i < P; i++) if (cls === null || D.paths.class[i] === cls) m.set(D.paths.seq[i], (m.get(D.paths.seq[i]) || 0) + probs[i]);
+    for (let i = 0; i < P; i++) { const w = cls === null ? probs[i] : probs[i] * shareIn(i, cls); if (w > 0) m.set(D.paths.seq[i], (m.get(D.paths.seq[i]) || 0) + w); }
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
   }
   function renderOutcomes() {

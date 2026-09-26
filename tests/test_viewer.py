@@ -44,11 +44,10 @@ def test_tampered_run_fails_verification(tmp_path):
 @pytest.fixture(scope="module")
 def small_page():
     """The page payload on the $2M small judgment (tests/test_analysis.py SMALL), neutral judgments."""
-    import numpy as np
     from akoustis_fixture import REVIEW, SETUP, SNAP, basis, judgment
 
     from app.analysis.core import Analysis, EventModel, stress
-    from app.analysis.page import page_payload
+    from app.analysis.page import CLASSES, class_matrix, page_payload
     from app.disputes.forecast import Forecaster, Judgment, neutral_map
     from app.finance.bank import load_feed
 
@@ -66,7 +65,7 @@ def small_page():
     rows = [{"index": r["index"], **r} for r in stress(load_feed(SNAP), SETUP, m)]
     p = page_payload(a, m, fc, borrower="Akoustis Technologies, Inc.", snapshot_id=SNAP, neutral=True, stress_rows=rows)
     state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": m, "months": a.months,
-             "class_of_path": np.array(p["paths"]["class"])}
+             "class_of_path": class_matrix(p["paths"]["class"], len(CLASSES))}
     return a, m, state
 
 
@@ -113,3 +112,20 @@ def test_the_browser_reweight_arithmetic_matches_the_analysis_for_one_override(s
         assert float(np.dot(probs, p["paths"]["scalars"][k])) == pytest.approx(ref[k], rel=1e-6, abs=1.0), k
     out = reweight(state, {node["key"]: moved})
     assert out["daily"]["outstanding_mean"] == a.r.daily(m.probs(override))["outstanding_mean"]
+
+
+def test_filed_shares_sum_to_the_bankruptcy_probability(small_page):
+    """Outcomes are classed by draw: the Filed shares on the bar equal the Bankruptcy probability tile, and every
+    path's shares sum to one."""
+    import numpy as np
+
+    from app.analysis.page import CLASSES
+
+    a, m, state = small_page
+    p, cm = state["payload"], state["class_of_path"]
+    assert np.allclose(cm.sum(axis=1), 1.0, atol=1e-4)
+    filed = [i for i, (c, _) in enumerate(CLASSES) if c.startswith("filed")]
+    for probs in (m.probs(), np.full(len(m.combos), 1 / len(m.combos))):
+        tile = float(np.dot(probs, p["paths"]["scalars"]["petition_p"]))
+        assert float(probs @ cm[:, filed].sum(axis=1)) == pytest.approx(tile, abs=1e-12)
+        assert tile == pytest.approx(a.expected(probs)["petition_p"], abs=1e-4)

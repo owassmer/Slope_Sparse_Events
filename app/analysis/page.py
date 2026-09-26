@@ -72,8 +72,8 @@ def context_text(context: str, ranges: dict[str, tuple[int, int]]) -> str:
     return "; ".join(p for p in parts if p)
 
 
-def outcome_class(steps: tuple, outcome: str) -> str:
-    """Filed (by the first filing step on the path), else the path's outcome."""
+def filing_cause(steps: tuple) -> str:
+    """The class of a filing on this path: its first filing step (Qorvo enforcement if none is named)."""
     for node, _ctx, branch in steps:
         if node == "debtor_response" and branch == "file":
             return "filed_enforcement"
@@ -81,7 +81,28 @@ def outcome_class(steps: tuple, outcome: str) -> str:
             return "filed_notes"
         if node == "cash_floor" and branch == "yes":
             return "filed_cash"
-    return "filed_enforcement" if outcome == "petition" else OUTCOME_CLASS.get(outcome, "unresolved")
+    return "filed_enforcement"
+
+
+def outcome_shares(steps: tuple, outcome: str, petition_p: float) -> dict[str, float]:
+    """The path's draws by outcome class at the end of the period, classed by draw, not by path: the draws whose
+    petition falls inside the horizon are Filed (by the path's filing cause); the rest are the class the path is in
+    without the filing (Unresolved unless it is otherwise settled, paid, stayed or vacated). So the Filed shares,
+    weighted by path probability, sum to the bankruptcy probability exactly."""
+    rest = OUTCOME_CLASS.get(outcome, "unresolved")
+    out = {rest: 1.0 - petition_p} if petition_p < 1.0 else {}
+    if petition_p > 0.0:
+        out[filing_cause(steps)] = petition_p
+    return out
+
+
+def class_matrix(paths_class: list, n_classes: int) -> np.ndarray:
+    """[paths, classes] shares of draws, from the payload's sparse per-path [class, share] pairs."""
+    m = np.zeros((len(paths_class), n_classes))
+    for i, pairs in enumerate(paths_class):
+        for c, share in pairs:
+            m[i, c] = share
+    return m
 
 
 def _when(review: date, day: np.ndarray | None, exact: bool = False) -> str:
@@ -348,8 +369,12 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
     lead = [c[0] for c in model.combos]
     d0 = model.disputes[lead[0].instance_id] if lead and lead[0].steps else None
     classes, seqs, seq_ix = [], [], {}
-    for p in lead:
-        classes.append(outcome_class(p.steps, p.outcome))
+    pet = np.round(a.r.means["petition_p"], 4)  # the tile's own per-path values, so Filed sums to the tile exactly
+    shares = []
+    for i, p in enumerate(lead):
+        sh = outcome_shares(p.steps, p.outcome, float(pet[i]))
+        shares.append(sh)
+        classes.append(max(sh, key=sh.get))  # the main class, for the worst-paths table
         tr = fc.trace(d0, p.steps) if d0 is not None and p.steps else None
         text = sequence(p.steps, tr.day, tr.petition, setup.review, a.days, ranges) if tr else "No dispute events"
         seqs.append(seq_ix.setdefault(text, len(seq_ix)))
@@ -366,7 +391,8 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         "need_mean": np.rint(a.line.need.mean(axis=0)).astype(np.int64).tolist(),
         "pins": _pins(d0, m) if d0 is not None else {},
         "nodes": nodes, "composites": enc["composites"],
-        "paths": {"edges": enc["paths"], "class": [cls_ix[c] for c in classes], "seq": seqs,
+        "paths": {"edges": enc["paths"], "class": [[[cls_ix[c], round(v, 4)] for c, v in sh.items()] for sh in shares],
+                  "seq": seqs,
                   "scalars": {k: np.round(a.r.means[k], 4 if k == "petition_p" else 0).tolist() for k in TILES}},
         "classes": [label for _, label in CLASSES], "sequences": list(seq_ix),
         "bank": {"scalars": {k: float(a.bank_r.means[k][0]) for k in TILES},
@@ -421,6 +447,7 @@ SETTINGS = [
      "value": False, "options": [[False, "The increase"], [True, "The whole amount"]]},
 ]
 LINE_KEYS = {s["key"] for s in SETTINGS if s["kind"] == "line"}
+PAGE_FORMAT = 2  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
 def build_dev(settings: dict | None = None, progress=None) -> dict:
@@ -465,7 +492,7 @@ def build_dev(settings: dict | None = None, progress=None) -> dict:
     payload["meta"]["dev"] = True
     payload["settings_value"] = settings
     return {"payload": payload, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months,
-            "class_of_path": np.array(payload["paths"]["class"])}
+            "class_of_path": class_matrix(payload["paths"]["class"], len(CLASSES))}
 
 
 def reweight(state: dict, overrides: dict[str, list[float]] | None, classes: list[int] | None = None) -> dict | None:
@@ -476,7 +503,7 @@ def reweight(state: dict, overrides: dict[str, list[float]] | None, classes: lis
           for k, v in (overrides or {}).items() if k in model.judgments}
     probs = model.probs(ov)
     if classes is not None:
-        probs = probs * np.isin(state["class_of_path"], classes)
+        probs = probs * state["class_of_path"][:, classes].sum(axis=1)  # each path by its share of draws in them
     return chart_view(state["r"], probs, state["months"])
 
 
@@ -499,7 +526,7 @@ class DevPage:
         from app.config import VAR
 
         full = {s["key"]: (settings or {}).get(s["key"], s["value"]) for s in SETTINGS}
-        tag = hashlib.sha1(json.dumps(full, sort_keys=True).encode()).hexdigest()[:10]
+        tag = hashlib.sha1(json.dumps({**full, "_format": PAGE_FORMAT}, sort_keys=True).encode()).hexdigest()[:10]
         return VAR / "dev" / f"akoustis_page_{tag}.pkl"
 
     def load(self, settings: dict | None = None) -> dict | None:
