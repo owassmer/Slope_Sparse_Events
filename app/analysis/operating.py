@@ -63,12 +63,14 @@ def _month_key(d: date) -> tuple[int, int]:
 
 
 def block_months(feed: BankFeed, months: int = BLOCK_MONTHS) -> list[tuple[int, int]]:
-    """The last `months` complete calendar months before the review date."""
+    """Up to `months` complete calendar months before the review date, only months the feed covers. A month before
+    the feed's first transaction has no flows; sampling it would draw an empty month and inflate the spread."""
+    first = min(_month_key(date.fromisoformat(t["date"])) for t in feed.transactions)
     y, m = feed.period_end.year, feed.period_end.month
     if (feed.period_end + timedelta(days=1)).month == m:  # the review month is incomplete
         y, m = (y, m - 1) if m > 1 else (y - 1, 12)
     out = []
-    for _ in range(months):
+    while len(out) < months and (y, m) >= first:
         out.append((y, m))
         y, m = (y, m - 1) if m > 1 else (y - 1, 12)
     return out[::-1]

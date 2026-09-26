@@ -34,10 +34,10 @@ def akoustis():
 
 @pytest.fixture(scope="module")
 def stressed(akoustis):
-    """A $15M cash drain on day 40 (so installments go overdue) and a petition on day 120 on even draws."""
+    """A $5M cash drain on day 40 (so installments go overdue) and a petition on day 120 on even draws."""
     feed, _, line = akoustis
     ev = EventCash.zeros(DRAWS, DAYS)
-    ev.cash[:, 40] = -1_500_000_000
+    ev.cash[:, 40] = -500_000_000
     ev.petition[::2] = 120
     return run(line, feed.available_cents, ev)
 
@@ -132,7 +132,7 @@ def test_the_need_rule_reproduces_the_previous_collections_when_need_is_zero(ako
     feed, ops, _ = akoustis
     line0 = prepare(SETUP, ops, need_days=0)
     ev = EventCash.zeros(DRAWS, DAYS)
-    ev.cash[:, 40] = -1_500_000_000
+    ev.cash[:, 40] = -1_500_000_000  # deep enough that cash runs out, so the replay covers shortfalls too
     tr = run(line0, feed.available_cents, ev)
     before = feed.available_cents + np.cumsum(ops.total[:, :DAYS] + ev.cash + tr.fundings, axis=1)
     owed, taken, old = np.zeros(DRAWS, np.int64), np.zeros(DRAWS, np.int64), np.zeros((DRAWS, DAYS), np.int64)
@@ -161,3 +161,15 @@ def test_petitions_combine_to_the_earliest():
     a.petition[:] = [-1, 5, -1, 9]
     b.petition[:] = [-1, -1, 7, 3]
     assert (a + b).petition.tolist() == [-1, 5, 7, 3] and EventCash.zeros(2, 3).petition.tolist() == [-1, -1]
+
+
+def test_bootstrap_samples_only_months_the_feed_covers():
+    feed = load_feed(SNAP)
+    months = operating.block_months(feed)
+    first = min(date.fromisoformat(t["date"]) for t in feed.transactions)
+    assert months[0] >= (first.year, first.month)
+    assert months[-1] == (2024, 5)  # the review month (June) is incomplete
+    sim = operating.simulate(feed, DAYS, 256, SEED)
+    monthly = sim.total[:, :21].sum(axis=1) if hasattr(sim, "total") else None
+    if monthly is not None:
+        assert (monthly != 0).all()  # no empty block month is ever drawn

@@ -250,8 +250,10 @@ class Analysis:
             rows.append({"key": key, "variants": results, "jev": base,
                          "range": {m: max(r[m] for r in results.values()) - min(r[m] for r in results.values())
                                    for m in metrics}})
-        return sorted(rows, key=lambda r: (-round(r["range"]["lender_pv"], 2), -round(r["range"]["dollar_days"], 2),
-                                           -r["range"]["unrecovered"], -r["range"]["min_cash"]))
+        # Ranked by the lender's loss first: owed and uncollected, or stayed by a petition. Lender PV within the horizon
+        # mostly tracks draw volume, so it only breaks ties.
+        return sorted(rows, key=lambda r: (-round(r["range"]["unrecovered"], 2), -round(r["range"]["lender_pv"], 2),
+                                           -round(r["range"]["dollar_days"], 2), -r["range"]["min_cash"]))
 
 
 def stress(feed: BankFeed, setup: Setup, model: EventModel, overrides: dict | None = None) -> list[dict]:
