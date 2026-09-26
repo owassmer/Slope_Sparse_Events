@@ -83,9 +83,10 @@ class Draws:
         return self.cache[k]
 
     def lag(self, model: dict, *key: str) -> np.ndarray:
-        """A ruling lag drawn from the measured sample (Data), per trajectory; the longest in stress."""
+        """A ruling lag drawn from the measured sample (Data), per trajectory; in stress the fastest, so increases,
+        stays' collateral and levies fall as early as the record allows."""
         sample = np.array(sorted(model["parameters"]["ruling_lag_days"]["sample"]), dtype=np.int64)
-        u = self.u(*key, "ruling_lag", adverse_high=False)  # a late ruling keeps the entered judgment enforceable
+        u = self.u(*key, "ruling_lag", adverse_high=False)
         return sample[np.minimum((u * len(sample)).astype(np.int64), len(sample) - 1)]
 
 
@@ -392,12 +393,13 @@ class Chain:
         N, full = self.N, (lambda v: np.full(self.n, v, dtype=np.int64))
         if node == "settle":
             start = {"I1": full(-1), "I2": self.F, "I3": self.EF, "I4": self.stayed_from}[ctx]
+            start = np.maximum(start, -1)  # an interval that began before the review date runs from it
             end = {"I1": self.F, "I2": self.AD, "I3": full(N - 1), "I4": full(N - 1)}[ctx]
             if branch == "yes":
                 pd = self.settle(start, end)
                 if ctx == "I4":  # the bond is discharged when the settlement is paid
                     self.book(self.ev.lock, pd, -np.where(self.live(pd - 1), self.lock_amount, 0))
-            return np.maximum(start, 0)
+            return np.where(end < 0, BIG, np.maximum(start, 0))  # a closed interval asks nothing
         if node == "execute_pre_ruling":
             self.q1 = branch == "yes"
             return full(self.E0)
@@ -407,7 +409,7 @@ class Chain:
                 self.stay(motion, f"stay_{ctx}")
             return motion
         if node == "debtor_response":
-            milestone = full(self.E0) if ctx == "I1" else self.EF
+            milestone = full(self.E0) if ctx == "I1" else np.maximum(self.EF, 0)
             if branch == "pay":
                 ok = self.live(milestone) & (milestone < N) & (self.cash_at(milestone) >= self.owed_at(milestone))
                 amt = np.where(ok, self.owed_at(milestone), 0)
@@ -430,7 +432,7 @@ class Chain:
                 ripe = full(self.e_ix + f.judgment_default_days)
                 cond = (self.F > ripe) & (self.entered - f.insured_cents > f.judgment_default_threshold_cents)
             else:
-                ripe = self.EF + f.judgment_default_days
+                ripe = np.maximum(self.EF, self.e_ix) + f.judgment_default_days
                 amount = (self.cls_amount or 0) - f.insured_cents
                 cond = (self.F >= 0) & (amount > f.judgment_default_threshold_cents)
             cond = cond & (self.stayed_from > ripe) & self.live(ripe) & (self.owed_at(ripe) > 0)
@@ -448,7 +450,7 @@ class Chain:
             return self.F
         if node == "appeal":
             self.appealed = branch == "yes"
-            return self.F
+            return np.where(self.AD < 0, BIG, np.maximum(self.F, 0))  # the time to appeal has run: nothing to ask
         if node == "enforce":
             if branch == "levy":
                 if (self.early_registration < BIG).any():
@@ -460,8 +462,8 @@ class Chain:
                     order = self.EF + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid,
                                                                                          "registration_post")
                     day = np.where(self.early_registration < BIG, np.maximum(self.EF, self.early_registration), order)
-                self.levy(day)
-            return self.EF
+                self.levy(np.maximum(day, 0))
+            return np.maximum(self.EF, 0)
         if node == "listing":
             dates = self.listing_dates()
             if branch.startswith("delisted"):
