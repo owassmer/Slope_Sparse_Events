@@ -1,0 +1,208 @@
+{
+ "case": "akoustis_20240620",
+ "decision_date": "2024-06-20",
+ "period_ends": "2024-12-17",
+ "note": "Builder-side reveal: what happened after the decision date, from free public filings (EDGAR, RECAP). Outside the snapshot; never reachable by the agent, its tools or Jev.",
+ "events": [
+  {
+   "date": "2024-06-26",
+   "kind": "financing",
+   "description": "Akoustis issues an $8.0M secured, non-interest-bearing note to a key customer, repaid against sales to that customer.",
+   "amount_cents": 800000000,
+   "source": "Form 10-K for FY2024 (filed 8 Oct 2024)",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024085984/ea0209774-10k_akoustis.htm",
+   "quote": "On June 26, 2024, the Company issued a secured note (the “Customer Note”) in the original principal amount of $8.0 million issued by the Company to a key customer. The Customer Note does not bear interest and is subject to periodic repayment against sales made to the customer. The Customer Note is secured by certain of the Company’s assets."
+  },
+  {
+   "date": "2024-08-19",
+   "kind": "listing",
+   "description": "Nasdaq staff determines to delist the stock (bid at $0.10 or less for ten days); Akoustis says it will request a hearing.",
+   "amount_cents": null,
+   "source": "Form 8-K, 23 Aug 2024",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024072241/ea021196401-8k_akoustis.htm",
+   "quote": "On August 19, 2024, the Company received notice from the Staff indicating that the bid price for the Company’s common stock had closed at $0.10 or less per share for the 10-consecutive trading day period ended August 16, 2024"
+  },
+  {
+   "date": "2024-09-09",
+   "kind": "court",
+   "description": "Court awards Qorvo $11,743,745.54 in attorneys' fees (asked $12,116,123.30).",
+   "amount_cents": 1174374554,
+   "source": "D.I. 690, order on attorneys' fees",
+   "source_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.690.0.pdf",
+   "quote": "resulting in a total fee award of $11,743,745.54."
+  },
+  {
+   "date": "2024-09-10",
+   "kind": "court",
+   "description": "Court awards pre-judgment interest ($51,782 patent; $6,589,064.41 trade secrets) and post-judgment interest; $7,257,436.97 in all.",
+   "amount_cents": 725743697,
+   "source": "D.I. 699, order on pre- and post-judgment interest",
+   "source_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.699.0.pdf",
+   "quote": "Plaintiff shall be entitled to judgment in the amount of $7,257,436.97."
+  },
+  {
+   "date": "2024-10-08",
+   "kind": "liquidity",
+   "description": "FY2024 10-K: $24.4M cash at 30 Jun 2024; cash expected to last into the third fiscal quarter of 2025 (Jan–Mar 2025).",
+   "amount_cents": 2440000000,
+   "source": "Form 10-K for FY2024 (filed 8 Oct 2024)",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024085984/ea0209774-10k_akoustis.htm",
+   "quote": "As of June 30, 2024, the Company had cash and cash equivalents of $ 24.4 million and working capital deficit of $ 46.3 million. In the absence of additional liquidity, the Company anticipates that its existing cash resources, with a continued focus on cash conservation, is sufficient to fund its operations into the third quarter of fiscal 2025."
+  },
+  {
+   "date": "2024-10-08",
+   "kind": "liquidity",
+   "description": "FY2024 10-K: the awards raise substantial doubt about going concern; without an appeal and a bond, Akoustis expects to be forced into Chapter 11.",
+   "amount_cents": null,
+   "source": "Form 10-K for FY2024 (filed 8 Oct 2024)",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024085984/ea0209774-10k_akoustis.htm",
+   "quote": "these matters raise substantial doubt about the Company’s ability to continue as a going concern. If we elect not to appeal an adverse final judgment or the Awards, or if we are unable to post an undertaking (such as an appeal bond) to enable us to do so, we will likely be forced to pursue a reorganization proceeding under Chapter 11 of the U.S. Bankruptcy Code."
+  },
+  {
+   "date": "2024-10-11",
+   "kind": "court",
+   "description": "Court grants Qorvo's permanent injunction in part.",
+   "amount_cents": null,
+   "source": "D.I. 709, order on the permanent injunction",
+   "source_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.709.0.pdf",
+   "quote": "Plaintiff’s Motion for Permanent Injunctive Relief is GRANTED IN PART AND DENIED IN PART."
+  },
+  {
+   "date": "2024-10-14",
+   "kind": "listing",
+   "description": "Nasdaq panel keeps the listing on condition that the bid price complies by 17 Dec 2024.",
+   "amount_cents": null,
+   "source": "Form 8-K, 15 Oct 2024",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024087870/ea021768101-8k_akoustis.htm",
+   "quote": "On October 14, 2024, the Company received a decision from the Panel granting its request for continued listing on The Nasdaq Capital Market, subject to the following conditions: · On or before December 17, 2024, the Company must demonstrate compliance with the Minimum Bid Price Requirement"
+  },
+  {
+   "date": "2024-10-15",
+   "kind": "court",
+   "description": "Court denies Qorvo's motion to treble (UDTPA).",
+   "amount_cents": null,
+   "source": "D.I. 711",
+   "source_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.711.0.pdf",
+   "quote": "Plaintiff’s Motion to Amend the Judgment is DENIED."
+  },
+  {
+   "date": "2024-10-31",
+   "kind": "court",
+   "description": "Court denies Akoustis's motions for JMOL, new trial or remittitur.",
+   "amount_cents": null,
+   "source": "D.I. 715",
+   "source_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.715.0.pdf",
+   "quote": "Defendants’ Motion for Judgment as a Matter of Law is DENIED. Defendants’ Motion for New Trial or in the Alternative for Remittitur is DENIED."
+  },
+  {
+   "date": "2024-11-14",
+   "kind": "liquidity",
+   "description": "10-Q: $12.1M cash at 30 Sep 2024.",
+   "amount_cents": 1210000000,
+   "source": "Form 10-Q for the quarter to 30 Sep 2024",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024097800/ea0218907-10q_akoustis.htm",
+   "quote": "As of September 30, 2024, the Company had cash and cash equivalents of $ 12.1 million and working capital deficit of $ 54.4 million."
+  },
+  {
+   "date": "2024-11-21",
+   "kind": "court",
+   "description": "Amended final judgment: $38,595,023 damages, $11,743,745.54 fees, $51,782 and $6,589,064.41 pre-judgment interest, plus post-judgment interest at 5.138%.",
+   "amount_cents": 5697961495,
+   "source": "D.I. 717, amended final judgment",
+   "source_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.717.0.pdf",
+   "quote": "An Amended Final Judgment is entered against Akoustis Technologies, Inc. and Akoustis, Inc. consisting of the amounts of: • $38,595,023.00 caused by Akoustis Technologies, Inc.’s and Akoustis, Inc.’s infringement and misappropriation."
+  },
+  {
+   "date": "2024-11-21",
+   "kind": "listing",
+   "description": "Annual meeting (reverse split vote) adjourned for lack of quorum, to 12 Dec.",
+   "amount_cents": null,
+   "source": "Form 8-K, 21 Nov 2024",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024101011/ea0222015-8k_akoustis.htm",
+   "quote": "adjourned the Annual Meeting until December 12, 2024 at 11:00 am, Eastern Time due to a lack of quorum."
+  },
+  {
+   "date": "2024-11-29",
+   "kind": "court",
+   "description": "Akoustis appeals to the Federal Circuit (no bond disclosed).",
+   "amount_cents": null,
+   "source": "D.I. 719, notice of appeal",
+   "source_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.719.0.pdf",
+   "quote": "hereby serve notice that they are appealing to the United States Court of Appeals for the Federal Circuit"
+  },
+  {
+   "date": "2024-12-12",
+   "kind": "listing",
+   "description": "Annual meeting adjourned again, to 9 Jan 2025: no reverse split before 17 Dec.",
+   "amount_cents": null,
+   "source": "Form 8-K, 12 Dec 2024",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024108398/ea0224311-8k_akoustis.htm",
+   "quote": "adjourned the Annual Meeting until January 9, 2025 at 11:00 am, Eastern Time due to a lack of quorum."
+  },
+  {
+   "date": "2024-12-15",
+   "kind": "sale",
+   "description": "Stalking-horse agreement: Gordon Brothers to buy equipment for $10.0M.",
+   "amount_cents": 1000000000,
+   "source": "Form 8-K, 16 Dec 2024",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024109364/ea0224859-8k_akoustis.htm",
+   "quote": "The purchase price for the Purchased Assets will be $10.0 million, subject to certain deductions"
+  },
+  {
+   "date": "2024-12-16",
+   "kind": "petition",
+   "description": "Akoustis and subsidiaries file voluntary Chapter 11 petitions (D. Del.).",
+   "amount_cents": null,
+   "source": "Form 8-K, 16 Dec 2024",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024109364/ea0224859-8k_akoustis.htm",
+   "quote": "On December 16, 2024 (the “ Petition Date ”), Akoustis Technologies, Inc. (the “ Company ”) and certain of its subsidiaries (such subsidiaries, together with the Company, the “ Debtors ”) each filed a voluntary petition for relief"
+  },
+  {
+   "date": "2024-12-16",
+   "kind": "petition",
+   "description": "Stated cause: the Qorvo judgment (about $58M), and a sale free and clear of Qorvo's claims.",
+   "amount_cents": null,
+   "source": "Press release, 16 Dec 2024 (8-K Ex. 99.1)",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024109364/ea022485901ex99-1_akoustis.htm",
+   "quote": "The voluntary chapter 11 filing follows the Company’s recent legal case with Qorvo, Inc., in which Akoustis was ordered to pay a total judgement of approximately $58 million in damages, fees, and interest related to allegations of trade secret misappropriation and patent infringement."
+  },
+  {
+   "date": "2024-12-16",
+   "kind": "financing",
+   "description": "The petition is an event of default: the $44.0M notes become due at once (no acceleration before the petition is disclosed).",
+   "amount_cents": 4400000000,
+   "source": "Form 8-K, 16 Dec 2024",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024109364/ea0224859-8k_akoustis.htm",
+   "quote": "As of December 16, 2024, the aggregate, principal amount of outstanding Convertible Notes was $44,000,000. Pursuant to the Indenture, upon the occurrence of this event of default, all of the outstanding Convertible Notes became due and payable immediately without further action or notice."
+  },
+  {
+   "date": "2024-12-17",
+   "kind": "listing",
+   "description": "Nasdaq panel delists the stock; trading suspended from 18 Dec.",
+   "amount_cents": null,
+   "source": "Form 8-K, 17 Dec 2024",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024109749/ea0225118-8k_akoustis.htm",
+   "quote": "Trading of the Company’s common stock will be suspended from the Nasdaq Capital Market at the opening of business on December 18, 2024."
+  },
+  {
+   "date": "2025-05-15",
+   "kind": "sale",
+   "description": "Sale of substantially all assets to Tune Holdings (a SpaceX subsidiary) for $30.2M closes.",
+   "amount_cents": 3020000000,
+   "source": "Form 8-K, 15 May 2025",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390025044032/ea0242256-8k_atech.htm",
+   "quote": "for a purchase price of $30.2 million. On May 1, 2025, the Court approved the sale, and the sale was consummated by the Parties on May 15, 2025."
+  }
+ ],
+ "petition": {
+  "date": "2024-12-16",
+  "outcome_class": "filed_enforcement",
+  "label": "Filed: Qorvo enforcement",
+  "cause": "Filed facing the Qorvo judgment: Akoustis filed 25 days after the amended final judgment, which it had appealed without a bond, and says the filing follows the ~$58M judgment. No levy appears in the free record, and the notes were accelerated by the petition itself, not before it. The cash floor was not the stated cause (cash expected to last into Jan–Mar 2025)."
+ },
+ "not_found": [
+  "A levy, writ or other enforcement act by Qorvo before the petition: none in the fetched 8-Ks, 10-K, 10-Q or RECAP D.I. 690-720 and 723; D.I. 721, 722, 724 and 725 are not on RECAP.",
+  "Whether the $1.32M notes interest due 15 Dec 2024 was paid: not stated in the fetched filings.",
+  "The bankruptcy first-day declaration (the cause as stated to the bankruptcy court): not fetched; the cause above is from the 8-K and the press release."
+ ]
+}
