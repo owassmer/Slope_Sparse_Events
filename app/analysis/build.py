@@ -202,7 +202,9 @@ def _load_run(run_id: str, root: Path):
     return store, meta, inputs, evidence, review
 
 
-def build(run_id: str, root: Path, refresh: bool = False) -> dict:
+def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -> dict:
+    """`roles`: also run the recall check (every forecast re-asked with the parties' names replaced by roles; its
+    own Jev adapter and budget), stored per node and summarized; the analysis's probabilities are unchanged."""
     from app.agent.jev import JevAdapter
     from app.agent.jev_profiles import DisputeProfile
 
@@ -239,6 +241,8 @@ def build(run_id: str, root: Path, refresh: bool = False) -> dict:
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
     data["base_setup"] = setup_json(setup)
     data["jev"] = jev.usage_summary()
+    if roles and judgments:
+        attach_recall(data, recall_for(fc, judgments, borrower, run_id, refresh, records))
     out = root / run_id
     (out / "analysis.json").write_text(json.dumps(data, indent=1, default=str) + "\n")
     write_csv(data, out)
@@ -246,6 +250,28 @@ def build(run_id: str, root: Path, refresh: bool = False) -> dict:
     scratch.mkdir(parents=True, exist_ok=True)
     (scratch / "jev_records.jsonl").write_text("\n".join(json.dumps(r, default=str) for r in records) + "\n")
     return data
+
+
+def recall_for(fc: Forecaster, judgments: dict, borrower: str, run_id: str, refresh: bool, records: list) -> dict:
+    from app.agent.jev import JevAdapter
+    from app.agent.jev_profiles import DisputeProfile
+    from app.disputes.recall import recall_check
+
+    jev = JevAdapter(run_id=f"{run_id}-recall", use_cache=not refresh)
+    judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, "recall": True,
+                                                                  **obj.model_dump(mode="json")}))
+    rc = recall_check(fc, judgments, judge, borrower)
+    rc["summary"]["jev"] = jev.usage_summary()
+    return rc
+
+
+def attach_recall(data: dict, rc: dict) -> None:
+    """The recall check beside the analysis: per node in the drill-down meta, the summary at the top level. The
+    judgments, model and every view are left as they are."""
+    for k, v in rc["nodes"].items():
+        if k in data["judgments"]:
+            data["judgments"][k]["recall_check"] = v
+    data["recall_check"] = rc["summary"]
 
 
 def write_csv(data: dict, out: Path) -> None:
@@ -308,6 +334,8 @@ def recompute(path: Path, controls: dict, overrides: dict | None) -> dict:
     meta = {k: data[k] for k in ("borrower", "probability_label", "disputes", "not_modelled", "judgments")}
     out = payload(feed, setup, model, meta, clean, analysis=a, stressed=stress(feed, setup, model, clean))
     out["run_id"] = data.get("run_id")
+    if "recall_check" in data:
+        out["recall_check"] = data["recall_check"]
     return out
 
 

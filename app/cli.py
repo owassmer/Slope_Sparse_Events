@@ -106,7 +106,9 @@ def jev_check_cases() -> None:
 def analyze(run: str = typer.Option(..., help="Recorded run ID (runs/recorded/<id>)."),
             root: str = typer.Option("", help="Directory holding the run (default runs/recorded)."),
             refresh_probabilities: bool = typer.Option(False, "--refresh-probabilities",
-                                                       help="Ask Jev again instead of using cached forecasts.")) -> None:
+                                                       help="Ask Jev again instead of using cached forecasts."),
+            roles: bool = typer.Option(False, "--roles", help="Recall check: re-ask every forecast with the parties' "
+                                       "names replaced by roles; store the deltas (probabilities unchanged).")) -> None:
     """Probabilistic scenario and sensitivity analysis of the loan's dated cash flows for a recorded run; writes
     analysis.json, collections.csv and cashflows.csv beside it."""
     from pathlib import Path
@@ -115,7 +117,7 @@ def analyze(run: str = typer.Option(..., help="Recorded run ID (runs/recorded/<i
     from app.config import ROOT
 
     base = Path(root) if root else ROOT / "runs" / "recorded"
-    data = build(run, base, refresh=refresh_probabilities)
+    data = build(run, base, refresh=refresh_probabilities, roles=roles)
     for view in ("bank_only", "event_adjusted"):
         m = data["views"][view]["metrics"]
         typer.echo(f"{view:15s} lender PV {money(m['lender_pv_cents'])}  full by maturity "
@@ -123,6 +125,10 @@ def analyze(run: str = typer.Option(..., help="Recorded run ID (runs/recorded/<i
                    f"P5 {money(m['min_cash_p5_cents'])}  shortfall {m['shortfall_p']:.1%}")
     for r in data["sensitivity"]["judgments"][:3]:
         typer.echo(f"  driver: {r['dispute_title']}: {r['event']} (Jev {r['jev_model']})")
+    rc = data.get("recall_check")
+    if rc:
+        typer.echo(f"recall check: {rc['questions']} questions, mean change {rc['mean_abs_change']:.1%}, max "
+                   f"{rc['max_abs_change']:.1%}, {len(rc['moved'])} moved more than {rc['threshold']:.0%}; Jev {rc['jev']}")
     typer.echo(f"{len(data['scenarios'])} joint paths; Jev {data['jev']}; wrote analysis.json, collections.csv, cashflows.csv")
 
 
@@ -130,7 +136,7 @@ def analyze(run: str = typer.Option(..., help="Recorded run ID (runs/recorded/<i
 def compare(run: str = typer.Option(..., help="Recorded run ID."), root: str = typer.Option("", help="Run directory."),
             refresh_probabilities: bool = typer.Option(False, "--refresh-probabilities")) -> None:
     """Alias of `analyze`."""
-    analyze(run=run, root=root, refresh_probabilities=refresh_probabilities)
+    analyze(run=run, root=root, refresh_probabilities=refresh_probabilities, roles=False)
 
 
 @cli.command()
