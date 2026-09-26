@@ -1,9 +1,9 @@
 {
   "model_id": "post_judgment_money_dispute",
-  "model_version": "3.3.0",
+  "model_version": "4.0.0",
   "status": "host_owned_design_contract",
-  "scope": "Post-judgment slice of a US federal civil money dispute, bounded by cash: only developments that can move cash, collections, collateral or credit capacity within the analysis horizon. It ends in payment, settlement, an unresolved amount, a pending secured appeal or an uncollected balance, and never forecasts appellate merits.",
-  "design": "Two Jev stages. (1) Present-state interpretation of each cited finding, hydrated with its surrounding evidence: who pays, the amount's status, which procedural events it establishes, which factors it bears on and at what level. Established events place the stage and an established payment ends the dispute; everything else, a waiver of appeal included, is evidence for the forecasts. (2) Conditional forecasting: at each node, Jev returns the probability of one defined future event under named parent assumptions and a code-set window, given the relevant hydrated passages and the interpretation distributions. Code multiplies conditional probabilities along each path, draws event dates and amounts inside code-owned windows and ranges, and keeps every structurally feasible path (zero-probability paths stay available for stress).",
+  "scope": "Post-trial and post-judgment slice of a US federal civil money dispute, and the financing instruments whose terms it triggers, bounded by what decides the lender's collections: a petition (11 U.S.C. §362) or too little cash above operating need on a due date. Chains are templates by forum and instrument; the case fills them through the agent's instantiated objects (the dispute, its components and the financing instruments). Appellate merits are never forecast.",
+  "design": "Stage order: legal decision map (templates), then clocks and parameters (each with one disposition: Law, Record, Data, Arithmetic, Bounded or Jev), then path arithmetic. Jev answers only the residual questions: one actor's decision given the path facts code computes and the record items the agent supplies. Timing, amounts, affordability, enforceability and legal meaning are code or Law. Readings are evidence routed to the questions, never their probability. Only impossibility changes structure: an event that has occurred, a payment, or arithmetic that rules a branch out on every trajectory of the path.",
   "roles": {
     "agent": "Groups the accepted findings about one obligation and gives its order reference (a docket reference, checked), its nature (from `natures`), the counterparty, the amount figure (checked against the quotes) and any judgment date (checked against the quotes). Its prose never reaches Jev.",
     "jev": "Answers present-state and conditional forecast questions. Never sets a date, an amount or a path.",
@@ -17,48 +17,128 @@
     "settlement_payment": "a court-ordered settlement payment"
   },
   "rules": {
-    "appeal_notice_days": {
+    "frcp_62a": {
+      "citation": "Fed. R. Civ. P. 62(a): \"execution on a judgment and proceedings to enforce it are stayed for 30 days after its entry, unless the court orders otherwise.\"",
+      "modality": "shall",
       "value": 30,
-      "citation": "Fed. R. App. P. 4(a)(1)(A): notice of appeal within 30 days after entry of the judgment."
+      "unit": "days"
     },
-    "automatic_stay_days": {
+    "frcp_62b": {
+      "citation": "Fed. R. Civ. P. 62(b): a party may obtain a stay by providing a bond or other security; \"The stay takes effect when the court approves the bond or other security\".",
+      "modality": "may; effective on approval"
+    },
+    "ebay_2006": {
+      "citation": "eBay Inc. v. MercExchange, L.L.C., 547 U.S. 388 (2006): a permanent injunction issues only on the four-factor test (irreparable injury; remedies at law inadequate; balance of hardships; public interest), never automatically on a finding of liability.",
+      "modality": "may, on the four factors"
+    },
+    "usc18_1836_b3a": {
+      "citation": "18 U.S.C. §1836(b)(3)(A) (DTSA): in a civil action for trade-secret misappropriation a court \"may\" grant an injunction to prevent any actual or threatened misappropriation, on such terms as the court deems reasonable.",
+      "modality": "may"
+    },
+    "nc_66_154_a": {
+      "citation": "N.C. Gen. Stat. §66-154(a): actual or threatened misappropriation of a trade secret \"shall be permanently enjoined upon judgment finding misappropriation\" for the period the trade secret exists plus any further period the court deems necessary.",
+      "modality": "shall, on a judgment finding misappropriation"
+    },
+    "frcp_62c": {
+      "citation": "Fed. R. Civ. P. 62(c)(1): unless the court orders otherwise, an interlocutory or final judgment in an action for an injunction is not stayed after being entered, even if an appeal is taken.",
+      "modality": "shall, unless the court orders otherwise"
+    },
+    "frap_4a1a": {
+      "citation": "Fed. R. App. P. 4(a)(1)(A): notice of appeal within 30 days after entry of the judgment or order.",
+      "modality": "shall",
       "value": 30,
-      "citation": "Fed. R. Civ. P. 62(a): execution on a judgment is stayed for 30 days after its entry."
+      "unit": "days"
     },
-    "supersedeas_multiple_bps": {
-      "value": 12500,
-      "citation": "Fed. R. Civ. P. 62(b): a stay pending appeal on a bond or other security. District practice commonly sets the bond above the judgment to cover interest and costs; 125% is a model parameter."
+    "frap_4a4a": {
+      "citation": "Fed. R. App. P. 4(a)(4)(A): a timely motion under Rule 50(b), 52(b), 59 (alter or amend; new trial), or Rule 54 fees only where the court extends time under Rule 58(e), makes the time to appeal run from the order disposing of the last such remaining motion.",
+      "modality": "shall",
+      "tolling_kinds": [
+        "rule_50b",
+        "rule_52b",
+        "rule_59a",
+        "rule_59e"
+      ],
+      "not_tolling": [
+        "rule_54_fees (absent a Rule 58(e) order)"
+      ]
     },
-    "bond_collateral_share_bps": {
-      "lower": 5000,
-      "upper": 10000,
-      "citation": "Model parameter: the share of the bond a surety takes as cash collateral from the judgment debtor, locked while the appeal is pending. A bond backed by a letter of credit instead uses credit-line capacity and locks no cash."
+    "frcp_69a": {
+      "citation": "Fed. R. Civ. P. 69(a)(1): a money judgment is enforced by a writ of execution; the procedure must accord with the procedure of the state where the court is located.",
+      "modality": "may"
     },
-    "post_judgment_interest_bps_per_year": {
-      "lower": 400,
-      "upper": 500,
-      "citation": "28 U.S.C. § 1961(a): simple interest from entry of judgment at the weekly average one-year Treasury yield for the week before judgment; the range is that yield's level in mid-2024."
+    "usc28_1963": {
+      "citation": "28 U.S.C. §1963: a judgment may be registered in another district \"when the judgment has become final by appeal or expiration of the time for appeal or when ordered by the court that entered the judgment for good cause shown.\" Good cause: thin forum assets and substantial assets elsewhere (Associated Bus. Tel. Sys. v. Greater Capital Corp., 128 F.R.D. 63, 66-68 (D.N.J. 1989)).",
+      "modality": "may, after finality or on good cause"
     },
-    "ruling_window_days": {
-      "value": 180,
-      "citation": "No rule sets when a court decides a submitted matter. The pending-ruling window is the analysis horizon; the ruling date is drawn uniformly inside it."
+    "usc28_1961": {
+      "citation": "28 U.S.C. §1961(a)-(b): interest from the date of entry of the judgment at the weekly average 1-year constant maturity Treasury yield for the calendar week preceding the judgment, computed daily, compounded annually. Increases by an amended judgment run from the amended date; a remitted amount keeps the original date (Kaiser Aluminum v. Bonjorno, 494 U.S. 827 (1990); Dunn v. HOVIC, 13 F.3d 58, 60-62 (3d Cir. 1993)); fees run from the judgment quantifying them (Eaves v. County of Cape May, 239 F.3d 527 (3d Cir. 2001)).",
+      "modality": "shall",
+      "rate_bps_by_week_ending": {
+        "2024-05-17": 514
+      },
+      "rate_source": "FRED WGS1YR (H.15 weekly), week ending 17 May 2024: 5.14%"
     },
-    "voluntary_payment_days_after_stay": {
-      "value": 30,
-      "citation": "Model parameter: a debtor that pays does so by 30 days after the automatic stay ends."
+    "nc_24_1": {
+      "citation": "N.C. Gen. Stat. §24-1: \"The legal rate of interest shall be eight percent (8%) per annum\".",
+      "modality": "shall",
+      "value": 800,
+      "unit": "bps per year, simple"
     },
-    "settlement_window_days": {
+    "nc_24_5_b": {
+      "citation": "N.C. Gen. Stat. §24-5(b): in an action other than contract, \"any portion of a money judgment designated by the fact finder as compensatory damages bears interest from the date the action is commenced until the judgment is satisfied.\" Commencement is the original complaint even when the claim was added by amendment (Beach Mart, Inc. v. L&L Wings, Inc. (E.D.N.C. Mar. 26, 2021); STAGE3 L1). None on exemplary damages.",
+      "modality": "shall on compensatory; whether unjust enrichment is compensatory is open (J6)",
+      "rate_rule": "nc_24_1",
+      "applies_to_kinds": [
+        "compensatory"
+      ]
+    },
+    "nc_66_154_d": {
+      "citation": "N.C. Gen. Stat. §66-154(d): if willful and malicious misappropriation exists, \"the court may award reasonable attorneys' fees to the prevailing party.\"",
+      "modality": "may"
+    },
+    "usc18_1836_b3d": {
+      "citation": "18 U.S.C. §1836(b)(3)(D): if the trade secret was willfully and maliciously misappropriated, the court may award reasonable attorney's fees to the prevailing party. §1836(b)(3)(C): exemplary damages up to 2 times the damages awarded.",
+      "modality": "may"
+    },
+    "nc_75_16": {
+      "citation": "N.C. Gen. Stat. §75-16: once a violation of §75-1.1 is found, \"judgment shall be rendered ... for treble the amount fixed by the verdict.\" Election between trebled and punitive recovery: United Labs. v. Kuykendall, 335 N.C. 183 (1993) (code takes the larger).",
+      "modality": "shall, once a violation exists; whether one exists over the jury's answer is open (J4)",
+      "value": 3,
+      "unit": "multiple"
+    },
+    "nc_1d": {
+      "citation": "N.C. Gen. Stat. §§1D-15(a), 1D-25(b): punitive damages capped at the greater of 3 times compensatory damages or $250,000; they depend on compensatory damages, so a new trial on compensatory damages takes the exemplary award (Carawan v. Tate, 304 N.C. 696 (1982); Shaver; Gasoline Prods. v. Champlin, 283 U.S. 494 (1931); STAGE3 L4).",
+      "modality": "shall",
+      "cap_multiple": 3,
+      "cap_floor_cents": 25000000
+    },
+    "remittitur": {
+      "citation": "Remittitur is to the maximum the evidence supports, and the plaintiff may refuse it and take a new trial (Hetzel v. Prince William County, 523 U.S. 208 (1998); Kazan v. Wolinski, 721 F.2d 911 (3d Cir. 1983)).",
+      "modality": "may; plaintiff's election"
+    },
+    "jmol_standard": {
+      "citation": "Fed. R. Civ. P. 50(b); JMOL only where the record lacks the minimum evidence to support the verdict (Lightning Lube v. Witco, 4 F.3d 1153, 1166 (3d Cir. 1993)).",
+      "modality": "may"
+    },
+    "bond_amount": {
+      "citation": "A supersedeas bond normally secures \"the whole amount of the judgment remaining unsatisfied, costs on the appeal, interest, and damages for delay\" (Southern Track & Pump, Inc. v. Terex Corp., C.A. No. 08-543-LPS (D. Del.), quoting Poplar Grove Planting & Ref. Co. v. Bache Halsey Stuart, 600 F.2d 1189, 1191 (5th Cir. 1979)); D. Del. has no local multiple (RESEARCH R2h). Reduced or alternative security needs good cause (the Dillon/Poplar Grove line).",
+      "modality": "shall (amount); may (lesser security)",
+      "value": 10000,
+      "unit": "bps of path judgment + interest + costs"
+    },
+    "usc11_362": {
+      "citation": "11 U.S.C. §362(a): a petition operates as a stay of collection of pre-petition claims; the lender's collections stop on the petition date.",
+      "modality": "shall"
+    },
+    "usc11_303b": {
+      "citation": "11 U.S.C. §303(b)(1): with 12 or more creditors an involuntary petition needs three or more petitioning creditors holding noncontingent, undisputed claims above the statutory threshold; one judgment creditor cannot file alone (DECOMPOSITION L13).",
+      "modality": "may"
+    },
+    "usc11_547": {
+      "citation": "11 U.S.C. §547(b): transfers to a creditor within 90 days before the petition are avoidable; §547(c)(4) new value given after the transfer reduces exposure. §547(c)(2) ordinary course is not computed.",
+      "modality": "may (trustee)",
       "value": 90,
-      "citation": "Model parameter: a settlement at this stage is paid within 90 days of the stage's start."
-    },
-    "settlement_share_bps": {
-      "lower": 6000,
-      "upper": 10000,
-      "citation": "Model parameter: a settlement pays 60% to 100% of the amount."
-    },
-    "enforcement_period_days": {
-      "value": 90,
-      "citation": "Fed. R. Civ. P. 69(a): a money judgment is enforced by a writ of execution. Model parameter: collection, when it succeeds, completes within 90 days after the stay ends."
+      "unit": "days"
     }
   },
   "readings": {
@@ -81,7 +161,10 @@
       "appeal_filed": "the payer has filed a notice of appeal against this obligation",
       "stay_secured": "the payer has stayed this obligation with a bond or other security",
       "paid": "this obligation has been paid",
-      "mediation_ordered": "the court has ordered the parties to mediate or attend a settlement conference on this obligation"
+      "mediation_ordered": "the court has ordered the parties to mediate or attend a settlement conference on this obligation",
+      "post_trial_motions_pending": "timely post-judgment motions under Fed. R. Civ. P. 50(b), 52(b) or 59 that could change this obligation are pending and undecided",
+      "post_trial_decided": "the court has decided every pending post-judgment motion that could change this obligation",
+      "injunction_entered": "the court has entered an injunction in this dispute"
     },
     "stage_rules": [
       {
@@ -97,6 +180,14 @@
         "stage": "appeal_filed"
       },
       {
+        "event": "post_trial_decided",
+        "stage": "judgment_entered"
+      },
+      {
+        "event": "post_trial_motions_pending",
+        "stage": "post_trial"
+      },
+      {
         "event": "judgment_entered",
         "stage": "judgment_entered"
       },
@@ -109,7 +200,7 @@
         "stage": "amount_pending"
       }
     ],
-    "stage_rules_note": "The stage is the most advanced procedural event any cited passage establishes. A filed appeal starts the tree at the secured stay: the appeal is no longer forecast, whether a stay is secured still is. No established event leaves the dispute outside the model, with an evidence request."
+    "stage_rules_note": "The stage is the most advanced procedural event any cited passage establishes, in the order listed. Pending post-trial motions place an entered judgment in post_trial: execution may issue (Rule 62(a) permitting) but the amount can still change and the appeal clock is tolled (FRAP 4(a)(4)(A)). A decision on every such motion moves it to judgment_entered. No established event leaves the dispute outside the model, with an evidence request."
   },
   "factors": {
     "amount_finality": {
@@ -183,142 +274,1025 @@
       ]
     }
   },
-  "nodes": {
-    "settle_before_ruling": {
-      "stage": "amount_pending",
-      "question": "forecast_settlement",
-      "event": "the parties settle this obligation before the court fixes the amount",
-      "window": "review date to review date + settlement_window_days",
-      "context_factors": [
-        "settlement_signals",
-        "amount_finality",
-        "debtor_resistance"
-      ]
+  "outcomes": {
+    "settled": "Settlement paid at the D5 bound on its date; the dispute ends.",
+    "paid": "Paid on the enforceable date: the path amount plus statutory interest.",
+    "vacated": "No money survives the post-trial ruling.",
+    "new_trial": "A new trial ordered: no money on that component in the horizon.",
+    "levied": "An unstayed levy takes min(owed, reachable cash) on the levy date.",
+    "stayed": "Execution stayed on approved security; collateral locked only where the path can fund it.",
+    "unresolved": "No final judgment in the horizon on that trajectory: the judgment as entered stays enforceable.",
+    "uncollected": "Enforceable and unpaid at the horizon, no levy: no cash.",
+    "reorganization": "A petition (voluntary or involuntary) on that trajectory's date: collections stop (§362)."
+  },
+  "dependence": "One path is one sequence of residual decisions along the chain templates, in the order of the chains; each decision is conditional on the earlier ones on the path. Dates are drawn per trajectory by code, keyed (instance, node, purpose), independently of every probability; a decision takes effect only on trajectories where its condition holds on its date. Components compose by the chain rule into the ruling's outcome classes. Jev nodes are keyed by the facts their question depends on (interval, amount class, stay and notes status), so paths that share those facts share one judgment.",
+  "constraints": "Only impossibility changes structure: an occurred event sets the stage, a payment ends the dispute, and arithmetic removes a branch only when it is impossible on every trajectory of the path. Everything else is a fact or evidence for a question. A low probability never removes a path.",
+  "forum": {
+    "values": [
+      "court",
+      "arbitration"
+    ],
+    "supplied_by": "agent (instantiate_dispute), code-checked against the quoted passages",
+    "note": "Only the court template is built in 4.0.0. The arbitration template (AAA Commercial Rules award timing; FAA §§9, 10, 12; stages claims_pending, award_pending, award_issued) lands with Charles & Colvard."
+  },
+  "components_schema": {
+    "fields": {
+      "component_id": "stable id within the dispute (e.g. unjust_enrichment, exemplary, patent, trebling, fees, prejudgment_interest)",
+      "label": "short label",
+      "kind": "compensatory | exemplary | patent | trebling | fees | prejudgment_interest | costs",
+      "status": "awarded | requested",
+      "amount_cents": "integer cents quoted in a cited passage (awarded or requested); null when statutory or unknown",
+      "statutory": "rule id in `rules` when code computes the amount from quoted law (e.g. nc_24_5_b)",
+      "unknown": "true when the record gives no amount and no rule computes one (a typed unknown, never 0)",
+      "basis": "the finding id and quote the amount or rule rests on",
+      "motion": "docket reference of the pending motion that decides it, if any"
     },
-    "amount_fixed": {
-      "stage": "amount_pending",
-      "question": "forecast_amount_fixed",
-      "event": "the court fixes the amount of this obligation",
-      "assumes": [
-        "no settlement before the ruling"
+    "checks": "Every amount_cents appears in a cited quote; a statutory component names a rule in `rules`; a component is exactly one of amount_cents, statutory or unknown."
+  },
+  "stages": {
+    "court": [
+      "amount_pending",
+      "post_trial",
+      "judgment_entered",
+      "appeal_pending",
+      "enforcement",
+      "paid"
+    ],
+    "arbitration": [
+      "claims_pending",
+      "award_pending",
+      "award_issued"
+    ],
+    "arbitration_note": "After confirmation an award follows the court stages. Not built in 4.0.0."
+  },
+  "parameters": {
+    "ruling_lag_days": {
+      "disposition": "data",
+      "basis": "Days from the close of briefing to the ruling on this judge's fully briefed matters on this docket, entries on or before the decision date (D. Del. 1:21-cv-1417, RESEARCH R4; n = 10, median 61.5).",
+      "sample": [
+        17,
+        39,
+        52,
+        57,
+        58,
+        65,
+        91,
+        104,
+        146,
+        159
       ],
-      "window": "review date to the end of the analysis horizon",
-      "context_factors": [
-        "amount_finality"
-      ]
+      "draw": "one lag per pending motion, drawn uniformly from the sample, independent across motions and of every probability; the motion is decided on briefing close + lag",
+      "sensitivity": "one common lag for every motion",
+      "mode": "per_motion"
     },
-    "settle_after_judgment": {
-      "stage": "judgment_entered",
-      "question": "forecast_settlement",
-      "event": "the parties settle this obligation before the appeal deadline",
-      "assumes": [
-        "the amount is fixed on the judgment date"
-      ],
-      "window": "judgment date to judgment date + appeal_notice_days",
-      "context_factors": [
-        "settlement_signals",
-        "debtor_resistance"
-      ]
+    "briefing_days_new_motion": {
+      "disposition": "code_timing",
+      "basis": "D. Del. LR 7.1.2(b): answering brief 14 days after the opening brief, reply 7 days after the answer; a motion filed on day t closes briefing on t + 21 and is decided on that date + a ruling_lag_days draw.",
+      "value": 21
     },
-    "appeal": {
-      "stage": "judgment_entered",
-      "question": "forecast_appeal",
-      "event": "the payer files a notice of appeal against this obligation",
-      "assumes": [
-        "the amount is fixed on the judgment date",
-        "no settlement before the appeal deadline"
-      ],
-      "window": "judgment date to judgment date + appeal_notice_days (Fed. R. App. P. 4(a)(1)(A))",
-      "context_factors": [
-        "appeal_intent",
-        "appeal_barred",
-        "debtor_resistance",
-        "debtor_liquidity"
-      ]
+    "levy_lag_days": {
+      "disposition": "bounded",
+      "basis": "Days from the enforcement decision (with the judgment registered where cash sits) to the levy.",
+      "value": 0,
+      "sensitivity": 30
     },
-    "secured_stay": {
-      "stage": "judgment_entered",
-      "question": "forecast_secured_stay",
-      "event": "the payer obtains a stay of this obligation secured by a bond or other security",
-      "assumes": [
-        "the payer has appealed"
-      ],
-      "window": "judgment date to judgment date + automatic_stay_days (Fed. R. Civ. P. 62(a), (b))",
-      "context_factors": [
-        "debtor_liquidity",
-        "appeal_intent"
-      ]
+    "petition_lag_days": {
+      "disposition": "bounded",
+      "basis": "Days from a decision to file to the petition.",
+      "value": 0,
+      "sensitivity": 30
     },
-    "security_form": {
-      "stage": "judgment_entered",
-      "question": "forecast_security_form",
-      "debtor_only": true,
-      "event": "how the payer secures the stay",
-      "options": {
-        "cash_deposit": "a cash deposit with the court (locks the judgment amount in cash)",
-        "surety_bond": "a surety bond (the surety takes cash collateral of 50% to 100% of a bond at 125% of the amount)",
-        "letter_of_credit": "a bond backed by a letter of credit (uses credit-line capacity of 125% of the amount, locks no cash)"
-      },
-      "assumes": [
-        "the payer has appealed and obtains a secured stay"
-      ],
-      "window": "when the stay is secured",
-      "context_factors": [
-        "debtor_liquidity"
-      ]
+    "holder_notice_lag_days": {
+      "disposition": "bounded",
+      "basis": "Days from a ripe default to the holders' notice and acceleration.",
+      "value": 0,
+      "sensitivity": 30
     },
-    "settle_during_appeal": {
-      "stage": "appeal_pending",
-      "question": "forecast_settlement",
-      "event": "the parties settle this obligation while the secured appeal is pending",
-      "assumes": [
-        "the payer has appealed and secured a stay"
-      ],
-      "window": "stay date to the end of the analysis horizon",
-      "context_factors": [
-        "settlement_signals"
-      ]
+    "stay_restart_on_increase_days": {
+      "disposition": "bounded",
+      "basis": "L8(a): an amended judgment restarts Rule 62(a) only for increases (base); sensitivity: the whole amended amount waits 30 days.",
+      "value": 30,
+      "base": "increases_only",
+      "sensitivity": "whole_amount"
     },
-    "voluntary_payment": {
-      "stage": "judgment_entered",
-      "question": "forecast_voluntary_payment",
-      "event": "the payer pays this obligation",
-      "assumes": [
-        "the amount is fixed",
-        "no settlement",
-        "no secured stay is in place"
-      ],
-      "window": "automatic stay end to automatic stay end + voluntary_payment_days_after_stay",
-      "context_factors": [
-        "debtor_resistance",
-        "debtor_liquidity",
-        "appeal_intent"
-      ]
+    "bond_forward_interest_years": {
+      "disposition": "sourced",
+      "basis": "L7: the bond covers the path judgment, accrued §1961 interest and forward interest over the appeal; no costs were filed by the decision date.",
+      "value": 1,
+      "lower": 0,
+      "upper": 2
     },
-    "enforcement": {
-      "stage": "enforcement",
-      "question": "forecast_enforcement_collects",
-      "event": "enforcement collects this obligation from the payer",
-      "assumes": [
-        "the payer has not paid voluntarily",
-        "no secured stay is in place"
+    "bond_collateral_share_bps": {
+      "disposition": "sourced",
+      "basis": "Surety practice for a borrower below investment grade: full cash collateral (RESEARCH R2i); the lower bound is Bounded.",
+      "value": 10000,
+      "lower": 8000
+    },
+    "reachable_before_registration": {
+      "disposition": "bounded",
+      "basis": "L9: cash reachable by a levy before registration where the cash sits. Base: none. Sensitivity: all consolidated cash.",
+      "value": "none",
+      "sensitivity": "all_consolidated_cash"
+    },
+    "levy_scope": {
+      "disposition": "sourced",
+      "basis": "A levy after registration reaches consolidated cash, whatever the operating need (lender-conservative on the judgment debtor's entity).",
+      "value": "consolidated_cash"
+    },
+    "settlement_date_in_interval": {
+      "disposition": "bounded",
+      "basis": "D5: a settlement agreed in an interval pays on interval start + 30 days; sensitivity at interval end.",
+      "value": 30,
+      "sensitivity": "interval_end"
+    },
+    "cash_floor": {
+      "disposition": "sourced",
+      "basis": "Spec §2.2: tau is the first date available cash falls below operating need (the collection rule's need); sensitivity: below zero.",
+      "value": "need",
+      "sensitivity": "zero"
+    },
+    "form25_after_panel_days": {
+      "disposition": "bounded",
+      "basis": "L12: \"not listed\" at suspension (base); sensitivity Form 25 effectiveness at panel decision + 60 (Rule 5820 windows) + 10 (17 C.F.R. §240.12d2-2(d)(1)); with no hearing, suspension + 10.",
+      "value": 0,
+      "sensitivity": 70
+    },
+    "suspension_after_determination_days": {
+      "disposition": "code_timing",
+      "basis": "Nasdaq Rule 5815(a): a timely hearing request stays suspension; without one, suspension follows the Staff Determination after the 7-day request window (R2d).",
+      "value": 10
+    },
+    "panel_decision_days": {
+      "disposition": "bounded",
+      "basis": "Panel decision after the Staff Determination (R2d).",
+      "value": 45,
+      "lower": 30,
+      "upper": 60
+    },
+    "repurchase_date": {
+      "disposition": "bounded",
+      "basis": "Fundamental Change repurchase: notice within 20 business days, repurchase 20-35 business days after notice (indenture §10.01). Base: latest date; sensitivity: earliest.",
+      "value": "latest",
+      "sensitivity": "earliest"
+    },
+    "coupon_cash_share": {
+      "disposition": "bounded",
+      "basis": "Indenture §16.02(c): interest is paid in shares unless the company elects cash. Base: shares (no cash). Sensitivities: the June 2024 split (cash $0.442M of $1.32M = 3,348 bps; CASH_CHECK) and all cash. The DECOMPOSITION §2 base was the June split; the step-6b brief sets shares as the base.",
+      "value": "shares",
+      "sensitivity": [
+        "june_split",
+        "all_cash"
       ],
-      "window": "automatic stay end to automatic stay end + enforcement_period_days (Fed. R. Civ. P. 69(a))",
-      "context_factors": [
-        "debtor_liquidity",
-        "debtor_resistance"
-      ]
+      "june_split_bps": 3348
+    },
+    "chips_credit_cents": {
+      "disposition": "bounded",
+      "basis": "13 May 2024 call: refundable CHIPS ITC of $2.8M-$4.0M \"over the next 9 to 12 months\", no date; paid through the FY2024 return (26 U.S.C. §48D(d)). Base $0 in the horizon; sensitivity $2.33M prorated June-December (inside the sourced $1.38M-$2.63M).",
+      "value": 0,
+      "sensitivity": 233000000
+    },
+    "legal_fee_spend": {
+      "disposition": "sourced",
+      "basis": "Legal spend in the feed continues until the dispute resolves on the path (payment, settlement, vacatur, petition), then stops.",
+      "value": "feed_until_resolution"
     }
   },
-  "outcomes": {
-    "settled": "Settlement paid: 60%-100% of the amount, dated inside the settlement window.",
-    "unresolved": "The amount is not fixed within the horizon: no cash.",
-    "appeal_pending": "Secured appeal pending at the horizon: the encumbrance (cash or credit capacity) stays in place.",
-    "settled_during_appeal": "Settlement paid on its drawn date; the exact encumbrance is released on that date.",
-    "paid": "Paid voluntarily: the amount plus post-judgment interest unless the amount already includes it.",
-    "collected": "Collected by enforcement: the amount plus post-judgment interest unless already included.",
-    "uncollected": "Unpaid and uncollected at the horizon: no cash."
+  "remittitur_scenarios": {
+    "note": "D4: declared scenarios, shown side by side and never weighted. The remit branch (J2 = remit, Q2 = accept) takes the selected scenario's amount for the compensatory component; the verdict-stands scenario prices the remit branch at the verdict.",
+    "base": "remitted",
+    "scenarios": {
+      "verdict_stands": {
+        "source": "verdict",
+        "label": "The verdict stands"
+      },
+      "remitted": {
+        "source": "component.remittitur_cents",
+        "label": "Remitted to the most the evidence supports",
+        "basis": "Bennis's method with Irwin's revenue corrections (D.I. 616-1, tr. 1698-1700, 2346-47)"
+      }
+    }
   },
-  "dependence": "Disputes with the same counterparty are evaluated in order, borrower-as-payer first. A later dispute's forecast questions are asked once per outcome class of the earlier one for that counterparty (the counterparty received payment within the horizon, or did not); the joint probability is P(earlier path) x P(later path | class).",
-  "constraints": "Only a fact that makes an event impossible changes the graph: an event that has already occurred sets the stage, and an established payment ends the dispute. Everything else (a waiver of appeal, silence, a stated intention) is evidence for the forecasts: parties litigate waivers, so a waiver makes an appeal less likely rather than impossible."
+  "fee_scenarios": {
+    "note": "D4 (a): the requested amount if fees are awarded (J5), otherwise $0. No ratio is applied (the only ratio source post-dates the decision date).",
+    "awarded": "component.amount_cents (requested)",
+    "denied": 0
+  },
+  "settlement_scenarios": {
+    "note": "D5: the feasibility bound is available cash on the settlement date minus 30-day need, floored at 0 and capped at the path amount. Declared scenarios, never weighted. Non-cash terms are not booked. A paid settlement ends the dispute and removes the judgment-default trigger.",
+    "base": "lump_sum",
+    "scenarios": {
+      "lump_sum": "the bound, paid on the settlement date",
+      "monthly": "the bound in equal monthly payments from the settlement date through the horizon"
+    },
+    "asked": "per interval: I1 before the ruling, I2 ruling to appeal deadline, I3 enforceable and unstayed, I4 stayed"
+  },
+  "removed_in_4_0_0": {
+    "rules": [
+      "settlement_window_days (settlement is asked per interval)",
+      "ruling_window_days (rulings are Data timing)",
+      "supersedeas_multiple_bps (L7: no local multiple)",
+      "voluntary_payment_days_after_stay and enforcement_period_days (payment and levy dates follow the chain's milestones)",
+      "settlement_share_bps (D5 feasibility bound)",
+      "post_judgment_interest_bps_per_year range (§1961 rate is sourced)"
+    ],
+    "jev_nodes": [
+      "forecast_amount_fixed and every ruling-timing question (Data timing)",
+      "forecast_settlement windows",
+      "forecast_secured_stay, forecast_security_form, forecast_voluntary_payment, forecast_enforcement_collects (replaced by the chain residuals)"
+    ]
+  },
+  "removed_branches": [
+    {
+      "branch": "appeal decided in the horizon",
+      "ground": "window closed",
+      "basis": "No notice of appeal can precede the last post-trial ruling (FRAP 4(a)(4)(A)); Federal Circuit schedules put any decision after the horizon."
+    },
+    {
+      "branch": "costs; enhanced patent damages",
+      "ground": "window closed",
+      "basis": "Not filed by the decision date."
+    },
+    {
+      "branch": "self-funded bond",
+      "ground": "arithmetic",
+      "basis": "Removed on a path when the collateral exceeds available cash on every trajectory of that path at the stay decision; the stay then rests on J8 alone."
+    },
+    {
+      "branch": "pay (debtor response)",
+      "ground": "arithmetic",
+      "basis": "Removed on a path when the amount owed exceeds available cash on every trajectory of that path at the decision date."
+    },
+    {
+      "branch": "pay the accelerated notes or the repurchase",
+      "ground": "arithmetic",
+      "basis": "Removed when the principal exceeds available cash on every trajectory of the path."
+    },
+    {
+      "branch": "cross-default §7.01(h); interest default §7.01(c)",
+      "ground": "does not reach collections / window closed",
+      "basis": "The line is below the $2.5M threshold; the first possible interest default is after the horizon."
+    },
+    {
+      "branch": "injunction revenue effect",
+      "ground": "cannot be obtained",
+      "basis": "No part-level revenue before the decision date (R8); one stress scenario only."
+    }
+  ],
+  "feed_anchor": {
+    "method": "dated_lumps_plus_prorated_residual",
+    "excluded": [
+      "the $8.0M customer note of 26 Jun 2024 (post-decision-date)"
+    ],
+    "decision": "D1 amended to option (c) (DECOMPOSITION §6)"
+  },
+  "templates": {
+    "federal_post_judgment": {
+      "forum": "court",
+      "instrument": "money judgment in US district court",
+      "intervals": {
+        "I1": "review date to the final judgment (the last order changing it)",
+        "I2": "final judgment to the appeal deadline",
+        "I3": "enforceable and unstayed",
+        "I4": "stayed on approved security"
+      },
+      "nodes": {
+        "ts_liability_jmol": {
+          "actor": "court",
+          "decision": "grants judgment as a matter of law on trade-secret liability",
+          "standard": [
+            "jmol_standard"
+          ],
+          "record_items": [
+            "the renewed JMOL motion's public grounds",
+            "the verdict form",
+            "public trial exhibits"
+          ],
+          "path_facts": [
+            "the judgment's components (awarded and requested amounts)",
+            "the pending motions and their grounds"
+          ],
+          "timing": "decided on its motion's ruling date (ruling_lag_days)",
+          "asked_when": "a renewed JMOL motion on liability is pending",
+          "branches": [
+            "granted",
+            "denied"
+          ],
+          "context": [],
+          "residual_question": "forecast_ts_liability_jmol"
+        },
+        "ts_damages_ruling": {
+          "actor": "court",
+          "decision": "on the damages motion: the verdict stands, remits to the most the evidence supports, or orders a new trial on damages",
+          "standard": [
+            "remittitur",
+            "jmol_standard"
+          ],
+          "record_items": [
+            "the new-trial/remittitur motion's public grounds",
+            "the damages evidence cited in it"
+          ],
+          "path_facts": [
+            "the judgment's components (awarded and requested amounts)",
+            "the pending motions and their grounds"
+          ],
+          "timing": "its motion's ruling date",
+          "asked_when": "liability survives",
+          "branches": [
+            "stands",
+            "remit",
+            "new_trial"
+          ],
+          "context": [],
+          "residual_question": "forecast_ts_damages_ruling"
+        },
+        "remittitur_accepted": {
+          "actor": "judgment creditor",
+          "decision": "accepts the remitted amount rather than a new trial on damages",
+          "standard": [
+            "remittitur"
+          ],
+          "record_items": [
+            "the creditor's statements on the verdict and the damages record"
+          ],
+          "path_facts": [
+            "the verdict amount and the remitted amount (declared scenario)"
+          ],
+          "timing": "on the remittitur order (election period)",
+          "asked_when": "the court remits",
+          "branches": [
+            "accept",
+            "new_trial"
+          ],
+          "context": [],
+          "residual_question": "forecast_remittitur_accepted"
+        },
+        "patent_jmol": {
+          "actor": "court",
+          "decision": "sets aside the patent verdict",
+          "standard": [
+            "jmol_standard"
+          ],
+          "record_items": [
+            "the patent grounds in the post-trial motion"
+          ],
+          "path_facts": [
+            "the judgment's components (awarded and requested amounts)",
+            "the pending motions and their grounds"
+          ],
+          "timing": "its motion's ruling date",
+          "asked_when": "a patent verdict and a motion against it are pending",
+          "branches": [
+            "granted",
+            "denied"
+          ],
+          "context": [],
+          "residual_question": "forecast_patent_jmol"
+        },
+        "trebling": {
+          "actor": "court",
+          "decision": "grants the motion to treble under the unfair-trade-practices statute",
+          "standard": [
+            "nc_75_16"
+          ],
+          "record_items": [
+            "the trebling motion",
+            "the verdict form's answer on that claim",
+            "prior orders on the claim"
+          ],
+          "path_facts": [
+            "the judgment's components (awarded and requested amounts)",
+            "the pending motions and their grounds"
+          ],
+          "timing": "its motion's ruling date",
+          "asked_when": "trade-secret money survives and a trebling motion is pending",
+          "branches": [
+            "granted",
+            "denied"
+          ],
+          "context": [],
+          "residual_question": "forecast_trebling"
+        },
+        "fees_awarded": {
+          "actor": "court",
+          "decision": "awards the requested attorneys' fees",
+          "standard": [
+            "usc18_1836_b3d",
+            "nc_66_154_d"
+          ],
+          "record_items": [
+            "the fee motion",
+            "the willful-and-malicious finding"
+          ],
+          "path_facts": [
+            "the judgment's components (awarded and requested amounts)",
+            "the pending motions and their grounds"
+          ],
+          "timing": "its motion's ruling date (does not toll the appeal clock without a Rule 58(e) order)",
+          "asked_when": "trade-secret money survives and a fee motion is pending",
+          "branches": [
+            "granted",
+            "denied"
+          ],
+          "context": [],
+          "residual_question": "forecast_fees_awarded"
+        },
+        "prejudgment_interest": {
+          "actor": "court",
+          "decision": "awards pre-judgment interest on the unjust-enrichment award",
+          "standard": [
+            "nc_24_5_b",
+            "nc_24_1"
+          ],
+          "record_items": [
+            "the interest motion (if public)",
+            "the verdict form's designation of the award",
+            "the competing positions recorded as open (L1)"
+          ],
+          "path_facts": [
+            "the judgment's components (awarded and requested amounts)",
+            "the pending motions and their grounds"
+          ],
+          "timing": "its motion's ruling date",
+          "asked_when": "trade-secret money survives and the question is open",
+          "branches": [
+            "granted",
+            "denied"
+          ],
+          "context": [],
+          "residual_question": "forecast_prejudgment_interest"
+        },
+        "injunction": {
+          "actor": "court",
+          "decision": "enters the requested trade-secret injunction",
+          "standard": [
+            "ebay_2006",
+            "usc18_1836_b3a",
+            "nc_66_154_a",
+            "frcp_62c"
+          ],
+          "record_items": [
+            "the proposed injunction",
+            "the motion's grounds"
+          ],
+          "path_facts": [
+            "the judgment's components (awarded and requested amounts)",
+            "the pending motions and their grounds"
+          ],
+          "timing": "its motion's ruling date",
+          "asked_when": "an injunction motion is pending",
+          "branches": [
+            "granted",
+            "denied"
+          ],
+          "context": [],
+          "residual_question": "forecast_injunction_ts",
+          "stress_only": true
+        },
+        "execute_pre_ruling": {
+          "actor": "judgment creditor",
+          "decision": "executes on the entered judgment before the post-trial ruling",
+          "standard": [
+            "frcp_62a",
+            "frcp_69a"
+          ],
+          "record_items": [
+            "the creditor's statements on enforcement",
+            "the debtor's statements on resisting or satisfying the judgment"
+          ],
+          "path_facts": [
+            "amount owed on the path, by component, with statutory interest to the decision date",
+            "available cash at the decision date (P5 / P50 across the path's trajectories)",
+            "bond and collateral the law requires",
+            "stay status",
+            "notes status and dated triggers"
+          ],
+          "timing": "execution may issue from the day after the Rule 62(a) stay ends; the decision is dated the later of that day and the review date",
+          "asked_when": "I1, judgment enforceable and unstayed",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "interval"
+          ],
+          "residual_question": "forecast_execution_pending_motions"
+        },
+        "stay_motion": {
+          "actor": "judgment debtor",
+          "decision": "moves for a stay on a bond or other security",
+          "standard": [
+            "frcp_62b",
+            "bond_amount"
+          ],
+          "record_items": [
+            "the debtor's statements on the judgment and its liquidity"
+          ],
+          "path_facts": [
+            "amount owed on the path, by component, with statutory interest to the decision date",
+            "available cash at the decision date (P5 / P50 across the path's trajectories)",
+            "bond and collateral the law requires",
+            "stay status",
+            "notes status and dated triggers"
+          ],
+          "timing": "filed on the milestone (the creditor's enforcement act, or the final judgment)",
+          "asked_when": "the creditor acts, or a final judgment is entered",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "interval",
+            "amount_class"
+          ],
+          "residual_question": "forecast_stay_motion"
+        },
+        "stay_approved": {
+          "actor": "court",
+          "decision": "approves the offered security and stays execution",
+          "standard": [
+            "frcp_62b",
+            "bond_amount"
+          ],
+          "record_items": [
+            "the stay motion and the security offered (if any)"
+          ],
+          "path_facts": [
+            "amount owed on the path, by component, with statutory interest to the decision date",
+            "available cash at the decision date (P5 / P50 across the path's trajectories)",
+            "bond and collateral the law requires",
+            "stay status",
+            "notes status and dated triggers"
+          ],
+          "timing": "motion date + briefing_days_new_motion + a ruling_lag_days draw",
+          "asked_when": "the debtor moves for a stay",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "interval",
+            "amount_class"
+          ],
+          "residual_question": "forecast_stay_approved",
+          "note": "Where the path can fund the collateral on some trajectory the self-funded bond branch stays and locks collateral; otherwise the stay rests on approval of lesser security (no cash booked: the record gives no terms)."
+        },
+        "registration_early": {
+          "actor": "court",
+          "decision": "orders registration in other districts before finality for good cause",
+          "standard": [
+            "usc28_1963"
+          ],
+          "record_items": [
+            "where the debtor's operating assets and cash sit"
+          ],
+          "path_facts": [
+            "amount owed on the path, by component, with statutory interest to the decision date",
+            "available cash at the decision date (P5 / P50 across the path's trajectories)",
+            "bond and collateral the law requires",
+            "stay status",
+            "notes status and dated triggers"
+          ],
+          "timing": "creditor's motion on the enforcement decision + briefing + a ruling_lag_days draw; the levy follows on the order date + levy_lag_days",
+          "asked_when": "the creditor acts before finality",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "interval"
+          ],
+          "residual_question": "forecast_1963_good_cause"
+        },
+        "debtor_response": {
+          "actor": "judgment debtor",
+          "decision": "responds to an enforceable, unstayed, unpaid judgment: pay, seek a sale or financing, file, or neither",
+          "standard": [
+            "frcp_69a",
+            "usc11_362"
+          ],
+          "record_items": [
+            "the debtor's stated options: equity, debt, asset financing, collaborations or licensing, a sale or strategic transaction, restructuring or insolvency"
+          ],
+          "path_facts": [
+            "amount owed on the path, by component, with statutory interest to the decision date",
+            "available cash at the decision date (P5 / P50 across the path's trajectories)",
+            "bond and collateral the law requires",
+            "stay status",
+            "notes status and dated triggers"
+          ],
+          "timing": "on the milestone: the creditor's enforcement act before the ruling, then the enforceable date after the ruling; after 'seek' it is asked again at the next milestone on the path",
+          "asked_when": "enforceable, unstayed and unpaid, and not closed by an earlier 'neither' or 'file'",
+          "branches": [
+            "pay",
+            "seek_sale_or_financing",
+            "file",
+            "neither"
+          ],
+          "context": [
+            "milestone",
+            "amount_class",
+            "notes_status"
+          ],
+          "residual_question": "forecast_debtor_response",
+          "effects": {
+            "pay": "pays the path amount with interest on the milestone date (only where the amount is within available cash on some trajectory)",
+            "seek_sale_or_financing": "timing only: defers the filing decision to the next milestone; no cash booked; after the last milestone in the horizon it books nothing",
+            "file": "petition on the milestone date + petition_lag_days",
+            "neither": "not asked again; later petitions only via petition_on_notes or petition_cash_floor"
+          }
+        },
+        "appeal": {
+          "actor": "judgment debtor",
+          "decision": "files a notice of appeal within 30 days of the final judgment",
+          "standard": [
+            "frap_4a1a",
+            "frap_4a4a"
+          ],
+          "record_items": [
+            "statements of appeal intent",
+            "any waiver of appeal"
+          ],
+          "path_facts": [
+            "amount owed on the path, by component, with statutory interest to the decision date",
+            "available cash at the decision date (P5 / P50 across the path's trajectories)",
+            "bond and collateral the law requires",
+            "stay status",
+            "notes status and dated triggers"
+          ],
+          "timing": "the deadline is the final judgment + 30 days (tolled until the last tolling motion is decided)",
+          "asked_when": "a money award survives the ruling",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "amount_class"
+          ],
+          "residual_question": "forecast_appeal",
+          "effect": "an appeal keeps the judgment unfinal: registration only on good cause"
+        },
+        "enforce_after_final": {
+          "actor": "judgment creditor",
+          "decision": "enforces the final judgment",
+          "standard": [
+            "frcp_69a",
+            "usc28_1963"
+          ],
+          "record_items": [
+            "the creditor's statements on enforcement"
+          ],
+          "path_facts": [
+            "amount owed on the path, by component, with statutory interest to the decision date",
+            "available cash at the decision date (P5 / P50 across the path's trajectories)",
+            "bond and collateral the law requires",
+            "stay status",
+            "notes status and dated triggers"
+          ],
+          "timing": "on the enforceable date (final judgment; + 30 days on increases, L8)",
+          "asked_when": "enforceable, unstayed and unpaid after the ruling",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "amount_class",
+            "appealed"
+          ],
+          "residual_question": "forecast_enforcement_after_final"
+        },
+        "settlement_offer": {
+          "actor": "judgment debtor",
+          "decision": "offers settlement terms within its feasibility bound",
+          "standard": [],
+          "record_items": [
+            "settlement statements",
+            "mediation orders"
+          ],
+          "path_facts": [
+            "amount owed on the path, by component, with statutory interest to the decision date",
+            "available cash at the decision date (P5 / P50 across the path's trajectories)",
+            "bond and collateral the law requires",
+            "stay status",
+            "notes status and dated triggers"
+          ],
+          "timing": "per interval; paid on interval start + settlement_date_in_interval",
+          "asked_when": "each interval I1-I4 while the dispute is open",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "interval",
+            "amount_class"
+          ],
+          "residual_question": "forecast_settlement_offer"
+        },
+        "settlement_accept": {
+          "actor": "judgment creditor",
+          "decision": "accepts the offered terms",
+          "standard": [],
+          "record_items": [
+            "settlement statements",
+            "the creditor's statements on the judgment"
+          ],
+          "path_facts": [
+            "amount owed on the path, by component, with statutory interest to the decision date",
+            "available cash at the decision date (P5 / P50 across the path's trajectories)",
+            "bond and collateral the law requires",
+            "stay status",
+            "notes status and dated triggers"
+          ],
+          "timing": "as the offer",
+          "asked_when": "the debtor offers",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "interval",
+            "amount_class"
+          ],
+          "residual_question": "forecast_settlement_accept"
+        }
+      }
+    },
+    "indenture_convertible": {
+      "instrument": "convertible notes under a New York-law indenture",
+      "terms_from_instrument": {
+        "judgment_default": "§7.01(i)-type: final money judgments above a threshold (excluding insured amounts) undischarged, unpaid or unstayed for N days; only after notice by the trustee or 25% of holders",
+        "listing_default": "§7.01(b)-type: common stock not listed on an Eligible Market; no notice, no grace",
+        "acceleration": "§7.02: trustee or 25% may declare; automatic on a petition; rescission by majority once every default is cured (a judgment default is cured only by payment, discharge or a stay)",
+        "repurchase": "§10.01 Fundamental Change: 100% plus interest in cash; notice within 20 business days; repurchase 20-35 business days after notice; a failure to repurchase is a default",
+        "interest": "§16.02: interest dates; shares unless the company elects cash"
+      },
+      "clocks": {
+        "judgment_default_ripe": "the later of the Rule 62(a) stay's end and the review date, + N days, if the judgment is unpaid and unstayed throughout; again on the post-ruling judgment's enforceable date + N (instrument terms); holder notice + holder_notice_lag_days",
+        "listing": "split effective by the vote date; Staff Determination the day after the compliance deadline; suspension + suspension_after_determination_days without a hearing; panel decision + panel_decision_days with one; 'not listed' per form25_after_panel_days"
+      },
+      "nodes": {
+        "holders_act_judgment": {
+          "actor": "holders of 25% (or the trustee)",
+          "decision": "give notice of the judgment default and accelerate",
+          "standard": [
+            "judgment_default",
+            "acceleration"
+          ],
+          "record_items": [
+            "the default and acceleration terms quoted from the indenture",
+            "any holder statements"
+          ],
+          "path_facts": [
+            "principal and accrued interest",
+            "available cash at the decision date (P5 / P50)",
+            "the judgment's status on the path (amount, stayed, paid)",
+            "dated triggers from the instrument terms"
+          ],
+          "timing": "each ripe date + holder_notice_lag_days",
+          "asked_when": "the judgment exceeds the threshold and is unpaid and unstayed on a ripe date",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "ripe",
+            "amount_class"
+          ],
+          "residual_question": "forecast_holders_act_judgment",
+          "note": "Whether a judgment still subject to post-trial motions is 'final' (L11) is open: evidence for this question, not a structural gate."
+        },
+        "holders_act_delisting": {
+          "actor": "holders",
+          "decision": "on delisting: accelerate, require repurchase only, or neither",
+          "standard": [
+            "listing_default",
+            "acceleration",
+            "repurchase"
+          ],
+          "record_items": [
+            "the quoted terms"
+          ],
+          "path_facts": [
+            "principal and accrued interest",
+            "available cash at the decision date (P5 / P50)",
+            "the judgment's status on the path (amount, stayed, paid)",
+            "dated triggers from the instrument terms"
+          ],
+          "timing": "on the 'not listed' date",
+          "asked_when": "the stock is not listed in the horizon",
+          "branches": [
+            "accelerate",
+            "repurchase_only",
+            "neither"
+          ],
+          "context": [
+            "delisting"
+          ],
+          "residual_question": "forecast_holders_act_delisting"
+        },
+        "petition_on_notes": {
+          "actor": "issuer",
+          "decision": "files a petition after acceleration or an unpaid repurchase",
+          "standard": [
+            "acceleration",
+            "usc11_362"
+          ],
+          "record_items": [
+            "the issuer's stated options"
+          ],
+          "path_facts": [
+            "principal and accrued interest",
+            "available cash at the decision date (P5 / P50)",
+            "the judgment's status on the path (amount, stayed, paid)",
+            "dated triggers from the instrument terms"
+          ],
+          "timing": "acceleration or repurchase date + petition_lag_days",
+          "asked_when": "the notes are accelerated or a repurchase falls due unpaid",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "trigger"
+          ],
+          "residual_question": "forecast_petition_on_notes"
+        },
+        "holders_involuntary": {
+          "actor": "noteholders (three or more)",
+          "decision": "file an involuntary petition",
+          "standard": [
+            "usc11_303b"
+          ],
+          "record_items": [
+            "the holders' position"
+          ],
+          "path_facts": [
+            "principal and accrued interest",
+            "available cash at the decision date (P5 / P50)",
+            "the judgment's status on the path (amount, stayed, paid)",
+            "dated triggers from the instrument terms"
+          ],
+          "timing": "as the trigger + petition_lag_days",
+          "asked_when": "accelerated, unpaid, and no voluntary petition",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "trigger"
+          ],
+          "residual_question": "forecast_holders_involuntary"
+        },
+        "reverse_split_board": {
+          "actor": "board",
+          "decision": "calls the reverse-split vote in time to regain compliance",
+          "standard": [
+            "listing_default"
+          ],
+          "record_items": [
+            "deficiency notices",
+            "prior vote history"
+          ],
+          "path_facts": [
+            "principal and accrued interest",
+            "available cash at the decision date (P5 / P50)",
+            "the judgment's status on the path (amount, stayed, paid)",
+            "dated triggers from the instrument terms"
+          ],
+          "timing": "vote by the call deadline for the split to be effective by the compliance date",
+          "asked_when": "no earlier petition on the path",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [],
+          "residual_question": "forecast_reverse_split_board"
+        },
+        "split_approved": {
+          "actor": "stockholders",
+          "decision": "approve the reverse split",
+          "standard": [
+            "DGCL §242(d)(2): votes for exceed votes against"
+          ],
+          "record_items": [
+            "prior votes and the standard applied"
+          ],
+          "path_facts": [
+            "principal and accrued interest",
+            "available cash at the decision date (P5 / P50)",
+            "the judgment's status on the path (amount, stayed, paid)",
+            "dated triggers from the instrument terms"
+          ],
+          "timing": "on the vote",
+          "asked_when": "the board calls the vote",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [],
+          "residual_question": "forecast_split_approved"
+        },
+        "nasdaq_hearing": {
+          "actor": "issuer",
+          "decision": "requests a hearing before the panel",
+          "standard": [
+            "Nasdaq Rule 5815(a)"
+          ],
+          "record_items": [
+            "the deficiency notices"
+          ],
+          "path_facts": [
+            "principal and accrued interest",
+            "available cash at the decision date (P5 / P50)",
+            "the judgment's status on the path (amount, stayed, paid)",
+            "dated triggers from the instrument terms"
+          ],
+          "timing": "within 7 days of the Staff Determination",
+          "asked_when": "not compliant on the compliance date",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [],
+          "residual_question": "forecast_nasdaq_hearing"
+        },
+        "panel_exception": {
+          "actor": "Nasdaq hearings panel",
+          "decision": "grants an exception past the horizon",
+          "standard": [
+            "Nasdaq Rule 5815(c): up to 180 days from the Staff Determination"
+          ],
+          "record_items": [
+            "the issuer's compliance plan (if any)"
+          ],
+          "path_facts": [
+            "principal and accrued interest",
+            "available cash at the decision date (P5 / P50)",
+            "the judgment's status on the path (amount, stayed, paid)",
+            "dated triggers from the instrument terms"
+          ],
+          "timing": "panel decision = determination + panel_decision_days",
+          "asked_when": "a hearing is requested",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [],
+          "residual_question": "forecast_panel_exception"
+        }
+      }
+    },
+    "bankruptcy_effects": {
+      "effects": {
+        "petition": "collections stop on the petition date (usc11_362); the outstanding balance is a stayed claim",
+        "preference": "payments to the lender in [petition - 90, petition) are exposed (usc11_547), reported gross and net of later draws (new value, §547(c)(4))"
+      },
+      "nodes": {
+        "petition_cash_floor": {
+          "actor": "borrower",
+          "decision": "files a petition when available cash first falls below operating need (tau)",
+          "standard": [
+            "usc11_362"
+          ],
+          "record_items": [
+            "the company's going-concern and liquidity statements"
+          ],
+          "path_facts": [
+            "tau's date range across the path's trajectories",
+            "cash at tau (P5 / P50)",
+            "the judgment and notes status"
+          ],
+          "timing": "tau + petition_lag_days, per trajectory",
+          "asked_when": "tau falls in the horizon on some trajectory of the path",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "amount_class",
+            "notes_status"
+          ],
+          "residual_question": "forecast_petition_cash_floor"
+        }
+      }
+    }
+  },
+  "composition": {
+    "order": [
+      "I1: settlement, execution, stay, debtor response, early registration",
+      "judgment default ripe dates",
+      "ruling (chain rule over the merits nodes)",
+      "I2-I4: settlement, appeal, stay, debtor response, enforcement",
+      "listing chain",
+      "cash floor"
+    ],
+    "ruling_chain_rule": "P(outcome) = product of the merits answers along its branch, in order: liability, damages, remittitur election, patent, then trebling, fees and interest only where trade-secret money survives. Outcomes group into amount classes by arithmetic: none, each distinct amount within reach of available cash on some trajectory, and 'beyond reach' (above available cash on every trajectory), whose downstream cash is identical.",
+    "composites": {
+      "settlement": "offer x accept, per interval",
+      "stay": "motion x approval",
+      "notes_petition": "petition_on_notes + (1 - petition_on_notes) x holders_involuntary",
+      "listing": "board x approval, else hearing x exception"
+    },
+    "neutral": "Attribution step 2 sets every residual to neutral (a Noul at 0.5, a Choice uniform over the branches arithmetic leaves) and keeps everything the record fixes.",
+    "paths_to_the_engine": "Paths are sequences of decisions; each decision's effect is dated per trajectory and applies only where its condition holds on that date. A petition ends every later effect on its trajectory."
+  }
 }

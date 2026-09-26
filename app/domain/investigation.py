@@ -259,6 +259,63 @@ class EvidenceRequest(Frozen):
     if_not: str
 
 
+ComponentKind = Literal["compensatory", "exemplary", "patent", "trebling", "fees", "prejudgment_interest", "costs"]
+MotionKind = Literal["rule_50b", "rule_52b", "rule_59a", "rule_59e", "rule_54_fees", "injunction"]
+
+
+class Component(Frozen):
+    """One money component of a judgment (dispute model 4.0.0 `components_schema`): a quoted amount (awarded or
+    requested), a statutory computation code performs from quoted law, or a typed unknown. Code checks every figure
+    against the cited quotes."""
+
+    component_id: str
+    label: str
+    kind: ComponentKind
+    status: Literal["awarded", "requested"]
+    amount_cents: int | None = None
+    statutory: str = ""  # a rule id in the dispute model's `rules`
+    unknown: bool = False
+    remittitur_cents: int | None = None  # the most the evidence supports (a declared scenario), where the record gives one
+    motion: str = ""  # motion_id of the pending motion that decides it
+    basis: str = ""  # finding id(s) and the quote the figure rests on
+
+
+class PendingMotion(Frozen):
+    """A pending post-judgment motion: its kind and the close of its briefing (quoted). Code draws its ruling date
+    from the close of briefing (dispute model `ruling_lag_days`) and applies FRAP 4(a)(4)(A) tolling by kind."""
+
+    motion_id: str  # the docket reference, e.g. "D.I. 613"
+    kind: MotionKind
+    briefing_close: date
+    decides: tuple[str, ...] = ()  # component ids (or "liability", "injunction")
+
+
+class FinancingInstrument(Frozen):
+    """A financing instrument whose terms the dispute can trigger (spec §7). The agent quotes the terms each chain
+    cites; every figure and date is checked against the quotes. Code applies the terms; Jev never decides what a
+    contract means."""
+
+    instrument_id: str
+    dependency_id: str
+    kind: Literal["convertible_notes"]
+    title: str
+    issuer: str
+    finding_ids: tuple[str, ...] = Field(min_length=1)
+    principal_cents: int
+    coupon_cents: int | None = None  # one interest payment
+    interest_dates: tuple[date, ...] = ()
+    judgment_default_threshold_cents: int | None = None
+    judgment_default_days: int | None = None
+    judgment_default_notice: bool = True  # only after notice by the trustee or the holders
+    insured_cents: int = 0  # amounts covered by insurance, excluded from the judgment default
+    listing_deadline: date | None = None  # the listing-compliance deadline (bid price)
+    repurchase_notice_business_days: int | None = None
+    repurchase_business_days: tuple[int, int] | None = None  # repurchase this many business days after notice
+    dispute_ids: tuple[str, ...] = ()  # the disputes whose judgments the default terms reach
+    status: Literal["instantiated", "superseded"] = "instantiated"
+    superseded_by: str = ""
+
+
 class DisputeInstance(Frozen):
     """A live dispute grouped by the agent and read by Jev. The agent supplies the findings, a docket reference, the
     obligation's nature, the counterparty, the quoted amount and any judgment date; Jev reads each finding with its
@@ -276,6 +333,11 @@ class DisputeInstance(Frozen):
     finding_ids: tuple[str, ...] = Field(min_length=1)
     amount: EvidenceValue
     judgment_date: date | None = None
+    forum: Literal["court", "arbitration"] = "court"
+    commenced: date | None = None  # the action's commencement (N.C. Gen. Stat. §24-5(b) interest start)
+    components: tuple[Component, ...] = ()
+    motions: tuple[PendingMotion, ...] = ()
+    financing: tuple[FinancingInstrument, ...] = ()  # instruments whose terms this judgment triggers (host-attached)
     borrower_role: Literal["debtor", "creditor"] | None = None  # from Jev's readings (the agent's, in the agent-only arm)
     amount_status: str = "unknown"
     amount_includes_interest: bool = False
@@ -296,7 +358,7 @@ EventKind = Literal[
     "reconciliation_opened", "reconciliation_resolved", "effect_proposed", "effect_validated",
     "sensitivity_run", "missing_fact_requested", "packet_submitted", "run_failed",
     "inventory_loaded", "inventory_accounted", "conclusion_checked", "effect_disputed", "cited_units_checked",
-    "dispute_instantiated",
+    "dispute_instantiated", "financing_instantiated",
 ]
 
 

@@ -36,12 +36,15 @@ from app.config import ConfigurationError
 from app.domain.investigation import (
     CASH_FREE_MECHANISMS,
     AtomicFinding,
+    Component,
     DecisionDependency,
     Disposition,
     DisputeInstance,
     EconomicEffectProposal,
     EvidenceCandidate,
+    FinancingInstrument,
     ParameterRequirement,
+    PendingMotion,
     ReconciliationTask,
     SemanticObservation,
     validate_effect,
@@ -585,6 +588,81 @@ def _neutral_reference(ref: str, parties: list[str]) -> str:
     return ref
 
 
+def _quoted_date(raw, field: str, quotes: str, review: date) -> date:
+    """A date the agent supplies: ISO, not after the review date, and present in the cited quotes."""
+    try:
+        d = date.fromisoformat(raw)
+    except (TypeError, ValueError) as e:
+        raise ToolError(f"{field} is YYYY-MM-DD") from e
+    if d > review:
+        raise ToolError(f"{field} {d} is after the review date {review}")
+    if not _date_in_text(d, quotes):
+        raise ToolError(f"{field} {d} is not in the cited quotes; cite the finding that states it")
+    return d
+
+
+def _quoted_cents(cents, field: str, quotes: str) -> int:
+    if cents is None or int(cents) <= 0:
+        raise ToolError(f"{field} is a positive amount in cents")
+    if not _cents_in_text(int(cents), quotes):
+        raise ToolError(f"{field} ({int(cents)} cents) is not in the cited quotes")
+    return int(cents)
+
+
+def _quoted_int(n, field: str, quotes: str) -> int:
+    if n is None or int(n) <= 0 or not re.search(rf"(?<![\d.,]){int(n)}(?![\d.,]\d)", quotes):
+        raise ToolError(f"{field} ({n}) is not in the cited quotes")
+    return int(n)
+
+
+def _components(items: list[dict], quotes: str, model: dict) -> tuple[Component, ...]:
+    """Each component is exactly one of: a quoted amount, a statutory computation named in the model's rules, or a
+    typed unknown. A remittitur figure is quoted too."""
+    out, seen = [], set()
+    for c in items or []:
+        cid = (c.get("component_id") or "").strip()
+        if not cid or cid in seen:
+            raise ToolError("Each component needs a unique component_id")
+        seen.add(cid)
+        kinds = [c.get("amount_cents") is not None, bool(c.get("statutory")), bool(c.get("unknown"))]
+        if sum(kinds) != 1:
+            raise ToolError(f"Component {cid} is exactly one of amount_cents, statutory or unknown")
+        if c.get("statutory") and c["statutory"] not in model["rules"]:
+            raise ToolError(f"Component {cid}: statutory names a rule in the dispute model ({sorted(model['rules'])})")
+        amount = _quoted_cents(c["amount_cents"], f"component {cid}", quotes) if kinds[0] else None
+        remit = (_quoted_cents(c["remittitur_cents"], f"component {cid} remittitur", quotes)
+                 if c.get("remittitur_cents") is not None else None)
+        try:
+            out.append(Component(component_id=cid, label=c.get("label") or cid, kind=c.get("kind"),
+                                 status=c.get("status"), amount_cents=amount, statutory=c.get("statutory") or "",
+                                 unknown=bool(c.get("unknown")), remittitur_cents=remit,
+                                 motion=c.get("motion") or "", basis=c.get("basis") or ""))
+        except ValueError as e:
+            raise ToolError(f"Component {cid}: {e}") from e
+    return tuple(out)
+
+
+def _motions(items: list[dict], quotes: str, review: date, components: tuple[Component, ...]) -> tuple[PendingMotion, ...]:
+    out = []
+    ids = {c.component_id for c in components} | {"liability", "injunction"}
+    for m in items or []:
+        mid = (m.get("motion_id") or "").strip()
+        if not mid or mid not in quotes:
+            raise ToolError(f"motion_id {mid!r} is the docket reference as it appears in the cited quotes")
+        decides = tuple(m.get("decides") or ())
+        if set(decides) - ids:
+            raise ToolError(f"Motion {mid} decides unknown components {sorted(set(decides) - ids)}")
+        close = _quoted_date(m.get("briefing_close"), f"motion {mid} briefing_close", quotes, date.max)
+        try:
+            out.append(PendingMotion(motion_id=mid, kind=m.get("kind"), briefing_close=close, decides=decides))
+        except ValueError as e:
+            raise ToolError(f"Motion {mid}: {e}") from e
+    missing = [c.component_id for c in components if c.motion and c.motion not in {m.motion_id for m in out}]
+    if missing:
+        raise ToolError(f"Components {missing} name a motion that is not listed in motions")
+    return tuple(out)
+
+
 async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
     """Group one live dispute's evidence for the host's dispute model. The agent supplies the accepted findings, a
     neutral docket reference, the obligation's nature, the counterparty, the amount figure and any judgment date (both
@@ -629,11 +707,20 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
             raise ToolError(f"judgment_date is after the review date {review}")
         if not _date_in_text(judgment_date, quotes):
             raise ToolError(f"{judgment_date} is not in the cited quotes; cite the finding that dates the judgment")
+    forum = args.get("forum") or "court"
+    if forum not in model["forum"]["values"]:
+        raise ToolError(f"forum is one of {model['forum']['values']}")
+    if forum != "court":
+        raise ToolError(model["forum"]["note"])
+    commenced = _quoted_date(args["commenced"], "commenced", quotes, review) if args.get("commenced") else None
+    components = _components(args.get("components") or [], quotes, model)
+    motions = _motions(args.get("motions") or [], quotes, review, components)
     draft = DisputeInstance(
         instance_id=ctx.run.new_id("dispute"), dependency_id=dep.dependency_id, model_id=model["model_id"],
         model_version=model["model_version"], title=title, order_reference=reference, nature=args["nature"],
         counterparty=counterparty, finding_ids=fids, amount=_dispute_amount(args.get("amount") or {}, quotes),
-        judgment_date=judgment_date, proposed_extension=(args.get("proposed_extension") or "").strip())
+        judgment_date=judgment_date, forum=forum, commenced=commenced, components=components, motions=motions,
+        proposed_extension=(args.get("proposed_extension") or "").strip())
     sources = {s["source_id"]: (s["title"], s["available_at"][:10]) for s in ctx.evidence.list_sources()}
     judge = None
     if ctx.semantics is not None:
@@ -667,6 +754,69 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
             **({"proposed_extension": "recorded and flagged; the model is unchanged"} if instance.proposed_extension else {}),
             "note": ("Jev read the present state from the passages. After your run the host asks Jev for the conditional "
                      "probabilities of each future development and builds the financial analysis.")}
+
+
+async def instantiate_financing(ctx: RunContext, args: dict) -> dict:
+    """Compile one financing instrument whose terms a dispute can trigger (spec §7): the agent quotes the principal,
+    the judgment-default, listing, repurchase and interest terms the chains cite; every figure and date is checked
+    against the cited quotes (the same guards as instantiate_dispute). Code applies the terms."""
+    dep = ctx.run.get("dependencies", args["dependency_id"])
+    fids = tuple(dict.fromkeys(args.get("finding_ids") or []))
+    findings = [ctx.run.graph["findings"].get(f) for f in fids]
+    bad = [f for f, x in zip(fids, findings, strict=True) if x is None or x.status != "accepted"]
+    if not fids or bad:
+        raise ToolError(f"An instrument rests on accepted findings (not accepted: {bad or 'none given'})")
+    title, issuer = (args.get("title") or "").strip(), (args.get("issuer") or "").strip()
+    if not title or not issuer:
+        raise ToolError("Give the instrument a short title and name the issuer")
+    if args.get("kind") != "convertible_notes":
+        raise ToolError("kind is one of ['convertible_notes'] (the credit-agreement template lands with the next case)")
+    live = {i.instrument_id: i for i in ctx.run.graph["financing"].values() if i.status != "superseded"}
+    replaced = args.get("supersedes")
+    if replaced and replaced not in live:
+        raise ToolError(f"{replaced} is not a live financing instrument")
+    overlap = [i.instrument_id for i in live.values() if set(i.finding_ids) & set(fids) and i.instrument_id != replaced]
+    if overlap:
+        raise ToolError(f"These findings are already instantiated as {overlap}; to correct it, pass supersedes")
+    disputes = {d.instance_id for d in ctx.run.graph["disputes"].values() if d.status != "superseded"}
+    unknown = [d for d in args.get("dispute_ids") or [] if d not in disputes]
+    if unknown:
+        raise ToolError(f"dispute_ids {unknown} are not live dispute instances")
+    quotes = " ".join(s.quote for f in findings for s in f.spans)
+
+    def opt(key, check):
+        return check(args[key], key, quotes) if args.get(key) is not None else None
+
+    window = args.get("repurchase_business_days")
+    if window is not None:
+        if len(window) != 2 or not 0 < int(window[0]) <= int(window[1]):
+            raise ToolError("repurchase_business_days is [earliest, latest]")
+        window = (_quoted_int(window[0], "repurchase earliest", quotes), _quoted_int(window[1], "repurchase latest", quotes))
+    dates = tuple(_quoted_date(d, "interest_dates", quotes, date.max) for d in args.get("interest_dates") or [])
+    try:
+        inst = FinancingInstrument(
+            instrument_id=ctx.run.new_id("financing"), dependency_id=dep.dependency_id, kind=args["kind"], title=title,
+            issuer=issuer, finding_ids=fids, principal_cents=_quoted_cents(args.get("principal_cents"), "principal_cents", quotes),
+            coupon_cents=opt("coupon_cents", _quoted_cents), interest_dates=dates,
+            judgment_default_threshold_cents=opt("judgment_default_threshold_cents", _quoted_cents),
+            judgment_default_days=opt("judgment_default_days", _quoted_int),
+            judgment_default_notice=bool(args.get("judgment_default_notice", True)),
+            insured_cents=int(args.get("insured_cents") or 0),
+            listing_deadline=(_quoted_date(args["listing_deadline"], "listing_deadline", quotes, date.max)
+                              if args.get("listing_deadline") else None),
+            repurchase_notice_business_days=opt("repurchase_notice_business_days", _quoted_int),
+            repurchase_business_days=window, dispute_ids=tuple(args.get("dispute_ids") or ()))
+    except ValueError as e:
+        raise ToolError(str(e)) from e
+    if inst.insured_cents and not _cents_in_text(inst.insured_cents, quotes):
+        raise ToolError("insured_cents is not in the cited quotes (0 when the record shows no insurance)")
+    if replaced:
+        ctx.run.put("financing_instantiated", live[replaced].model_copy(update={"status": "superseded",
+                                                                                "superseded_by": inst.instrument_id}))
+    ctx.run.put("financing_instantiated", inst)
+    return {"instrument_id": inst.instrument_id, "status": inst.status,
+            "note": "The host applies these terms in the chains (default clocks, acceleration, repurchase, interest). "
+                    "Jev answers only the holders' and the issuer's decisions."}
 
 
 async def request_missing_fact(ctx: RunContext, args: dict) -> dict:
@@ -1135,11 +1285,38 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
           "amount": obj({"value_cents": {"type": "integer"}, "lower_cents": {"type": "integer"},
                          "upper_cents": {"type": "integer"}, "basis": S}, []),
           "judgment_date": S, "supersedes": S, "proposed_extension": S,
+          "forum": {"type": "string", "enum": ["court", "arbitration"]}, "commenced": S,
+          "components": {"type": "array", "items": obj({
+              "component_id": S, "label": S, "basis": S, "motion": S,
+              "kind": {"type": "string", "enum": ["compensatory", "exemplary", "patent", "trebling", "fees",
+                                                  "prejudgment_interest", "costs"]},
+              "status": {"type": "string", "enum": ["awarded", "requested"]},
+              "amount_cents": {"type": "integer"}, "statutory": S, "unknown": {"type": "boolean"},
+              "remittitur_cents": {"type": "integer"}}, ["component_id", "kind", "status"])},
+          "motions": {"type": "array", "items": obj({
+              "motion_id": S, "briefing_close": S, "decides": {"type": "array", "items": S},
+              "kind": {"type": "string", "enum": ["rule_50b", "rule_52b", "rule_59a", "rule_59e", "rule_54_fees",
+                                                  "injunction"]}}, ["motion_id", "kind", "briefing_close"])},
           "borrower_role": {"type": "string", "enum": ["debtor", "creditor"]},
-          "stage": {"type": "string", "enum": ["amount_pending", "judgment_entered", "appeal_filed", "appeal_pending",
-                                                  "enforcement"]}},
+          "stage": {"type": "string", "enum": ["amount_pending", "post_trial", "judgment_entered", "appeal_filed",
+                                                  "appeal_pending", "enforcement"]}},
          ["dependency_id", "title", "order_reference", "nature", "finding_ids", "counterparty", "amount"]),
      instantiate_dispute),
+    ("instantiate_financing", "Compile one financing instrument a dispute can trigger (convertible notes): cite the "
+     "accepted findings quoting its terms; give the principal, the coupon and interest dates, the judgment-default "
+     "threshold and days, the listing deadline, the repurchase notice and window, any insured amount, and the disputes "
+     "its default terms reach. Every figure and date must appear in the cited quotes. Code applies the terms; Jev "
+     "answers only the holders' and the issuer's decisions.",
+     obj({"dependency_id": S, "title": S, "issuer": S, "kind": {"type": "string", "enum": ["convertible_notes"]},
+          "finding_ids": {"type": "array", "items": S}, "principal_cents": {"type": "integer"},
+          "coupon_cents": {"type": "integer"}, "interest_dates": {"type": "array", "items": S},
+          "judgment_default_threshold_cents": {"type": "integer"}, "judgment_default_days": {"type": "integer"},
+          "judgment_default_notice": {"type": "boolean"}, "insured_cents": {"type": "integer"},
+          "listing_deadline": S, "repurchase_notice_business_days": {"type": "integer"},
+          "repurchase_business_days": {"type": "array", "items": {"type": "integer"}},
+          "dispute_ids": {"type": "array", "items": S}, "supersedes": S},
+         ["dependency_id", "title", "issuer", "kind", "finding_ids", "principal_cents"]),
+     instantiate_financing),
     ("request_missing_fact", "Record a pivotal fact the evidence cannot supply: what it is, why it is pivotal, what evidence "
      "would resolve it and what changes if it is resolved. Sends no message.",
      obj({"dependency_id": S, "fact": S, "why_pivotal": S, "acceptable_evidence": S, "if_resolved": S},

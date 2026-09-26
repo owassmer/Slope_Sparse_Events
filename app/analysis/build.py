@@ -18,9 +18,10 @@ from functools import lru_cache
 from pathlib import Path
 
 from app.analysis.core import Analysis, EventModel, dates, stress
+from app.analysis.events import Basis
 from app.analysis.setup import Setup, setup_from_inputs
 from app.config import VAR, question_registry
-from app.disputes.forecast import DisputePath, Forecaster, Judgment
+from app.disputes.forecast import DisputePath, Forecaster, Judgment, neutral_map
 from app.disputes.hydrate import evidence_state
 from app.disputes.rules import load_model
 from app.domain.investigation import AtomicFinding, DisputeInstance
@@ -178,6 +179,17 @@ def meta_for(model: EventModel, borrower: str, not_modelled: list[dict]) -> dict
 
 # --- recorded runs ------------------------------------------------------------------------------------
 
+def basis_for(feed: BankFeed, setup: Setup) -> Basis:
+    """The operating draws' cash, need and legal spend: the same simulation the analysis runs."""
+    from app.analysis import operating
+    from app.analysis.engine import NEED_DAYS, prepare
+    from app.analysis.setup import DRAWS, SEED
+
+    days = (setup.horizon - setup.review).days
+    ops = operating.simulate(feed, days + NEED_DAYS, DRAWS, SEED, setup.variability)
+    return Basis.of(ops, prepare(setup, ops).need, feed.available_cents)
+
+
 def _load_run(run_id: str, root: Path):
     from app.agent.run_store import RunStore
     from app.evidence.store import EvidenceStore
@@ -207,15 +219,19 @@ def build(run_id: str, root: Path, refresh: bool = False) -> dict:
                            f"refresh to build anyway.")
     sources = {s["source_id"]: (s["title"], s["available_at"][:10]) for s in evidence.list_sources()}
     feed = load_feed(meta["snapshot_id"])
+    instruments = [f for f in store.graph.get("financing", {}).values() if f.status != "superseded"]
+    live = [d.model_copy(update={"financing": tuple(f for f in instruments if d.instance_id in f.dispute_ids)})
+            for d in live]  # the instruments each judgment's terms reach (dispute model 4.0.0)
     fc = Forecaster(live, findings, borrower=borrower, review=review, horizon=setup.horizon,
                     hydrate=lambda f: evidence_state(evidence, f, [], sources)["passage"],
-                    borrower_cash_cents=feed.available_cents)
+                    setup=setup, basis=basis_for(feed, setup))  # path facts are simulated before Jev is asked
     per = fc.all_paths()
     records: list = []
     jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
     judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
     judgments = asyncio.run(fc.judge(judge)) if fc.nodes else {}
-    model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered())
+    model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered(),
+                       neutral=neutral_map(judgments))
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in live if d.status not in ("interpreted", "resolved")]
     data = payload(feed, setup, model, meta_for(model, borrower, not_modelled))

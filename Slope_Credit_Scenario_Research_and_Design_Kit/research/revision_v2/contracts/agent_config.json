@@ -105,6 +105,7 @@
           "mcp__credit__propose_effect",
           "mcp__credit__run_sensitivity",
           "mcp__credit__instantiate_dispute",
+          "mcp__credit__instantiate_financing",
           "mcp__credit__request_missing_fact",
           "mcp__credit__read_inventory",
           "mcp__credit__escalate_effect",
@@ -218,28 +219,55 @@
             "event_amount_fixed",
             "event_judgment_entered",
             "event_appeal_filed",
+            "event_mediation_ordered",
             "event_stay_secured",
             "event_paid",
-            "event_mediation_ordered",
             "bears_on_amount_finality",
             "bears_on_appeal_intent",
             "bears_on_appeal_barred",
             "bears_on_debtor_resistance",
             "bears_on_debtor_liquidity",
             "bears_on_settlement_signals",
-            "factor_level"
+            "factor_level",
+            "event_post_trial_motions_pending",
+            "event_post_trial_decided",
+            "event_injunction_entered"
           ]
         },
         "dispute_forecast": {
-          "trigger": "host, when the analysis is built: one request per forecast node and parent context (cached); a later same-counterparty dispute is asked once per outcome class of the earlier one",
+          "trigger": "host, when the analysis is built: one request per residual node and context key (interval, amount class, stay and notes status; cached). Path facts are simulated before any request.",
           "questions": [
-            "forecast_settlement",
-            "forecast_amount_fixed",
+            "forecast_ts_liability_jmol",
+            "forecast_ts_damages_ruling",
+            "forecast_remittitur_accepted",
+            "forecast_patent_jmol",
+            "forecast_trebling",
+            "forecast_fees_awarded",
+            "forecast_prejudgment_interest",
+            "forecast_injunction_ts",
+            "forecast_execution_pending_motions",
+            "forecast_stay_motion",
+            "forecast_stay_approved",
+            "forecast_1963_good_cause",
+            "forecast_debtor_response",
             "forecast_appeal",
-            "forecast_secured_stay",
-            "forecast_voluntary_payment",
-            "forecast_enforcement_collects",
-            "forecast_security_form"
+            "forecast_enforcement_after_final",
+            "forecast_settlement_offer",
+            "forecast_settlement_accept",
+            "forecast_petition_cash_floor"
+          ]
+        },
+        "financing_forecast": {
+          "trigger": "host, when the analysis is built: one request per residual node and context key (interval, amount class, stay and notes status; cached). Path facts are simulated before any request.",
+          "questions": [
+            "forecast_holders_act_judgment",
+            "forecast_holders_act_delisting",
+            "forecast_petition_on_notes",
+            "forecast_holders_involuntary",
+            "forecast_reverse_split_board",
+            "forecast_split_approved",
+            "forecast_nasdaq_hearing",
+            "forecast_panel_exception"
           ]
         }
       },
@@ -301,11 +329,12 @@
       "propose_effect": "Propose an economic effect from accepted findings: mechanism, target stream, parameter requirements, baseline treatment and linked effects. Validated by the finance engine; never activated by Jev output.",
       "run_sensitivity": "Run deterministic thresholds or ledger sensitivities over explicit parameter bounds and return which values change the result.",
       "request_missing_fact": "Record the exact requested fact/document and the action consequences. This tool sends no communication.",
-      "instantiate_dispute": "Compile a live dispute onto the host-owned post-judgment dispute model: the agent groups the cited accepted findings about one obligation, names the obligation and counterparty, and quotes the amount and any judgment date (checked against the quotes). Jev reads each finding atomically (who pays, the amount's status, procedural events, factors; never a forecast); code places the stage, closes only paths an established fact rules out, sets every date and amount from rules, and keeps every other cash path, unweighted, for the policy test.",
+      "instantiate_dispute": "Compile a live dispute onto the host-owned dispute model 4.0.0: group the cited accepted findings about one obligation; name the forum, the obligation and the counterparty; quote the amount, the judgment date, the components (awarded or requested, with the pending motion that decides each) and the briefing-close date of pending motions (each checked against the quotes). Jev reads each finding (who pays, the amount's status, procedural events, factors; never a forecast); code places the stage, owns every date and amount, and builds the chains.",
       "submit_packet": "Lock the investigation graph, source hashes, findings, effects and calculation versions for review. No lending action.",
       "read_inventory": "The reading list: paragraphs and table rows the host sweep flagged as describing a specific matter, and whether an accepted finding cites each.",
       "escalate_effect": "Escalate an effect the category guard rejected: it becomes disputed, creates no cash stream and is left for the reviewer; a disputed cash-moving effect makes the run INCOMPLETE_REVIEW.",
-      "resolve_reconciliation": "Resolve an open reconciliation task with a note on how the statements relate."
+      "resolve_reconciliation": "Resolve an open reconciliation task with a note on how the statements relate.",
+      "instantiate_financing": "Compile a financing instrument the dispute can trigger (e.g. convertible notes): quote the principal, the default, acceleration, repurchase, interest and listing terms the chains cite, with their figures and dates (each checked against the quotes). Code applies the terms; Jev never decides what a contract means."
     },
     "disallowed_capabilities": [
       "unscoped shell or code execution by the agent",
@@ -326,11 +355,12 @@
     "consecutive_no_progress_actions": 3,
     "no_progress_definition": "An action produces no new eligible evidence, no corrected finding, no resolved/narrowed gap, no new valid patch and no changed sensitivity result. Repeating the same query alone is not progress.",
     "budget_policy": "Ceilings, not targets. Record actual elapsed time, token usage, requests and spend. Finish early when further accessible evidence cannot change the action across the stated sensitivity range.",
-    "jev_max_physical_attempts_including_retries": 400,
+    "jev_max_physical_attempts_including_retries": 1200,
     "turn_counting": "A turn is one distinct model response (message_id), counted by the host and enforced by interrupting the session. The SDK's num_turns counts differently and is recorded only for reference.",
     "sweep_max_physical_attempts_per_snapshot": 1500,
     "sweep_spend_cap_usd_per_snapshot": "0.10",
-    "search_default_results": 8
+    "search_default_results": 8,
+    "jev_budget_note": "Raised from 400 in 4.0.0: a chain run asks the interpretation readings plus one request per residual node and context key (a few hundred requests)."
   },
   "completion_and_decisions": {
     "execution_states": [

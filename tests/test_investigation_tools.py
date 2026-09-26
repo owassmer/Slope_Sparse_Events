@@ -384,3 +384,75 @@ def test_a_dispute_is_modelled_once(make_ctx):
     with pytest.raises(T.ToolError, match="already instantiated"):
         call(T.instantiate_dispute, ctx, args)  # the same findings again would count the dispute twice
 
+
+
+NOTES_QUOTE = ("The Notes bear interest at 6.0% payable semi-annually on June 15 and December 15, the next payment of "
+               "$1,320,000 due December 15, 2024. Aggregate principal outstanding: $44.0 million. An Event of Default "
+               "includes final judgments aggregating in excess of $10.0 million that remain unpaid or unstayed for 60 "
+               "days after notice. The Company shall give notice within 20 Business Days and repurchase between 20 and "
+               "35 Business Days after the notice. Compliance deadline: October 21, 2024.")
+JUDGMENT_QUOTE = ("D.I. 602: judgment of $31,315,215 in unjust enrichment, $7,000,000 exemplary and $279,808 patent "
+                  "damages, entered May 20, 2024. D.I. 613 asks for a new trial or remittitur to $23,100,000. D.I. 605: "
+                  "briefing closes August 8, 2024. Complaint filed October 4, 2021.")
+
+
+def _accepted_with_quote(ctx, text: str, fid: str) -> tuple[str, str]:
+    """An accepted finding whose single span quotes `text` (only the quotes and the status are read by the guards)."""
+    dep, base = _accepted_settlement_finding(ctx)
+    f = ctx.run.get("findings", base)
+    span = f.spans[0].model_copy(update={"quote": text})
+    ctx.run.put("finding_resolved", f.model_copy(update={"finding_id": fid, "spans": (span,)}))
+    return dep, fid
+
+
+def test_financing_terms_are_checked_against_the_quotes(make_ctx):
+    ctx = make_ctx(name="financing")
+    dep, fid = _accepted_with_quote(ctx, NOTES_QUOTE, "finding_notes")
+    good = {"dependency_id": dep, "title": "6.0% convertible notes", "issuer": "Borrower", "kind": "convertible_notes",
+            "finding_ids": [fid], "principal_cents": 4_400_000_000, "coupon_cents": 132_000_000,
+            "interest_dates": ["2024-12-15"], "judgment_default_threshold_cents": 1_000_000_000,
+            "judgment_default_days": 60, "listing_deadline": "2024-10-21", "repurchase_notice_business_days": 20,
+            "repurchase_business_days": [20, 35]}
+    for bad, match in (({"principal_cents": 4_500_000_000}, "not in the cited quotes"),
+                       ({"judgment_default_days": 90}, "not in the cited quotes"),
+                       ({"listing_deadline": "2024-10-22"}, "not in the cited quotes"),
+                       ({"repurchase_business_days": [35, 20]}, r"\[earliest, latest\]"),
+                       ({"kind": "credit_agreement"}, "kind is one of"),
+                       ({"dispute_ids": ["dispute_999"]}, "not live dispute"),
+                       ({"insured_cents": 5_000_000}, "insured_cents")):
+        with pytest.raises(T.ToolError, match=match):
+            call(T.instantiate_financing, ctx, {**good, **bad})
+    out = call(T.instantiate_financing, ctx, good)
+    inst = ctx.run.get("financing", out["instrument_id"])
+    assert inst.principal_cents == 4_400_000_000 and inst.repurchase_business_days == (20, 35)
+    with pytest.raises(T.ToolError, match="already instantiated"):
+        call(T.instantiate_financing, ctx, good)  # an instrument is modelled once
+
+
+def test_dispute_components_and_motions_are_checked(make_ctx):
+    ctx = make_ctx(name="components")
+    dep, fid = _accepted_with_quote(ctx, JUDGMENT_QUOTE, "finding_judgment")
+    base = {"dependency_id": dep, "title": "t", "order_reference": "D. Del. 1:21-cv-01417", "nature": "money_judgment",
+            "finding_ids": [fid], "counterparty": "Creditor Inc.", "amount": {"value_cents": 3_131_521_500},
+            "judgment_date": "2024-05-20"}
+    ue = {"component_id": "ue", "kind": "compensatory", "status": "awarded", "amount_cents": 3_131_521_500,
+          "remittitur_cents": 2_310_000_000, "motion": "D.I. 613"}
+    motion = {"motion_id": "D.I. 613", "kind": "rule_59a", "briefing_close": "2024-08-08", "decides": ["ue"]}
+    for extra, match in (({"components": [{**ue, "amount_cents": 3_200_000_000}]}, "not in the cited quotes"),
+                         ({"components": [{**ue, "statutory": "nc_24_5_b"}]}, "exactly one of"),
+                         ({"components": [{"component_id": "pji", "kind": "prejudgment_interest", "status": "requested",
+                                           "statutory": "no_such_rule"}]}, "names a rule"),
+                         ({"components": [ue]}, "not listed in motions"),
+                         ({"components": [ue], "motions": [{**motion, "briefing_close": "2024-08-09"}]},
+                          "not in the cited quotes"),
+                         ({"components": [ue], "motions": [{**motion, "motion_id": "D.I. 999"}]}, "docket reference"),
+                         ({"commenced": "2021-10-05"}, "not in the cited quotes"),
+                         ({"forum": "arbitration"}, "arbitration template")):
+        with pytest.raises(T.ToolError, match=match):
+            call(T.instantiate_dispute, ctx, {**base, **extra})
+    comps = T._components([ue, {"component_id": "pji", "kind": "prejudgment_interest", "status": "requested",
+                                "statutory": "nc_24_5_b"}], JUDGMENT_QUOTE, __import__("app.disputes.rules",
+                          fromlist=["load_model"]).load_model())
+    motions = T._motions([motion], JUDGMENT_QUOTE, None, comps)
+    assert comps[0].remittitur_cents == 2_310_000_000 and comps[1].statutory == "nc_24_5_b"
+    assert motions[0].briefing_close.isoformat() == "2024-08-08"  # a scheduled date may follow the review date

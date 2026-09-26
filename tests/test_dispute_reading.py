@@ -3,7 +3,7 @@ forecast evidence rather than a pruned branch. Akoustis owes Qorvo the 20 May 20
 D.I. 602); no network, the judge is a stub returning fixed readings (the waiver is a fixture, not a fact of the case)."""
 
 import asyncio
-from datetime import date, timedelta
+from datetime import date
 
 from app.disputes.forecast import Forecaster
 from app.disputes.interpret import Interpreter
@@ -86,26 +86,45 @@ class WaiverJudge:
         raise AssertionError("unexpected level call")
 
 
+def forecaster(d, fs):
+    from akoustis_fixture import SETUP, basis
+
+    return Forecaster([d], {f.finding_id: f for f in fs}, borrower=BORROWER, review=REVIEW, horizon=SETUP.horizon,
+                      hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=basis()[1])
+
+
+class PendingWaiverJudge(WaiverJudge):
+    """The waiver fixture, with the post-trial motions pending (so the appeal is still ahead)."""
+
+    async def read(self, obligation, evidence, direction, subject_ids):
+        pending = 0.05 if subject_ids[0] == "a" else 0.95  # "b" (the verdict 8-K) establishes the motions
+        return [*await super().read(obligation, evidence, direction, subject_ids),
+                self._o("event_post_trial_motions_pending", noul_value=pending)]
+
+
 def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
+    from akoustis_fixture import COMPONENTS, MOTIONS
+
     fs = [finding("a", "q3_10q"), finding("b", "verdict_8k")]
-    d = asyncio.run(interpreter(fs, WaiverJudge()).run())
-    assert d.status == "interpreted" and d.stage == "judgment_entered" and d.borrower_role == "debtor"
+    it = Interpreter(draft().model_copy(update={"components": COMPONENTS, "motions": MOTIONS,
+                                                "commenced": date(2021, 10, 4)}),
+                     fs, judge=PendingWaiverJudge(), borrower=BORROWER, sources=SOURCES, hydrate=lambda f: {})
+    d = asyncio.run(it.run())
+    assert d.status == "interpreted" and d.stage == "post_trial" and d.borrower_role == "debtor"
     barred = next(f for f in d.factors if f.factor_id == "appeal_barred")
     assert barred.probability == 0.9 and barred.level_label == "established"
 
-    fc = Forecaster([d], {f.finding_id: f for f in fs}, borrower=BORROWER, review=REVIEW,
-                    horizon=REVIEW + timedelta(days=180), hydrate=lambda f: {"finding": f.finding_id},
-                    borrower_cash_cents=1_716_309_524)
-    paths = fc.paths(d)
-    assert {"appeal_pending", "settled_during_appeal"} <= {p.outcome for p in paths}
-    assert any(("appeal", "", "yes") in p.steps for p in paths)
+    fc = forecaster(d, fs)
+    paths = fc.all_paths()[d.instance_id][""]
+    assert any(("appeal", "", "yes") in p.steps for p in paths)  # the waiver is evidence, not a pruned branch
     appeal = next(n for n in fc.nodes.values() if n.node == "appeal")
     state, fids, readings = fc.state(appeal)
-    assert readings[barred.label] == {"probability_present": 0.9}  # the waiver reaches Jev's appeal forecast
+    assert readings[barred.label] == {"probability_present": 0.9}  # the waiver reaches Jev's appeal question
     assert "a" in fids  # with the passage that states it, chosen only because it bears on the waiver
-    settle = next(n for n in fc.nodes.values() if n.node == "settle_after_judgment")
-    assert "a" not in fc.state(settle)[1]  # a node that does not weigh the waiver never sees it
-    assert state["case"]["payer_available_cash"].startswith("$17,163,095.24")  # the payer's cash is data, not a reading
+    settle = next(n for n in fc.nodes.values() if n.node == "settlement_offer")
+    assert "a" not in fc.state(settle)[1]  # a question the waiver is not routed to never sees it
+    a4 = next(n for n in fc.nodes.values() if n.node == "debtor_response")
+    assert "p50" in fc.state(a4)[0]["path_facts"]["available_cash_at_decision"]  # the payer's cash is data
 
 
 class FiledJudge(WaiverJudge):
@@ -120,8 +139,22 @@ def test_a_filed_appeal_sets_the_stage_and_is_not_forecast():
     fs = [finding("a", "q3_10q"), finding("b", "verdict_8k")]
     d = asyncio.run(interpreter(fs, FiledJudge()).run())
     assert d.stage == "appeal_filed"
-    fc = Forecaster([d], {f.finding_id: f for f in fs}, borrower=BORROWER, review=REVIEW,
-                    horizon=REVIEW + timedelta(days=180), hydrate=lambda f: {})
-    paths = fc.paths(d)
-    assert not any(n.node in ("appeal", "settle_after_judgment") for n in fc.nodes.values())
-    assert all(p.steps[0][0] == "secured_stay" for p in paths)  # the stay is still open; "no appeal" is not a path
+    fc = forecaster(d, fs)
+    paths = fc.all_paths()[d.instance_id][""]
+    assert not any(n.node == "appeal" for n in fc.nodes.values())
+    assert all(p.steps[0][0] == "stay" for p in paths)  # the stay is still open; "no appeal" is not a path
+
+
+class PostTrialJudge(WaiverJudge):
+    """As above, and the passages establish that timely post-trial motions against the judgment are pending."""
+
+    async def read(self, obligation, evidence, direction, subject_ids):
+        return [*await super().read(obligation, evidence, direction, subject_ids),
+                self._o("event_post_trial_motions_pending", noul_value=0.95)]
+
+
+def test_pending_post_trial_motions_place_the_judgment_in_post_trial():
+    fs = [finding("a", "q3_10q"), finding("b", "verdict_8k")]
+    d = asyncio.run(interpreter(fs, PostTrialJudge()).run())
+    assert d.stage == "post_trial" and d.status == "interpreted"
+    assert set(d.established) == {"judgment_entered", "post_trial_motions_pending"}
