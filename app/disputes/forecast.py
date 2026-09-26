@@ -179,6 +179,8 @@ class Forecaster:
         self.days = (horizon - review).days
         self.draws = Draws(basis.cash.shape[0], basis=basis) if basis is not None else None
         self.reach = int(basis.cash.max()) if basis is not None else None  # no trajectory holds more cash than this
+        self.class_members: dict[str, list[tuple[int, int]]] = {}  # ruling class -> (total, fees) of each outcome
+        self.class_range: dict[str, tuple[int, int]] = {}  # merged amount class label -> (min, max) judgment
         self.nodes: dict[str, Node] = {}
         self.facts: dict[str, list] = {}  # node key -> [(day, cash, owed, collateral) arrays] pooled over paths
         self._traces: dict = {}
@@ -253,8 +255,10 @@ class Forecaster:
 
     def ruling_classes(self, d: DisputeInstance) -> dict[str, list[list[tuple[str, str]]]]:
         """Each ruling outcome's conjunction of merits answers, grouped into amount classes by arithmetic: 'none',
-        each amount some trajectory could fund, and 'beyond' (collateral at its lower bound exceeds the most cash
-        any trajectory holds, so pay, a self-funded bond, the levy and the settlement bound are identical)."""
+        each amount some trajectory could fund, and 'beyond' / 'beyond_up' (collateral at its lower bound exceeds the
+        most cash any trajectory holds, so pay, a self-funded bond, the levy and the settlement bound are identical;
+        an increase over the entered judgment is its own class because its second writ, L8(a), can move cash).
+        tests/test_chains.py checks every merged class is cash- and date-identical; Jev is told the class's range."""
         from app.analysis.events import ruling_amounts
 
         k = self.merits(d)
@@ -281,24 +285,33 @@ class Forecaster:
                                            or o.get("remittitur") == "accept")
         for node, f in (("trebling", "trebling"), ("fees_awarded", "fees"), ("prejudgment_interest", "interest")):
             split(node, f, ("granted", "denied"), money)
+        from app.analysis.events import entered_cents
+
         lower = self.m["parameters"]["bond_collateral_share_bps"]["lower"] / 10_000
+        entered = entered_cents(d)
         classes: dict[str, list] = {}
-        beyond: list[tuple[int, int]] = []
+        members: dict[str, list[tuple[int, int]]] = {}
         for atoms_, o in leaves:
             a = ruling_amounts(d, o, self.m)
             total = sum(a.values())
             if total == 0:
                 c = "none"
             elif self.reach is not None and total * lower > self.reach:
-                c, _ = "beyond", beyond.append((total, a["fees"]))
+                # beyond reach; an increase keeps its own class (its second writ, L8(a), moves cash)
+                c = "beyond_up" if total > entered else "beyond"
             else:
                 c = f"amt:{total}:{a['fees']}"
             classes.setdefault(c, []).append(atoms_)
-        if "beyond" in classes:
-            lo = min(beyond)
-            classes[f"beyond:{lo[0]}:{lo[1]}"] = classes.pop("beyond")
-        self.beyond_range = (min(beyond)[0], max(beyond)[0]) if beyond else None
-        return classes
+            members.setdefault(c, []).append((total, a["fees"]))
+        out = {}
+        for c, parts in classes.items():
+            lo = min(members[c])
+            label = f"{c}:{lo[0]}:{lo[1]}" if c.startswith("beyond") else c
+            out[label] = parts
+            self.class_members[label] = members[c]
+            if c.startswith("beyond"):  # what Jev is told: the class's range, never one figure
+                self.class_range[_label(label)] = (lo[0], max(members[c])[0])
+        return out
 
 
     # --- the chain walk ---------------------------------------------------------------------------------------------
@@ -350,6 +363,11 @@ class Forecaster:
                                                "p50": usd(int(np.quantile(cash, 0.5)))}
         facts["amount_owed_at_decision"] = {"p50": usd(int(np.quantile(owed, 0.5))),
                                             "max": usd(int(owed.max()))}
+        merged = next((self.class_range[c] for c in n.context.split("|") if c in self.class_range), None)
+        if merged is not None:  # a merged class: its range of judgment amounts, not the representative's figure
+            facts["amount_owed_at_decision"] = {
+                "judgment_after_ruling": {"min": usd(merged[0]), "max": usd(merged[1])},
+                "note": "the ruling outcomes in this class; post-judgment interest accrues, less any amount collected"}
         if reg.get("node") in ("stay_motion", "stay_approved"):
             facts["bond_collateral_required"] = usd(int(np.quantile(coll, 0.5)))
         if any(f.status != "superseded" for f in d.financing):

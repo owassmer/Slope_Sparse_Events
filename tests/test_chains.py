@@ -88,7 +88,33 @@ def test_the_ruling_classes_are_the_chain_rule_over_the_merits(full):
         for e in ruling_edges:
             rulings[e[0]] = e
     assert sum(dist[k]["yes"] for k in rulings) == pytest.approx(1.0)  # the classes partition the outcomes
-    assert {s[2].split(":")[0] for p in paths for s in p.steps if s[0] == "ruling"} == {"none", "amt", "beyond"}
+    assert {s[2].split(":")[0] for p in paths for s in p.steps if s[0] == "ruling"} == {"none", "amt", "beyond",
+                                                                                            "beyond_up"}
+
+
+def test_every_merged_ruling_class_is_cash_and_date_identical_and_jev_gets_its_range(full, base):
+    fc, paths = full
+    b = base[1]
+    merged = {c: sorted(set(m)) for c, m in fc.class_members.items() if len(set(m)) > 1}
+    assert {c.split(":")[0] for c in merged} >= {"beyond", "beyond_up"}
+    for c, members in merged.items():
+        with_c = [p for p in paths if ("ruling", "", c) in p.steps]
+        for p in with_c[:: max(1, len(with_c) // 5)][:5]:
+            i = p.steps.index(("ruling", "", c))
+            ref = Chain(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b)).run(p.steps)
+            for total, fees in members:
+                steps = p.steps[:i] + (("ruling", "", f"amt:{total}:{fees}"),) + p.steps[i + 1:]
+                tr = Chain(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b)).run(steps)
+                assert (tr.events.cash == ref.events.cash).all() and (tr.events.lock == ref.events.lock).all()
+                assert (tr.events.petition == ref.events.petition).all()
+                assert all((x == y).all() for x, y in zip(tr.day, ref.day, strict=True))
+    for n in fc.nodes.values():
+        label = next((x for x in n.context.split("|") if x in fc.class_range), None)
+        if label and n.question_id not in fc.no_cash:
+            owed = fc.path_facts(n, judgment()).get("amount_owed_at_decision")
+            if owed:
+                lo, hi = fc.class_range[label]
+                assert "p50" not in owed and owed["judgment_after_ruling"]["max"] != owed["judgment_after_ruling"]["min"]
 
 
 # 2. Timing is code --------------------------------------------------------------------------------------------------
@@ -150,7 +176,7 @@ def test_an_increase_is_levied_only_once_its_own_stay_ends_and_the_original_at_o
 def test_pay_is_removed_only_where_no_trajectory_can_fund_it(full, base):
     fc, _ = full
     a4 = [n for n in fc.nodes.values() if n.node == "debtor_response"]
-    assert all("pay" not in n.branches for n in a4 if "|entered|" in n.key or "|beyond|" in n.key)
+    assert all("pay" not in n.branches for n in a4 if "|entered|" in n.key or "|beyond" in n.key)
     assert any("pay" in n.branches for n in a4 if "|amt" in n.key)  # the patent-only amount is payable
     rich = replace(base[1], cash=base[1].cash.copy())
     rich.cash[0] += 5_000_000_000  # one trajectory could pay the entered judgment
