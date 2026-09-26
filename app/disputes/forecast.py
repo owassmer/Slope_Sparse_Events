@@ -147,6 +147,20 @@ def neutral_map(judgments: dict[str, Judgment]) -> dict[str, dict[str, float]]:
 
 
 
+def answer_distribution(key: str, branches: tuple[str, ...], o: SemanticObservation) -> dict[str, float]:
+    """Jev's answer at one node as a distribution over its branches (a Noul: yes = value; a Choice: renormalised
+    over the branches arithmetic left the node)."""
+    if branches == ("yes", "no"):
+        if o.noul_value is None:
+            raise RuntimeError(f"Jev returned no probability for {key}")
+        return {"yes": float(o.noul_value), "no": 1.0 - float(o.noul_value)}
+    probs = {k: float(v) for k, v in (o.probabilities or {}).items() if k in branches}
+    total = sum(probs.values())
+    if total <= 0:
+        raise RuntimeError(f"Jev returned no distribution for {key}")
+    return {k: probs.get(k, 0.0) / total for k in branches}
+
+
 def load_registry() -> dict:
     from app.config import question_registry
 
@@ -464,16 +478,7 @@ class Forecaster:
         async def one(n: Node) -> Judgment:
             st, fids, readings = self.state(n)
             o = await judge.forecast(n.question_id, st, (n.instance_id, *fids), n.branches)
-            if n.branches == ("yes", "no"):
-                if o.noul_value is None:
-                    raise RuntimeError(f"Jev returned no probability for {n.key}")
-                dist = {"yes": float(o.noul_value), "no": 1.0 - float(o.noul_value)}
-            else:
-                probs = {k: float(v) for k, v in (o.probabilities or {}).items() if k in n.branches}
-                total = sum(probs.values())
-                if total <= 0:
-                    raise RuntimeError(f"Jev returned no distribution for {n.key}")
-                dist = {k: probs.get(k, 0.0) / total for k in n.branches}
+            dist = answer_distribution(n.key, n.branches, o)
             return Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
                             event=n.event, assumptions=n.assumptions, window=n.window, distribution=dist,
                             confidence=o.confidence, finding_ids=fids, readings=readings, evidence=st["evidence"],

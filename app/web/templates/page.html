@@ -56,6 +56,9 @@
   .sbar { display:flex; height:26px; border-radius:4px; overflow:hidden; border:1px solid var(--line); }
   .sbar div { cursor:pointer; min-width:2px; position:relative; }
   .sbar div.sel { outline:2px solid var(--ink); outline-offset:-2px; }
+  .sbar div.act { outline:3px solid #047857; outline-offset:-3px; box-shadow:inset 0 0 0 5px #fff; }
+  .actual { font-size:12.5px; color:#065f46; margin:3px 0; }
+  #actual.on { background:#047857; color:#fff; border-color:#047857; }
   .skeys { display:flex; flex-wrap:wrap; gap:4px 14px; margin:5px 0; font-size:12px; color:var(--mute); }
   .skeys span { cursor:pointer; } .skeys i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
   .seqs div { padding:2px 0; font-size:12.5px; } .seqs b { font-variant-numeric:tabular-nums; margin-right:6px; }
@@ -118,7 +121,7 @@
     <div class="sp"></div>
     <div class="seg" id="viewsw"><button data-v="bank">Bank data only</button><button data-v="lit" class="on">With litigation</button></div>
     {% if has_record %}<a href="{{ record_url }}">Investigation log</a>{% else %}<span class="muted" title="No recorded investigation for this page yet">Investigation log</span>{% endif %}
-    <button id="actual" disabled title="Reveal comes with the recorded run">Actual outcome</button>
+    {% if not dev %}<button id="actual"{% if not has_outcome %} disabled title="No actual-outcome file for this case"{% endif %}>Show actual outcome</button>{% endif %}
     <button class="drawer-btn" id="drawer">Probabilities</button>
   </div>
   <div class="tiles" id="tiles"></div>

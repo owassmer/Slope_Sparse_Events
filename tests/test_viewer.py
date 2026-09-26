@@ -161,3 +161,58 @@ def test_question_rows_have_short_distinct_labels(small_page):
     pairs = [(n["label"], n["sub"]) for n in nodes]
     assert len(set(pairs)) == len(pairs)
     assert all(len(n["label"]) <= 40 and n["question"] for n in nodes)
+
+
+def _run_page(tmp_path, monkeypatch, state, snapshot_id):
+    from app.web import app as web
+
+    run = "akoustis_20240620-test"
+    (tmp_path / run).mkdir()
+    payload = {**state["payload"], "meta": {**state["payload"]["meta"], "snapshot_id": snapshot_id}, "settings": [],
+               "recall": {"questions": 3, "mean_abs_change": 0.02, "max_abs_change": 0.05, "threshold": 0.1, "moved": []}}
+    (tmp_path / run / "page.json").write_text(json.dumps(payload))
+    monkeypatch.setenv("SLOPE_RUNS_ROOT", str(tmp_path))
+    monkeypatch.setitem(web._RUN_STATES, run, state)
+    return run, TestClient(app)
+
+
+def test_a_run_page_reveals_the_actual_outcome_only_where_its_case_has_one(small_page, tmp_path, monkeypatch):
+    """A recorded run's page: the 'Actual outcome' button is enabled only when outcomes/<case>.json exists, and the
+    reveal is served from the viewer only; the page reweights from the run's state."""
+    import re
+
+    from app.analysis.page import CLASSES
+    from app.config import OUTCOMES
+
+    _, _, state = small_page
+    run, c = _run_page(tmp_path, monkeypatch, state, "akoustis_20240620")
+    r = c.get(f"/runs/{run}")
+    button = re.search(r'<button id="actual"[^>]*>', r.text).group(0)
+    assert r.status_code == 200 and "page-data" in r.text and "disabled" not in button
+    out = c.get(f"/runs/{run}/outcome").json()
+    assert out == json.loads((OUTCOMES / "akoustis_20240620.json").read_text())
+    assert out["petition"]["label"] in dict(CLASSES).values() and out["petition"]["date"] <= out["period_ends"]
+    for e in out["events"]:
+        assert e["date"] > out["decision_date"] and e["quote"] and e["short"]
+        assert e["source_url"].startswith(("https://www.sec.gov/", "https://storage.courtlistener.com/"))
+    node = state["payload"]["nodes"][0]
+    w = c.post(f"/runs/{run}/reweight", json={"overrides": {node["key"]: [1.0] + [0.0] * (len(node["branches"]) - 1)}})
+    assert w.status_code == 200 and len(w.json()["daily"]["petition_cum_p"]) == len(state["payload"]["dates"])
+
+    (tmp_path / "other").mkdir()  # a case without an outcome file: the button stays disabled
+    other, c2 = _run_page(tmp_path / "other", monkeypatch, state, "synergy_20240813")
+    button = re.search(r'<button id="actual"[^>]*>', c2.get(f"/runs/{other}").text).group(0)
+    assert "disabled" in button and c2.get(f"/runs/{other}/outcome").status_code == 404
+
+
+def test_the_dev_page_has_no_reveal_or_recall(small_page, monkeypatch):
+    from app.analysis.page import DevPage
+    from app.web import app as web
+
+    _, _, state = small_page
+    page = DevPage()
+    page.state = state
+    monkeypatch.setattr(web, "_DEV", page)
+    r = TestClient(app).get("/dev/akoustis")
+    assert r.status_code == 200 and 'id="actual"' not in r.text
+    assert "recall" not in state["payload"] and not any("recall" in n for n in state["payload"]["nodes"])

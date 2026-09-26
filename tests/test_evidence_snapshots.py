@@ -161,3 +161,30 @@ def test_catalog_inconsistency_and_hash_mismatch_stop_the_build(monkeypatch, tmp
     s1a["availability"]["date"] = "2024-08-14"  # marked eligible but public after the cutoff
     with pytest.raises(snapshot.CatalogError, match="available"):
         snapshot.build_snapshot("synergy_20240813", out_dir=tmp_path)
+
+
+def test_outcome_file_is_unreachable_from_the_snapshot_and_the_tools(built):
+    """outcomes/ (the page's reveal) never reaches the agent, its MCP tools or Jev: the snapshot admits only catalog
+    files inside the kit, no quote of the outcome file is in the snapshot DB, the evidence store refuses a path into
+    it, and no module on the investigation side names it."""
+    import re
+    import sqlite3
+    from pathlib import Path
+
+    from app.config import KIT, OUTCOMES
+
+    out, _, stores = built
+    outcome = json.loads((OUTCOMES / "akoustis_20240620.json").read_text())
+    admitted, _ = snapshot.admission("akoustis_20240620")
+    assert all(Path(s["path"]).resolve().is_relative_to(KIT.resolve()) for s in admitted)
+    assert not any(Path(s["path"]).resolve().is_relative_to(OUTCOMES.resolve()) for s in admitted)
+    with sqlite3.connect(out / "akoustis_20240620.sqlite") as db:
+        text = " ".join(" ".join(r[0].split()) for r in db.execute("select text from sections")).lower()
+    for e in outcome["events"]:
+        assert e["quote"].lower() not in text, e["date"]
+    for probe in ("outcomes/akoustis_20240620.json", "../outcomes/akoustis_20240620.json#s0000"):
+        with pytest.raises(EvidenceAccessError):
+            stores["akoustis_20240620"].read(probe)
+    root = Path(snapshot.__file__).resolve().parents[1]
+    for mod in [*(root / "agent").glob("*.py"), *(root / "evidence").glob("*.py"), *(root / "disputes").glob("*.py")]:
+        assert not re.search(r"OUTCOMES|[\"'/]outcomes\b", mod.read_text()), mod.name

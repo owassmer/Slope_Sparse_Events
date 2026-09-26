@@ -19,6 +19,7 @@ CONTRACTS = KIT / "research/revision_v2/contracts"
 VAR = ROOT / "var"
 RECORDED = ROOT / "runs/recorded"
 CASES_DIR = ROOT / "cases"
+OUTCOMES = ROOT / "outcomes"  # builder-side reveal files; never read by the agent, its tools or Jev
 
 
 class ConfigurationError(RuntimeError):
