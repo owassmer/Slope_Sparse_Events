@@ -72,6 +72,66 @@ def context_text(context: str, ranges: dict[str, tuple[int, int]]) -> str:
     return "; ".join(p for p in parts if p)
 
 
+# Short row labels for the question list, by question id (the full question text is in the drill-down).
+SHORT_LABELS = {
+    "forecast_stay_approved": "Stay approved", "forecast_1963_good_cause": "Early registration (other districts)",
+    "forecast_ts_liability_jmol": "Trade-secret liability set aside", "forecast_patent_jmol": "Patent verdict set aside",
+    "forecast_ts_damages_ruling": "Damages: stands / remit / new trial", "forecast_trebling": "Trebling",
+    "forecast_fees_awarded": "Fees awarded", "forecast_prejudgment_interest": "Pre-judgment interest",
+    "forecast_injunction_ts": "Injunction", "forecast_execution_pending_motions": "Qorvo executes before ruling",
+    "forecast_remittitur_accepted": "Qorvo accepts remittitur",
+    "forecast_enforcement_after_final": "Qorvo enforces after ruling",
+    "forecast_settlement_accept": "Qorvo accepts settlement", "forecast_stay_motion": "Akoustis moves for stay",
+    "forecast_appeal": "Akoustis appeals", "forecast_settlement_offer": "Akoustis offers settlement",
+    "forecast_debtor_response": "Akoustis response to enforcement",
+    "forecast_petition_on_notes": "Akoustis files (notes accelerated)",
+    "forecast_petition_cash_floor": "Akoustis files (cash floor)", "forecast_reverse_split_board": "Board calls reverse split",
+    "forecast_nasdaq_hearing": "Nasdaq hearing requested", "forecast_split_approved": "Stockholders approve split",
+    "forecast_panel_exception": "Panel grants exception",
+    "forecast_holders_act_judgment": "Holders accelerate (judgment default)",
+    "forecast_holders_act_delisting": "Holders act on delisting", "forecast_holders_involuntary": "Holders file involuntary"}
+SHORT_WHEN = {"I1": "Before ruling", "I2": "After ruling", "I3": "After appeal deadline", "I4": "During appeal",
+              "post": "After ruling", "entered": "Before ruling"}
+SHORT_TAG = {"levied": "after a levy", "unlevied": "no levy", "appealed": "on appeal", "final": "no appeal",
+             "stay_pending": "stay motion pending", "nopay": "can't pay in full", "after_seek": "after seeking a sale",
+             "delisted_panel": "delisted after the panel", "delisted_suspension": "suspended, no hearing",
+             "none": "judgment set aside", "retrial": "new trial on damages"}
+
+
+def money_round(cents: int) -> str:
+    v = cents / 100
+    return f"${v / 1e6:.0f}M" if abs(v) >= 1e7 else f"${v / 1e6:.1f}M".replace(".0M", "M") if abs(v) >= 1e6 \
+        else f"${v / 1e3:.0f}k"
+
+
+def short_context(context: str, ranges: dict[str, tuple[int, int]]) -> str:
+    """A row's second line: when (before or after the ruling), the amount class ('$42M-$113M owed') and whatever else
+    tells the row apart."""
+    when, amount, rest = "", "", []
+    for c in (c for c in context.split("|") if c):
+        base = c.removesuffix("_retrial")
+        if c in SHORT_WHEN:
+            when = when or SHORT_WHEN[c]
+        elif base.startswith("amt") and base[3:].isdigit() or base in ranges:
+            lo, hi = (int(base[3:]),) * 2 if base.startswith("amt") else ranges[base]
+            amount = (f"{money_round(lo)} owed" if lo == hi else f"{money_round(lo)}–{money_round(hi)} owed") \
+                + (", new trial" if c.endswith("_retrial") else "")
+            when = when or "After ruling"
+        elif c.startswith(("judgment_", "delisting_", "repurchase_")):
+            head, _, sub = c.partition("_")
+            rest.append({"judgment": "judgment default", "delisting": "delisting", "repurchase": "unpaid repurchase"}[head])
+            if sub in SHORT_WHEN:
+                when = when or SHORT_WHEN[sub]
+            elif sub:
+                rest.append(SHORT_TAG.get(sub, sub.replace("_", " ")))
+        elif c in SHORT_TAG:
+            rest.append(SHORT_TAG[c])
+            when = when or ("After ruling" if c in ("none", "retrial") else "")
+        elif c not in ("pay", "first"):
+            rest.append(c.replace("_", " "))
+    return " · ".join(x for x in (when, amount, *rest) if x)
+
+
 def filing_cause(steps: tuple) -> str:
     """The class of a filing on this path: its first filing step (Qorvo enforcement if none is named)."""
     for node, _ctx, branch in steps:
@@ -367,6 +427,7 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         facts = j.path_facts or (fc.path_facts(fc.nodes[k], model.disputes[j.instance_id]) if k in fc.nodes else {})
         q = questions.get(j.question_id, j.event)
         nodes.append({"key": k, "node": j.node, "question": q, "context": context_text(ctx, ranges),
+                      "label": SHORT_LABELS.get(j.question_id, q), "sub": short_context(ctx, ranges),
                       "actor": sp["actor"], "decider": ACTOR_GROUP.get(sp["actor"], "Akoustis"),
                       "branches": branches, "jev": [j.distribution[b] for b in branches],
                       "detail": drill_down(sp, m, q, facts, j, neutral, links)})
@@ -451,7 +512,7 @@ SETTINGS = [
      "value": False, "options": [[False, "The increase"], [True, "The whole amount"]]},
 ]
 LINE_KEYS = {s["key"] for s in SETTINGS if s["kind"] == "line"}
-PAGE_FORMAT = 3  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
+PAGE_FORMAT = 4  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
 def build_dev(settings: dict | None = None, progress=None) -> dict:

@@ -152,3 +152,12 @@ def test_the_collections_table_reconciles(small_page):
         last = rows[-1]
         assert abs(last["frozen_due"] + last["frozen_not_due"] - frozen) <= 2, view
         assert abs(last["past_due"] + last["frozen_due"] + last["frozen_not_due"] - unrec) <= 2, view
+
+
+def test_question_rows_have_short_distinct_labels(small_page):
+    """Every row has a short label and a context line; no two rows share both. The full question stays in the node."""
+    _, _, state = small_page
+    nodes = state["payload"]["nodes"]
+    pairs = [(n["label"], n["sub"]) for n in nodes]
+    assert len(set(pairs)) == len(pairs)
+    assert all(len(n["label"]) <= 40 and n["question"] for n in nodes)

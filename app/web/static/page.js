@@ -244,8 +244,8 @@
     const n = D.nodes[i], b = selB(i), d = dist(i), ch = n.key in S.overrides, s = sens[i];
     const pos = (v) => `${(100 * (v - scale[0])) / (scale[1] - scale[0] || 1)}%`;
     const sel = n.branches.length > 2 ? `<select data-i="${i}">${n.branches.map((x, k) => `<option value="${k}"${k === b ? " selected" : ""}>${esc(x.replace(/_/g, " "))}</option>`).join("")}</select>` : `<span class="ctx">yes</span>`;
-    return `<div class="row${ch ? " changed" : ""}" data-i="${i}"><div class="q" data-i="${i}">${esc(n.question)}${ch ? '<span class="dot"></span>' : ""}</div>
-      ${n.context ? `<div class="ctx">${esc(n.context)}</div>` : ""}
+    return `<div class="row${ch ? " changed" : ""}" data-i="${i}"><div class="q" data-i="${i}" title="${esc(n.question)}">${esc(n.label || n.question)}${ch ? '<span class="dot"></span>' : ""}</div>
+      ${n.sub ? `<div class="ctx">${esc(n.sub)}</div>` : ""}
       <div class="ctl">${sel}<input type="range" min="0" max="1000" value="${Math.round(1000 * d[b])}" data-i="${i}"><span class="p" id="p${i}">${pct(d[b], 0)}</span>${ch ? `<button class="rs" data-i="${i}">Reset</button>` : "<span></span>"}</div>
       <div class="rng"><div class="ln" style="left:${pos(Math.min(s.lo, s.hi))};width:calc(${pos(Math.max(s.lo, s.hi))} - ${pos(Math.min(s.lo, s.hi))})"></div>
         <div class="mk" style="left:${pos(s.lo)}" title="At 0%"></div><div class="mk" style="left:${pos(s.hi)}" title="At 100%"></div><div class="mk j" style="left:${pos(s.at)}" title="Now"></div></div>
