@@ -569,9 +569,10 @@ Only then is the rest Qorvo's choice.
 
 ### Decided
 
-- **D1 (approved): proration.**
-  - Bank feeds are anchored to the quarter containing D as later reported, prorated to D by business days (§1.1, §1.2).
-  - Balances for periods before D that were filed after D are allowed, labelled once.
+- **D1 (approved; amended 25 Sep 2026): dated flows, then proration.**
+  - Every flow the record dates goes on its own date. Only the undated remainder of the quarter containing D is prorated to D by business days. Flows dated after D enter no snapshot or feed.
+  - Balances and flows for periods before D that were filed after D are allowed, labelled once.
+  - Why amended: straight proration of Akoustis's April–June quarter moved about $7.2M of post-D cash (a customer note received 26 Jun 2024) before D. See `research/recent_cases/akoustis/design/CASH_CHECK_20240620.md`.
 - **D2 (approved): ChromaDex removed** (§1.3).
 - **D3:** resolved in revision 1. The lead-time series is intrinsic to the reusable line (§2.4).
 
