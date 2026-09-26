@@ -1,6 +1,6 @@
 # Model extensions for the Akoustis and Charles & Colvard cases (spec, revision 2)
 
-**Status:** proposed, for Owen's review. Revision 2, 25 Sep 2026: forecasts rebuilt as chains that start from the lender's question; round 2 acquisition corrections applied.
+**Status:** revision 2, 25 Sep 2026: forecasts rebuilt as chains that start from the lender's question; round 2 acquisition corrections applied. Scope for the proof of concept and the corrections that bind Stage 1 are in §15, which governs where it differs from §1–14.
 
 **Scope:** every change to the model, contracts, engine, agent and page needed to move the demo from ChromaDex to:
 - **Akoustis Technologies**, decision date (D) 20 Jun 2024, lead case (Owen's choice);
@@ -636,3 +636,24 @@ Jev never sets amounts, so code needs a rule.
 | R3 | Charles & Colvard's pledge terms (release of the deposit excess) and whether the supply agreement's remedy for a missed minimum is exclusive |
 | R4 | Judge McCalla's pace on earlier fully briefed motions on this docket |
 | R5 | The trial record's damages figures, including the head-start months (D.I. 616 excerpts), for D4(d) |
+
+## 15. Scope for the proof of concept, and corrections that bind Stage 1
+
+Owen's decisions, 25 Sep 2026.
+
+### 15.1 Scope
+
+- **Akoustis first, end to end** (decomposition, snapshot, feed, model, recorded run, page). Charles & Colvard follows on the same pieces, plus an arbitration template and the credit-line terms.
+- **Outside-view anchors are deferred** (§3.4). Each residual Jev question is asked directly, with its path facts and record items. Attribution has three steps: bank data only; plus what the record fixes, with neutral residuals; plus Jev.
+- **No new machinery** for the corrections below. They change the design document and the contracts, not the process.
+
+### 15.2 Corrections
+
+1. **Legal meaning first, inside the Stage 1 document.** One section maps the law: actors, authority, modality (shall or may), triggers, conditions, exceptions, and bounded legal unknowns with citations. A second section attaches clocks and parameters to that map. A third attaches the path arithmetic. Evidence fills named slots afterwards and never changes the map.
+2. **Chains are templates by forum and instrument, not per case:** federal post-judgment procedure, the indenture's judgment default and repurchase, and (for Charles & Colvard) arbitration award and the credit agreement. The case fills and tests them.
+3. **Every parameter has a disposition:** sourced, a bounded open term shown with a sensitivity, or a Jev question. "Model parameter" is not a disposition. This covers the supersedeas multiple, surety collateral share, voluntary-payment window and ruling-date independence.
+4. **Legal meaning is not a Jev question.** Where research can settle a legal question (§24-5(b) and unjust enrichment; trebling after the jury's "No"), it is Law. Jev forecasts a court's resolution only where the design document records, with a citation, that the question is open. `financing_interpretation` does not decide what a contract means; the agent quotes the terms and code checks them.
+5. **Exclusions use only three grounds:** the decision belongs to someone else, the fact cannot be obtained, or its window has closed. That an event has not happened yet is never a ground. So: Akoustis models a petition driven by operating cash (threat T5); Charles & Colvard has a petition threat and Wolfspeed's 2014 security interest (¶6(c)); the injunction's revenue effect gets one bounded research attempt before it is left out of cash.
+6. **Indenture conditions restored:** §7.01(i) excludes amounts covered by insurance; §7.01(h) cross-default at $2.5M; §7.02 acceleration and rescission.
+7. **Anchored at the decision date.** The case for 20 June and for the reusable line rests on the filing record and Slope's published product, never on where the petition falls. Before the Akoustis feed is built, check whether proration by business days moves post-D cash before D (the 31 Mar balance plus the May proceeds is about the reported 30 Jun balance, implying almost no April–June burn).
+8. **The round 2 acquisition notes are evidence only.** Their kit copies carry no direction marks and no outcome check.
