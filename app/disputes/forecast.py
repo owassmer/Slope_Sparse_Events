@@ -18,6 +18,7 @@ that share those facts share one judgment; the path facts are pooled over the pa
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import itertools
 import json
 import math
@@ -161,6 +162,27 @@ def _q(model: dict) -> dict[str, dict]:
     return {n: s for t in model["templates"].values() for n, s in t.get("nodes", {}).items()}
 
 
+@dataclass(frozen=True)
+class _Prefix:
+    """What the tree builder keeps of one path prefix: per step, the decision day and the path facts code computed at
+    it ([draws] each); the petition day per draw; and a fingerprint of the event cash, encumbrance and credit
+    capacity, so two branches merge only where all of them are identical on every trajectory."""
+    day: list
+    cash: list
+    owed: list
+    collateral: list
+    petition: np.ndarray
+    digest: bytes
+
+    @classmethod
+    def of(cls, tr) -> _Prefix:
+        ev = tr.events
+        h = hashlib.blake2b(digest_size=32)
+        for a in (ev.cash, ev.lock, ev.capacity, ev.petition):
+            h.update(np.ascontiguousarray(a).tobytes())
+        return cls(tr.day, tr.cash, tr.owed, tr.collateral, ev.petition.copy(), h.digest())
+
+
 MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "patent_jmol", "trebling", "fees_awarded",
           "prejudgment_interest", "injunction")
 
@@ -208,13 +230,16 @@ class Forecaster:
 
     # --- prefix traces (code timing and arithmetic, before any Jev answer) ----------------------------------------
 
-    def trace(self, d: DisputeInstance, steps: tuple):
+    def trace(self, d: DisputeInstance, steps: tuple) -> _Prefix:
+        """The prefix's per-step decision days and path facts, its petition days and a fingerprint of its event cash.
+        The dense [draws, days] arrays are dropped once fingerprinted: the tree has thousands of prefixes, and keeping
+        each prefix's arrays held about 20 GB for the Akoustis tree."""
         from app.analysis.events import event_trace
 
         key = (d.instance_id, steps)
         if key not in self._traces:
             path = DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=())
-            self._traces[key] = event_trace(d, path, self.setup, self.m, self.draws, self.sens)
+            self._traces[key] = _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens))
         return self._traces[key]
 
     def arises(self, d: DisputeInstance, steps: tuple, step: tuple) -> bool:
@@ -224,9 +249,9 @@ class Forecaster:
         return bool((tr.day[-1] < self.days).any())
 
     def moves_cash(self, d: DisputeInstance, steps: tuple, a: tuple, b: tuple) -> bool:
-        """Whether two branches of a step book different event cash on some trajectory (else they merge)."""
-        x, y = self.trace(d, steps + (a,)).events, self.trace(d, steps + (b,)).events
-        return bool((x.cash != y.cash).any() or (x.petition != y.petition).any())
+        """Whether two branches of a step book different event cash, encumbrance, credit capacity or petition day on
+        some trajectory (else they merge)."""
+        return self.trace(d, steps + (a,)).digest != self.trace(d, steps + (b,)).digest
 
     def pay_possible(self, d: DisputeInstance, steps: tuple, step: tuple) -> bool:
         """Arithmetic: 'pay' stays unless the amount owed exceeds available cash on every trajectory of the path at
@@ -590,9 +615,9 @@ class _Walk:
         k = composite(parts)
         y = self.take(s, ("judgment_default", phase, "yes"), (k, "yes"), (h1, a5, h3))
         tr = self.fc.trace(self.d, y.steps)
-        if (tr.events.petition >= 0).all():  # a petition on every trajectory: only an earlier one (tau) can matter
+        if (tr.petition >= 0).all():  # a petition on every trajectory: only an earlier one (tau) can matter
             tau = self.fc.trace(self.d, y.steps + (("cash_floor", "", "no"),)).day[-1]
-            self.floor(y, "petition", bool((tau < tr.events.petition).any()))
+            self.floor(y, "petition", bool((tau < tr.petition).any()))
         else:
             then(y)
         then(self.take(s, ("judgment_default", phase, "no"), (k, "no"), (h1, a5, h3)))
