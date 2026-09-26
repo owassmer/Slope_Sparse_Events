@@ -134,6 +134,62 @@ def test_a_levy_can_come_before_stay_approval_and_none_after_it(full, base):
         assert before > 0  # some trajectories levy before the drawn approval
 
 
+def _order(c: Chain) -> np.ndarray:
+    """The early registration order (J9) before the ruling: the creditor's motion + briefing + a ruling-lag draw."""
+    return c.E0 + M["parameters"]["briefing_days_new_motion"]["value"] + c.dr.lag(M, c.iid, "registration_I1")
+
+
+def _i1(p) -> bool:
+    return any(s[:2] == ("debtor_response", "I1") for s in p.steps)
+
+
+def test_the_pre_ruling_response_waits_for_the_levy_early_registration_makes_possible(full, base):
+    """T1-a steps 3 and 6, T1-d: before the ruling only the levy the J9 order makes possible reaches cash, so A4 (I1)
+    follows J9 yes and is dated on the levy; J9 no leaves no pre-ruling A4; no petition precedes the order."""
+    fc, paths = full
+    b = base[1]
+    i1 = [p for p in paths if _i1(p)]
+    assert i1 and any(("stay", "I1", "yes") in p.steps for p in i1)  # asked on stay-yes paths too, before approval
+    for p in i1:
+        j = next(i for i, s in enumerate(p.steps) if s[:2] == ("debtor_response", "I1"))
+        assert p.steps[j - 1] == ("registration_early", "I1", "yes")
+    assert not any(_i1(p) for p in paths if ("registration_early", "I1", "no") in p.steps)
+    filed = [p for p in i1 if ("debtor_response", "I1", "file") in p.steps]
+    for p in filed[:: max(1, len(filed) // 6)][:6]:
+        c = Chain(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b))
+        pet = c.run(p.steps).events.petition
+        on = pet >= 0
+        assert on.any() and (pet[on] >= _order(c)[on]).all() and (pet[on] < c.stayed_from[on]).all()
+
+
+def test_a_payment_or_petition_on_the_levy_day_pre_empts_the_levy(base):
+    """The $2.0M mechanics judgment with the post-trial motions pending: paths sum to one, and on the levy day the
+    debtor's payment or petition comes first (a levy on day p does not reach cash after a petition on day p)."""
+    b = base[1]
+    d = judgment(components=(), financing=(), amount=judgment().amount.model_copy(update={"value": 200_000_000}))
+    fc = Forecaster([d], {}, borrower="A", review=REVIEW, horizon=SETUP.horizon, hydrate=lambda f: {}, setup=SETUP,
+                    basis=b)
+    paths = fc.all_paths()[d.instance_id][""]
+    js = stub(fc, seed=5)
+    for dist in (distributions(js), distributions(js, neutral_map(js))):
+        assert sum(path_probability(p.edges, dist) for p in paths) == pytest.approx(1.0, abs=1e-9)
+    assert not any(_i1(p) for p in paths if ("registration_early", "I1", "no") in p.steps)
+    pre = (("settle", "I1", "no"), ("execute_pre_ruling", "I1", "yes"), ("stay", "I1", "no"),
+           ("registration_early", "I1", "yes"))
+    lv = Chain(d, SETUP, M, Draws(b.cash.shape[0], basis=b))
+    lv.run(pre)
+    day, take = lv.writs[0]
+    assert (day == _order(lv)).all() and (take > 0).any()  # levy_lag_days base 0: the levy falls on the order date
+    for branch in ("pay", "file"):
+        assert any(pre + (("debtor_response", "I1", branch),) == p.steps[:5] for p in paths)
+        c = Chain(d, SETUP, M, Draws(b.cash.shape[0], basis=b))
+        tr = c.run(pre + (("debtor_response", "I1", branch),))
+        acted = (c.resolved == day) if branch == "pay" else (tr.events.petition == day)
+        assert acted.any() and (c.writs[0][1][acted] == 0).all()  # the levy takes nothing where the debtor acted
+        early = (take > 0) & (day < c.F)  # A4 (I1) is dated on the levy where it precedes the ruling
+        assert early.any() and (tr.day[-1][early] == day[early]).all()
+
+
 # 2. Timing is code --------------------------------------------------------------------------------------------------
 
 def test_no_ruling_before_the_briefing_closes_plus_the_fastest_measured_lag(base):
@@ -196,10 +252,11 @@ def test_pay_is_removed_only_where_no_trajectory_can_fund_it(full, base):
     assert all("pay" not in n.branches for n in a4 if "|entered|" in n.key or "|beyond" in n.key)
     assert any("pay" in n.branches for n in a4 if "|amt" in n.key)  # the patent-only amount is payable
     rich = replace(base[1], cash=base[1].cash.copy())
-    rich.cash[0] += 5_000_000_000  # one trajectory could pay the entered judgment
+    rich.cash[:] += 5_000_000_000  # every trajectory could pay the entered judgment
     fr = Forecaster([judgment()], {}, borrower="A", review=REVIEW, horizon=SETUP.horizon, hydrate=lambda f: {},
                     setup=SETUP, basis=rich)
-    s = (("settle", "I1", "no"), ("execute_pre_ruling", "I1", "yes"), ("stay", "I1", "no"))
+    s = (("settle", "I1", "no"), ("execute_pre_ruling", "I1", "yes"), ("stay", "I1", "no"),
+         ("registration_early", "I1", "yes"))
     probe = ("debtor_response", "I1", "neither")
     assert fr.pay_possible(judgment(), s, probe) and not fc.pay_possible(judgment(), s, probe)
 
@@ -291,7 +348,10 @@ def test_a_filing_path_sets_the_petition_and_the_engine_stays_the_claim(base, fu
     t = run(line, feed.available_cents, tr.events)
     assert (t.petition == tr.events.petition).all() and t.stayed[on].mean() > 0
     i1 = next(q for q in paths if ("debtor_response", "I1", "file") in q.steps)
-    assert (Chain(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b)).run(i1.steps).events.petition == 0).all()
+    c = Chain(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b))
+    tr = c.run(i1.steps)
+    on = tr.events.petition >= 0  # on the levy day the early registration order makes possible, before the ruling
+    assert on.any() and (tr.events.petition[on] == tr.day[-1][on]).all() and (tr.day[-1][on] < c.F[on]).all()
     assert i1.steps[-1] == ("debtor_response", "I1", "file") and i1.outcome == "petition"  # nothing later can move cash
 
 

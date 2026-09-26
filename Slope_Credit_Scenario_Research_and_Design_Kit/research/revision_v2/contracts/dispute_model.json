@@ -880,7 +880,7 @@
             "stay status",
             "notes status and dated triggers"
           ],
-          "timing": "on the milestone: the creditor's enforcement act before the ruling, then the enforceable date after the ruling; after 'seek' it is asked again at the next milestone on the path",
+          "timing": "on the milestone. Before the ruling: the levy made possible by early registration (J9 yes), on the order date + levy_lag_days, where it falls before stay approval and before the ruling (cash is reachable only after registration where it sits, L9; J9 no or no execution: no pre-ruling milestone). After the ruling: the enforceable date. After 'seek' it is asked again at the next milestone on the path",
           "asked_when": "enforceable, unstayed and unpaid, and not closed by an earlier 'neither' or 'file'",
           "branches": [
             "pay",
@@ -897,7 +897,7 @@
           "effects": {
             "pay": "pays the path amount with interest on the milestone date (only where the amount is within available cash on some trajectory)",
             "seek_sale_or_financing": "timing only: defers the filing decision to the next milestone; no cash booked; after the last milestone in the horizon it books nothing",
-            "file": "petition on the milestone date + petition_lag_days",
+            "file": "petition on the milestone date + petition_lag_days; a payment or petition on the levy day comes before the levy",
             "neither": "not asked again; later petitions only via petition_on_notes or petition_cash_floor"
           }
         },
