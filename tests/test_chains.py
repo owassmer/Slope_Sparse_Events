@@ -352,6 +352,22 @@ def test_the_injunction_and_settlement_questions_cite_their_own_law():
     assert all("frcp_62b" not in nodes[n]["standard"] for n in ("injunction", "settlement_offer", "settlement_accept"))
 
 
+def test_the_26_residual_questions_agree_in_number():
+    import re
+
+    from app.disputes.forecast import load_registry
+
+    qs = [q for q in load_registry()["questions"] if q.get("node")]
+    assert len(qs) == 26
+    third = r"\b(grants|sets|awards|enters|executes|moves|approves|orders|files|enforces|offers|accepts|calls|requests|stays)\b"
+    for q in qs:
+        assert not re.match(r"^Do(es)? the [^?]*?" + third, q["question"]), q["question"]  # 'Does the court grants'
+        assert not re.match(r"^Does the (holders|noteholders|stockholders)\b", q["question"])
+        assert not q["question"].startswith("How does the") or " decide:" not in q["question"]
+        if q["primitive"] == "noul" and re.match(r"^The (holders|noteholders|stockholders)", q["prompt"]["criteria"]["true"]):
+            assert q["prompt"]["criteria"]["false"].endswith(" do not.")
+
+
 # 7. Cash conventions ------------------------------------------------------------------------------------------------
 
 def test_coupon_in_shares_by_default_and_legal_spend_stops_on_settlement(base):
