@@ -24,6 +24,16 @@ Law and the record fix the structure. Ruling dates come from data: this judge's 
 
 **Decided.** Bank-feed anchoring: Decision D1 amended to option (c) (Owen, 25 Sep 2026; §6).
 
+**Stage 3 results (`STAGE3.md`) that update this document, applied in step 6b:**
+- §1961 rate for the 20 May judgment: 5.14% (FRED WGS1YR, week ending 17 May 2024).
+- L1: §24-5(b) interest runs from the original complaint, 4 Oct 2021 (*Beach Mart*); the Feb 2023 sensitivity is dropped.
+- L4: a new trial on compensatory damages also removes the $7.0M exemplary award; the "no" sensitivity is dropped.
+- L8: an amended judgment may restart the 30-day stay (bounded; sensitivity kept). L9 and L12 settled as written in `STAGE3.md`.
+- Verdict form (D.I. 601, now transcribed): Q2(a) "No"; UDTPA damages were asked only on the poaching theory. Record items for J1, J2 and J4.
+- Bennis's month-by-month schedule is rebuilt from the one public page (D.I. 477, 23 Feb 2024); the verdict implies about 21–22 months of head start. It feeds §5.2.
+- Payroll: pre-D basis of about $1.92M a month replaces the 117-employee figure (a post-D fact). Cash at 20 Jun and the line limit are unchanged.
+- All three added citations are verified.
+
 **Approved (Owen, 26 Sep 2026).** This decomposition, with the three decisions below as recommended.
 1. **Remittitur:** two declared, unweighted scenarios. The verdict stands ($31.3M), or it is remitted to $23.1M. $305,000 is not a scenario.
 2. **Fees:** $12,116,123.30 if awarded, otherwise $0 (D4 (a)).

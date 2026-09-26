@@ -31,21 +31,21 @@
   },
   {
    "date": "2024-01-03",
-   "amount_cents": -9896792,
+   "amount_cents": -8495724,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00003"
   },
   {
    "date": "2024-01-03",
-   "amount_cents": -11709842,
+   "amount_cents": -10052105,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00004"
   },
   {
    "date": "2024-01-03",
-   "amount_cents": -29376748,
+   "amount_cents": -25217944,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00005"
@@ -66,35 +66,35 @@
   },
   {
    "date": "2024-01-10",
-   "amount_cents": -8960135,
+   "amount_cents": -7691668,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00008"
   },
   {
    "date": "2024-01-10",
-   "amount_cents": -13653436,
+   "amount_cents": -11720548,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00009"
   },
   {
    "date": "2024-01-10",
-   "amount_cents": -23693431,
+   "amount_cents": -20339202,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00010"
   },
   {
    "date": "2024-01-12",
-   "amount_cents": -38856525,
+   "amount_cents": -33355689,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00011"
   },
   {
    "date": "2024-01-12",
-   "amount_cents": -72718200,
+   "amount_cents": -95399650,
    "counterparty": "Payroll",
    "category": "payroll",
    "transaction_id": "txn_00012"
@@ -115,7 +115,7 @@
   },
   {
    "date": "2024-01-17",
-   "amount_cents": -9081828,
+   "amount_cents": -7796133,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00015"
@@ -129,14 +129,14 @@
   },
   {
    "date": "2024-01-17",
-   "amount_cents": -11601745,
+   "amount_cents": -9959311,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00017"
   },
   {
    "date": "2024-01-17",
-   "amount_cents": -25008491,
+   "amount_cents": -21468092,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00018"
@@ -157,35 +157,35 @@
   },
   {
    "date": "2024-01-24",
-   "amount_cents": -10105483,
+   "amount_cents": -8674871,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00021"
   },
   {
    "date": "2024-01-24",
-   "amount_cents": -11664297,
+   "amount_cents": -10013007,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00022"
   },
   {
    "date": "2024-01-24",
-   "amount_cents": -27577258,
+   "amount_cents": -23673204,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00023"
   },
   {
    "date": "2024-01-26",
-   "amount_cents": -41699658,
+   "amount_cents": -35796327,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00024"
   },
   {
    "date": "2024-01-26",
-   "amount_cents": -73531800,
+   "amount_cents": -96467017,
    "counterparty": "Payroll",
    "category": "payroll",
    "transaction_id": "txn_00025"
@@ -213,21 +213,21 @@
   },
   {
    "date": "2024-01-31",
-   "amount_cents": -10289472,
+   "amount_cents": -8832814,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00029"
   },
   {
    "date": "2024-01-31",
-   "amount_cents": -15815626,
+   "amount_cents": -13576642,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00030"
   },
   {
    "date": "2024-01-31",
-   "amount_cents": -23233965,
+   "amount_cents": -19944784,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00031"
@@ -255,35 +255,35 @@
   },
   {
    "date": "2024-02-07",
-   "amount_cents": -12353451,
+   "amount_cents": -10455430,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00035"
   },
   {
    "date": "2024-02-07",
-   "amount_cents": -16759190,
+   "amount_cents": -14184259,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00036"
   },
   {
    "date": "2024-02-07",
-   "amount_cents": -29960705,
+   "amount_cents": -25357455,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00037"
   },
   {
    "date": "2024-02-09",
-   "amount_cents": -35820676,
+   "amount_cents": -30317082,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00038"
   },
   {
    "date": "2024-02-09",
-   "amount_cents": -73879095,
+   "amount_cents": -96922638,
    "counterparty": "Payroll",
    "category": "payroll",
    "transaction_id": "txn_00039"
@@ -304,21 +304,21 @@
   },
   {
    "date": "2024-02-14",
-   "amount_cents": -9964159,
+   "amount_cents": -8433236,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00042"
   },
   {
    "date": "2024-02-14",
-   "amount_cents": -13300035,
+   "amount_cents": -11256579,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00043"
   },
   {
    "date": "2024-02-14",
-   "amount_cents": -27798493,
+   "amount_cents": -23527451,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00044"
@@ -346,35 +346,35 @@
   },
   {
    "date": "2024-02-21",
-   "amount_cents": -12465757,
+   "amount_cents": -10550481,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00048"
   },
   {
    "date": "2024-02-21",
-   "amount_cents": -15556549,
+   "amount_cents": -13166395,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00049"
   },
   {
    "date": "2024-02-21",
-   "amount_cents": -29153936,
+   "amount_cents": -24674640,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00050"
   },
   {
    "date": "2024-02-23",
-   "amount_cents": -38404458,
+   "amount_cents": -32503886,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00051"
   },
   {
    "date": "2024-02-23",
-   "amount_cents": -72370905,
+   "amount_cents": -94944029,
    "counterparty": "Payroll",
    "category": "payroll",
    "transaction_id": "txn_00052"
@@ -395,21 +395,21 @@
   },
   {
    "date": "2024-02-28",
-   "amount_cents": -9751714,
+   "amount_cents": -8253433,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00055"
   },
   {
    "date": "2024-02-28",
-   "amount_cents": -13764333,
+   "amount_cents": -11649541,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00056"
   },
   {
    "date": "2024-02-28",
-   "amount_cents": -31847081,
+   "amount_cents": -26954002,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00057"
@@ -437,35 +437,35 @@
   },
   {
    "date": "2024-03-06",
-   "amount_cents": -10356834,
+   "amount_cents": -8890639,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00061"
   },
   {
    "date": "2024-03-06",
-   "amount_cents": -18045458,
+   "amount_cents": -15490801,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00062"
   },
   {
    "date": "2024-03-06",
-   "amount_cents": -30863232,
+   "amount_cents": -26493990,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00063"
   },
   {
    "date": "2024-03-08",
-   "amount_cents": -36081622,
+   "amount_cents": -30973624,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00064"
   },
   {
    "date": "2024-03-08",
-   "amount_cents": -73049506,
+   "amount_cents": -95834293,
    "counterparty": "Payroll",
    "category": "payroll",
    "transaction_id": "txn_00065"
@@ -486,21 +486,21 @@
   },
   {
    "date": "2024-03-13",
-   "amount_cents": -12468631,
+   "amount_cents": -10703473,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00068"
   },
   {
    "date": "2024-03-13",
-   "amount_cents": -14115432,
+   "amount_cents": -12117140,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00069"
   },
   {
    "date": "2024-03-13",
-   "amount_cents": -30573815,
+   "amount_cents": -26245545,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00070"
@@ -528,35 +528,35 @@
   },
   {
    "date": "2024-03-20",
-   "amount_cents": -12739689,
+   "amount_cents": -10936159,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00074"
   },
   {
    "date": "2024-03-20",
-   "amount_cents": -18088826,
+   "amount_cents": -15528029,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00075"
   },
   {
    "date": "2024-03-20",
-   "amount_cents": -34375601,
+   "amount_cents": -29509121,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00076"
   },
   {
    "date": "2024-03-22",
-   "amount_cents": -44474561,
+   "amount_cents": -38178392,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00077"
   },
   {
    "date": "2024-03-22",
-   "amount_cents": -73200494,
+   "amount_cents": -96032374,
    "counterparty": "Payroll",
    "category": "payroll",
    "transaction_id": "txn_00078"
@@ -577,21 +577,21 @@
   },
   {
    "date": "2024-03-27",
-   "amount_cents": -12768556,
+   "amount_cents": -10960939,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00081"
   },
   {
    "date": "2024-03-27",
-   "amount_cents": -14195230,
+   "amount_cents": -12185643,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00082"
   },
   {
    "date": "2024-03-27",
-   "amount_cents": -33077245,
+   "amount_cents": -28394570,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00083"
@@ -619,35 +619,35 @@
   },
   {
    "date": "2024-04-03",
-   "amount_cents": -7316121,
+   "amount_cents": -6129842,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00087"
   },
   {
    "date": "2024-04-03",
-   "amount_cents": -9917931,
+   "amount_cents": -8309779,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00088"
   },
   {
    "date": "2024-04-03",
-   "amount_cents": -23912730,
+   "amount_cents": -20035378,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00089"
   },
   {
    "date": "2024-04-05",
-   "amount_cents": -35715772,
+   "amount_cents": -29924605,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00090"
   },
   {
    "date": "2024-04-05",
-   "amount_cents": -73468365,
+   "amount_cents": -96383798,
    "counterparty": "Payroll",
    "category": "payroll",
    "transaction_id": "txn_00091"
@@ -668,21 +668,21 @@
   },
   {
    "date": "2024-04-10",
-   "amount_cents": -9215693,
+   "amount_cents": -7721406,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00094"
   },
   {
    "date": "2024-04-10",
-   "amount_cents": -13506590,
+   "amount_cents": -11316552,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00095"
   },
   {
    "date": "2024-04-10",
-   "amount_cents": -22350377,
+   "amount_cents": -18726354,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00096"
@@ -710,35 +710,35 @@
   },
   {
    "date": "2024-04-17",
-   "amount_cents": -9533046,
+   "amount_cents": -7987302,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00100"
   },
   {
    "date": "2024-04-17",
-   "amount_cents": -10954793,
+   "amount_cents": -9178517,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00101"
   },
   {
    "date": "2024-04-17",
-   "amount_cents": -22232313,
+   "amount_cents": -18627434,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00102"
   },
   {
    "date": "2024-04-19",
-   "amount_cents": -34616966,
+   "amount_cents": -29003967,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00103"
   },
   {
    "date": "2024-04-19",
-   "amount_cents": -72781635,
+   "amount_cents": -95482869,
    "counterparty": "Payroll",
    "category": "payroll",
    "transaction_id": "txn_00104"
@@ -759,21 +759,21 @@
   },
   {
    "date": "2024-04-24",
-   "amount_cents": -8212275,
+   "amount_cents": -6880688,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00107"
   },
   {
    "date": "2024-04-24",
-   "amount_cents": -10664021,
+   "amount_cents": -8934893,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00108"
   },
   {
    "date": "2024-04-24",
-   "amount_cents": -22920922,
+   "amount_cents": -19204387,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00109"
@@ -801,21 +801,21 @@
   },
   {
    "date": "2024-04-30",
-   "amount_cents": -7922508,
+   "amount_cents": -6637905,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00113"
   },
   {
    "date": "2024-04-30",
-   "amount_cents": -11222856,
+   "amount_cents": -9403116,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00114"
   },
   {
    "date": "2024-04-30",
-   "amount_cents": -21116039,
+   "amount_cents": -17692161,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00115"
@@ -843,35 +843,35 @@
   },
   {
    "date": "2024-05-01",
-   "amount_cents": -8806257,
+   "amount_cents": -7378359,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00119"
   },
   {
    "date": "2024-05-01",
-   "amount_cents": -12508574,
+   "amount_cents": -10480360,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00120"
   },
   {
    "date": "2024-05-01",
-   "amount_cents": -24243061,
+   "amount_cents": -20312147,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00121"
   },
   {
    "date": "2024-05-03",
-   "amount_cents": -26662764,
+   "amount_cents": -22339505,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00122"
   },
   {
    "date": "2024-05-03",
-   "amount_cents": -48386795,
+   "amount_cents": -63479064,
    "counterparty": "Payroll",
    "category": "payroll",
    "transaction_id": "txn_00123"
@@ -892,21 +892,21 @@
   },
   {
    "date": "2024-05-08",
-   "amount_cents": -7313011,
+   "amount_cents": -6127236,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00126"
   },
   {
    "date": "2024-05-08",
-   "amount_cents": -10349989,
+   "amount_cents": -8671780,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00127"
   },
   {
    "date": "2024-05-08",
-   "amount_cents": -19040284,
+   "amount_cents": -15952979,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00128"
@@ -927,21 +927,21 @@
   },
   {
    "date": "2024-05-15",
-   "amount_cents": -7757121,
+   "amount_cents": -6499335,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00131"
   },
   {
    "date": "2024-05-15",
-   "amount_cents": -10404862,
+   "amount_cents": -8717756,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00132"
   },
   {
    "date": "2024-05-15",
-   "amount_cents": -21252818,
+   "amount_cents": -17806760,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00133"
@@ -955,14 +955,14 @@
   },
   {
    "date": "2024-05-17",
-   "amount_cents": -21904971,
+   "amount_cents": -18353169,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00135"
   },
   {
    "date": "2024-05-17",
-   "amount_cents": -48295631,
+   "amount_cents": -63359465,
    "counterparty": "Payroll",
    "category": "payroll",
    "transaction_id": "txn_00136"
@@ -983,21 +983,21 @@
   },
   {
    "date": "2024-05-22",
-   "amount_cents": -9930304,
+   "amount_cents": -8320146,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00139"
   },
   {
    "date": "2024-05-22",
-   "amount_cents": -12392239,
+   "amount_cents": -10382888,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00140"
   },
   {
    "date": "2024-05-22",
-   "amount_cents": -23420730,
+   "amount_cents": -19623154,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00141"
@@ -1025,21 +1025,21 @@
   },
   {
    "date": "2024-05-29",
-   "amount_cents": -8392950,
+   "amount_cents": -7032067,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00145"
   },
   {
    "date": "2024-05-29",
-   "amount_cents": -10610526,
+   "amount_cents": -8890073,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00146"
   },
   {
    "date": "2024-05-29",
-   "amount_cents": -24575488,
+   "amount_cents": -20590674,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00147"
@@ -1053,23 +1053,23 @@
   },
   {
    "date": "2024-05-31",
-   "amount_cents": -21765003,
+   "amount_cents": -18235897,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00149"
   },
   {
    "date": "2024-05-31",
-   "amount_cents": -49567574,
-   "counterparty": "Payroll",
-   "category": "payroll",
+   "amount_cents": -63333333,
+   "counterparty": "Litigation counsel",
+   "category": "legal_fees",
    "transaction_id": "txn_00150"
   },
   {
    "date": "2024-05-31",
-   "amount_cents": -63333333,
-   "counterparty": "Litigation counsel",
-   "category": "legal_fees",
+   "amount_cents": -65028138,
+   "counterparty": "Payroll",
+   "category": "payroll",
    "transaction_id": "txn_00151"
   },
   {
@@ -1088,21 +1088,21 @@
   },
   {
    "date": "2024-06-05",
-   "amount_cents": -6984527,
+   "amount_cents": -5498386,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00154"
   },
   {
    "date": "2024-06-05",
-   "amount_cents": -9627994,
+   "amount_cents": -7579387,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00155"
   },
   {
    "date": "2024-06-05",
-   "amount_cents": -18297220,
+   "amount_cents": -14404008,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00156"
@@ -1130,35 +1130,35 @@
   },
   {
    "date": "2024-06-12",
-   "amount_cents": -6669224,
+   "amount_cents": -5250172,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00160"
   },
   {
    "date": "2024-06-12",
-   "amount_cents": -10235968,
+   "amount_cents": -8057999,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00161"
   },
   {
    "date": "2024-06-12",
-   "amount_cents": -21255147,
+   "amount_cents": -16732559,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00162"
   },
   {
    "date": "2024-06-14",
-   "amount_cents": -36671648,
+   "amount_cents": -28868797,
    "counterparty": "Tai-Saw Technology (contract manufacturing)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00163"
   },
   {
    "date": "2024-06-14",
-   "amount_cents": -100065789,
+   "amount_cents": -131277193,
    "counterparty": "Payroll",
    "category": "payroll",
    "transaction_id": "txn_00164"
@@ -1186,21 +1186,21 @@
   },
   {
    "date": "2024-06-18",
-   "amount_cents": -8349238,
+   "amount_cents": -6572720,
    "counterparty": "Other vendors (facilities, utilities, services)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00168"
   },
   {
    "date": "2024-06-18",
-   "amount_cents": -9473357,
+   "amount_cents": -7457652,
    "counterparty": "Process gas and metals suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00169"
   },
   {
    "date": "2024-06-18",
-   "amount_cents": -19122270,
+   "amount_cents": -15053509,
    "counterparty": "Wafer and substrate suppliers (fab materials)",
    "category": "supplier_invoice",
    "transaction_id": "txn_00170"
@@ -1231,115 +1231,115 @@
   },
   {
    "date": "2024-01-03",
-   "closing_cents": 1293076706
+   "closing_cents": 1300294315
   },
   {
    "date": "2024-01-04",
-   "closing_cents": 1293076706
+   "closing_cents": 1300294315
   },
   {
    "date": "2024-01-05",
-   "closing_cents": 1293076706
+   "closing_cents": 1300294315
   },
   {
    "date": "2024-01-06",
-   "closing_cents": 1293076706
+   "closing_cents": 1300294315
   },
   {
    "date": "2024-01-07",
-   "closing_cents": 1293076706
+   "closing_cents": 1300294315
   },
   {
    "date": "2024-01-08",
-   "closing_cents": 1293076706
+   "closing_cents": 1300294315
   },
   {
    "date": "2024-01-09",
-   "closing_cents": 1293076706
+   "closing_cents": 1300294315
   },
   {
    "date": "2024-01-10",
-   "closing_cents": 1295960358
+   "closing_cents": 1309733551
   },
   {
    "date": "2024-01-11",
-   "closing_cents": 1295960358
+   "closing_cents": 1309733551
   },
   {
    "date": "2024-01-12",
-   "closing_cents": 1184385633
+   "closing_cents": 1180978212
   },
   {
    "date": "2024-01-13",
-   "closing_cents": 1184385633
+   "closing_cents": 1180978212
   },
   {
    "date": "2024-01-14",
-   "closing_cents": 1184385633
+   "closing_cents": 1180978212
   },
   {
    "date": "2024-01-15",
-   "closing_cents": 1184385633
+   "closing_cents": 1180978212
   },
   {
    "date": "2024-01-16",
-   "closing_cents": 1184385633
+   "closing_cents": 1180978212
   },
   {
    "date": "2024-01-17",
-   "closing_cents": 1176572424
+   "closing_cents": 1179633531
   },
   {
    "date": "2024-01-18",
-   "closing_cents": 1176572424
+   "closing_cents": 1179633531
   },
   {
    "date": "2024-01-19",
-   "closing_cents": 1176572424
+   "closing_cents": 1179633531
   },
   {
    "date": "2024-01-20",
-   "closing_cents": 1176572424
+   "closing_cents": 1179633531
   },
   {
    "date": "2024-01-21",
-   "closing_cents": 1176572424
+   "closing_cents": 1179633531
   },
   {
    "date": "2024-01-22",
-   "closing_cents": 1176572424
+   "closing_cents": 1179633531
   },
   {
    "date": "2024-01-23",
-   "closing_cents": 1176572424
+   "closing_cents": 1179633531
   },
   {
    "date": "2024-01-24",
-   "closing_cents": 1184724112
+   "closing_cents": 1194771175
   },
   {
    "date": "2024-01-25",
-   "closing_cents": 1184724112
+   "closing_cents": 1194771175
   },
   {
    "date": "2024-01-26",
-   "closing_cents": 1069492654
+   "closing_cents": 1062507831
   },
   {
    "date": "2024-01-27",
-   "closing_cents": 1069492654
+   "closing_cents": 1062507831
   },
   {
    "date": "2024-01-28",
-   "closing_cents": 1069492654
+   "closing_cents": 1062507831
   },
   {
    "date": "2024-01-29",
-   "closing_cents": 2110192654
+   "closing_cents": 2103207831
   },
   {
    "date": "2024-01-30",
-   "closing_cents": 2110192654
+   "closing_cents": 2103207831
   },
   {
    "date": "2024-01-31",
@@ -1371,87 +1371,87 @@
   },
   {
    "date": "2024-02-07",
-   "closing_cents": 2057741284
+   "closing_cents": 2066817486
   },
   {
    "date": "2024-02-08",
-   "closing_cents": 2057741284
+   "closing_cents": 2066817486
   },
   {
    "date": "2024-02-09",
-   "closing_cents": 1948041513
+   "closing_cents": 1939577766
   },
   {
    "date": "2024-02-10",
-   "closing_cents": 1948041513
+   "closing_cents": 1939577766
   },
   {
    "date": "2024-02-11",
-   "closing_cents": 1948041513
+   "closing_cents": 1939577766
   },
   {
    "date": "2024-02-12",
-   "closing_cents": 1948041513
+   "closing_cents": 1939577766
   },
   {
    "date": "2024-02-13",
-   "closing_cents": 1948041513
+   "closing_cents": 1939577766
   },
   {
    "date": "2024-02-14",
-   "closing_cents": 1958920043
+   "closing_cents": 1958301717
   },
   {
    "date": "2024-02-15",
-   "closing_cents": 1949532947
+   "closing_cents": 1948914621
   },
   {
    "date": "2024-02-16",
-   "closing_cents": 1949532947
+   "closing_cents": 1948914621
   },
   {
    "date": "2024-02-17",
-   "closing_cents": 1949532947
+   "closing_cents": 1948914621
   },
   {
    "date": "2024-02-18",
-   "closing_cents": 1949532947
+   "closing_cents": 1948914621
   },
   {
    "date": "2024-02-19",
-   "closing_cents": 1949532947
+   "closing_cents": 1948914621
   },
   {
    "date": "2024-02-20",
-   "closing_cents": 1949532947
+   "closing_cents": 1948914621
   },
   {
    "date": "2024-02-21",
-   "closing_cents": 1960224950
+   "closing_cents": 1968391350
   },
   {
    "date": "2024-02-22",
-   "closing_cents": 1960224950
+   "closing_cents": 1968391350
   },
   {
    "date": "2024-02-23",
-   "closing_cents": 1849449587
+   "closing_cents": 1840943435
   },
   {
    "date": "2024-02-24",
-   "closing_cents": 1849449587
+   "closing_cents": 1840943435
   },
   {
    "date": "2024-02-25",
-   "closing_cents": 1849449587
+   "closing_cents": 1840943435
   },
   {
    "date": "2024-02-26",
-   "closing_cents": 1849449587
+   "closing_cents": 1840943435
   },
   {
    "date": "2024-02-27",
-   "closing_cents": 1849449587
+   "closing_cents": 1840943435
   },
   {
    "date": "2024-02-28",
@@ -1483,87 +1483,87 @@
   },
   {
    "date": "2024-03-06",
-   "closing_cents": 1794677039
+   "closing_cents": 1803067133
   },
   {
    "date": "2024-03-07",
-   "closing_cents": 1794677039
+   "closing_cents": 1803067133
   },
   {
    "date": "2024-03-08",
-   "closing_cents": 1685545911
+   "closing_cents": 1676259216
   },
   {
    "date": "2024-03-09",
-   "closing_cents": 1685545911
+   "closing_cents": 1676259216
   },
   {
    "date": "2024-03-10",
-   "closing_cents": 1685545911
+   "closing_cents": 1676259216
   },
   {
    "date": "2024-03-11",
-   "closing_cents": 1685545911
+   "closing_cents": 1676259216
   },
   {
    "date": "2024-03-12",
-   "closing_cents": 1685545911
+   "closing_cents": 1676259216
   },
   {
    "date": "2024-03-13",
-   "closing_cents": 1701697541
+   "closing_cents": 1700502566
   },
   {
    "date": "2024-03-14",
-   "closing_cents": 1701697541
+   "closing_cents": 1700502566
   },
   {
    "date": "2024-03-15",
-   "closing_cents": 1691841089
+   "closing_cents": 1690646114
   },
   {
    "date": "2024-03-16",
-   "closing_cents": 1691841089
+   "closing_cents": 1690646114
   },
   {
    "date": "2024-03-17",
-   "closing_cents": 1691841089
+   "closing_cents": 1690646114
   },
   {
    "date": "2024-03-18",
-   "closing_cents": 1691841089
+   "closing_cents": 1690646114
   },
   {
    "date": "2024-03-19",
-   "closing_cents": 1691841089
+   "closing_cents": 1690646114
   },
   {
    "date": "2024-03-20",
-   "closing_cents": 1696316525
+   "closing_cents": 1704352357
   },
   {
    "date": "2024-03-21",
-   "closing_cents": 1696316525
+   "closing_cents": 1704352357
   },
   {
    "date": "2024-03-22",
-   "closing_cents": 1578641470
+   "closing_cents": 1570141591
   },
   {
    "date": "2024-03-23",
-   "closing_cents": 1578641470
+   "closing_cents": 1570141591
   },
   {
    "date": "2024-03-24",
-   "closing_cents": 1578641470
+   "closing_cents": 1570141591
   },
   {
    "date": "2024-03-25",
-   "closing_cents": 1578641470
+   "closing_cents": 1570141591
   },
   {
    "date": "2024-03-26",
-   "closing_cents": 1578641470
+   "closing_cents": 1570141591
   },
   {
    "date": "2024-03-27",
@@ -1595,111 +1595,111 @@
   },
   {
    "date": "2024-04-03",
-   "closing_cents": 1525156999
+   "closing_cents": 1531828782
   },
   {
    "date": "2024-04-04",
-   "closing_cents": 1525156999
+   "closing_cents": 1531828782
   },
   {
    "date": "2024-04-05",
-   "closing_cents": 1415972862
+   "closing_cents": 1405520379
   },
   {
    "date": "2024-04-06",
-   "closing_cents": 1415972862
+   "closing_cents": 1405520379
   },
   {
    "date": "2024-04-07",
-   "closing_cents": 1415972862
+   "closing_cents": 1405520379
   },
   {
    "date": "2024-04-08",
-   "closing_cents": 1415972862
+   "closing_cents": 1405520379
   },
   {
    "date": "2024-04-09",
-   "closing_cents": 1415972862
+   "closing_cents": 1405520379
   },
   {
    "date": "2024-04-10",
-   "closing_cents": 1415641483
+   "closing_cents": 1412497348
   },
   {
    "date": "2024-04-11",
-   "closing_cents": 1415641483
+   "closing_cents": 1412497348
   },
   {
    "date": "2024-04-12",
-   "closing_cents": 1415641483
+   "closing_cents": 1412497348
   },
   {
    "date": "2024-04-13",
-   "closing_cents": 1415641483
+   "closing_cents": 1412497348
   },
   {
    "date": "2024-04-14",
-   "closing_cents": 1415641483
+   "closing_cents": 1412497348
   },
   {
    "date": "2024-04-15",
-   "closing_cents": 1415641483
+   "closing_cents": 1412497348
   },
   {
    "date": "2024-04-16",
-   "closing_cents": 1420285927
+   "closing_cents": 1417141792
   },
   {
    "date": "2024-04-17",
-   "closing_cents": 1425374140
+   "closing_cents": 1429156904
   },
   {
    "date": "2024-04-18",
-   "closing_cents": 1425374140
+   "closing_cents": 1429156904
   },
   {
    "date": "2024-04-19",
-   "closing_cents": 1317975539
+   "closing_cents": 1304670068
   },
   {
    "date": "2024-04-20",
-   "closing_cents": 1317975539
+   "closing_cents": 1304670068
   },
   {
    "date": "2024-04-21",
-   "closing_cents": 1317975539
+   "closing_cents": 1304670068
   },
   {
    "date": "2024-04-22",
-   "closing_cents": 1317975539
+   "closing_cents": 1304670068
   },
   {
    "date": "2024-04-23",
-   "closing_cents": 1317975539
+   "closing_cents": 1304670068
   },
   {
    "date": "2024-04-24",
-   "closing_cents": 1318315130
+   "closing_cents": 1311786909
   },
   {
    "date": "2024-04-25",
-   "closing_cents": 1318315130
+   "closing_cents": 1311786909
   },
   {
    "date": "2024-04-26",
-   "closing_cents": 1318315130
+   "closing_cents": 1311786909
   },
   {
    "date": "2024-04-27",
-   "closing_cents": 1318315130
+   "closing_cents": 1311786909
   },
   {
    "date": "2024-04-28",
-   "closing_cents": 1318315130
+   "closing_cents": 1311786909
   },
   {
    "date": "2024-04-29",
-   "closing_cents": 1318315130
+   "closing_cents": 1311786909
   },
   {
    "date": "2024-04-30",
@@ -1707,123 +1707,123 @@
   },
   {
    "date": "2024-05-01",
-   "closing_cents": 1261760258
+   "closing_cents": 1269147284
   },
   {
    "date": "2024-05-02",
-   "closing_cents": 1261760258
+   "closing_cents": 1269147284
   },
   {
    "date": "2024-05-03",
-   "closing_cents": 1186710699
+   "closing_cents": 1183328715
   },
   {
    "date": "2024-05-04",
-   "closing_cents": 1186710699
+   "closing_cents": 1183328715
   },
   {
    "date": "2024-05-05",
-   "closing_cents": 1186710699
+   "closing_cents": 1183328715
   },
   {
    "date": "2024-05-06",
-   "closing_cents": 1186710699
+   "closing_cents": 1183328715
   },
   {
    "date": "2024-05-07",
-   "closing_cents": 1186710699
+   "closing_cents": 1183328715
   },
   {
    "date": "2024-05-08",
-   "closing_cents": 1190253637
+   "closing_cents": 1192822942
   },
   {
    "date": "2024-05-09",
-   "closing_cents": 1190253637
+   "closing_cents": 1192822942
   },
   {
    "date": "2024-05-10",
-   "closing_cents": 1190253637
+   "closing_cents": 1192822942
   },
   {
    "date": "2024-05-11",
-   "closing_cents": 1190253637
+   "closing_cents": 1192822942
   },
   {
    "date": "2024-05-12",
-   "closing_cents": 1190253637
+   "closing_cents": 1192822942
   },
   {
    "date": "2024-05-13",
-   "closing_cents": 1190253637
+   "closing_cents": 1192822942
   },
   {
    "date": "2024-05-14",
-   "closing_cents": 1190253637
+   "closing_cents": 1192822942
   },
   {
    "date": "2024-05-15",
-   "closing_cents": 1197440738
+   "closing_cents": 1206400993
   },
   {
    "date": "2024-05-16",
-   "closing_cents": 1202085183
+   "closing_cents": 1211045438
   },
   {
    "date": "2024-05-17",
-   "closing_cents": 1131884581
+   "closing_cents": 1129332804
   },
   {
    "date": "2024-05-18",
-   "closing_cents": 1131884581
+   "closing_cents": 1129332804
   },
   {
    "date": "2024-05-19",
-   "closing_cents": 1131884581
+   "closing_cents": 1129332804
   },
   {
    "date": "2024-05-20",
-   "closing_cents": 1131884581
+   "closing_cents": 1129332804
   },
   {
    "date": "2024-05-21",
-   "closing_cents": 1131884581
+   "closing_cents": 1129332804
   },
   {
    "date": "2024-05-22",
-   "closing_cents": 1128939442
+   "closing_cents": 1133804750
   },
   {
    "date": "2024-05-23",
-   "closing_cents": 1128939442
+   "closing_cents": 1133804750
   },
   {
    "date": "2024-05-24",
-   "closing_cents": 2049739442
+   "closing_cents": 2054604750
   },
   {
    "date": "2024-05-25",
-   "closing_cents": 2049739442
+   "closing_cents": 2054604750
   },
   {
    "date": "2024-05-26",
-   "closing_cents": 2049739442
+   "closing_cents": 2054604750
   },
   {
    "date": "2024-05-27",
-   "closing_cents": 2049739442
+   "closing_cents": 2054604750
   },
   {
    "date": "2024-05-28",
-   "closing_cents": 2049739442
+   "closing_cents": 2054604750
   },
   {
    "date": "2024-05-29",
-   "closing_cents": 2049840514
+   "closing_cents": 2061771972
   },
   {
    "date": "2024-05-30",
-   "closing_cents": 2049840514
+   "closing_cents": 2061771972
   },
   {
    "date": "2024-05-31",
@@ -1847,55 +1847,55 @@
   },
   {
    "date": "2024-06-05",
-   "closing_cents": 1922220390
+   "closing_cents": 1929648350
   },
   {
    "date": "2024-06-06",
-   "closing_cents": 1922220390
+   "closing_cents": 1929648350
   },
   {
    "date": "2024-06-07",
-   "closing_cents": 1922220390
+   "closing_cents": 1929648350
   },
   {
    "date": "2024-06-08",
-   "closing_cents": 1922220390
+   "closing_cents": 1929648350
   },
   {
    "date": "2024-06-09",
-   "closing_cents": 1922220390
+   "closing_cents": 1929648350
   },
   {
    "date": "2024-06-10",
-   "closing_cents": 1922220390
+   "closing_cents": 1929648350
   },
   {
    "date": "2024-06-11",
-   "closing_cents": 1924964834
+   "closing_cents": 1932392794
   },
   {
    "date": "2024-06-12",
-   "closing_cents": 1934993995
+   "closing_cents": 1950541564
   },
   {
    "date": "2024-06-13",
-   "closing_cents": 1934993995
+   "closing_cents": 1950541564
   },
   {
    "date": "2024-06-14",
-   "closing_cents": 1798256558
+   "closing_cents": 1790395574
   },
   {
    "date": "2024-06-15",
-   "closing_cents": 1798256558
+   "closing_cents": 1790395574
   },
   {
    "date": "2024-06-16",
-   "closing_cents": 1798256558
+   "closing_cents": 1790395574
   },
   {
    "date": "2024-06-17",
-   "closing_cents": 1754056558
+   "closing_cents": 1746195574
   },
   {
    "date": "2024-06-18",

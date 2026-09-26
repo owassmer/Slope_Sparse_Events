@@ -70,7 +70,7 @@ Both totals are derived from XBRL. Monthly figures split each quarter by busines
 
 How each column was built:
 - **Operating outflows excluding interest** = receipts minus operating cash flow, less cash interest. The quarterly totals are Q3 15.701 and Q4 14.058, and they are derived.
-- **Payroll is an assumption, not a filed figure:** 117 full-time employees (10-K, as of 30 Jun 2024) × about $150k loaded cost a year. **Supplier-invoice outflows** = operating outflows minus payroll, so they are estimated and are the weakest numbers here. Capex paid to vendors (Q3 0.291; Q4 net +0.133) is excluded.
+- **Payroll (superseded, see `STAGE3.md`):** this check first used 117 employees × $150k, but that headcount is from the FY2024 10-K, a post-D fact. The feed uses the pre-D basis instead: March-quarter labor of $6.7M (earnings call, 13 May 2024) less $0.944M stock compensation (10-Q) ≈ $1.92M a month. Cash at 20 Jun and the line limit do not change; only the payroll/supplier split moves. **Supplier-invoice outflows** = operating outflows minus payroll, so they are estimated and are the weakest numbers here. Capex paid to vendors (Q3 0.291; Q4 net +0.133) is excluded.
 - **Debt service** is derived from the contract terms:
   - The 6% convertible notes pay coupons on 15 Jun and 15 Dec only. The Dec 2023 coupon was paid entirely in shares.
   - The GDSI promissory note carries no interest, and its first scheduled reduction falls on 1 Jan 2025.

@@ -11,7 +11,7 @@
       "basis": "operator_request"
     },
     "requested_amount": {
-      "value": 35715772,
+      "value": 30973624,
       "unit": "USD_cents",
       "basis": "operator_request"
     },
@@ -38,8 +38,8 @@
     "basis": "operator_request",
     "note": "Slope pays the supplier up to the financed amount; Akoustis pays any remainder of the invoice itself.",
     "supplied_terms": {
-      "invoice_cents": 35715772,
-      "amount_cents": 35715772,
+      "invoice_cents": 30973624,
+      "amount_cents": 30973624,
       "installments": 3,
       "days": 90,
       "fee_bps": 370,
@@ -74,10 +74,10 @@
       "draw_rule": "each supplier_invoice outflow is routed while outstanding + invoice <= the day's limit, no installment is overdue and no petition has been filed",
       "line_usage_bps": 10000,
       "supplied_draw": {
-        "transaction_id": "txn_00090",
-        "date": "2024-04-05",
+        "transaction_id": "txn_00064",
+        "date": "2024-03-08",
         "counterparty": "Tai-Saw Technology (contract manufacturing)",
-        "amount_cents": 35715772,
+        "amount_cents": 30973624,
         "basis": "largest supplier invoice in the trailing window that fits under the limit"
       }
     }

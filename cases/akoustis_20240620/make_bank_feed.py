@@ -32,9 +32,10 @@ START, END = date(2024, 1, 1), date(2024, 6, 20)
 OPENING_CENTS = 1_287_500_000  # 31 Dec 2023, cash and restricted cash (cash-flow statement)
 HOLIDAYS = {date(2024, 1, 1), date(2024, 1, 15), date(2024, 2, 19), date(2024, 5, 27), date(2024, 6, 19)}  # Fed
 
-# Assumptions (labelled; each one constant). Payroll awaits a pre-D headcount: 117 employees x USD 150k loaded cost a
-# year (the headcount is the FY2024 10-K's, as of 30 Jun 2024; the design uses it pending a pre-D figure).
-PAYROLL_MONTHLY_CENTS = 146_250_000
+# Assumptions (labelled; each one constant). Payroll: cash labor on a pre-D basis. The 13 May 2024 earnings call gives
+# March-quarter labor costs of USD 6.7M; less USD 0.944M stock-based compensation (10-Q of 13 May 2024) = USD 5.756M a
+# quarter, about USD 1.92M a month (design/STAGE3.md, headcount item).
+PAYROLL_MONTHLY_CENTS = 191_866_667
 # Litigation counsel paid in cash: the year-on-year rise in professional fees and property tax in the March quarter
 # (USD 1.9M a quarter, 10-Q of 13 May 2024), spread evenly by month.
 LEGAL_MONTHLY_CENTS = 63_333_333
