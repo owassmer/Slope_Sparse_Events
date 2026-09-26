@@ -93,6 +93,7 @@ class Trajectories:
     min_headroom: np.ndarray  # lowest headroom over the due dates (int64 max where none fell due)
     headroom_rows: np.ndarray  # one entry per (draw, due date): the draw ...
     headroom: np.ndarray  # ... and available - need - amount due, before collecting
+    headroom_days: np.ndarray  # ... and the day index of that due date
     draw_rows: np.ndarray  # one entry per routed invoice: the draw, the day and the amount
     draw_days: np.ndarray
     draw_amounts: np.ndarray
@@ -177,7 +178,7 @@ def run(line: Line, opening_cents: int, events: EventCash) -> Trajectories:
     outstanding = np.empty((n, days), dtype=np.int64)
     avail = np.full(n, opening_cents, dtype=np.int64)
     owed, funded, contract, collected = (np.zeros(n, dtype=np.int64) for _ in range(4))
-    hr_rows, hr_vals, d_rows, d_days, d_amts = [], [], [], [], []
+    hr_rows, hr_vals, hr_days, d_rows, d_days, d_amts = [], [], [], [], [], []
 
     def principal_out() -> np.ndarray:
         return funded - np.where(contract > 0, collected * funded // np.maximum(contract, 1), 0)
@@ -190,6 +191,7 @@ def run(line: Line, opening_cents: int, events: EventCash) -> Trajectories:
         if falls_due.any():
             hr_rows.append(np.nonzero(falls_due)[0])
             hr_vals.append((avail - line.need[:, t] - owed)[falls_due])
+            hr_days.append(np.full(int(falls_due.sum()), t, dtype=np.int64))
         attempt = live & (falls_due | line.month_end[t]) & (owed > 0)
         if attempt.any():
             take = np.where(attempt, np.minimum(owed, np.maximum(avail - line.need[:, t], 0)), 0)
@@ -238,5 +240,6 @@ def run(line: Line, opening_cents: int, events: EventCash) -> Trajectories:
         preference=(collections * window).sum(axis=1), not_yet_due=not_yet_due,
         uncollected=contract - collected - stayed - not_yet_due, lender_pv=pv_c - pv_f, pv_fundings=pv_f,
         pv_collections=pv_c, dollar_days=outstanding.sum(axis=1) / 100.0, min_cash=cash.min(axis=1),
-        min_headroom=min_headroom, headroom_rows=headroom_rows, headroom=headroom, draw_rows=cat(d_rows),
+        min_headroom=min_headroom, headroom_rows=headroom_rows, headroom=headroom, headroom_days=cat(hr_days),
+        draw_rows=cat(d_rows),
         draw_days=cat(d_days), draw_amounts=cat(d_amts))

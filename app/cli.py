@@ -150,9 +150,21 @@ def investigate(
 
 
 @cli.command()
-def viewer(port: int = typer.Option(8000), host: str = typer.Option("127.0.0.1", help="Local only by default.")) -> None:
+def viewer(port: int = typer.Option(8000), host: str = typer.Option("127.0.0.1", help="Local only by default."),
+           dev: bool = typer.Option(False, help="Build (or load) the Akoustis development page first: the pre-D "
+                                                 "record with neutral judgments, no Jev answers; served at /dev/akoustis.")
+           ) -> None:
     """Serve the read-only investigation viewer for recorded runs."""
     import uvicorn
+
+    if dev:
+        from app.analysis.page import DevPage
+
+        page = DevPage()
+        if page.load() is None:
+            typer.echo("Building the Akoustis development page (a few minutes; cached in var/dev/)...")
+            page.build()
+        typer.echo(f"Development page: http://{host}:{port}/dev/akoustis")
 
     uvicorn.run("app.web.app:app", host=host, port=port)
 

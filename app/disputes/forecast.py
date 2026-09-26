@@ -566,7 +566,7 @@ class _Walk:
         a1 = self.node("stay_motion", "I1", s.cls, assumptions=("the creditor executes before the ruling",))
         j8 = self.node("stay_approved", "I1", s.cls, assumptions=("the debtor moves for a stay",))
         self.binary(s, "stay", "I1", [[(a1, "yes"), (j8, "yes")]], (a1, j8),
-                    lambda y: self.j9_stayed(replace(y, stayed=True)), self.a4_i1)
+                    lambda y: self.j9_stayed(replace(y, stayed=True)), self.j9_i1)
 
     def j9_stayed(self, s: _S) -> None:
         """A stay is effective only on approval: early registration and its levy (J9) can come before it, and no
@@ -576,16 +576,29 @@ class _Walk:
             return self.ripe_i1(s)
         self.j9_i1(s)
 
+    def j9_i1(self, s: _S) -> None:
+        """T1-a step 3: cash is reachable before the ruling only through early registration (J9). Its levy is the act
+        that confronts the debtor (A4); without the order nothing reaches cash before the ruling and A4 waits for it."""
+        k = self.node("registration_early", "I1", assumptions=("the creditor executes before finality",))
+        self.a4_i1(self.take(s, ("registration_early", "I1", "yes"), (k, "yes"), (k,), early=True))
+        self.ripe_i1(self.take(s, ("registration_early", "I1", "no"), (k, "no"), (k,)))
+
     def a4_i1(self, s: _S) -> None:
-        self.a4(s, "I1", self.j9_i1, lambda y: self.emit(y, "petition"))
+        """A4 on the levy day (order + levy_lag_days), where it falls inside the horizon, before stay approval and
+        before the ruling on some trajectory (events.py debtor_response)."""
+        if not self.arises(s, ("debtor_response", "I1", "neither")):
+            return self.ripe_i1(s)
+        self.a4(s, "I1", self.ripe_i1, lambda y: self.emit(y, "petition"))
 
     def a4(self, s: _S, phase: str, then, on_file) -> None:
         probe = ("debtor_response", phase, "seek_sale_or_financing")
         pay = self.fc.pay_possible(self.d, s.steps, probe)
         branches = (("pay",) if pay else ()) + ("seek_sale_or_financing", "file", "neither")
+        pending = s.stayed and phase == "I1"  # moved for a stay, not yet approved
         k = self.node("debtor_response", phase, s.cls, "pay" if pay else "nopay",
-                      "after_seek" if s.a4 == "seek" else "first",
-                      assumptions=("the judgment is enforceable, unstayed and unpaid",), branches=branches)
+                      "after_seek" if s.a4 == "seek" else "first", *(("stay_pending",) if pending else ()),
+                      assumptions=("the judgment is enforceable, unstayed and unpaid",)
+                      + (("the debtor has moved for a stay, not yet approved",) if pending else ()), branches=branches)
         for b in branches:
             y = self.take(s, ("debtor_response", phase, b), (k, b), (k,),
                           a4="seek" if b.startswith("seek") else "closed")
@@ -595,11 +608,6 @@ class _Walk:
                 on_file(y)
             else:
                 then(y)
-
-    def j9_i1(self, s: _S) -> None:
-        k = self.node("registration_early", "I1", assumptions=("the creditor executes before finality",))
-        self.ripe_i1(self.take(s, ("registration_early", "I1", "yes"), (k, "yes"), (k,), early=True))
-        self.ripe_i1(self.take(s, ("registration_early", "I1", "no"), (k, "no"), (k,)))
 
     def notes_petition(self, s: _S, phase: str, then) -> None:
         """The judgment default: the holders give notice and accelerate (H1), then the issuer files (A5) or else the

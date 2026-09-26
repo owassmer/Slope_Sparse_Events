@@ -89,3 +89,54 @@ def post_analysis(run_id: str, body: dict = EMPTY_BODY) -> JSONResponse:
     except (ValueError, TypeError, KeyError) as e:
         raise HTTPException(422, f"Invalid controls: {e}") from e
     return JSONResponse(out)
+
+
+# --- the Akoustis development page (no recorded run yet: the pre-D record with neutral judgments) ---------------
+
+_DEV = None
+
+
+def _dev():
+    global _DEV
+    from app.analysis.page import DevPage
+
+    if _DEV is None:
+        _DEV = DevPage()
+    if _DEV.state is None and _DEV.load() is None:
+        raise HTTPException(404, "No development page yet: run `slope viewer --dev`")
+    return _DEV
+
+
+@app.get("/dev/akoustis", response_class=HTMLResponse)
+def dev_page(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, "page.html", {"data": _dev().state["payload"], "has_record": False,
+                                                             "api": "/dev/akoustis"})
+
+
+@app.get("/dev/akoustis/payload")
+def dev_payload() -> JSONResponse:
+    return JSONResponse(_dev().state["payload"])
+
+
+@app.post("/dev/akoustis/reweight")
+def dev_reweight(body: dict = EMPTY_BODY) -> JSONResponse:
+    from app.analysis.page import reweight
+
+    classes = body.get("classes")
+    try:
+        out = reweight(_dev().state, body.get("overrides") or {}, [int(c) for c in classes] if classes else None)
+    except (ValueError, TypeError, KeyError) as e:
+        raise HTTPException(422, f"Invalid probabilities: {e}") from e
+    return JSONResponse(out)
+
+
+@app.post("/dev/akoustis/settings")
+def dev_settings(body: dict = EMPTY_BODY) -> JSONResponse:
+    page = _dev()
+    started = page.start(body.get("settings") or {})
+    return JSONResponse({"started": started, "progress": page.progress})
+
+
+@app.get("/dev/akoustis/progress")
+def dev_progress() -> JSONResponse:
+    return JSONResponse(_dev().progress)
