@@ -1136,7 +1136,8 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
                          "upper_cents": {"type": "integer"}, "basis": S}, []),
           "judgment_date": S, "supersedes": S, "proposed_extension": S,
           "borrower_role": {"type": "string", "enum": ["debtor", "creditor"]},
-          "stage": {"type": "string", "enum": ["amount_pending", "judgment_entered", "appeal_pending", "enforcement"]}},
+          "stage": {"type": "string", "enum": ["amount_pending", "judgment_entered", "appeal_filed", "appeal_pending",
+                                                  "enforcement"]}},
          ["dependency_id", "title", "order_reference", "nature", "finding_ids", "counterparty", "amount"]),
      instantiate_dispute),
     ("request_missing_fact", "Record a pivotal fact the evidence cannot supply: what it is, why it is pivotal, what evidence "

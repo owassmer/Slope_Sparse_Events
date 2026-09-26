@@ -91,6 +91,8 @@ def _judgment_meta(j: Judgment, disputes: dict[str, DisputeInstance], order: dic
     cond = [CONDITION.get((j.node, ctx), "")]
     if disputes[j.instance_id].stage != "amount_pending" and cond[0] == "once the amount is fixed":
         cond = [""]  # the judgment is already entered
+    if disputes[j.instance_id].stage == "appeal_filed" and cond[0] == "if it appeals":
+        cond = [""]  # the appeal is already filed
     parent = order.get(j.instance_id)
     if cls and parent is not None:
         who = short_name(parent.counterparty)
@@ -191,6 +193,12 @@ def build(run_id: str, root: Path, refresh: bool = False) -> dict:
     borrower = inputs["baseline_profile"]["borrower"]
     findings: dict[str, AtomicFinding] = {k: f for k, f in store.graph["findings"].items() if f.status == "accepted"}
     live = [d for d in store.graph["disputes"].values() if d.status != "superseded"]
+    current = load_model()["model_version"]
+    stale = sorted({d.model_version for d in live if d.model_version != current})
+    if stale and not refresh:
+        raise RuntimeError(f"{run_id}: disputes were interpreted under dispute model {', '.join(stale)}, not the current "
+                           f"{current}; their readings do not fit the current tree. Re-interpret the run, or pass "
+                           f"refresh to build anyway.")
     sources = {s["source_id"]: (s["title"], s["available_at"][:10]) for s in evidence.list_sources()}
     feed = load_feed(meta["snapshot_id"])
     fc = Forecaster(live, findings, borrower=borrower, review=review, horizon=setup.horizon,

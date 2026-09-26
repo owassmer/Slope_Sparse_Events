@@ -71,9 +71,10 @@ class WaiverJudge:
                                    question_id=qid, question_version="3", primitive=prim, answer=None, **kw)
 
     async def read(self, obligation, evidence, direction, subject_ids):
+        entered = 0.05 if subject_ids[0] == "a" else 0.95  # only "b" establishes the judgment; "a" states the waiver
         return [self._o("obligation_direction", probabilities={"borrower": 0.95, "counterparty": 0.03, "not_stated": 0.02}),
                 self._o("amount_status", probabilities={"fixed": 0.9, "sought": 0.1}),
-                self._o("event_judgment_entered", noul_value=0.95)]
+                self._o("event_judgment_entered", noul_value=entered)]
 
     async def relevance(self, obligation, evidence, subject_ids, factor_ids):
         assert "debtor_liquidity" not in factor_ids  # ChromaDex pays: its own cash comes from the bank data
@@ -101,5 +102,26 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     appeal = next(n for n in fc.nodes.values() if n.node == "appeal")
     state, fids, readings = fc.state(appeal)
     assert readings[barred.label] == {"probability_present": 0.9}  # the waiver reaches Jev's appeal forecast
-    assert "a" in fids  # with the passage that states it
+    assert "a" in fids  # with the passage that states it, chosen only because it bears on the waiver
+    settle = next(n for n in fc.nodes.values() if n.node == "settle_after_judgment")
+    assert "a" not in fc.state(settle)[1]  # a node that does not weigh the waiver never sees it
     assert state["case"]["payer_available_cash"].startswith("$27,580,252.75")  # the payer's cash is data, not a reading
+
+
+class FiledJudge(WaiverJudge):
+    """As above, and the passages establish that ChromaDex has filed its notice of appeal."""
+
+    async def read(self, obligation, evidence, direction, subject_ids):
+        return [*await super().read(obligation, evidence, direction, subject_ids),
+                self._o("event_appeal_filed", noul_value=0.95)]
+
+
+def test_a_filed_appeal_sets_the_stage_and_is_not_forecast():
+    fs = [finding("a", "q2_10q"), finding("b", "q2_release")]
+    d = asyncio.run(interpreter(fs, FiledJudge()).run())
+    assert d.stage == "appeal_filed"
+    fc = Forecaster([d], {f.finding_id: f for f in fs}, borrower=BORROWER, review=REVIEW,
+                    horizon=REVIEW + timedelta(days=180), hydrate=lambda f: {})
+    paths = fc.paths(d)
+    assert not any(n.node in ("appeal", "settle_after_judgment") for n in fc.nodes.values())
+    assert all(p.steps[0][0] == "secured_stay" for p in paths)  # the stay is still open; "no appeal" is not a path

@@ -1,9 +1,9 @@
 {
   "model_id": "post_judgment_money_dispute",
-  "model_version": "3.2.0",
+  "model_version": "3.3.0",
   "status": "host_owned_design_contract",
   "scope": "Post-judgment slice of a US federal civil money dispute, bounded by cash: only developments that can move cash, collections, collateral or credit capacity within the analysis horizon. It ends in payment, settlement, an unresolved amount, a pending secured appeal or an uncollected balance, and never forecasts appellate merits.",
-  "design": "Two Jev stages. (1) Present-state interpretation of each cited finding, hydrated with its surrounding evidence: who pays, the amount's status, which procedural events it establishes, which factors it bears on and at what level. Established events place the stage; an established waiver or payment constrains the graph. (2) Conditional forecasting: at each node, Jev returns the probability of one defined future event under named parent assumptions and a code-set window, given the relevant hydrated passages and the interpretation distributions. Code multiplies conditional probabilities along each path, draws event dates and amounts inside code-owned windows and ranges, and keeps every structurally feasible path (zero-probability paths stay available for stress).",
+  "design": "Two Jev stages. (1) Present-state interpretation of each cited finding, hydrated with its surrounding evidence: who pays, the amount's status, which procedural events it establishes, which factors it bears on and at what level. Established events place the stage and an established payment ends the dispute; everything else, a waiver of appeal included, is evidence for the forecasts. (2) Conditional forecasting: at each node, Jev returns the probability of one defined future event under named parent assumptions and a code-set window, given the relevant hydrated passages and the interpretation distributions. Code multiplies conditional probabilities along each path, draws event dates and amounts inside code-owned windows and ranges, and keeps every structurally feasible path (zero-probability paths stay available for stress).",
   "roles": {
     "agent": "Groups the accepted findings about one obligation and gives its order reference (a docket reference, checked), its nature (from `natures`), the counterparty, the amount figure (checked against the quotes) and any judgment date (checked against the quotes). Its prose never reaches Jev.",
     "jev": "Answers present-state and conditional forecast questions. Never sets a date, an amount or a path.",
@@ -93,6 +93,10 @@
         "stage": "appeal_pending"
       },
       {
+        "event": "appeal_filed",
+        "stage": "appeal_filed"
+      },
+      {
         "event": "judgment_entered",
         "stage": "judgment_entered"
       },
@@ -105,7 +109,7 @@
         "stage": "amount_pending"
       }
     ],
-    "stage_rules_note": "The stage is the most advanced procedural event any cited passage establishes. No established event leaves the dispute outside the model, with an evidence request."
+    "stage_rules_note": "The stage is the most advanced procedural event any cited passage establishes. A filed appeal starts the tree at the secured stay: the appeal is no longer forecast, whether a stay is secured still is. No established event leaves the dispute outside the model, with an evidence request."
   },
   "factors": {
     "amount_finality": {
@@ -145,11 +149,12 @@
       "aggregate": "latest",
       "relevance": "Does the quoted text describe whether the payer has paid, or refused to pay, an amount due under this obligation, or resisted its collection? Contesting the amount in court, appealing, or stating an intention to appeal is not refusal to pay: answer no for a passage that describes only those.",
       "levels": [
-        "The payer has paid this obligation or complied with the court's payment orders on it",
+        "The payer paid amounts due under this obligation when they fell due",
         "The passage describes no payment conduct by the payer on this obligation",
-        "The payer paid or complied late, or only after a court order or a motion by the payee",
+        "The payer paid late, or only after a motion or an enforcement step by the payee",
         "The payer has refused to pay an amount that is due, or has resisted its collection"
-      ]
+      ],
+      "note": "One dimension: the timeliness of the payer's payment conduct relative to when payment fell due. The court order that creates the obligation is not itself a compulsion to pay."
     },
     "debtor_liquidity": {
       "label": "The payer's ability to fund this obligation",
