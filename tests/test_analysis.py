@@ -55,9 +55,10 @@ def model_with(disputes: list[DisputeInstance], p: float = 0.5, form: dict | Non
     return EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered())
 
 
-# Akoustis owes Qorvo the fees Qorvo moved for on 17 Jun 2024 (D.I. 618, amount not yet fixed). The creditor instance
-# is a fixture: Akoustis holds no judgment against Qorvo at D; it exercises a second same-counterparty dispute that is
-# conditioned on the first.
+# Mechanics fixtures, not case facts. DE uses the amount of Qorvo's 17 Jun 2024 fee motion (D.I. 618), but its stage
+# (entitlement decided, amount pending) is set for the test: at D the motion was pending and the court "may" award fees.
+# CA is a creditor instance Akoustis does not hold at D; it exercises a second same-counterparty dispute conditioned
+# on the first.
 DE = dispute("de", "debtor", "amount_pending", 1_211_612_330)
 CA = dispute("ca", "creditor", "judgment_entered", 250_000_000, date(2024, 6, 17))
 
