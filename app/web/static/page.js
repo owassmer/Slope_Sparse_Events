@@ -240,16 +240,25 @@
       return { lo, hi, at, range: Math.abs(hi - lo) };
     });
   }
+  // The effect bar: a line from the value at 0% to the value at 100%, an arrowhead at the 100% end (the way 'yes'
+  // moves Unrecovered) and a mark at the current value, all on the panel's shared scale.
+  function effBar(s, pos) {
+    const a = Math.min(s.lo, s.hi), z = Math.max(s.lo, s.hi), up = s.hi >= s.lo;
+    return `<div class="ln" style="left:${pos(a)};width:calc(${pos(z)} - ${pos(a)})"></div>
+      <div class="mk" style="left:${pos(s.lo)}" title="At 0% ${money(s.lo)}"></div>
+      <div class="ah ${up ? "r" : "l"}" style="left:${pos(s.hi)}" title="At 100% ${money(s.hi)}"></div>
+      <div class="mk j" style="left:${pos(s.at)}" title="Now ${money(s.at)}"></div>`;
+  }
   function rowHtml(i, scale) {
     const n = D.nodes[i], b = selB(i), d = dist(i), ch = n.key in S.overrides, s = sens[i];
     const pos = (v) => `${(100 * (v - scale[0])) / (scale[1] - scale[0] || 1)}%`;
+    const yesName = n.branches.length > 2 ? `More “${n.branches[b].replace(/_/g, " ")}”` : "Yes";
     const sel = n.branches.length > 2 ? `<select data-i="${i}">${n.branches.map((x, k) => `<option value="${k}"${k === b ? " selected" : ""}>${esc(x.replace(/_/g, " "))}</option>`).join("")}</select>` : `<span class="ctx">yes</span>`;
     return `<div class="row${ch ? " changed" : ""}" data-i="${i}"><div class="q" data-i="${i}" title="${esc(n.question)}">${esc(n.label || n.question)}${ch ? '<span class="dot"></span>' : ""}</div>
       ${n.sub ? `<div class="ctx">${esc(n.sub)}</div>` : ""}
       <div class="ctl">${sel}<input type="range" min="0" max="1000" value="${Math.round(1000 * d[b])}" data-i="${i}"><span class="p" id="p${i}">${pct(d[b], 0)}</span>${ch ? `<button class="rs" data-i="${i}">Reset</button>` : "<span></span>"}</div>
-      <div class="rng"><div class="ln" style="left:${pos(Math.min(s.lo, s.hi))};width:calc(${pos(Math.max(s.lo, s.hi))} - ${pos(Math.min(s.lo, s.hi))})"></div>
-        <div class="mk" style="left:${pos(s.lo)}" title="At 0%"></div><div class="mk" style="left:${pos(s.hi)}" title="At 100%"></div><div class="mk j" style="left:${pos(s.at)}" title="Now"></div></div>
-      <div class="rngv"><span>Unrecovered at 0% ${money(s.lo)}</span><span>${NEUTRAL ? "now" : "Jev"} ${money(s.at)}</span><span>at 100% ${money(s.hi)}</span></div></div>`;
+      <div class="eff"><div class="rng">${effBar(s, pos)}</div><span class="dir">${Math.abs(s.hi - s.lo) < 100 ? "No effect on Unrecovered" : `${esc(yesName)} ${s.hi > s.lo ? "raises" : "lowers"} Unrecovered ${money(Math.abs(s.hi - s.lo))}`}</span></div>
+      <div class="rngv"><span>0%: <b>${money(s.lo)}</b></span><span>${NEUTRAL ? "now" : "Jev"}: <b>${money(s.at)}</b></span><span>100%: <b>${money(s.hi)}</b></span></div></div>`;
   }
   function renderProbs() {
     if (S.detail !== null) return renderDetail();
