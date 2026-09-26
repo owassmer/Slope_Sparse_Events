@@ -342,15 +342,18 @@ def case_terms(d, review: date, horizon: date, model: dict) -> dict:
               "status": c.status, "source": c.motion or d.order_reference,
               **({"remittitur": usd(c.remittitur_cents)} if c.remittitur_cents else {})} for c in d.components]
     notes = []
+    missing = "not recorded"  # a term the agent did not instantiate is shown as such, never as zero
     for f in (x for x in d.financing if x.status != "superseded"):
-        notes.append({"title": f.title, "terms": [
-            ("Principal", usd(f.principal_cents)), ("Coupon", f"{usd(f.coupon_cents)} due "
-                                                              + ", ".join(x.strftime("%-d %b %Y") for x in f.interest_dates)),
-            ("Judgment default", f"final judgments above {usd(f.judgment_default_threshold_cents)} unpaid or unstayed "
-                                 f"for {f.judgment_default_days} days, after notice"),
-            ("Listing", f"delisting is a fundamental change: repurchase within {f.repurchase_business_days[0]}–"
-                        f"{f.repurchase_business_days[1]} business days of notice"),
-        ]})
+        money = (lambda c: usd(c) if c is not None else missing)  # noqa: E731
+        dates = ", ".join(x.strftime("%-d %b %Y") for x in f.interest_dates)
+        coupon = missing if f.coupon_cents is None else f"{usd(f.coupon_cents)}" + (f" due {dates}" if dates else "")
+        default = (f"final judgments above {money(f.judgment_default_threshold_cents)} unpaid or unstayed for "
+                   f"{f.judgment_default_days} days, after notice") if f.judgment_default_days else missing
+        rep = f.repurchase_business_days
+        listing = (f"delisting is a fundamental change: repurchase within {rep[0]}–{rep[1]} business days of notice"
+                   if rep and len(rep) == 2 else missing)
+        notes.append({"title": f.title, "terms": [("Principal", money(f.principal_cents)), ("Coupon", coupon),
+                                                   ("Judgment default", default), ("Listing", listing)]})
     deadlines = [(m.briefing_close, f"Briefing closes on {m.motion_id}") for m in d.motions if m.briefing_close]
     lags = model["parameters"]["ruling_lag_days"]["sample"]
     if deadlines:

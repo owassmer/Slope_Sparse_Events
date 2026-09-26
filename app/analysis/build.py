@@ -236,13 +236,15 @@ def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -
                        neutral=neutral_map(judgments))
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in live if d.status not in ("interpreted", "resolved")]
+    # The recall pass needs only the tree and the judgments: run it before the simulation, which keeps peak memory
+    # lower on a small machine.
+    rc = recall_for(fc, judgments, borrower, run_id, refresh, records) if roles and judgments else None
     a = Analysis(feed, setup, model)
     data = payload(feed, setup, model, meta_for(model, borrower, not_modelled), analysis=a)
     data["model"] = _model_json(model)
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
     data["base_setup"] = setup_json(setup)
     data["jev"] = jev.usage_summary()
-    rc = recall_for(fc, judgments, borrower, run_id, refresh, records) if roles and judgments else None
     if rc:
         attach_recall(data, rc)
     out = root / run_id

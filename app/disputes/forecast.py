@@ -150,10 +150,11 @@ def neutral_map(judgments: dict[str, Judgment]) -> dict[str, dict[str, float]]:
 def answer_distribution(key: str, branches: tuple[str, ...], o: SemanticObservation) -> dict[str, float]:
     """Jev's answer at one node as a distribution over its branches (a Noul: yes = value; a Choice: renormalised
     over the branches arithmetic left the node)."""
-    if branches == ("yes", "no"):
+    if len(branches) == 2 and (o.primitive == "noul" or branches == ("yes", "no")):
+        # A Noul: the first branch is the question's 'true' ('yes', 'granted'), the second its negation.
         if o.noul_value is None:
             raise RuntimeError(f"Jev returned no probability for {key}")
-        return {"yes": float(o.noul_value), "no": 1.0 - float(o.noul_value)}
+        return {branches[0]: float(o.noul_value), branches[1]: 1.0 - float(o.noul_value)}
     probs = {k: float(v) for k, v in (o.probabilities or {}).items() if k in branches}
     total = sum(probs.values())
     if total <= 0:

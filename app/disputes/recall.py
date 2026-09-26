@@ -209,12 +209,19 @@ def change(a: dict[str, float], b: dict[str, float]) -> float:
 
 async def ask_roles(fc: Forecaster, judge: ForecastJudge, roles: Roles) -> dict[str, dict[str, float]]:
     """Every forecast node's distribution under role names (the same questions, branches and path facts)."""
-    async def one(n):
+    # The role substitution is CPU-bound pattern matching over every passage. Done inside the gathered coroutines it
+    # blocks the event loop long enough for in-flight requests to hit their connect timeout, so build every role
+    # state first, then send.
+    prepared = []
+    for n in fc.nodes.values():
         st, fids, _ = fc.state(n)
-        o = await judge.forecast(n.question_id, roles(st), (n.instance_id, *fids), n.branches)
+        prepared.append((n, roles(st), fids))
+
+    async def one(n, st, fids):
+        o = await judge.forecast(n.question_id, st, (n.instance_id, *fids), n.branches)
         return n.key, answer_distribution(n.key, n.branches, o)
 
-    return dict(await asyncio.gather(*(one(n) for n in fc.nodes.values())))
+    return dict(await asyncio.gather(*(one(n, st, fids) for n, st, fids in prepared)))
 
 
 def recall_check(fc: Forecaster, judgments: dict[str, Judgment], judge: ForecastJudge, borrower: str) -> dict:
