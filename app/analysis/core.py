@@ -275,12 +275,16 @@ class Reduction:
         w = np.repeat(probs[live] / probs[live].sum(), self.draws) / self.draws
         return weighted_quantiles(self.collected[live].ravel().astype(np.float64), w, QS)
 
-    def daily(self, probs: np.ndarray) -> dict:
+    def daily(self, probs: np.ndarray, collected_q: bool = True) -> dict:
+        """The daily series under `probs`. `collected_q=False` skips the collected quantiles (the page's reweight
+        does not show them, and the exact horizon quantile sorts every draw)."""
         probs = np.asarray(probs, dtype=np.float64)
         E = {k: (probs @ v) / self.draws for k, v in self.per_day.items()}
         cq = self.bins["cash"].quantiles(self.counts["cash"].weighted(probs), QS)
-        kq = self.bins["collected"].quantiles(self.counts["collected"].weighted(probs), QS)
-        kq[:, -1] = self.collected_quantiles(probs)  # at the horizon, exact from the per-draw totals
+        kq = None
+        if collected_q:
+            kq = self.bins["collected"].quantiles(self.counts["collected"].weighted(probs), QS)
+            kq[:, -1] = self.collected_quantiles(probs)  # at the horizon, exact from the per-draw totals
         cum_p = E["petitioned"]
         exposure = np.divide(E["frozen"], cum_p, out=np.zeros(self.days), where=cum_p > 0)
         lim = self.limit  # the reassessed limit is set by operating draws alone, so it is the same on every path
@@ -290,8 +294,8 @@ class Reduction:
             "backup_liquidity_mean": ints(E["backup"]),
             # with no other facility backup liquidity is available cash, so its P5 is the cash P5
             "backup_liquidity_p5": ints(cq[0]) if self.setup.facility_cents == 0 else None,
-            "collected_mean": ints(E["collected"]), "collected_p5": ints(kq[0]), "collected_p50": ints(kq[1]),
-            "collected_p95": ints(kq[2]),
+            "collected_mean": ints(E["collected"]), **({"collected_p5": ints(kq[0]), "collected_p50": ints(kq[1]),
+                                                        "collected_p95": ints(kq[2])} if kq is not None else {}),
             "contractual": ints(E["due_cum"]),  # expected installments due, cumulative
             "drawn_mean": ints(E["drawn"]), "fundings_mean": ints(E["fundings"]),
             "collections_mean": ints(E["collections"]), "outstanding_mean": ints(E["outstanding"]),

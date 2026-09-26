@@ -406,7 +406,7 @@ def chart_view(r, probs: np.ndarray, months: list[tuple[int, int]]) -> dict | No
     if total <= 0:
         return None
     probs = probs / total
-    d = r.daily(probs)
+    d = r.daily(probs, collected_q=False)
     return {"daily": {k: d[k] for k in CHART}, "monthly": monthly_table(r, probs, d, months)}
 
 
