@@ -28,18 +28,22 @@ from app.domain.investigation import DisputeInstance
 @dataclass
 class EventCash:
     """Per draw and day: borrower cash (+ receipt, - payment), encumbrance changes (+ lock, - release) and credit
-    capacity changes (+ commit, - release). Shape [draws, horizon days], integer cents."""
+    capacity changes (+ commit, - release). Shape [draws, horizon days], integer cents. `petition` [draws] is the
+    horizon day index of a bankruptcy petition on that trajectory, or -1 for none."""
     cash: np.ndarray
     lock: np.ndarray
     capacity: np.ndarray
+    petition: np.ndarray
 
     @classmethod
     def zeros(cls, draws: int, days: int) -> EventCash:
         z = np.zeros((draws, days), dtype=np.int64)
-        return cls(z.copy(), z.copy(), z.copy())
+        return cls(z.copy(), z.copy(), z.copy(), np.full(draws, -1, dtype=np.int64))
 
     def __add__(self, other: EventCash) -> EventCash:
-        return EventCash(self.cash + other.cash, self.lock + other.lock, self.capacity + other.capacity)
+        a, b = self.petition, other.petition  # the earliest petition on the trajectory
+        petition = np.where(a < 0, b, np.where(b < 0, a, np.minimum(a, b)))
+        return EventCash(self.cash + other.cash, self.lock + other.lock, self.capacity + other.capacity, petition)
 
 
 class Draws:
