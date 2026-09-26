@@ -25,7 +25,7 @@ import numpy as np
 
 from app.analysis import operating
 from app.analysis.engine import NEED_DAYS, NO_DUE, PREFERENCE_DAYS, Trajectories, prepare, run, with_petition
-from app.analysis.events import Basis, Draws, EventCash, event_cash
+from app.analysis.events import Basis, Draws, EventCash, event_trace
 from app.analysis.setup import DRAWS, SEED, Setup
 from app.analysis.stats import expectation, weighted_quantiles
 from app.disputes.forecast import DisputePath, Judgment, combo_probability, distributions, joint_paths
@@ -289,8 +289,12 @@ class Analysis:
     """Simulates every joint path on the shared operating draws, keeps each path's reduction (module docstring) and
     recomputes weights without re-simulating. With `stress`, it keeps only the stress rows."""
 
-    def __init__(self, feed: BankFeed, setup: Setup, model: EventModel, stress: bool = False) -> None:
-        self.feed, self.setup, self.model, self.m = feed, setup, model, load_model()
+    def __init__(self, feed: BankFeed, setup: Setup, model: EventModel, stress: bool = False,
+                 sens: dict | None = None, dispute_model: dict | None = None, progress=None) -> None:
+        """`sens` and `dispute_model` are the chains' sensitivities and model (the tree must be built with the same);
+        `progress(phase, done, total)` is told how far the simulation has got."""
+        self.feed, self.setup, self.model, self.m = feed, setup, model, dispute_model or load_model()
+        self.sens, self._progress = sens or {}, progress or (lambda *_: None)
         self.days = (setup.horizon - setup.review).days
         self.ops = operating.simulate(feed, self.days + NEED_DAYS, DRAWS, SEED, setup.variability)
         self.line = prepare(setup, self.ops)
@@ -300,7 +304,10 @@ class Analysis:
         self._shared = len(model.order) > 1
         self.bank = run(self.line, self.opening, EventCash.zeros(DRAWS, self.days))
         if stress:
-            self.stress_rows = [self._stress_row(c) for c in model.combos]
+            self.stress_rows = []
+            for i, c in enumerate(model.combos):
+                self.stress_rows.append(self._stress_row(c))
+                self._tick("stress", i, len(model.combos))
             return
         bins = self._bins()
         days = [setup.review + timedelta(days=t + 1) for t in range(self.days)]
@@ -316,6 +323,7 @@ class Analysis:
         self.r = make(len(model.combos))
         for i, c in enumerate(model.combos):  # one path at a time: its dense arrays are dropped once reduced
             self.r.add(i, run(self.line, self.opening, self.event_cash(c)))
+            self._tick("simulate", i, len(model.combos))
         self.r.finish()
         self._cache.clear()
         self.means = self.r.means
@@ -326,7 +334,8 @@ class Analysis:
         -fee x routed and the highest limit); cumulative collections lie between 0 and routed x (1 + fee); headroom
         at a due date (one range for every month) lies within the cash range, less need and at most all owed."""
         lo_ev, hi_ev = np.zeros(self.days), np.zeros(self.days)
-        for c in self.model.combos:
+        for i, c in enumerate(self.model.combos):
+            self._tick("bins", i, len(self.model.combos))
             ev = self.event_cash(c)
             cum = np.cumsum(ev.cash - ev.lock, axis=1)
             np.minimum(lo_ev, cum.min(axis=0), out=lo_ev)
@@ -348,11 +357,15 @@ class Analysis:
             key = (p.instance_id, p.steps)
             e = self._cache.get(key)
             if e is None:
-                e = event_cash(self.model.disputes[p.instance_id], p, self.setup, self.m, self._draws)
+                e = event_trace(self.model.disputes[p.instance_id], p, self.setup, self.m, self._draws, self.sens).events
                 if self._shared and len(self._cache) < CACHE_PATHS:
                     self._cache[key] = e
             ev = ev + e
         return ev
+
+    def _tick(self, phase: str, i: int, n: int) -> None:
+        if i % 100 == 0 or i == n - 1:
+            self._progress(phase, i + 1, n)
 
     def _stress_row(self, combo: tuple[DisputePath, ...]) -> dict:
         """One path under adverse placement, and again with a petition on the day of its highest expected
