@@ -117,6 +117,23 @@ def test_every_merged_ruling_class_is_cash_and_date_identical_and_jev_gets_its_r
                 assert "p50" not in owed and owed["judgment_after_ruling"]["max"] != owed["judgment_after_ruling"]["min"]
 
 
+def test_a_levy_can_come_before_stay_approval_and_none_after_it(full, base):
+    fc, paths = full
+    b = base[1]
+    for ctx, lev in (("I1", ("registration_early", "I1", "yes")), ("post", ("enforce", "post", "levy"))):
+        stayed = [p for p in paths if ("stay", ctx, "yes") in p.steps and lev in p.steps]
+        assert stayed
+        before = 0
+        for p in stayed[:: max(1, len(stayed) // 8)][:8]:
+            c = Chain(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b))
+            c.run(p.steps)
+            approved = c.stayed_from < 10**6
+            for day, take in c.writs:
+                assert (day[take > 0] < c.stayed_from[take > 0]).all()  # no levy on or after approval
+                before += int((take[approved] > 0).sum())
+        assert before > 0  # some trajectories levy before the drawn approval
+
+
 # 2. Timing is code --------------------------------------------------------------------------------------------------
 
 def test_no_ruling_before_the_briefing_closes_plus_the_fastest_measured_lag(base):

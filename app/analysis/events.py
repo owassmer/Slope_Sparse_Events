@@ -213,6 +213,7 @@ class Chain:
         self.delisted = np.full(self.n, BIG)
         self.levied = np.zeros(self.n, dtype=bool)
         self.taken = np.zeros(self.n, dtype=np.int64)  # levied or paid toward the judgment
+        self.writs: list[tuple[np.ndarray, np.ndarray]] = []  # (day, amount taken) per writ, per trajectory
         self.cls_fees = 0
         self.lock_amount = np.zeros(self.n, dtype=np.int64)
         self.collateral_required = np.zeros(self.n, dtype=np.int64)
@@ -312,6 +313,7 @@ class Chain:
         self.book(self.ev.cash, day, -take)
         self.taken += take
         self.levied |= take > 0
+        self.writs.append((day, take))
 
     def settle(self, start: np.ndarray, end: np.ndarray) -> np.ndarray:
         """D5: the feasibility bound (available cash less 30-day need, floored at 0, capped at the amount owed) on

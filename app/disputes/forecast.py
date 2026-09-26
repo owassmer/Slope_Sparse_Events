@@ -223,6 +223,11 @@ class Forecaster:
         tr = self.trace(d, steps + (step,))
         return bool((tr.day[-1] < self.days).any())
 
+    def moves_cash(self, d: DisputeInstance, steps: tuple, a: tuple, b: tuple) -> bool:
+        """Whether two branches of a step book different event cash on some trajectory (else they merge)."""
+        x, y = self.trace(d, steps + (a,)).events, self.trace(d, steps + (b,)).events
+        return bool((x.cash != y.cash).any() or (x.petition != y.petition).any())
+
     def pay_possible(self, d: DisputeInstance, steps: tuple, step: tuple) -> bool:
         """Arithmetic: 'pay' stays unless the amount owed exceeds available cash on every trajectory of the path at
         the decision date."""
@@ -531,7 +536,15 @@ class _Walk:
         a1 = self.node("stay_motion", "I1", s.cls, assumptions=("the creditor executes before the ruling",))
         j8 = self.node("stay_approved", "I1", s.cls, assumptions=("the debtor moves for a stay",))
         self.binary(s, "stay", "I1", [[(a1, "yes"), (j8, "yes")]], (a1, j8),
-                    lambda y: self.ripe_i1(replace(y, stayed=True)), self.a4_i1)
+                    lambda y: self.j9_stayed(replace(y, stayed=True)), self.a4_i1)
+
+    def j9_stayed(self, s: _S) -> None:
+        """A stay is effective only on approval: early registration and its levy (J9) can come before it, and no
+        levy after it (events.py levy). Asked where the levy moves cash on some trajectory."""
+        yes, no = (("registration_early", "I1", b) for b in ("yes", "no"))
+        if not self.fc.moves_cash(self.d, s.steps, yes, no):
+            return self.ripe_i1(s)
+        self.j9_i1(s)
 
     def a4_i1(self, s: _S) -> None:
         self.a4(s, "I1", self.j9_i1, lambda y: self.emit(y, "petition"))
@@ -604,13 +617,17 @@ class _Walk:
 
     def stay_post(self, s: _S) -> None:
         if s.stayed:
-            return self.settle(s, "I4", lambda y: self.tail(y, "stayed"))
+            return self.stayed_tail(s)
         if not self.arises(s, ("stay", "post", "no")):
             return self.i3(s)
         a1 = self.node("stay_motion", "post", s.cls, assumptions=("the final judgment is entered",))
         j8 = self.node("stay_approved", "post", s.cls, assumptions=("the debtor moves for a stay",))
         self.binary(s, "stay", "post", [[(a1, "yes"), (j8, "yes")]], (a1, j8),
-                    lambda y: self.settle(replace(y, stayed=True), "I4", lambda z: self.tail(z, "stayed")), self.i3)
+                    lambda y: self.enforce(replace(y, stayed=True), self.stayed_tail, pending=True), self.i3)
+
+    def stayed_tail(self, s: _S) -> None:
+        """Stayed on approval: the I4 settlement, then the notes' judgment default where it can ripen first."""
+        self.settle(s, "I4", lambda z: self.notes_petition(z, "post", lambda y: self.tail(y, "stayed")))
 
     def i3(self, s: _S) -> None:
         self.settle(s, "I3", self.a4_post)
@@ -620,18 +637,24 @@ class _Walk:
             return self.enforce(s)
         self.a4(s, "post", self.enforce, lambda y: self.tail(y, "petition"))
 
-    def enforce(self, s: _S) -> None:
-        if not self.arises(s, ("enforce", "post", "none")):
-            return self.ripe_post(s)
-        q3 = self.node("enforce_after_final", s.cls, "appealed" if s.appealed else "final",
-                       assumptions=("the judgment is enforceable, unstayed and unpaid after the ruling",))
+    def enforce(self, s: _S, then=None, pending: bool = False) -> None:
+        """Q3 (and J9 before finality). pending: the debtor has moved for a stay not yet approved; a levy counts only
+        before approval, so the question is asked where it moves cash on some trajectory."""
+        then = then or self.ripe_post
+        levy_step, none_step = ("enforce", "post", "levy"), ("enforce", "post", "none")
+        if not self.arises(s, none_step) or (pending and not self.fc.moves_cash(self.d, s.steps, levy_step, none_step)):
+            return then(s)
+        extra = ("stay_pending",) if pending else ()
+        q3 = self.node("enforce_after_final", s.cls, "appealed" if s.appealed else "final", *extra,
+                       assumptions=("the judgment is enforceable, unstayed and unpaid after the ruling",)
+                       + (("the debtor has moved for a stay, not yet approved",) if pending else ()))
         if s.appealed and not s.early:
-            j9 = self.node("registration_early", "post", assumptions=("the creditor enforces before finality",))
+            j9 = self.node("registration_early", "post", *extra, assumptions=("the creditor enforces before finality",))
             levy, none, keys = [[(q3, "yes"), (j9, "yes")]], [[(q3, "no")], [(q3, "yes"), (j9, "no")]], (q3, j9)
         else:
             levy, none, keys = [[(q3, "yes")]], [[(q3, "no")]], (q3,)
-        self.ripe_post(self.take(s, ("enforce", "post", "levy"), (composite(levy), "yes"), keys))
-        self.ripe_post(self.take(s, ("enforce", "post", "none"), (composite(none), "yes"), keys))
+        then(self.take(s, levy_step, (composite(levy), "yes"), keys))
+        then(self.take(s, none_step, (composite(none), "yes"), keys))
 
     def ripe_post(self, s: _S) -> None:
         self.notes_petition(s, "post", lambda y: self.tail(y, "unresolved"))
