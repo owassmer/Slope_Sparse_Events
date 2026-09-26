@@ -337,6 +337,7 @@ class DisputeInstance(Frozen):
     commenced: date | None = None  # the action's commencement (N.C. Gen. Stat. §24-5(b) interest start)
     components: tuple[Component, ...] = ()
     motions: tuple[PendingMotion, ...] = ()
+    financing: tuple[FinancingInstrument, ...] = ()  # instruments whose terms this judgment triggers (host-attached)
     borrower_role: Literal["debtor", "creditor"] | None = None  # from Jev's readings (the agent's, in the agent-only arm)
     amount_status: str = "unknown"
     amount_includes_interest: bool = False

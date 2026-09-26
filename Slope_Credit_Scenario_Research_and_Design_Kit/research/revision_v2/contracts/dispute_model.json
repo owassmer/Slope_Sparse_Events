@@ -326,7 +326,8 @@
         159
       ],
       "draw": "one lag per pending motion, drawn uniformly from the sample, independent across motions and of every probability; the motion is decided on briefing close + lag",
-      "sensitivity": "one common lag for every motion"
+      "sensitivity": "one common lag for every motion",
+      "mode": "per_motion"
     },
     "briefing_days_new_motion": {
       "disposition": "code_timing",
@@ -420,12 +421,13 @@
     },
     "coupon_cash_share": {
       "disposition": "bounded",
-      "basis": "Indenture §16.02(c): interest is paid in shares unless the company elects cash. Base: shares (no cash). Sensitivities: the June 2024 split ($0.442M of $1.32M) and all cash.",
+      "basis": "Indenture §16.02(c): interest is paid in shares unless the company elects cash. Base: shares (no cash). Sensitivities: the June 2024 split (cash $0.442M of $1.32M = 3,348 bps; CASH_CHECK) and all cash. The DECOMPOSITION §2 base was the June split; the step-6b brief sets shares as the base.",
       "value": "shares",
       "sensitivity": [
         "june_split",
         "all_cash"
-      ]
+      ],
+      "june_split_bps": 3348
     },
     "chips_credit_cents": {
       "disposition": "bounded",

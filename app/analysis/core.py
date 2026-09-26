@@ -18,7 +18,7 @@ import numpy as np
 
 from app.analysis import operating
 from app.analysis.engine import NEED_DAYS, NO_DUE, Trajectories, prepare, run, with_petition
-from app.analysis.events import Draws, EventCash, event_cash
+from app.analysis.events import Basis, Draws, EventCash, event_cash
 from app.analysis.setup import DRAWS, SEED, Setup
 from app.analysis.stats import expectation, weighted_quantiles
 from app.disputes.forecast import DisputePath, Judgment, combo_probability, distributions, joint_paths
@@ -97,7 +97,7 @@ class Analysis:
         self.ops = operating.simulate(feed, self.days + NEED_DAYS, DRAWS, SEED, setup.variability)
         self.line = prepare(setup, self.ops)
         self.opening = feed.available_cents
-        self._draws, self._cache = Draws(DRAWS, stress=stress), {}
+        self._draws, self._cache = Draws(DRAWS, stress=stress, basis=Basis.of(self.ops, self.line.need, self.opening)), {}
         self.bank = run(self.line, self.opening, EventCash.zeros(DRAWS, self.days))
         self.paths: list[Trajectories] = [run(self.line, self.opening, self.event_cash(c)) for c in model.combos]
         per = [_scalars(t) for t in self.paths]
