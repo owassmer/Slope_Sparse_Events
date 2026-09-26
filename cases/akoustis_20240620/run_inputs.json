@@ -1,0 +1,279 @@
+{
+  "mission_id": "akoustis_2024_supplier_line",
+  "case_id": "akoustis_qorvo_2024",
+  "snapshot_id": "akoustis_20240620",
+  "status": "locked_operator_inputs",
+  "note": "Operator request and ordinary baseline for the 20 June 2024 review, reconstructed as if Akoustis applied to Slope for a reusable line that pays supplier invoices. Terms reconstructed by applying Slope's published sizing rule to the connected-bank baseline. The baseline holds only ordinary underwriting facts; the litigation is for the investigation to establish.",
+  "run_inputs": {
+    "mission_id": "akoustis_2024_supplier_line",
+    "requested_use": {
+      "value": "Draws on a Slope reusable line to pay supplier invoices (fab materials and contract manufacturing)",
+      "basis": "operator_request"
+    },
+    "requested_amount": {
+      "value": 30973624,
+      "unit": "USD_cents",
+      "basis": "operator_request"
+    },
+    "requested_term": {
+      "value": "Reusable line; each draw repaid in three monthly installments",
+      "basis": "operator_request"
+    },
+    "requested_pricing": {
+      "value": "3.7% fee on each amount financed",
+      "basis": "operator_request"
+    },
+    "baseline_profile_id": "akoustis_ordinary_baseline_v1",
+    "existing_loan_record_ids": [
+      "akoustis_convertible_notes_2027",
+      "akoustis_gdsi_promissory_note"
+    ],
+    "permitted_offer_set_id": "slope_supplied_terms_v1",
+    "policy_config_id": "analysis_only",
+    "initial_event_seed": "As of 20 June 2024, analyse how external events could affect a Slope reusable line that pays supplier invoices for Akoustis Technologies, Inc., each draw repaid in three monthly installments. Akoustis's public filings describe trade-secret and patent litigation with Qorvo, Inc., a competitor, in the U.S. District Court for the District of Delaware."
+  },
+  "financing_plan": {
+    "funding": "next business day after the review date (Slope pays the supplier)",
+    "invoice_due_days_after_funding": 30,
+    "basis": "operator_request",
+    "note": "Slope pays the supplier up to the financed amount; Akoustis pays any remainder of the invoice itself.",
+    "supplied_terms": {
+      "invoice_cents": 30973624,
+      "amount_cents": 30973624,
+      "installments": 3,
+      "days": 90,
+      "fee_bps": 370,
+      "discount_rate_bps": 800,
+      "product": "Slope reusable line: Slope pays supplier invoices up to the limit; each draw is repaid in monthly installments by ACH"
+    },
+    "line": {
+      "label": "Terms reconstructed by applying Slope's published sizing rule to the connected-bank baseline.",
+      "rule": "limit = 15% x (mean monthly customer_receipts - mean monthly debt_service), trailing three complete months",
+      "limit_share_bps": 1500,
+      "window": {
+        "start": "2024-03-01",
+        "end": "2024-05-31"
+      },
+      "monthly_customer_receipts_cents": {
+        "2024-03": 267919355,
+        "2024-04": 223212698,
+        "2024-05": 223212699
+      },
+      "monthly_debt_service_cents": {
+        "2024-03": 0,
+        "2024-04": 0,
+        "2024-05": 0
+      },
+      "mean_monthly_customer_receipts_cents": 238114917,
+      "mean_monthly_debt_service_cents": 0,
+      "limit_cents": 35717237,
+      "fee_bps": 370,
+      "installments": 3,
+      "days": 90,
+      "reassessment": "same rule at every draw date, on each trajectory's trailing receipts (next engine step)",
+      "draw_rule": "each supplier_invoice outflow is routed while outstanding + invoice <= the day's limit, no installment is overdue and no petition has been filed",
+      "line_usage_bps": 10000,
+      "supplied_draw": {
+        "transaction_id": "txn_00064",
+        "date": "2024-03-08",
+        "counterparty": "Tai-Saw Technology (contract manufacturing)",
+        "amount_cents": 30973624,
+        "basis": "largest supplier invoice in the trailing window that fits under the limit"
+      }
+    }
+  },
+  "permitted_offers": {
+    "permitted_offer_set_id": "slope_supplied_terms_v1"
+  },
+  "policy": {
+    "policy_config_id": "analysis_only"
+  },
+  "bank_feed": "cases/akoustis_20240620/bank_feed.json",
+  "baseline_profile": {
+    "baseline_profile_id": "akoustis_ordinary_baseline_v1",
+    "borrower": "Akoustis Technologies, Inc.",
+    "opening_cash_observation_id": "cash_20240331",
+    "observations": [
+      {
+        "observation_id": "cash_20240331",
+        "label": "Cash and cash equivalents",
+        "value": 1520000000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-03-31",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "akts_2024q3_10q",
+          "item_id": "akts_2024q3_10q#s0006",
+          "quote": "| Cash and cash equivalents | $15,200 | $43,104 |"
+        }
+      },
+      {
+        "observation_id": "accounts_receivable_20240331",
+        "label": "Accounts receivable, net",
+        "value": 444800000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-03-31",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "akts_2024q3_10q",
+          "item_id": "akts_2024q3_10q#s0006",
+          "quote": "| Accounts receivable, net | 4,448 | 4,753 |"
+        }
+      },
+      {
+        "observation_id": "inventory_20240331",
+        "label": "Inventory",
+        "value": 510400000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-03-31",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "akts_2024q3_10q",
+          "item_id": "akts_2024q3_10q#s0006",
+          "quote": "| Inventory | 5,104 | 7,548 |"
+        }
+      },
+      {
+        "observation_id": "accounts_payable_20240331",
+        "label": "Accounts payable",
+        "value": 479600000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-03-31",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "akts_2024q3_10q",
+          "item_id": "akts_2024q3_10q#s0023",
+          "quote": "| Accounts payable | $4,796 | $3,979 |"
+        }
+      },
+      {
+        "observation_id": "accrued_professional_fees_20240331",
+        "label": "Accrued professional fees",
+        "value": 679700000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-03-31",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "akts_2024q3_10q",
+          "item_id": "akts_2024q3_10q#s0023",
+          "quote": "| Accrued professional fees | 6,797 | 2,248 |"
+        }
+      },
+      {
+        "observation_id": "operating_cash_flow_9m_20240331",
+        "label": "Net cash used in operating activities, nine months to March 31, 2024",
+        "value": -3223800000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-03-31",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "akts_2024q3_10q",
+          "item_id": "akts_2024q3_10q#s0010",
+          "quote": "| Net Cash Used in Operating Activities | (32,238) | (36,120) |"
+        }
+      },
+      {
+        "observation_id": "revenue_q3_fy2024",
+        "label": "Revenue, three months to March 31, 2024",
+        "value": 751000000,
+        "unit": "USD_cents",
+        "precision": "exact",
+        "observed_on": "2024-03-31",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "akts_2024q3_10q",
+          "item_id": "akts_2024q3_10q#s0007",
+          "quote": "| Revenue | $7,510 | $7,356 | $21,529 | $18,788 |"
+        }
+      },
+      {
+        "observation_id": "offering_gross_20240524",
+        "label": "Registered direct offering, gross proceeds (closed May 24, 2024)",
+        "value": 1000000000,
+        "unit": "USD_cents",
+        "precision": "approximate",
+        "observed_on": "2024-05-24",
+        "basis": "documented_evidence",
+        "note": null,
+        "citation": {
+          "source_id": "akts_2024_05_24_8k",
+          "item_id": "akts_2024_05_24_8k#s0005",
+          "quote": "The closing of the Offering occurred on May 24, 2024. Gross proceeds from the Offering were approximately $10.0 million, before deducting placement agent fees and estimated Offering expenses payable by the Company. The Company intends to use the net proceeds from the Offering for working capital and to fund its operations."
+        }
+      }
+    ],
+    "existing_loans": [
+      {
+        "loan_id": "akoustis_convertible_notes_2027",
+        "basis": "executed_contract",
+        "lender": "Holders of the 6.0% Convertible Senior Notes due 2027 (The Bank of New York Mellon Trust Company, N.A., trustee)",
+        "cover_terms": [
+          {
+            "label": "Principal",
+            "citation": {
+              "item_id": "akts_2022_06_notes_8k#s0005",
+              "quote": "issued $44.0 million aggregate principal amount of its 6.0% Convertible Senior Notes due 2027"
+            }
+          },
+          {
+            "label": "Maturity",
+            "citation": {
+              "item_id": "akts_2022_06_notes_8k#s0005",
+              "quote": "The Notes bear interest at a rate of 6.0% per year until maturity on June 15, 2027"
+            }
+          },
+          {
+            "label": "Interest dates",
+            "citation": {
+              "item_id": "akts_2022_06_notes_8k#s0005",
+              "quote": "payable semi-annually in arrears on June 15 and December 15 of each year"
+            }
+          },
+          {
+            "label": "Interest form",
+            "citation": {
+              "item_id": "akts_2022_06_notes_8k#s0005",
+              "quote": "At the Company’s option, interest may be paid in cash and/or freely tradable shares of the Company’s common stock"
+            }
+          }
+        ],
+        "note": "Existing notes. The indenture (akts_2022_06_notes_indenture) sets the events of default and repurchase rights; read the source for those terms."
+      },
+      {
+        "loan_id": "akoustis_gdsi_promissory_note",
+        "basis": "executed_contract",
+        "lender": "Sellers' representative, GDSI acquisition (January 2023)",
+        "cover_terms": [
+          {
+            "label": "Principal",
+            "citation": {
+              "item_id": "akts_2024q3_10q#s0025",
+              "quote": "issued a secured promissory note (the “Promissory Note”) in the original principal amount of $ 4.0 million"
+            }
+          },
+          {
+            "label": "Interest and schedule",
+            "citation": {
+              "item_id": "akts_2024q3_10q#s0025",
+              "quote": "The Promissory Note does not bear interest, is subject to partial prepayment (reduction of the outstanding principal amount down to $ 1.3 million) on the second anniversary of the Closing Date, and is payable in full on the third anniversary of the Closing Date."
+            }
+          }
+        ],
+        "note": "Existing seller note, secured by assets of the purchaser and GDSI."
+      }
+    ]
+  }
+}

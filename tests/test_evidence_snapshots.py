@@ -7,6 +7,7 @@ from datetime import datetime
 import pytest
 
 from app.evidence import SNAPSHOTS, snapshot
+from app.evidence.parse import blocks_for
 from app.evidence.store import EvidenceAccessError, EvidenceStore
 
 
@@ -83,25 +84,23 @@ def test_2025_only_facts_are_absent_but_the_admissible_label_is_kept(built):
     assert row[1] == "2,920,824"
 
 
-# Facts public only after 19 Aug 2024 (ChromaDex outcome sources): the fee judgment's amount and date, Elysium's
-# 11 Sep 2024 appeal, the appeal bond, the December settlement judgment and the company's 2025 rename.
-CHROMADEX_FUTURE_FACTS = ["Niagen Bioscience", "Stipulated Amended Judgment", "9.2 million", "October 28, 2024",
-                          "September 11, 2024", "Appeal Bond"]
-
-
-def test_chromadex_outcome_facts_are_absent(built):
+def test_akoustis_outcome_facts_are_absent(built):
+    # Facts public only after 20 Jun 2024 (the probes in cases/akoustis_20240620/snapshot.json): the 26 Jun customer
+    # note, the fee award and pre-judgment interest fixed in D.I. 717, the injunction order D.I. 709, the 10-K date and
+    # the 2025 asset sale. None may appear anywhere in the snapshot database.
     out, _, stores = built
-    catalog = [s for s in json.loads(snapshot.SOURCES_JSON.read_text())["sources"]
-               if s["mission_membership"].get("chromadex_20240819") == "outcome"]
-    later = " ".join(" ".join((snapshot.KIT / s["package_relative_path"]).read_bytes().decode("latin-1").split())
-                     for s in catalog if s["package_relative_path"].endswith(".html")).lower()
-    raw = (out / "chromadex_20240819.sqlite").read_bytes().lower()
-    for fact in CHROMADEX_FUTURE_FACTS:
-        if fact != "Stipulated Amended Judgment":  # that one is a PDF caption; its absence is still checked below
+    probes = snapshot.snapshot_config("akoustis_20240620")["isolation_probes"]["probes"]
+    outcome = [s for s in json.loads(snapshot.SOURCES_JSON.read_text())["sources"]
+               if s["mission_membership"].get("akoustis_20240620") == "outcome"]
+    later = " ".join(" ".join(b.text for b in blocks_for(snapshot.KIT / s["package_relative_path"])) for s in outcome)
+    later = " ".join(later.split()).lower()
+    raw = (out / "akoustis_20240620.sqlite").read_bytes().lower()
+    for fact in probes:
+        if fact not in ("SpaceX", "D.I. 709"):  # named by later sources not in the kit; absence is still checked
             assert fact.lower() in later, f"probe {fact!r} is not in an outcome source"
         assert fact.lower().encode() not in raw
-    # The decision-date judgment itself is admissible: Elysium ordered to pay USD 2.5 million.
-    assert "$2,500,000" in stores["chromadex_20240819"].read("cacd_16cv2277_d618_judgment#s0002")["text"]
+    # The decision-date judgment itself is admissible: USD 38,595,023 against Akoustis.
+    assert "$38,595,023" in stores["akoustis_20240620"].read("ded_21cv1417_d602_judgment#s0000")["text"]
 
 
 def test_settlement_schedule_table_keeps_its_original_context(built):

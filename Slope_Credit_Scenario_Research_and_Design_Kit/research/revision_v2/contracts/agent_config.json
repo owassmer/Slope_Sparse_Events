@@ -472,6 +472,7 @@
       "case_id",
       "mission_id",
       "borrower",
+      "counterparty",
       "as_of",
       "decision_timezone",
       "mission_type",
@@ -539,19 +540,20 @@
     }
   },
   "lead_mission": {
-    "case_id": "chromadex_elysium_2024",
-    "mission_id": "chromadex_2024_supplier_bill_financing",
-    "borrower": "ChromaDex Corporation",
-    "decision_date": "2024-08-19",
-    "as_of": "2024-08-19T23:59:59-04:00",
+    "case_id": "akoustis_qorvo_2024",
+    "mission_id": "akoustis_2024_supplier_line",
+    "borrower": "Akoustis Technologies, Inc.",
+    "counterparty": "Qorvo, Inc.",
+    "decision_date": "2024-06-20",
+    "as_of": "2024-06-20T23:59:59-04:00",
     "decision_timezone": "America/New_York",
     "cutoff_precision": "Conservative end of the decision date in New York; court filings count from the end of their filing day.",
-    "financial_measurement_date": "2024-06-30",
-    "financial_filing_publication_date": "2024-08-07",
-    "mission_type": "supplier_bill_financing",
+    "financial_measurement_date": "2024-03-31",
+    "financial_filing_publication_date": "2024-05-13",
+    "mission_type": "supplier_invoice_line",
     "loan_terms_basis": "reconstructed_slope_terms",
-    "relationship_claim": "Reconstructed as if ChromaDex applied to Slope on this date to finance a supplier invoice. No claim that ChromaDex is or was a Slope customer.",
-    "product_selection": "Slope bill-pay financing: Slope pays the supplier and ChromaDex repays on net terms or in monthly installments of up to 120 days, priced by risk tier from Slope's price card.",
-    "financing_basis": "Existing Western Alliance Bank revolving credit line of up to USD 10.0 million, with covenants."
+    "relationship_claim": "Reconstructed as if Akoustis applied to Slope on this date for a line that pays supplier invoices. No claim that Akoustis is or was a Slope customer.",
+    "product_selection": "Slope reusable line: Slope pays supplier invoices up to a limit set from connected-bank receipts; each draw is repaid with a 3.7% fee in three monthly installments.",
+    "financing_basis": "Existing debt reported in the 13 May 2024 10-Q: 6.0% convertible senior notes due 2027 and a secured seller promissory note from the GDSI acquisition."
   }
 }

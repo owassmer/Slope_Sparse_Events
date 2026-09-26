@@ -1,6 +1,7 @@
 """Probabilistic analysis: probability composition, the signal reaching finance, no scenario deletion, cash
 conservation, paired simulation and weighted statistics. No network: judgments are supplied directly."""
 
+import json
 from dataclasses import replace
 from datetime import date, timedelta
 
@@ -13,16 +14,17 @@ from app.analysis.engine import run, schedule_arrays
 from app.analysis.events import Draws, EventCash, event_cash
 from app.analysis.setup import DRAWS, Setup
 from app.analysis.stats import weighted_quantiles
+from app.config import ROOT
 from app.disputes.forecast import Forecaster, Judgment, combo_probability, distributions, joint_paths
 from app.disputes.rules import load_model
 from app.domain.investigation import Decisive, DisputeInstance
 from app.domain.values import Basis, EvidenceValue, Provenance, Status, Unit
 from app.finance.bank import load_feed
 
-SNAP = "chromadex_20240819"
-REVIEW = date(2024, 8, 19)
-SETUP = Setup(review=REVIEW, horizon=REVIEW + timedelta(days=180), funding=date(2024, 8, 20),
-              invoice_due=date(2024, 9, 19), invoice_cents=200_000_000, amount_cents=200_000_000, fee_bps=370,
+SNAP = "akoustis_20240620"
+REVIEW = date(2024, 6, 20)
+SETUP = Setup(review=REVIEW, horizon=REVIEW + timedelta(days=180), funding=date(2024, 6, 21),
+              invoice_due=date(2024, 7, 22), invoice_cents=200_000_000, amount_cents=200_000_000, fee_bps=370,
               installments=3, days=90, discount_rate_bps=800)
 
 
@@ -31,17 +33,17 @@ def ev(cents: int) -> EvidenceValue:
 
 
 def dispute(iid: str, role: str, stage: str, amount: int, judgment: date | None = None) -> DisputeInstance:
-    dec = Decisive(finding_id="f", source_date="2024-08-07", quote="q")
+    dec = Decisive(finding_id="f", source_date="2024-06-17", quote="q")
     return DisputeInstance(instance_id=iid, dependency_id="dep", model_id="m", model_version="3", title=iid,
-                           order_reference="D. Del. 1:18-cv-01434", nature="fee_and_cost_award",
-                           counterparty="Elysium Health, Inc.", finding_ids=("f",), amount=ev(amount),
+                           order_reference="D. Del. 1:21-cv-01417", nature="fee_and_cost_award",
+                           counterparty="Qorvo, Inc.", finding_ids=("f",), amount=ev(amount),
                            judgment_date=judgment, borrower_role=role, stage=stage, amount_status="sought",
                            amount_includes_interest=True, established={"entitlement_decided": dec})
 
 
 def model_with(disputes: list[DisputeInstance], p: float = 0.5, form: dict | None = None) -> EventModel:
     """Every node answered with probability p (security form: `form`), built through the real Forecaster."""
-    fc = Forecaster(disputes, {}, borrower="ChromaDex Corporation", review=REVIEW, horizon=SETUP.horizon,
+    fc = Forecaster(disputes, {}, borrower="Akoustis Technologies, Inc.", review=REVIEW, horizon=SETUP.horizon,
                     hydrate=lambda f: {})
     per = fc.all_paths()
     judgments = {}
@@ -53,8 +55,12 @@ def model_with(disputes: list[DisputeInstance], p: float = 0.5, form: dict | Non
     return EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered())
 
 
-DE = dispute("de", "debtor", "amount_pending", 980_000_000)
-CA = dispute("ca", "creditor", "judgment_entered", 250_000_000, date(2024, 8, 13))
+# Mechanics fixtures, not case facts. DE uses the amount of Qorvo's 17 Jun 2024 fee motion (D.I. 618), but its stage
+# (entitlement decided, amount pending) is set for the test: at D the motion was pending and the court "may" award fees.
+# CA is a creditor instance Akoustis does not hold at D; it exercises a second same-counterparty dispute conditioned
+# on the first.
+DE = dispute("de", "debtor", "amount_pending", 1_211_612_330)
+CA = dispute("ca", "creditor", "judgment_entered", 250_000_000, date(2024, 6, 17))
 
 
 # 1. Probability composition ----------------------------------------------------------------------------
@@ -63,12 +69,12 @@ def test_conditional_probabilities_compose_and_conserve_mass():
     m = model_with([DE, CA], p=0.3)
     probs = m.probs()
     assert abs(probs.sum() - 1) < 1e-12 and len(m.combos) == len(probs)
-    # a hand-computable path: settle before the ruling (0.3), then California paid voluntarily with no appeal:
+    # a hand-computable path: settle before the ruling (0.3), then the second dispute paid voluntarily, no appeal:
     # settle after judgment no (0.7), appeal no (0.7), pays yes (0.3) -> 0.3 x 0.7 x 0.7 x 0.3
     i = next(i for i, c in enumerate(m.combos) if c[0].outcome == "settled" and len(c[0].steps) == 1
              and c[1].outcome == "paid" and ("appeal", "", "no") in c[1].steps)
     assert abs(probs[i] - 0.3 * 0.7 * 0.7 * 0.3) < 1e-12
-    # California's questions are conditioned on the Delaware outcome class, never multiplied unconditionally
+    # the second dispute's questions are conditioned on the first's outcome class, never multiplied unconditionally
     assert {p.cls for c in m.combos for p in c if p.instance_id == "ca"} == {"counterparty_receives", "no_cash"}
     # a choice node uses its full distribution; an override of one node keeps the total at one
     key = next(k for k in m.judgments if k.endswith("security_form"))
@@ -184,24 +190,41 @@ def test_weighted_expectations_and_quantiles_match_a_fixture():
 # Guards on evidence and inputs ---------------------------------------------------------------------------
 
 def test_the_docket_reference_cannot_pre_answer_jev():
-    parties = ["ChromaDex Corporation", "Elysium Health, Inc."]
-    assert _neutral_reference("D. Del. 1:18-cv-01434, Dkt. 399", parties) == "D. Del. 1:18-cv-01434, Dkt. 399"
-    for loaded in ("Fees payable by ChromaDex to Elysium under Dkt. 399", "C.D. Cal. 8:16-cv-02277 $2,500,000",
-                   "Dkt. 399 award to Elysium", "D. Del. 1:18-cv-01434 (amount sought, ChromaDex intends to appeal)"):
+    parties = ["Akoustis Technologies, Inc.", "Qorvo, Inc."]
+    assert _neutral_reference("D. Del. 1:21-cv-01417, Dkt. 618", parties) == "D. Del. 1:21-cv-01417, Dkt. 618"
+    for loaded in ("Fees payable by Akoustis to Qorvo under Dkt. 618", "D. Del. 1:21-cv-01417 $38,595,023",
+                   "Dkt. 602 judgment against Akoustis", "D. Del. 1:21-cv-01417 (amount sought, Akoustis intends to appeal)"):
         with pytest.raises(ToolError):
             _neutral_reference(loaded, parties)
 
 
 def test_judgment_dates_must_appear_in_the_record():
-    assert _date_in_text(date(2024, 8, 13), "Dated: August 13, 2024 Hon. Fred W. Slaughter")
-    assert _date_in_text(date(2024, 8, 13), "Document 618 Filed 08/13/24 Page 1 of 3")
-    assert not _date_in_text(date(2024, 8, 13), "Filed 08/13/2023")
+    assert _date_in_text(date(2024, 5, 17), "the jury duly rendered its verdict on May 17, 2024 (ECF No. 601)")
+    assert _date_in_text(date(2024, 5, 20), "Document 602 Filed 05/20/24 Page 1 of 1")
+    assert not _date_in_text(date(2024, 5, 20), "Filed 05/20/2023")
 
 
 def test_bank_feed_matches_public_anchors_and_stops_at_the_review_date():
     feed = load_feed(SNAP)
-    assert feed.balances[date(2024, 3, 31)] == 2_756_500_000 and feed.balances[date(2024, 6, 30)] == 2_788_500_000
-    assert feed.period_end == REVIEW and all(t["date"] <= "2024-08-19" for t in feed.transactions)
+    # 31 Mar: the 10-Q balance. 20 Jun: dated lumps (24 May offering, 17 Jun coupon) plus 57/63 of the undated
+    # April-June remainder (Decision D1 as amended).
+    assert feed.balances[date(2024, 3, 31)] == 1_520_000_000 and feed.balances[REVIEW] == 1_716_309_524
+    assert feed.period_end == REVIEW and all(t["date"] <= "2024-06-20" for t in feed.transactions)
+    # The USD 8.0M secured note from a key customer arrived on 26 Jun: nothing like it may sit in the feed.
+    assert not any(t["amount_cents"] >= 800_000_000 and t["category"] != "equity_proceeds" for t in feed.transactions)
+
+
+def test_the_line_limit_applies_slopes_rule_to_the_feed():
+    # 15% x (mean monthly customer receipts - mean monthly debt service), March to May 2024, rounded down.
+    feed, inputs = load_feed(SNAP), json.loads((ROOT / "cases" / SNAP / "run_inputs.json").read_text())
+    line = inputs["financing_plan"]["line"]
+    by_month = {m: 0 for m in ("2024-03", "2024-04", "2024-05")}
+    for t in feed.transactions:
+        if t["date"][:7] in by_month and t["category"] in ("customer_receipts", "debt_service"):
+            by_month[t["date"][:7]] += t["amount_cents"]  # receipts positive, debt service negative
+    assert line["limit_cents"] == sum(by_month.values()) * 15 // 300 == 35_717_237
+    draw = inputs["financing_plan"]["supplied_terms"]["amount_cents"]
+    assert draw <= line["limit_cents"] and draw == line["supplied_draw"]["amount_cents"]
 
 
 def test_the_supplied_schedule_conserves_its_totals():

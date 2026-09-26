@@ -1,0 +1,276 @@
+{
+  "snapshot_id": "akoustis_20240620",
+  "case_id": "akoustis_qorvo_2024",
+  "note": "Cutoff and source membership come from the kit's data/sources.json (mission akoustis_20240620). This file only supplies neutral display metadata for admissible sources and the isolation probes.",
+  "isolation_probes": {
+    "note": "Facts public only after 20 Jun 2024 (Model Extensions Spec §1.1): none may appear anywhere in the snapshot. Builder-side list; it never reaches the agent.",
+    "probes": [
+      "Tune Holdings",
+      "SpaceX",
+      "6,589,064",
+      "11,743",
+      "October 7, 2024",
+      "D.I. 709",
+      "Customer Note",
+      "June 26, 2024",
+      "December 16, 2024"
+    ]
+  },
+  "source_display": {
+    "akts_2022_06_notes_8k": {
+      "title": "Akoustis Technologies Form 8-K, June 2022 (6.0% convertible senior notes due 2027)",
+      "document_kind": "sec_current_report",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2022_06_notes_indenture": {
+      "title": "Indenture for the 6.0% convertible senior notes due 2027 (Form 8-K Exhibit 4.1, June 2022)",
+      "document_kind": "contract",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_fy2023_10k": {
+      "title": "Akoustis Technologies Form 10-K for fiscal year ended June 30, 2023",
+      "document_kind": "sec_annual_report",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2023_10_27_8k": {
+      "title": "Akoustis Technologies Form 8-K, 27 October 2023 (Item 3.01, Nasdaq notice)",
+      "document_kind": "sec_current_report",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_01_29_8k": {
+      "title": "Akoustis Technologies Form 8-K, 29 January 2024 (underwritten offering)",
+      "document_kind": "sec_current_report",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024q3_10q": {
+      "title": "Akoustis Technologies Form 10-Q for the quarter ended March 31, 2024",
+      "document_kind": "sec_quarterly_report",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_13_8k": {
+      "title": "Akoustis Technologies Form 8-K, 13 May 2024 (Item 2.02)",
+      "document_kind": "sec_current_report",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_13_release": {
+      "title": "Akoustis fiscal third quarter 2024 results press release (Form 8-K Exhibit 99.1)",
+      "document_kind": "press_release",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_17_corresp": {
+      "title": "Akoustis Technologies correspondence with the SEC staff, 17 May 2024",
+      "document_kind": "sec_correspondence",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_20_8k": {
+      "title": "Akoustis Technologies Form 8-K, 20 May 2024 (Item 8.01)",
+      "document_kind": "sec_current_report",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_22_8k": {
+      "title": "Akoustis Technologies Form 8-K, 22 May 2024 (Items 7.01, 8.01)",
+      "document_kind": "sec_current_report",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_22_ex991": {
+      "title": "Akoustis press release, 22 May 2024 (Form 8-K Exhibit 99.1)",
+      "document_kind": "press_release",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_22_ex992": {
+      "title": "Akoustis press release, 22 May 2024 (Form 8-K Exhibit 99.2)",
+      "document_kind": "press_release",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_23_424b5": {
+      "title": "Akoustis Technologies prospectus supplement (Form 424B5), 23 May 2024",
+      "document_kind": "sec_prospectus",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_23_424b3": {
+      "title": "Akoustis Technologies prospectus (Form 424B3), filed 24 May 2024",
+      "document_kind": "sec_prospectus",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_24_8k": {
+      "title": "Akoustis Technologies Form 8-K, 24 May 2024 (Items 1.01, 9.01)",
+      "document_kind": "sec_current_report",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_24_ex41": {
+      "title": "Form of pre-funded warrant (Form 8-K Exhibit 4.1, 24 May 2024)",
+      "document_kind": "contract",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_24_ex101": {
+      "title": "Securities purchase agreement (Form 8-K Exhibit 10.1, 24 May 2024)",
+      "document_kind": "contract",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_24_ex102": {
+      "title": "Placement agency agreement (Form 8-K Exhibit 10.2, 24 May 2024)",
+      "document_kind": "contract",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_05_31_sd": {
+      "title": "Akoustis Technologies conflict minerals report (Form SD Exhibit 1.01), 31 May 2024",
+      "document_kind": "sec_specialized_disclosure",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_2024_06_05_8k": {
+      "title": "Akoustis Technologies Form 8-K, 5 June 2024 (Item 5.02)",
+      "document_kind": "sec_current_report",
+      "publisher": "SEC EDGAR"
+    },
+    "qorvo_2024_05_20_8k": {
+      "title": "Qorvo, Inc. Form 8-K, 20 May 2024 (Items 5.02, 8.01, 9.01)",
+      "document_kind": "sec_current_report",
+      "publisher": "SEC EDGAR"
+    },
+    "qorvo_2024_05_20_release": {
+      "title": "Qorvo press release, 20 May 2024 (Form 8-K Exhibit 99.1)",
+      "document_kind": "press_release",
+      "publisher": "SEC EDGAR"
+    },
+    "ded_21cv1417_d015_reply": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Defendants' reply brief in support of the motion to dismiss (D.I. 15)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d047_reply": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Defendants' reply brief in support of the motion to dismiss the first amended complaint (D.I. 47)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d067_order": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Order denying the motions to dismiss (D.I. 67)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d112_joint_statement": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Joint claim construction and prehearing statement (D.I. 112)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d152_claim_construction": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Claim construction order (D.I. 152)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d313_order": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Order following the 22 August 2023 discovery disputes hearing (D.I. 313)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d487_reply": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Plaintiff's reply brief in support of summary judgment of validity (D.I. 487)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d545_order": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Order granting in part and denying in part defendants' motion for summary judgment (D.I. 545)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d546_order": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Order on the motion to exclude the testimony of Dr. Michael Lebby (D.I. 546)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d553_order": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Order denying the motions to exclude the opinions of Carolyn Irwin and Melissa Bennis (D.I. 553)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d557_order": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Order granting plaintiff's motion for summary judgment on validity (D.I. 557)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d587_brief": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Qorvo bench memorandum opposing the Rule 50(a) motion on unfair-trade-practices damages (D.I. 587)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d590_order": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Order on the Rule 50(a) motions on unfair-trade-practices damages (D.I. 590)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d602_judgment": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Judgment (D.I. 602)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d604_stipulation": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Stipulated proposed order on post-trial briefing (D.I. 604)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d605_schedule": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Stipulated order on the post-trial briefing schedule (D.I. 605)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d608_injunction_motion": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Qorvo motion for a permanent injunction (D.I. 608)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d608_1_proposed_injunction": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Proposed permanent injunction order (D.I. 608-1)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d611_amend_motion": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Qorvo motion to alter or amend the 20 May 2024 judgment (D.I. 611)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d613_new_trial_motion": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Akoustis motion for a new trial or remittitur (D.I. 613)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d613_1_proposed_order": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Proposed order on the motion for a new trial or remittitur (D.I. 613-1)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d616_declaration": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Omnibus declaration in support of Akoustis's post-trial opening briefs (D.I. 616)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d616_1_exhibit": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Exhibit A to D.I. 616 (trial transcript excerpts)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d616_2_exhibit": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Exhibit B to D.I. 616 (Sedona Conference commentary)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d616_3_exhibit": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Exhibit C to D.I. 616 (Restatement excerpt)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d616_4_exhibit": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Exhibit D to D.I. 616 (correspondence and verdict form redline)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d618_fees_motion": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Qorvo motion for attorneys' fees (D.I. 618)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_docket_20240620": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), docket report, entries filed through 20 June 2024",
+      "document_kind": "court_docket",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    }
+  }
+}

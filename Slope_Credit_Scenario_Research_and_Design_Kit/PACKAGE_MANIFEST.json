@@ -2,7 +2,7 @@
   "package": "Slope credit-event scenario research and design kit",
   "revision": "2",
   "status": "Research and design; not a built agent or lending application",
-  "primary_catalog_records": 17,
+  "primary_catalog_records": 71,
   "warning": "Build dated agent evidence stores. Do not expose this entire kit, outcomes or evaluator answers to investigator/reviewer runtimes.",
   "files": [
     {
@@ -121,114 +121,284 @@
       "sha256": "5367bbc5f01536b9b98587a89b73f55422c080bf7938472cf49b67efdd45d1ca"
     },
     {
-      "path": "research/recent_cases/chromadex/acquire.py",
-      "bytes": 9680,
-      "sha256": "366add83be1af93c921b18d3dd4709eb34c6a3e11fa3309d77128baf8263ca20"
+      "path": "research/recent_cases/akoustis/acquire.py",
+      "bytes": 20445,
+      "sha256": "43cdb7e4a1eaf964262ca7fcb4c589b6648ed3bdc37ab9adac5fdb3cc32befc9"
     },
     {
-      "path": "research/recent_cases/chromadex/cacd_16cv2277_d001_complaint.pdf",
-      "bytes": 4244615,
-      "sha256": "9b35cf684540c89dafd777055881b386c84560885d6dbc0ca8d5ae509bdd4ab0"
+      "path": "research/recent_cases/akoustis/akts_2022_06_notes_8k.html",
+      "bytes": 52689,
+      "sha256": "54553312f1a4fef21d02d6e86792d64dacefe6ee0981d48e399de538f8b1ea77"
     },
     {
-      "path": "research/recent_cases/chromadex/cacd_16cv2277_d065_counterclaim.pdf",
-      "bytes": 448494,
-      "sha256": "f80688752a9370c04c0a20b08346c00288037d66abfc7d5e32f1dae526d45749"
+      "path": "research/recent_cases/akoustis/akts_2022_06_notes_indenture.html",
+      "bytes": 795819,
+      "sha256": "2aa3ccf1a3ecdb58b759faace8d1f03e7d0d1b0e351067bb9e0d04d3ab5aecb7"
     },
     {
-      "path": "research/recent_cases/chromadex/cacd_16cv2277_d560_verdict_minutes.pdf",
-      "bytes": 141198,
-      "sha256": "4fd2d5ed1dfdfc45c763a8daba55d7a726c06583c962a2f523dd7077241f77d4"
+      "path": "research/recent_cases/akoustis/akts_2023_10_27_8k.html",
+      "bytes": 25254,
+      "sha256": "a928b76b54b6e844c44aeee8d7e584fbea205374a8ca380248951f4fb35c53ac"
     },
     {
-      "path": "research/recent_cases/chromadex/cacd_16cv2277_d579_bench_order.pdf",
-      "bytes": 132890,
-      "sha256": "c235d2576828f5f07dec3a74938712bb978017e031e36819b74d7d9964a5af14"
+      "path": "research/recent_cases/akoustis/akts_2024_01_29_8k.html",
+      "bytes": 29514,
+      "sha256": "1640e51bf00b7f5a33551091b52efd35f3a09219477ca4a7691c80cf1188b598"
     },
     {
-      "path": "research/recent_cases/chromadex/cacd_16cv2277_d594_stay.pdf",
-      "bytes": 189519,
-      "sha256": "6c35bcbebeb6cccc0cb63b3052eb9807ebbe80baf7cf76fee02e0427f42406b6"
+      "path": "research/recent_cases/akoustis/akts_2024_05_13_8k.html",
+      "bytes": 24689,
+      "sha256": "ea725d0bdae206807e12bbd67a11e891b728133321d20ae01101f7a78b90a91d"
     },
     {
-      "path": "research/recent_cases/chromadex/cacd_16cv2277_d618_judgment.pdf",
-      "bytes": 542212,
-      "sha256": "4bae70e92295ba37efa087833a38aacbc0c354f74b709cccd7d87c4f39134c59"
+      "path": "research/recent_cases/akoustis/akts_2024_05_13_release.html",
+      "bytes": 114338,
+      "sha256": "5dbb8b3c59c27937568829fe97e4eac3a4238f7ecb30e4e64d52efbe68c515e1"
     },
     {
-      "path": "research/recent_cases/chromadex/cacd_16cv2277_d671_amended_judgment.pdf",
-      "bytes": 127972,
-      "sha256": "002123467d251bd4389fd716c25abb7422dbd84d576232130a5f2d11ad6ade7e"
+      "path": "research/recent_cases/akoustis/akts_2024_05_17_corresp.html",
+      "bytes": 4210,
+      "sha256": "9d4210beaf3bc1c8c41d3ec62e4030074c6a3853087147fd11169d46f95f2e2e"
     },
     {
-      "path": "research/recent_cases/chromadex/cdxc_2023_10k.html",
-      "bytes": 1810209,
-      "sha256": "0dbbf7c9dcedfe213ac562b6e1856b0017481d4e26cabeb2b6166ca6bb261493"
+      "path": "research/recent_cases/akoustis/akts_2024_05_20_8k.html",
+      "bytes": 28314,
+      "sha256": "45e9d8a7dd6bb57c85d4057a658fea66584c78a289d664c8ee9fef934a45c664"
     },
     {
-      "path": "research/recent_cases/chromadex/cdxc_2023_12_credit_8k.html",
-      "bytes": 29855,
-      "sha256": "44a58da63394a9528d1f1fce3df9db004ea57bc3dff724fe8c4ad7cb59314342"
+      "path": "research/recent_cases/akoustis/akts_2024_05_22_8k.html",
+      "bytes": 32705,
+      "sha256": "b091d785ad00cee49d53627fab518cba3eec1a4961671a0c131511ddfaba6011"
     },
     {
-      "path": "research/recent_cases/chromadex/cdxc_2024_10k.html",
-      "bytes": 1950923,
-      "sha256": "5419a9dc9e72cec530a274bbb4a14b7e9b4774fb09a65dc4724cad091722600d"
+      "path": "research/recent_cases/akoustis/akts_2024_05_22_ex991.html",
+      "bytes": 14295,
+      "sha256": "9287ea5808d84e171ea3aa8ee7ad9e7fbd032e74dfcd80a9552571dcc7394168"
     },
     {
-      "path": "research/recent_cases/chromadex/cdxc_2024_11_8k.html",
-      "bytes": 26506,
-      "sha256": "1257d6effa48b8f339d81258a0b414744e3376d8c13a47b46d6105625a2cd187"
+      "path": "research/recent_cases/akoustis/akts_2024_05_22_ex992.html",
+      "bytes": 15374,
+      "sha256": "49967bef2a53b06bb12769511327d1d623b31f96b20c8123922f0b158b08317c"
     },
     {
-      "path": "research/recent_cases/chromadex/cdxc_2024_12_8k.html",
-      "bytes": 21023,
-      "sha256": "5162d1a3695a9c845687e9093d690292e824eebebf17e036b8e73cadd3900815"
+      "path": "research/recent_cases/akoustis/akts_2024_05_23_424b3.html",
+      "bytes": 170064,
+      "sha256": "ba35cd39461f1d877e7fd8bbb8add07fd72eb3a659258fe0b683f54ab14f05d3"
     },
     {
-      "path": "research/recent_cases/chromadex/cdxc_2024q1_10q.html",
-      "bytes": 1083642,
-      "sha256": "e7e0c686139383f46a903e97631410a2591b932b085d24c805831acb878da897"
+      "path": "research/recent_cases/akoustis/akts_2024_05_23_424b5.html",
+      "bytes": 371833,
+      "sha256": "b63ac626cb6616654978f8081bb4a915f5481ab587b8c2deafcbf0a142544548"
     },
     {
-      "path": "research/recent_cases/chromadex/cdxc_2024q2_10q.html",
-      "bytes": 1445255,
-      "sha256": "9c7e4fef8400c41d14260d89bf937fd9425b633141b08a365de4075f038c9f30"
+      "path": "research/recent_cases/akoustis/akts_2024_05_24_8k.html",
+      "bytes": 33905,
+      "sha256": "367b8628f5de03a65a0cca5e0a37846173da2c7febaa42d3a4446abaa8c24f4e"
     },
     {
-      "path": "research/recent_cases/chromadex/cdxc_2024q2_release.html",
-      "bytes": 122625,
-      "sha256": "89ef52e191a8a202d7d7314864288731b97424b60441b7b48115c14573665a4d"
+      "path": "research/recent_cases/akoustis/akts_2024_05_24_ex101.html",
+      "bytes": 193890,
+      "sha256": "746c7ea6b24528498dd50fa432dee316c6712f29360dc795ef27adb61b55ab46"
     },
     {
-      "path": "research/recent_cases/chromadex/cdxc_2024q3_10q.html",
-      "bytes": 1525657,
-      "sha256": "6f13a124f3694997283074c7f504a85c95b0e6ff0a4088b5db50466831958b99"
+      "path": "research/recent_cases/akoustis/akts_2024_05_24_ex102.html",
+      "bytes": 92069,
+      "sha256": "627eb972428d229e2c2e17f4fe650e7084a45f609c981bdae0a082bb4d225da0"
     },
     {
-      "path": "research/recent_cases/chromadex/ded_18cv1434_d001_complaint.pdf",
-      "bytes": 78437,
-      "sha256": "bcebe2f21ea0e41c37ef704be93099bb33ca2d40763552321b30a80de0fbe49d"
+      "path": "research/recent_cases/akoustis/akts_2024_05_24_ex41.html",
+      "bytes": 89513,
+      "sha256": "e7f09b3bb03f0d9c253775f60dd11fa47b1d12f848a9ed232674c8ed5725ed24"
     },
     {
-      "path": "research/recent_cases/chromadex/ded_18cv1434_d369_opinion.pdf",
-      "bytes": 739769,
-      "sha256": "1c781b70ebb0459420f29bb83c104b9ec5a6745d717a148835fa49c24f866189"
+      "path": "research/recent_cases/akoustis/akts_2024_05_31_sd.html",
+      "bytes": 38413,
+      "sha256": "a0ea812dab2baf0860cb23b79181ff2e9c76fb8c9a928578bf97787f95eeb984"
     },
     {
-      "path": "research/recent_cases/chromadex/ded_18cv1434_d399_fee_order.pdf",
-      "bytes": 300457,
-      "sha256": "bc244da38b13bb46137bb2c31f3a3704b56787123021068e05a7919cdc949626"
+      "path": "research/recent_cases/akoustis/akts_2024_06_05_8k.html",
+      "bytes": 25184,
+      "sha256": "7313d44d8b7f97c9bbb317a704ad3de538667edc12d4bc963778eb0431dc4730"
     },
     {
-      "path": "research/recent_cases/chromadex/display.json",
-      "bytes": 4262,
-      "sha256": "cd9700562a17d2b1e2033c12efb79a6609900113d6ae8b0bce4c6474200d0a0a"
+      "path": "research/recent_cases/akoustis/akts_2024q3_10q.html",
+      "bytes": 806376,
+      "sha256": "00e98d3b58fe3361965c6e92b60046ae414eded302f404ce12aad263189f19ae"
     },
     {
-      "path": "research/recent_cases/chromadex/niagen_2026q2_10q.html",
-      "bytes": 1625849,
-      "sha256": "13c002e5d56991c5225040a672a7fb7cabb148bc0d203dd3aaf21d577aabc52e"
+      "path": "research/recent_cases/akoustis/akts_2025_05_15_8k.html",
+      "bytes": 40054,
+      "sha256": "b37f5dc47fff9902256afa15f83eb67ad915ab8ca6a40eebe086e7193afa2584"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_fy2023_10k.html",
+      "bytes": 1335334,
+      "sha256": "4d405945d9ae4f46abc1e62ea1d51e0773d202b1f883b21d1b81e33a8731db53"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_fy2024_10k.html",
+      "bytes": 1414399,
+      "sha256": "e70c9ff366586324dfa6c45c53c8c969e3c6293399f3163e52b67a7eedb3b9c4"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d015_reply.pdf",
+      "bytes": 299160,
+      "sha256": "1100a61cbabd0fce912a2adfecc00332eea4d41fdf1ca2ad55ea5fd8e1f3dc80"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d047_reply.pdf",
+      "bytes": 299944,
+      "sha256": "cb046e7bd7fbbec5a1f0d7d2cd7861d3e175acad5306fc2c1ddf66fbd0866085"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d067_order.pdf",
+      "bytes": 245490,
+      "sha256": "0860f76c695976bcef03011e39f72c2c63b15fd00d5c83089ae490ba883ba6e4"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d112_joint_statement.pdf",
+      "bytes": 139499,
+      "sha256": "bf10780cb08261391da2bf462631086f5b992b504ca62368a58e84b1f29dfc99"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d152_claim_construction.pdf",
+      "bytes": 278532,
+      "sha256": "c837a2c184fa2acbcb104b640f6e3c7985941d02f026fc8f5301f8be0f766386"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d313_order.pdf",
+      "bytes": 179755,
+      "sha256": "4ca1b7dd0793f63b761a4ddf7c927db12638347e5efd1970f2fdf8b6b40862f8"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d487_reply.pdf",
+      "bytes": 267138,
+      "sha256": "a83fc777f121b23f952b73eb5c7339c2489b5a8d43dac11735fb68b54095877a"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d545_order.pdf",
+      "bytes": 243237,
+      "sha256": "8e2ac53acf5eec89c6b0f5aca20284d6d8a4ed35b35e3091117a9c574a14deb7"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d546_order.pdf",
+      "bytes": 213046,
+      "sha256": "940bcfcb23024a666b1727d089ee832ffb34adc4f5a501f5b8da915e42610439"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d553_order.pdf",
+      "bytes": 212183,
+      "sha256": "a655b915dc03e9b3df5d84658d6f25c15e8fd7a293d9cafdd96cd5164776e3f6"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d557_order.pdf",
+      "bytes": 208273,
+      "sha256": "b95021b815621923d6891dba191d9c13471daff7831a12c1b5bc48e19dbdca41"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d587_brief.pdf",
+      "bytes": 169357,
+      "sha256": "17761677aca74645c1bf9c68cf8513657f10708668be24503e2564fed8450436"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d590_order.pdf",
+      "bytes": 188975,
+      "sha256": "c0de7bedb15fb5fdd70b611f60e24103e21693e28dd27109a4bb7b9e58289aae"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d602_judgment.pdf",
+      "bytes": 177621,
+      "sha256": "d3f5a4d69f9b7dcfec214036b6a176e9fc13a45eefb63a0e573ded2db0061c33"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d604_stipulation.pdf",
+      "bytes": 105356,
+      "sha256": "fbe0d55aff9770284b09b40ac50a3b7330efe2ee98b6ac0d7316b87cd1484afd"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d605_schedule.pdf",
+      "bytes": 162396,
+      "sha256": "1ae1c9b3f52b989ff7838b3cd62e1d960cfa3dce1a7a0b9a4595d75ab230b84b"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d608_1_proposed_injunction.pdf",
+      "bytes": 206873,
+      "sha256": "d8466f7a8e11662e075354242b0aa1d488d83176a54181381f85a8f6620510da"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d608_injunction_motion.pdf",
+      "bytes": 153898,
+      "sha256": "0cbdf1bb96cef954fde3657ef7459b9bd86b884a77c258cdd76d9a82cac0bc77"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d611_amend_motion.pdf",
+      "bytes": 152121,
+      "sha256": "cf2b0de0b849d5b9479d81b4261b350712ac7ca265b63afce28ed0b11b8f257b"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d613_1_proposed_order.pdf",
+      "bytes": 76859,
+      "sha256": "88135871b356b63829ae27887766a0085dc98d3b66ce9229783e7d579f7d0ce6"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d613_new_trial_motion.pdf",
+      "bytes": 134271,
+      "sha256": "1d53b1c8639db4c6a81f984c184c3e8928ff21fbdb278cf756f9a1838355cd2a"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d616_1_exhibit.pdf",
+      "bytes": 467782,
+      "sha256": "e04ea95a65911e82f7eb73c1f898591f53a4aeb0246f53e5cc4399e33b2e046f"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d616_2_exhibit.pdf",
+      "bytes": 1007334,
+      "sha256": "b26937e39fe1ac7fb77440ae9f9bfc483b903155c4debe4c9f98e83cd3f1bbba"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d616_3_exhibit.pdf",
+      "bytes": 400173,
+      "sha256": "6269bbb79082c6fcb56c4692eab5a855db19ac7111521cd4359fb9542967339b"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d616_4_exhibit.pdf",
+      "bytes": 1309859,
+      "sha256": "177580724df6ca5eaf8bbed07335473126bf8f270653f9d9ad123e5a526b5b00"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d616_declaration.pdf",
+      "bytes": 145743,
+      "sha256": "ed314afc5193ea407e3f81a38cc1c42931d13c8805dda31edaacfaf4773d9e27"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d618_fees_motion.pdf",
+      "bytes": 137124,
+      "sha256": "8c9bd42e369ecd3da14a96e2ff40d41464ee5934f3653b107c6d0d406eca82ca"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d717_amended_judgment.pdf",
+      "bytes": 158508,
+      "sha256": "0a2f32a9ae6430f7bfeee95b830e8f4058d0f157cd4a66f0a277658fc3e4de55"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_docket_20240620.html",
+      "bytes": 182754,
+      "sha256": "9d5b42ada2cbd3f00cc681e6d76d3a8c8e019dd28d498a330bc13d051ce41b00"
+    },
+    {
+      "path": "research/recent_cases/akoustis/display.json",
+      "bytes": 12106,
+      "sha256": "909fbd5bc4c9ce0a6a89923c91ec976e0b45b222655982e692d6973931a92af3"
+    },
+    {
+      "path": "research/recent_cases/akoustis/qorvo_2024_05_20_8k.html",
+      "bytes": 39860,
+      "sha256": "a7c653c77ed689774be5a49f784e811b81066c506cecd92373ca210de16af324"
+    },
+    {
+      "path": "research/recent_cases/akoustis/qorvo_2024_05_20_release.html",
+      "bytes": 9509,
+      "sha256": "f29e73748e4048dcf444ca1ffc4b82d236688034036cf8709e81b7a935cf9adf"
     },
     {
       "path": "research/recent_cases/synergy_chc/2023_02_27_court_order.pdf",
@@ -277,8 +447,8 @@
     },
     {
       "path": "research/revision_v2/contracts/agent_config.json",
-      "bytes": 36778,
-      "sha256": "1a20f23774883dbe03d407dfb099577859f248e03efe63ac49ef803187471d2f"
+      "bytes": 36877,
+      "sha256": "1679b7fe0820e751f252dd2857aa3dc3b72f8753e216bec0b2e851a9f87394b2"
     },
     {
       "path": "research/revision_v2/contracts/barfresh-economic-effects.json",
@@ -367,13 +537,13 @@
     },
     {
       "path": "research/revision_v2/data/sources.json",
-      "bytes": 44207,
-      "sha256": "a18786f05f2b621efe2a09e182cd4c2a3615892220bd8898fcfdeb6bb3a7140f"
+      "bytes": 82767,
+      "sha256": "3d2adb164cc64aaaff1945dd033a0a0ad25a30d174d18502b9b5104650fa2ecc"
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
-      "bytes": 65911,
-      "sha256": "f85aead0d5cf9db36f4798c52ecce458911073e58df5c2c48b608ecbd728494d"
+      "bytes": 66242,
+      "sha256": "365d9068bd57f99e8ddf5a400e27d2a78bb3ab3512770fa1725f6b049a5a9d4f"
     },
     {
       "path": "research/revision_v2/package_kit.py",

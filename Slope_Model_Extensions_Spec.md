@@ -78,12 +78,12 @@
 - every 8-K after D;
 - the Chapter 11 materials.
 
-**Isolation probes:** "Tune Holdings", "SpaceX", "6,589,064", "11,7" (fee award), "October 7, 2024", "D.I. 709", "petition for relief under chapter 11 … December".
+**Isolation probes:** the list in `cases/akoustis_20240620/snapshot.json`, including the fee and interest award figures, the October 10-K date, the 26 Jun customer note and the 16 Dec 2024 petition date. ("11,7" and "Chapter 11" also appear in text filed before D, so they cannot serve as probes.)
 
-**Bank feed:** synthetic, labelled once (Decision D1, approved: proration).
-- **Anchors:** quarterly figures through 31 Mar 2024, and the dated offering proceeds.
-- **1 Apr to 20 Jun:** anchored to the April–June quarter as later reported (receipts, outflows and the $24.4M 30 Jun balance), prorated to 20 Jun by business days. Labelled once: "anchored to balances later reported for periods before D". A connected bank feed would have shown these flows at D.
-- **Nothing after 20 Jun enters the feed.**
+**Bank feed:** synthetic, labelled once (Decision D1 as amended, §14).
+- **Anchors:** quarterly figures through 31 Mar 2024; dated flows on their own dates (the offering, net $9.208M, 24 May; the cash part of the coupon, $0.442M, 17 Jun).
+- **1 Apr to 20 Jun:** only the undated remainder of the April–June quarter is prorated to 20 Jun by business days. Labelled once. Cash at 20 Jun: $17,163,095.24.
+- **Nothing after 20 Jun enters the feed,** including the $8.0M customer note of 26 Jun.
 
 **Categories:**
 - customer receipts;
@@ -569,9 +569,10 @@ Only then is the rest Qorvo's choice.
 
 ### Decided
 
-- **D1 (approved): proration.**
-  - Bank feeds are anchored to the quarter containing D as later reported, prorated to D by business days (§1.1, §1.2).
-  - Balances for periods before D that were filed after D are allowed, labelled once.
+- **D1 (approved; amended 25 Sep 2026): dated flows, then proration.**
+  - Every flow the record dates goes on its own date. Only the undated remainder of the quarter containing D is prorated to D by business days. Flows dated after D enter no snapshot or feed.
+  - Balances and flows for periods before D that were filed after D are allowed, labelled once.
+  - Why amended: straight proration of Akoustis's April–June quarter moved about $7.2M of post-D cash (a customer note received 26 Jun 2024) before D. See `research/recent_cases/akoustis/design/CASH_CHECK_20240620.md`.
 - **D2 (approved): ChromaDex removed** (§1.3).
 - **D3:** resolved in revision 1. The lead-time series is intrinsic to the reusable line (§2.4).
 
