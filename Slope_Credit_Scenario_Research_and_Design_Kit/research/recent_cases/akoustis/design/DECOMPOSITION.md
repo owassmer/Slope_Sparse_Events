@@ -218,7 +218,7 @@ Each question is one actor's decision. None asks about timing, an amount, afford
 - `bears_on_appeal_intent` and `bears_on_appeal_barred` feed A2.
 - `bears_on_settlement_signals` feeds A3 and Q4.
 - `bears_on_debtor_resistance` feeds A1, A4, Q1 and Q3.
-- `bears_on_debtor_liquidity` feeds A4, A5 and A6, as context. Code's cash path facts govern.
+- `bears_on_debtor_liquidity` is not asked: it is scoped to a paying counterparty, and Akoustis is the payer. A4, A5 and A6 get Akoustis's cash as path facts from the bank data and the simulation.
 - `bears_on_amount_finality` feeds J2 and Q2.
 
 | Id | Actor | Decision | Asked when |
