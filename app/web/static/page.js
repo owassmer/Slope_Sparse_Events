@@ -6,7 +6,8 @@
   let D = JSON.parse($("page-data").textContent);
   const API = document.querySelector(".app").dataset.api;
   const S = { view: "lit", mtab: "exposure", rtab: "probs", tile: null, overrides: {}, sel: {}, cls: null,
-              omode: "weighted", detail: null, event: D.event, settings: {}, lat: [] };
+              omode: "weighted", detail: null, event: D.event, eventAll: D.event, settings: {}, lat: [],
+              reveal: false, outcome: null };
   window.__page = S;
   const CLS_COL = ["#b91c1c", "#dc2626", "#f87171", "#15803d", "#22c55e", "#2563eb", "#9ca3af", "#a16207"];
   const NEUTRAL = D.meta.judgments === "neutral";
@@ -21,6 +22,8 @@
   };
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const pct = (p, dp = 1) => `${(100 * p).toFixed(dp)}%`;
+  const pts = (x) => `${(100 * x).toFixed(1)} pts`;
+  const ACT = "#047857";  // the actual-outcome reveal's colour
   const fdate = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   const fdateY = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
@@ -142,8 +145,8 @@
       const t = ix(p.date); if (t < 0) continue;
       // a label runs right of its pin unless it would cross the plot's right edge; each pin keeps its own row
       const flip = X(t) + 3 + 6.2 * p.label.length > m.l + w;
-      g += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + h}" stroke="var(--pin)" stroke-dasharray="3 3"/>`;
-      labels += `<text x="${flip ? X(t) - 4 : X(t) + 4}" y="${m.t + 12 + 13 * (p.row || 0)}" fill="#92400e"${flip ? ' text-anchor="end"' : ""}${HALO}>${esc(p.label)}</text>`;
+      g += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + h}" stroke="${p.color || "var(--pin)"}" stroke-dasharray="3 3"/>`;
+      labels += `<text x="${flip ? X(t) - 4 : X(t) + 4}" y="${m.t + 12 + 13 * (p.row || 0)}" fill="${p.color || "#92400e"}"${flip ? ' text-anchor="end"' : ""}${HALO}>${esc(p.label)}</text>`;
     }
     g += labels;
     g += `<line id="hx" x1="0" x2="0" y1="${m.t}" y2="${m.t + h}" stroke="#9ca3af" visibility="hidden"/><rect x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent" id="hov"/>`;
@@ -165,14 +168,19 @@
     if (D.pins.briefing_close) pins.push({ date: D.pins.briefing_close, label: "Briefing closes", row: 0 });
     if (D.pins.nasdaq) pins.push({ date: D.pins.nasdaq, label: "Nasdaq deadline", row: 1 });
     if (D.pins.coupon) pins.push({ date: D.pins.coupon, label: "Coupon", row: 2 });
+    const actual = revealed();  // the dated events that happened, pinned only while the reveal is on
+    actual.forEach(([d, evs], k) => pins.push({ date: d, label: `${fdate(d)} ${evs.map((e) => e.short || e.kind).join(", ")}`, row: 3 + (k % 4), color: ACT }));
     const windows = D.pins.ruling_window ? [{ from: D.pins.ruling_window[0], to: D.pins.ruling_window[1], label: "Ruling window" }] : [];
     const series = [{ y: v.limit_mean, color: "#94a3b8", dash: true, width: 1.4 },
                     { y: v.outstanding_mean, color: col, width: hl === "outstanding" ? 3 : 2 },
                     { y: v.frozen_mean, color: "#ea580c", width: hl === "frozen" ? 3 : 1.5 },
                     { y: v.petition_cum_p, color: "#b91c1c", right: true, width: hl === "petition" ? 3 : 1.6, tag: (p) => `Bankruptcy ${pct(p)} by ${fdate(D.meta.horizon)}` }];
-    host.innerHTML = legend([["Limit", "#94a3b8", "dash"], ["Outstanding", col], ["Frozen by bankruptcy", "#ea580c"], ["Bankruptcy probability, cumulative (right axis)", "#b91c1c"]]) + `<svg class="chart"></svg>`;
+    host.innerHTML = legend([["Limit", "#94a3b8", "dash"], ["Outstanding", col], ["Frozen by bankruptcy", "#ea580c"], ["Bankruptcy probability, cumulative (right axis)", "#b91c1c"],
+      ...(actual.length ? [["What actually happened", ACT, "dash"]] : [])]) + `<svg class="chart"></svg>`;
+    const onDay = new Map(actual);
     chart(host, { series, pins, windows, right: true, hover: (t) => [["Limit", money(v.limit_mean[t])], ["Outstanding", money(v.outstanding_mean[t])],
-      ["Frozen by bankruptcy", money(v.frozen_mean[t])], ["Bankruptcy probability", pct(v.petition_cum_p[t])]] });
+      ["Frozen by bankruptcy", money(v.frozen_mean[t])], ["Bankruptcy probability", pct(v.petition_cum_p[t])],
+      ...(onDay.get(D.dates[t]) || []).map((e) => ["Actual", esc(e.description)])] });
   }
   function cash(host) {
     const v = cur().daily, col = S.view === "bank" ? "#64748b" : "#7c3aed";
@@ -217,12 +225,35 @@
     for (let i = 0; i < P; i++) { const w = cls === null ? probs[i] : probs[i] * shareIn(i, cls); if (w > 0) m.set(D.paths.seq[i], (m.get(D.paths.seq[i]) || 0) + w); }
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
   }
+  // --- the actual outcome (a recorded run whose case has an outcome file; off until the button is pressed) ------
+  function revealed() {  // [date, events] inside the chart's period, in date order
+    if (!S.reveal || !S.outcome) return [];
+    const by = new Map();
+    for (const e of S.outcome.events) if (ix(e.date) >= 0) by.set(e.date, [...(by.get(e.date) || []), e]);
+    return [...by.entries()].sort();
+  }
+  function actualHtml() {
+    if (!S.reveal || !S.outcome) return "";
+    const a = S.outcome.petition, t = ix(a.date), cum = S.eventAll.daily.petition_cum_p;
+    const by = t >= 0 ? `The model gave ${pct(cum[t])} to a filing by ${fdateY(a.date)} (${pct(cum[days - 1])} by ${fdateY(D.meta.horizon)}).` : "";
+    return `<div class="actual"><b>Actual by ${fdateY(D.meta.horizon)}:</b> ${esc(a.label)}, petition ${fdateY(a.date)}. ${esc(a.cause)}</div>
+      <div class="actual">${by}</div>`;
+  }
+  $("actual") && ($("actual").onclick = async () => {
+    if (!S.outcome) S.outcome = await (await fetch(`${API}/outcome`)).json();
+    S.reveal = !S.reveal;
+    $("actual").textContent = S.reveal ? "Hide actual outcome" : "Show actual outcome";
+    $("actual").classList.toggle("on", S.reveal);
+    renderOutcomes(); renderMain();
+  });
+
   function renderOutcomes() {
     const cp = classProbs(), el = $("outcomes");
+    const act = S.reveal && S.outcome ? D.classes.indexOf(S.outcome.petition.label) : -1;
     let html = `<div class="ohead"><b>Outcomes by ${fdateY(D.meta.horizon)}</b><div class="seg" id="osw"><button data-m="weighted" class="${S.omode === "weighted" ? "on" : ""}">Weighted</button><button data-m="worst" class="${S.omode === "worst" ? "on" : ""}">Worst paths</button></div>${S.cls !== null ? `<button id="clr">All paths</button>` : ""}</div>`;
     if (S.omode === "weighted") {
-      html += `<div class="sbar">${[...cp].map((p, c) => p > 0 ? `<div data-c="${c}" class="${S.cls === c ? "sel" : ""}" style="width:${100 * p}%;background:${CLS_COL[c]}" title="${esc(D.classes[c])} ${pct(p)}"></div>` : "").join("")}</div>
-        <div class="skeys">${[...cp].map((p, c) => p > 0 ? `<span data-c="${c}"><i style="background:${CLS_COL[c]}"></i>${esc(D.classes[c])} ${pct(p)}</span>` : "").join("")}</div>
+      html += `<div class="sbar">${[...cp].map((p, c) => p > 0 ? `<div data-c="${c}" class="${S.cls === c ? "sel" : ""}${act === c ? " act" : ""}" style="width:${100 * p}%;background:${CLS_COL[c]}" title="${esc(D.classes[c])} ${pct(p)}"></div>` : "").join("")}</div>
+        <div class="skeys">${[...cp].map((p, c) => p > 0 ? `<span data-c="${c}"${act === c ? ` style="color:${ACT};font-weight:600"` : ""}><i style="background:${CLS_COL[c]}"></i>${esc(D.classes[c])} ${pct(p)}${act === c ? " ← actual" : ""}</span>` : "").join("")}</div>${actualHtml()}
         <div class="seqs">${topSequences(S.cls).map(([s, p]) => `<div><b>${pct(S.cls === null ? p : p / (cp[S.cls] || 1))}</b>${esc(D.sequences[s])}</div>`).join("")}</div>`;
     } else {
       html += `<table class="t"><tr><th>Path</th><th>Unrecovered</th><th>Frozen if a filing lands at peak outstanding</th><th>Peak day</th></tr>
@@ -243,7 +274,7 @@
       const r = await fetch(`${API}/reweight`, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal,
         body: JSON.stringify({ overrides: S.overrides, classes: S.cls === null ? null : [S.cls] }) });
       const v = await r.json();
-      if (v) S.event = v;
+      if (v) { S.event = v; if (S.cls === null) S.eventAll = v; }
       renderMain();
       if (t0) S.lat.push(performance.now() - t0);
     } catch (e) { if (e.name !== "AbortError") console.error(e); }
@@ -290,6 +321,8 @@
     const lo = Math.min(...sens.map((s) => Math.min(s.lo, s.hi))), hi = Math.max(...sens.map((s) => Math.max(s.lo, s.hi)));
     const label = NEUTRAL ? D.meta.judgments_note : D.meta.probability_label || "";  // says 'Model judgment' once
     let html = `<div class="ohead"><span class="ctx">${esc(label)}</span><div class="sp" style="flex:1"></div>${Object.keys(S.overrides).length ? '<button id="rsall">Reset all</button>' : ""}</div>`;
+    const rc = D.recall;  // the recall check: every question re-asked with the parties' names replaced by roles
+    if (rc) html += `<div class="ctx" title="Largest change in any answer when the names are replaced by roles">Recall check: ${rc.questions} questions, max change ${pts(rc.max_abs_change)}, mean ${pts(rc.mean_abs_change)}${rc.moved.length ? `, ${rc.moved.length} moved more than ${pts(rc.threshold)}` : ""}</div>`;
     for (const g of DECIDERS) {
       const rows = D.nodes.map((n, i) => i).filter((i) => D.nodes[i].decider === g).sort((a, b) => sens[b].range - sens[a].range);
       if (rows.length) html += `<div class="ghead">${g}</div>` + rows.map((i) => rowHtml(i, [lo, hi])).join("");
@@ -326,6 +359,9 @@
     const facts = (det.assumptions || []).map((a) => `<li>Given: ${esc(a)}</li>`).join("")
       + Object.entries(det.facts || {}).map(([k, v]) => `<li>${esc(k.replace(/_/g, " "))}: ${esc(typeof v === "object" ? JSON.stringify(v) : v)}</li>`).join("");
     const quotes = (det.quotes || []).map((q) => `<blockquote>“${esc(q.quote)}”<br><span class="ctx">${esc(q.source)}${q.date ? `, ${esc(q.date)}` : ""}${q.link ? ` · <a href="${esc(q.link)}" target="_blank" rel="noopener">source</a>` : ""}</span></blockquote>`).join("");
+    const rc = n.recall, recall = rc ? `<div class="ghead">Recall check: asked again with names replaced by roles</div><table class="t"><tr><th>Answer</th><th>As asked</th><th>Roles only</th><th>Change</th></tr>
+      ${n.branches.map((b) => `<tr><td>${esc(b.replace(/_/g, " "))}</td><td>${pct(rc.original[b] ?? 0)}</td><td>${pct(rc.roles[b] ?? 0)}</td><td>${pts((rc.roles[b] ?? 0) - (rc.original[b] ?? 0))}</td></tr>`).join("")}</table>
+      <p class="ctx">Largest change ${pts(rc.max_change)}.</p>` : "";
     const ans = det.answer ? `<pre>${esc(JSON.stringify(det.answer, null, 1))}</pre>` : `<p class="ctx">No Jev answer yet.</p>`;
     $("rpanel").innerHTML = `<div class="detail"><button class="back" id="back">← Probabilities</button>
       <div style="font-weight:600">${esc(n.question)}</div><div class="ctx">${esc(n.context)} · decided by ${esc(n.actor)}</div>
@@ -333,7 +369,7 @@
       ${det.steps.map((s) => `<div class="step"><span class="tag ${s.tag}">${s.tag}</span><span>${esc(s.text)}</span></div>`).join("")}
       <div class="ghead">Facts given to Jev</div><ul class="ctx">${facts || "<li>None</li>"}</ul>
       <div class="ghead">Sources</div>${quotes || '<p class="ctx">No quoted passages on this page yet.</p>'}
-      <div class="ghead">Jev's answer</div>${ans}</div>`;
+      <div class="ghead">Jev's answer</div>${ans}${recall}</div>`;
     $("back").onclick = () => { S.detail = null; renderProbs(); };
     atEnd();
   }
@@ -385,6 +421,7 @@
   document.querySelectorAll("#mtabs button").forEach((b) => (b.onclick = () => { S.mtab = b.dataset.t; renderTabs(); renderMain(); }));
   document.querySelectorAll("#rtabs button[data-t]").forEach((b) => (b.onclick = () => { S.rtab = b.dataset.t; S.detail = null; renderTabs(); renderRight(); }));
   document.querySelectorAll("#viewsw button").forEach((b) => (b.onclick = () => { S.view = b.dataset.v; renderTabs(); renderTiles(); renderMain(); }));
+  if (!(D.settings || []).length) document.querySelector('#rtabs button[data-t="settings"]').style.display = "none";  // a run's page has no settings
   $("rpanel").addEventListener("scroll", atEnd);
   $("drawer").onclick = () => { $("right").classList.toggle("open"); atEnd(); };
   $("drawer-close").onclick = () => $("right").classList.remove("open");

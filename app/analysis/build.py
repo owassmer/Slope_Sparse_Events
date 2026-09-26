@@ -236,20 +236,78 @@ def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -
                        neutral=neutral_map(judgments))
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in live if d.status not in ("interpreted", "resolved")]
-    data = payload(feed, setup, model, meta_for(model, borrower, not_modelled))
+    a = Analysis(feed, setup, model)
+    data = payload(feed, setup, model, meta_for(model, borrower, not_modelled), analysis=a)
     data["model"] = _model_json(model)
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
     data["base_setup"] = setup_json(setup)
     data["jev"] = jev.usage_summary()
-    if roles and judgments:
-        attach_recall(data, recall_for(fc, judgments, borrower, run_id, refresh, records))
+    rc = recall_for(fc, judgments, borrower, run_id, refresh, records) if roles and judgments else None
+    if rc:
+        attach_recall(data, rc)
     out = root / run_id
     (out / "analysis.json").write_text(json.dumps(data, indent=1, default=str) + "\n")
     write_csv(data, out)
     scratch = VAR / "analysis" / run_id
     scratch.mkdir(parents=True, exist_ok=True)
+    state = run_page(a, model, fc, borrower=borrower, snapshot_id=meta["snapshot_id"], stress_rows=data["stress"],
+                     recall=rc)
+    (out / "page.json").write_text(json.dumps(state["payload"], default=str) + "\n")
+    save_page_state(run_id, state)
     (scratch / "jev_records.jsonl").write_text("\n".join(json.dumps(r, default=str) for r in records) + "\n")
     return data
+
+
+def run_page(a: Analysis, model: EventModel, fc: Forecaster, *, borrower: str, snapshot_id: str, stress_rows: list,
+             recall: dict | None = None) -> dict:
+    """The one-screen page for a recorded run (app/analysis/page.py), and the reduced state its reweight reads. The
+    settings re-simulate the dev page only, so a run's page has none. The recall check, when run, rides along: per
+    question in the drill-down, the summary in the panel header."""
+    from app.analysis.page import CLASSES, class_matrix, page_payload
+
+    neutral = not any(j.observation_id for j in model.judgments.values())  # no Jev answer at all: even odds
+    p = page_payload(a, model, fc, borrower=borrower, snapshot_id=snapshot_id, neutral=neutral,
+                     stress_rows=stress_rows)
+    p["settings"] = []
+    p["meta"]["snapshot_id"] = snapshot_id
+    if recall:
+        for n in p["nodes"]:
+            n["recall"] = recall["nodes"].get(n["key"])
+        p["recall"] = {k: v for k, v in recall["summary"].items() if k != "jev"}
+    return {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months,
+            "class_of_path": class_matrix(p["paths"]["class"], len(CLASSES))}
+
+
+def page_state_path(run_id: str) -> Path:
+    return VAR / "analysis" / run_id / "page_state.pkl"
+
+
+def save_page_state(run_id: str, state: dict) -> None:
+    import pickle
+
+    path = page_state_path(run_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(pickle.dumps(state, protocol=pickle.HIGHEST_PROTOCOL))
+
+
+def load_page_state(run_dir: Path) -> dict:
+    """The run page's reweight state: from var/ if `slope analyze` ran here, else rebuilt once from the run's
+    analysis.json and page.json (the same judgments, seeds and trajectories; no agent or Jev call)."""
+    import pickle
+
+    from app.analysis.page import CLASSES, class_matrix
+
+    path = page_state_path(run_dir.name)
+    if path.exists():
+        return pickle.loads(path.read_bytes())
+    data = json.loads((run_dir / "analysis.json").read_text())
+    p = json.loads((run_dir / "page.json").read_text())
+    model, setup = model_from_json(data["model"]), setup_from_json(data["base_setup"])
+    a = Analysis(load_feed(data["snapshot_id"]), setup, model)
+    state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months,
+             "class_of_path": class_matrix(p["paths"]["class"], len(CLASSES))}
+    save_page_state(run_dir.name, state)
+    return state
 
 
 def recall_for(fc: Forecaster, judgments: dict, borrower: str, run_id: str, refresh: bool, records: list) -> dict:

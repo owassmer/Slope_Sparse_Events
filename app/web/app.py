@@ -44,6 +44,11 @@ def index(request: Request) -> HTMLResponse:
 @app.get("/runs/{run_id}", response_class=HTMLResponse)
 def run_page(request: Request, run_id: str) -> HTMLResponse:
     d = _run_dir(run_id)
+    if (d / "page.json").exists():  # the one-screen page (slope analyze writes it beside the run)
+        data = json.loads((d / "page.json").read_text())
+        return templates.TemplateResponse(request, "page.html", {
+            "data": data, "api": f"/runs/{run_id}", "dev": False, "has_record": (d / "events.jsonl").exists(),
+            "record_url": f"/runs/{run_id}/investigation", "has_outcome": _outcome_path(data) is not None})
     if (d / "analysis.json").exists():
         data = json.loads((d / "analysis.json").read_text())
         data.pop("model", None)
@@ -75,6 +80,58 @@ def get_analysis(run_id: str) -> JSONResponse:
 
 
 EMPTY_BODY = Body(default_factory=dict)
+
+
+# --- a recorded run's page: payload, reweight and the actual-outcome reveal ------------------------------------
+
+_RUN_STATES: dict = {}
+
+
+def _outcome_path(payload: dict) -> Path | None:
+    """The case's actual-outcome file (outcomes/<snapshot>.json), read by the viewer only."""
+    from app.config import OUTCOMES
+
+    sid = str((payload.get("meta") or {}).get("snapshot_id") or "")
+    path = OUTCOMES / f"{sid}.json"
+    return path if sid and "/" not in sid and ".." not in sid and path.is_file() else None
+
+
+def _run_payload(run_id: str) -> dict:
+    path = _run_dir(run_id) / "page.json"
+    if not path.exists():
+        raise HTTPException(404, "This run has no page; run `slope analyze --run <id>`")
+    return json.loads(path.read_text())
+
+
+@app.get("/runs/{run_id}/payload")
+def run_payload(run_id: str) -> JSONResponse:
+    return JSONResponse(_run_payload(run_id))
+
+
+@app.post("/runs/{run_id}/reweight")
+def run_reweight(run_id: str, body: dict = EMPTY_BODY) -> JSONResponse:
+    from app.analysis.build import load_page_state
+    from app.analysis.page import reweight
+
+    _run_payload(run_id)
+    if run_id not in _RUN_STATES:
+        if len(_RUN_STATES) >= 2:
+            _RUN_STATES.clear()
+        _RUN_STATES[run_id] = load_page_state(_run_dir(run_id))
+    classes = body.get("classes")
+    try:
+        out = reweight(_RUN_STATES[run_id], body.get("overrides") or {}, [int(c) for c in classes] if classes else None)
+    except (ValueError, TypeError, KeyError, IndexError) as e:
+        raise HTTPException(422, f"Invalid overrides: {e}") from e
+    return JSONResponse(out)
+
+
+@app.get("/runs/{run_id}/outcome")
+def run_outcome(run_id: str) -> JSONResponse:
+    path = _outcome_path(_run_payload(run_id))
+    if path is None:
+        raise HTTPException(404, "No actual-outcome file for this case")
+    return JSONResponse(json.loads(path.read_text()))
 
 
 @app.post("/runs/{run_id}/analysis")
@@ -110,7 +167,7 @@ def _dev():
 @app.get("/dev/akoustis", response_class=HTMLResponse)
 def dev_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "page.html", {"data": _dev().state["payload"], "has_record": False,
-                                                             "api": "/dev/akoustis"})
+                                                             "api": "/dev/akoustis", "dev": True})
 
 
 @app.get("/dev/akoustis/payload")
