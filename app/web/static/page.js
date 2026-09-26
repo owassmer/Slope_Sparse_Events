@@ -146,7 +146,7 @@
       // a label runs right of its pin unless it would cross the plot's right edge; each pin keeps its own row
       const flip = X(t) + 3 + 6.2 * p.label.length > m.l + w;
       g += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + h}" stroke="${p.color || "var(--pin)"}" stroke-dasharray="3 3"/>`;
-      labels += `<text x="${flip ? X(t) - 4 : X(t) + 4}" y="${m.t + 12 + 13 * (p.row || 0)}" fill="${p.color || "#92400e"}"${flip ? ' text-anchor="end"' : ""}${HALO}>${esc(p.label)}</text>`;
+      if (p.label) labels += `<text x="${flip ? X(t) - 4 : X(t) + 4}" y="${m.t + 12 + 13 * (p.row || 0)}" fill="${p.color || "#92400e"}"${flip ? ' text-anchor="end"' : ""}${HALO}>${esc(p.label)}</text>`;
     }
     g += labels;
     g += `<line id="hx" x1="0" x2="0" y1="${m.t}" y2="${m.t + h}" stroke="#9ca3af" visibility="hidden"/><rect x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent" id="hov"/>`;
@@ -169,7 +169,12 @@
     if (D.pins.nasdaq) pins.push({ date: D.pins.nasdaq, label: "Nasdaq deadline", row: 1 });
     if (D.pins.coupon) pins.push({ date: D.pins.coupon, label: "Coupon", row: 2 });
     const actual = revealed();  // the dated events that happened, pinned only while the reveal is on
-    actual.forEach(([d, evs], k) => pins.push({ date: d, label: `${fdate(d)} ${evs.map((e) => e.short || e.kind).join(", ")}`, row: 3 + (k % 4), color: ACT }));
+    let k = 0;  // key events carry a label (rows 3-6); the others are a line, with their text on hover
+    for (const [d, evs] of actual) {
+      const named = evs.filter((e) => e.label).map((e) => e.short);
+      pins.push({ date: d, label: named.length ? `${fdate(d)} ${named.join(", ")}` : "", row: 3 + (k % 4), color: ACT });
+      if (named.length) k++;
+    }
     const windows = D.pins.ruling_window ? [{ from: D.pins.ruling_window[0], to: D.pins.ruling_window[1], label: "Ruling window" }] : [];
     const series = [{ y: v.limit_mean, color: "#94a3b8", dash: true, width: 1.4 },
                     { y: v.outstanding_mean, color: col, width: hl === "outstanding" ? 3 : 2 },
@@ -235,9 +240,9 @@
   function actualHtml() {
     if (!S.reveal || !S.outcome) return "";
     const a = S.outcome.petition, t = ix(a.date), cum = S.eventAll.daily.petition_cum_p;
-    const by = t >= 0 ? `The model gave ${pct(cum[t])} to a filing by ${fdateY(a.date)} (${pct(cum[days - 1])} by ${fdateY(D.meta.horizon)}).` : "";
-    return `<div class="actual"><b>Actual by ${fdateY(D.meta.horizon)}:</b> ${esc(a.label)}, petition ${fdateY(a.date)}. ${esc(a.cause)}</div>
-      <div class="actual">${by}</div>`;
+    const by = t >= 0 ? ` The model gave ${pct(cum[t])} to a filing by then (${pct(cum[days - 1])} by ${fdateY(D.meta.horizon)}).` : "";
+    return `<div class="actual"><b>Actual: ${esc(a.label)}, petition ${fdateY(a.date)}.</b>${by}</div>
+      <div class="actual">${esc(a.cause)}</div>`;
   }
   $("actual") && ($("actual").onclick = async () => {
     if (!S.outcome) S.outcome = await (await fetch(`${API}/outcome`)).json();
@@ -252,8 +257,8 @@
     const act = S.reveal && S.outcome ? D.classes.indexOf(S.outcome.petition.label) : -1;
     let html = `<div class="ohead"><b>Outcomes by ${fdateY(D.meta.horizon)}</b><div class="seg" id="osw"><button data-m="weighted" class="${S.omode === "weighted" ? "on" : ""}">Weighted</button><button data-m="worst" class="${S.omode === "worst" ? "on" : ""}">Worst paths</button></div>${S.cls !== null ? `<button id="clr">All paths</button>` : ""}</div>`;
     if (S.omode === "weighted") {
-      html += `<div class="sbar">${[...cp].map((p, c) => p > 0 ? `<div data-c="${c}" class="${S.cls === c ? "sel" : ""}${act === c ? " act" : ""}" style="width:${100 * p}%;background:${CLS_COL[c]}" title="${esc(D.classes[c])} ${pct(p)}"></div>` : "").join("")}</div>
-        <div class="skeys">${[...cp].map((p, c) => p > 0 ? `<span data-c="${c}"${act === c ? ` style="color:${ACT};font-weight:600"` : ""}><i style="background:${CLS_COL[c]}"></i>${esc(D.classes[c])} ${pct(p)}${act === c ? " ← actual" : ""}</span>` : "").join("")}</div>${actualHtml()}
+      html += `<div class="sbar">${[...cp].map((p, c) => p > 0 ? `<div data-c="${c}" class="${S.cls === c ? "sel" : ""}${act === c ? " act" : ""}" style="width:${100 * p}%;background:${CLS_COL[c]}" title="${esc(D.classes[c])} ${pct(p)}"></div>` : "").join("")}</div>${actualHtml()}
+        <div class="skeys">${[...cp].map((p, c) => p > 0 ? `<span data-c="${c}"${act === c ? ` style="color:${ACT};font-weight:600"` : ""}><i style="background:${CLS_COL[c]}"></i>${esc(D.classes[c])} ${pct(p)}${act === c ? " ← actual" : ""}</span>` : "").join("")}</div>
         <div class="seqs">${topSequences(S.cls).map(([s, p]) => `<div><b>${pct(S.cls === null ? p : p / (cp[S.cls] || 1))}</b>${esc(D.sequences[s])}</div>`).join("")}</div>`;
     } else {
       html += `<table class="t"><tr><th>Path</th><th>Unrecovered</th><th>Frozen if a filing lands at peak outstanding</th><th>Peak day</th></tr>
