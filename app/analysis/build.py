@@ -1,9 +1,10 @@
 """Build the analysis of a recorded investigation, and recompute it for the page's controls.
 
-`build` asks Jev for the conditional forecasts (cached; `refresh` re-asks), simulates, and writes the sidecar
-artifacts beside the recorded run: analysis.json, collections.csv and cashflows.csv. `recompute` reuses the stored
-judgments: a probability override reweights the existing trajectories, a financial control re-simulates with the same
-seeds; neither calls the agent or Jev.
+`build` asks Jev for the conditional forecasts (cached; `refresh` re-asks), simulates Slope's reusable line, and
+writes the sidecar artifacts beside the recorded run: analysis.json (views, lead-time series, the three-step
+attribution, judgment sensitivity, stress), collections.csv and cashflows.csv. `recompute` reuses the stored
+judgments: a probability override reweights the existing trajectories, a financial control (fee, line usage, limit
+multiplier, variability, ...) re-simulates with the same seeds; neither calls the agent or Jev.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
-from app.analysis.core import Analysis, EventModel, dates, parameter_sensitivity, stress
+from app.analysis.core import Analysis, EventModel, dates, stress
 from app.analysis.setup import Setup, setup_from_inputs
 from app.config import VAR, question_registry
 from app.disputes.forecast import DisputePath, Forecaster, Judgment
@@ -113,7 +114,8 @@ def _model_json(m: EventModel) -> dict:
             "paths": {i: {c: [{"steps": [list(s) for s in p.steps], "outcome": p.outcome,
                               "edges": [list(e) for e in p.edges], "cls": p.cls} for p in ps]
                           for c, ps in cl.items()} for i, cl in m.per.items()},
-            "order": [[d.instance_id, parent.instance_id if parent else None] for d, parent in m.order]}
+            "order": [[d.instance_id, parent.instance_id if parent else None] for d, parent in m.order],
+            "neutral": m.neutral}
 
 
 def model_from_json(data: dict) -> EventModel:
@@ -124,7 +126,7 @@ def model_from_json(data: dict) -> EventModel:
                                edges=tuple(tuple(e) for e in p["edges"]), cls=p["cls"]) for p in ps]
                for c, ps in cl.items()} for i, cl in data["paths"].items()}
     order = [(disputes[i], disputes[p] if p else None) for i, p in data["order"]]
-    return EventModel(disputes, judgments, per, order)
+    return EventModel(disputes, judgments, per, order, neutral=data.get("neutral"))
 
 
 def _sens_rows(a: Analysis, model: EventModel, overrides: dict | None) -> list[dict]:
@@ -139,7 +141,7 @@ def _sens_rows(a: Analysis, model: EventModel, overrides: dict | None) -> list[d
 
 
 def payload(feed: BankFeed, setup: Setup, model: EventModel, meta: dict, overrides: dict | None = None,
-            with_parameters: bool = True, analysis: Analysis | None = None, stressed: list | None = None) -> dict:
+            analysis: Analysis | None = None, stressed: list | None = None) -> dict:
     a = analysis or Analysis(feed, setup, model)
     views = a.views(overrides)
     b, e = views["bank_only"]["metrics"], views["event_adjusted"]["metrics"]
@@ -149,13 +151,17 @@ def payload(feed: BankFeed, setup: Setup, model: EventModel, meta: dict, overrid
                   "invoice_cents": setup.invoice_cents, "amount_cents": setup.amount_cents, "fee_bps": setup.fee_bps,
                   "installments": setup.installments, "days": setup.days, "discount_rate_bps": setup.discount_rate_bps,
                   "exposure_scale": setup.exposure_scale, "collateral_share": setup.collateral_share,
-                  "variability": setup.variability, "draws": len(a.ops),
+                  "variability": setup.variability, "draws": a.ops.draws,
+                  "line": {"limit_share_bps": setup.limit_share_bps, "limit_multiplier": setup.limit_multiplier,
+                           "effective_share_bps": setup.share_bps, "line_usage": setup.line_usage,
+                           "limit_at_review_cents": int(a.line.limit[0, 0]), "fee_bps": setup.fee_bps,
+                           "installments": setup.installments, "facility_cents": setup.facility_cents},
                   "schedule": [{"due": p.due.isoformat(), "amount_cents": p.amount_cents, "principal_cents": p.principal_cents,
                                 "fee_cents": p.fee_cents} for p in setup.offer.schedule(setup.funding)] if setup.amount_cents else []},
-        "dates": dates(setup), "views": views, "delta": {k: e[k] - b[k] for k in b},
+        "dates": dates(setup), "views": views, "delta": {k: e[k] - b[k] for k in b if isinstance(b[k], float) and isinstance(e[k], float)},
         "scenarios": a.scenarios(overrides),
-        "sensitivity": {"judgments": _sens_rows(a, model, overrides),
-                        "parameters": parameter_sensitivity(feed, setup, model, overrides) if with_parameters else []},
+        "attribution": a.attribution(overrides),
+        "sensitivity": {"judgments": _sens_rows(a, model, overrides)},
         "stress": stressed if stressed is not None else stress(feed, setup, model, overrides),
         "overrides": overrides or {}, **meta,
     }
@@ -228,12 +234,14 @@ def build(run_id: str, root: Path, refresh: bool = False) -> dict:
 
 def write_csv(data: dict, out: Path) -> None:
     ds, v = data["dates"], data["views"]
-    rows = ["date,view,contractual_cumulative_cents,collected_expected_cumulative_cents,collected_p5_cents,"
-            "collected_p50_cents,collected_p95_cents,outstanding_principal_expected_cents"]
+    rows = ["date,view,drawn_expected_cumulative_cents,contractual_due_expected_cumulative_cents,"
+            "collected_expected_cumulative_cents,collected_p5_cents,collected_p50_cents,collected_p95_cents,"
+            "outstanding_principal_expected_cents,limit_expected_cents,limit_p5_cents,petition_cumulative_p"]
     for view in ("bank_only", "event_adjusted"):
         d = v[view]["daily"]
-        rows += [f"{ds[t]},{view},{d['contractual'][t]},{d['collected_mean'][t]},{d['collected_p5'][t]},"
-                 f"{d['collected_p50'][t]},{d['collected_p95'][t]},{d['outstanding_mean'][t]}" for t in range(len(ds))]
+        rows += [f"{ds[t]},{view},{d['drawn_mean'][t]},{d['contractual'][t]},{d['collected_mean'][t]},"
+                 f"{d['collected_p5'][t]},{d['collected_p50'][t]},{d['collected_p95'][t]},{d['outstanding_mean'][t]},"
+                 f"{d['limit_mean'][t]},{d['limit_p5'][t]},{d['petition_cum_p'][t]:.6f}" for t in range(len(ds))]
     (out / "collections.csv").write_text("\n".join(rows) + "\n")
     rows = ["date,view,available_cash_expected_cents,available_cash_p5_cents,available_cash_p50_cents,"
             "available_cash_p95_cents,cash_locked_expected_cents,credit_capacity_committed_expected_cents"]
@@ -282,9 +290,7 @@ def recompute(path: Path, controls: dict, overrides: dict | None) -> dict:
         _ANALYSES[key] = (Analysis(feed, setup, model), None)
     a, _ = _ANALYSES[key]
     meta = {k: data[k] for k in ("borrower", "probability_label", "disputes", "not_modelled", "judgments")}
-    out = payload(feed, setup, model, meta, clean, with_parameters=False, analysis=a,
-                  stressed=stress(feed, setup, model, clean))
-    out["sensitivity"]["parameters"] = data["sensitivity"]["parameters"]  # computed once at build, for the base setup
+    out = payload(feed, setup, model, meta, clean, analysis=a, stressed=stress(feed, setup, model, clean))
     out["run_id"] = data.get("run_id")
     return out
 
