@@ -808,16 +808,26 @@ class _Walk:
         h3 = self.node("holders_involuntary", f"judgment_{phase}", s=s, probe=probe,
                        assumptions=("the notes are accelerated and unpaid", "the issuer does not file"))
         keys = (h1, a5, h3)
-        for branch, parts in (("yes", [[(h1, "yes"), (a5, "yes")]]),  # the issuer files on acceleration
-                              ("holders_file", [[(h1, "yes"), (a5, "no"), (h3, "yes")]])):  # the holders, per §7.06
+        classes = {"yes": [[(h1, "yes"), (a5, "yes")]],  # the issuer files on acceleration
+                   "holders_file": [[(h1, "yes"), (a5, "no"), (h3, "yes")]],  # the holders file, per §7.06
+                   "accelerated": [[(h1, "yes"), (a5, "no"), (h3, "no")]]}
+        for branch, parts in self.unfiled(s, "judgment_default", phase, classes,
+                                          (("holders_file", "accelerated"),)).items():
             y = self.take(s, ("judgment_default", phase, branch), (composite(parts), "yes"), keys, notes_due=True)
-            if (self.fc.trace(self.d, y.steps).petition >= 0).all():  # a petition on every trajectory
-                self.floor(y, "petition")
+            if branch != "accelerated" and (self.fc.trace(self.d, y.steps).petition >= 0).all():
+                self.floor(y, "petition")  # a petition on every trajectory
             else:
                 then(y)
-        then(self.take(s, ("judgment_default", phase, "accelerated"),
-                       (composite([[(h1, "yes"), (a5, "no"), (h3, "no")]]), "yes"), keys, notes_due=True))
         then(self.take(s, probe, (composite([[(h1, "no")]]), "yes"), keys))
+
+    def unfiled(self, s: _S, node: str, ctx: str, classes: dict, pairs) -> dict:
+        """A holders' petition that falls after the period on every trajectory books nothing: its class joins the
+        class in which nobody files (the two are identical in cash, dates and state)."""
+        for filed, none in pairs:
+            if filed in classes and none in classes and self.fc.trace(self.d, s.steps + ((node, ctx, filed),)).digest \
+                    == self.fc.trace(self.d, s.steps + ((node, ctx, none),)).digest:
+                classes[none] = classes.pop(filed) + classes[none]
+        return classes
 
     def ripe_i1(self, s: _S) -> None:
         self.notes_petition(s, "I1", self.ruling)
@@ -964,6 +974,8 @@ class _Walk:
         else:  # the repurchase date falls after the horizon: requiring it moves nothing inside it
             none.append([(h2, "repurchase_only")])
         classes["none"] = none
+        classes = self.unfiled(s, "delisting_notes", dc, classes, (("petition_delist_holders", "accelerated"),
+                                                                   ("petition_repurchase_holders", "repurchase_unpaid")))
         for c, parts in classes.items():
             y = self.take(s, ("delisting_notes", dc, c), (composite(parts), "yes"), keys,
                           notes_due=c != "none")

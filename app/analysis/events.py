@@ -743,8 +743,30 @@ class Chain:
         return tr
 
     def trigger_days(self) -> dict[str, np.ndarray]:
-        """The dated contract and rule triggers on this path (TRIGGERS), per draw; BIG where none."""
-        return {k: np.full(self.n, BIG, dtype=np.int64) for k in TRIGGERS}
+        """The dated contract and rule triggers on this path (TRIGGERS), per draw, as the engine computes them at the
+        end of the traced steps; BIG where none (or outside the period)."""
+        never = np.full(self.n, BIG, dtype=np.int64)
+        out = {k: never.copy() for k in TRIGGERS}
+        inside = lambda x: np.where((x >= 0) & (x < self.N), x, BIG).astype(np.int64)  # noqa: E731
+        f = self.fin
+        if self.d is not None:
+            out["appeal_deadline"] = inside(self.AD)
+            if f is not None and f.judgment_default_days:
+                for key, ctx in (("judgment_default_entered", "I1"), ("judgment_default_ruling", "post")):
+                    ripe, cond = self.judgment_default(ctx)
+                    out[key] = inside(np.where(cond, ripe, BIG))
+        if f is not None:
+            if f.coupon_cents and f.interest_dates:
+                pay = min(self.ix(next_business_day(x)) for x in f.interest_dates)
+                out["coupon"] = inside(np.full(self.n, pay))
+            if f.listing_deadline is not None:
+                out["listing_deadline"] = inside(np.full(self.n, self.ix(f.listing_deadline)))
+            if f.repurchase_business_days and (self.delisted < self.N).any():
+                rep = never.copy()
+                rep[self.delisted < self.N] = self.repurchase_day(self.delisted[self.delisted < self.N])
+                out["repurchase_due"] = inside(rep)
+        return out
+
 
 def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws,
                 sens: dict | None = None) -> Trace:

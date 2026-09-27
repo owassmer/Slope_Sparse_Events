@@ -260,3 +260,25 @@ def test_an_acceleration_before_the_vote_call_ends_the_listing_chain_and_a_due_n
     due = np.arange(DRAWS) % 2 == 0
     assert (day[due] >= 10**6).all() and (later.ev.petition[due] == -1).all()
     assert (later.ev.petition[~due] == dates["delisted_suspension"]).all()
+
+
+# Dated triggers -----------------------------------------------------------------------------------------------------
+
+def test_the_trace_carries_the_dated_triggers_the_engine_computes(base):
+    m = load_model()
+    c = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]))
+    tr = c.run((("execute_pre_ruling", "I1", "no"),) + POST[:-1])
+    g, n = tr.triggers, c.N
+    ix = lambda d: (d - REVIEW).days - 1  # noqa: E731
+    assert set(g) == {"judgment_default_entered", "judgment_default_ruling", "appeal_deadline", "coupon",
+                      "listing_deadline", "repurchase_due"}
+    assert (g["coupon"] == ix(date(2024, 12, 16))).all() and (g["listing_deadline"] == ix(date(2024, 10, 21))).all()
+    assert (g["judgment_default_entered"] == ix(date(2024, 8, 19))).all()
+    ad = np.where(c.AD < n, c.AD, 10**6)
+    assert (g["appeal_deadline"] == ad).all()
+    ruling = g["judgment_default_ruling"]
+    assert (ruling < n).any() and (ruling[ruling < n] == c.A[ruling < n] + 60).all()
+    assert (g["repurchase_due"] >= 10**6).all()  # no delisting on this path
+    fc = forecaster(base, [judgment()])
+    assert set(fc.bank_trace(()).triggers) == set(g) and (fc.bank_trace(()).triggers["coupon"] == g["coupon"]).all()
+    assert (fc.bank_trace(()).triggers["appeal_deadline"] >= 10**6).all()  # bank facts only
