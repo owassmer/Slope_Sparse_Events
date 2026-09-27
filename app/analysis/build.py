@@ -202,7 +202,7 @@ def _load_run(run_id: str, root: Path):
     return store, meta, inputs, evidence, review
 
 
-def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh: bool) -> dict[str, list[str]]:
+def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh: bool) -> dict:
     """Which accepted findings supply each record item (app/disputes/slots.py), read once per run and kept beside
     it in slots.json; its own Jev adapter and budget."""
     from app.agent.jev import JevAdapter
@@ -210,15 +210,16 @@ def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh:
     from app.disputes.slots import load, match, record_items
 
     path = root / run_id / "slots.json"
-    items = record_items(load_model())
+    nodes = record_items(load_model())
     kept = load(path)
-    if kept is not None and set(kept) == set(items) and not refresh:
+    if kept is not None and {n: list(v) for n, v in kept.items()} == {n: s["items"] for n, s in nodes.items()} \
+            and not refresh:
         return kept
     jev = JevAdapter(run_id=f"{run_id}-slots", use_cache=not refresh, max_attempts=3000)
-    out = asyncio.run(match(findings, hydrate, items, jev))
+    out = asyncio.run(match(findings, hydrate, nodes, jev))
     path.write_text(json.dumps(out, indent=1) + "\n")
-    print("record items:", sum(1 for v in out.values() if v), "of", len(items), "in the record; Jev",
-          jev.usage_summary())
+    pairs = [v for items in out.values() for v in items.values()]
+    print("record items:", sum(1 for v in pairs if v), "of", len(pairs), "in the record; Jev", jev.usage_summary())
     return out
 
 

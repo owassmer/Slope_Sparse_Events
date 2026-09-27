@@ -263,7 +263,7 @@ MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "pate
 class Forecaster:
     def __init__(self, disputes: list[DisputeInstance], findings: dict[str, AtomicFinding], *, borrower: str,
                  review: date, horizon: date, hydrate: Callable[[AtomicFinding], dict], model: dict | None = None,
-                 setup=None, basis=None, sens: dict | None = None, slots: dict[str, list[str]] | None = None) -> None:
+                 setup=None, basis=None, sens: dict | None = None, slots: dict[str, dict[str, list[str]]] | None = None) -> None:
         from app.analysis.events import Draws
 
         self.m = model or load_model()
@@ -271,7 +271,7 @@ class Forecaster:
         self.disputes = [d for d in disputes if d.status == "interpreted"]
         self.findings, self.borrower, self.review, self.horizon, self.hydrate = findings, borrower, review, horizon, hydrate
         self.setup, self.sens = setup, sens or {}
-        self.slots = slots or {}  # record item -> the accepted findings that supply it (app/disputes/slots.py)
+        self.slots = slots or {}  # node -> record item -> the accepted findings that supply it (app/disputes/slots.py)
         self.days = (horizon - review).days
         self.draws = Draws(basis.cash.shape[0], basis=basis) if basis is not None else None
         self.reach = int(basis.cash.max()) if basis is not None else None  # no trajectory holds more cash than this
@@ -528,7 +528,7 @@ class Forecaster:
         items = self.spec[node]["record_items"]
         supplies: dict[str, list[str]] = {}
         for item in items:
-            for fid in self.slots.get(item, []):
+            for fid in self.slots.get(node, {}).get(item, []):
                 if fid in self.findings:
                     supplies.setdefault(fid, []).append(item)
         evidence = [{**self.hydrate(self.findings[fid]), "supplies": its} for fid, its in supplies.items()]

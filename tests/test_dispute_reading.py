@@ -114,7 +114,7 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     barred = next(f for f in d.factors if f.factor_id == "appeal_barred")
     assert barred.probability == 0.9 and barred.level_label == "established"
 
-    fc = forecaster(d, fs, slots={"appeal waivers": ["a"], "settlement statements": ["b"]})
+    fc = forecaster(d, fs, slots={"appeal": {"appeal waivers": ["a"]}, "settlement_offer": {"settlement statements": ["b"]}})
     paths = fc.all_paths()[d.instance_id][""]
     assert any(("appeal", "", "yes") in p.steps for p in paths)  # the waiver is evidence, not a pruned branch
     appeal = next(n for n in fc.nodes.values() if n.node == "appeal")

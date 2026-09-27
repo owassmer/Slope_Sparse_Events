@@ -1,0 +1,152 @@
+{
+ "ts_liability_jmol": {
+  "the renewed motion's public grounds": [],
+  "the verdict form": [],
+  "public trial exhibits": []
+ },
+ "ts_damages_ruling": {
+  "the new-trial and remittitur motion's public grounds": [
+   "fnd_006"
+  ],
+  "the damages evidence it cites": []
+ },
+ "remittitur_accepted": {
+  "the creditor's statements on the verdict and the damages record": [
+   "fnd_017"
+  ]
+ },
+ "patent_jmol": {
+  "the patent grounds in the post-trial motion": [
+   "fnd_006"
+  ]
+ },
+ "trebling": {
+  "the trebling motion": [
+   "fnd_003"
+  ],
+  "the verdict form's answer on that claim": [],
+  "prior orders on the claim": []
+ },
+ "fees_awarded": {
+  "the fee motion": [
+   "fnd_005",
+   "fnd_021"
+  ],
+  "the willful-and-malicious finding": [
+   "fnd_001",
+   "fnd_008",
+   "fnd_009",
+   "fnd_017"
+  ]
+ },
+ "prejudgment_interest": {
+  "the public docket entry for the interest motion": [
+   "fnd_020",
+   "fnd_021"
+  ],
+  "the verdict form's designation of the award": [],
+  "the parties' public positions on whether unjust-enrichment damages are compensatory": []
+ },
+ "execute_pre_ruling": {
+  "the creditor's statements on enforcement": [
+   "fnd_017"
+  ],
+  "the debtor's statements on resisting or satisfying the judgment": [
+   "fnd_008",
+   "fnd_009",
+   "fnd_018"
+  ]
+ },
+ "stay_motion": {
+  "the debtor's statements on the judgment and its liquidity": [
+   "fnd_008",
+   "fnd_009",
+   "fnd_014"
+  ]
+ },
+ "stay_approved": {
+  "the stay motion and the security it offers": [],
+  "the debtor's financial condition and its ability to pay the judgment": [
+   "fnd_008",
+   "fnd_009",
+   "fnd_014"
+  ]
+ },
+ "registration_early": {
+  "where the debtor's operating assets and cash sit": []
+ },
+ "debtor_response": {
+  "the debtor's stated options: equity, debt, asset financing, collaborations or licensing, a sale or strategic transaction, restructuring or insolvency": [
+   "fnd_014"
+  ]
+ },
+ "appeal": {
+  "statements of appeal intent": [
+   "fnd_008"
+  ],
+  "appeal waivers": []
+ },
+ "enforce_after_final": {
+  "the creditor's statements on enforcement": [
+   "fnd_017"
+  ]
+ },
+ "settlement_offer": {
+  "settlement statements": [],
+  "mediation orders": []
+ },
+ "settlement_accept": {
+  "settlement statements": [],
+  "the creditor's statements on the judgment": []
+ },
+ "holders_act_judgment": {
+  "the indenture's default and acceleration terms": [
+   "fnd_010",
+   "fnd_011",
+   "fnd_022"
+  ],
+  "holder statements": []
+ },
+ "holders_act_delisting": {
+  "the indenture's listing, acceleration and repurchase terms": [
+   "fnd_012"
+  ]
+ },
+ "petition_on_notes": {
+  "the issuer's stated options": [
+   "fnd_008",
+   "fnd_009",
+   "fnd_014"
+  ]
+ },
+ "holders_involuntary": {
+  "the holders' public statements": []
+ },
+ "reverse_split_board": {
+  "deficiency notices": [
+   "fnd_013"
+  ],
+  "prior vote history": []
+ },
+ "split_approved": {
+  "prior votes and the standard applied": []
+ },
+ "nasdaq_hearing": {
+  "deficiency notices": [
+   "fnd_013"
+  ]
+ },
+ "panel_exception": {
+  "the issuer's compliance plan": []
+ },
+ "petition_cash_floor": {
+  "the company's going-concern and liquidity statements": [
+   "fnd_014"
+  ]
+ },
+ "petition_cash_out": {
+  "the company's going-concern and liquidity statements": [
+   "fnd_014"
+  ]
+ }
+}

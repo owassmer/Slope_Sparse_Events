@@ -1887,11 +1887,12 @@
       "primitive": "noul",
       "question": "Does this passage supply this record item?",
       "state_fields": [
+        "decision",
         "record_item",
         "passage"
       ],
       "prompt": {
-        "instructions": "state.passage is a passage from the record, with its source, date and surrounding text. state.record_item names one item of the record that a decision rests on. Judge whether the passage supplies that item.",
+        "instructions": "state.passage is a passage from the record, with its source, date and surrounding text. state.decision is one actor's decision, and state.record_item names one item of the record that decision rests on. Judge whether the passage supplies that item for that decision.",
         "criteria_from_host": true,
         "criteria": {}
       },
