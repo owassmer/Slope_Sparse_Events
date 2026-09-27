@@ -116,7 +116,9 @@ def test_every_merged_ruling_class_is_cash_and_date_identical_and_jev_gets_its_r
             if facts.get("amount_owed_at_decision"):  # the class's range of judgments, beside the amount owed
                 lo, hi = fc.class_range[label]
                 assert lo != hi and facts["judgment_after_ruling"] == f"{usd(lo)} to {usd(hi)}"
-                assert "p50" in facts["amount_owed_at_decision"]
+                assert "p50" in facts["amount_owed_at_decision"] and "basis" in facts["amount_owed_at_decision"]
+            if label not in fc.remit_classes:  # the remittitur scenario only where every outcome is remitted
+                assert "remittitur_scenario" not in str(facts["components"])
 
 
 def test_path_facts_pool_only_trajectories_where_the_situation_holds(full):

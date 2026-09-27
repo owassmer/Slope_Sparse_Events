@@ -299,7 +299,7 @@ class Forecaster:
         self.reach = int(basis.cash.max()) if basis is not None else None  # no trajectory holds more cash than this
         self.class_members: dict[str, list[tuple[int, int]]] = {}  # ruling class -> (total, fees) of each outcome
         self.class_range: dict[str, tuple[int, int]] = {}  # merged amount class label -> (min, max) judgment
-        self.remit_classes: set[str] = set()  # amount class labels holding a remitted, accepted outcome
+        self.remit_classes: set[str] = set()  # amount class labels whose outcomes are all remitted and accepted
         self.nodes: dict[str, Node] = {}
         self.facts: dict[str, list] = {}  # node key -> the rows `record` keeps, one per path that asks it
         self._traces: dict = {}
@@ -434,7 +434,7 @@ class Forecaster:
         entered = entered_cents(d)
         classes: dict[str, list] = {}
         members: dict[str, list[tuple[int, int]]] = {}
-        remitted: set = set()
+        remitted: dict = {}  # class -> whether each of its outcomes is a remitted amount the creditor accepted
         for atoms_, o in leaves:
             a = ruling_amounts(d, o, self.m)
             total = sum(a.values())
@@ -449,8 +449,7 @@ class Forecaster:
             c = (c, retrial)
             classes.setdefault(c, []).append(atoms_)
             members.setdefault(c, []).append((total, a["fees"]))
-            if o.get("remittitur") == "accept":
-                remitted.add(c)
+            remitted.setdefault(c, []).append(o.get("remittitur") == "accept")
         out = {}
         for (c0, retrial), parts in classes.items():
             c = (c0, retrial)
@@ -459,7 +458,7 @@ class Forecaster:
             label = ("retrial" if label == "none" else f"{label}:retrial") if retrial else label
             out[label] = parts
             self.class_members[label] = members[c]
-            if c in remitted:
+            if all(remitted[c]):
                 self.remit_classes.add(_label(label))
             if c0.startswith("beyond"):  # what Jev is told: the class's range, never one figure
                 self.class_range[_label(label)] = (lo[0], max(members[c])[0])
@@ -528,6 +527,8 @@ class Forecaster:
         merged = next((self.class_range[c] for c in n.context.split("|") if c in self.class_range), None)
         if merged is not None:  # a merged class: the range of its judgment amounts, beside the amount owed
             facts["judgment_after_ruling"] = f"{usd(merged[0])} to {usd(merged[1])}"
+            facts["amount_owed_at_decision"]["basis"] = ("the lowest judgment in that range, with post-judgment "
+                                                         "interest, less any amount collected")
         if reg.get("node") in ("stay_motion", "stay_approved"):
             facts["bond_collateral_required"] = usd(int(np.quantile(self._collateral(d, owed), 0.5)))
         if n.node == "stay_approved" and (offer := self._pooled(rows, masks, "stay_offer")) is not None:
