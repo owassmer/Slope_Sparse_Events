@@ -7,7 +7,7 @@ import pytest
 from akoustis_fixture import REVIEW, SETUP, basis, judgment
 
 from app.analysis import events
-from app.disputes.forecast import TRIGGER_PHRASES, Forecaster
+from app.disputes.forecast import TRIGGER_PHRASES, Forecaster, bank_state
 
 BORROWER = "Akoustis Technologies, Inc."
 
@@ -43,3 +43,22 @@ def test_every_dated_trigger_the_engine_computes_reads_in_plain_words():
     assert names <= set(TRIGGER_PHRASES)
     assert "§7.06" in TRIGGER_PHRASES["holders_petition_earliest"]
     assert not any(k in json.dumps(list(TRIGGER_PHRASES.values())) for k in ("_", "BIG"))
+
+
+def test_the_bank_and_research_cash_floor_questions_differ_only_in_research_facts(base):
+    d = judgment()
+    fc = forecaster(base, [d])
+    fc.bank_paths()
+    probe = (("execute_pre_ruling", "I1", "no"), ("cash_floor", "", "no"))
+    k = fc.node(d, "petition_cash_floor")
+    fc.record((k,), fc.trace(d, probe))
+    research, _, _ = fc.state(fc.nodes[k])
+    bank = bank_state(fc, next(n for n in fc.bank_nodes.values() if n.node == "petition_cash_floor"))
+    assert bank["standard"] == research["standard"] and "§362(a)" in bank["standard"][0]
+    assert bank["question"]["timing"] == research["question"]["timing"]
+    assert bank["case"]["analysis_period_ends"] == research["case"]["analysis_period_ends"] == "17 Dec 2024"
+    coupon = "the notes' interest payment date"
+    assert bank["path_facts"]["contract_dates"] == {coupon: research["path_facts"]["contract_dates"][coupon]}
+    assert bank["path_facts"]["contract_dates"][coupon] == (
+        "16 Dec 2024: $1,320,000.00 due, $750,000.00 of it paid in cash and $570,000.00 in shares")
+    assert not bank["evidence"] and not bank["record_items"] and not bank["readings"]

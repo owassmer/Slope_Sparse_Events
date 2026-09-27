@@ -85,12 +85,13 @@ def test_the_bank_questions_carry_bank_facts_only(base):
     fc, _ = bank_model(base, np.random.default_rng(1), disputes=[judgment()])
     for n in fc.bank_nodes.values():
         st = bank_state(fc, n)
-        assert st["case"] == {"as_of": st["case"]["as_of"], "company": "the company"}  # by role: no remembered facts
+        assert st["case"]["company"] == "the company"  # by role: no remembered facts
         assert set(st["path_facts"]) == {"decision_date", "projected_available_cash_at_decision_date",
-                                         "operating_need_30_days_at_decision"}
-        assert not st["evidence"] and not st["record_items"] and not st["readings"] and not st["standard"]
+                                         "operating_need_30_days_at_decision", "contract_dates"}
+        assert set(st["path_facts"]["contract_dates"]) == {"the notes' interest payment date"}  # a common input
+        assert not st["evidence"] and not st["record_items"] and not st["readings"]
         text = json.dumps(st).lower()
-        for word in ("judgment", "qorvo", "notes", "nasdaq", "listing", "default", "indenture"):
+        for word in ("judgment", "qorvo", "nasdaq", "listing", "default", "indenture"):
             assert word not in text, (n.key, word)
 
 
