@@ -10,6 +10,7 @@ multiplier, variability, ...) re-simulates with the same seeds; neither calls th
 from __future__ import annotations
 
 import asyncio
+import gzip
 import json
 import re
 from dataclasses import asdict
@@ -288,7 +289,9 @@ def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -
     if rc:
         attach_recall(data, rc)
     out = root / run_id
-    (out / "analysis.json").write_text(json.dumps(data, indent=1, default=str) + "\n")
+    text = json.dumps(data, indent=1, default=str) + "\n"
+    (out / "analysis.json").write_text(text)
+    (out / "analysis.json.gz").write_bytes(gzip.compress(text.encode(), mtime=0))  # committed; analysis.json is not
     write_csv(data, out)
     scratch = VAR / "analysis" / run_id
     scratch.mkdir(parents=True, exist_ok=True)
@@ -332,6 +335,15 @@ def save_page_state(run_id: str, state: dict) -> None:
     path.write_bytes(pickle.dumps(state, protocol=pickle.HIGHEST_PROTOCOL))
 
 
+def read_analysis(run_dir: Path) -> dict | None:
+    """The run's analysis: analysis.json where `slope analyze` ran here, else the committed analysis.json.gz."""
+    if (run_dir / "analysis.json").exists():
+        return json.loads((run_dir / "analysis.json").read_text())
+    if (run_dir / "analysis.json.gz").exists():
+        return json.loads(gzip.decompress((run_dir / "analysis.json.gz").read_bytes()))
+    return None
+
+
 def load_page_state(run_dir: Path) -> dict:
     """The run page's reweight state: from var/ if `slope analyze` ran here, else rebuilt once from the run's
     analysis.json and page.json (the same judgments, seeds and trajectories; no agent or Jev call)."""
@@ -342,7 +354,7 @@ def load_page_state(run_dir: Path) -> dict:
     path = page_state_path(run_dir.name)
     if path.exists():
         return pickle.loads(path.read_bytes())
-    data = json.loads((run_dir / "analysis.json").read_text())
+    data = read_analysis(run_dir)
     p = json.loads((run_dir / "page.json").read_text())
     model, setup = model_from_json(data["model"]), setup_from_json(data["base_setup"])
     a = Analysis(load_feed(data["snapshot_id"]), setup, model)

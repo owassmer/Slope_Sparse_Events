@@ -1,151 +1,154 @@
 {
  "ts_liability_jmol": {
-  "the renewed motion's public grounds": [],
-  "the verdict form": [],
-  "public trial exhibits": []
+  "the public grounds of the renewed motion for judgment as a matter of law on trade-secret liability": [],
+  "the verdict form's answers on trade-secret misappropriation": [],
+  "public trial exhibits on trade-secret liability": []
  },
  "ts_damages_ruling": {
-  "the new-trial and remittitur motion's public grounds": [
+  "the public grounds of the motion for a new trial or remittitur of the trade-secret damages": [
    "fnd_006"
   ],
-  "the damages evidence it cites": []
+  "the trial evidence on the amount of trade-secret damages that the motion cites": []
  },
  "remittitur_accepted": {
-  "the creditor's statements on the verdict and the damages record": [
+  "the judgment creditor's public statements on the damages award": [
    "fnd_017"
   ]
  },
  "patent_jmol": {
-  "the patent grounds in the post-trial motion": [
+  "the public grounds on which the post-trial motions ask the court to set aside the patent verdict or its damages": [
    "fnd_006"
   ]
  },
  "trebling": {
-  "the trebling motion": [
+  "the judgment creditor's motion to treble the trade-secret damages under the unfair-trade-practices statute": [
    "fnd_003"
   ],
-  "the verdict form's answer on that claim": [],
-  "prior orders on the claim": []
+  "the jury's answer on the unfair-trade-practices claim, as the verdict form or a motion to amend the verdict states it": [],
+  "the court's earlier orders on unfair-trade-practices damages": []
  },
  "fees_awarded": {
-  "the fee motion": [
-   "fnd_005",
-   "fnd_021"
+  "the judgment creditor's motion for attorneys' fees and its stated grounds": [
+   "fnd_005"
   ],
-  "the willful-and-malicious finding": [
+  "the statement of the jury's finding that the trade-secret misappropriation was willful and malicious": [
    "fnd_001",
-   "fnd_008",
-   "fnd_009",
    "fnd_017"
   ]
  },
  "prejudgment_interest": {
-  "the public docket entry for the interest motion": [
+  "the docket entry for the judgment creditor's motion for pre-judgment and post-judgment interest": [
    "fnd_020",
    "fnd_021"
   ],
-  "the verdict form's designation of the award": [],
+  "the verdict form's designation of the trade-secret award as compensatory damages or unjust enrichment": [
+   "fnd_001",
+   "fnd_003"
+  ],
   "the parties' public positions on whether unjust-enrichment damages are compensatory": []
  },
  "execute_pre_ruling": {
-  "the creditor's statements on enforcement": [
+  "the judgment creditor's public statements on collecting or enforcing the judgment": [
    "fnd_017"
   ],
-  "the debtor's statements on resisting or satisfying the judgment": [
+  "the company's statements on contesting, paying or settling the judgment": [
+   "fnd_002",
+   "fnd_006",
    "fnd_008",
-   "fnd_009",
-   "fnd_018"
+   "fnd_009"
   ]
  },
  "stay_motion": {
-  "the debtor's statements on the judgment and its liquidity": [
+  "the company's statements on the judgment, its cash and its ability to pay the judgment": [
    "fnd_008",
    "fnd_009",
    "fnd_014"
   ]
  },
  "stay_approved": {
-  "the stay motion and the security it offers": [],
-  "the debtor's financial condition and its ability to pay the judgment": [
+  "the company's stay motion and the security it offers": [],
+  "the company's statements on its cash, its going-concern status and its ability to pay the judgment": [
    "fnd_008",
    "fnd_009",
    "fnd_014"
   ]
  },
  "registration_early": {
-  "where the debtor's operating assets and cash sit": []
+  "where the company's operating assets, facilities and cash are located": []
  },
  "debtor_response": {
-  "the debtor's stated options: equity, debt, asset financing, collaborations or licensing, a sale or strategic transaction, restructuring or insolvency": [
+  "the company's statements of the options it has to fund its operations and obligations: equity, debt, asset financing, collaborations or licensing, a sale or strategic transaction, restructuring or insolvency": [
    "fnd_014"
   ]
  },
  "appeal": {
-  "statements of appeal intent": [
+  "the company's statements on whether it will appeal the judgment": [
    "fnd_008"
   ],
-  "appeal waivers": []
+  "any waiver of the right to appeal the judgment": []
  },
  "enforce_after_final": {
-  "the creditor's statements on enforcement": [
+  "the judgment creditor's public statements on collecting or enforcing the judgment": [
    "fnd_017"
   ]
  },
  "settlement_offer": {
-  "settlement statements": [],
-  "mediation orders": []
+  "the company's statements on reaching a settlement with the judgment creditor": [],
+  "court orders referring the case to mediation": []
  },
  "settlement_accept": {
-  "settlement statements": [],
-  "the creditor's statements on the judgment": []
+  "the company's statements on reaching a settlement with the judgment creditor": [],
+  "the judgment creditor's public statements on the judgment and the verdict": [
+   "fnd_017"
+  ]
  },
  "holders_act_judgment": {
-  "the indenture's default and acceleration terms": [
+  "the indenture's judgment default, notice and acceleration terms": [
    "fnd_010",
-   "fnd_011",
    "fnd_022"
   ],
-  "holder statements": []
+  "public statements by holders of the notes": []
  },
  "holders_act_delisting": {
-  "the indenture's listing, acceleration and repurchase terms": [
+  "the indenture's listing default, acceleration and repurchase terms": [
    "fnd_012"
   ]
  },
  "petition_on_notes": {
-  "the issuer's stated options": [
+  "the issuer's statements on its financing options and on seeking bankruptcy protection": [
    "fnd_008",
-   "fnd_009",
    "fnd_014"
   ]
  },
  "holders_involuntary": {
-  "the holders' public statements": []
+  "public statements by holders of the notes": []
  },
  "reverse_split_board": {
-  "deficiency notices": [
+  "Nasdaq's minimum bid price deficiency notices and the compliance deadline they set": [
    "fnd_013"
   ],
-  "prior vote history": []
+  "the results of earlier stockholder votes on reverse splits or share authorizations": []
  },
  "split_approved": {
-  "prior votes and the standard applied": []
+  "the results of earlier stockholder votes and the vote required to approve a reverse split": []
  },
  "nasdaq_hearing": {
-  "deficiency notices": [
+  "Nasdaq's minimum bid price deficiency notices and the compliance deadline they set": [
    "fnd_013"
   ]
  },
  "panel_exception": {
-  "the issuer's compliance plan": []
+  "the issuer's stated plan to regain compliance with Nasdaq's listing rules": [
+   "fnd_013"
+  ]
  },
  "petition_cash_floor": {
-  "the company's going-concern and liquidity statements": [
+  "the company's statements on its cash, its going-concern status and its plans if its cash runs short": [
    "fnd_014"
   ]
  },
  "petition_cash_out": {
-  "the company's going-concern and liquidity statements": [
+  "the company's statements on its cash, its going-concern status and its plans if its cash runs short": [
    "fnd_014"
   ]
  }

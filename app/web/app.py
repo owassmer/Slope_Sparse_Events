@@ -71,10 +71,11 @@ def investigation_page(request: Request, run_id: str) -> HTMLResponse:
 
 @app.get("/runs/{run_id}/analysis")
 def get_analysis(run_id: str) -> JSONResponse:
-    path = _run_dir(run_id) / "analysis.json"
-    if not path.exists():
+    from app.analysis.build import read_analysis
+
+    data = read_analysis(_run_dir(run_id))
+    if data is None:
         raise HTTPException(404, "This run has no analysis; run `slope analyze --run <id>`")
-    data = json.loads(path.read_text())
     data.pop("model", None)
     return JSONResponse(data)
 
