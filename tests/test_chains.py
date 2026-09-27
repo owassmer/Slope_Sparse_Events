@@ -624,6 +624,28 @@ def test_settlement_stay_and_contract_date_facts_state_what_the_chain_computes(f
         fc.facts = saved
 
 
+def test_the_settled_share_counts_only_draws_that_paid_a_settlement(full, base):
+    """A 'settles' branch books nothing on a draw where the settlement amount is zero; that draw is classed by what
+    the engine booked (Unresolved here), so a path's Settled share is the share of its draws with a positive
+    settlement paid and no petition in the period, and the Filed shares still sum to its chance of a filing."""
+    from app.analysis.page import CAUSE_CLASS, outcome_shares
+
+    _, paths = full
+    b = base[1]
+    settles = [p for p in paths if any(s[0] == "settle" and s[2] == "yes" for s in p.steps)]
+    zero = 0
+    for p in settles[:: max(1, len(settles) // 150)]:
+        tr = Chain(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b)).run(p.steps)
+        pet = float((tr.cause > 0).mean())
+        sh = outcome_shares(p.steps, p.outcome, pet, tr.cause, tr.marks, N)
+        paid = (tr.marks["settled"] < N) & (tr.cause == 0)
+        assert sh.get("settled", 0.0) == pytest.approx(paid.mean(), abs=1e-12)
+        assert sum(sh.get(c, 0.0) for c in CAUSE_CLASS.values()) == pytest.approx(pet, abs=1e-12)
+        assert sum(sh.values()) == pytest.approx(1.0, abs=1e-12)
+        zero += int(((tr.marks["settled"] >= N) & (tr.cause == 0)).any())
+    assert zero  # some 'settles' paths have draws where nothing was paid
+
+
 # 8. Chain order -----------------------------------------------------------------------------------------------------
 
 def test_the_post_ruling_response_comes_on_the_levy_day_and_again_at_the_ripe_date_after_seeking(full):

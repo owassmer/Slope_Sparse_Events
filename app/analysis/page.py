@@ -162,13 +162,35 @@ FILED_BY = {1: "Akoustis files", 2: "Noteholders accelerate; filing", 3: "Akoust
 CAUSE_CLASS = {1: "filed_enforcement", 2: "filed_notes", 3: "filed_cash"}  # events.PETITION_CAUSES indices
 
 
-def outcome_shares(steps: tuple, outcome: str, petition_p: float, cause: np.ndarray | None = None) -> dict[str, float]:
+def draw_classes(steps: tuple, marks: dict, days: int) -> np.ndarray:
+    """Each trajectory's class by what the engine booked on it by the period's end (for trajectories with no
+    petition in the period): a positive settlement paid, the judgment paid, the award vacated or set for a new trial,
+    an effective stay, else Unresolved. A path's 'settles' or 'pays' branch books nothing where the amount is zero or
+    cash falls short, and those trajectories are not Settled or Paid."""
+    n = len(next(iter(marks.values())))
+    out = np.full(n, "unresolved", dtype=object)
+    vacated = any(s[0] == "ruling" and s[2] in ("none", "retrial") for s in steps)
+    for name, cls in (("stayed", "stayed"), ("ruled", "vacated" if vacated else None), ("paid", "paid"),
+                      ("settled", "settled")):  # later rows win: a settlement or payment ends a stay
+        if cls is not None and name in marks:
+            out = np.where(np.asarray(marks[name]) < days, cls, out)
+    return out
+
+
+def outcome_shares(steps: tuple, outcome: str, petition_p: float, cause: np.ndarray | None = None,
+                   marks: dict | None = None, days: int | None = None) -> dict[str, float]:
     """The path's draws by outcome class at the end of the period, classed by draw, not by path: the draws whose
-    petition falls inside the horizon are Filed (by the path's filing cause); the rest are the class the path is in
-    without the filing (Unresolved unless it is otherwise settled, paid, stayed or vacated). So the Filed shares,
-    weighted by path probability, sum to the bankruptcy probability exactly."""
-    rest = OUTCOME_CLASS.get(outcome, "unresolved")
-    out = {rest: 1.0 - petition_p} if petition_p < 1.0 else {}
+    petition falls inside the horizon are Filed (by the rule that booked it); the rest are classed by what the engine
+    booked on each (`draw_classes`, given the trace's marks), or else by the path's outcome. So the Filed shares,
+    weighted by path probability, sum to the bankruptcy probability exactly, and Settled counts only draws that
+    paid a settlement."""
+    rest = {OUTCOME_CLASS.get(outcome, "unresolved"): 1.0}
+    if marks is not None and days is not None:
+        unfiled = (cause == 0) if cause is not None else np.ones(len(next(iter(marks.values()))), dtype=bool)
+        if unfiled.any():
+            names, counts = np.unique(draw_classes(steps, marks, days)[unfiled], return_counts=True)
+            rest = {str(k): int(c) / int(unfiled.sum()) for k, c in zip(names, counts, strict=True)}
+    out = {k: v * (1.0 - petition_p) for k, v in rest.items()} if petition_p < 1.0 else {}
     if petition_p > 0.0:
         filed = cause[cause > 0] if cause is not None else np.zeros(0)
         if filed.size:  # by the rule that booked each trajectory's earliest petition
@@ -679,7 +701,8 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
     shares = []
     for i, p in enumerate(lead):
         tr = fc.trace(d0, p.steps) if d0 is not None and p.steps else None
-        sh = outcome_shares(p.steps, p.outcome, float(pet[i]), tr.cause if tr is not None else None)
+        sh = outcome_shares(p.steps, p.outcome, float(pet[i]), tr.cause if tr is not None else None,
+                            tr.marks if tr is not None else None, a.days)
         shares.append(sh)
         classes.append(max(sh, key=sh.get))  # the main class, for the worst-paths table
         text = (sequence(p.steps, tr.day, tr.petition, setup.review, a.days, ranges, tr.cause) if tr
