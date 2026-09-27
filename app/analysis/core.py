@@ -26,7 +26,8 @@ from datetime import timedelta
 import numpy as np
 
 from app.analysis import operating
-from app.analysis.engine import NEED_DAYS, NO_DUE, PREFERENCE_DAYS, Trajectories, prepare, run, with_petition
+from app.analysis.engine import (NEED_DAYS, NO_DUE, PREFERENCE_DAYS, Trajectories, installment_amounts, prepare, run,
+                                 run_many)
 from app.analysis.events import BANK, Basis, Draws, EventCash, bank_trace, event_trace
 from app.analysis.setup import DRAWS, SEED, Setup
 from app.analysis.stats import expectation, weighted_quantiles
@@ -343,6 +344,46 @@ class Reduction:
 
 
 CACHE_PATHS = 64  # a joint model reuses each dispute's paths across combinations; one dispute never does
+BATCH = 8  # joint paths simulated together (engine.run_many)
+
+
+PACKED_BYTES = 256 * 2**20  # at most this much event cash kept (sparse) from the bin pass for the main pass
+
+
+def _pack(ev: EventCash) -> tuple:
+    """A combo's event cash, sparse (most draws and days book nothing): flat index and value of each non-zero."""
+    out = []
+    for x in (ev.cash, ev.lock, ev.capacity, ev.petition + 1):  # petition: -1 (none) packs as zero
+        i = np.flatnonzero(x)
+        out += [i.astype(np.int32), x.ravel()[i]]
+    return tuple(out)
+
+
+def _unpack(packed: tuple, draws: int, days: int) -> EventCash:
+    ev = EventCash.zeros(draws, days)
+    for j, x in enumerate((ev.cash, ev.lock, ev.capacity)):
+        np.put(x, packed[2 * j], packed[2 * j + 1])
+    np.put(ev.petition, packed[6], packed[7] - 1)
+    return ev
+
+
+def _petition_at(line, t: Trajectories, petition: np.ndarray, peak: int) -> tuple[np.ndarray, np.ndarray]:
+    """The stayed claim and preference exposure of `run(line, opening, with_petition(ev, peak))`, read from `t`, the
+    run of the same events without it (`petition`: theirs). The engine's petition day becomes the earlier of its own
+    and `peak`; before that day the two runs are the same trajectory, and from it on nothing is collected or drawn, so
+    the stayed claim is the contract booked less collected before it and the preference window's collections are
+    t's (all integer cents)."""
+    days = line.days
+    pet = np.minimum(np.where((petition >= 0) & (petition < days), petition, days), peak)
+    idx = np.arange(days)
+    before = idx[None, :] < pet[:, None]
+    collected = (t.collections * before).sum(axis=1)
+    booked = installment_amounts(t.draw_amounts, line.setup.fee_bps, line.setup.installments).sum(axis=1)
+    keep = t.draw_days < pet[t.draw_rows]
+    contract = np.zeros(len(pet), dtype=np.int64)
+    np.add.at(contract, t.draw_rows[keep], booked[keep])
+    window = (idx[None, :] >= pet[:, None] - PREFERENCE_DAYS) & before
+    return contract - collected, (t.collections * window).sum(axis=1)
 
 
 class Analysis:
@@ -353,6 +394,41 @@ class Analysis:
                  sens: dict | None = None, dispute_model: dict | None = None, progress=None) -> None:
         """`sens` and `dispute_model` are the chains' sensitivities and model (the tree must be built with the same);
         `progress(phase, done, total)` is told how far the simulation has got."""
+        self._prepare(feed, setup, model, stress, sens, dispute_model, progress)
+        try:
+            if stress:
+                self.stress_rows = []
+                for lo in range(0, len(model.combos), BATCH):
+                    self.stress_rows += self._stress_rows(model.combos[lo:lo + BATCH])
+                    for i in range(lo, len(self.stress_rows)):
+                        self._tick("stress", i, len(model.combos))
+                return
+            bins = self._bins()
+
+            def make(n: int) -> Reduction:
+                return Reduction(n, DRAWS, self.days, setup, self.line.limit, bins, self.month_of_day)
+
+            self.bank_r = make(len(model.bank_combos))
+            for i, c in enumerate(model.bank_combos):
+                self.bank_r.add(i, run(self.line, self.opening, self._events("bank", i, c)))
+            self.bank_r.finish()
+            self.r = make(len(model.combos))
+            for lo in range(0, len(model.combos), BATCH):  # a few paths at a time: dense arrays dropped once reduced
+                chunk = model.combos[lo:lo + BATCH]
+                evs = [self._events("path", i, c) for i, c in enumerate(chunk, lo)]
+                for i, t in enumerate(run_many(self.line, self.opening, evs), lo):
+                    self.r.add(i, t)
+                    self._tick("simulate", i, len(model.combos))
+            self.r.finish()
+            self.means = self.r.means
+        finally:
+            self._cache.clear()
+            self._draws.prefixes = {}
+            self._packed = {}
+
+    def _prepare(self, feed: BankFeed, setup: Setup, model: EventModel, stress: bool, sens: dict | None,
+                 dispute_model: dict | None, progress) -> None:
+        """The operating draws, the line and the calendar the passes share."""
         self.feed, self.setup, self.model, self.m = feed, setup, model, dispute_model or load_model()
         self.sens, self._progress = sens or {}, progress or (lambda *_: None)
         self.days = (setup.horizon - setup.review).days
@@ -360,37 +436,36 @@ class Analysis:
         self.line = prepare(setup, self.ops)
         self.opening = feed.available_cents
         self._draws = Draws(DRAWS, stress=stress, basis=Basis.of(self.ops, self.line.need, self.opening))
+        self._draws.prefixes = {}  # the combos run depth-first: each walks only the steps after the shared prefix
         self._cache: dict = {}
+        self._packed: dict = {}  # (kind, index) -> the bin pass's event cash, sparse, for the main pass
         self._shared = len(model.order) > 1
         self.instrument = next((f for d in model.disputes.values() for f in d.financing if f.status != "superseded"),
                                None)  # the common borrower input (the notes' coupon) both views carry
         self.bank = run(self.line, self.opening, EventCash.zeros(DRAWS, self.days))  # operating flows alone
-        if stress:
-            self.stress_rows = []
-            for i, c in enumerate(model.combos):
-                self.stress_rows.append(self._stress_row(c))
-                self._tick("stress", i, len(model.combos))
-            return
-        days = [setup.review + timedelta(days=t + 1) for t in range(self.days)]
-        self.months = sorted({(d.year, d.month) for d in days})
-        month_of_day = np.array([self.months.index((d.year, d.month)) for d in days], dtype=np.int64)
-        self.month_of_day = month_of_day
-        bins = self._bins()
+        if not stress:
+            days = [setup.review + timedelta(days=t + 1) for t in range(self.days)]
+            self.months = sorted({(d.year, d.month) for d in days})
+            self.month_of_day = np.array([self.months.index((d.year, d.month)) for d in days], dtype=np.int64)
 
-        def make(n: int) -> Reduction:
-            return Reduction(n, DRAWS, self.days, setup, self.line.limit, bins, month_of_day)
+    def _event_range(self, kind: str, combos: list, lo: int = 0) -> tuple[np.ndarray, np.ndarray]:
+        """Per day, the lowest and highest cumulative event cash (less encumbrance) over the combos' draws (and 0).
+        Each combo's event cash is kept, sparse, for the main pass (within PACKED_BYTES)."""
+        lo_ev, hi_ev = np.zeros(self.days), np.zeros(self.days)
+        for i, c in enumerate(combos, lo):
+            ev = self.event_cash(c)
+            if self._packed_bytes < PACKED_BYTES:
+                self._packed[(kind, i)] = pk = _pack(ev)
+                self._packed_bytes += sum(x.nbytes for x in pk) + 400
+            cum = np.cumsum(ev.cash - ev.lock, axis=1)
+            np.minimum(lo_ev, cum.min(axis=0), out=lo_ev)
+            np.maximum(hi_ev, cum.max(axis=0), out=hi_ev)
+        return lo_ev, hi_ev
 
-        self.bank_r = make(len(model.bank_combos))
-        for i, c in enumerate(model.bank_combos):
-            self.bank_r.add(i, run(self.line, self.opening, self.event_cash(c)))
-        self.bank_r.finish()
-        self.r = make(len(model.combos))
-        for i, c in enumerate(model.combos):  # one path at a time: its dense arrays are dropped once reduced
-            self.r.add(i, run(self.line, self.opening, self.event_cash(c)))
-            self._tick("simulate", i, len(model.combos))
-        self.r.finish()
-        self._cache.clear()
-        self.means = self.r.means
+    def _events(self, kind: str, i: int, combo: tuple[DisputePath, ...]) -> EventCash:
+        """The combo's event cash: the bin pass's, unpacked (the same arrays), or computed again."""
+        pk = self._packed.pop((kind, i), None)
+        return self.event_cash(combo) if pk is None else _unpack(pk, DRAWS, self.days)
 
     def _bins(self) -> dict[str, Bins]:
         """Per-day ranges that hold every trajectory, bounded by what the line can move (its limit), not by the
@@ -402,13 +477,14 @@ class Analysis:
           alone) and by at most the line's own swing (funded less collected lies between -fee x F and the limit);
         - headroom at a due date, per month: that month's cash range, less the need and at most all owed, and owed
           is at most (1 + fee) x principal outstanding <= (1 + fee) x the highest limit."""
-        lo_ev, hi_ev = np.zeros(self.days), np.zeros(self.days)
-        for i, c in enumerate(self.model.combos + self.model.bank_combos):
-            self._tick("bins", i, len(self.model.combos))
-            ev = self.event_cash(c)
-            cum = np.cumsum(ev.cash - ev.lock, axis=1)
-            np.minimum(lo_ev, cum.min(axis=0), out=lo_ev)
-            np.maximum(hi_ev, cum.max(axis=0), out=hi_ev)
+        self._packed, self._packed_bytes = {}, 0
+        lo_ev, hi_ev = self._event_range("bank", self.model.bank_combos)  # min and max: exact in any order
+        for lo in range(0, len(self.model.combos), BATCH):
+            a, b = self._event_range("path", self.model.combos[lo:lo + BATCH], lo)
+            np.minimum(lo_ev, a, out=lo_ev)
+            np.maximum(hi_ev, b, out=hi_ev)
+            for i in range(lo, min(lo + BATCH, len(self.model.combos))):
+                self._tick("bins", i, len(self.model.combos))
         fee = (self.setup.fee_bps + 1) / 10_000  # + 1 bp covers the half-up cent on each draw
         lim = np.maximum.accumulate(self.line.limit.max(axis=0).astype(np.float64)) + 10_000
         first_due = self.line.due_idx[:, 0]
@@ -446,21 +522,25 @@ class Analysis:
         if i % 100 == 0 or i == n - 1:
             self._progress(phase, i + 1, n)
 
-    def _stress_row(self, combo: tuple[DisputePath, ...]) -> dict:
-        """One path under adverse placement, and again with a petition on the day of its highest expected
+    def _stress_rows(self, combos: list[tuple[DisputePath, ...]]) -> list[dict]:
+        """Each path under adverse placement, and again with a petition on the day of its highest expected
         outstanding balance."""
-        ev = self.event_cash(combo)
-        t = run(self.line, self.opening, ev)
-        peak = int(np.argmax(t.outstanding.mean(axis=0)))
-        pt = run(self.line, self.opening, with_petition(ev, peak))
+        evs = [self.event_cash(c) for c in combos]
+        ts = run_many(self.line, self.opening, evs)
+        peaks = [int(np.argmax(t.outstanding.mean(axis=0))) for t in ts]
+        pts = [_petition_at(self.line, t, ev.petition, peak) for t, ev, peak in zip(ts, evs, peaks, strict=True)]
+        return [self._stress_row(t, pt, peak) for t, pt, peak in zip(ts, pts, peaks, strict=True)]
+
+    def _stress_row(self, t: Trajectories, pt: tuple[np.ndarray, np.ndarray], peak: int) -> dict:
+        stayed, preference = pt  # with a petition at the peak (_petition_at)
         return {"min_cash_p5_cents": float(np.quantile(t.min_cash, 0.05)),
                 "min_cash_p50_cents": float(np.quantile(t.min_cash, 0.5)),
                 "uncollected_maturity_cents": float((t.stayed + t.uncollected).mean()),
                 "stayed_claim_cents": float(t.stayed.mean()), "lender_pv_cents": float(t.lender_pv.mean()),
                 "petition_at_peak": {"day": (self.setup.review + timedelta(days=peak + 1)).isoformat(),
-                                     "stayed_claim_mean_cents": float(pt.stayed.mean()),
-                                     "stayed_claim_p95_cents": float(np.quantile(pt.stayed, 0.95)),
-                                     "preference_exposed_mean_cents": float(pt.preference.mean())}}
+                                     "stayed_claim_mean_cents": float(stayed.mean()),
+                                     "stayed_claim_p95_cents": float(np.quantile(stayed, 0.95)),
+                                     "preference_exposed_mean_cents": float(preference.mean())}}
 
     # --- summaries ---------------------------------------------------------------------------------
 
