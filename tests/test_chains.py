@@ -396,16 +396,16 @@ def test_readings_are_routed_evidence_and_merits_questions_carry_no_cash(base, f
     appeal, stay, merits = state("appeal"), state("stay_motion"), state("ts_liability_jmol")
     assert list(appeal["readings"]) == ["The payer's appeal intent"]  # A2 gets appeal intent only
     assert list(stay["readings"]) == ["The payer's willingness to pay this obligation"]  # A1 gets resistance
-    assert merits["readings"] == {} and "available_cash_at_decision" not in merits["path_facts"]
+    assert merits["readings"] == {} and "cash_balance_at_decision" not in merits["path_facts"]
     assert "cash" not in str(merits["path_facts"]).lower()  # J1-J6: no borrower cash, only the record's components
     for q in ("forecast_ts_liability_jmol", "forecast_ts_damages_ruling", "forecast_patent_jmol", "forecast_trebling",
               "forecast_fees_awarded", "forecast_prejudgment_interest"):
         from app.agent.jev import registry_question
 
         text = registry_question(q)["prompt"]["instructions"]
-        assert "no borrower cash is given" in text and "sealed at the review date" in text
+        assert "on the merits or the remedy" in text and "briefs are sealed" in text
     a4 = state("debtor_response")
-    assert set(a4["path_facts"]["available_cash_at_decision"]) == {"p5", "p50"}  # the debtor's cash is a path fact
+    assert set(a4["path_facts"]["cash_balance_at_decision"]) == {"p5", "p50"}  # the debtor's cash is a path fact
     assert a4["question"]["branches"] == ["seek_sale_or_financing", "file", "neither"]  # pay removed (arithmetic)
 
 
@@ -428,8 +428,9 @@ def test_the_26_residual_questions_agree_in_number():
         assert not re.match(r"^Do(es)? the [^?]*?" + third, q["question"]), q["question"]  # 'Does the court grants'
         assert not re.match(r"^Does the (holders|noteholders|stockholders)\b", q["question"])
         assert not q["question"].startswith("How does the") or " decide:" not in q["question"]
-        if q["primitive"] == "noul" and re.match(r"^The (holders|noteholders|stockholders)", q["prompt"]["criteria"]["true"]):
-            assert q["prompt"]["criteria"]["false"].endswith(" do not.")
+        if q["primitive"] == "noul":  # both answers are complete sentences in agreement with their subject
+            for text in q["prompt"]["criteria"].values():
+                assert text.endswith(".") and not re.search(r"\b(holders|noteholders|stockholders)\b[^.]* does\b", text)
 
 
 # 7. Cash conventions ------------------------------------------------------------------------------------------------

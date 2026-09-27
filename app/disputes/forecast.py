@@ -200,6 +200,53 @@ class _Prefix:
                    None if tr.cause is None else tr.cause.copy())
 
 
+INTERVAL_PHRASES = {"I1": "before the post-trial ruling", "I2": "after the post-trial ruling, before the appeal deadline",
+                    "I3": "judgment enforceable and unstayed", "I4": "judgment stayed on approved security",
+                    "post": "after the post-trial ruling"}
+DELISTING_PHRASES = {"delisted_panel": "stock delisted on the Hearings Panel's decision",
+                     "delisted_suspension": "stock delisted on suspension, with no hearing"}
+STATE_PHRASES = {"entered": "the judgment as entered", "first": "the company's first response to the enforceable judgment",
+                 "after_seek": "after the company sought a sale or new financing",
+                 "stay_pending": "a stay motion is pending", "levied": "the creditor has levied on the company's cash",
+                 "unlevied": "before any levy on the company's cash", "appealed": "the company has appealed",
+                 "final": "the appeal period has run and the judgment is final"}
+
+
+def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]]) -> list[str]:
+    """The situation a decision is asked in, in plain terms (the node's context tags rendered for Jev)."""
+    out = []
+    for t in tags:
+        if t in INTERVAL_PHRASES:
+            out.append(INTERVAL_PHRASES[t])
+        elif t in STATE_PHRASES:
+            out.append(STATE_PHRASES[t])
+        elif t in ("pay", "nopay"):  # carried by the options offered
+            continue
+        elif t.startswith("amt"):
+            cents = int(t[3:].split("_")[0])
+            out.append(f"judgment after the post-trial ruling: {usd(cents)}"
+                       + (", with a new trial ordered on the trade-secret damages" if t.endswith("_retrial") else ""))
+        elif t in ("none", "retrial"):
+            out.append("no money award survives the post-trial ruling"
+                       + ("; a new trial is ordered on the trade-secret damages" if t == "retrial" else ""))
+        elif t.split("_retrial")[0] in ("beyond", "beyond_up"):
+            base, retrial = t.split("_retrial")[0], t.endswith("_retrial")
+            lo, hi = ranges.get(t, (None, None))
+            span = f"{usd(lo)} to {usd(hi)}" if lo is not None else "an amount beyond the company's cash"
+            out.append(f"judgment after the post-trial ruling: {span}"
+                       + (", increased by the ruling" if base == "beyond_up" else "")
+                       + (", with a new trial ordered on the trade-secret damages" if retrial else ""))
+        elif t in DELISTING_PHRASES:
+            out.append(DELISTING_PHRASES[t])
+        elif t.startswith("delisting_") and t[len("delisting_"):] in DELISTING_PHRASES:
+            out.append(f"notes due after the delisting ({DELISTING_PHRASES[t[len('delisting_'):]]})")
+        elif t.startswith("judgment_"):
+            out.append("notes accelerated on the judgment default")
+        else:
+            raise ValueError(f"No plain phrase for decision context {t!r}")
+    return out
+
+
 MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "patent_jmol", "trebling", "fees_awarded",
           "prejudgment_interest", "injunction")
 
@@ -391,36 +438,38 @@ class Forecaster:
     def path_facts(self, n: Node, d: DisputeInstance) -> dict:
         """What code computed for this node, pooled over the paths that reach it, before any Jev answer."""
         reg = registry_entry(n.question_id)
+        remitted = self.m["remittitur_scenarios"]["scenarios"].get("remitted", {}).get("amount_cents")
         facts: dict = {"components": [{"component": c.label, "status": c.status,
                                        "amount": usd(c.amount_cents) if c.amount_cents is not None else
                                        ("computed by statute" if c.statutory else "unknown"),
-                                       **({"remittitur_scenario": usd(c.remittitur_cents)} if c.remittitur_cents else {})}
+                                       **({"remitted_amount": usd(remitted)} if remitted and c.kind == "compensatory"
+                                          else {})}
                                       for c in d.components]}
         if n.question_id in self.no_cash:
             return facts
         rows = self.facts.get(n.key, [])
         if not rows:
-            return {**facts, "arises": "not computed"}
+            return facts
         day = np.concatenate([r[0] for r in rows])
         inside = day < self.days
-        facts["share_of_trajectories_where_it_arises"] = round(float(inside.mean()), 3)
         if not inside.any():
             return facts
         cash, owed, coll = (np.concatenate([r[i] for r in rows])[inside] for i in (1, 2, 3))
         facts["decision_date"] = {"p5": self._date(np.quantile(day[inside], 0.05)),
                                   "p50": self._date(np.quantile(day[inside], 0.5)),
                                   "p95": self._date(np.quantile(day[inside], 0.95))}
-        facts["available_cash_at_decision"] = {"p5": usd(int(np.quantile(cash, 0.05))),
-                                               "p50": usd(int(np.quantile(cash, 0.5)))}
+        facts["cash_balance_at_decision"] = {"p5": usd(int(np.quantile(cash, 0.05))),
+                                             "p50": usd(int(np.quantile(cash, 0.5)))}
         facts["amount_owed_at_decision"] = {"p50": usd(int(np.quantile(owed, 0.5))),
                                             "max": usd(int(owed.max()))}
         merged = next((self.class_range[c] for c in n.context.split("|") if c in self.class_range), None)
         if merged is not None:  # a merged class: its range of judgment amounts, not the representative's figure
             facts["amount_owed_at_decision"] = {
                 "judgment_after_ruling": {"min": usd(merged[0]), "max": usd(merged[1])},
-                "note": "the ruling outcomes in this class; post-judgment interest accrues, less any amount collected"}
+                "note": "the range across these post-trial ruling outcomes; post-judgment interest accrues, less any "
+                        "amount collected"}
         if reg.get("node") in ("stay_motion", "stay_approved"):
-            facts["bond_collateral_required"] = usd(int(np.quantile(coll, 0.5)))
+            facts["bond_collateral_required"] = usd(int(np.quantile(self._collateral(d, owed), 0.5)))
         if any(f.status != "superseded" for f in d.financing):
             f = next(f for f in d.financing if f.status != "superseded")
             facts["notes"] = {"principal": usd(f.principal_cents),
@@ -428,6 +477,16 @@ class Forecaster:
                                                    f" unpaid or unstayed for {f.judgment_default_days} days, after "
                                                    f"notice" if f.judgment_default_days else "none")}
         return facts
+
+    def _collateral(self, d: DisputeInstance, owed: np.ndarray) -> np.ndarray:
+        """The cash collateral the law and surety practice require for a stay on each trajectory: the bond (the amount
+        owed plus §1961 interest over the appeal) times the collateral share."""
+        from app.analysis.events import rate_1961_bps
+
+        p = self.m["parameters"]
+        bps = rate_1961_bps(self.m, d.judgment_date) if d.judgment_date else 0
+        bond = owed + np.rint(owed * bps / 10_000 * p["bond_forward_interest_years"]["value"])
+        return np.rint(bond * p["bond_collateral_share_bps"]["value"] / 10_000)
 
     @property
     def no_cash(self) -> set[str]:
@@ -466,13 +525,15 @@ class Forecaster:
         s = self.spec[n.node]
         evidence, fids = self._evidence(d, n.question_id)
         readings = self._readings(d, n.question_id)
-        ctx = [c for c in n.context.split("|") if c]
+        ctx = context_phrases([c for c in n.context.split("|") if c], self.class_range)
+        terms = {k: v for t in self.m["templates"].values() for k, v in t.get("terms_from_instrument", {}).items()}
         state = {"case": {"as_of": fmt(self.review), "analysis_period_ends": fmt(self.horizon),
                           "borrower": self.borrower, "counterparty": d.counterparty,
                           "obligation": f"{self.m['natures'].get(d.nature, d.nature)}, {d.order_reference}"},
                  "question": {"actor": s["actor"], "decision": s["decision"], "branches": list(n.branches),
                               "timing": s["timing"], "context": ctx},
-                 "standard": [self.m["rules"][r]["citation"] if r in self.m["rules"] else r for r in s["standard"]],
+                 "standard": [self.m["rules"][r]["citation"] if r in self.m["rules"] else terms.get(r, r)
+                              for r in s["standard"]],
                  "record_items": s["record_items"], "path_facts": self.path_facts(n, d),
                  "assumptions": list(n.assumptions), "evidence": evidence, "readings": readings}
         return state, fids, readings
@@ -542,7 +603,7 @@ class _Walk:
         if not self.arises(s, ("settle", interval, "no")):
             return then_no(s)
         a3 = self.node("settlement_offer", interval, s.cls)
-        q4 = self.node("settlement_accept", interval, s.cls, assumptions=("the debtor offers terms within its bound",))
+        q4 = self.node("settlement_accept", interval, s.cls, assumptions=("the judgment debtor offers to settle for its available cash above its 30-day operating need",))
         self.binary(s, "settle", interval, [[(a3, "yes"), (q4, "yes")]], (a3, q4),
                     lambda y: self.tail(y, "settled"), then_no)
 

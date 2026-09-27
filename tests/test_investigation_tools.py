@@ -447,7 +447,7 @@ def test_dispute_components_and_motions_are_checked(make_ctx):
                           "not in the cited quotes"),
                          ({"components": [ue], "motions": [{**motion, "motion_id": "D.I. 999"}]}, "docket reference"),
                          ({"commenced": "2021-10-05"}, "not in the cited quotes"),
-                         ({"forum": "arbitration"}, "arbitration template")):
+                         ({"forum": "arbitration"}, "court forum")):
         with pytest.raises(T.ToolError, match=match):
             call(T.instantiate_dispute, ctx, {**base, **extra})
     comps = T._components([ue, {"component_id": "pji", "kind": "prejudgment_interest", "status": "requested",

@@ -149,7 +149,9 @@ def ruling_amounts(d: DisputeInstance, outcome: dict[str, str], model: dict) -> 
             comp = comp_c.amount_cents or 0
         elif dmg == "remit" and outcome.get("remittitur") == "accept":
             scen = model["remittitur_scenarios"]["base"]
-            comp = (comp_c.remittitur_cents if scen == "remitted" and comp_c.remittitur_cents else comp_c.amount_cents) or 0
+            remitted = (model["remittitur_scenarios"]["scenarios"].get("remitted", {}).get("amount_cents")
+                        or comp_c.remittitur_cents)
+            comp = (remitted if scen == "remitted" and remitted else comp_c.amount_cents) or 0
     exemplary = (ex_c.amount_cents or 0) if (ex_c is not None and comp > 0) else 0  # L4: falls with a new trial
     patent = (pat_c.amount_cents or 0) if (pat_c is not None and outcome.get("patent") != "granted") else 0
     out = {"compensatory": comp, "exemplary": exemplary, "patent": patent, "trebling": 0, "fees": 0,
