@@ -130,6 +130,14 @@
       "citation": "11 U.S.C. §303(b)(1): where the debtor has 12 or more creditors, an involuntary petition is filed by three or more creditors holding noncontingent, undisputed claims above the statutory threshold.",
       "modality": "may"
     },
+    "indenture_limitation_on_suits": {
+      "citation": "Indenture §7.06 (Limitation on Suits): \"No Holder shall have any right to institute any proceeding, judicial or otherwise, in respect of this Indenture, or for the appointment of a receiver or trustee, or for any other remedy hereunder (other than in the case of an Event of Default specified in clause (j) or (k) of Section 7.01), unless: (a) the Holder of a Note gives to the Trustee written notice of a continuing Event of Default; (b) the Holders of at least 25% in Principal Amount of the then outstanding Notes make a written request to the Trustee to pursue the remedy; (c) such Holder of a Note or Holders of Notes offer and, if requested, provide to the Trustee indemnity reasonably satisfactory to the Trustee against any loss, liability or expense; (d) the Trustee does not comply with the request within 60 days after receipt of the request and the offer and, if requested, the provision of indemnity; and (e) during such 60-day period the Majority Holders do not give the Trustee a direction inconsistent with the request.\"",
+      "modality": "shall"
+    },
+    "indenture_right_to_payment": {
+      "citation": "Indenture §7.07 (Unconditional Rights of Holders of Notes to Receive Payment): \"Notwithstanding any other provision of this Indenture, the right of any Holder to receive payment of the Principal, the Redemption Price, or Interest, in respect of the Notes held by such Holder, on or after the respective due dates expressed in the Notes or any Redemption Date, as applicable, and to convert the Notes in accordance with ARTICLE 9, or to bring suit for the enforcement of any such payment on or after such respective dates or the right to convert, shall not be impaired or affected adversely without the consent of such Holder.\"",
+      "modality": "may"
+    },
     "usc11_547": {
       "citation": "11 U.S.C. §547(b): transfers to a creditor within 90 days before the petition are avoidable; under §547(c)(4), new value the creditor gives after a transfer reduces the exposure.",
       "modality": "may (trustee)",
@@ -1239,6 +1247,8 @@
           "actor": "noteholders (three or more)",
           "decision": "file an involuntary bankruptcy petition against the issuer",
           "standard": [
+            "indenture_limitation_on_suits",
+            "indenture_right_to_payment",
             "usc11_303b"
           ],
           "record_items": [
@@ -1250,7 +1260,7 @@
             "the judgment's status on the path (amount, stayed, paid)",
             "dated triggers from the instrument terms"
           ],
-          "timing": "on the date the notes are accelerated or the repurchase falls due",
+          "timing": "from the end of the 60 days the trustee has to act on the holders' written request (§7.06(d)); the holders make the request when the notes are accelerated or the repurchase falls due",
           "asked_when": "the notes are accelerated and unpaid, and the issuer has not filed",
           "branches": [
             "yes",

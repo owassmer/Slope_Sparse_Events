@@ -276,7 +276,8 @@ TRIGGER_PHRASES = {
     "appeal_deadline": "the deadline to file a notice of appeal",
     "coupon": "the notes' interest payment date",
     "listing_deadline": "Nasdaq's deadline to regain compliance with the minimum bid price",
-    "repurchase_due": "the repurchase date the holders may require after a delisting"}
+    "repurchase_due": "the repurchase date the holders may require after a delisting",
+    "holders_petition_earliest": "the earliest date the holders may file a petition (Indenture §7.06)"}
 MOTION_PHRASES = {"rule_50b": "renewed motion for judgment as a matter of law (Fed. R. Civ. P. 50(b))",
                   "rule_52b": "motion to amend the findings (Fed. R. Civ. P. 52(b))",
                   "rule_59a": "motion for a new trial or remittitur (Fed. R. Civ. P. 59(a))",
