@@ -5,8 +5,8 @@
   const $ = (id) => document.getElementById(id);
   let D = JSON.parse($("page-data").textContent);
   const API = document.querySelector(".app").dataset.api;
-  const S = { view: "lit", mtab: "exposure", rtab: "probs", tile: null, overrides: {}, sel: {}, cls: null,
-              omode: "weighted", detail: null, event: D.event, eventAll: D.event, bank: D.bank, settings: {}, lat: [],
+  const S = { view: "lit", mtab: "exposure", rtab: "probs", tile: null, overrides: {}, sel: {},
+              omode: "weighted", detail: null, event: D.event, bank: D.bank, settings: {}, lat: [],
               reveal: false, outcome: null };
   window.__page = S;
   const CLS_COL = ["#b91c1c", "#dc2626", "#f87171", "#15803d", "#22c55e", "#2563eb", "#9ca3af", "#a16207"];
@@ -259,7 +259,6 @@
   function renderMain() {
     const host = $("mview");
     ({ exposure, cash, collections })[S.mtab](host);
-    $("filter").textContent = S.cls !== null && S.view === "lit" ? `Showing: ${D.classes[S.cls]}` : "";
   }
   function renderTabs() {
     document.querySelectorAll("#mtabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === S.mtab));
@@ -271,10 +270,9 @@
   // Each path carries its share of draws in each class ([class, share] pairs): a path's draws whose petition falls
   // inside the horizon are Filed, the rest keep the path's other outcome. So the Filed shares sum to the tile.
   function classProbs() { const c = new Float64Array(D.classes.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
-  const shareIn = (i, cls) => { for (const [k, s] of D.paths.class[i]) if (k === cls) return s; return 0; };
-  function topSequences(cls, n = 3) {
+  function topSequences(n = 3) {
     const m = new Map();
-    for (let i = 0; i < P; i++) { const w = cls === null ? probs[i] : probs[i] * shareIn(i, cls); if (w > 0) m.set(D.paths.seq[i], (m.get(D.paths.seq[i]) || 0) + w); }
+    for (let i = 0; i < P; i++) { const w = probs[i]; if (w > 0) m.set(D.paths.seq[i], (m.get(D.paths.seq[i]) || 0) + w); }
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
   }
   // --- the actual outcome (a recorded run whose case has an outcome file; off until the button is pressed) ------
@@ -286,7 +284,7 @@
   }
   function actualHtml() {
     if (!S.reveal || !S.outcome) return "";
-    const a = S.outcome.petition, t = ix(a.date), cum = S.eventAll.daily.petition_cum_p;
+    const a = S.outcome.petition, t = ix(a.date), cum = S.event.daily.petition_cum_p;
     const by = t >= 0 ? ` The model gave ${pct(cum[t])} to a filing by then (${pct(cum[days - 1])} by ${fdateY(D.meta.horizon)}).` : "";
     return `<div class="actual"><b>Actual: ${esc(a.label)}, petition ${fdateY(a.date)}.</b>${by}</div>
       <div class="actual">${esc(a.cause)}</div>`;
@@ -302,19 +300,17 @@
   function renderOutcomes() {
     const cp = classProbs(), el = $("outcomes");
     const act = S.reveal && S.outcome ? D.classes.indexOf(S.outcome.petition.label) : -1;
-    let html = `<div class="ohead"><b>Outcomes by ${fdateY(D.meta.horizon)}</b><div class="seg" id="osw"><button data-m="weighted" class="${S.omode === "weighted" ? "on" : ""}">Weighted</button><button data-m="worst" class="${S.omode === "worst" ? "on" : ""}">Worst paths</button></div>${S.cls !== null ? `<button id="clr">All paths</button>` : ""}</div>`;
+    let html = `<div class="ohead"><b>Outcomes by ${fdateY(D.meta.horizon)}</b><div class="seg" id="osw"><button data-m="weighted" class="${S.omode === "weighted" ? "on" : ""}">Weighted</button><button data-m="worst" class="${S.omode === "worst" ? "on" : ""}">Worst paths</button></div></div>`;
     if (S.omode === "weighted") {
-      html += `<div class="sbar">${[...cp].map((p, c) => p > 0 ? `<div data-c="${c}" class="${S.cls === c ? "sel" : ""}${act === c ? " act" : ""}" style="width:${100 * p}%;background:${CLS_COL[c]}" title="${esc(D.classes[c])} ${pct(p)}"></div>` : "").join("")}</div>${actualHtml()}
-        <div class="skeys">${[...cp].map((p, c) => p > 0 ? `<span data-c="${c}"${act === c ? ` style="color:${ACT};font-weight:600"` : ""}><i style="background:${CLS_COL[c]}"></i>${esc(D.classes[c])} ${pct(p)}${act === c ? " ← actual" : ""}</span>` : "").join("")}</div>
-        <div class="seqs">${topSequences(S.cls).map(([s, p]) => `<div><b>${pct(S.cls === null ? p : p / (cp[S.cls] || 1))}</b>${esc(D.sequences[s])}</div>`).join("")}</div>`;
+      html += `<div class="sbar">${[...cp].map((p, c) => p > 0 ? `<div class="${act === c ? "act" : ""}" style="width:${100 * p}%;background:${CLS_COL[c]}" title="${esc(D.classes[c])} ${pct(p)}"></div>` : "").join("")}</div>${actualHtml()}
+        <div class="skeys">${[...cp].map((p, c) => p > 0 ? `<span${act === c ? ` style="color:${ACT};font-weight:600"` : ""}><i style="background:${CLS_COL[c]}"></i>${esc(D.classes[c])} ${pct(p)}${act === c ? " ← actual" : ""}</span>` : "").join("")}</div>
+        <div class="seqs">${topSequences().map(([s, p]) => `<div><b>${pct(p)}</b>${esc(D.sequences[s])}</div>`).join("")}</div>`;
     } else {
       html += `<table class="t"><tr><th>Path</th><th>Unrecovered</th><th>Frozen if a filing lands at peak outstanding</th><th>Peak day</th></tr>
         ${D.worst.slice(0, 12).map((w) => `<tr><td>${esc(w.sequence)}</td><td>${money(w.unrecovered)}</td><td>${money(w.frozen_at_peak)}</td><td>${fdate(w.peak_day)}</td></tr>`).join("")}</table>`;
     }
     el.innerHTML = html;
-    el.querySelectorAll("[data-c]").forEach((s) => (s.onclick = () => { S.cls = +s.dataset.c === S.cls ? null : +s.dataset.c; if (S.view === "bank") S.view = "lit"; renderTabs(); renderOutcomes(); refreshCharts(); }));
     el.querySelectorAll("#osw button").forEach((b) => (b.onclick = () => { S.omode = b.dataset.m; renderOutcomes(); }));
-    if ($("clr")) $("clr").onclick = () => { S.cls = null; renderOutcomes(); refreshCharts(); };
   }
 
   // --- server reweight of the daily series ----------------------------------------------------------------------
@@ -324,9 +320,9 @@
     ctrl = new AbortController();
     try {
       const r = await fetch(`${API}/reweight`, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal,
-        body: JSON.stringify({ overrides: S.overrides, classes: S.cls === null ? null : [S.cls] }) });
+        body: JSON.stringify({ overrides: S.overrides }) });
       const v = await r.json();
-      if (v) { S.event = v; if (S.cls === null) S.eventAll = v; if (v.bank) S.bank = { ...D.bank, ...v.bank }; }
+      if (v) { S.event = v; if (v.bank) S.bank = { ...D.bank, ...v.bank }; }
       renderMain();
       if (t0) S.lat.push(performance.now() - t0);
     } catch (e) { if (e.name !== "AbortError") console.error(e); }
@@ -476,7 +472,7 @@
   }
   async function reload() {
     D = await (await fetch(`${API}/payload`)).json();
-    S.event = D.event; S.bank = D.bank; S.overrides = {}; S.cls = null; S.settings = {};
+    S.event = D.event; S.bank = D.bank; S.overrides = {}; S.settings = {};
     recompute();
   }
   function renderRight() { ({ probs: renderProbs, terms: renderTerms, settings: () => renderSettings() })[S.rtab](); atEnd(); }

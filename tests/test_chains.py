@@ -639,6 +639,65 @@ def test_settlement_stay_and_contract_date_facts_state_what_the_chain_computes(f
         fc.facts = saved
 
 
+class _Court(Chain):
+    """The chain as it books each court ruling: the stay's approval day with the cash that day before the security is
+    locked and the reduced security offered, and the early registration order with the cash that day (the levy
+    follows the order by levy_lag_days)."""
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.seen = []
+
+    def stay_security(self, motion, key, approved):
+        approval = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, key)
+        cash = self.cash_at(approval)
+        out = super().stay_security(motion, key, approved)
+        self.seen.append((("stay_approved", key.split("_")[1]), out, cash, self.stay_offer.copy()))
+        return out
+
+    def step(self, node, ctx, branch):
+        day = super().step(node, ctx, branch)
+        if (node, ctx, branch) in (("registration_early", "I1", "yes"), ("enforce", "post", "levy")):
+            order = self.pending_levy - int(self.p("levy_lag_days"))
+            self.seen.append((("registration_early", ctx), order, self.cash_at(order), None))
+        return day
+
+
+def test_each_court_ruling_on_a_motion_has_the_facts_of_its_own_day(full, base):
+    """J8 and J9 are asked of the court on the day it rules (motion + briefing + the engine's ruling-lag draw): every
+    fact row of every stay_approved and registration_early question is, on every draw, the day the engine books the
+    approval or the order and the cash that day before the lock or the levy (and, for a stay, the reduced security the
+    engine measures that day). The company's stay motion keeps the motion day."""
+    fc, paths = full
+    b = base[1]
+    engine, done = set(), set()
+    for p in paths:
+        for i, s in enumerate(p.steps):
+            j9_post = s == ("enforce", "post", "levy") and ("appeal", "", "yes") in p.steps[:i] and (
+                ("registration_early", "I1", "yes") not in p.steps[:i])
+            if not (s[0] == "stay" or s == ("registration_early", "I1", "yes") or j9_post) or p.steps[:i + 1] in done:
+                continue
+            done.add(p.steps[:i + 1])
+            c = _Court(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b))
+            c.run(p.steps[:i + 1])
+            what, day, cash, offer = c.seen[-1]
+            engine.add((what, day.tobytes(), cash.tobytes(), None if offer is None else offer.tobytes()))
+    recorded = set()
+    for k, n in fc.nodes.items():
+        if n.node in ("stay_approved", "registration_early"):
+            what = (n.node, n.context.split("|")[0])
+            for r in fc.facts[k]:
+                offer = r["stay_offer"].tobytes() if n.node == "stay_approved" else None
+                recorded.add((what, r["day"].tobytes(), r["cash"].tobytes(), offer))
+    assert {e[0] for e in recorded} == {(x, c) for x in ("stay_approved", "registration_early") for c in ("I1", "post")}
+    assert recorded == engine
+    c = chain(base)
+    for n in (n for n in fc.nodes.values() if n.node == "stay_motion"):
+        motion = c.E0 if n.context.startswith("I1") else np.maximum(c.F, 0)
+        assert all((r["day"] == motion).all() for r in fc.facts[n.key]), n.key
+    assert not any(s[0] == "court_order" for p in paths for s in p.steps)  # a probe: it never enters a path
+
+
 def test_the_settled_share_counts_only_draws_that_paid_a_settlement(full, base):
     """A 'settles' branch books nothing on a draw where the settlement amount is zero; that draw is classed by what
     the engine booked (Unresolved here), so a path's Settled share is the share of its draws with a positive

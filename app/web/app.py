@@ -119,9 +119,8 @@ def run_reweight(run_id: str, body: dict = EMPTY_BODY) -> JSONResponse:
         if len(_RUN_STATES) >= 2:
             _RUN_STATES.clear()
         _RUN_STATES[run_id] = load_page_state(_run_dir(run_id))
-    classes = body.get("classes")
     try:
-        out = reweight(_RUN_STATES[run_id], body.get("overrides") or {}, [int(c) for c in classes] if classes else None)
+        out = reweight(_RUN_STATES[run_id], body.get("overrides") or {})
     except (ValueError, TypeError, KeyError, IndexError) as e:
         raise HTTPException(422, f"Invalid overrides: {e}") from e
     return JSONResponse(out)
@@ -180,9 +179,8 @@ def dev_payload() -> JSONResponse:
 def dev_reweight(body: dict = EMPTY_BODY) -> JSONResponse:
     from app.analysis.page import reweight
 
-    classes = body.get("classes")
     try:
-        out = reweight(_dev().state, body.get("overrides") or {}, [int(c) for c in classes] if classes else None)
+        out = reweight(_dev().state, body.get("overrides") or {})
     except (ValueError, TypeError, KeyError) as e:
         raise HTTPException(422, f"Invalid probabilities: {e}") from e
     return JSONResponse(out)

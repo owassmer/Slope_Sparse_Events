@@ -61,13 +61,12 @@
   .ohead { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
   .ohead b { font-weight:600; }
   .sbar { display:flex; height:26px; border-radius:4px; overflow:hidden; border:1px solid var(--line); }
-  .sbar div { cursor:pointer; min-width:2px; position:relative; }
-  .sbar div.sel { outline:2px solid var(--ink); outline-offset:-2px; }
+  .sbar div { min-width:2px; position:relative; }
   .sbar div.act { outline:3px solid #047857; outline-offset:-3px; box-shadow:inset 0 0 0 5px #fff; }
   .actual { font-size:12.5px; color:#065f46; margin:3px 0; }
   #actual.on { background:#047857; color:#fff; border-color:#047857; }
   .skeys { display:flex; flex-wrap:wrap; gap:4px 14px; margin:5px 0; font-size:12px; color:var(--mute); }
-  .skeys span { cursor:pointer; } .skeys i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  .skeys i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
   .seqs div { padding:2px 0; font-size:12.5px; } .seqs b { font-variant-numeric:tabular-nums; margin-right:6px; }
   .right { display:grid; grid-template-rows:auto 1fr; min-height:0; background:var(--panel); position:relative; }
   /* the list scrolls: a visible scrollbar, a fade at the bottom while more lies below, room for the last row */
@@ -136,7 +135,7 @@
   <div class="body">
     <div class="left">
       <div class="pane">
-        <div class="tabs" id="mtabs"><button data-t="exposure" class="on">Exposure</button><button data-t="cash">Cash</button><button data-t="collections">Collections</button><div class="sp"></div><span class="muted" id="filter"></span></div>
+        <div class="tabs" id="mtabs"><button data-t="exposure" class="on">Exposure</button><button data-t="cash">Cash</button><button data-t="collections">Collections</button><div class="sp"></div></div>
         <div class="view" id="mview"></div>
       </div>
       <div class="outcomes" id="outcomes"></div>

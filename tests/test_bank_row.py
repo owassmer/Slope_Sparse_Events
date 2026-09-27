@@ -10,7 +10,7 @@ def page():
     from akoustis_fixture import REVIEW, SETUP, SNAP, basis, judgment
 
     from app.analysis.core import Analysis, EventModel
-    from app.analysis.page import CLASSES, class_matrix, page_payload
+    from app.analysis.page import page_payload
     from app.disputes.forecast import Forecaster, Judgment, neutral_map
 
     feed, b = basis()
@@ -30,8 +30,7 @@ def page():
                    bank_paths=bank_paths, bank_judgments=bank_js)
     a = Analysis(feed, SETUP, m)
     p = page_payload(a, m, fc, borrower="Akoustis Technologies, Inc.", snapshot_id=SNAP, neutral=False)
-    state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": m, "months": a.months,
-             "class_of_path": class_matrix(p["paths"]["class"], len(CLASSES))}
+    state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": m, "months": a.months}
     return a, m, state
 
 
