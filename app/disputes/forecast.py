@@ -203,8 +203,11 @@ class _Prefix:
     def of(cls, tr) -> _Prefix:
         ev = tr.events
         h = hashlib.blake2b(digest_size=32)
-        for a in (ev.cash, ev.lock, ev.capacity, ev.petition):
-            h.update(np.ascontiguousarray(a).tobytes())
+        for a in (ev.cash, ev.lock, ev.capacity):  # sparse: each non-zero's flat index and value (fixed shape)
+            flat = np.ascontiguousarray(a).ravel()
+            i = np.flatnonzero(flat)
+            h.update(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes())
+        h.update(np.ascontiguousarray(ev.petition).tobytes())
         return cls(tr.day, tr.cash, tr.owed, tr.collateral, ev.petition.copy(), h.digest(),
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
                    tr.triggers)
