@@ -194,7 +194,7 @@
     const pins = [];
     if (D.pins.briefing_close) pins.push({ date: D.pins.briefing_close, label: "Briefing closes", row: 0 });
     if (D.pins.nasdaq) pins.push({ date: D.pins.nasdaq, label: "Nasdaq deadline", row: 1 });
-    if (D.pins.coupon) pins.push({ date: D.pins.coupon, label: "Coupon", row: 2 });
+    if (D.pins.coupon) pins.push({ date: D.pins.coupon, label: "Notes coupon", row: 2 });
     const actual = revealed();  // the dated events that happened, pinned only while the reveal is on
     let k = 0;  // key events carry a label (rows 3-6); the others are a line, with their text on hover
     for (const [d, evs] of actual) {
@@ -398,22 +398,35 @@
   }
   function recompute() { probs = pathProbs((k) => dist(k)); computeSens(); renderTiles(); renderOutcomes(); renderRight(); refreshCharts(); }
 
+  // Jev's readings of the record (evidence for the forecast, not its probability): each reading's likeliest levels.
+  function readings(r) {
+    const items = Array.isArray(r) ? r.map((x, k) => [String(k + 1), x]) : Object.entries(r || {});
+    if (!items.length) return "";
+    return `<div class="ctx">Readings of the record</div><ul class="ctx">${items.map(([name, v]) => {
+      const dd = (v && v.distribution) || {}, top = Object.entries(dd).sort((x, y) => y[1] - x[1]).slice(0, 2).filter(([, p]) => p > 0);
+      return `<li>${esc(name)}${v && v.passage_dated ? ` (passage of ${fdateY(v.passage_dated)})` : ""}: ${top.map(([k, p]) => `${esc(k)} ${pct(p, 0)}`).join("; ") || esc(typeof v === "string" ? v : "")}</li>`;
+    }).join("")}</ul>`;
+  }
   function renderDetail() {
     const i = S.detail, n = D.nodes[i], det = n.detail, d = dist(i);
-    const dl = n.branches.map((b, k) => `${esc(b.replace(/_/g, " "))} ${pct(d[k])}`).join(" · ");
-    const facts = (det.assumptions || []).map((a) => `<li>Given: ${esc(a)}</li>`).join("")
-      + Object.entries(det.facts || {}).map(([k, v]) => `<li>${esc(k.replace(/_/g, " "))}: ${esc(typeof v === "object" ? JSON.stringify(v) : v)}</li>`).join("");
-    const quotes = (det.quotes || []).map((q) => `<blockquote>“${esc(q.quote)}”<br><span class="ctx">${esc(q.source)}${q.date ? `, ${esc(q.date)}` : ""}${q.link ? ` · <a href="${esc(q.link)}" target="_blank" rel="noopener">source</a>` : ""}</span></blockquote>`).join("");
+    const bname = (b) => b.replace(/_/g, " ");
+    const dl = n.branches.map((b, k) => `${esc(bname(b))} ${pct(d[k])}`).join(" · ");
+    const link = (l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.text)}</a>`;
+    const given = (det.assumptions || []).map((a) => `<li>${esc(a)}</li>`).join("");
+    const quotes = (det.quotes || []).map((q) => `<blockquote>“${esc(q.quote)}”<br><span class="ctx">${esc(q.source)}${q.date ? `, ${esc(q.date)}` : ""}${q.link ? ` · ${link({ url: q.link, text: "source" })}` : ""}</span></blockquote>`).join("");
     const rc = n.recall, recall = rc ? `<div class="ghead">Recall check: asked again with names replaced by roles</div><table class="t"><tr><th>Answer</th><th>As asked</th><th>Roles only</th><th>Change</th></tr>
-      ${n.branches.map((b) => `<tr><td>${esc(b.replace(/_/g, " "))}</td><td>${pct(rc.original[b] ?? 0)}</td><td>${pct(rc.roles[b] ?? 0)}</td><td>${pts((rc.roles[b] ?? 0) - (rc.original[b] ?? 0))}</td></tr>`).join("")}</table>
+      ${n.branches.map((b) => `<tr><td>${esc(bname(b))}</td><td>${pct(rc.original[b] ?? 0)}</td><td>${pct(rc.roles[b] ?? 0)}</td><td>${pts((rc.roles[b] ?? 0) - (rc.original[b] ?? 0))}</td></tr>`).join("")}</table>
       <p class="ctx">Largest change ${pts(rc.max_change)}.</p>` : "";
-    const ans = det.answer ? `<pre>${esc(JSON.stringify(det.answer, null, 1))}</pre>` : `<p class="ctx">No Jev answer yet.</p>`;
+    const a = det.answer;  // Jev's answer in words: its distribution, confidence and readings of the record
+    const ans = a ? `<p>${n.branches.map((b) => `${esc(bname(b))} <b>${pct(a.distribution[b] ?? 0)}</b>`).join(" · ")}${a.confidence != null ? ` <span class="ctx">· confidence ${esc(typeof a.confidence === "number" ? pct(a.confidence, 0) : a.confidence)}</span>` : ""}</p>
+      ${readings(a.readings)}`
+      : `<p class="ctx">No Jev answer yet.</p>`;
     $("rpanel").innerHTML = `<div class="detail"><button class="back" id="back">← Probabilities</button>
       <div style="font-weight:600">${esc(n.question)}</div><div class="ctx">${esc(n.context)} · decided by ${esc(n.actor)}</div>
       <p><b>${dl}</b>${n.key in S.overrides ? " (changed)" : ""}</p>
-      ${det.steps.map((s) => `<div class="step"><span class="tag ${s.tag}">${s.tag}</span><span>${esc(s.text)}</span></div>`).join("")}
-      <div class="ghead">Facts given to Jev</div><ul class="ctx">${facts || "<li>None</li>"}</ul>
-      <div class="ghead">Sources</div>${quotes || '<p class="ctx">No quoted passages on this page yet.</p>'}
+      ${det.steps.map((s) => `<div class="step"><span class="tag ${s.tag}">${s.tag}</span><span>${esc(s.text)}${(s.links || []).length ? ` · ${s.links.map(link).join(" · ")}` : ""}</span></div>`).join("")}
+      ${given ? `<div class="ghead">Given</div><ul class="ctx">${given}</ul>` : ""}
+      <div class="ghead">Sources</div>${quotes || '<p class="ctx">No quoted passages for this question.</p>'}
       <div class="ghead">Jev's answer</div>${ans}${recall}</div>`;
     $("back").onclick = () => { S.detail = null; renderProbs(); };
     atEnd();
@@ -421,7 +434,7 @@
   function renderTerms() {
     const t = D.case_terms;
     $("rpanel").innerHTML = `<div class="ghead">Judgment components</div><table class="t"><tr><th>Component</th><th>Amount</th><th>Status</th><th>Source</th></tr>
-      ${(t.components || []).map((c) => `<tr><td>${esc(c.label)}${c.remittitur ? `<div class="ctx">remittitur scenario ${esc(c.remittitur)}</div>` : ""}</td><td>${esc(c.amount)}</td><td>${esc(c.status)}</td><td>${esc(c.source)}</td></tr>`).join("")}</table>
+      ${(t.components || []).map((c) => `<tr><td>${esc(c.label)}${c.remittitur ? `<div class="ctx">${esc(c.remittitur)}${c.remittitur_link ? ` · <a href="${esc(c.remittitur_link)}" target="_blank" rel="noopener">source</a>` : ""}</div>` : ""}${c.model ? `<div class="ctx">${esc(c.model)}</div>` : ""}</td><td>${esc(c.amount)}</td><td>${esc(c.status)}</td><td>${c.link ? `<a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.source)}</a>` : esc(c.source)}</td></tr>`).join("")}</table>
       ${(t.notes || []).map((n) => `<div class="ghead">${esc(n.title)}</div><table class="t">${n.terms.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:left">${esc(v)}</td></tr>`).join("")}</table>`).join("")}
       <div class="ghead">Deadlines</div><table class="t">${(t.deadlines || []).map((d) => `<tr><td>${fdateY(d.date)}</td><td style="text-align:left">${esc(d.what)}</td></tr>`).join("")}</table>`;
   }
