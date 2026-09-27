@@ -499,8 +499,8 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                   "seq": seqs,
                   "scalars": {k: np.round(a.r.means[k], 4 if k == "petition_p" else 0).tolist() for k in TILES}},
         "classes": [label for _, label in CLASSES], "sequences": list(seq_ix),
-        "bank": {"scalars": {k: float(a.bank_r.means[k][0]) for k in TILES},
-                 **chart_view(a.bank_r, np.array([1.0]), a.months)},
+        "bank": {"scalars": {k: float(model.bank_probs() @ a.bank_r.means[k]) for k in TILES},
+                 **chart_view(a.bank_r, model.bank_probs(), a.months)},
         "event": chart_view(a.r, probs, a.months),
         "worst": _worst(stress_rows, classes, seqs, list(seq_ix)) if stress_rows else [],
         "case_terms": case_terms(d0, setup.review, setup.horizon, m) if d0 is not None else {},
@@ -551,7 +551,7 @@ SETTINGS = [
      "value": False, "options": [[False, "The increase"], [True, "The whole amount"]]},
 ]
 LINE_KEYS = {s["key"] for s in SETTINGS if s["kind"] == "line"}
-PAGE_FORMAT = 4  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
+PAGE_FORMAT = 5  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
 def build_dev(settings: dict | None = None, progress=None) -> dict:
@@ -584,11 +584,13 @@ def build_dev(settings: dict | None = None, progress=None) -> dict:
     step("tree", 0, 1)
     fc = Forecaster([judgment()], {}, borrower=borrower, review=REVIEW, horizon=setup.horizon, hydrate=lambda f: {},
                     model=m, setup=setup, basis=basis_for(feed, setup), sens=sens)
-    per = fc.all_paths()
-    js = {n.key: Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id, event=n.event,
-                          assumptions=n.assumptions, window=n.window,
-                          distribution={b: 1 / len(n.branches) for b in n.branches}) for n in fc.nodes.values()}
-    model = EventModel({d.instance_id: d for d in fc.disputes}, js, per, fc.ordered(), neutral=neutral_map(js))
+    per, bank_paths = fc.all_paths(), fc.bank_paths()
+    js, bank_js = ({n.key: Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
+                                    event=n.event, assumptions=n.assumptions, window=n.window,
+                                    distribution={b: 1 / len(n.branches) for b in n.branches}) for n in nodes.values()}
+                   for nodes in (fc.nodes, fc.bank_nodes))
+    model = EventModel({d.instance_id: d for d in fc.disputes}, js, per, fc.ordered(), neutral=neutral_map(js),
+                       bank_paths=bank_paths, bank_judgments=bank_js)
     a = Analysis(feed, setup, model, sens=sens, dispute_model=m, progress=step)
     rows = Analysis(feed, setup, model, stress=True, sens=sens, dispute_model=m, progress=step).stress_rows
     rows = [{"index": i, **r} for i, r in enumerate(rows)]

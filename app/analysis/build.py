@@ -18,7 +18,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from app.analysis.core import Analysis, EventModel, dates, stress
-from app.analysis.events import Basis
+from app.analysis.events import BANK, Basis
 from app.analysis.setup import Setup, setup_from_inputs
 from app.config import VAR, question_registry
 from app.disputes.forecast import DisputePath, Forecaster, Judgment, neutral_map
@@ -116,18 +116,29 @@ def _model_json(m: EventModel) -> dict:
                               "edges": [list(e) for e in p.edges], "cls": p.cls} for p in ps]
                           for c, ps in cl.items()} for i, cl in m.per.items()},
             "order": [[d.instance_id, parent.instance_id if parent else None] for d, parent in m.order],
-            "neutral": m.neutral}
+            "neutral": m.neutral,
+            "bank": {"judgments": {k: asdict(j) for k, j in m.bank_judgments.items()},
+                     "paths": [{"steps": [list(s) for s in p.steps], "outcome": p.outcome,
+                                "edges": [list(e) for e in p.edges]} for p in m.bank_paths]}}
+
+
+def _judgments(data: dict) -> dict[str, Judgment]:
+    return {k: Judgment(**{**v, "assumptions": tuple(v["assumptions"]), "finding_ids": tuple(v["finding_ids"])})
+            for k, v in data.items()}
 
 
 def model_from_json(data: dict) -> EventModel:
     disputes = {k: DisputeInstance.model_validate(v) for k, v in data["disputes"].items()}
-    judgments = {k: Judgment(**{**v, "assumptions": tuple(v["assumptions"]), "finding_ids": tuple(v["finding_ids"])})
-                 for k, v in data["judgments"].items()}
+    judgments = _judgments(data["judgments"])
+    bank = data.get("bank") or {"judgments": {}, "paths": []}
+    bank_paths = [DisputePath(instance_id=BANK, steps=tuple(tuple(s) for s in p["steps"]), outcome=p["outcome"],
+                              edges=tuple(tuple(e) for e in p["edges"])) for p in bank["paths"]]
     per = {i: {c: [DisputePath(instance_id=i, steps=tuple(tuple(s) for s in p["steps"]), outcome=p["outcome"],
                                edges=tuple(tuple(e) for e in p["edges"]), cls=p["cls"]) for p in ps]
                for c, ps in cl.items()} for i, cl in data["paths"].items()}
     order = [(disputes[i], disputes[p] if p else None) for i, p in data["order"]]
-    return EventModel(disputes, judgments, per, order, neutral=data.get("neutral"))
+    return EventModel(disputes, judgments, per, order, neutral=data.get("neutral"), bank_paths=bank_paths,
+                      bank_judgments=_judgments(bank["judgments"]))
 
 
 def _sens_rows(a: Analysis, model: EventModel, overrides: dict | None) -> list[dict]:
@@ -251,12 +262,14 @@ def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -
                     setup=setup, basis=basis_for(feed, setup),  # path facts are simulated before Jev is asked
                     slots=slots)
     per = fc.all_paths()
+    bank_paths = fc.bank_paths()  # the bank view: the same distress decisions on the bank data alone
     records: list = []
     jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
     judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
     judgments = asyncio.run(fc.judge(judge)) if fc.nodes else {}
+    bank_judgments = asyncio.run(fc.judge_bank(judge)) if fc.bank_nodes else {}
     model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered(),
-                       neutral=neutral_map(judgments))
+                       neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments)
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in live if d.status not in ("interpreted", "resolved")]
     # The recall pass needs only the tree and the judgments: run it before the simulation, which keeps peak memory

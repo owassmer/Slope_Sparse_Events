@@ -188,6 +188,9 @@ class _Prefix:
     digest: bytes
     cause: np.ndarray | None = None  # per draw: the rule that booked the earliest petition (events.PETITION_CAUSES)
     marks: dict | None = None  # condition -> the day it holds from, per draw (events.MARKS)
+    settle_offer: np.ndarray | None = None  # the traced step's settlement amount on its payment date (0: none)
+    stay_offer: np.ndarray | None = None  # cash above the 30-day operating need on the stay-motion day (0: none)
+    triggers: dict | None = None  # events.TRIGGERS name -> day index per draw (events.BIG: none)
 
     @classmethod
     def of(cls, tr) -> _Prefix:
@@ -196,7 +199,8 @@ class _Prefix:
         for a in (ev.cash, ev.lock, ev.capacity, ev.petition):
             h.update(np.ascontiguousarray(a).tobytes())
         return cls(tr.day, tr.cash, tr.owed, tr.collateral, ev.petition.copy(), h.digest(),
-                   None if tr.cause is None else tr.cause.copy(), tr.marks)
+                   None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
+                   tr.triggers)
 
 
 INTERVAL_PHRASES = {"I1": "before the post-trial ruling", "I2": "after the post-trial ruling, before the appeal deadline",
@@ -280,6 +284,8 @@ class Forecaster:
         self.nodes: dict[str, Node] = {}
         self.facts: dict[str, list] = {}  # node key -> [(day, cash, owed, collateral) arrays] pooled over paths
         self._traces: dict = {}
+        self.bank_nodes: dict[str, Node] = {}  # the bank view's questions (bank_state)
+        self.bank_facts: dict[str, list] = {}  # bank node key -> [(day, cash, need) arrays]
 
     def ordered(self) -> list[tuple[DisputeInstance, None]]:
         """4.0.0 models each judgment's components and triggered instruments inside one dispute's chains, so
@@ -335,6 +341,37 @@ class Forecaster:
         closed and it is not asked)."""
         tr = self.trace(d, steps + (step,))
         return bool((tr.day[-1] < self.days).any())
+
+    # --- the bank view: the bank data and the common borrower inputs ----------------------------------------------
+
+    def instrument(self):
+        """The borrower's instrument whose terms are a common input to both views (the notes' coupon), or None."""
+        return next((f for d in self.disputes for f in d.financing if f.status != "superseded"), None)
+
+    def bank_trace(self, steps: tuple) -> _Prefix:
+        from app.analysis.events import BANK, bank_trace
+
+        key = (BANK, steps)
+        if key not in self._traces:
+            self._traces[key] = _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m, self.draws,
+                                                      self.sens))
+        return self._traces[key]
+
+    def bank_paths(self) -> list[DisputePath]:
+        """The bank view's paths (none without the operating draws)."""
+        return _BankWalk(self).run() if self.draws is not None else []
+
+    async def judge_bank(self, judge: ForecastJudge) -> dict[str, Judgment]:
+        async def one(n: Node) -> Judgment:
+            st = bank_state(self, n)
+            o = await judge.forecast(n.question_id, st, (n.instance_id,), n.branches)
+            return Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
+                            event=n.event, assumptions=n.assumptions, window=n.window,
+                            distribution=answer_distribution(n.key, n.branches, o), confidence=o.confidence,
+                            observation_id=o.observation_id, path_facts=st["path_facts"])
+
+        results = await asyncio.gather(*(one(n) for n in self.bank_nodes.values()))
+        return {j.key: j for j in results}
 
     def moves_cash(self, d: DisputeInstance, steps: tuple, a: tuple, b: tuple) -> bool:
         """Whether two branches of a step book different event cash, encumbrance, credit capacity or petition day on
@@ -924,6 +961,74 @@ class _Walk:
 
     def emit(self, s: _S, outcome: str) -> None:
         self.out.append(DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome=outcome, edges=s.edges))
+
+
+class _BankWalk:
+    """The bank view's chain: the company decides whether to file on the first date its available cash falls below
+    its 30-day operating need, and, where it keeps operating, again on the first date its cash falls below zero."""
+
+    def __init__(self, fc: Forecaster) -> None:
+        from app.analysis.events import BANK
+
+        self.fc, self.out, self.bank = fc, [], BANK
+
+    def inside(self, steps: tuple) -> bool:
+        t = self.fc.bank_trace(steps).day[-1]
+        return bool((t < self.fc.days).any())
+
+    def node(self, name: str, *ctx: str) -> str:
+        k = f"{self.bank}:{name}|" + "|".join((self.bank, *ctx))
+        if k not in self.fc.bank_nodes:
+            s = self.fc.spec[name]
+            self.fc.bank_nodes[k] = Node(key=k, instance_id=self.bank, node=name, context="|".join((self.bank, *ctx)),
+                                         cls="", question_id=s["residual_question"], event=s["decision"],
+                                         assumptions=(), window=s["timing"], branches=tuple(s["branches"]))
+            tr = self.fc.bank_trace(self.probe[name])
+            t = tr.day[-1]
+            need = self.fc.draws.basis.need[np.arange(len(t)), np.clip(t, 0, self.fc.days - 1)]
+            self.fc.bank_facts.setdefault(k, []).append((t, tr.cash[-1], need))
+        return k
+
+    def emit(self, steps: tuple, edges: tuple, outcome: str) -> None:
+        self.out.append(DisputePath(instance_id=self.bank, steps=steps, outcome=outcome, edges=edges))
+
+    def run(self) -> list[DisputePath]:
+        floor, out = ("cash_floor", "", "no"), ("cash_out", "", "no")
+        self.probe = {"petition_cash_floor": (floor,), "petition_cash_out": (floor, out)}
+        if not self.inside((floor,)):
+            self.emit((), (), "operating")
+            return self.out
+        k = self.node("petition_cash_floor")
+        self.emit(((("cash_floor", "", "yes"),)), ((k, "yes"),), "petition")
+        if not self.inside((floor, out)):
+            self.emit((floor,), ((k, "no"),), "operating")
+            return self.out
+        k2 = self.node("petition_cash_out", "cash_exhausted")
+        self.emit((floor, ("cash_out", "", "yes")), ((k, "no"), (k2, "yes")), "petition")
+        self.emit((floor, out), ((k, "no"), (k2, "no")), "operating")
+        return self.out
+
+
+def bank_state(fc: Forecaster, n: Node) -> dict:
+    """The bank view's question: the company, its decision, the decision dates, and its projected available cash and
+    30-day operating need at the decision, from the bank data and the common borrower inputs."""
+    s = fc.spec[n.node]
+    facts: dict = {}
+    rows = fc.bank_facts.get(n.key, [])
+    if rows:
+        day, cash, need = (np.concatenate([r[i] for r in rows]) for i in range(3))
+        inside = day < fc.days
+        if inside.any():
+            q = lambda x, p: usd(int(np.quantile(x[inside], p)))  # noqa: E731
+            facts = {"decision_date": {k: fc._date(np.quantile(day[inside], p))
+                                       for k, p in (("p5", 0.05), ("p50", 0.5), ("p95", 0.95))},
+                     "cash_balance_at_decision": {"p5": q(cash, 0.05), "p50": q(cash, 0.5)},
+                     "operating_need_30_days_at_decision": {"p50": q(need, 0.5)}}
+    ctx = context_phrases([c for c in n.context.split("|")[1:] if c], {})
+    return {"case": {"as_of": fmt(fc.review), "borrower": fc.borrower},
+            "question": {"actor": s["actor"], "decision": s["decision"], "branches": list(n.branches),
+                         "timing": s["timing"], "context": ctx},
+            "standard": [], "record_items": [], "path_facts": facts, "assumptions": [], "evidence": [], "readings": {}}
 
 
 def Chain_(fc: Forecaster, d: DisputeInstance):

@@ -178,6 +178,9 @@ def interest_1961(principal: int, increase: int, since_entry: np.ndarray, since_
 # --- the path's timeline and effects -------------------------------------------------------------------------------
 
 BIG = 10**6  # a day index meaning "not in this path / never"
+BANK = "bank"  # the bank view's chain: the common borrower inputs and the company's distress decisions, no dispute
+TRIGGERS = ("judgment_default_entered", "judgment_default_ruling", "appeal_deadline", "coupon", "listing_deadline",
+            "repurchase_due")  # dated contract and rule triggers given to the questions (day index; BIG: none)
 
 
 PETITION_CAUSES = ("none", "enforcement", "notes", "cash_floor")
@@ -196,12 +199,17 @@ class Trace:
     collateral: list[np.ndarray] = field(default_factory=list)  # per step: the bond collateral the law requires
     cause: np.ndarray | None = None  # per draw: which rule booked the earliest petition (PETITION_CAUSES index)
     marks: dict = field(default_factory=dict)  # MARKS name -> the day it holds from, per draw (BIG: never)
+    settle_offer: np.ndarray | None = None  # the last step's settlement amount on its payment date (0: none)
+    stay_offer: np.ndarray | None = None  # the last step's cash above the 30-day need on the stay-motion day (0: none)
+    triggers: dict = field(default_factory=dict)  # TRIGGERS name -> day index per draw (BIG: none)
 
 
 class Chain:
     """Walks one path's steps in order, booking dated effects per trajectory (see the module docstring)."""
 
-    def __init__(self, d: DisputeInstance, setup: Setup, model: dict, draws: Draws, sens: dict | None = None) -> None:
+    def __init__(self, d: DisputeInstance | None, setup: Setup, model: dict, draws: Draws, sens: dict | None = None,
+                 fin=None) -> None:
+        """`d` None: the bank view's chain, with the borrower's instrument `fin` (its coupon) and no dispute."""
         self.d, self.s, self.m, self.dr = d, setup, model, draws
         self.sens = sens or {}  # parameter -> use its sensitivity value
         self.n, self.N = draws.n, (setup.horizon - setup.review).days
@@ -209,11 +217,16 @@ class Chain:
         self.ev = EventCash.zeros(self.n, self.N)
         self.pet_cause = np.zeros(self.n, dtype=np.int8)  # PETITION_CAUSES index of the earliest petition
         self.rows = np.arange(self.n)
-        self.iid = d.instance_id
-        self.fin = next((f for f in d.financing if f.status != "superseded"), None)
-        self.bps = rate_1961_bps(model, d.judgment_date) if d.judgment_date else 0
-        self.entered = entered_cents(d)
-        self._timeline()
+        self.iid = d.instance_id if d is not None else BANK
+        self.fin = next((f for f in d.financing if f.status != "superseded"), None) if d is not None else fin
+        self.bps = rate_1961_bps(model, d.judgment_date) if d is not None and d.judgment_date else 0
+        self.entered = entered_cents(d) if d is not None else 0
+        if d is not None:
+            self._timeline()
+        else:
+            self.ruling, never = {}, np.full(self.n, BIG)
+            self.F, self.A, self.AD, self.fee_day, self.EF, self.EI = (never.copy() for _ in range(6))
+            self.E0, self.e_ix = 0, -1
         self.cls_amount = None  # the path amount after the ruling (None: the judgment as entered)
         self.increase = 0
         self.retrial = False  # the ruling orders a new trial: the dispute goes on after any payment
@@ -231,6 +244,8 @@ class Chain:
         self.lock_amount = np.zeros(self.n, dtype=np.int64)
         self.collateral_required = np.zeros(self.n, dtype=np.int64)
         self.marks = {k: np.full(self.n, BIG) for k in MARKS}
+        self.settle_offer = np.zeros(self.n, dtype=np.int64)
+        self.stay_offer = np.zeros(self.n, dtype=np.int64)
 
     def mark(self, name: str, day, where=None) -> None:
         day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
@@ -277,6 +292,8 @@ class Chain:
     def owed_at(self, day: np.ndarray, enforceable: bool = False) -> np.ndarray:
         """The amount owed at the day; enforceable: an increase not yet out of its own Rule 62(a) stay is left out."""
         day = np.asarray(day)
+        if self.d is None:
+            return np.zeros(self.n, dtype=np.int64)
         since_entry = day - self.ix(self.d.judgment_date) if self.d.judgment_date else np.zeros(self.n)
         before = self.entered + interest_1961(self.entered, 0, since_entry, 0, self.bps)
         if self.cls_amount is None:
@@ -584,6 +601,8 @@ class Chain:
         for node, ctx, branch in steps:
             if (node, ctx) != ("debtor_response", "I1"):
                 self.flush_levy()  # an earlier levy is in the cash the next decision sees
+            self.settle_offer = np.zeros(self.n, dtype=np.int64)
+            self.stay_offer = np.zeros(self.n, dtype=np.int64)
             before_cash = self.basis.cash + np.cumsum(self.ev.cash - self.ev.lock, axis=1)
             day = self.step(node, ctx, branch)
             t = np.clip(day, 0, self.N - 1)
@@ -598,12 +617,23 @@ class Chain:
         tr.events = self.ev
         tr.cause = np.where(self.ev.petition >= 0, self.pet_cause, 0).astype(np.int8)
         tr.marks = {k: v.astype(np.int32) for k, v in self.marks.items()}
+        tr.settle_offer, tr.stay_offer = self.settle_offer, self.stay_offer
+        tr.triggers = self.trigger_days()
         return tr
+
+    def trigger_days(self) -> dict[str, np.ndarray]:
+        """The dated contract and rule triggers on this path (TRIGGERS), per draw; BIG where none."""
+        return {k: np.full(self.n, BIG, dtype=np.int64) for k in TRIGGERS}
 
 
 def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws,
                 sens: dict | None = None) -> Trace:
     return Chain(d, setup, model, draws, sens).run(path.steps)
+
+
+def bank_trace(fin, steps, setup: Setup, model: dict, draws: Draws, sens: dict | None = None) -> Trace:
+    """The bank view's chain: the borrower's instrument `fin` (common input; None: none) and its distress steps."""
+    return Chain(None, setup, model, draws, sens, fin=fin).run(steps)
 
 
 def event_cash(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws) -> EventCash:

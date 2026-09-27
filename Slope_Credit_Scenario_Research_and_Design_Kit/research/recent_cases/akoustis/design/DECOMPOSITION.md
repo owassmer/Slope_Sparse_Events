@@ -211,6 +211,8 @@ Collections stop or fall short only through a petition or too little cash above 
 
 Operating flows come from the feed (§6). Dispute cash comes from T1, and legal spend continues until the dispute ends on the path. **τ** is the first date available cash falls below need (spec §2.2; sensitivity: below zero). At τ, Akoustis decides whether to file: **A6**. If it keeps operating, it decides again on the first date its cash falls below zero: **A6b**. New financing is not booked as cash.
 
+**Two views.** The bank view runs A6, A6b and the coupon (§2) on the bank data alone. Its A6 and A6b are asked separately, with the company, the decision, its date, and the projected available cash and 30-day operating need at the decision. The augmented view adds the researched record (T1, T2) on the same operating draws. Attribution: (1) the bank view with Jev's answers; (2) the augmented view with its residual judgments neutral; (3) the augmented view with Jev's answers. Step 3 against step 1 is what the research adds.
+
 ### 3.4 T4. The coupon
 
 The cash share is in §2. It reaches collections only through cash above need on 16–17 Dec. No Jev.
