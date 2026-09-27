@@ -284,6 +284,7 @@ class Chain:
         self.jd_acted = np.zeros(self.n, dtype=bool)  # the holders acted on the judgment default as entered
         self.settle_offer = np.zeros(self.n, dtype=np.int64)
         self.stay_offer = np.zeros(self.n, dtype=np.int64)
+        self.coupons: list[tuple[int, int, np.ndarray]] = []  # (payment day, cash, still paid per draw)
 
     def mark(self, name: str, day, where=None) -> None:
         day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
@@ -576,19 +577,32 @@ class Chain:
 
     def instrument_cash(self) -> None:
         """The notes' coupon, paid on the next business day after each interest date (coupon_cash_cents), and the
-        CHIPS credit (base $0; sensitivity prorated over the horizon). The petition zeroes both after it (run)."""
+        CHIPS credit (base $0; sensitivity prorated over the horizon). The petition zeroes both after it (run); notes
+        already due on the payment day pay no separate coupon (coupon_when_due)."""
         if self.fin is not None and self.fin.coupon_cents is None and self.fin.kind == "convertible_notes":
             raise ValueError(f"{self.fin.instrument_id}: the coupon is unknown; its quoted terms must give it")
         if self.fin is not None and self.fin.coupon_cents:
             cash = self.coupon_cash_cents()
             for d in self.fin.interest_dates:
-                self.book(self.ev.cash, np.full(self.n, self.ix(next_business_day(d))), -cash)
+                day = self.ix(next_business_day(d))
+                self.book(self.ev.cash, np.full(self.n, day), -cash)
+                if cash and 0 <= day < self.N:
+                    self.coupons.append((day, cash, np.ones(self.n, dtype=bool)))
         chips = int(self.p("chips_credit_cents"))
         if chips:
             per = np.full(self.N, chips // self.N, dtype=np.int64)
             per[-1] += chips - per.sum()
             self.ev.cash += per[None, :]
 
+
+    def coupon_when_due(self) -> None:
+        """Notes accelerated (or their repurchase due) on or before an interest payment day: the amount due already
+        carries the accrued interest, so no separate coupon is paid that day."""
+        due = self.marks["notes_due"]
+        for day, cash, kept in self.coupons:
+            gone = kept & (due <= day)
+            self.book(self.ev.cash, np.full(self.n, day), np.where(gone, cash, 0))
+            kept &= ~gone
 
     # --- steps ---
     def step(self, node: str, ctx: str, branch: str) -> np.ndarray:
@@ -653,6 +667,7 @@ class Chain:
                 self.mark("notes_due", accel, cond)
                 if ctx == "I1":
                     self.jd_acted |= cond
+            self.coupon_when_due()
             if branch == "yes":
                 self.petition(accel, cond, cause="notes")
             elif branch == "holders_file":
@@ -717,6 +732,7 @@ class Chain:
                 self.mark("notes_due", accel, open_)
             elif branch.startswith("petition_repurchase") or branch == "repurchase_unpaid":
                 self.mark("notes_due", rep, open_)
+            self.coupon_when_due()
             if branch == "petition_delist":
                 self.petition(accel, open_, cause="notes")
             elif branch == "petition_delist_holders":

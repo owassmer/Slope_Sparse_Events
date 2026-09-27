@@ -549,6 +549,21 @@ def test_coupon_shares_to_capacity_and_legal_spend_stops_on_settlement(base):
     assert (c.ev.cash[:, :pd] == 0).all()
 
 
+def test_no_separate_coupon_is_paid_on_notes_already_accelerated(base):
+    dec16 = ix(date(2024, 12, 16))
+    pre = (("execute_pre_ruling", "I1", "no"),)
+    kept = chain(base).run(pre + (("judgment_default", "I1", "no"),)).events.cash
+    assert (kept[:, dec16] == -75_000_000).all()
+    for branch in ("accelerated", "holders_file"):  # accelerated on 19 Aug: the amount due carries the interest
+        c = chain(base)
+        cash = c.run(pre + (("judgment_default", "I1", branch),)).events.cash
+        due = c.marks["notes_due"] <= dec16
+        assert due.all() and (cash[:, dec16] == 0).all()
+    late = chain(base)  # delisted on 6 Dec (panel): accelerated before the payment day
+    cash = late.run((("listing", "", "delisted_panel"), ("delisting_notes", "delisted_panel", "accelerated"))).events.cash
+    assert (late.marks["notes_due"] <= dec16).all() and (cash[:, dec16] == 0).all()
+
+
 def test_legal_spend_stops_on_vacatur_and_continues_on_a_new_trial(base, full):
     fc, paths = full
     legal = base[1].legal
