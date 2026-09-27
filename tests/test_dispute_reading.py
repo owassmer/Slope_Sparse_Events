@@ -86,11 +86,11 @@ class WaiverJudge:
         raise AssertionError("unexpected level call")
 
 
-def forecaster(d, fs):
+def forecaster(d, fs, slots=None):
     from akoustis_fixture import SETUP, basis
 
     return Forecaster([d], {f.finding_id: f for f in fs}, borrower=BORROWER, review=REVIEW, horizon=SETUP.horizon,
-                      hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=basis()[1])
+                      hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=basis()[1], slots=slots)
 
 
 class PendingWaiverJudge(WaiverJudge):
@@ -100,6 +100,10 @@ class PendingWaiverJudge(WaiverJudge):
         pending = 0.05 if subject_ids[0] == "a" else 0.95  # "b" (the verdict 8-K) establishes the motions
         return [*await super().read(obligation, evidence, direction, subject_ids),
                 self._o("event_post_trial_motions_pending", noul_value=pending)]
+
+
+WAIVER = "any waiver of the right to appeal the judgment"
+SETTLE = "the company's statements on reaching a settlement with the judgment creditor"
 
 
 def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
@@ -114,17 +118,19 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     barred = next(f for f in d.factors if f.factor_id == "appeal_barred")
     assert barred.probability == 0.9 and barred.level_label == "established"
 
-    fc = forecaster(d, fs)
+    fc = forecaster(d, fs, slots={"appeal": {WAIVER: ["a"]}, "settlement_offer": {SETTLE: ["b"]}})
     paths = fc.all_paths()[d.instance_id][""]
     assert any(("appeal", "", "yes") in p.steps for p in paths)  # the waiver is evidence, not a pruned branch
     appeal = next(n for n in fc.nodes.values() if n.node == "appeal")
     state, fids, readings = fc.state(appeal)
-    assert readings[barred.label] == {"probability_present": 0.9}  # the waiver reaches Jev's appeal question
-    assert "a" in fids  # with the passage that states it, chosen only because it bears on the waiver
+    assert readings[barred.label]["probability_present"] == 0.9  # the waiver reaches Jev's appeal question
+    assert readings[barred.label]["passage_dated"] == "2024-05-13"  # with the passage it was read from
+    assert fids == ("a",)  # with the passage that supplies its record item
+    assert {"item": WAIVER, "in_the_record": True} in state["record_items"]
     settle = next(n for n in fc.nodes.values() if n.node == "settlement_offer")
-    assert "a" not in fc.state(settle)[1]  # a question the waiver is not routed to never sees it
+    assert fc.state(settle)[1] == ("b",)  # each question receives the findings that supply its own record items
     a4 = next(n for n in fc.nodes.values() if n.node == "debtor_response")
-    assert "p50" in fc.state(a4)[0]["path_facts"]["available_cash_at_decision"]  # the payer's cash is data
+    assert "p50" in fc.state(a4)[0]["path_facts"]["projected_available_cash_at_decision_date"]  # the payer's cash is data
 
 
 class FiledJudge(WaiverJudge):

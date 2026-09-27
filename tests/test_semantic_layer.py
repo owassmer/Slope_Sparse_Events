@@ -232,3 +232,16 @@ def test_registry_questions_are_generic_and_well_formed():
         assert q["primitive"] in ("noul", "choice", "score")
         if q["primitive"] == "noul" and not q["prompt"].get("criteria_from_host"):
             assert set(q["prompt"]["criteria"]) == {"true", "false"}
+
+
+def test_forecasts_carry_their_profile_rules_and_checks_keep_the_global_rules():
+    """A forecast state combines a standard, record items, path facts and passages by design; the single-claim
+    extraction rule would pull every forecast toward the unclear middle."""
+    from app.agent.jev import build_question, registry_question
+
+    combine = "where the input combines claims"
+    for qid in ("forecast_trebling", "forecast_holders_act_judgment"):
+        text = build_question(registry_question(qid)).instructions
+        assert combine not in text and "Answer from the supplied state alone." in text
+    assert combine in build_question(registry_question("record_item_supplied")).instructions
+    assert combine in build_question(registry_question("finding_support")).instructions

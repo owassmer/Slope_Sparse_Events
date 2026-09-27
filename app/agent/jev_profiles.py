@@ -28,6 +28,8 @@ from app.domain.investigation import (
 )
 from app.evidence.store import EvidenceStore
 
+FORECAST_CONCURRENCY = 8  # forecast requests in flight at once (see JevProfiles.forecast)
+
 # Code-owned routing thresholds on Noul values (checked against evals/jev_semantic_cases.json).
 RELEVANT = USABLE = CONFLICT = INSTRUCTION = NOUL_THRESHOLD
 # A Choice answer whose top two options are closer than this is ambiguous: read more context or
@@ -253,8 +255,14 @@ class DisputeProfile:
 
         entry = registry_question(question_id)
         criteria = None
-        if branches is not None and entry["primitive"] == "choice":
-            full = entry["prompt"]["criteria"]
+        full = entry["prompt"]["criteria"]
+        if branches is not None and entry["primitive"] == "choice" and set(branches) != set(full):
+            # Only a narrowed option set is host-built; the full set is the registry's own criteria.
             criteria = {question_id: {b: full[b] for b in branches}}
-        [o] = await self._ask(entry["profile"], [question_id], state, subject_ids, criteria)
+        # A bounded number in flight: each request reserves its worst-case cost against the spend cap before
+        # dispatch, so ~100 questions sent at once trip the cap on reservations alone.
+        if getattr(self, "_forecast_sem", None) is None:
+            self._forecast_sem = asyncio.Semaphore(FORECAST_CONCURRENCY)
+        async with self._forecast_sem:
+            [o] = await self._ask(entry["profile"], [question_id], state, subject_ids, criteria)
         return o

@@ -1,0 +1,142 @@
+{
+  "snapshot_id": "akoustis_20240620",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-26T21:21:37.535534+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "4.0.1",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "15c2d9a7153abd819e30e0fd6e66ab3ede99c5eb9a805e3f39a23fa0b7b3ee89",
+    "sections": 918,
+    "flagged": 340,
+    "unscreened": 0,
+    "chunks": 1000,
+    "units": 3458,
+    "flagged_units": 1849,
+    "unscreened_units": 0,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 427,
+      "cache_hits": 4031,
+      "physical_attempts": 427,
+      "attempt_ceiling": 4500,
+      "spent_usd": "0.019113906",
+      "spend_cap_usd": "0.30"
+    },
+    "inventory_items": 1849
+  },
+  "run_id": "akoustis_20240620-agent_plus_jev-20260926T212137Z",
+  "status": "INCOMPLETE_REVIEW",
+  "failure": null,
+  "incomplete_reasons": [
+    "Jev unavailable (TypeSafeBadRequestError): POST https://openrouter.ai/api/v1/systemone: 400 HTTP 400: {\"detail\":{\"error_type\":\"max_tokens_exceeded\"}}"
+  ],
+  "finished_at": "2026-09-26T21:32:43.293679+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "record_dependency": 4,
+    "read_evidence": 26,
+    "search_evidence": 12,
+    "propose_finding": 22,
+    "resolve_finding": 21,
+    "resolve_reconciliation": 3,
+    "instantiate_dispute": 7,
+    "instantiate_financing": 3,
+    "propose_effect": 11,
+    "request_missing_fact": 3,
+    "submit_packet": 3,
+    "StructuredOutput": 1
+  },
+  "turns_used": 80,
+  "max_turns": 120,
+  "claude": {
+    "num_turns": 121,
+    "duration_ms": 659438,
+    "usage": {
+      "input_tokens": 160,
+      "cache_creation_input_tokens": 220729,
+      "cache_read_input_tokens": 10284150,
+      "output_tokens": 71021,
+      "output_tokens_details": {
+        "thinking_tokens": 8482
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 220729,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 1120,
+          "cache_read_input_tokens": 217121,
+          "cache_creation_input_tokens": 3608,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 3608
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 5.243722000000002,
+    "structured_output": {
+      "conclusion": "On 20 May 2024 the court entered a $38,595,023 judgment against Akoustis Technologies, Inc. in favour of Qorvo, Inc. It is made up of $31,315,215 in unjust-enrichment damages, $7,000,000 in exemplary damages and $279,808 in patent damages. It had not been paid, and no admissible order sets a date to pay, post a bond or stay it. Motions filed on 17 June 2024 are pending, with briefing closing on 8 August 2024. Akoustis asks for a new trial or a cut in the $31.3M part to $305,000. Qorvo asks for trebling to $93,945,645 in total compensatory damages, $12,116,123.30 in fees, and interest (amount sealed). Akoustis says the damages would exceed its liquid assets. It reported about $15.2M of cash at 31 March 2024 and substantial doubt about continuing as a going concern. It says that without new financing it must cut back or stop operations and/or seek bankruptcy protection. The judgment is modelled as a possible cash outflow of Akoustis with an unknown date (eff_006; dispute_001). The judgment is larger than the $10.0M threshold in the $44.0M 6.0% convertible notes. If a final judgment stays unpaid or unstayed for 60 days after notice from the trustee or holders of 25% of the notes, those holders can declare the notes, due June 2027, immediately due (eff_009; financing_001). Linking the judgment to this clause applies the notes' own terms to the court's figure; when the judgment counts as final is unknown. Akoustis also must get its share price back above Nasdaq's $1.00 minimum by 21 October 2024, and delisting is a separate default on the notes. Qorvo's request to bar sales of the products that infringe its two patents has not been decided. Akoustis says its redesigned XBAW filters are not affected.",
+      "pivotal_unknowns": [
+        "Whether execution of the Dkt. 602 judgment is stayed, bonded (cash-collateralized or not) or enforced before or during the 22 Jul\u201323 Sep 2024 installment window",
+        "Outcome and timing of the post-trial motions (remittitur/new trial/JMOL vs. trebling, fees, interest) after briefing closes 8 Aug 2024",
+        "Whether and when the judgment becomes 'final' and unstayed for 60 days, triggering the notes' Section 7.01(i) default and possible acceleration of $44.0M; insured portion unknown",
+        "Whether a Slope supplier-payment line is Permitted Debt under indenture Section 5.09 (a breach is an immediate Event of Default under 7.01(e))",
+        "Share of RF filter customer receipts from legacy (non-redesigned) '018/'755 products that an injunction under D.I. 608 would stop",
+        "Whether Akoustis regains Nasdaq bid-price compliance by 21 Oct 2024 (notes listing Event of Default)",
+        "Whether Akoustis files for bankruptcy protection during the installment window"
+      ],
+      "supported_effect_ids": [
+        "eff_006",
+        "eff_009"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 240,
+    "cache_hits": 28,
+    "physical_attempts": 240,
+    "attempt_ceiling": 1200,
+    "spent_usd": "0.032327190",
+    "spend_cap_usd": "0.10"
+  },
+  "graph_counts": {
+    "dependencies": 4,
+    "candidates": 85,
+    "jev_calls": 267,
+    "observations": 813,
+    "findings": 22,
+    "reconciliations": 3,
+    "effects": 10,
+    "inventory": 1849,
+    "disputes": 1,
+    "financing": 1
+  },
+  "chain_head": "3f1290af8989742fc69dff27ac7d2c4e249fdaecb030165d4a14b93643446278"
+}

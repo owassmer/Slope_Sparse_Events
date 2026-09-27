@@ -20,6 +20,7 @@ from app.disputes.forecast import (
     path_probability,
 )
 from app.disputes.rules import load_model
+from app.domain.values import usd
 
 M = load_model()
 N = (SETUP.horizon - REVIEW).days
@@ -62,9 +63,9 @@ def chain(base, d=None, sens=None) -> Chain:
 
 def test_composition_sums_to_one_and_keeps_every_path(full):
     fc, paths = full
-    assert 1_000 < len(paths) < 6_000  # low thousands: collapsed by interval and amount class
-    assert {n.question_id for n in fc.nodes.values()} == {q for t in M["templates"].values()
-                                                          for q in (s["residual_question"] for s in t["nodes"].values())}
+    assert 1_000 < len(paths) < 20_000  # thousands: collapsed by interval and amount class
+    assert {n.question_id for n in fc.nodes.values()} == {s["residual_question"] for t in M["templates"].values()
+                                                          for s in t["nodes"].values() if not s.get("stress_only")}
     js = stub(fc)
     for dist in (distributions(js), distributions(js, neutral_map(js))):
         assert sum(path_probability(p.edges, dist) for p in paths) == pytest.approx(1.0, abs=1e-9)
@@ -111,15 +112,35 @@ def test_every_merged_ruling_class_is_cash_and_date_identical_and_jev_gets_its_r
     for n in fc.nodes.values():
         label = next((x for x in n.context.split("|") if x in fc.class_range), None)
         if label and n.question_id not in fc.no_cash:
-            owed = fc.path_facts(n, judgment()).get("amount_owed_at_decision")
-            if owed:
+            facts = fc.path_facts(n, judgment())
+            if facts.get("amount_owed_at_decision"):  # the class's range of judgments, beside the amount owed
                 lo, hi = fc.class_range[label]
-                assert "p50" not in owed and owed["judgment_after_ruling"]["max"] != owed["judgment_after_ruling"]["min"]
+                assert lo != hi and facts["judgment_after_ruling"] == f"{usd(lo)} to {usd(hi)}"
+                assert "p50" in facts["amount_owed_at_decision"] and "basis" in facts["amount_owed_at_decision"]
+            if label not in fc.remit_classes:  # the remittitur scenario only where every outcome is remitted
+                assert "remittitur_scenario" not in str(facts["components"])
+
+
+def test_path_facts_pool_only_trajectories_where_the_situation_holds(full):
+    """Inside the analysis period, before any petition, and for a question about an unpaid judgment, still owed."""
+    fc, _ = full
+    row = {"day": np.array([5, 10, 12, N + 3]), "petition": np.array([-1, 3, -1, -1]),
+           "owed": np.array([100, 100, 0, 100])}
+    a4 = next(n for n in fc.nodes.values() if n.node == "debtor_response")
+    floor = next(n for n in fc.nodes.values() if n.node == "petition_cash_floor")
+    assert fc.live(a4, row).tolist() == [True, False, False, False]
+    assert fc.live(floor, row).tolist() == [True, False, True, False]
+
+
+def _growing(base):
+    """Cash that grows by $100k a day, so the company holds cash above its need when a stay is approved (on the
+    fixture's own cash the company has burnt below offer plus need by approval, and no stay takes effect)."""
+    return base[0], replace(base[1], cash=base[1].cash + np.arange(base[1].cash.shape[1])[None, :] * 10_000_000)
 
 
 def test_a_levy_can_come_before_stay_approval_and_none_after_it(full, base):
     fc, paths = full
-    b = base[1]
+    b = _growing(base)[1]
     for ctx, lev in (("I1", ("registration_early", "I1", "yes")), ("post", ("enforce", "post", "levy"))):
         stayed = [p for p in paths if ("stay", ctx, "yes") in p.steps and lev in p.steps]
         assert stayed
@@ -217,13 +238,14 @@ def test_frap_tolling_moves_the_post_ruling_windows_with_the_drawn_ruling(base):
     beyond = "beyond:3010000000:0"
     days = [c.step(*s) for s in (("execute_pre_ruling", "I1", "no"), ("ruling", "", beyond), ("appeal", "", "no"),
                                  ("settle", "I2", "no"), ("stay", "post", "no"), ("debtor_response", "post", "neither"))]
-    assert all((x == c.F).all() for x in days[1:5]) and (days[5] == c.F).all()  # no increase: enforceable at once
+    assert all((x == c.F).all() for x in days[1:5])  # no increase: enforceable at once
+    assert (days[5] >= 10**6).all()  # no levy pending: the company's response to a levy does not arise
     up = chain(base)
     up.step("ruling", "", "beyond:11292377711:1211612330")  # only the increase waits 30 days (L8(a) base)
     assert (up.EF == up.F).all() and (up.EI == up.F + 30).all()
     ripe = up.step("judgment_default", "post", "no")
     inside = ripe < 10**6
-    assert (ripe[inside] == up.F[inside] + 60).all()
+    assert (ripe[inside] == up.A[inside] + 60).all()  # 60 days from the last tolling order
     whole = chain(base, sens={"stay_restart_on_increase_days": True})  # sensitivity: the whole amount waits
     whole.step("ruling", "", "beyond:11292377711:1211612330")
     assert (whole.EF == whole.F + 30).all() and (whole.EI == whole.F + 30).all()
@@ -290,27 +312,86 @@ def test_statutory_interest_is_8_percent_simple_on_surviving_compensatory_only()
 
 # 4. The notes -------------------------------------------------------------------------------------------------------
 
-def test_the_judgment_default_fires_only_at_ripeness_unpaid_unstayed_and_noticed(base):
-    ripe = ix(date(2024, 8, 19))  # enforceable from 20 Jun (Rule 62(a) ended) + 60 days (§7.01(i))
+AUG19 = ix(date(2024, 8, 19))  # the Rule 62(a) stay ended 19 Jun; 60 days on
+
+
+def _post(c, ruling="beyond:3010000000:0"):
+    for s in (("ruling", "", ruling), ("appeal", "", "no"), ("settle", "I2", "no"), ("stay", "post", "no")):
+        c.step(*s)
+
+
+def test_the_judgment_default_ripens_under_both_readings_unpaid_unstayed_and_noticed(base):
+    # Base (both): on the judgment as entered, 60 days after the Rule 62(a) stay ended; the holders' notice and
+    # acceleration bring the petition there.
     c = chain(base)
     c.step("execute_pre_ruling", "I1", "no")
-    c.step("judgment_default", "I1", "yes")
-    assert (c.ev.petition == ripe).all()
-    quiet = chain(base)
-    quiet.step("execute_pre_ruling", "I1", "no")
-    quiet.step("judgment_default", "I1", "no")  # no notice and acceleration: no default consequence
-    assert (quiet.ev.petition == -1).all()
-    stayed = chain(base)
-    for s in (("execute_pre_ruling", "I1", "yes"), ("stay", "I1", "yes"), ("judgment_default", "I1", "yes")):
-        stayed.step(*s)
-    early = stayed.stayed_from <= ripe  # stayed before it ripens: no default on that trajectory
-    assert early.any() and (~early).any()
-    assert (stayed.ev.petition[early] == -1).all() and (stayed.ev.petition[~early] == ripe).all()
-    small = judgment(components=(), motions=(), stage="judgment_entered",
-                     amount=judgment().amount.model_copy(update={"value": 900_000_000}))  # below the $10.0M threshold
+    ripe = c.step("judgment_default", "I1", "yes")
+    assert (ripe == AUG19).all() and (c.ev.petition == AUG19).all()
+    # Where the holders did not act then, it ripens again 60 days after the last tolling order (A), on the amount
+    # that survives the ruling; where they acted, it does not ripen again.
+    q = chain(base)
+    q.step("execute_pre_ruling", "I1", "no")
+    q.step("judgment_default", "I1", "no")
+    _post(q)
+    ripe = q.step("judgment_default", "post", "yes")
+    inside = ripe < N
+    assert inside.any() and (ripe[inside] == q.A[inside] + 60).all() and (q.A >= q.F).all()
+    assert (q.ev.petition[inside] == ripe[inside]).all()
+    acted = chain(base)
+    acted.step("execute_pre_ruling", "I1", "no")
+    acted.step("judgment_default", "I1", "accelerated")
+    _post(acted)
+    assert (acted.step("judgment_default", "post", "no") >= 10**6).all()  # no second acceleration
+    # Sensitivities: the entered judgment only, or the post-trial ruling only.
+    ent = chain(base, sens={"judgment_default_reading": "entered"})
+    assert (ent.step("judgment_default", "I1", "no") == AUG19).all()
+    _post(ent)
+    assert (ent.step("judgment_default", "post", "no") >= 10**6).all()
+    post = chain(base, sens={"judgment_default_reading": "post_ruling"})
+    assert (post.step("judgment_default", "I1", "no") >= 10**6).all()
+    _post(post)
+    assert (post.step("judgment_default", "post", "no") < N).any()
+    # With no ruling step the entered amount counts (a null never becomes $0); below the threshold, no default.
+    none = chain(base, sens={"judgment_default_reading": "post_ruling"})
+    assert (none.step("judgment_default", "post", "no") < N).any()
+    small = judgment(amount=judgment().amount.model_copy(update={"value": 900_000_000}),
+                     components=())  # below the $10.0M threshold
     low = chain(base, small)
-    low.step("judgment_default", "post", "yes")
-    assert (low.ev.petition == -1).all()
+    assert (low.step("judgment_default", "I1", "yes") >= 10**6).all() and (low.ev.petition == -1).all()
+
+
+def test_an_effective_stay_before_the_ripe_date_prevents_the_default(base):
+    c = chain(_growing(base))
+    c.step("execute_pre_ruling", "I1", "yes")
+    c.step("stay", "I1", "yes")  # approval = motion + briefing + a lag draw
+    early = c.stayed_from <= AUG19
+    assert early.any() and (~early).any()
+    ripe = c.step("judgment_default", "I1", "yes")
+    assert (ripe[early] >= 10**6).all() and (c.ev.petition[early] == -1).all()
+    assert (ripe[~early] == AUG19).all()
+
+
+def test_the_notes_petition_questions_get_the_facts_of_the_day_each_actor_may_file(base, full):
+    """H3 on the 19 Aug acceleration is dated at the earliest day §7.06 lets the holders file (acceleration + 60), the
+    day the engine books their petition; A5 at the acceleration. Both pool only trajectories where the holders
+    accelerated, and the holders' earliest filing date is a dated trigger."""
+    fc, _ = full
+    route = M["parameters"]["holder_petition_route"]["request_days"]
+    c = chain(base)
+    c.step("execute_pre_ruling", "I1", "no")
+    c.step("judgment_default", "I1", "holders_file")
+    assert (c.ev.petition == AUG19 + route).all()
+    tr = chain(base).run((("execute_pre_ruling", "I1", "no"), ("judgment_default", "I1", "accelerated")))
+    assert (tr.triggers["holders_petition_earliest"] == AUG19 + route).all()
+    assert (chain(base).run((("execute_pre_ruling", "I1", "no"),)).triggers["holders_petition_earliest"] >= 10**6).all()
+    for name, at in (("holders_involuntary", AUG19 + route), ("petition_on_notes", AUG19)):
+        keys = [k for k, n in fc.nodes.items() if n.node == name and n.context.startswith("judgment_I1")]
+        assert keys
+        for k in keys:
+            for r in fc.facts[k]:
+                day = r["day"][r["day"] < N]
+                assert day.size and (day == at).all()
+                assert (r["triggers"]["judgment_default_ruling"] >= 10**6).all()  # only where the holders acted
 
 
 def test_delisting_is_a_default_on_its_date_and_the_repurchase_date_is_code(base, full):
@@ -344,7 +425,10 @@ def test_a_filing_path_sets_the_petition_and_the_engine_stays_the_claim(base, fu
     c = Chain(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b))
     tr = c.run(p.steps)
     on = tr.events.petition >= 0
-    assert on.any() and (tr.events.petition[on] <= c.EF[on]).all()
+    at = tr.day[p.steps.index(("debtor_response", "post", "file"))]  # the levy day, before the levy
+    hit = on & (at < N)  # the petition is the earliest one: another filing on the path can come first
+    assert (tr.events.petition[hit] == at[hit]).any() and (tr.events.petition[hit] <= at[hit]).all()
+    assert (at[hit] >= c.EF[hit]).all()
     t = run(line, feed.available_cents, tr.events)
     assert (t.petition == tr.events.petition).all() and t.stayed[on].mean() > 0
     i1 = next(q for q in paths if ("debtor_response", "I1", "file") in q.steps)
@@ -390,18 +474,31 @@ def test_readings_are_routed_evidence_and_merits_questions_carry_no_cash(base, f
         return fc.state(next(n for n in fc.nodes.values() if n.node == node))[0]
 
     appeal, stay, merits = state("appeal"), state("stay_motion"), state("ts_liability_jmol")
-    assert list(appeal["readings"]) == ["The payer's appeal intent"]  # A2 gets appeal intent only
-    assert list(stay["readings"]) == ["The payer's willingness to pay this obligation"]  # A1 gets resistance
-    assert merits["readings"] == {} and "available_cash_at_decision" not in merits["path_facts"]
+    assert list(appeal["readings"]) == ["The company's appeal intent"]  # A2 gets appeal intent only
+    assert list(stay["readings"]) == ["The company's willingness to pay this obligation"]  # A1 gets resistance
+    assert merits["readings"] == {} and "projected_available_cash_at_decision_date" not in merits["path_facts"]
     assert "cash" not in str(merits["path_facts"]).lower()  # J1-J6: no borrower cash, only the record's components
     for q in ("forecast_ts_liability_jmol", "forecast_ts_damages_ruling", "forecast_patent_jmol", "forecast_trebling",
               "forecast_fees_awarded", "forecast_prejudgment_interest"):
         from app.agent.jev import registry_question
 
         text = registry_question(q)["prompt"]["instructions"]
-        assert "no borrower cash is given" in text and "sealed at the review date" in text
+        assert "on the merits or the remedy" not in text and "briefs are sealed" in text  # the standard only
+    # the company named by role; the remittitur scenario only where it is the premise; the dated judgment fact
+    assert merits["case"]["company"] == "Akoustis Technologies, Inc." and "borrower" not in merits["case"]
+    assert "remittitur_scenario" not in str(merits["path_facts"])
+    assert "remittitur_scenario" in str(state("ts_damages_ruling")["path_facts"])
+    assert "remittitur_scenario" in str(state("remittitur_accepted")["path_facts"])
+    assert "Amount fixed by the court" not in state("remittitur_accepted")["readings"]
+    # the court's standard for each ruling, and the motion it rules on
+    assert [m["motion"] for m in merits["path_facts"]["pending_motions"]] == ["D.I. 607"]
+    damages, patent, treble = state("ts_damages_ruling"), state("patent_jmol"), state("trebling")
+    assert any("Williamson" in s and "Gumbs" in s for s in damages["standard"])
+    assert not any("Lightning Lube" in s for s in damages["standard"])
+    assert any("Lightning Lube" in s for s in patent["standard"]) and any("Roebuck" in s for s in patent["standard"])
+    assert any("Winant" in s and "Hardy v. Toler" in s for s in treble["standard"])  # both sides of an open question
     a4 = state("debtor_response")
-    assert set(a4["path_facts"]["available_cash_at_decision"]) == {"p5", "p50"}  # the debtor's cash is a path fact
+    assert set(a4["path_facts"]["projected_available_cash_at_decision_date"]) == {"p5", "p50"}  # the debtor's cash is a path fact
     assert a4["question"]["branches"] == ["seek_sale_or_financing", "file", "neither"]  # pay removed (arithmetic)
 
 
@@ -410,32 +507,38 @@ def test_the_injunction_and_settlement_questions_cite_their_own_law():
     assert nodes["injunction"]["standard"] == ["ebay_2006", "usc18_1836_b3a", "nc_66_154_a", "frcp_62c"]
     assert "547 U.S. 388" in M["rules"]["ebay_2006"]["citation"] and "62(c)" in M["rules"]["frcp_62c"]["citation"]
     assert all("frcp_62b" not in nodes[n]["standard"] for n in ("injunction", "settlement_offer", "settlement_accept"))
+    for n in ("ts_liability_jmol", "ts_damages_ruling", "patent_jmol", "trebling", "fees_awarded", "prejudgment_interest"):
+        items = " ".join(nodes[n]["record_items"]).lower()  # a court does not weigh solvency on the merits
+        assert not any(w in items for w in ("cash", "going-concern", "bankruptcy", "financing", "liquidity")), n
 
 
-def test_the_26_residual_questions_agree_in_number():
+def test_the_residual_questions_agree_in_number():
     import re
 
     from app.disputes.forecast import load_registry
 
     qs = [q for q in load_registry()["questions"] if q.get("node")]
-    assert len(qs) == 26
+    assert len(qs) == 27
     third = r"\b(grants|sets|awards|enters|executes|moves|approves|orders|files|enforces|offers|accepts|calls|requests|stays)\b"
     for q in qs:
         assert not re.match(r"^Do(es)? the [^?]*?" + third, q["question"]), q["question"]  # 'Does the court grants'
         assert not re.match(r"^Does the (holders|noteholders|stockholders)\b", q["question"])
         assert not q["question"].startswith("How does the") or " decide:" not in q["question"]
-        if q["primitive"] == "noul" and re.match(r"^The (holders|noteholders|stockholders)", q["prompt"]["criteria"]["true"]):
-            assert q["prompt"]["criteria"]["false"].endswith(" do not.")
+        if q["primitive"] == "noul":  # both answers are complete sentences in agreement with their subject
+            for text in q["prompt"]["criteria"].values():
+                assert text.endswith(".") and not re.search(r"\b(holders|noteholders|stockholders)\b[^.]* does\b", text)
 
 
 # 7. Cash conventions ------------------------------------------------------------------------------------------------
 
-def test_coupon_in_shares_by_default_and_legal_spend_stops_on_settlement(base):
+def test_coupon_shares_to_capacity_and_legal_spend_stops_on_settlement(base):
     dec16 = ix(date(2024, 12, 16))  # 15 Dec 2024 is a Sunday: paid the next business day
-    assert not chain(base).run(()).events.cash.any()  # shares: no cash; CHIPS: $0 in the horizon
+    cash = chain(base).run(()).events.cash  # 3.0M shares at 95% of $0.20 cover $570,000; the rest in cash
+    assert (cash[:, dec16] == -75_000_000).all() and (np.delete(cash, dec16, axis=1) == 0).all()
+    assert not chain(base, sens={"coupon_cash_share": "all_shares"}).run(()).events.cash.any()  # CHIPS: $0
     cash = chain(base, sens={"coupon_cash_share": "all_cash"}).run(()).events.cash
     assert (cash[:, dec16] == -132_000_000).all() and (np.delete(cash, dec16, axis=1) == 0).all()
-    chips = chain(base, sens={"chips_credit_cents": True}).run(()).events.cash
+    chips = chain(base, sens={"chips_credit_cents": True, "coupon_cash_share": "all_shares"}).run(()).events.cash
     assert (chips.sum(axis=1) == 233_000_000).all()
     c = chain(base)
     c.step("settle", "I1", "yes")
@@ -446,13 +549,28 @@ def test_coupon_in_shares_by_default_and_legal_spend_stops_on_settlement(base):
     assert (c.ev.cash[:, :pd] == 0).all()
 
 
+def test_no_separate_coupon_is_paid_on_notes_already_accelerated(base):
+    dec16 = ix(date(2024, 12, 16))
+    pre = (("execute_pre_ruling", "I1", "no"),)
+    kept = chain(base).run(pre + (("judgment_default", "I1", "no"),)).events.cash
+    assert (kept[:, dec16] == -75_000_000).all()
+    for branch in ("accelerated", "holders_file"):  # accelerated on 19 Aug: the amount due carries the interest
+        c = chain(base)
+        cash = c.run(pre + (("judgment_default", "I1", branch),)).events.cash
+        due = c.marks["notes_due"] <= dec16
+        assert due.all() and (cash[:, dec16] == 0).all()
+    late = chain(base)  # delisted on 6 Dec (panel): accelerated before the payment day
+    cash = late.run((("listing", "", "delisted_panel"), ("delisting_notes", "delisted_panel", "accelerated"))).events.cash
+    assert (late.marks["notes_due"] <= dec16).all() and (cash[:, dec16] == 0).all()
+
+
 def test_legal_spend_stops_on_vacatur_and_continues_on_a_new_trial(base, full):
     fc, paths = full
     legal = base[1].legal
     pre = (("settle", "I1", "no"), ("execute_pre_ruling", "I1", "no"), ("judgment_default", "I1", "no"))
     after = None
     for branch in ("none", "retrial"):
-        c = chain(base)
+        c = chain(base, sens={"coupon_cash_share": "all_shares"})  # the legal spend alone
         ev = c.run(pre + (("ruling", "", branch),)).events
         after = np.arange(N)[None, :] >= c.F[:, None]
         if branch == "none":  # vacated: the feed's legal outflows are added back from the ruling
@@ -489,3 +607,152 @@ def test_neutral_residuals_reproduce_attribution_step_two(base):
     ec = Chain(d, SETUP, M, Draws(b.cash.shape[0], basis=b)).run(stayed.steps).events
     level = np.cumsum(ec.lock, axis=1)
     assert (ec.lock > 0).any() and (level >= 0).all() and (level[:, -1][ec.lock.sum(axis=1) == 0] == 0).all()
+
+
+def test_settlement_stay_and_contract_date_facts_state_what_the_chain_computes(full):
+    """The offer and the reduced security Jev weighs are the chain's own amounts; contract dates are those on or after
+    the decision inside the period. A stub row stands in for the chain's per-trajectory arrays."""
+    from app.analysis.events import BIG
+
+    fc, _ = full
+    n4 = next(n for n in fc.nodes.values() if n.node == "settlement_accept")
+    j8 = next(n for n in fc.nodes.values() if n.node == "stay_approved")
+    k = len(fc.draws.basis.cash)
+    day = np.full(k, 40)
+    base = {"day": day, "cash": np.full(k, 9_000_000_00), "owed": np.full(k, 38_000_000_00),
+            "collateral": np.zeros(k, dtype=np.int64), "petition": np.full(k, -1)}
+    offered = {**base, "settle_offer": np.full(k, 5_000_000_00), "stay_offer": np.full(k, 4_000_000_00),
+               "triggers": {"coupon": np.full(k, N - 3), "appeal_deadline": np.full(k, 20),
+                            "judgment_default_ruling": np.where(np.arange(k) % 2 == 0, 100, BIG)}}
+    declined = {**base, "settle_offer": np.zeros(k, dtype=np.int64), "stay_offer": np.zeros(k, dtype=np.int64),
+                "triggers": offered["triggers"]}
+    saved = fc.facts
+    try:
+        fc.facts = {**saved, n4.key: [offered, declined], j8.key: [offered, declined]}
+        s = fc.path_facts(n4, judgment())["settlement_offer"]
+        assert s["amount"] == {"p5": usd(5_000_000_00), "p50": usd(5_000_000_00)}  # the 'no' branch's zeros left out
+        assert "thirty_day_operating_need" in s and s["payment"].startswith("one payment of the full amount")
+        dates = fc.path_facts(n4, judgment())["contract_dates"]
+        assert len(dates) == 2 and not any("appeal" in x for x in dates)  # the appeal deadline passed before it
+        assert fc.path_facts(j8, judgment())["reduced_security_offered"]["p50"] == usd(4_000_000_00)
+    finally:
+        fc.facts = saved
+
+
+class _Court(Chain):
+    """The chain as it books each court ruling: the stay's approval day with the cash that day before the security is
+    locked and the reduced security offered, and the early registration order with the cash that day (the levy
+    follows the order by levy_lag_days)."""
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.seen = []
+
+    def stay_security(self, motion, key, approved):
+        approval = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, key)
+        cash = self.cash_at(approval)
+        out = super().stay_security(motion, key, approved)
+        self.seen.append((("stay_approved", key.split("_")[1]), out, cash, self.stay_offer.copy()))
+        return out
+
+    def step(self, node, ctx, branch):
+        day = super().step(node, ctx, branch)
+        if (node, ctx, branch) in (("registration_early", "I1", "yes"), ("enforce", "post", "levy")):
+            order = self.pending_levy - int(self.p("levy_lag_days"))
+            self.seen.append((("registration_early", ctx), order, self.cash_at(order), None))
+        return day
+
+
+def test_each_court_ruling_on_a_motion_has_the_facts_of_its_own_day(full, base):
+    """J8 and J9 are asked of the court on the day it rules (motion + briefing + the engine's ruling-lag draw): every
+    fact row of every stay_approved and registration_early question is, on every draw, the day the engine books the
+    approval or the order and the cash that day before the lock or the levy (and, for a stay, the reduced security the
+    engine measures that day). The company's stay motion keeps the motion day."""
+    fc, paths = full
+    b = base[1]
+    engine, done = set(), set()
+    for p in paths:
+        for i, s in enumerate(p.steps):
+            j9_post = s == ("enforce", "post", "levy") and ("appeal", "", "yes") in p.steps[:i] and (
+                ("registration_early", "I1", "yes") not in p.steps[:i])
+            if not (s[0] == "stay" or s == ("registration_early", "I1", "yes") or j9_post) or p.steps[:i + 1] in done:
+                continue
+            done.add(p.steps[:i + 1])
+            c = _Court(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b))
+            c.run(p.steps[:i + 1])
+            what, day, cash, offer = c.seen[-1]
+            engine.add((what, day.tobytes(), cash.tobytes(), None if offer is None else offer.tobytes()))
+    recorded = set()
+    for k, n in fc.nodes.items():
+        if n.node in ("stay_approved", "registration_early"):
+            what = (n.node, n.context.split("|")[0])
+            for r in fc.facts[k]:
+                offer = r["stay_offer"].tobytes() if n.node == "stay_approved" else None
+                recorded.add((what, r["day"].tobytes(), r["cash"].tobytes(), offer))
+    assert {e[0] for e in recorded} == {(x, c) for x in ("stay_approved", "registration_early") for c in ("I1", "post")}
+    assert recorded == engine
+    c = chain(base)
+    for n in (n for n in fc.nodes.values() if n.node == "stay_motion"):
+        motion = c.E0 if n.context.startswith("I1") else np.maximum(c.F, 0)
+        assert all((r["day"] == motion).all() for r in fc.facts[n.key]), n.key
+    assert not any(s[0] == "court_order" for p in paths for s in p.steps)  # a probe: it never enters a path
+
+
+def test_the_settled_share_counts_only_draws_that_paid_a_settlement(full, base):
+    """A 'settles' branch books nothing on a draw where the settlement amount is zero; that draw is classed by what
+    the engine booked (Unresolved here), so a path's Settled share is the share of its draws with a positive
+    settlement paid and no petition in the period, and the Filed shares still sum to its chance of a filing."""
+    from app.analysis.page import CAUSE_CLASS, outcome_shares
+
+    _, paths = full
+    b = base[1]
+    settles = [p for p in paths if any(s[0] == "settle" and s[2] == "yes" for s in p.steps)]
+    zero = 0
+    for p in settles[:: max(1, len(settles) // 150)]:
+        tr = Chain(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b)).run(p.steps)
+        pet = float((tr.cause > 0).mean())
+        sh = outcome_shares(p.steps, p.outcome, pet, tr.cause, tr.marks, N)
+        paid = (tr.marks["settled"] < N) & (tr.cause == 0)
+        assert sh.get("settled", 0.0) == pytest.approx(paid.mean(), abs=1e-12)
+        assert sum(sh.get(c, 0.0) for c in CAUSE_CLASS.values()) == pytest.approx(pet, abs=1e-12)
+        assert sum(sh.values()) == pytest.approx(1.0, abs=1e-12)
+        zero += int(((tr.marks["settled"] >= N) & (tr.cause == 0)).any())
+    assert zero  # some 'settles' paths have draws where nothing was paid
+
+
+def test_every_company_response_question_has_its_date_cash_and_amount_owed(full):
+    """The company's response arises only where an amount is still owed on the day (a levy before the ruling can
+    already have taken all that survives it), so each one asked carries its decision date, cash and amount owed."""
+    fc, _ = full
+    a4 = [n for n in fc.nodes.values() if n.node == "debtor_response"]
+    assert {n.context.split("|")[0] for n in a4} >= {"I1", "post", "ripe"}
+    for n in a4:
+        facts = fc.path_facts(n, judgment())
+        assert {"decision_date", "projected_available_cash_at_decision_date", "amount_owed_at_decision"} <= set(facts), n.key
+
+
+# 8. Chain order -----------------------------------------------------------------------------------------------------
+
+def test_the_post_ruling_response_comes_on_the_levy_day_and_again_at_the_ripe_date_after_seeking(full):
+    fc, paths = full
+    for p in paths:
+        for i, s in enumerate(p.steps):
+            if s[:2] == ("debtor_response", "post"):
+                assert p.steps[i - 1] == ("enforce", "post", "levy")
+            if s[:2] == ("debtor_response", "ripe"):
+                assert any(x[0] == "debtor_response" and x[2].startswith("seek") for x in p.steps[:i])
+    assert any(s[:2] == ("debtor_response", "ripe") for p in paths for s in p.steps)
+
+
+def test_each_listing_question_has_the_facts_of_its_own_decision_date(full, base):
+    fc, _ = full
+    dates = chain(base).listing_dates()
+    own = {"reverse_split_board": "vote_call", "split_approved": "effective_by", "nasdaq_hearing": "hearing_request",
+           "panel_exception": "panel_decision"}
+    seen = set()
+    for k, n in fc.nodes.items():
+        if n.node in own:
+            days = np.concatenate([r["day"] for r in fc.facts[k]])
+            assert set(days[days < 10**6].tolist()) <= {dates[own[n.node]]}
+            seen.add(n.node)
+    assert seen == set(own)

@@ -173,7 +173,7 @@
     const readings = Object.entries(j.readings || {}).map(([label, v]) => {
       if (v.probability_present !== undefined) return `<div>${esc(label)}: ${pct(v.probability_present)} present</div>`;
       const top = Object.entries(v.distribution).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, p]) => `${esc(k)} <b>${pct(p)}</b>`).join(" · ");
-      return `<div>${esc(label)}: ${top}${v.conflicting_readings ? ` <span class="muted">(conflicting passages)</span>` : ""}</div>`;
+      return `<div>${esc(label)}: ${top}${v.note ? ` <span class="muted">(${esc(v.note)})</span>` : ""}</div>`;
     }).join("");
     const dist = Object.entries(r.jev).sort((a, b) => (b[0] === "yes") - (a[0] === "yes")).map(([k, v]) => `<div class="pbar" style="max-width:28rem"><span style="width:8rem;font-size:.8rem">${esc(k.replace(/_/g, " "))}</span><div class="bar"><i style="width:${100 * v}%"></i></div><b>${pct(v)}</b></div>`).join("");
     const variants = Object.entries(r.variants).map(([k, v]) => `<tr><td>${esc(k.replace(/_/g, " "))}</td><td>${money(v.min_cash)}</td><td>${pct(v.shortfall_p, 1)}</td><td>${money(v.peak_locked)}</td><td>${money(v.lender_pv, 1)}</td><td>${dd(v.dollar_days)}</td><td>${money(v.uncollected_maturity)}</td></tr>`).join("");

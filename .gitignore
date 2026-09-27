@@ -15,6 +15,7 @@ var/
 
 # Recorded runs are committed deliberately under runs/recorded/; scratch runs are not
 runs/scratch/
+runs/recorded/*/analysis.json
 
 # Claude Code worktrees
 .claude/worktrees/

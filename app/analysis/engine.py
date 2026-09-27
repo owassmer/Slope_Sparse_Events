@@ -168,67 +168,125 @@ def with_petition(events: EventCash, day: np.ndarray | int) -> EventCash:
 
 
 def run(line: Line, opening_cents: int, events: EventCash) -> Trajectories:
-    s, n, days = line.setup, line.ops.draws, line.days
-    base = line.ops.total[:, :days] + events.cash - events.lock
-    pet = np.where((events.petition >= 0) & (events.petition < days), events.petition, days)  # days = none
-    due = np.zeros((n, line.tail), dtype=np.int64)
-    collections = np.zeros((n, days), dtype=np.int64)
-    fundings = np.zeros((n, days), dtype=np.int64)
-    cash = np.empty((n, days), dtype=np.int64)
-    outstanding = np.empty((n, days), dtype=np.int64)
-    avail = np.full(n, opening_cents, dtype=np.int64)
-    owed, funded, contract, collected = (np.zeros(n, dtype=np.int64) for _ in range(4))
+    return run_many(line, opening_cents, [events])[0]
+
+
+def _tiled(line: Line, b: int) -> tuple:
+    """The line's need and limit [days, rows], day-major (each day's values contiguous), and per (day, slot) the rows
+    with an invoice to route and its amount, for b paths stacked row-wise."""
+    cache = line.__dict__.setdefault("_tiles", {})
+    if b not in cache:
+        if len(cache) > 2:
+            cache.clear()
+        days, n = line.days, line.ops.draws
+        routes = line.routes[:, :days]
+        slots = []
+        for t in range(days):
+            row = []
+            for k in range(routes.shape[2]):
+                r = np.flatnonzero(routes[:, t, k] > 0)
+                if r.size:
+                    rows = (r[None, :] + n * np.arange(b)[:, None]).ravel()
+                    row.append((rows, np.tile(routes[r, t, k], b)))
+            slots.append(row)
+        cache[b] = (np.ascontiguousarray(np.tile(line.need[:, :days].T, (1, b))),
+                    np.ascontiguousarray(np.tile(line.limit[:, :days].T, (1, b))), slots)
+    return cache[b]
+
+
+def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Trajectories]:
+    """`run` for several joint paths at once: their draws are stacked through the day loop, day-major so each day's
+    values are contiguous (every operation in the loop is per trajectory and in integers, so each path's rows are
+    exactly what it computes alone), then each path is finished on its own rows."""
+    s, n, days, b = line.setup, line.ops.draws, line.days, len(events)
+    base = np.ascontiguousarray(np.concatenate([line.ops.total[:, :days] + e.cash - e.lock for e in events]).T)
+    pet = np.concatenate([np.where((e.petition >= 0) & (e.petition < days), e.petition, days) for e in events])
+    need, limit, slots = _tiled(line, b)
+    rn = n * b
+    due = np.zeros((line.tail, rn), dtype=np.int64)
+    collections = np.zeros((days, rn), dtype=np.int64)
+    fundings = np.zeros((days, rn), dtype=np.int64)
+    cash = np.empty((days, rn), dtype=np.int64)
+    outstanding = np.empty((days, rn), dtype=np.int64)
+    avail = np.full(rn, opening_cents, dtype=np.int64)
+    owed, funded, contract, collected = (np.zeros(rn, dtype=np.int64) for _ in range(4))
     hr_rows, hr_vals, hr_days, d_rows, d_days, d_amts = [], [], [], [], [], []
 
-    def principal_out() -> np.ndarray:
-        return funded - np.where(contract > 0, collected * funded // np.maximum(contract, 1), 0)
+    def principal_out(r=slice(None)) -> np.ndarray:  # per trajectory; r: only these rows
+        f, c = funded[r], contract[r]
+        return f - np.where(c > 0, collected[r] * f // np.maximum(c, 1), 0)
 
+    po = principal_out()
     for t in range(days):
-        avail += base[:, t]
+        avail += base[t]
         live = t < pet
-        owed += due[:, t]
-        falls_due = (due[:, t] > 0) & live
+        owed += due[t]
+        falls_due = (due[t] > 0) & live
+        changed = False
         if falls_due.any():
             hr_rows.append(np.nonzero(falls_due)[0])
-            hr_vals.append((avail - line.need[:, t] - owed)[falls_due])
+            hr_vals.append((avail - need[t] - owed)[falls_due])
             hr_days.append(np.full(int(falls_due.sum()), t, dtype=np.int64))
         attempt = live & (falls_due | line.month_end[t]) & (owed > 0)
         if attempt.any():
-            take = np.where(attempt, np.minimum(owed, np.maximum(avail - line.need[:, t], 0)), 0)
+            take = np.where(attempt, np.minimum(owed, np.maximum(avail - need[t], 0)), 0)
             owed -= take
             avail -= take
             collected += take
-            collections[:, t] = take
+            collections[t] = take
+            changed = True
         open_ = live & (owed == 0)
-        for k in range(line.routes.shape[2]):
-            amt = line.routes[:, t, k]
-            cand = open_ & (amt > 0)
-            if not cand.any():
+        for rows, amts in slots[t]:  # only the rows with an invoice in this slot: every other row adds nothing
+            sel = open_[rows]
+            if not sel.any():
                 continue
-            ok = cand & (principal_out() + amt <= line.limit[:, t])
+            rows, amts = rows[sel], amts[sel]
+            ok = principal_out(rows) + amts <= limit[t][rows]
             if not ok.any():
                 continue
-            amt = np.where(ok, amt, 0)
+            rows, amt = rows[ok], amts[ok]
             parts = installment_amounts(amt, s.fee_bps, s.installments)
-            due[:, line.due_idx[t]] += parts
-            funded += amt
-            contract += parts.sum(axis=1)
-            avail += amt  # Slope pays the supplier: the invoice leaves the borrower's outflows today
-            fundings[:, t] += amt
-            rows = np.nonzero(ok)[0]
+            due[np.ix_(line.due_idx[t], rows)] += parts.T
+            funded[rows] += amt
+            contract[rows] += parts.sum(axis=1)
+            avail[rows] += amt  # Slope pays the supplier: the invoice leaves the borrower's outflows today
+            fundings[t][rows] += amt
             d_rows.append(rows)
             d_days.append(np.full(len(rows), t, dtype=np.int64))
-            d_amts.append(amt[rows])
-        cash[:, t] = avail
-        outstanding[:, t] = principal_out()
+            d_amts.append(amt)
+            changed = True
+        cash[t] = avail
+        if changed:
+            po = principal_out()
+        outstanding[t] = po
 
+    # [rows, days] again: views of the day-major arrays (integer arithmetic reads them exactly, in any order), except
+    # the two the discounting multiplies by float factors, copied so the product runs exactly as on a single path
+    due, cash, outstanding = due.T, cash.T, outstanding.T
+    collections, fundings = np.ascontiguousarray(collections.T), np.ascontiguousarray(fundings.T)
+    cat = lambda xs: np.concatenate(xs) if xs else np.zeros(0, dtype=np.int64)  # noqa: E731
+    hr = (cat(hr_rows), cat(hr_vals), cat(hr_days))
+    dr = (cat(d_rows), cat(d_days), cat(d_amts))
+    out = []
+    for j, ev in enumerate(events):
+        lo, hi = j * n, (j + 1) * n
+        sl = slice(lo, hi)
+        mh, md = (hr[0] >= lo) & (hr[0] < hi), (dr[0] >= lo) & (dr[0] < hi)  # this path's entries, in order
+        out.append(_finish(line, ev, pet[sl], due[sl], collections[sl], fundings[sl], cash[sl], outstanding[sl],
+                           funded[sl], contract[sl], collected[sl], (hr[0][mh] - lo, hr[1][mh], hr[2][mh]),
+                           (dr[0][md] - lo, dr[1][md], dr[2][md])))
+    return out
+
+
+def _finish(line: Line, events: EventCash, pet, due, collections, fundings, cash, outstanding, funded, contract,
+            collected, hr, dr) -> Trajectories:
+    n, days = line.ops.draws, line.days
     petitioned = pet < days
     stayed = np.where(petitioned, contract - collected, 0)
     not_yet_due = np.where(petitioned, 0, due[:, days:].sum(axis=1))
     idx = np.arange(days)
     window = petitioned[:, None] & (idx >= pet[:, None] - PREFERENCE_DAYS) & (idx < pet[:, None])
-    cat = lambda xs: np.concatenate(xs) if xs else np.zeros(0, dtype=np.int64)  # noqa: E731
-    headroom_rows, headroom = cat(hr_rows), cat(hr_vals)
+    headroom_rows, headroom = hr[0], hr[1]
     min_headroom = np.full(n, NO_DUE, dtype=np.int64)
     np.minimum.at(min_headroom, headroom_rows, headroom)
     pv_f, pv_c = fundings @ line.df, collections @ line.df
@@ -240,6 +298,5 @@ def run(line: Line, opening_cents: int, events: EventCash) -> Trajectories:
         preference=(collections * window).sum(axis=1), not_yet_due=not_yet_due,
         uncollected=contract - collected - stayed - not_yet_due, lender_pv=pv_c - pv_f, pv_fundings=pv_f,
         pv_collections=pv_c, dollar_days=outstanding.sum(axis=1) / 100.0, min_cash=cash.min(axis=1),
-        min_headroom=min_headroom, headroom_rows=headroom_rows, headroom=headroom, headroom_days=cat(hr_days),
-        draw_rows=cat(d_rows),
-        draw_days=cat(d_days), draw_amounts=cat(d_amts))
+        min_headroom=min_headroom, headroom_rows=headroom_rows, headroom=headroom, headroom_days=hr[2],
+        draw_rows=dr[0], draw_days=dr[1], draw_amounts=dr[2])

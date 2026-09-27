@@ -1,18 +1,17 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "4.0.1",
+  "registry_version": "4.2.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
   "sdk_mapping": "For each question, prefix prompt.instructions with the global_rules text and construct typesafe_sdk.Noul(instructions, criteria), typesafe_sdk.Choice(instructions, criteria) or typesafe_sdk.Score(instructions, criteria) according to primitive. Questions in one profile that share a state are sent in one request. Other entry metadata is enforced by the host and not forwarded.",
   "purpose": "Narrow semantic judgments where retrieved text becomes a finding, a finding becomes an economic effect, or evidence conflicts; and, for live disputes, present-state readings plus conditional probabilities of defined future events. No question produces an amount or date, or makes a lending decision.",
   "global_rules": [
-    "Answer only from the supplied state. Do not use remembered facts about this company, these parties, this dispute or later events; if you recognise the case, ignore what you remember about what happened later.",
-    "Each question concerns one statement, one target and the supplied passage. If the input combines claims, choose the unknown or unclear option rather than an arbitrary category.",
+    "Answer from the supplied state alone.",
+    "Each question concerns one statement and one target in the supplied input; where the input combines claims, the answer is the unknown or unclear option.",
     "Source authority and claim posture are separate: a regulatory filing can report an allegation or an expectation.",
-    "Do not compute or compare amounts or dates; code does that separately.",
-    "No confidence value turns a judgment into an accepted fact, a probability or a financial input.",
-    "The question identifier is metadata; the complete question is in the instructions."
+    "Amounts and dates are given in the state; take them as stated.",
+    "The question identifier is a label; the question is in the instructions."
   ],
   "profiles": {
     "candidate_screen": {
@@ -107,6 +106,11 @@
     "dispute_forecast": {
       "primitive": "noul+choice",
       "trigger": "host, when the analysis is built: one request per residual node and context key (interval, amount class, stay and notes status; cached). Path facts are simulated before any request.",
+      "rules": [
+        "Answer from the supplied state alone.",
+        "Amounts and dates are given in the state; take them as stated.",
+        "The question identifier is a label; the question is in the instructions."
+      ],
       "questions": [
         "forecast_ts_liability_jmol",
         "forecast_ts_damages_ruling",
@@ -131,6 +135,11 @@
     "financing_forecast": {
       "primitive": "noul+choice",
       "trigger": "host, when the analysis is built: one request per residual node and context key (interval, amount class, stay and notes status; cached). Path facts are simulated before any request.",
+      "rules": [
+        "Answer from the supplied state alone.",
+        "Amounts and dates are given in the state; take them as stated.",
+        "The question identifier is a label; the question is in the instructions."
+      ],
       "questions": [
         "forecast_holders_act_judgment",
         "forecast_holders_act_delisting",
@@ -140,6 +149,13 @@
         "forecast_split_approved",
         "forecast_nasdaq_hearing",
         "forecast_panel_exception"
+      ]
+    },
+    "evidence_routing": {
+      "primitive": "noul",
+      "trigger": "host, before the forecasts",
+      "questions": [
+        "record_item_supplied"
       ]
     }
   },
@@ -1047,10 +1063,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. This is a ruling on the merits or on a legal remedy: the court does not weigh the parties' solvency, so no borrower cash is given. The parties' briefs are sealed at the review date; judge from the public grounds and exhibits in state.record_items.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
-          "true": "The court grants judgment as a matter of law on trade-secret liability, under the assumptions.",
-          "false": "The court does not."
+          "true": "The court grants judgment as a matter of law on trade-secret liability.",
+          "false": "The court denies judgment as a matter of law on trade-secret liability."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1076,7 +1092,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. This is a ruling on the merits or on a legal remedy: the court does not weigh the parties' solvency, so no borrower cash is given. The parties' briefs are sealed at the review date; judge from the public grounds and exhibits in state.record_items.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
           "stands": "the damages verdict stands",
           "remit": "the court remits to the most the evidence supports",
@@ -1106,7 +1122,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
           "accept": "the creditor accepts the remitted amount",
           "new_trial": "the creditor takes a new trial"
@@ -1135,10 +1151,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. This is a ruling on the merits or on a legal remedy: the court does not weigh the parties' solvency, so no borrower cash is given. The parties' briefs are sealed at the review date; judge from the public grounds and exhibits in state.record_items.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
-          "true": "The court sets aside the patent verdict, under the assumptions.",
-          "false": "The court does not."
+          "true": "The court sets aside the patent verdict.",
+          "false": "The patent verdict stands."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1164,10 +1180,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. This is a ruling on the merits or on a legal remedy: the court does not weigh the parties' solvency, so no borrower cash is given. The parties' briefs are sealed at the review date; judge from the public grounds and exhibits in state.record_items.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
-          "true": "The court grants the motion to treble under the unfair-trade-practices statute, under the assumptions.",
-          "false": "The court does not."
+          "true": "The court grants the motion to treble under the unfair-trade-practices statute.",
+          "false": "The court denies the motion to treble."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1193,10 +1209,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. This is a ruling on the merits or on a legal remedy: the court does not weigh the parties' solvency, so no borrower cash is given. The parties' briefs are sealed at the review date; judge from the public grounds and exhibits in state.record_items.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
-          "true": "The court awards the requested attorneys' fees, under the assumptions.",
-          "false": "The court does not."
+          "true": "The court awards the requested attorneys' fees.",
+          "false": "The court denies the fee motion."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1222,10 +1238,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. This is a ruling on the merits or on a legal remedy: the court does not weigh the parties' solvency, so no borrower cash is given. The parties' briefs are sealed at the review date; judge from the public grounds and exhibits in state.record_items.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
-          "true": "The court awards pre-judgment interest on the unjust-enrichment award, under the assumptions.",
-          "false": "The court does not."
+          "true": "The court awards pre-judgment interest on the unjust-enrichment award.",
+          "false": "The court denies pre-judgment interest on the unjust-enrichment award."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1251,10 +1267,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. This is a ruling on the merits or on a legal remedy: the court does not weigh the parties' solvency, so no borrower cash is given. The parties' briefs are sealed at the review date; judge from the public grounds and exhibits in state.record_items.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
-          "true": "The court enters the requested trade-secret injunction, under the assumptions.",
-          "false": "The court does not."
+          "true": "The court enters the requested trade-secret injunction.",
+          "false": "The court denies the injunction."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1280,10 +1296,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The judgment creditor executes on the entered judgment before the post-trial ruling, under the assumptions.",
-          "false": "The judgment creditor does not."
+          "true": "The judgment creditor executes on the entered judgment before the post-trial ruling.",
+          "false": "The judgment creditor waits for the post-trial ruling."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1309,10 +1325,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The judgment debtor moves for a stay on a bond or other security, under the assumptions.",
-          "false": "The judgment debtor does not."
+          "true": "The judgment debtor moves for a stay on a bond or other security.",
+          "false": "The judgment debtor leaves the judgment unstayed."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1338,10 +1354,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The court approves the offered security and stays execution, under the assumptions.",
-          "false": "The court does not."
+          "true": "The court approves the offered security and stays execution.",
+          "false": "The court denies the stay."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1351,7 +1367,7 @@
       "version": "4.0.0",
       "profile": "dispute_forecast",
       "primitive": "noul",
-      "question": "Does the court order registration in other districts before finality for good cause?",
+      "question": "Does the court order registration of the judgment in other districts before it is final, for good cause?",
       "actor": "court",
       "template": "federal_post_judgment",
       "node": "registration_early",
@@ -1367,10 +1383,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The court orders registration in other districts before finality for good cause, under the assumptions.",
-          "false": "The court does not."
+          "true": "The court orders registration of the judgment in other districts for good cause.",
+          "false": "The court denies registration before finality."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1380,7 +1396,7 @@
       "version": "4.0.0",
       "profile": "dispute_forecast",
       "primitive": "choice",
-      "question": "How does the judgment debtor respond to an enforceable, unstayed, unpaid judgment: pay, seek a sale or financing, file, or neither?",
+      "question": "How does the judgment debtor respond to an enforceable, unstayed, unpaid judgment: pay, seek a sale or financing, file for bankruptcy, or neither?",
       "actor": "judgment debtor",
       "template": "federal_post_judgment",
       "node": "debtor_response",
@@ -1396,12 +1412,12 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened. Choose only among the options in state.question.branches: 'pay' is offered only where the path's arithmetic allows it.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The options are state.question.branches; paying in full is among them where the company's cash covers the amount owed.",
         "criteria": {
-          "pay": "pays the amount owed (offered only where the path's arithmetic allows it)",
-          "seek_sale_or_financing": "seeks a sale, strategic transaction or new financing: timing only, it defers the filing decision to the next milestone and books no cash",
-          "file": "files a petition (restructuring or insolvency)",
-          "neither": "does none of these"
+          "pay": "pays the amount owed",
+          "seek_sale_or_financing": "seeks a sale, strategic transaction or new financing",
+          "file": "files for bankruptcy",
+          "neither": "takes none of these steps"
         },
         "criteria_from_host": true
       },
@@ -1428,10 +1444,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The judgment debtor files a notice of appeal within 30 days of the final judgment, under the assumptions.",
-          "false": "The judgment debtor does not."
+          "true": "The judgment debtor files a notice of appeal within 30 days of the final judgment.",
+          "false": "The appeal deadline passes without a notice of appeal."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1457,10 +1473,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The judgment creditor enforces the final judgment, under the assumptions.",
-          "false": "The judgment creditor does not."
+          "true": "The judgment creditor enforces the final judgment.",
+          "false": "The judgment creditor holds off enforcement."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1470,7 +1486,7 @@
       "version": "4.0.0",
       "profile": "dispute_forecast",
       "primitive": "noul",
-      "question": "Does the judgment debtor offer settlement terms within its feasibility bound?",
+      "question": "Does the judgment debtor offer to settle for its available cash above its 30-day operating need?",
       "actor": "judgment debtor",
       "template": "federal_post_judgment",
       "node": "settlement_offer",
@@ -1486,10 +1502,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The judgment debtor offers settlement terms within its feasibility bound, under the assumptions.",
-          "false": "The judgment debtor does not."
+          "true": "The judgment debtor offers to settle for its available cash above its 30-day operating need.",
+          "false": "The judgment debtor makes no settlement offer."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1499,7 +1515,7 @@
       "version": "4.0.0",
       "profile": "dispute_forecast",
       "primitive": "noul",
-      "question": "Does the judgment creditor accept the offered terms?",
+      "question": "Does the judgment creditor accept the offered settlement?",
       "actor": "judgment creditor",
       "template": "federal_post_judgment",
       "node": "settlement_accept",
@@ -1515,10 +1531,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The judgment creditor accepts the offered terms, under the assumptions.",
-          "false": "The judgment creditor does not."
+          "true": "The judgment creditor accepts the offered settlement.",
+          "false": "The judgment creditor rejects the offered settlement."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1544,10 +1560,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The holders of 25% (or the trustee) give notice of the judgment default and accelerate, under the assumptions.",
-          "false": "The holders of 25% (or the trustee) do not."
+          "true": "The holders of 25% (or the trustee) give notice of the judgment default and accelerate.",
+          "false": "The notes stay outstanding on their terms."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1557,7 +1573,7 @@
       "version": "4.0.0",
       "profile": "financing_forecast",
       "primitive": "choice",
-      "question": "How do the holders respond to the delisting: accelerate, require repurchase only, or neither?",
+      "question": "When the stock is delisted, do the holders declare the notes due, require repurchase, or neither?",
       "actor": "holders",
       "template": "indenture_convertible",
       "node": "holders_act_delisting",
@@ -1573,11 +1589,11 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "accelerate": "declare the notes due",
-          "repurchase_only": "require repurchase on the repurchase date only",
-          "neither": "neither"
+          "accelerate": "The holders declare the notes due.",
+          "repurchase_only": "The holders require repurchase on the repurchase date.",
+          "neither": "The holders take neither step."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1587,7 +1603,7 @@
       "version": "4.0.0",
       "profile": "financing_forecast",
       "primitive": "noul",
-      "question": "Does the issuer file a petition after acceleration or an unpaid repurchase?",
+      "question": "Does the issuer file for bankruptcy after the notes are accelerated or a required repurchase goes unpaid?",
       "actor": "issuer",
       "template": "indenture_convertible",
       "node": "petition_on_notes",
@@ -1603,10 +1619,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The issuer files a petition after acceleration or an unpaid repurchase, under the assumptions.",
-          "false": "The issuer does not."
+          "true": "The issuer files for bankruptcy.",
+          "false": "The issuer stays out of bankruptcy."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1616,7 +1632,7 @@
       "version": "4.0.0",
       "profile": "financing_forecast",
       "primitive": "noul",
-      "question": "Do the noteholders (three or more) file an involuntary petition?",
+      "question": "Do three or more noteholders file an involuntary bankruptcy petition against the issuer?",
       "actor": "noteholders (three or more)",
       "template": "indenture_convertible",
       "node": "holders_involuntary",
@@ -1632,10 +1648,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The noteholders (three or more) file an involuntary petition, under the assumptions.",
-          "false": "The noteholders (three or more) do not."
+          "true": "Three or more noteholders file an involuntary bankruptcy petition against the issuer.",
+          "false": "The noteholders file no involuntary petition."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1661,10 +1677,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The board calls the reverse-split vote in time to regain compliance, under the assumptions.",
-          "false": "The board does not."
+          "true": "The board calls the reverse-split vote in time to regain compliance.",
+          "false": "The compliance date passes without a reverse-split vote."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1690,10 +1706,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The stockholders approve the reverse split, under the assumptions.",
-          "false": "The stockholders do not."
+          "true": "The stockholders approve the reverse split.",
+          "false": "The reverse split fails at the vote."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1703,7 +1719,7 @@
       "version": "4.0.0",
       "profile": "financing_forecast",
       "primitive": "noul",
-      "question": "Does the issuer request a hearing before the panel?",
+      "question": "Does the issuer request a hearing before the Nasdaq Hearings Panel?",
       "actor": "issuer",
       "template": "indenture_convertible",
       "node": "nasdaq_hearing",
@@ -1719,10 +1735,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The issuer requests a hearing before the panel, under the assumptions.",
-          "false": "The issuer does not."
+          "true": "The issuer requests a hearing before the Nasdaq Hearings Panel.",
+          "false": "The issuer accepts the Staff Determination without a hearing."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1732,7 +1748,7 @@
       "version": "4.0.0",
       "profile": "financing_forecast",
       "primitive": "noul",
-      "question": "Does the Nasdaq hearings panel grant an exception past the horizon?",
+      "question": "Does the Nasdaq Hearings Panel grant an exception that keeps the stock listed through the end of the analysis period?",
       "actor": "Nasdaq hearings panel",
       "template": "indenture_convertible",
       "node": "panel_exception",
@@ -1748,10 +1764,10 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The Nasdaq hearings panel grants an exception past the horizon, under the assumptions.",
-          "false": "The Nasdaq hearings panel does not."
+          "true": "The Hearings Panel grants an exception that keeps the stock listed through the end of the analysis period.",
+          "false": "The stock is delisted before the end of the analysis period."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1761,7 +1777,7 @@
       "version": "4.0.0",
       "profile": "dispute_forecast",
       "primitive": "noul",
-      "question": "Does the borrower file a petition when available cash first falls below operating need (tau)?",
+      "question": "Does the company file for bankruptcy when its available cash first falls below its 30-day operating need?",
       "actor": "borrower",
       "template": "bankruptcy_effects",
       "node": "petition_cash_floor",
@@ -1777,10 +1793,39 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question names one actor and one decision in state.case. Take every item in state.assumptions as true. Timing, amounts, affordability, enforceability and legal meaning are given in state.path_facts and state.standard; do not re-derive or second-guess them. Using state.record_items, state.evidence and state.readings, judge how this actor decides under state.standard. A reading or a stated intention is evidence, not certainty. Judge only from the supplied state; if you recognise these parties or this dispute, ignore anything you remember about what happened.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
         "criteria": {
-          "true": "The borrower files a petition when available cash first falls below operating need (tau), under the assumptions.",
-          "false": "The borrower does not."
+          "true": "The company files for bankruptcy on that date.",
+          "false": "The company keeps operating without filing."
+        }
+      },
+      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+    },
+    {
+      "id": "forecast_petition_cash_out",
+      "version": "4.0.0",
+      "profile": "dispute_forecast",
+      "primitive": "noul",
+      "question": "Does the company file for bankruptcy when its available cash runs out?",
+      "actor": "borrower",
+      "template": "bankruptcy_effects",
+      "node": "petition_cash_out",
+      "asked_when": "the company did not file at its cash floor, and its available cash falls below zero within the analysis period on some trajectory",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "path_facts",
+        "assumptions",
+        "evidence",
+        "readings"
+      ],
+      "prompt": {
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
+        "criteria": {
+          "true": "The company files for bankruptcy on that date.",
+          "false": "The company does not file and keeps operating with its cash exhausted."
         }
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
@@ -1844,6 +1889,24 @@
         }
       },
       "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "id": "record_item_supplied",
+      "version": "4.2.0",
+      "profile": "evidence_routing",
+      "primitive": "noul",
+      "question": "Does this passage supply this record item?",
+      "state_fields": [
+        "decision",
+        "record_item",
+        "passage"
+      ],
+      "prompt": {
+        "instructions": "state.passage is a passage from the record, with its source, date and surrounding text. state.decision is one actor's decision, and state.record_item names one item of the record that decision rests on. Judge whether the passage supplies that item for that decision.",
+        "criteria_from_host": true,
+        "criteria": {}
+      },
+      "application": "Each forecast question receives the accepted findings that supply its record items."
     }
   ],
   "retired_in_4_0_0": {
@@ -1865,22 +1928,7 @@
     "reason": "Timing, windows and security form are code; the chains' residual decisions replace the holistic node forecasts."
   },
   "evidence_routing": {
-    "note": "Present-state readings are evidence handed to a question, never its probability (DECOMPOSITION §4).",
-    "structure": {
-      "readings": [
-        "event_entitlement_decided",
-        "event_amount_fixed",
-        "event_judgment_entered",
-        "event_appeal_filed",
-        "event_mediation_ordered",
-        "event_stay_secured",
-        "event_paid",
-        "event_post_trial_motions_pending",
-        "event_post_trial_decided",
-        "event_injunction_entered"
-      ],
-      "use": "code places the stage (judgment entered, post-trial motions pending, stay, appeal, paid)"
-    },
+    "note": "Present-state readings are evidence handed to a question, never its probability.",
     "routes": {
       "appeal_intent": [
         "forecast_appeal"
@@ -1903,6 +1951,21 @@
         "forecast_remittitur_accepted"
       ]
     },
+    "reading_items": {
+      "settlement_signals": {
+        "forecast_settlement_offer": [
+          "the company's statements on reaching a settlement with the judgment creditor"
+        ],
+        "forecast_settlement_accept": [
+          "the company's statements on reaching a settlement with the judgment creditor"
+        ]
+      },
+      "appeal_intent": {
+        "forecast_appeal": [
+          "the company's statements on whether it will appeal the judgment"
+        ]
+      }
+    },
     "not_asked": {
       "debtor_liquidity": "scoped to a paying counterparty; where the borrower pays, its cash is a path fact from the bank data and the simulation"
     },
@@ -1914,6 +1977,8 @@
       "forecast_fees_awarded",
       "forecast_prejudgment_interest",
       "forecast_injunction_ts"
-    ]
+    ],
+    "findings": "Each forecast question receives the accepted findings that supply its named record items. A record item no finding supplies is stated as not in the record.",
+    "readings": "Each reading is handed on with the passage it was taken from, as evidence with its source; that passage supplies the record items reading_items names for the question. A reading taken from no passage is not handed on."
   }
 }

@@ -26,10 +26,12 @@ INTERVALS = {"I1": "before the ruling", "I2": "after the ruling, before the appe
 CONTEXT = {"levied": "after a levy", "unlevied": "no levy", "appealed": "on appeal", "final": "no appeal",
            "stay_pending": "stay motion pending", "pay": "", "nopay": "paying in full is out of reach",
            "first": "", "after_seek": "after seeking a sale or financing", "entered": "",
-           "delisted_panel": "delisted after the panel", "delisted_suspension": "suspended without a hearing"}
+           "delisted_panel": "delisted after the panel", "delisted_suspension": "suspended without a hearing",
+           "ripe": "on the notes' judgment-default date", "entered_not_acted": "no acceleration on the entered judgment",
+           "bank": "on bank data alone", "cash_exhausted": "cash has run out", "motions_pending": "before the ruling"}
 # Outcome by the end of the period (17 Dec for Akoustis), in the order the bar shows them.
 CLASSES = (("filed_enforcement", "Filed: Qorvo enforcement"), ("filed_notes", "Filed: notes"),
-           ("filed_cash", "Filed: cash floor"), ("settled", "Settled"), ("paid", "Paid"),
+           ("filed_cash", "Filed: short of cash"), ("settled", "Settled"), ("paid", "Paid"),
            ("stayed", "Stayed on appeal"), ("unresolved", "Unresolved"), ("vacated", "Vacated or new trial"))
 OUTCOME_CLASS = {"settled": "settled", "paid": "paid", "stayed": "stayed", "unresolved": "unresolved",
                  "vacated": "vacated", "new_trial": "vacated"}
@@ -63,13 +65,15 @@ def context_text(context: str, ranges: dict[str, tuple[int, int]]) -> str:
             parts.append(CONTEXT[c])
         elif c.startswith(("judgment_", "delisting_", "repurchase_")):
             head, _, rest = c.partition("_")
-            parts.append({"judgment": "after acceleration on the judgment default",
+            parts.append({"judgment": "after acceleration on the judgment default" + (
+                              " on the entered judgment" if rest == "I1" else ""),
                           "delisting": "after acceleration on the delisting",
                           "repurchase": "after an unpaid repurchase"}[head]
-                         + (f" ({INTERVALS.get(rest, CONTEXT.get(rest, rest))})" if rest else ""))
+                         + (f" ({INTERVALS.get(rest, CONTEXT.get(rest, rest))})"
+                            if rest and not (head == "judgment" and rest == "I1") else ""))
         else:
-            parts.append(class_text(c, ranges))
-    return "; ".join(p for p in parts if p)
+            parts.append(class_text(c, ranges) or SHORT_TAG.get(c, ""))
+    return "; ".join(dict.fromkeys(p for p in parts if p))
 
 
 # Short row labels for the question list, by question id (the full question text is in the drill-down).
@@ -85,17 +89,22 @@ SHORT_LABELS = {
     "forecast_appeal": "Akoustis appeals", "forecast_settlement_offer": "Akoustis offers settlement",
     "forecast_debtor_response": "Akoustis response to enforcement",
     "forecast_petition_on_notes": "Akoustis files (notes accelerated)",
-    "forecast_petition_cash_floor": "Akoustis files (cash floor)", "forecast_reverse_split_board": "Board calls reverse split",
+    "forecast_petition_cash_floor": "Akoustis files (cash floor)", "forecast_petition_cash_out": "Akoustis files (cash runs out)", "forecast_reverse_split_board": "Board calls reverse split",
     "forecast_nasdaq_hearing": "Nasdaq hearing requested", "forecast_split_approved": "Stockholders approve split",
     "forecast_panel_exception": "Panel grants exception",
     "forecast_holders_act_judgment": "Holders accelerate (judgment default)",
-    "forecast_holders_act_delisting": "Holders act on delisting", "forecast_holders_involuntary": "Holders file involuntary"}
+    "forecast_holders_act_delisting": "Holders act on delisting",
+    "forecast_holders_involuntary": "Holders file after no-action period"}
 SHORT_WHEN = {"I1": "Before ruling", "I2": "After ruling", "I3": "After appeal deadline", "I4": "During appeal",
               "post": "After ruling", "entered": "Before ruling"}
 SHORT_TAG = {"levied": "after a levy", "unlevied": "no levy", "appealed": "on appeal", "final": "no appeal",
              "stay_pending": "stay motion pending", "nopay": "can't pay in full", "after_seek": "after seeking a sale",
              "delisted_panel": "delisted after the panel", "delisted_suspension": "suspended, no hearing",
-             "none": "judgment set aside", "retrial": "new trial on damages"}
+             "none": "judgment set aside", "retrial": "new trial on damages", "stay_moved": "stay motion filed",
+             "stayed": "stayed", "settled": "after a settlement", "paid": "after payment", "seeking": "seeking a sale",
+             "notes_due": "notes due, unpaid", "delisted": "delisted", "motions_pending": "before ruling",
+             "executing": "Qorvo executing", "cash_exhausted": "cash run out", "ripe": "notes' default date",
+             "entered_not_acted": "entered judgment not acted on", "bank": "bank data alone"}
 
 
 def money_round(cents: int) -> str:
@@ -119,17 +128,21 @@ def short_context(context: str, ranges: dict[str, tuple[int, int]]) -> str:
             when = when or "After ruling"
         elif c.startswith(("judgment_", "delisting_", "repurchase_")):
             head, _, sub = c.partition("_")
-            rest.append({"judgment": "judgment default", "delisting": "delisting", "repurchase": "unpaid repurchase"}[head])
+            rest.append({"judgment": "judgment default" + (" on the entered judgment" if sub == "I1" else ""),
+                         "delisting": "delisting", "repurchase": "unpaid repurchase"}[head])
             if sub in SHORT_WHEN:
                 when = when or SHORT_WHEN[sub]
             elif sub:
                 rest.append(SHORT_TAG.get(sub, sub.replace("_", " ")))
+        elif c == "motions_pending":
+            when = when or "Before ruling"
         elif c in SHORT_TAG:
             rest.append(SHORT_TAG[c])
             when = when or ("After ruling" if c in ("none", "retrial") else "")
         elif c not in ("pay", "first"):
             rest.append(c.replace("_", " "))
-    return " · ".join(x for x in (when, amount, *rest) if x)
+    out = " · ".join(dict.fromkeys(x for x in (when, amount, *rest) if x))
+    return out[:1].upper() + out[1:]
 
 
 def filing_cause(steps: tuple) -> str:
@@ -137,32 +150,57 @@ def filing_cause(steps: tuple) -> str:
     for node, _ctx, branch in steps:
         if node == "debtor_response" and branch == "file":
             return "filed_enforcement"
-        if (node == "judgment_default" and branch == "yes") or (node == "delisting_notes" and branch.startswith("petition")):
+        if (node == "judgment_default" and branch in ("yes", "holders_file")) or (
+                node == "delisting_notes" and branch.startswith("petition")):
             return "filed_notes"
-        if node == "cash_floor" and branch == "yes":
+        if node in ("cash_floor", "cash_out") and branch == "yes":
             return "filed_cash"
     return "filed_enforcement"
 
 
-def outcome_shares(steps: tuple, outcome: str, petition_p: float) -> dict[str, float]:
-    """The path's draws by outcome class at the end of the period, classed by draw, not by path: the draws whose
-    petition falls inside the horizon are Filed (by the path's filing cause); the rest are the class the path is in
-    without the filing (Unresolved unless it is otherwise settled, paid, stayed or vacated). So the Filed shares,
-    weighted by path probability, sum to the bankruptcy probability exactly."""
-    rest = OUTCOME_CLASS.get(outcome, "unresolved")
-    out = {rest: 1.0 - petition_p} if petition_p < 1.0 else {}
-    if petition_p > 0.0:
-        out[filing_cause(steps)] = petition_p
+FILED_BY = {1: "Akoustis files", 2: "Noteholders accelerate; filing", 3: "Akoustis files, short of cash"}
+CAUSE_CLASS = {1: "filed_enforcement", 2: "filed_notes", 3: "filed_cash"}  # events.PETITION_CAUSES indices
+
+
+def draw_classes(steps: tuple, marks: dict, days: int) -> np.ndarray:
+    """Each trajectory's class by what the engine booked on it by the period's end (for trajectories with no
+    petition in the period): a positive settlement paid, the judgment paid, the award vacated or set for a new trial,
+    an effective stay, else Unresolved. A path's 'settles' or 'pays' branch books nothing where the amount is zero or
+    cash falls short, and those trajectories are not Settled or Paid."""
+    n = len(next(iter(marks.values())))
+    out = np.full(n, "unresolved", dtype=object)
+    vacated = any(s[0] == "ruling" and s[2] in ("none", "retrial") for s in steps)
+    for name, cls in (("stayed", "stayed"), ("ruled", "vacated" if vacated else None), ("paid", "paid"),
+                      ("settled", "settled")):  # later rows win: a settlement or payment ends a stay
+        if cls is not None and name in marks:
+            out = np.where(np.asarray(marks[name]) < days, cls, out)
     return out
 
 
-def class_matrix(paths_class: list, n_classes: int) -> np.ndarray:
-    """[paths, classes] shares of draws, from the payload's sparse per-path [class, share] pairs."""
-    m = np.zeros((len(paths_class), n_classes))
-    for i, pairs in enumerate(paths_class):
-        for c, share in pairs:
-            m[i, c] = share
-    return m
+def outcome_shares(steps: tuple, outcome: str, petition_p: float, cause: np.ndarray | None = None,
+                   marks: dict | None = None, days: int | None = None) -> dict[str, float]:
+    """The path's draws by outcome class at the end of the period, classed by draw, not by path: the draws whose
+    petition falls inside the horizon are Filed (by the rule that booked it); the rest are classed by what the engine
+    booked on each (`draw_classes`, given the trace's marks), or else by the path's outcome. So the Filed shares,
+    weighted by path probability, sum to the bankruptcy probability exactly, and Settled counts only draws that
+    paid a settlement."""
+    rest = {OUTCOME_CLASS.get(outcome, "unresolved"): 1.0}
+    if marks is not None and days is not None:
+        unfiled = (cause == 0) if cause is not None else np.ones(len(next(iter(marks.values()))), dtype=bool)
+        if unfiled.any():
+            names, counts = np.unique(draw_classes(steps, marks, days)[unfiled], return_counts=True)
+            rest = {str(k): int(c) / int(unfiled.sum()) for k, c in zip(names, counts, strict=True)}
+    out = {k: v * (1.0 - petition_p) for k, v in rest.items()} if petition_p < 1.0 else {}
+    if petition_p > 0.0:
+        filed = cause[cause > 0] if cause is not None else np.zeros(0)
+        if filed.size:  # by the rule that booked each trajectory's earliest petition
+            for code, name in CAUSE_CLASS.items():
+                n = int((filed == code).sum())
+                if n:
+                    out[name] = out.get(name, 0.0) + petition_p * n / filed.size
+        else:
+            out[filing_cause(steps)] = petition_p
+    return out
 
 
 def _when(review: date, day: np.ndarray | None, exact: bool = False) -> str:
@@ -179,9 +217,13 @@ def _when(review: date, day: np.ndarray | None, exact: bool = False) -> str:
 SETTLE = {"I1": "Settles before the ruling", "I2": "Settles after the ruling", "I3": "Settles after the appeal deadline",
           "I4": "Settles during the appeal"}
 FILING = {("debtor_response", "file"): "Akoustis files", ("judgment_default", "yes"): "Noteholders accelerate; filing",
+          ("judgment_default", "holders_file"): "Noteholders accelerate; noteholders file",
           ("delisting_notes", "petition_delist"): "Noteholders accelerate on the delisting; filing",
+          ("delisting_notes", "petition_delist_holders"): "Noteholders accelerate on the delisting; noteholders file",
           ("delisting_notes", "petition_repurchase"): "Repurchase unpaid; filing",
-          ("cash_floor", "yes"): "Akoustis files at the cash floor"}
+          ("delisting_notes", "petition_repurchase_holders"): "Repurchase unpaid; noteholders file",
+          ("cash_floor", "yes"): "Akoustis files at the cash floor",
+          ("cash_out", "yes"): "Akoustis files when its cash runs out"}
 
 
 def step_phrase(node: str, ctx: str, branch: str, ranges: dict[str, tuple[int, int]]) -> str | None:
@@ -200,27 +242,38 @@ def step_phrase(node: str, ctx: str, branch: str, ranges: dict[str, tuple[int, i
             ("debtor_response", "pay"): "Akoustis pays",
             ("debtor_response", "seek_sale_or_financing"): "Akoustis seeks a sale or financing",
             ("appeal", "yes"): "Akoustis appeals", ("enforce", "levy"): "Qorvo levies",
-            ("listing", "delisted_panel"): "Nasdaq delists", ("listing", "delisted_suspension"): "Nasdaq suspends"
+            ("listing", "delisted_panel"): "Nasdaq delists", ("listing", "delisted_suspension"): "Nasdaq suspends",
+            ("judgment_default", "accelerated"): "Noteholders accelerate; no filing",
+            ("delisting_notes", "accelerated"): "Noteholders accelerate on the delisting; no filing",
+            ("delisting_notes", "repurchase_unpaid"): "Repurchase unpaid; no filing"
             }.get((node, branch))
 
 
 def sequence(steps: tuple, day: list, petition: np.ndarray, review: date, days: int,
-             ranges: dict[str, tuple[int, int]]) -> str:
+             ranges: dict[str, tuple[int, int]], cause: np.ndarray | None = None) -> str:
     """The path's events in order, each dated by its median day across the draws where it falls inside the period:
     'Ruling leaves $38.6M (Nov) → Qorvo levies (Dec) → Akoustis files (5 Dec)'."""
-    out = []
+    # Listed by date, not by the tree's order: a filing at the cash floor is a tail step in the tree but can fall
+    # before a later decision on the same path.
+    out: list[tuple[float, str]] = []
     for i, (node, ctx, branch) in enumerate(steps):
         text = step_phrase(node, ctx, branch, ranges)
         if text is None:
             continue
         if (node, branch) in FILING:
-            p = petition[(petition >= 0) & (petition < days)]
-            out.append(f"{text} ({_when(review, p, exact=True)})" if p.size else f"{text} after 17 Dec")
+            inside_p = (petition >= 0) & (petition < days)
+            p = petition[inside_p]
+            if cause is not None and p.size:  # named by the rule that booked most of these petitions
+                codes, counts = np.unique(cause[inside_p], return_counts=True)
+                text = FILED_BY.get(int(codes[np.argmax(counts)]), text)
+            out.append((float(np.median(p)), f"{text} ({_when(review, p, exact=True)})") if p.size
+                       else (float("inf"), f"{text} after 17 Dec"))
             break
         d = np.asarray(day[i]) if i < len(day) else np.zeros(0)
         inside = d[d < days]
-        out.append(f"{text} ({_when(review, inside)})" if inside.size else f"{text}, after the period")
-    return " → ".join(out) or "Nothing decided in the period"
+        out.append((float(np.median(inside)), f"{text} ({_when(review, inside)})") if inside.size
+                   else (float("inf"), f"{text}, after the period"))
+    return " → ".join(t for _, t in sorted(out, key=lambda x: x[0])) or "Nothing decided in the period"
 
 
 def encode_paths(combos: list, judgments: dict) -> dict:
@@ -276,22 +329,126 @@ def decode_probs(enc: dict, dist: dict[str, list[float]]) -> np.ndarray:
     return out
 
 
+def _short_money(text: str) -> str:
+    """'$39,165,700.64' -> '$39.2M' in a computed figure; whole dollars ('$279,808') below $1M."""
+    import re
+
+    def one(m) -> str:
+        v = float(m.group(0)[1:].replace(",", ""))
+        return f"${v / 1e6:.1f}M" if v >= 1e6 else f"${v:,.0f}"
+    return re.sub(r"\$[\d,]+(?:\.\d+)?", one, str(text))
+
+
+def _whole(text) -> str:
+    """'$10,000,000.00' -> '$10,000,000' inside a sourced term."""
+    import re
+
+    return re.sub(r"(\$[\d,]+)\.00\b", r"\1", str(text))
+
+
+def _dist_text(v: dict) -> str:
+    """{'p5': x, 'p50': y, 'max': z} -> 'P5 x, median y, highest z'."""
+    names = {"p5": "P5", "p50": "median", "p95": "P95", "max": "highest"}
+    return ", ".join(f"{names.get(k, k.replace('_', ' '))} {_short_money(x)}" for k, x in v.items() if k != "basis")
+
+
+# What code did to get each computed figure a question is given (forecast.Forecaster.path_facts), in words.
+ARITHMETIC = {
+    "decision_date": "when the decision falls, across the simulations that reach it",
+    "projected_available_cash_at_decision_date": "opening cash + projected operating flows from the bank data + the "
+                                                  "dispute's cash to that date, across the simulations that reach "
+                                                  "the decision",
+    "cash_balance_at_decision": "opening cash + projected operating flows from the bank data + the dispute's cash to "
+                                "that date",
+    "amount_owed_at_decision": "the judgment on this path (as entered, or as the ruling leaves it) + statutory "
+                               "interest to the decision date - amounts already collected",
+    "operating_need_30_days_at_decision": "the lowest point of the next 30 days' cumulative operating flows",
+    "bond_collateral_required": "the amount owed + 28 U.S.C. §1961 interest over the appeal, times the collateral "
+                                "share",
+    "reduced_security_offered": "the company's cash above its 30-day operating need on the approval day, when the security is posted",
+    "judgment_after_ruling": "the range of judgment amounts the ruling outcomes shown together here leave",
+}
+
+
 def _fact_lines(facts: dict) -> list[str]:
-    """Path facts code computed for a question, one plain line each."""
+    """Path facts code computed for a question, one plain line each, each amount with its arithmetic. The judgment
+    components are Record steps of their own (drill_down)."""
     out = []
     for k, v in facts.items():
         name = k.replace("_", " ").capitalize()
-        if k == "components":
-            if not v:
-                continue
-            out.append("Components: " + "; ".join(f"{c['component']} {c['amount']} ({c['status']})" for c in v))
+        how = ARITHMETIC.get(k, "")
+        if k in ("components", "pending_motions", "notes"):  # Record and Law steps of their own (drill_down)
+            continue
+        if k == "settlement_offer" and isinstance(v, dict):
+            amt = _dist_text(v["amount"]) if "amount" in v else "none in these simulations"
+            need = f" (30-day need: median {_short_money(v['thirty_day_operating_need'])})" \
+                if "thirty_day_operating_need" in v else ""
+            out.append(f"Settlement offer: {amt} = {v.get('basis', '')}{need}; paid as {v.get('payment', '')}")
+        elif k == "contract_dates" and isinstance(v, dict):
+            out += [f"{what[0].upper()}{what[1:]}: {when}" for what, when in v.items()]
         elif isinstance(v, dict):
-            out.append(f"{name}: " + ", ".join(f"{kk.replace('_', ' ')} {vv if not isinstance(vv, dict) else vv}"
-                                                for kk, vv in v.items()))
+            basis = v.get("basis") or how
+            out.append(f"{name}: {_dist_text(v)}" + (f" = {basis}" if basis else ""))
+        elif isinstance(v, list):
+            if v:
+                out.append(f"{name}: " + "; ".join(", ".join(str(x) for x in e.values()) if isinstance(e, dict)
+                                                   else str(e) for e in v))
         elif k == "share_of_trajectories_where_it_arises":
-            out.append(f"Arises on {v:.0%} of trajectories inside the period")
+            out.append(f"Arises in {v:.0%} of simulations inside the period")
         else:
-            out.append(f"{name}: {v}")
+            out.append(f"{name}: {_short_money(v)}" + (f" = {how}" if how else ""))
+    return out
+
+
+def _ref_label(ref: str) -> str:
+    """'D. Del. 1:21-cv-01417, Dkt. 602' -> 'D.I. 602' (the link's text)."""
+    import re
+
+    m = re.search(r"(?:D\.I\.|Dkt\.)\s*(\d+(?:-\d+)?)", ref or "")
+    return f"D.I. {m.group(1)}" if m else "source"
+
+
+def docket_url(ref: str, links: dict[str, str]) -> str:
+    """The catalog URL of a docket entry named in `ref` ('D.I. 616-1', 'Dkt. 602'); the docket report if the entry
+    itself is not in the catalog (a sealed filing); '' if `ref` names none."""
+    import re
+
+    m = re.search(r"(?:D\.I\.|Dkt\.)\s*(\d+)(?:-(\d+))?", ref or "")
+    if not m:
+        return ""
+    tail = f".{m.group(1)}.{m.group(2) or 0}.pdf"
+    return next((u for u in links.values() if u.endswith(tail)),
+                next((u for t, u in links.items() if "docket report" in t), ""))
+
+
+def mechanism(node: str, spec: dict, model: dict) -> list[str]:
+    """How the decision moves cash, and how that reaches the loan: the model node's effects by branch (parameters
+    and rules in words), then the line's rule for a filing or for the company's cash."""
+    import re
+
+    rules, params = model.get("rules", {}), model.get("parameters", {})
+
+    def plain(t: str) -> str:
+        def one(m) -> str:
+            k = m.group(0)
+            if k in params and params[k].get("value") is not None:
+                return f"{params[k]['value']} days" if k.endswith("_days") else str(params[k]["value"])
+            if k in rules:
+                return rules[k].get("citation", k).split(":")[0]
+            return k.replace("_", " ")
+        return re.sub(r"\b[a-z0-9]+(?:_[a-z0-9]+)+\b", one, t)
+    out = [f"{b.replace('_', ' ').capitalize()}: {plain(e)}" for b, e in (spec.get("effects") or {}).items()]
+    if spec.get("effect"):
+        out.append(plain(spec["effect"]))
+    files = node.startswith("petition") or node in ("holders_involuntary", "debtor_response")
+    if files:
+        eff = model["templates"].get("bankruptcy_effects", {}).get("effects", {})
+        out += [f"A filing: {plain(eff['petition'])}"] if "petition" in eff else []
+        out.append("On the loan: from the petition Slope collects nothing and funds no draw; the balance owed is "
+                   "frozen, and collections in the 90 days before it are clawback exposure")
+    else:
+        out.append("On the loan: through the company's cash. Slope collects each installment only from cash above the "
+                   "30-day operating need, and funds a draw only while nothing is overdue and no petition is filed")
     return out
 
 
@@ -312,15 +469,52 @@ def source_links(snapshot_id: str) -> dict[str, str]:
 
 
 def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, neutral: bool,
-               links: dict[str, str]) -> dict:
-    """The 'why this probability' chain: each step tagged Law / Record / Data / Calculation / Jev, the facts Jev is
-    given, the source quotes and Jev's answer."""
-    steps = [{"tag": "Law", "text": model["rules"][r]["citation"] if r in model["rules"] else r} for r in spec["standard"]]
-    steps += [{"tag": "Record", "text": x} for x in spec["record_items"]]
-    steps += [{"tag": "Data", "text": f"{p['basis']}"} for name, p in model["parameters"].items()
-              if name in spec.get("timing", "") and p.get("basis") and p.get("disposition") in ("data", "sourced")]
-    steps.append({"tag": "Calculation", "text": f"Date set by code: {spec['timing']}"})
+               links: dict[str, str], node: str = "", d=None) -> dict:
+    """The 'why this probability' chain: each step tagged Law / Record / Data / Calculation / Cash / Jev, sourced
+    steps with links to their evidence, computed amounts with their arithmetic, the facts Jev is given, the source
+    quotes and Jev's answer."""
+    terms = {k: v for t in model["templates"].values() for k, v in t.get("terms_from_instrument", {}).items()}
+    steps = [{"tag": "Law", "text": model["rules"][r]["citation"] if r in model["rules"] else terms.get(r, r)}
+             for r in spec["standard"]]
+    supplied: dict[str, list[str]] = {}
+    for e in (judgment.evidence if judgment is not None else []) or []:
+        if isinstance(e, dict):
+            for item in e.get("supplies", []):
+                supplied.setdefault(item, []).append(e.get("source", ""))
+    for x in spec["record_items"]:
+        srcs = list(dict.fromkeys(supplied.get(x, [])))
+        steps.append({"tag": "Record", "text": f"{x}: " + ("; ".join(srcs) if srcs else "not in the record"),
+                      "links": [{"text": t, "url": links[t]} for t in srcs if links.get(t)]})
+    comps = {label_head(c.label): c for c in (d.components if d else [])}
+    for f in facts.get("components", []):
+        c = next((c for lab, c in comps.items() if lab.startswith(f["component"]) or f["component"].startswith(lab)),
+                 None)
+        row = component_row(c, d, model) if c is not None else {}
+        refs = ([d.order_reference] + ([c.motion] if c.motion else []) if c is not None and c.status == "awarded"
+                else [row["source"]] if row.get("source") else [])
+        text = f"{f['component']}: {_whole(f['amount'])}, {f['status']}" + (f" ({refs[0]})" if refs else "")
+        if len(refs) > 1:
+            text += f"; the pending motion {refs[1]} decides it"
+        if f.get("remittitur_scenario") and row.get("remittitur"):
+            text += f"; {row['remittitur'][0].lower()}{row['remittitur'][1:]}"
+            refs.append(row["remittitur"])
+        steps.append({"tag": "Record", "text": text,
+                      "links": [{"text": _ref_label(r), "url": u} for r in refs if (u := docket_url(r, links))]})
+    for mo in facts.get("pending_motions", []):
+        steps.append({"tag": "Record", "text": f"Pending: {mo['motion']}, {mo['kind']}; briefing closes "
+                                               f"{mo['briefing_closes']}",
+                      "links": [{"text": _ref_label(mo["motion"]), "url": u}]
+                      if (u := docket_url(mo["motion"], links)) else []})
+    steps += [{"tag": "Data", "text": model["parameters"][name]["basis"]} for name in spec.get("timing_parameters", [])
+              if model["parameters"][name].get("basis")
+              and model["parameters"][name].get("disposition") in ("data", "sourced")]
+    if isinstance(facts.get("notes"), dict):  # the notes' terms, as the indenture states them
+        steps.append({"tag": "Law", "text": "Notes: " + "; ".join(
+            f"{a.replace('_', ' ')}: {_short_money(b) if a == 'principal' else _whole(b)}"
+            for a, b in facts["notes"].items())})
+    steps.append({"tag": "Calculation", "text": f"When it is decided: {spec['timing']}"})
     steps += [{"tag": "Calculation", "text": line} for line in _fact_lines(facts)]
+    steps += [{"tag": "Cash", "text": line} for line in mechanism(node, spec, model)]
     quotes = []
     for e in (judgment.evidence if judgment is not None else []) or []:
         if isinstance(e, dict):
@@ -330,27 +524,78 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
     answer = None
     if judgment is not None and not neutral:
         answer = {"distribution": judgment.distribution, "confidence": judgment.confidence,
-                  "observation_id": judgment.observation_id, "readings": judgment.readings}
+                  "observation_id": judgment.observation_id,
+                  "readings": {k: {**v, "link": links.get(v.get("source", ""), "")} if isinstance(v, dict) else v
+                               for k, v in (judgment.readings or {}).items()}}
     steps.append({"tag": "Jev", "text": question})
     return {"steps": steps, "facts": facts, "assumptions": list(judgment.assumptions) if judgment else [],
             "quotes": quotes, "answer": answer}
 
 
-def case_terms(d, review: date, horizon: date, model: dict) -> dict:
-    """Judgment components with status and source; the notes' default terms; the dated deadlines."""
-    comps = [{"label": c.label, "amount": usd(c.amount_cents) if c.amount_cents is not None else "computed by statute",
-              "status": c.status, "source": c.motion or d.order_reference,
-              **({"remittitur": usd(c.remittitur_cents)} if c.remittitur_cents else {})} for c in d.components]
+def label_head(label: str) -> str:
+    """A component's label up to its first ';' outside parentheses (the rest is its source note)."""
+    depth = 0
+    for i, ch in enumerate(label):
+        depth += (ch == "(") - (ch == ")")
+        if ch == ";" and depth == 0:
+            return label[:i].strip()
+    return label.strip()
+
+
+def component_row(c, d, model: dict) -> dict:
+    """A judgment component as the engine prices it: a compensatory award shows the model's remitted-amount scenario
+    and its source (never a party's own remittitur request); a sealed request shows as sealed; interest shows the
+    rates the engine computes it at."""
+    import re
+
+    row = {"label": label_head(c.label), "amount": usd(c.amount_cents) if c.amount_cents is not None
+           else "computed by statute", "status": c.status,
+           "source": d.order_reference if c.status == "awarded" else c.motion or d.order_reference}
+    if c.kind == "compensatory":
+        sc = model.get("remittitur_scenarios", {})
+        rem = sc.get("scenarios", {}).get("remitted", {})
+        if sc.get("base") == "remitted" and rem.get("amount_cents"):
+            ref = re.search(r"D\.I\. [\d-]+", rem.get("basis", ""))
+            row["remittitur"] = (f"If remitted and accepted, the model uses {usd(rem['amount_cents'])}"
+                                 + (f" ({ref.group(0)})" if ref else ""))
+        elif sc.get("base"):
+            row["remittitur"] = "If remitted and accepted, the model uses the verdict amount"
+    if c.kind == "prejudgment_interest":
+        sealed = re.search(r"sealed[^;]*?(D\.I\. \d+)", c.label)
+        if c.amount_cents is None and sealed:
+            row.update(amount="sealed; amount not public", source=sealed.group(1))
+        rules = model.get("rules", {})
+        bps = rules.get(rules.get("nc_24_5_b", {}).get("rate_rule", ""), {}).get("value")
+        if bps and d.commenced:
+            row["model"] = (f"Model, if granted: {bps / 100:g}% a year simple on compensatory damages from "
+                            f"{d.commenced:%-d %b %Y} to entry (N.C. Gen. Stat. §24-5(b), §24-1); after entry, "
+                            f"the 28 U.S.C. §1961 rate")
+    return row
+
+
+def case_terms(d, review: date, horizon: date, model: dict, links: dict[str, str] | None = None) -> dict:
+    """Judgment components with status and source (linked to the filing); the notes' default terms; the dated
+    deadlines."""
+    comps = [component_row(c, d, model) for c in d.components]
+    for r in comps:
+        r["link"] = docket_url(r["source"], links or {})
+        if r.get("remittitur"):
+            r["remittitur_link"] = docket_url(r["remittitur"], links or {})
     notes = []
+    missing = "not recorded"  # a term the agent did not instantiate is shown as such, never as zero
     for f in (x for x in d.financing if x.status != "superseded"):
-        notes.append({"title": f.title, "terms": [
-            ("Principal", usd(f.principal_cents)), ("Coupon", f"{usd(f.coupon_cents)} due "
-                                                              + ", ".join(x.strftime("%-d %b %Y") for x in f.interest_dates)),
-            ("Judgment default", f"final judgments above {usd(f.judgment_default_threshold_cents)} unpaid or unstayed "
-                                 f"for {f.judgment_default_days} days, after notice"),
-            ("Listing", f"delisting is a fundamental change: repurchase within {f.repurchase_business_days[0]}–"
-                        f"{f.repurchase_business_days[1]} business days of notice"),
-        ]})
+        money = (lambda c: usd(c) if c is not None else missing)  # noqa: E731
+        dates = ", ".join(x.strftime("%-d %b %Y") for x in f.interest_dates)
+        coupon = missing if f.coupon_cents is None else f"{usd(f.coupon_cents)}" + (f" due {dates}" if dates else "")
+        default = (f"final judgments above {money(f.judgment_default_threshold_cents)} that \"remain undischarged, "
+                   f"unpaid or unstayed for a period (during which execution shall not be effectively stayed) of "
+                   f"{f.judgment_default_days} days\" (§7.01(i)), after notice by the trustee or holders of 25%"
+                   ) if f.judgment_default_days else missing
+        rep = f.repurchase_business_days
+        listing = (f"delisting is a fundamental change: repurchase within {rep[0]}–{rep[1]} business days of notice"
+                   if rep and len(rep) == 2 else missing)
+        notes.append({"title": f.title, "terms": [("Principal", money(f.principal_cents)), ("Coupon", coupon),
+                                                   ("Judgment default", default), ("Listing", listing)]})
     deadlines = [(m.briefing_close, f"Briefing closes on {m.motion_id}") for m in d.motions if m.briefing_close]
     lags = model["parameters"]["ruling_lag_days"]["sample"]
     if deadlines:
@@ -360,7 +605,7 @@ def case_terms(d, review: date, horizon: date, model: dict) -> dict:
     for f in d.financing:
         if f.listing_deadline:
             deadlines.append((f.listing_deadline, "Nasdaq compliance deadline"))
-        deadlines += [(x, f"Coupon due ({usd(f.coupon_cents)})") for x in f.interest_dates]
+        deadlines += [(x, f"Notes coupon due ({usd(f.coupon_cents)})") for x in f.interest_dates]
     deadlines.append((horizon, "End of the period"))
     seen, rows = set(), []
     for when, what in sorted(deadlines):
@@ -371,8 +616,34 @@ def case_terms(d, review: date, horizon: date, model: dict) -> dict:
     return {"components": comps, "notes": notes, "deadlines": rows}
 
 
-# Per-path means the browser reweights for the tiles (core._scalars names).
-TILES = ("collected", "unrecovered", "petition_p", "peak_outstanding", "stayed", "preference")
+# Per-path means the browser reweights: the lender bridge's tiles (funded -> payments due -> collected, then due and
+# unpaid split into past due and frozen by a filing, the chance of a filing and clawback exposure) and the Exposure
+# tab's peak outstanding and capital tied up (time-weighted outstanding).
+TILES = ("funded", "due", "collected", "unpaid", "past_due", "frozen_due", "petition_p", "clawback",
+         "peak_outstanding", "avg_outstanding")
+
+
+def path_scalars(r) -> dict[str, np.ndarray]:
+    """Per path, the mean over its draws of each TILES figure. Payments due, past due and frozen by the end of the
+    period are the per-day records' last day (core.Reduction.per_day). Amounts are whole cents; due and unpaid is
+    payments due less collected and frozen is due and unpaid less past due, so on every path collected + due and
+    unpaid = payments due and past due + frozen = due and unpaid exactly (the bridge's two parts reconcile)."""
+    last = {k: np.rint(r.per_day[k][:, -1] / r.draws) for k in ("due_cum", "past_due")}
+    collected = np.rint(r.means["collected"])
+    unpaid = last["due_cum"] - collected
+    return {"funded": np.rint(r.means["drawn"]), "due": last["due_cum"], "collected": collected, "unpaid": unpaid,
+            "past_due": last["past_due"], "frozen_due": unpaid - last["past_due"],
+            "petition_p": np.round(r.means["petition_p"], 4), "clawback": np.rint(r.means["preference"]),
+            "peak_outstanding": np.rint(r.means["peak_outstanding"]),
+            "avg_outstanding": np.rint(r.means["avg_outstanding"])}
+
+
+def bridge(bank: dict[str, float], research: dict[str, float]) -> dict[str, float]:
+    """What research adds to collections, in two parts (page.js bridgeLine): the change in payments due (Slope funds
+    more or less, so more or fewer installments fall due) and the change in due and unpaid, sign reversed. Collected
+    = payments due - due and unpaid in each view, so the parts sum to the collected difference."""
+    return {"collected": research["collected"] - bank["collected"], "due": research["due"] - bank["due"],
+            "unpaid": -(research["unpaid"] - bank["unpaid"])}
 CHART = ("limit_mean", "outstanding_mean", "petition_cum_p", "frozen_mean", "cash_mean", "cash_p5", "cash_p50",
          "cash_p95", "collected_mean", "contractual")
 
@@ -430,25 +701,31 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                       "label": SHORT_LABELS.get(j.question_id, q), "sub": short_context(ctx, ranges),
                       "actor": sp["actor"], "decider": ACTOR_GROUP.get(sp["actor"], "Akoustis"),
                       "branches": branches, "jev": [j.distribution[b] for b in branches],
-                      "detail": drill_down(sp, m, q, facts, j, neutral, links)})
+                      "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node,
+                                           model.disputes.get(j.instance_id))})
+    bank = bank_rows(model, fc, m, spec, questions, links, neutral, off=len(nodes))
+    nodes += bank["nodes"]
     lead = [c[0] for c in model.combos]
     d0 = model.disputes[lead[0].instance_id] if lead and lead[0].steps else None
     classes, seqs, seq_ix = [], [], {}
     pet = np.round(a.r.means["petition_p"], 4)  # the tile's own per-path values, so Filed sums to the tile exactly
     shares = []
     for i, p in enumerate(lead):
-        sh = outcome_shares(p.steps, p.outcome, float(pet[i]))
+        tr = fc.trace(d0, p.steps) if d0 is not None and p.steps else None
+        sh = outcome_shares(p.steps, p.outcome, float(pet[i]), tr.cause if tr is not None else None,
+                            tr.marks if tr is not None else None, a.days)
         shares.append(sh)
         classes.append(max(sh, key=sh.get))  # the main class, for the worst-paths table
-        tr = fc.trace(d0, p.steps) if d0 is not None and p.steps else None
-        text = sequence(p.steps, tr.day, tr.petition, setup.review, a.days, ranges) if tr else "No dispute events"
+        text = (sequence(p.steps, tr.day, tr.petition, setup.review, a.days, ranges, tr.cause) if tr
+                else "No dispute events")
         seqs.append(seq_ix.setdefault(text, len(seq_ix)))
     cls_ix = {c: i for i, (c, _) in enumerate(CLASSES)}
     probs = model.probs() if probs is None else probs
     months = [f"{y}-{mo:02d}" for y, mo in a.months]
     return {
         "meta": {"borrower": borrower, "review": setup.review.isoformat(), "horizon": setup.horizon.isoformat(),
-                 "limit_cents": int(a.line.limit[:, 0].min()), "draws": a.ops.draws, "paths": len(model.combos),
+                 "limit_cents": int(a.line.limit[:, 0].min()), "fee_bps": setup.fee_bps,
+                 "installments": setup.installments, "draws": a.ops.draws, "paths": len(model.combos),
                  "judgments": "neutral" if neutral else "jev",
                  "judgments_note": "No Jev answers yet: all questions at even odds" if neutral else "",
                  "probability_label": m["probability_label"]},
@@ -458,15 +735,45 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         "nodes": nodes, "composites": enc["composites"],
         "paths": {"edges": enc["paths"], "class": [[[cls_ix[c], round(v, 4)] for c, v in sh.items()] for sh in shares],
                   "seq": seqs,
-                  "scalars": {k: np.round(a.r.means[k], 4 if k == "petition_p" else 0).tolist() for k in TILES}},
+                  "scalars": {k: v.tolist() for k, v in path_scalars(a.r).items()}},
         "classes": [label for _, label in CLASSES], "sequences": list(seq_ix),
-        "bank": {"scalars": {k: float(a.bank_r.means[k][0]) for k in TILES},
-                 **chart_view(a.bank_r, np.array([1.0]), a.months)},
+        "bank": {"scalars": {k: float(model.bank_probs() @ v) for k, v in path_scalars(a.bank_r).items()},
+                 "edges": bank["edges"], "path_scalars": {k: v.tolist() for k, v in path_scalars(a.bank_r).items()},
+                 **chart_view(a.bank_r, model.bank_probs(), a.months)},
         "event": chart_view(a.r, probs, a.months),
         "worst": _worst(stress_rows, classes, seqs, list(seq_ix)) if stress_rows else [],
-        "case_terms": case_terms(d0, setup.review, setup.horizon, m) if d0 is not None else {},
+        "case_terms": case_terms(d0, setup.review, setup.horizon, m, links) if d0 is not None else {},
         "settings": SETTINGS,
     }
+
+
+BANK_LABELS = {"forecast_petition_cash_floor": "The company files at its cash floor",
+               "forecast_petition_cash_out": "The company files when its cash runs out"}
+
+
+def bank_rows(model, fc, m: dict, spec: dict, questions: dict, links: dict, neutral: bool, off: int) -> dict:
+    """The bank view's questions as page rows (after the research rows, from index `off`): each asked on bank data
+    alone, with its drill-down (its facts, Jev's question and answer); and each bank path's edges over those rows,
+    so page.js reweights the bank view as it does the research view."""
+    from app.disputes.forecast import bank_state
+
+    enc = encode_paths(model.bank_combos, model.bank_judgments)
+    assert not enc["composites"]  # the bank view's chain has none
+    rows = []
+    for k, branches in zip(enc["keys"], enc["branches"], strict=True):
+        j = model.bank_judgments[k]
+        sp, q = {**spec[j.node], "record_items": []}, questions.get(j.question_id, j.event)
+        facts = j.path_facts or (bank_state(fc, fc.bank_nodes[k])["path_facts"] if k in fc.bank_nodes else {})
+        rows.append({"key": k, "node": j.node, "view": "bank", "question": q, "context": "asked on bank data alone",
+                     "label": BANK_LABELS.get(j.question_id, q), "sub": "Asked on bank data alone",
+                     "actor": sp["actor"], "decider": "Bank data", "branches": branches,
+                     "jev": [j.distribution[b] for b in branches],
+                     "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node)})
+        for s in rows[-1]["detail"]["steps"]:  # the bank view's cash has no dispute: its event cash is the coupon
+            s["text"] = s["text"].replace(" + the dispute's cash to that date", " + the notes' coupon to that date"
+                                          if fc.instrument() is not None else " to that date")
+    edges = [[x + off if i % 2 == 0 else x for i, x in enumerate(flat)] for flat in enc["paths"]]
+    return {"nodes": rows, "edges": edges}
 
 
 def _pins(d, m: dict) -> dict:
@@ -505,14 +812,14 @@ SETTINGS = [
     {"key": "bond_collateral_share_bps", "label": "Bond collateral", "kind": "tree", "value": False,
      "options": [[False, "100%"], [True, "80%"]]},
     {"key": "coupon_cash_share", "label": "15 Dec coupon", "kind": "tree", "value": "shares",
-     "options": [["shares", "Shares"], ["all_cash", "Cash"]]},
+     "options": [["shares", "Shares to capacity, rest cash"], ["all_cash", "Cash"], ["all_shares", "Shares"]]},
     {"key": "chips_credit_cents", "label": "CHIPS credit", "kind": "tree", "value": False,
      "options": [[False, "Off"], [True, "On"]]},
     {"key": "stay_restart_on_increase_days", "label": "Amended judgment: new stay clock on", "kind": "tree",
      "value": False, "options": [[False, "The increase"], [True, "The whole amount"]]},
 ]
 LINE_KEYS = {s["key"] for s in SETTINGS if s["kind"] == "line"}
-PAGE_FORMAT = 4  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
+PAGE_FORMAT = 7  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
 def build_dev(settings: dict | None = None, progress=None) -> dict:
@@ -545,31 +852,35 @@ def build_dev(settings: dict | None = None, progress=None) -> dict:
     step("tree", 0, 1)
     fc = Forecaster([judgment()], {}, borrower=borrower, review=REVIEW, horizon=setup.horizon, hydrate=lambda f: {},
                     model=m, setup=setup, basis=basis_for(feed, setup), sens=sens)
-    per = fc.all_paths()
-    js = {n.key: Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id, event=n.event,
-                          assumptions=n.assumptions, window=n.window,
-                          distribution={b: 1 / len(n.branches) for b in n.branches}) for n in fc.nodes.values()}
-    model = EventModel({d.instance_id: d for d in fc.disputes}, js, per, fc.ordered(), neutral=neutral_map(js))
+    per, bank_paths = fc.all_paths(), fc.bank_paths()
+    js, bank_js = ({n.key: Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
+                                    event=n.event, assumptions=n.assumptions, window=n.window,
+                                    distribution={b: 1 / len(n.branches) for b in n.branches}) for n in nodes.values()}
+                   for nodes in (fc.nodes, fc.bank_nodes))
+    model = EventModel({d.instance_id: d for d in fc.disputes}, js, per, fc.ordered(), neutral=neutral_map(js),
+                       bank_paths=bank_paths, bank_judgments=bank_js)
     a = Analysis(feed, setup, model, sens=sens, dispute_model=m, progress=step)
     rows = Analysis(feed, setup, model, stress=True, sens=sens, dispute_model=m, progress=step).stress_rows
     rows = [{"index": i, **r} for i, r in enumerate(rows)]
     payload = page_payload(a, model, fc, borrower=borrower, snapshot_id=SNAP, neutral=True, stress_rows=rows)
     payload["meta"]["dev"] = True
     payload["settings_value"] = settings
-    return {"payload": payload, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months,
-            "class_of_path": class_matrix(payload["paths"]["class"], len(CLASSES))}
+    return {"payload": payload, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months}
 
 
-def reweight(state: dict, overrides: dict[str, list[float]] | None, classes: list[int] | None = None) -> dict | None:
-    """The daily series and monthly table under the browser's node distributions (branch order as encoded),
-    optionally only over the paths of some outcome classes. No re-simulation."""
+def reweight(state: dict, overrides: dict[str, list[float]] | None) -> dict | None:
+    """The daily series and monthly table under the browser's node distributions (branch order as encoded). No
+    re-simulation."""
     model = state["model"]
     ov = {k: {b: float(p) for b, p in zip(model.judgments[k].distribution, v, strict=True)}
           for k, v in (overrides or {}).items() if k in model.judgments}
     probs = model.probs(ov)
-    if classes is not None:
-        probs = probs * state["class_of_path"][:, classes].sum(axis=1)  # each path by its share of draws in them
-    return chart_view(state["r"], probs, state["months"])
+    out = chart_view(state["r"], probs, state["months"])
+    bov = {k: {b: float(p) for b, p in zip(model.bank_judgments[k].distribution, v, strict=True)}
+           for k, v in (overrides or {}).items() if k in model.bank_judgments}
+    if out is not None and state.get("bank_r") is not None and model.bank_judgments:
+        out["bank"] = chart_view(state["bank_r"], model.bank_probs(bov), state["months"])  # the bank rows' sliders
+    return out
 
 
 class DevPage:

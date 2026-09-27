@@ -110,6 +110,23 @@ def test_the_preference_window_is_exactly_the_90_days_before_the_petition():
     assert tr.stayed.tolist() == [0, 0, 20_000_000] and tr.collected.tolist() == [30_000_000, 30_000_000, 10_000_000]
 
 
+def test_the_stress_petition_at_the_peak_is_read_exactly_from_the_run_without_it(akoustis):
+    """The stress view's petition-at-peak figures come from the run without the petition (core._petition_at): equal
+    to running the engine again with it, on draws with an earlier petition of their own, a later one, and none."""
+    from app.analysis.core import _petition_at
+
+    feed, _, line = akoustis
+    drained = EventCash.zeros(DRAWS, DAYS)
+    drained.cash[:, 40] = -500_000_000
+    drained.petition[::2] = 120
+    for ev in (drained, EventCash.zeros(DRAWS, DAYS)):
+        tr = run(line, feed.available_cents, ev)
+        for peak in (0, 60, 119, 150, DAYS - 1):
+            again = run(line, feed.available_cents, with_petition(ev, peak))
+            stayed, preference = _petition_at(line, tr, ev.petition, peak)
+            assert np.array_equal(stayed, again.stayed) and np.array_equal(preference, again.preference)
+
+
 def test_the_need_rule_reproduces_the_previous_collections_when_need_is_zero(akoustis):
     # Opening $1.0M; Slope pays a $900k invoice (no fee); a $950k payment leaves $50k, so the first $300k installment
     # collects $50k and nothing more. A $20k dip 5-40 days after the first due date is need; with it, $30k.

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -42,6 +43,14 @@ EXPECTED_BUILD_MARKER = "jev-1.13"
 MAX_RETRIES = 2
 NOUL_THRESHOLD = 0.5  # code-owned; also used for screen routing (checked against evals/)
 CACHE_DIR = VAR / "jev_cache"
+# While a caller holds a list here, every exchange is appended to it: the request as the SDK receives it (model,
+# built questions, state) and Jev's raw response. `slope analyze` writes the run's exchanges beside the run.
+EXCHANGE_LOG: list[dict] | None = None
+
+
+def cache_only() -> bool:
+    """SLOPE_JEV_CACHE_ONLY=1: answer only from saved responses; a request not already answered is refused."""
+    return os.environ.get("SLOPE_JEV_CACHE_ONLY") == "1"
 
 
 class JevBudgetExceeded(RuntimeError):
@@ -66,9 +75,12 @@ def registry_question(question_id: str) -> dict:
 
 
 def build_question(entry: dict) -> Choice | Noul | Score:
-    """Registry mapping: global rules prefixed to the question's instructions; primitive from the entry."""
-    rules = "\n".join(f"- {r}" for r in question_registry()["global_rules"])
-    instructions = f"Global rules:\n{rules}\n\nQuestion:\n{entry['prompt']['instructions']}"
+    """Registry mapping: the profile's rules (the global rules unless the profile states its own) prefixed to the
+    question's instructions; primitive from the entry."""
+    reg = question_registry()
+    own = reg["profiles"].get(entry.get("profile", ""), {}).get("rules")
+    rules = "\n".join(f"- {r}" for r in (own if own is not None else reg["global_rules"]))
+    instructions = f"{'Rules' if own is not None else 'Global rules'}:\n{rules}\n\nQuestion:\n{entry['prompt']['instructions']}"
     if entry["primitive"] == "noul":
         return Noul(instructions=instructions, criteria=entry["prompt"]["criteria"])
     if entry["primitive"] == "score":
@@ -139,6 +151,8 @@ class JevAdapter:
             cache_hit = True
             self.cache_hits += 1
         else:
+            if cache_only():
+                raise ConfigurationError(f"No saved Jev response for {profile} {question_ids} (SLOPE_JEV_CACHE_ONLY)")
             reserved, estimate = self._reserve(
                 len(json.dumps(state)) + sum(len(q.model_dump_json()) for q in questions.values()))
             before = self.physical_attempts
@@ -166,6 +180,13 @@ class JevAdapter:
             returned_model=raw.get("model"), state_sha256=canonical_sha256(state),
             source_content_hashes=source_content_hashes, attempts_used=attempts_used, usage=raw.get("usage"),
             raw_response=raw, created_at=now, cache_hit=cache_hit)
+        if EXCHANGE_LOG is not None:
+            EXCHANGE_LOG.append({"adapter": self.run_id, "call_id": call.call_id, "profile": profile,
+                                 "question_ids": list(question_ids), "created_at": now, "cache_hit": cache_hit,
+                                 "request": {"model": self.provider.model,
+                                             "questions": {q: v.model_dump(mode="json") for q, v in questions.items()},
+                                             "state": state},
+                                 "response": raw})
         answers = raw.get("answers") or {}
         observations = []
         for qid in question_ids:
