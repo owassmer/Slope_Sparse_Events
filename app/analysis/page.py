@@ -674,6 +674,8 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                       "branches": branches, "jev": [j.distribution[b] for b in branches],
                       "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node,
                                            model.disputes.get(j.instance_id))})
+    bank = bank_rows(model, fc, m, spec, questions, links, neutral, off=len(nodes))
+    nodes += bank["nodes"]
     lead = [c[0] for c in model.combos]
     d0 = model.disputes[lead[0].instance_id] if lead and lead[0].steps else None
     classes, seqs, seq_ix = [], [], {}
@@ -706,12 +708,39 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                   "scalars": {k: v.tolist() for k, v in path_scalars(a.r).items()}},
         "classes": [label for _, label in CLASSES], "sequences": list(seq_ix),
         "bank": {"scalars": {k: float(model.bank_probs() @ v) for k, v in path_scalars(a.bank_r).items()},
+                 "edges": bank["edges"], "path_scalars": {k: v.tolist() for k, v in path_scalars(a.bank_r).items()},
                  **chart_view(a.bank_r, model.bank_probs(), a.months)},
         "event": chart_view(a.r, probs, a.months),
         "worst": _worst(stress_rows, classes, seqs, list(seq_ix)) if stress_rows else [],
         "case_terms": case_terms(d0, setup.review, setup.horizon, m, links) if d0 is not None else {},
         "settings": SETTINGS,
     }
+
+
+BANK_LABELS = {"forecast_petition_cash_floor": "The company files at its cash floor",
+               "forecast_petition_cash_out": "The company files when its cash runs out"}
+
+
+def bank_rows(model, fc, m: dict, spec: dict, questions: dict, links: dict, neutral: bool, off: int) -> dict:
+    """The bank view's questions as page rows (after the research rows, from index `off`): each asked on bank data
+    alone, with its drill-down (its facts, Jev's question and answer); and each bank path's edges over those rows,
+    so page.js reweights the bank view as it does the research view."""
+    from app.disputes.forecast import bank_state
+
+    enc = encode_paths(model.bank_combos, model.bank_judgments)
+    assert not enc["composites"]  # the bank view's chain has none
+    rows = []
+    for k, branches in zip(enc["keys"], enc["branches"], strict=True):
+        j = model.bank_judgments[k]
+        sp, q = {**spec[j.node], "record_items": []}, questions.get(j.question_id, j.event)
+        facts = j.path_facts or (bank_state(fc, fc.bank_nodes[k])["path_facts"] if k in fc.bank_nodes else {})
+        rows.append({"key": k, "node": j.node, "view": "bank", "question": q, "context": "asked on bank data alone",
+                     "label": BANK_LABELS.get(j.question_id, q), "sub": "Asked on bank data alone",
+                     "actor": sp["actor"], "decider": "Bank data", "branches": branches,
+                     "jev": [j.distribution[b] for b in branches],
+                     "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node)})
+    edges = [[x + off if i % 2 == 0 else x for i, x in enumerate(flat)] for flat in enc["paths"]]
+    return {"nodes": rows, "edges": edges}
 
 
 def _pins(d, m: dict) -> dict:
@@ -757,7 +786,7 @@ SETTINGS = [
      "value": False, "options": [[False, "The increase"], [True, "The whole amount"]]},
 ]
 LINE_KEYS = {s["key"] for s in SETTINGS if s["kind"] == "line"}
-PAGE_FORMAT = 6  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
+PAGE_FORMAT = 7  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
 def build_dev(settings: dict | None = None, progress=None) -> dict:
@@ -816,7 +845,12 @@ def reweight(state: dict, overrides: dict[str, list[float]] | None, classes: lis
     probs = model.probs(ov)
     if classes is not None:
         probs = probs * state["class_of_path"][:, classes].sum(axis=1)  # each path by its share of draws in them
-    return chart_view(state["r"], probs, state["months"])
+    out = chart_view(state["r"], probs, state["months"])
+    bov = {k: {b: float(p) for b, p in zip(model.bank_judgments[k].distribution, v, strict=True)}
+           for k, v in (overrides or {}).items() if k in model.bank_judgments}
+    if out is not None and state.get("bank_r") is not None and model.bank_judgments:
+        out["bank"] = chart_view(state["bank_r"], model.bank_probs(bov), state["months"])  # the bank rows' sliders
+    return out
 
 
 class DevPage:

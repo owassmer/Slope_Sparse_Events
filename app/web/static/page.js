@@ -6,7 +6,7 @@
   let D = JSON.parse($("page-data").textContent);
   const API = document.querySelector(".app").dataset.api;
   const S = { view: "lit", mtab: "exposure", rtab: "probs", tile: null, overrides: {}, sel: {}, cls: null,
-              omode: "weighted", detail: null, event: D.event, eventAll: D.event, settings: {}, lat: [],
+              omode: "weighted", detail: null, event: D.event, eventAll: D.event, bank: D.bank, settings: {}, lat: [],
               reveal: false, outcome: null };
   window.__page = S;
   const CLS_COL = ["#b91c1c", "#dc2626", "#f87171", "#15803d", "#22c55e", "#2563eb", "#9ca3af", "#a16207"];
@@ -48,6 +48,13 @@
     return out;
   }
   const expect = (probs, key) => { const x = D.paths.scalars[key]; let s = 0; for (let i = 0; i < P; i++) s += probs[i] * x[i]; return s; };
+  // The bank view: its own paths over the bank rows (asked on bank data alone), reweighted the same way.
+  const BE = D.bank.edges || [];
+  const bankProbs = (get) => BE.map((e) => { let p = 1; for (let j = 0; j < e.length; j += 2) p *= get(e[j])[e[j + 1]]; return p; });
+  const bexpect = (bp, key) => {
+    const x = (D.bank.path_scalars || {})[key]; if (!x) return D.bank.scalars[key];
+    let s = 0; for (let i = 0; i < bp.length; i++) s += bp[i] * x[i]; return s;
+  };
   // A slider sets the selected branch; the other branches keep their proportions in `base`, the distribution when
   // the drag started (uniform if they were all zero), so the result depends only on where the slider ends up.
   function withBranch(i, b, x, base = dist(i)) {
@@ -70,9 +77,9 @@
   let probs = pathProbs((i) => dist(i));
   let steps = null;  // [bank, + research at even odds, + Jev] per scalar key
   function attribution() {
-    const neu = pathProbs(neutralDist);
+    const neu = pathProbs(neutralDist), bp = bankProbs((i) => dist(i));
     steps = {};
-    for (const k of Object.keys(D.paths.scalars)) steps[k] = [D.bank.scalars[k], expect(neu, k), expect(probs, k)];
+    for (const k of Object.keys(D.paths.scalars)) steps[k] = [bexpect(bp, k), expect(neu, k), expect(probs, k)];
   }
   // What research adds, signed and coloured by whether it helps (green) or hurts (red) the lender.
   function adds(d, good, fmt) {
@@ -185,12 +192,12 @@
     };
     hov.onmouseleave = () => { hx.setAttribute("visibility", "hidden"); hideTip(); };
   }
-  const cur = () => (S.view === "bank" ? D.bank : S.event);
+  const cur = () => (S.view === "bank" ? S.bank : S.event);
   const legend = (items) => `<div class="legend">${items.map(([label, c, k]) => `<span><i class="${k || ""}" style="--c:${c}"></i>${label}</span>`).join("")}</div>`;
   // Exposure: both views on one chart (outstanding and frozen by a filing on the left axis, the cumulative chance of
   // a filing on the right; dashed = bank data), with peak outstanding and capital tied up above it.
   function exposure(host) {
-    const B = D.bank.daily, R = S.event.daily, hl = (TILES.find((t) => t.key === S.tile) || { hl: [] }).hl;
+    const B = S.bank.daily, R = S.event.daily, hl = (TILES.find((t) => t.key === S.tile) || { hl: [] }).hl;
     const pins = [];
     if (D.pins.briefing_close) pins.push({ date: D.pins.briefing_close, label: "Briefing closes", row: 0 });
     if (D.pins.nasdaq) pins.push({ date: D.pins.nasdaq, label: "Nasdaq deadline", row: 1 });
@@ -319,23 +326,25 @@
       const r = await fetch(`${API}/reweight`, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal,
         body: JSON.stringify({ overrides: S.overrides, classes: S.cls === null ? null : [S.cls] }) });
       const v = await r.json();
-      if (v) { S.event = v; if (S.cls === null) S.eventAll = v; }
+      if (v) { S.event = v; if (S.cls === null) S.eventAll = v; if (v.bank) S.bank = { ...D.bank, ...v.bank }; }
       renderMain();
       if (t0) S.lat.push(performance.now() - t0);
     } catch (e) { if (e.name !== "AbortError") console.error(e); }
   }
 
   // --- probabilities --------------------------------------------------------------------------------------------
-  const DECIDERS = ["Court", "Qorvo", "Akoustis", "Noteholders and Nasdaq"];
+  const DECIDERS = ["Bank data", "Court", "Qorvo", "Akoustis", "Noteholders and Nasdaq"];
+  const GROUP = { "Bank data": "Bank data: asked on bank data alone" };
   const selB = (i) => S.sel[D.nodes[i].key] ?? 0;
   let sens = [];
   const dragBase = {};  // node index -> its distribution when the current drag started (cleared on change)
   function computeSens() {
-    const at = expect(probs, "collected");
-    sens = D.nodes.map((n, i) => {
-      const b = selB(i), var_ = (x) => expect(pathProbs((k) => (k === i ? withBranch(i, b, x) : dist(k))), "collected");
+    const at = expect(probs, "collected"), bat = bexpect(bankProbs((k) => dist(k)), "collected");
+    sens = D.nodes.map((n, i) => {  // a bank row moves the bank view's Collected, a research row the research view's
+      const b = selB(i), get = (x) => (k) => (k === i ? withBranch(i, b, x) : dist(k));
+      const var_ = n.view === "bank" ? (x) => bexpect(bankProbs(get(x)), "collected") : (x) => expect(pathProbs(get(x)), "collected");
       const lo = var_(0), hi = var_(1);
-      return { lo, hi, at, range: Math.abs(hi - lo) };
+      return { lo, hi, at: n.view === "bank" ? bat : at, range: Math.abs(hi - lo) };
     });
   }
   // The effect row: Collected is linear in the question's probability, so a track from its value at 0% (left) to
@@ -370,7 +379,7 @@
     if (rc) html += `<div class="ctx" title="Largest change in any answer when the names are replaced by roles">Recall check: ${rc.questions} questions, max change ${pts(rc.max_abs_change)}, mean ${pts(rc.mean_abs_change)}${rc.moved.length ? `, ${rc.moved.length} moved more than ${pts(rc.threshold)}` : ""}</div>`;
     for (const g of DECIDERS) {
       const rows = D.nodes.map((n, i) => i).filter((i) => D.nodes[i].decider === g).sort((a, b) => sens[b].range - sens[a].range);
-      if (rows.length) html += `<div class="ghead">${g}</div>` + rows.map((i) => rowHtml(i, [lo, hi])).join("");
+      if (rows.length) html += `<div class="ghead">${esc(GROUP[g] || g)}</div>` + rows.map((i) => rowHtml(i, [lo, hi])).join("");
     }
     const panel = $("rpanel"), top = panel.scrollTop;
     panel.innerHTML = html;
@@ -472,7 +481,7 @@
   }
   async function reload() {
     D = await (await fetch(`${API}/payload`)).json();
-    S.event = D.event; S.overrides = {}; S.cls = null; S.settings = {};
+    S.event = D.event; S.bank = D.bank; S.overrides = {}; S.cls = null; S.settings = {};
     recompute();
   }
   function renderRight() { ({ probs: renderProbs, terms: renderTerms, settings: () => renderSettings() })[S.rtab](); atEnd(); }
