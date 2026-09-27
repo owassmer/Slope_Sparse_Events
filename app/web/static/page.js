@@ -79,15 +79,15 @@
       const dtxt = (d >= 0 ? "+" : "") + (t.key === "petition_p" ? pct(d) : money(d));
       return `<div class="tile${S.tile === t.key ? " sel" : ""}" data-k="${t.key}"><div class="l">${t.label}</div>
         <div class="v">${t.fmt(main)}</div>
-        <div class="s"><span>Bank only</span><span>${t.fmt(b)}</span></div><div class="s"><span>With litigation</span><span>${t.fmt(e)}</span></div>
-        <div class="s"><span>Difference</span><span class="d ${dcls}">${dtxt}</span></div></div>`;
+        <div class="s"><span>Bank data</span><span>${t.fmt(b)}</span></div><div class="s"><span>Bank data + research</span><span>${t.fmt(e)}</span></div>
+        <div class="s"><span>Research adds</span><span class="d ${dcls}">${dtxt}</span></div></div>`;
     }).join("");
     document.querySelectorAll(".tile").forEach((el) => {
       el.onclick = () => { const t = TILES.find((x) => x.key === el.dataset.k); S.tile = t.key; S.mtab = t.tab; renderTabs(); renderTiles(); renderMain(); };
       el.onmousemove = (ev) => {
         const t = TILES.find((x) => x.key === el.dataset.k), [b, r, e] = steps[t.key];
-        showTip(ev, `<table><tr><td>Bank only</td><td>${t.fmt(b)}</td></tr><tr><td>+ case facts</td><td>${t.fmt(r)}</td></tr>
-          <tr><td>+ Jev${NEUTRAL ? " (no answers yet)" : ""}</td><td>${t.fmt(e)}</td></tr></table>`);
+        showTip(ev, `<table><tr><td>Bank data</td><td>${t.fmt(b)}</td></tr><tr><td>+ research, questions at even odds</td><td>${t.fmt(r)}</td></tr>
+          <tr><td>+ Jev's answers${NEUTRAL ? " (none yet)" : ""}</td><td>${t.fmt(e)}</td></tr></table>`);
       };
       el.onmouseleave = hideTip;
     });
@@ -206,7 +206,7 @@
       const lines = [["month", ...COLS.map(([k]) => `${k}_cents`)].join(","), ...rows.map((r) => [r.month, ...COLS.map(([k]) => r[k] ?? "")].join(","))];
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
-      a.download = `collections_${S.view === "bank" ? "bank_only" : "with_litigation"}.csv`; a.click();
+      a.download = `collections_${S.view === "bank" ? "bank_data" : "bank_data_plus_research"}.csv`; a.click();
     };
   }
   function renderMain() {
@@ -422,7 +422,10 @@
 
   // --- init -------------------------------------------------------------------------------------------------------
   const lim = Math.floor(D.meta.limit_cents / 100).toLocaleString("en-US");
-  $("title").textContent = `${D.meta.borrower.replace(/,? Inc\.?$/, "")} · Review date ${fdateY(D.meta.review)} · Limit $${lim} · Through ${fdateY(D.meta.horizon)}`;
+  // The facility terms, stated once: the line's limit, its fee, the installments per draw and the period.
+  const fee = D.meta.fee_bps != null ? ` · ${(D.meta.fee_bps / 100).toFixed(1)}% fee` : "";
+  const inst = D.meta.installments ? ` · each draw repaid in ${D.meta.installments} monthly installments` : "";
+  $("title").innerHTML = `<b>${esc(D.meta.borrower.replace(/,? Inc\.?$/, ""))}</b> · Slope line: limit $${lim}${fee}${inst} · ${fdate(D.meta.review)} to ${fdateY(D.meta.horizon)}`;
   document.querySelectorAll("#mtabs button").forEach((b) => (b.onclick = () => { S.mtab = b.dataset.t; renderTabs(); renderMain(); }));
   document.querySelectorAll("#rtabs button[data-t]").forEach((b) => (b.onclick = () => { S.rtab = b.dataset.t; S.detail = null; renderTabs(); renderRight(); }));
   document.querySelectorAll("#viewsw button").forEach((b) => (b.onclick = () => { S.view = b.dataset.v; renderTabs(); renderTiles(); renderMain(); }));

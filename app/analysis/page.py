@@ -496,7 +496,8 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
     months = [f"{y}-{mo:02d}" for y, mo in a.months]
     return {
         "meta": {"borrower": borrower, "review": setup.review.isoformat(), "horizon": setup.horizon.isoformat(),
-                 "limit_cents": int(a.line.limit[:, 0].min()), "draws": a.ops.draws, "paths": len(model.combos),
+                 "limit_cents": int(a.line.limit[:, 0].min()), "fee_bps": setup.fee_bps,
+                 "installments": setup.installments, "draws": a.ops.draws, "paths": len(model.combos),
                  "judgments": "neutral" if neutral else "jev",
                  "judgments_note": "No Jev answers yet: all questions at even odds" if neutral else "",
                  "probability_label": m["probability_label"]},
@@ -560,7 +561,7 @@ SETTINGS = [
      "value": False, "options": [[False, "The increase"], [True, "The whole amount"]]},
 ]
 LINE_KEYS = {s["key"] for s in SETTINGS if s["kind"] == "line"}
-PAGE_FORMAT = 5  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
+PAGE_FORMAT = 6  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
 def build_dev(settings: dict | None = None, progress=None) -> dict:

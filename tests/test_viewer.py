@@ -79,7 +79,7 @@ def test_the_page_renders_from_its_payload_and_reweights(small_page, monkeypatch
     monkeypatch.setattr(web, "_DEV", page)
     c = TestClient(app)
     r = c.get("/dev/akoustis")
-    assert r.status_code == 200 and "page-data" in r.text and "Bank data only" in r.text
+    assert r.status_code == 200 and "page-data" in r.text and "Bank data + research" in r.text
     assert state["payload"]["meta"]["judgments"] == "neutral" and "No Jev answers yet" in r.text
     node = state["payload"]["nodes"][0]
     out = c.post("/dev/akoustis/reweight", json={"overrides": {node["key"]: [0.9] + [0.1 / (len(node["branches"]) - 1)]

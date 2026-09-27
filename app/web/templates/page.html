@@ -13,7 +13,8 @@
   button:disabled { cursor:default; color:var(--mute); }
   .app { height:100vh; display:grid; grid-template-rows:auto auto 1fr; grid-template-columns:minmax(0, 1fr); }
   .top { display:flex; align-items:center; gap:14px; padding:8px 14px; border-bottom:1px solid var(--line); }
-  .top .title { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .top .title { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .top .title b { font-weight:600; }
   .top .sp { flex:1; }
   .seg { display:inline-flex; border:1px solid var(--line); border-radius:5px; overflow:hidden; }
   .seg button { border:0; border-radius:0; padding:4px 10px; white-space:nowrap; }
@@ -119,7 +120,7 @@
   <div class="top">
     <div class="title" id="title"></div>
     <div class="sp"></div>
-    <div class="seg" id="viewsw"><button data-v="bank">Bank data only</button><button data-v="lit" class="on">With litigation</button></div>
+    <div class="seg" id="viewsw"><button data-v="bank">Bank data</button><button data-v="lit" class="on">Bank data + research</button></div>
     {% if has_record %}<a href="{{ record_url }}">Investigation log</a>{% else %}<span class="muted" title="No recorded investigation for this page yet">Investigation log</span>{% endif %}
     {% if not dev %}<button id="actual"{% if not has_outcome %} disabled title="No actual-outcome file for this case"{% endif %}>Show actual outcome</button>{% endif %}
     <button class="drawer-btn" id="drawer">Probabilities</button>
