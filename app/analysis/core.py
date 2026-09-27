@@ -27,7 +27,7 @@ import numpy as np
 
 from app.analysis import operating
 from app.analysis.engine import NEED_DAYS, NO_DUE, PREFERENCE_DAYS, Trajectories, prepare, run, with_petition
-from app.analysis.events import Basis, Draws, EventCash, event_trace
+from app.analysis.events import BANK, Basis, Draws, EventCash, bank_trace, event_trace
 from app.analysis.setup import DRAWS, SEED, Setup
 from app.analysis.stats import expectation, weighted_quantiles
 from app.disputes.forecast import DisputePath, Judgment, combo_probability, distributions, joint_paths
@@ -47,9 +47,9 @@ STEP_LABELS = {("settle_before_ruling", "yes"): "settle before the ruling", ("am
 # Per-trajectory scalars averaged per path (expectations reweight them without re-simulating).
 SCALARS = ("lender_pv", "pv_fundings", "pv_collections", "dollar_days", "drawn", "fees", "contractual", "collected",
            "stayed", "stayed_principal", "preference", "not_yet_due", "uncollected", "min_cash")
-ATTRIBUTION = (("bank_only", "Bank data only"),
-               ("record", "Plus what the record fixes, residual judgments neutral"),
-               ("jev", "Plus Jev's judgments"))
+ATTRIBUTION = (("bank_only", "Bank data: the company's decisions at its cash floor, with Jev's answers"),
+               ("record", "Plus the researched record, its residual judgments neutral"),
+               ("jev", "Plus Jev's judgments on the researched record"))
 
 
 @dataclass
@@ -60,14 +60,29 @@ class EventModel:
     order: list[tuple[DisputeInstance, DisputeInstance | None]]
     combos: list[tuple[DisputePath, ...]] = field(default_factory=list)
     neutral: dict[str, dict[str, float]] | None = None  # the event model's neutral residuals (attribution step 2)
+    # The bank view: the company's distress decisions on the bank data and the common borrower inputs alone
+    # (Forecaster.bank_paths), with their own judgments. With no dispute the augmented view is the bank view.
+    bank_paths: list[DisputePath] = field(default_factory=list)
+    bank_judgments: dict[str, Judgment] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.combos:
-            self.combos = joint_paths(self.per, self.order) if self.order else [()]
+            self.combos = joint_paths(self.per, self.order) if self.order else self.bank_combos
+
+    @property
+    def bank_combos(self) -> list[tuple[DisputePath, ...]]:
+        return [(p,) for p in self.bank_paths] or [()]
+
+    def _dist(self, overrides: dict | None):
+        return distributions({**self.bank_judgments, **self.judgments}, overrides)
 
     def probs(self, overrides: dict | None = None) -> np.ndarray:
-        dist = distributions(self.judgments, overrides)
+        dist = self._dist(overrides)
         return np.array([combo_probability(c, dist) for c in self.combos])
+
+    def bank_probs(self, overrides: dict | None = None) -> np.ndarray:
+        dist = self._dist(overrides)
+        return np.array([combo_probability(c, dist) for c in self.bank_combos])
 
 
 def neutral_overrides(model: EventModel) -> dict[str, dict[str, float]]:
@@ -327,7 +342,9 @@ class Analysis:
         self._draws = Draws(DRAWS, stress=stress, basis=Basis.of(self.ops, self.line.need, self.opening))
         self._cache: dict = {}
         self._shared = len(model.order) > 1
-        self.bank = run(self.line, self.opening, EventCash.zeros(DRAWS, self.days))
+        self.instrument = next((f for d in model.disputes.values() for f in d.financing if f.status != "superseded"),
+                               None)  # the common borrower input (the notes' coupon) both views carry
+        self.bank = run(self.line, self.opening, EventCash.zeros(DRAWS, self.days))  # operating flows alone
         if stress:
             self.stress_rows = []
             for i, c in enumerate(model.combos):
@@ -343,8 +360,9 @@ class Analysis:
         def make(n: int) -> Reduction:
             return Reduction(n, DRAWS, self.days, setup, self.line.limit, bins, month_of_day)
 
-        self.bank_r = make(1)
-        self.bank_r.add(0, self.bank)
+        self.bank_r = make(len(model.bank_combos))
+        for i, c in enumerate(model.bank_combos):
+            self.bank_r.add(i, run(self.line, self.opening, self.event_cash(c)))
         self.bank_r.finish()
         self.r = make(len(model.combos))
         for i, c in enumerate(model.combos):  # one path at a time: its dense arrays are dropped once reduced
@@ -365,7 +383,7 @@ class Analysis:
         - headroom at a due date, per month: that month's cash range, less the need and at most all owed, and owed
           is at most (1 + fee) x principal outstanding <= (1 + fee) x the highest limit."""
         lo_ev, hi_ev = np.zeros(self.days), np.zeros(self.days)
-        for i, c in enumerate(self.model.combos):
+        for i, c in enumerate(self.model.combos + self.model.bank_combos):
             self._tick("bins", i, len(self.model.combos))
             ev = self.event_cash(c)
             cum = np.cumsum(ev.cash - ev.lock, axis=1)
@@ -395,7 +413,9 @@ class Analysis:
         for p in combo:
             key = (p.instance_id, p.steps)
             e = self._cache.get(key)
-            if e is None:
+            if e is None and p.instance_id == BANK:
+                e = bank_trace(self.instrument, p.steps, self.setup, self.m, self._draws, self.sens).events
+            elif e is None:
                 e = event_trace(self.model.disputes[p.instance_id], p, self.setup, self.m, self._draws, self.sens).events
                 if self._shared and len(self._cache) < CACHE_PATHS:
                     self._cache[key] = e
@@ -437,12 +457,15 @@ class Analysis:
 
     def views(self, overrides: dict | None = None) -> dict:
         probs = self.model.probs(overrides)
-        return {"bank_only": self._view(self.bank_r, np.array([1.0])), "event_adjusted": self._view(self.r, probs)}
+        return {"bank_only": self._view(self.bank_r, self.model.bank_probs(overrides)),
+                "event_adjusted": self._view(self.r, probs)}
 
     def attribution(self, overrides: dict | None = None) -> list[dict]:
-        """Three reweightings: bank data only (no events); plus what the record fixes, with every residual judgment
-        neutral; plus Jev's judgments (with any overrides). Step 3 minus step 2 is the signal from this record."""
-        metrics = [self.bank_r.metrics(np.array([1.0])),
+        """Three views on the same operating draws: the bank view (bank data and the common borrower inputs, with
+        Jev's answers to the company's decisions there); the augmented view with every residual judgment on the
+        researched record neutral; the augmented view with Jev's judgments (with any overrides). Step 3 minus step 1
+        is what the research adds; step 3 minus step 2 is Jev's reading of the record."""
+        metrics = [self.bank_r.metrics(self.model.bank_probs(overrides)),
                    self.r.metrics(self.model.probs(neutral_overrides(self.model))),
                    self.r.metrics(self.model.probs(overrides))]
         out, prev = [], None

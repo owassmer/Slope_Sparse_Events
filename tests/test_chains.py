@@ -63,7 +63,7 @@ def chain(base, d=None, sens=None) -> Chain:
 
 def test_composition_sums_to_one_and_keeps_every_path(full):
     fc, paths = full
-    assert 1_000 < len(paths) < 10_000  # thousands: collapsed by interval and amount class
+    assert 1_000 < len(paths) < 20_000  # thousands: collapsed by interval and amount class
     assert {n.question_id for n in fc.nodes.values()} == {s["residual_question"] for t in M["templates"].values()
                                                           for s in t["nodes"].values() if not s.get("stress_only")}
     js = stub(fc)
@@ -232,13 +232,14 @@ def test_frap_tolling_moves_the_post_ruling_windows_with_the_drawn_ruling(base):
     beyond = "beyond:3010000000:0"
     days = [c.step(*s) for s in (("execute_pre_ruling", "I1", "no"), ("ruling", "", beyond), ("appeal", "", "no"),
                                  ("settle", "I2", "no"), ("stay", "post", "no"), ("debtor_response", "post", "neither"))]
-    assert all((x == c.F).all() for x in days[1:5]) and (days[5] == c.F).all()  # no increase: enforceable at once
+    assert all((x == c.F).all() for x in days[1:5])  # no increase: enforceable at once
+    assert (days[5] >= 10**6).all()  # no levy pending: the company's response to a levy does not arise
     up = chain(base)
     up.step("ruling", "", "beyond:11292377711:1211612330")  # only the increase waits 30 days (L8(a) base)
     assert (up.EF == up.F).all() and (up.EI == up.F + 30).all()
     ripe = up.step("judgment_default", "post", "no")
     inside = ripe < 10**6
-    assert (ripe[inside] == up.F[inside] + 60).all()
+    assert (ripe[inside] == up.A[inside] + 60).all()  # 60 days from the last tolling order
     whole = chain(base, sens={"stay_restart_on_increase_days": True})  # sensitivity: the whole amount waits
     whole.step("ruling", "", "beyond:11292377711:1211612330")
     assert (whole.EF == whole.F + 30).all() and (whole.EI == whole.F + 30).all()
@@ -305,31 +306,63 @@ def test_statutory_interest_is_8_percent_simple_on_surviving_compensatory_only()
 
 # 4. The notes -------------------------------------------------------------------------------------------------------
 
-def test_the_judgment_default_fires_only_at_ripeness_unpaid_unstayed_and_noticed(base):
-    # L11 is Law: with post-trial motions pending the judgment is not final, so §7.01(i) cannot ripen before the ruling.
-    pre = chain(base)
-    pre.step("execute_pre_ruling", "I1", "no")
-    assert (pre.step("judgment_default", "I1", "yes") >= 10**6).all() and (pre.ev.petition == -1).all()
-    # After the ruling it ripens 60 days on, and the holders' notice and acceleration bring the petition.
-    c = chain(base)
-    for s in (("execute_pre_ruling", "I1", "no"), ("ruling", "", "beyond:3010000000:0"), ("appeal", "", "no"),
-              ("settle", "I2", "no"), ("stay", "post", "no")):
+AUG19 = ix(date(2024, 8, 19))  # the Rule 62(a) stay ended 19 Jun; 60 days on
+
+
+def _post(c, ruling="beyond:3010000000:0"):
+    for s in (("ruling", "", ruling), ("appeal", "", "no"), ("settle", "I2", "no"), ("stay", "post", "no")):
         c.step(*s)
-    ripe = c.step("judgment_default", "post", "yes")
+
+
+def test_the_judgment_default_ripens_under_both_readings_unpaid_unstayed_and_noticed(base):
+    # Base (both): on the judgment as entered, 60 days after the Rule 62(a) stay ended; the holders' notice and
+    # acceleration bring the petition there.
+    c = chain(base)
+    c.step("execute_pre_ruling", "I1", "no")
+    ripe = c.step("judgment_default", "I1", "yes")
+    assert (ripe == AUG19).all() and (c.ev.petition == AUG19).all()
+    # Where the holders did not act then, it ripens again 60 days after the last tolling order (A), on the amount
+    # that survives the ruling; where they acted, it does not ripen again.
+    q = chain(base)
+    q.step("execute_pre_ruling", "I1", "no")
+    q.step("judgment_default", "I1", "no")
+    _post(q)
+    ripe = q.step("judgment_default", "post", "yes")
     inside = ripe < N
-    assert inside.any() and (ripe[inside] == c.F[inside] + 60).all()
-    assert (c.ev.petition[inside] == ripe[inside]).all()
-    quiet = chain(base)
-    for s in (("execute_pre_ruling", "I1", "no"), ("ruling", "", "beyond:3010000000:0"), ("appeal", "", "no"),
-              ("settle", "I2", "no"), ("stay", "post", "no")):
-        quiet.step(*s)
-    quiet.step("judgment_default", "post", "no")  # no notice and acceleration: no default consequence
-    assert (quiet.ev.petition == -1).all()
-    small = judgment(components=(), motions=(), stage="judgment_entered",
-                     amount=judgment().amount.model_copy(update={"value": 900_000_000}))  # below the $10.0M threshold
+    assert inside.any() and (ripe[inside] == q.A[inside] + 60).all() and (q.A >= q.F).all()
+    assert (q.ev.petition[inside] == ripe[inside]).all()
+    acted = chain(base)
+    acted.step("execute_pre_ruling", "I1", "no")
+    acted.step("judgment_default", "I1", "accelerated")
+    _post(acted)
+    assert (acted.step("judgment_default", "post", "no") >= 10**6).all()  # no second acceleration
+    # Sensitivities: the entered judgment only, or the post-trial ruling only.
+    ent = chain(base, sens={"judgment_default_reading": "entered"})
+    assert (ent.step("judgment_default", "I1", "no") == AUG19).all()
+    _post(ent)
+    assert (ent.step("judgment_default", "post", "no") >= 10**6).all()
+    post = chain(base, sens={"judgment_default_reading": "post_ruling"})
+    assert (post.step("judgment_default", "I1", "no") >= 10**6).all()
+    _post(post)
+    assert (post.step("judgment_default", "post", "no") < N).any()
+    # With no ruling step the entered amount counts (a null never becomes $0); below the threshold, no default.
+    none = chain(base, sens={"judgment_default_reading": "post_ruling"})
+    assert (none.step("judgment_default", "post", "no") < N).any()
+    small = judgment(amount=judgment().amount.model_copy(update={"value": 900_000_000}),
+                     components=())  # below the $10.0M threshold
     low = chain(base, small)
-    low.step("judgment_default", "post", "yes")
-    assert (low.ev.petition == -1).all()
+    assert (low.step("judgment_default", "I1", "yes") >= 10**6).all() and (low.ev.petition == -1).all()
+
+
+def test_an_effective_stay_before_the_ripe_date_prevents_the_default(base):
+    c = chain(base)
+    c.step("execute_pre_ruling", "I1", "yes")
+    c.step("stay", "I1", "yes")  # approval = motion + briefing + a lag draw
+    early = c.stayed_from <= AUG19
+    assert early.any() and (~early).any()
+    ripe = c.step("judgment_default", "I1", "yes")
+    assert (ripe[early] >= 10**6).all() and (c.ev.petition[early] == -1).all()
+    assert (ripe[~early] == AUG19).all()
 
 
 def test_delisting_is_a_default_on_its_date_and_the_repurchase_date_is_code(base, full):
@@ -363,7 +396,10 @@ def test_a_filing_path_sets_the_petition_and_the_engine_stays_the_claim(base, fu
     c = Chain(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b))
     tr = c.run(p.steps)
     on = tr.events.petition >= 0
-    assert on.any() and (tr.events.petition[on] <= c.EF[on]).all()
+    at = tr.day[p.steps.index(("debtor_response", "post", "file"))]  # the levy day, before the levy
+    hit = on & (at < N)  # the petition is the earliest one: another filing on the path can come first
+    assert (tr.events.petition[hit] == at[hit]).any() and (tr.events.petition[hit] <= at[hit]).all()
+    assert (at[hit] >= c.EF[hit]).all()
     t = run(line, feed.available_cents, tr.events)
     assert (t.petition == tr.events.petition).all() and t.stayed[on].mean() > 0
     i1 = next(q for q in paths if ("debtor_response", "I1", "file") in q.steps)
@@ -466,12 +502,14 @@ def test_the_residual_questions_agree_in_number():
 
 # 7. Cash conventions ------------------------------------------------------------------------------------------------
 
-def test_coupon_in_shares_by_default_and_legal_spend_stops_on_settlement(base):
+def test_coupon_shares_to_capacity_and_legal_spend_stops_on_settlement(base):
     dec16 = ix(date(2024, 12, 16))  # 15 Dec 2024 is a Sunday: paid the next business day
-    assert not chain(base).run(()).events.cash.any()  # shares: no cash; CHIPS: $0 in the horizon
+    cash = chain(base).run(()).events.cash  # 3.0M shares at 95% of $0.20 cover $570,000; the rest in cash
+    assert (cash[:, dec16] == -75_000_000).all() and (np.delete(cash, dec16, axis=1) == 0).all()
+    assert not chain(base, sens={"coupon_cash_share": "all_shares"}).run(()).events.cash.any()  # CHIPS: $0
     cash = chain(base, sens={"coupon_cash_share": "all_cash"}).run(()).events.cash
     assert (cash[:, dec16] == -132_000_000).all() and (np.delete(cash, dec16, axis=1) == 0).all()
-    chips = chain(base, sens={"chips_credit_cents": True}).run(()).events.cash
+    chips = chain(base, sens={"chips_credit_cents": True, "coupon_cash_share": "all_shares"}).run(()).events.cash
     assert (chips.sum(axis=1) == 233_000_000).all()
     c = chain(base)
     c.step("settle", "I1", "yes")
@@ -488,7 +526,7 @@ def test_legal_spend_stops_on_vacatur_and_continues_on_a_new_trial(base, full):
     pre = (("settle", "I1", "no"), ("execute_pre_ruling", "I1", "no"), ("judgment_default", "I1", "no"))
     after = None
     for branch in ("none", "retrial"):
-        c = chain(base)
+        c = chain(base, sens={"coupon_cash_share": "all_shares"})  # the legal spend alone
         ev = c.run(pre + (("ruling", "", branch),)).events
         after = np.arange(N)[None, :] >= c.F[:, None]
         if branch == "none":  # vacated: the feed's legal outflows are added back from the ruling
@@ -555,3 +593,30 @@ def test_settlement_stay_and_contract_date_facts_state_what_the_chain_computes(f
         assert fc.path_facts(j8, judgment())["reduced_security_offered"]["p50"] == usd(4_000_000_00)
     finally:
         fc.facts = saved
+
+
+# 8. Chain order -----------------------------------------------------------------------------------------------------
+
+def test_the_post_ruling_response_comes_on_the_levy_day_and_again_at_the_ripe_date_after_seeking(full):
+    fc, paths = full
+    for p in paths:
+        for i, s in enumerate(p.steps):
+            if s[:2] == ("debtor_response", "post"):
+                assert p.steps[i - 1] == ("enforce", "post", "levy")
+            if s[:2] == ("debtor_response", "ripe"):
+                assert any(x[0] == "debtor_response" and x[2].startswith("seek") for x in p.steps[:i])
+    assert any(s[:2] == ("debtor_response", "ripe") for p in paths for s in p.steps)
+
+
+def test_each_listing_question_has_the_facts_of_its_own_decision_date(full, base):
+    fc, _ = full
+    dates = chain(base).listing_dates()
+    own = {"reverse_split_board": "vote_call", "split_approved": "effective_by", "nasdaq_hearing": "hearing_request",
+           "panel_exception": "panel_decision"}
+    seen = set()
+    for k, n in fc.nodes.items():
+        if n.node in own:
+            days = np.concatenate([r["day"] for r in fc.facts[k]])
+            assert set(days[days < 10**6].tolist()) <= {dates[own[n.node]]}
+            seen.add(n.node)
+    assert seen == set(own)

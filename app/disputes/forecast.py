@@ -188,6 +188,9 @@ class _Prefix:
     digest: bytes
     cause: np.ndarray | None = None  # per draw: the rule that booked the earliest petition (events.PETITION_CAUSES)
     marks: dict | None = None  # condition -> the day it holds from, per draw (events.MARKS)
+    settle_offer: np.ndarray | None = None  # the traced step's settlement amount on its payment date (0: none)
+    stay_offer: np.ndarray | None = None  # cash above the 30-day operating need on the stay-motion day (0: none)
+    triggers: dict | None = None  # events.TRIGGERS name -> day index per draw (events.BIG: none)
 
     @classmethod
     def of(cls, tr) -> _Prefix:
@@ -196,12 +199,14 @@ class _Prefix:
         for a in (ev.cash, ev.lock, ev.capacity, ev.petition):
             h.update(np.ascontiguousarray(a).tobytes())
         return cls(tr.day, tr.cash, tr.owed, tr.collateral, ev.petition.copy(), h.digest(),
-                   None if tr.cause is None else tr.cause.copy(), tr.marks)
+                   None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
+                   tr.triggers)
 
 
 INTERVAL_PHRASES = {"I1": "before the post-trial ruling", "I2": "after the post-trial ruling, before the appeal deadline",
-                    "I3": "judgment enforceable and unstayed", "I4": "judgment stayed on approved security",
-                    "post": "after the post-trial ruling"}
+                    "I3": "judgment enforceable and unstayed, after the appeal deadline",
+                    "I4": "judgment stayed on approved security", "post": "after the post-trial ruling",
+                    "ripe": "after the post-trial ruling, on the date the notes' judgment default ripens"}
 DELISTING_PHRASES = {"delisted_panel": "stock delisted on the Hearings Panel's decision",
                      "delisted_suspension": "stock delisted on suspension, with no hearing"}
 STATE_PHRASES = {"entered": "the judgment as entered", "first": "the company's first response to the enforceable judgment",
@@ -218,7 +223,8 @@ STATE_PHRASES = {"entered": "the judgment as entered", "first": "the company's f
                  "seeking": "the company has sought a sale or new financing",
                  "notes_due": "the notes are due and unpaid, and no bankruptcy petition has been filed",
                  "delisted": "the stock has been delisted",
-                 "cash_exhausted": "the company did not file when its cash fell below its 30-day operating need"}
+                 "cash_exhausted": "the company did not file when its cash fell below its 30-day operating need",
+                 "entered_not_acted": "the holders have not given notice of a default on the judgment as entered"}
 
 
 def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]]) -> list[str]:
@@ -303,6 +309,8 @@ class Forecaster:
         self.nodes: dict[str, Node] = {}
         self.facts: dict[str, list] = {}  # node key -> the rows `record` keeps, one per path that asks it
         self._traces: dict = {}
+        self.bank_nodes: dict[str, Node] = {}  # the bank view's questions (bank_state)
+        self.bank_facts: dict[str, list] = {}  # bank node key -> [(day, cash, need) arrays]
 
     def ordered(self) -> list[tuple[DisputeInstance, None]]:
         """4.0.0 models each judgment's components and triggered instruments inside one dispute's chains, so
@@ -358,6 +366,37 @@ class Forecaster:
         closed and it is not asked)."""
         tr = self.trace(d, steps + (step,))
         return bool((tr.day[-1] < self.days).any())
+
+    # --- the bank view: the bank data and the common borrower inputs ----------------------------------------------
+
+    def instrument(self):
+        """The borrower's instrument whose terms are a common input to both views (the notes' coupon), or None."""
+        return next((f for d in self.disputes for f in d.financing if f.status != "superseded"), None)
+
+    def bank_trace(self, steps: tuple) -> _Prefix:
+        from app.analysis.events import BANK, bank_trace
+
+        key = (BANK, steps)
+        if key not in self._traces:
+            self._traces[key] = _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m, self.draws,
+                                                      self.sens))
+        return self._traces[key]
+
+    def bank_paths(self) -> list[DisputePath]:
+        """The bank view's paths (none without the operating draws)."""
+        return _BankWalk(self).run() if self.draws is not None else []
+
+    async def judge_bank(self, judge: ForecastJudge) -> dict[str, Judgment]:
+        async def one(n: Node) -> Judgment:
+            st = bank_state(self, n)
+            o = await judge.forecast(n.question_id, st, (n.instance_id,), n.branches)
+            return Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
+                            event=n.event, assumptions=n.assumptions, window=n.window,
+                            distribution=answer_distribution(n.key, n.branches, o), confidence=o.confidence,
+                            observation_id=o.observation_id, path_facts=st["path_facts"])
+
+        results = await asyncio.gather(*(one(n) for n in self.bank_nodes.values()))
+        return {j.key: j for j in results}
 
     def moves_cash(self, d: DisputeInstance, steps: tuple, a: tuple, b: tuple) -> bool:
         """Whether two branches of a step book different event cash, encumbrance, credit capacity or petition day on
@@ -802,11 +841,14 @@ class _Walk:
         then_no(self.take(s, (node, ctx, "no"), (k, "no"), keys))
 
     def settle(self, s: _S, interval: str, then_no) -> None:
-        if not self.arises(s, ("settle", interval, "no")):
-            return then_no(s)
+        """A settlement exists only where its amount (cash above the 30-day need, capped at the amount owed) is
+        positive: where it is zero on every trajectory the question does not arise."""
         probe = ("settle", interval, "no")
+        tr = self.fc.trace(self.d, s.steps + (probe,))
+        if not ((tr.day[-1] < self.N) & (tr.settle_offer > 0)).any():
+            return then_no(s)
         a3 = self.node("settlement_offer", interval, s.cls, s=s, probe=probe)
-        q4 = self.node("settlement_accept", interval, s.cls, s=s, probe=probe, assumptions=("the judgment debtor offers to settle for its available cash above its 30-day operating need",))
+        q4 = self.node("settlement_accept", interval, s.cls, s=s, probe=probe, assumptions=("the company offers to settle for its available cash above its 30-day operating need",))
         self.binary(s, "settle", interval, [[(a3, "yes"), (q4, "yes")]], (a3, q4),
                     lambda y: self.tail(y, "settled"), then_no)
 
@@ -838,7 +880,7 @@ class _Walk:
         probe = ("stay", "I1", "no")
         a1 = self.node("stay_motion", "I1", s.cls, s=s, probe=probe,
                        assumptions=("the creditor executes before the ruling",))
-        j8 = self.node("stay_approved", "I1", s.cls, s=s, probe=probe, assumptions=("the debtor moves for a stay",))
+        j8 = self.node("stay_approved", "I1", s.cls, s=s, probe=probe, assumptions=("the company moves for a stay",))
         self.binary(s, "stay", "I1", [[(a1, "yes"), (j8, "yes")]], (a1, j8),
                     lambda y: self.j9_stayed(replace(y, stayed=True)), self.j9_i1)
 
@@ -866,14 +908,19 @@ class _Walk:
         self.a4(s, "I1", self.ripe_i1, lambda y: self.emit(y, "petition"))
 
     def a4(self, s: _S, phase: str, then, on_file) -> None:
+        """The company's response: on the levy day before the levy (I1, post), or at the post-ruling judgment
+        default's ripe date after it sought a sale or financing (ripe)."""
         probe = ("debtor_response", phase, "seek_sale_or_financing")
         pay = self.fc.pay_possible(self.d, s.steps, probe)
         branches = (("pay",) if pay else ()) + ("seek_sale_or_financing", "file", "neither")
-        pending = s.stayed and phase == "I1"  # moved for a stay, not yet approved
+        pending = s.stayed and phase in ("I1", "post")  # moved for a stay, not yet approved
+        when = {"post": ("the creditor levies on the company's cash that day",),
+                "ripe": ("the judgment default under the notes has ripened that day",)}.get(phase, ())
         k = self.node("debtor_response", phase, s.cls, "pay" if pay else "nopay",
                       "after_seek" if s.a4 == "seek" else "first", *(("stay_pending",) if pending else ()),
-                      s=s, probe=("debtor_response", phase, "neither"), assumptions=("the judgment is enforceable, unstayed and unpaid",)
-                      + (("the debtor has moved for a stay, not yet approved",) if pending else ()), branches=branches)
+                      s=s, probe=("debtor_response", phase, "neither"),
+                      assumptions=("the judgment is enforceable, unstayed and unpaid",) + when
+                      + (("the company has moved for a stay, not yet approved",) if pending else ()), branches=branches)
         for b in branches:
             y = self.take(s, ("debtor_response", phase, b), (k, b), (k,),
                           a4="seek" if b.startswith("seek") else "closed")
@@ -891,21 +938,34 @@ class _Walk:
         if f is None or not f.judgment_default_days or not self.arises(s, ("judgment_default", phase, "no")):
             return then(s)
         probe = ("judgment_default", phase, "no")
-        h1 = self.node("holders_act_judgment", phase, s.cls, s=s, probe=probe)
+        earlier = ("entered_not_acted",) if phase != "I1" and any(x[:2] == ("judgment_default", "I1")
+                                                                  for x in s.steps) else ()
+        h1 = self.node("holders_act_judgment", phase, s.cls, *earlier, s=s, probe=probe)
         a5 = self.node("petition_on_notes", f"judgment_{phase}", s=s, probe=probe,
                        assumptions=("the holders accelerate the notes",))
         h3 = self.node("holders_involuntary", f"judgment_{phase}", s=s, probe=probe,
                        assumptions=("the notes are accelerated and unpaid", "the issuer does not file"))
         keys = (h1, a5, h3)
-        petition = [[(h1, "yes"), (a5, "yes")], [(h1, "yes"), (a5, "no"), (h3, "yes")]]
-        y = self.take(s, ("judgment_default", phase, "yes"), (composite(petition), "yes"), keys)
-        if (self.fc.trace(self.d, y.steps).petition >= 0).all():  # a petition on every trajectory
-            self.floor(y, "petition")
-        else:
-            then(y)
-        then(self.take(s, ("judgment_default", phase, "accelerated"),
-                       (composite([[(h1, "yes"), (a5, "no"), (h3, "no")]]), "yes"), keys, notes_due=True))
+        classes = {"yes": [[(h1, "yes"), (a5, "yes")]],  # the issuer files on acceleration
+                   "holders_file": [[(h1, "yes"), (a5, "no"), (h3, "yes")]],  # the holders file, per §7.06
+                   "accelerated": [[(h1, "yes"), (a5, "no"), (h3, "no")]]}
+        for branch, parts in self.unfiled(s, "judgment_default", phase, classes,
+                                          (("holders_file", "accelerated"),)).items():
+            y = self.take(s, ("judgment_default", phase, branch), (composite(parts), "yes"), keys, notes_due=True)
+            if branch != "accelerated" and (self.fc.trace(self.d, y.steps).petition >= 0).all():
+                self.floor(y, "petition")  # a petition on every trajectory
+            else:
+                then(y)
         then(self.take(s, probe, (composite([[(h1, "no")]]), "yes"), keys))
+
+    def unfiled(self, s: _S, node: str, ctx: str, classes: dict, pairs) -> dict:
+        """A holders' petition that falls after the period on every trajectory books nothing: its class joins the
+        class in which nobody files (the two are identical in cash, dates and state)."""
+        for filed, none in pairs:
+            if filed in classes and none in classes and self.fc.trace(self.d, s.steps + ((node, ctx, filed),)).digest \
+                    == self.fc.trace(self.d, s.steps + ((node, ctx, none),)).digest:
+                classes[none] = classes.pop(filed) + classes[none]
+        return classes
 
     def ripe_i1(self, s: _S) -> None:
         self.notes_petition(s, "I1", self.ruling)
@@ -940,7 +1000,7 @@ class _Walk:
             return self.i3(s)
         probe = ("stay", "post", "no")
         a1 = self.node("stay_motion", "post", s.cls, s=s, probe=probe, assumptions=("the final judgment is entered",))
-        j8 = self.node("stay_approved", "post", s.cls, s=s, probe=probe, assumptions=("the debtor moves for a stay",))
+        j8 = self.node("stay_approved", "post", s.cls, s=s, probe=probe, assumptions=("the company moves for a stay",))
         self.binary(s, "stay", "post", [[(a1, "yes"), (j8, "yes")]], (a1, j8),
                     lambda y: self.enforce(replace(y, stayed=True), self.stayed_tail, pending=True), self.i3)
 
@@ -949,12 +1009,13 @@ class _Walk:
         self.settle(s, "I4", lambda z: self.notes_petition(z, "post", lambda y: self.tail(y, "stayed")))
 
     def i3(self, s: _S) -> None:
-        self.settle(s, "I3", self.a4_post)
+        self.settle(s, "I3", self.enforce)
 
-    def a4_post(self, s: _S) -> None:
+    def a4_post(self, s: _S, then) -> None:
+        """The company's response on the day the creditor's levy falls, before the levy."""
         if s.a4 == "closed" or not self.arises(s, ("debtor_response", "post", "neither")):
-            return self.enforce(s)
-        self.a4(s, "post", self.enforce, lambda y: self.tail(y, "petition"))
+            return then(s)
+        self.a4(s, "post", then, lambda y: self.tail(y, "petition"))
 
     def enforce(self, s: _S, then=None, pending: bool = False) -> None:
         """The creditor enforces (with early registration before finality). pending: the debtor has moved for a stay not yet approved; a levy counts only
@@ -966,18 +1027,22 @@ class _Walk:
         extra = ("stay_pending",) if pending else ()
         q3 = self.node("enforce_after_final", s.cls, "appealed" if s.appealed else "final", *extra,
                        s=s, probe=none_step, assumptions=("the judgment is enforceable, unstayed and unpaid after the ruling",)
-                       + (("the debtor has moved for a stay, not yet approved",) if pending else ()))
+                       + (("the company has moved for a stay, not yet approved",) if pending else ()))
         if s.appealed and not s.early:
             j9 = self.node("registration_early", "post", s.cls, *extra, s=s, probe=none_step,
                            assumptions=("the creditor enforces before finality",))
             levy, none, keys = [[(q3, "yes"), (j9, "yes")]], [[(q3, "no")], [(q3, "yes"), (j9, "no")]], (q3, j9)
         else:
             levy, none, keys = [[(q3, "yes")]], [[(q3, "no")]], (q3,)
-        then(self.take(s, levy_step, (composite(levy), "yes"), keys))
+        self.a4_post(self.take(s, levy_step, (composite(levy), "yes"), keys), then)
         then(self.take(s, none_step, (composite(none), "yes"), keys))
 
     def ripe_post(self, s: _S) -> None:
-        self.notes_petition(s, "post", lambda y: self.tail(y, "unresolved"))
+        """After 'seek a sale or financing', the company responds again at the ripe default date."""
+        after = lambda y: self.notes_petition(y, "post", lambda z: self.tail(z, "unresolved"))  # noqa: E731
+        if s.a4 == "seek" and self.arises(s, ("debtor_response", "ripe", "neither")):
+            return self.a4(s, "ripe", after, lambda y: self.tail(y, "petition"))
+        after(s)
 
     # the listing chain, then the cash floor
     def tail(self, s: _S, outcome: str) -> None:
@@ -985,15 +1050,24 @@ class _Walk:
         petition precedes it, it moves nothing and the path goes to the cash floor."""
         f = self.fin
         probe = ("listing", "", "listed")
-        if f is None or f.listing_deadline is None or s.notes_due or not self.inside(s.steps + (probe,)):
-            return self.floor(s, outcome)
+        if f is None or f.listing_deadline is None or not self.inside(s.steps + (probe,)):
+            return self.floor(s, outcome)  # no listing chain, or an acceleration or petition precedes it
         dates = _listing_dates(self.fc, self.d)
         if min(dates["delisted_panel"], dates["delisted_suspension"]) >= self.N:
             return self.floor(s, outcome)  # delisting falls after the horizon
-        a7 = self.node("reverse_split_board", s=s, probe=probe)
-        st1 = self.node("split_approved", s=s, probe=probe, assumptions=("the board calls the vote in time",))
-        a8 = self.node("nasdaq_hearing", s=s, probe=probe, assumptions=("the stock is not compliant on the deadline",))
-        n1 = self.node("panel_exception", s=s, probe=probe, assumptions=("the issuer requests a hearing",))
+        own = {"reverse_split_board": "vote_call", "split_approved": "effective_by", "nasdaq_hearing": "hearing_request",
+               "panel_exception": "panel_decision"}  # each question at its own decision date
+
+        def ask(name, assumptions=()):
+            at = ("listing_date", own[name], "")
+            k = self.node(name, s=s, probe=at, assumptions=assumptions)
+            self.fc.record((k,), self.fc.trace(self.d, s.steps + (at,)))
+            return k
+
+        a7 = ask("reverse_split_board")
+        st1 = ask("split_approved", ("the board calls the vote in time",))
+        a8 = ask("nasdaq_hearing", ("the stock is not compliant on the deadline",))
+        n1 = ask("panel_exception", ("the issuer requests a hearing",))
         not_ok = [[(a7, "no")], [(a7, "yes"), (st1, "no")]]
         classes = {"listed": [[(a7, "yes"), (st1, "yes")]] + [c + [(a8, "yes"), (n1, "yes")] for c in not_ok],
                    "delisted_panel": [c + [(a8, "yes"), (n1, "no")] for c in not_ok],
@@ -1001,25 +1075,28 @@ class _Walk:
         for c in ("delisted_panel", "delisted_suspension"):
             if dates[c] >= self.N:  # delisted only after the horizon: listed throughout it
                 classes["listed"] += classes.pop(c)
-        keys = (a7, st1, a8, n1)
         for c, parts in classes.items():
-            y = self.take(s, ("listing", "", c), (composite(parts), "yes"), keys)
+            y = self.take(s, ("listing", "", c), (composite(parts), "yes"))
             if c == "listed":
                 self.floor(y, outcome)
             else:
                 self.delisting_notes(y, c, dates[c], outcome)
 
     def delisting_notes(self, s: _S, dc: str, delist: int, outcome: str) -> None:
-        """Delisting is an Event of Default and a Fundamental Change. The holders accelerate, require the repurchase,
-        or neither; then the issuer files, or else three holders file, or the notes stay due and unpaid."""
+        """Delisting is an Event of Default and a Fundamental Change, where the notes are not already due. The holders
+        accelerate, require the repurchase, or neither; then the issuer files, or else the holders file once §7.06
+        allows, or the notes stay due and unpaid."""
         probe = ("delisting_notes", dc, "none")
+        if not self.inside(s.steps + (probe,)):
+            return self.floor(s, outcome)
         h2 = self.node("holders_act_delisting", dc, s=s, probe=probe,
                        assumptions=("the stock is not listed on an Eligible Market",))
         a5 = self.node("petition_on_notes", f"delisting_{dc}", s=s, probe=probe,
                        assumptions=("the holders accelerate the notes",))
         h3 = self.node("holders_involuntary", f"delisting_{dc}", s=s, probe=probe,
                        assumptions=("the notes are accelerated and unpaid", "the issuer does not file"))
-        classes = {"petition_delist": [[(h2, "accelerate"), (a5, "yes")], [(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
+        classes = {"petition_delist": [[(h2, "accelerate"), (a5, "yes")]],
+                   "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
                    "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]]}
         none = [[(h2, "neither")]]
         keys = [h2, a5, h3]
@@ -1028,16 +1105,18 @@ class _Walk:
                             assumptions=("the repurchase falls due unpaid",))
             h3r = self.node("holders_involuntary", f"repurchase_{dc}", s=s, probe=probe,
                             assumptions=("the repurchase is unpaid", "the issuer does not file"))
-            classes["petition_repurchase"] = [[(h2, "repurchase_only"), (a5r, "yes")],
-                                              [(h2, "repurchase_only"), (a5r, "no"), (h3r, "yes")]]
+            classes["petition_repurchase"] = [[(h2, "repurchase_only"), (a5r, "yes")]]
+            classes["petition_repurchase_holders"] = [[(h2, "repurchase_only"), (a5r, "no"), (h3r, "yes")]]
             classes["repurchase_unpaid"] = [[(h2, "repurchase_only"), (a5r, "no"), (h3r, "no")]]
             keys += [a5r, h3r]
         else:  # the repurchase date falls after the horizon: requiring it moves nothing inside it
             none.append([(h2, "repurchase_only")])
         classes["none"] = none
+        classes = self.unfiled(s, "delisting_notes", dc, classes, (("petition_delist_holders", "accelerated"),
+                                                                   ("petition_repurchase_holders", "repurchase_unpaid")))
         for c, parts in classes.items():
             y = self.take(s, ("delisting_notes", dc, c), (composite(parts), "yes"), keys,
-                          notes_due=c in ("accelerated", "repurchase_unpaid"))
+                          notes_due=c != "none")
             self.floor(y, outcome)
 
     def floor(self, s: _S, outcome: str) -> None:
@@ -1062,6 +1141,74 @@ class _Walk:
 
     def emit(self, s: _S, outcome: str) -> None:
         self.out.append(DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome=outcome, edges=s.edges))
+
+
+class _BankWalk:
+    """The bank view's chain: the company decides whether to file on the first date its available cash falls below
+    its 30-day operating need, and, where it keeps operating, again on the first date its cash falls below zero."""
+
+    def __init__(self, fc: Forecaster) -> None:
+        from app.analysis.events import BANK
+
+        self.fc, self.out, self.bank = fc, [], BANK
+
+    def inside(self, steps: tuple) -> bool:
+        t = self.fc.bank_trace(steps).day[-1]
+        return bool((t < self.fc.days).any())
+
+    def node(self, name: str, *ctx: str) -> str:
+        k = f"{self.bank}:{name}|" + "|".join((self.bank, *ctx))
+        if k not in self.fc.bank_nodes:
+            s = self.fc.spec[name]
+            self.fc.bank_nodes[k] = Node(key=k, instance_id=self.bank, node=name, context="|".join((self.bank, *ctx)),
+                                         cls="", question_id=s["residual_question"], event=s["decision"],
+                                         assumptions=(), window=s["timing"], branches=tuple(s["branches"]))
+            tr = self.fc.bank_trace(self.probe[name])
+            t = tr.day[-1]
+            need = self.fc.draws.basis.need[np.arange(len(t)), np.clip(t, 0, self.fc.days - 1)]
+            self.fc.bank_facts.setdefault(k, []).append((t, tr.cash[-1], need))
+        return k
+
+    def emit(self, steps: tuple, edges: tuple, outcome: str) -> None:
+        self.out.append(DisputePath(instance_id=self.bank, steps=steps, outcome=outcome, edges=edges))
+
+    def run(self) -> list[DisputePath]:
+        floor, out = ("cash_floor", "", "no"), ("cash_out", "", "no")
+        self.probe = {"petition_cash_floor": (floor,), "petition_cash_out": (floor, out)}
+        if not self.inside((floor,)):
+            self.emit((), (), "operating")
+            return self.out
+        k = self.node("petition_cash_floor")
+        self.emit(((("cash_floor", "", "yes"),)), ((k, "yes"),), "petition")
+        if not self.inside((floor, out)):
+            self.emit((floor,), ((k, "no"),), "operating")
+            return self.out
+        k2 = self.node("petition_cash_out", "cash_exhausted")
+        self.emit((floor, ("cash_out", "", "yes")), ((k, "no"), (k2, "yes")), "petition")
+        self.emit((floor, out), ((k, "no"), (k2, "no")), "operating")
+        return self.out
+
+
+def bank_state(fc: Forecaster, n: Node) -> dict:
+    """The bank view's question: the company, its decision, the decision dates, and its projected available cash and
+    30-day operating need at the decision, from the bank data and the common borrower inputs."""
+    s = fc.spec[n.node]
+    facts: dict = {}
+    rows = fc.bank_facts.get(n.key, [])
+    if rows:
+        day, cash, need = (np.concatenate([r[i] for r in rows]) for i in range(3))
+        inside = day < fc.days
+        if inside.any():
+            q = lambda x, p: usd(int(np.quantile(x[inside], p)))  # noqa: E731
+            facts = {"decision_date": {k: fc._date(np.quantile(day[inside], p))
+                                       for k, p in (("p5", 0.05), ("p50", 0.5), ("p95", 0.95))},
+                     "cash_balance_at_decision": {"p5": q(cash, 0.05), "p50": q(cash, 0.5)},
+                     "operating_need_30_days_at_decision": {"p50": q(need, 0.5)}}
+    ctx = context_phrases([c for c in n.context.split("|")[1:] if c], {})
+    return {"case": {"as_of": fmt(fc.review), "borrower": fc.borrower},
+            "question": {"actor": s["actor"], "decision": s["decision"], "branches": list(n.branches),
+                         "timing": s["timing"], "context": ctx},
+            "standard": [], "record_items": [], "path_facts": facts, "assumptions": [], "evidence": [], "readings": {}}
 
 
 def Chain_(fc: Forecaster, d: DisputeInstance):

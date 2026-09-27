@@ -5,7 +5,7 @@
 **What the model does.** It runs Slope's reusable line for Akoustis from 20 Jun to 17 Dec 2024. The limit is about $0.357M, a manual-review line. Cash at 20 Jun is about $17.16M. Five threats can stop or shrink collections:
 - Qorvo enforcing the $38.6M judgment;
 - the post-trial ruling changing it;
-- noteholders accelerating $44.0M on the judgment default (60 days after the post-trial ruling) or on delisting (after 21 Oct);
+- noteholders accelerating $44.0M on the judgment default (60 days after the judgment as entered, 19 Aug, or 60 days after the order disposing of the last post-trial motion; which judgment counts is open, L11) or on delisting (after 21 Oct);
 - operating burn;
 - the December coupon.
 
@@ -37,7 +37,7 @@ Law and the record fix the structure. Ruling dates come from data: this judge's 
 **Approved (Owen, 26 Sep 2026).** This decomposition, with the three decisions below as recommended.
 1. **Remittitur:** two declared, unweighted scenarios. The verdict stands ($31.3M), or it is remitted to $23.1M. $305,000 is not a scenario.
 2. **Fees:** $12,116,123.30 if awarded, otherwise $0 (D4 (a)).
-3. **Stay:** the bond is the full judgment plus interest and costs, with 100% collateral (80% lower bound). The stay remains a court question, although the company's own cash cannot fund it.
+3. **Stay:** the bond is the full judgment plus interest and costs, with 100% collateral (80% lower bound). Where the company's cash covers the collateral, the collateral is locked on approval. Otherwise the company proposes reduced security, its available cash above its 30-day operating need on the motion day; if the court approves (J8), that amount is locked on approval. Where that amount is zero, the stay is effective only in the sensitivity `stay_security` = noncash (security or a waiver not in cash; nothing locked).
 
 **Stage 3 still acquires:** OCR of D.I. 601 and 616-4; the 13 May earnings-call transcript; the H.15 rate for §1961; any pre-D proxy filing; a pre-D headcount; Bennis Appendix C, if public; checks on the bounded legal unknowns (§1.4).
 
@@ -55,7 +55,7 @@ Law and the record fix the structure. Ruling dates come from data: this judge's 
 1. **Delisting is itself an Event of Default** (§7.01(b)), with no notice and no grace period. It is also a Fundamental Change with a cash repurchase right (§10.01). This supersedes spec §1.1 and `spec_corrections.md` item 7.
 2. **Interest is paid in shares unless the company elects cash** (§16.02(c)). The 17 Jun 2024 coupon was $0.442M cash and $0.878M shares (CASH_CHECK).
 3. **Execution is available from 20 Jun.** Entries 1–621 hold no stay, bond or supersedeas motion (R2h).
-4. **The judgment default runs from the post-trial ruling** (L11): the judgment is final at the ruling on the post-trial motions. Notice is still required. The insured-amounts exclusion is $0 (R7).
+4. **Which judgment starts the §7.01(i) period is open** (L11). One reading counts the judgment as entered, so the 60 days end on 19 Aug; the other counts the order disposing of the last post-trial motion. The model carries both. Notice is required under either. The insured-amounts exclusion is $0 (R7).
 5. **Remittitur follows the maximum-recovery rule** (R2a).
 6. **The fee motion does not toll the appeal clock** without a Rule 58(e) order.
 
@@ -93,7 +93,7 @@ $44.0M outstanding (`10q_0513` Note 10); guarantor Akoustis, Inc.
 
 | Node | Rule | Akoustis at D | Disposition |
 |---|---|---|---|
-| B1 Judgment default | §7.01(i): final money judgments "undischarged, unpaid or unstayed" for 60 days "during which execution shall not be effectively stayed"; above $10.0M "excluding amounts covered by insurance"; only after notice by the Trustee or 25% | $38.6M; insurance none (R7); clock from the post-trial ruling (L11); ripe 60 days after it | Finality: Law (L11); clock: Code timing |
+| B1 Judgment default | §7.01(i): final money judgments "undischarged, unpaid or unstayed" for 60 days "during which execution shall not be effectively stayed"; above $10.0M "excluding amounts covered by insurance"; only after notice by the Trustee or 25% | $38.6M; insurance none (R7); ripe 19 Aug on the judgment as entered, or 60 days after the order disposing of the last post-trial motion (L11) | Finality: open, both readings carried (L11); clock: Code timing |
 | B2 Delisting default | §7.01(b): not listed on an Eligible Market; no notice, no grace | Bid-price deadline 21 Oct | Law; date Code timing (L12) |
 | B3 Cross-default | §7.01(h): other debt ≥ $2.5M | GDSI payments Jan 2025; Slope line < $2.5M | Does not reach collections |
 | B4 Interest default | §7.01(c): 30 days late | No earlier than 15 Jan 2025 | After horizon |
@@ -119,13 +119,13 @@ SETTLED becomes Law. OPEN becomes evidence for the deciding actor's Jev question
 | L2 Trebling over the jury's "No" | **OPEN → J4** (R2f). Against: D.I. 590 (14 May 2024) holds head-start benefit is not cognizable UDTPA damages; *Winant v. Bostic*, 5 F.3d 767 (4th Cir. 1993), bars trebling restitution; no per se violation (*Legacy Data*; *Drouillard*); Qorvo filed no Rule 50 motion (*Unitherm*, 546 U.S. 394). For: unfairness is a question of law (*Hardy v. Toler*, 288 N.C. 303); *Ridgway*; *Grout Doctor* (D.I. 587) |
 | L3 Election | **SETTLED → Law** (*United Labs. v. Kuykendall*, 335 N.C. 183 (1993)). Trebled $93.9M beats $38.3M, so code drops the $7.0M on trebled paths |
 | L4 Exemplary caps | **SETTLED → Law** (R2b); met in every §5.2 scenario. **Bounded:** whether a new trial takes the $7.0M. Base yes; sensitivity no |
-| L5 JMOL, new trial, remittitur | **SETTLED → Law.** Third Circuit law applies. JMOL only where the record lacks the minimum evidence (*Lightning Lube v. Witco*, 4 F.3d 1153 (3d Cir. 1993)). Remittitur is to the maximum the evidence supports, and the plaintiff may take a new trial (*Kazan*, 721 F.2d 911; *Hetzel*) |
+| L5 JMOL, new trial, remittitur | **SETTLED → Law.** Third Circuit law applies. JMOL only where the record lacks the minimum evidence (*Lightning Lube v. Witco*, 4 F.3d 1153 (3d Cir. 1993)). A new trial under Rule 59(a) where the verdict is against the great weight of the evidence (*Roebuck v. Drexel Univ.*, 852 F.2d 715; *Williamson v. Consolidated Rail*, 926 F.2d 1344) or the award is grossly excessive (*Gumbs v. Pueblo Int'l*, 823 F.2d 768). Remittitur is to the maximum the evidence supports, and the plaintiff may take a new trial (*Kazan*, 721 F.2d 911; *Hetzel*) |
 | L6 Stay on lesser security | **SETTLED (standard) → Law:** good cause (*Dillon*/*Poplar Grove*; R2h). Grant: J8 |
 | L7 Bond amount | **SETTLED → Law:** full judgment plus interest and costs (*Southern Track & Pump*); no local multiple |
 | L8 Amended judgments | **SETTLED:** an interest motion tolls (*Osterneck*, 489 U.S. 169). **Bounded:** (a) Rule 62(a) restart: base, only increases wait 30 days; sensitivity, the whole amount. (b) §1961 start: base, 20 May on the surviving amount and the amended date on increases (*Kaiser Aluminum*, 494 U.S. 827); under $1M in the horizon. (c) D.I. 608 tolls: base yes; it moves only registration |
 | L9 §1963; share attachment | **SETTLED (standard) → Law:** good cause is thin forum assets and substantial assets elsewhere (*Associated Bus. Tel. Sys. v. Greater Capital Corp.*, 128 F.R.D. 63 (D.N.J. 1989)). Grant: J9. Shares of a Delaware corporation are attachable in Delaware (8 Del. C. §§169, 324) but yield no cash in the horizon, so they are a record item for A4. **Bounded:** cash reachable before registration. Base none; sensitivity all consolidated cash |
 | L10 Injunction | **SETTLED** standards (R2c); scope **OPEN → J7**; cash in §5.3 |
-| L11 "Final judgment" in §7.01(i) | **SETTLED → Law** (Owen, 26 Sep 2026). A timely Rule 50(b)/59 motion "suspends the finality" of the judgment: "there is no longer a final judgment", and only the ruling that disposes of the motion restores finality (*Banister v. Davis*, 590 U.S. 504 (2020); *Osterneck v. Ernst & Whinney*, 489 U.S. 169, 174 (1989); FRAP 4(a)(4)(A)). The clause says "final", not "final, non-appealable", so the judgment is final at the ruling even if an appeal follows; "unstayed" then covers a stay pending appeal. The company reads it the same way: the final judgment is still to come (`424b5_0523`). The 60-day period runs from the ruling, never from entry. Rule `indenture_final_judgment` |
+| L11 "Final judgment" in §7.01(i) | **OPEN** (R2j; New York law, §17.10; no New York decision on the point). **Entered-judgment reading:** the 20 May judgment is a final money judgment; §7.01(i) measures the default by whether it is "undischarged, unpaid or unstayed" and whether "execution shall not be effectively stayed", and execution was available once the Rule 62(a) stay ended on 19 Jun, so the 60 days end on 19 Aug. **Post-ruling reading:** a timely Rule 50(b) or 59 motion suspends the judgment's finality until the order disposing of it (*Banister v. Davis*, 590 U.S. 504 (2020); *Osterneck v. Ernst & Whinney*, 489 U.S. 169, 174 (1989); both decide finality for an appeal), so the 60 days run from the order disposing of the last pending motion. The company refers to the final judgment as still to be rendered (`424b5_0523`). **Bounded** (`judgment_default_reading`): base both; sensitivities entered only, post-ruling only. Rule `indenture_final_judgment` |
 | L12 Nasdaq; reverse split | **SETTLED → Law** (R2d, mid-2024 rules). A timely hearing request stays suspension; the panel may extend up to 180 days from the determination. DGCL §242(d)(2) (2023): votes for must exceed votes against. **Bounded:** "not listed" at suspension (base) or Form 25 (sensitivity) |
 | L13 §303(b); §547(c)(2) | **SETTLED:** with 12 or more creditors, three petitioners are needed, so Qorvo cannot file alone. **Bounded:** §547(c)(2) is not computed |
 
@@ -138,18 +138,19 @@ Draws, collections and line reassessment follow spec §2.
 | Item | Value or rule | Disposition |
 |---|---|---|
 | Ruling date, per motion | 8 Aug (D.I. 605) plus a lag drawn from R4's 10 fully briefed matters on this docket: 17, 39, 52, 57, 58, 65, 91, 104, 146, 159 days (median 61.5). Independent per motion; sensitivity one common date. Lags above 131 days (2 of 10) land after 17 Dec | Code timing (Data) |
-| Final judgment | The last order changing the judgment (FRAP 4(a)(4)(A)) | Code timing |
+| Appeal clock | The time to appeal runs from the entry of the order disposing of the last remaining timely motion under Rule 50(b), 52(b) or 59, or under Rule 54 where the court orders under Rule 58(e) (FRAP 4(a)(4)(A)); a denial disposes of a motion as a grant does. D.I. 608 counts among them (L8(c) base); a motion without its own briefing date takes the shared 8 Aug schedule and its own lag draw | Code timing |
 | New stay; appeal deadline | +30 days on increases (L8); +30 days after the last tolling order | Code timing |
 | Registration in NC and NY | After the appeal deadline; earlier only on J9 | Code timing |
-| §7.01(i) ripe date | The post-trial ruling + 60 days, if still unpaid and unstayed (L11) | Code timing |
+| §7.01(i) ripe date | Base, both readings (L11): 19 Aug (the Rule 62(a) stay's end + 60 days), and, where the holders did not act then, the order disposing of the last tolling motion + 60 days on the amount that survives the ruling (the entered amount where no ruling has issued); each only if still unpaid and not effectively stayed by that date. Sensitivities: 19 Aug only; the post-ruling date only | Code timing; reading Bounded |
 | Levy lag; petition after a decision; holder notice | Base 0 days; sensitivity +30 | Bounded |
+| Holders' involuntary petition | Base: §7.06 governs, so no earlier than the holders' request to the trustee, made at acceleration, + 60 days; sensitivity: at acceleration (§7.07) | Bounded (`holder_petition_route`) |
 | Bond | Path judgment + accrued §1961 interest + forward interest [0, 2 years], base 1. No costs filed by D | Sourced (L7) |
 | Surety collateral | 100% of the bond; lower bound 80% | Sourced (R2i); lower bound Bounded |
 | Split effective by | 8 Oct; vote called by about 18 Sep (Rule 14a-6; DGCL §222) | Code timing |
 | Determination; suspension | 22 Oct; +10 days with no hearing | Code timing (R2d) |
 | Panel decision | Determination + [30, 60] days; base 45 | Bounded |
 | Repurchase date | Latest §10.01 date (base); earliest (sensitivity) | Bounded |
-| 15 Dec coupon cash | Base: shares, as §16.02(c) provides unless the company elects cash; sensitivities the June split ($0.442M) and all cash ($1.32M) | Bounded |
+| 15 Dec coupon cash | $44.0M × 6.0% ÷ 2 = $1.32M (8-K of 9 Jun 2022), due 15 Dec, paid 16 Dec, in both views; none after a petition. Shares unless the company elects cash (§16.02(c)), each valued at 95% of the ten-day VWAP; §9.02(k) caps shares at 11,403,332 with cash in lieu above it; the company can issue 3.0M authorized, unissued, unreserved shares (`424b5_0523`). Price base $0.20 (24 May registered direct): $570,000 in shares, $750,000 in cash. Sensitivities: all cash ($1.32M); all shares (covered at $0.4632 or more). A reverse split scales price and share quantities by its ratio, so the covered amount is unchanged; no ratio is in the pre-D record, so pre-split quantities apply | Bounded |
 | CHIPS credits | Base $0 in the horizon; sensitivity $2.33M prorated June–December | Bounded, pending the transcript |
 | Interest rates | 8% simple from 4 Oct 2021; §1961 1-year CMT for the week before 20 May | Sourced (H.15 in Stage 3) |
 | Settlement date in an interval | Interval start + 30 days; sensitivity interval end | Bounded (D5) |
@@ -168,7 +169,7 @@ Collections stop or fall short only through a petition or too little cash above 
 2. Qorvo decides whether to execute now: **Q1**.
 3. Cash is reachable only after registration (L9 base). Early registration needs **J9**.
 4. Akoustis decides whether to move for a stay: **A1**.
-5. **Arithmetic:** collateral of at least $30.9M (80% of $38.6M) against about $17.2M of cash. No trajectory funds a bond, so a stay needs new money or court-approved alternative security. **J8** decides it.
+5. **Arithmetic:** collateral of at least $30.9M (80% of $38.6M) against about $17.2M of cash. No trajectory funds a bond, so the company proposes reduced security: its available cash above its 30-day operating need on the motion day, locked on approval. **J8** decides it (decision 3).
 6. An unstayed levy takes min(owed, reachable cash) on the levy date, whatever the operating need. Go to T1-d.
 
 **T1-b. What the ruling decides**, asked in order, each conditional on the earlier outcomes.
@@ -190,26 +191,28 @@ Collections stop or fall short only through a petition or too little cash above 
 
 **T1-d. Enforceable, unstayed and unpaid (I1–I3).**
 1. **Arithmetic:** "pay" exists only where the path amount is within the path's maximum cash. Every path with surviving trade-secret money excludes it.
-2. Akoustis responds: **A4** (Choice). The options come from what the record says the company can do: equity, debt, real-estate or equipment financing, collaborations or licensing, a sale or other strategic transaction, and restructuring or insolvency (`10q_0513` Note 2 and risk factors; `424b5_0523` risk factors).
+2. Qorvo decides whether to enforce: **Q3**. The levy follows T1-a step 6.
+3. Akoustis responds on the levy day, before the levy is booked: **A4** (Choice). The options come from what the record says the company can do: equity, debt, real-estate or equipment financing, collaborations or licensing, a sale or other strategic transaction, and restructuring or insolvency (`10q_0513` Note 2 and risk factors; `424b5_0523` risk factors).
    - **Pay:** only where step 1 allows.
-   - **Seek a sale or new financing:** every financing and transaction route. Its effect is timing only: the petition decision is deferred to the next interval, and A4 is asked again at the next milestone on the path (ruling, appeal deadline, levy, ripe default date or τ). No cash is booked, because the record gives no terms.
-   - **File:** restructuring or insolvency. Petition date per §2.
+   - **Seek a sale or new financing:** every financing and transaction route. Its effect is timing only: the petition decision is deferred, and A4 is asked again at the next consequential milestone on the path (the post-ruling levy, or the post-ruling judgment default's ripe date). No cash is booked, because the record gives no terms.
+   - **File:** restructuring or insolvency, on the levy day, before the levy. Petition date per §2.
    - **Neither:** A4 is not asked again. Later petitions come only through A5 or A6.
-3. Qorvo decides whether to enforce: **Q3**. The levy follows T1-a step 6.
 
-**Settlement.** In each interval (I1 before the ruling, I2 before the appeal deadline, I3 unstayed, I4 stayed), Akoustis decides whether to offer (**A3**) and Qorvo whether to accept (**Q4**). The amount follows §5.4. A paid settlement removes the §7.01(i) trigger.
+**Settlement.** In each interval (I1 before the ruling, I2 before the appeal deadline, I3 unstayed from the later of the enforceable date and the appeal deadline, I4 stayed), Akoustis decides whether to offer (**A3**) and Qorvo whether to accept (**Q4**). The amount follows §5.4. A paid settlement removes the §7.01(i) trigger.
 
 ### 3.2 T2. The notes
 
-**Judgment default.** It ripens 60 days after the post-trial ruling if the judgment is still unpaid and unstayed (L11). At each ripe date the holders decide whether to give notice and accelerate: **H1**. Paying $44.0M is impossible (Arithmetic). Akoustis decides whether to file (**A5**); if it does not, the holders decide whether to file (**H3**). If neither files, the notes stay due and unpaid, and the listing chain no longer reaches the notes.
+**Judgment default.** Which judgment starts the 60 days is open (L11), so both readings are carried. On the judgment as entered it ripens on 19 Aug if the judgment is still unpaid and execution is not effectively stayed; the holders decide there whether to give notice and accelerate: **H1**. Where they do not, it can ripen again 60 days after the order disposing of the last tolling motion, on the amount that survives the ruling, and H1 is asked there in that situation: the ruling has issued, its amount, and no notice on the judgment as entered. An effective stay before a ripe date means no default at that date. Paying $44.0M is impossible (Arithmetic). Akoustis decides whether to file (**A5**), on acceleration; if it does not, the holders decide whether to file (**H3**), no earlier than their written request to the trustee, made at acceleration, plus 60 days (§7.06; sensitivity: at once, §2). The default, the notice and acceleration, and the petition are separate dated events. If neither files, the notes stay due and unpaid. An acceleration before the board's vote call ends the listing chain on that trajectory; elsewhere the listing chain continues.
 
-**Delisting.** The board decides whether to call the reverse-split vote in time (**A7**), and the stockholders whether to approve (**ST1**). If the stock is not compliant on 21 Oct, Akoustis decides whether to request a hearing (**A8**), and the panel whether to grant an exception (**N1**). On delisting, an Event of Default exists at once. The holders accelerate, require repurchase only, or do neither (**H2**). Then A5 and H3; if neither files, the notes stay due and unpaid.
+**Delisting.** The board decides whether to call the reverse-split vote in time (**A7**), and the stockholders whether to approve (**ST1**). If the stock is not compliant on 21 Oct, Akoustis decides whether to request a hearing (**A8**), and the panel whether to grant an exception (**N1**). On delisting, an Event of Default exists at once, except where the notes are already due. The holders accelerate, require repurchase only, or do neither (**H2**). Then A5 and H3 as for the judgment default; if neither files, the notes stay due and unpaid. A7, ST1, A8 and N1 are each asked with the facts of their own decision date: the vote call, the date the split must take effect, the hearing request and the panel decision.
 
 **Cross-default** does not reach collections (B3).
 
 ### 3.3 T3 and T5. Operating cash
 
 Operating flows come from the feed (§6). Dispute cash comes from T1, and legal spend continues until the dispute ends on the path. **τ** is the first date available cash falls below need (spec §2.2; sensitivity: below zero). At τ, Akoustis decides whether to file: **A6**. If it keeps operating, it decides again on the first date its cash falls below zero: **A6b**. New financing is not booked as cash.
+
+**Two views.** The bank view runs A6, A6b and the coupon (§2) on the bank data alone. Its A6 and A6b are asked separately, with the company, the decision, its date, and the projected available cash and 30-day operating need at the decision. The augmented view adds the researched record (T1, T2) on the same operating draws. Attribution: (1) the bank view with Jev's answers; (2) the augmented view with its residual judgments neutral; (3) the augmented view with Jev's answers. Step 3 against step 1 is what the research adds.
 
 ### 3.4 T4. The coupon
 
@@ -253,7 +256,7 @@ Each question is one actor's decision. None asks about timing, an amount, afford
 | A1 `forecast_stay_motion` | Akoustis | Moves for a stay | Q1 or Q3 = acts, or final judgment |
 | A2 `forecast_appeal` | Akoustis | Appeals within 30 days | Money award survives |
 | A3 `forecast_settlement_offer` | Akoustis | Offers terms within its bound | Each interval |
-| A4 `forecast_debtor_response` | Akoustis | Pay / seek a sale or financing / file / neither (Choice; "pay" only where arithmetic allows) | T1-d, and again after "seek" |
+| A4 `forecast_debtor_response` | Akoustis | Pay / seek a sale or financing / file / neither (Choice; "pay" only where arithmetic allows) | On the levy day, before the levy (T1-d); again after "seek", at the next levy or ripe default date |
 | A5 `forecast_petition_on_notes` | Akoustis | Files after acceleration or unpaid repurchase | H1 or H2 = acts |
 | A6 `forecast_petition_cash_floor` | Akoustis | Files at the cash floor | τ in horizon, before any petition |
 | A6b `forecast_petition_cash_out` | Akoustis | Files when cash runs out | A6 = no; cash below zero in horizon |
@@ -305,7 +308,7 @@ Declared scenarios, shown side by side, never weighted. If Stage 3 obtains Benni
 
 ### 5.4 Settlement (Decision D5)
 
-The feasibility bound is available cash minus 30-day need, capped at the path amount. Two declared scenarios: a lump sum at the bound, or monthly payments to the bound through 17 Dec. Non-cash terms are not booked.
+The feasibility bound is available cash minus 30-day need, capped at the path amount. A settlement exists only on trajectories where the bound is positive. Two declared scenarios: a lump sum at the bound, which releases the claim on payment; or monthly payments to the bound through 17 Dec, which stop at a petition, with the claim released when the last payment is made. Non-cash terms are not booked.
 
 ---
 

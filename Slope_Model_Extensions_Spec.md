@@ -310,7 +310,7 @@ The **actors** are both parties. The **record** is:
 
 **Timing.** The motions share one briefing schedule (Record: D.I. 605), but nothing in the record says they will be decided together.
 - **Code** draws a ruling date for each motion from the same judge-pace distribution (chain 4.1 step 4), independently of one another. This independence is a labelled simplification; the sensitivity is one common date.
-- **Law:** the final-judgment date on a path is the date of the last order that disposes of a motion changing the judgment (FRAP 4(a)(4)(A)).
+- **Law:** the time to appeal runs from the entry of the order disposing of the last remaining timely motion under Rule 50(b), 52(b) or 59, or under Rule 54 where the court orders under Rule 58(e) (FRAP 4(a)(4)(A)). A denial disposes of a motion as a grant does.
 
 **Content.** Each component is a separate court decision with its own standard.
 
