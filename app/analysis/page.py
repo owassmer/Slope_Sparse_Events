@@ -341,7 +341,9 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
                links: dict[str, str]) -> dict:
     """The 'why this probability' chain: each step tagged Law / Record / Data / Calculation / Jev, the facts Jev is
     given, the source quotes and Jev's answer."""
-    steps = [{"tag": "Law", "text": model["rules"][r]["citation"] if r in model["rules"] else r} for r in spec["standard"]]
+    terms = {k: v for t in model["templates"].values() for k, v in t.get("terms_from_instrument", {}).items()}
+    steps = [{"tag": "Law", "text": model["rules"][r]["citation"] if r in model["rules"] else terms.get(r, r)}
+             for r in spec["standard"]]
     supplied: dict[str, list[str]] = {}
     for e in (judgment.evidence if judgment is not None else []) or []:
         if isinstance(e, dict):
