@@ -62,7 +62,7 @@ def chain(base, d=None, sens=None) -> Chain:
 
 def test_composition_sums_to_one_and_keeps_every_path(full):
     fc, paths = full
-    assert 1_000 < len(paths) < 6_000  # low thousands: collapsed by interval and amount class
+    assert 1_000 < len(paths) < 10_000  # thousands: collapsed by interval and amount class
     assert {n.question_id for n in fc.nodes.values()} == {q for t in M["templates"].values()
                                                           for q in (s["residual_question"] for s in t["nodes"].values())}
     js = stub(fc)
@@ -416,13 +416,13 @@ def test_the_injunction_and_settlement_questions_cite_their_own_law():
     assert all("frcp_62b" not in nodes[n]["standard"] for n in ("injunction", "settlement_offer", "settlement_accept"))
 
 
-def test_the_26_residual_questions_agree_in_number():
+def test_the_residual_questions_agree_in_number():
     import re
 
     from app.disputes.forecast import load_registry
 
     qs = [q for q in load_registry()["questions"] if q.get("node")]
-    assert len(qs) == 26
+    assert len(qs) == 27
     third = r"\b(grants|sets|awards|enters|executes|moves|approves|orders|files|enforces|offers|accepts|calls|requests|stays)\b"
     for q in qs:
         assert not re.match(r"^Do(es)? the [^?]*?" + third, q["question"]), q["question"]  # 'Does the court grants'

@@ -409,7 +409,7 @@
     },
     "cash_floor": {
       "disposition": "sourced",
-      "basis": "The cash floor is the first date available cash falls below the 30-day operating need of the collection rule (base) or below zero (sensitivity).",
+      "basis": "The cash floor is the first date available cash falls below the 30-day operating need of the collection rule (base) or below zero (sensitivity). Where the company keeps operating at the floor, it decides again on the first date its available cash falls below zero.",
       "value": "need",
       "sensitivity": "zero"
     },
@@ -558,7 +558,8 @@
             "denied"
           ],
           "context": [],
-          "residual_question": "forecast_ts_liability_jmol"
+          "residual_question": "forecast_ts_liability_jmol",
+          "situation": []
         },
         "ts_damages_ruling": {
           "actor": "court",
@@ -583,7 +584,8 @@
             "new_trial"
           ],
           "context": [],
-          "residual_question": "forecast_ts_damages_ruling"
+          "residual_question": "forecast_ts_damages_ruling",
+          "situation": []
         },
         "remittitur_accepted": {
           "actor": "judgment creditor",
@@ -604,7 +606,8 @@
             "new_trial"
           ],
           "context": [],
-          "residual_question": "forecast_remittitur_accepted"
+          "residual_question": "forecast_remittitur_accepted",
+          "situation": []
         },
         "patent_jmol": {
           "actor": "court",
@@ -626,7 +629,8 @@
             "denied"
           ],
           "context": [],
-          "residual_question": "forecast_patent_jmol"
+          "residual_question": "forecast_patent_jmol",
+          "situation": []
         },
         "trebling": {
           "actor": "court",
@@ -650,7 +654,8 @@
             "denied"
           ],
           "context": [],
-          "residual_question": "forecast_trebling"
+          "residual_question": "forecast_trebling",
+          "situation": []
         },
         "fees_awarded": {
           "actor": "court",
@@ -674,7 +679,8 @@
             "denied"
           ],
           "context": [],
-          "residual_question": "forecast_fees_awarded"
+          "residual_question": "forecast_fees_awarded",
+          "situation": []
         },
         "prejudgment_interest": {
           "actor": "court",
@@ -699,7 +705,8 @@
             "denied"
           ],
           "context": [],
-          "residual_question": "forecast_prejudgment_interest"
+          "residual_question": "forecast_prejudgment_interest",
+          "situation": []
         },
         "injunction": {
           "actor": "court",
@@ -726,7 +733,8 @@
           ],
           "context": [],
           "residual_question": "forecast_injunction_ts",
-          "stress_only": true
+          "stress_only": true,
+          "situation": []
         },
         "execute_pre_ruling": {
           "actor": "judgment creditor",
@@ -755,7 +763,8 @@
           "context": [
             "interval"
           ],
-          "residual_question": "forecast_execution_pending_motions"
+          "residual_question": "forecast_execution_pending_motions",
+          "situation": []
         },
         "stay_motion": {
           "actor": "judgment debtor",
@@ -784,7 +793,11 @@
             "interval",
             "amount_class"
           ],
-          "residual_question": "forecast_stay_motion"
+          "residual_question": "forecast_stay_motion",
+          "situation": [
+            "appealed",
+            "levied"
+          ]
         },
         "stay_approved": {
           "actor": "court",
@@ -814,7 +827,11 @@
             "amount_class"
           ],
           "residual_question": "forecast_stay_approved",
-          "note": "Collateral is locked on trajectories whose cash covers it; on the others the stay rests on the court's approval of lesser security, which books no cash."
+          "note": "Collateral is locked on trajectories whose cash covers it; on the others the stay rests on the court's approval of lesser security, which books no cash.",
+          "situation": [
+            "appealed",
+            "levied"
+          ]
         },
         "registration_early": {
           "actor": "court",
@@ -841,7 +858,10 @@
           "context": [
             "interval"
           ],
-          "residual_question": "forecast_1963_good_cause"
+          "residual_question": "forecast_1963_good_cause",
+          "situation": [
+            "stay_moved"
+          ]
         },
         "debtor_response": {
           "actor": "judgment debtor",
@@ -879,7 +899,11 @@
             "seek_sale_or_financing": "moves the decision to file to the next decision date; books no cash",
             "file": "a petition on the decision date + petition_lag_days; on a levy day, the company's payment or petition comes before the levy",
             "neither": "the company takes no further step on the judgment; a later petition comes from the notes or the cash floor"
-          }
+          },
+          "situation": [
+            "appealed",
+            "levied"
+          ]
         },
         "appeal": {
           "actor": "judgment debtor",
@@ -909,7 +933,11 @@
             "amount_class"
           ],
           "residual_question": "forecast_appeal",
-          "effect": "During an appeal, registration in other districts requires good cause (28 U.S.C. §1963)."
+          "effect": "During an appeal, registration in other districts requires good cause (28 U.S.C. §1963).",
+          "situation": [
+            "stayed",
+            "levied"
+          ]
         },
         "enforce_after_final": {
           "actor": "judgment creditor",
@@ -938,7 +966,11 @@
             "amount_class",
             "appealed"
           ],
-          "residual_question": "forecast_enforcement_after_final"
+          "residual_question": "forecast_enforcement_after_final",
+          "situation": [
+            "executing",
+            "levied"
+          ]
         },
         "settlement_offer": {
           "actor": "judgment debtor",
@@ -965,7 +997,13 @@
             "interval",
             "amount_class"
           ],
-          "residual_question": "forecast_settlement_offer"
+          "residual_question": "forecast_settlement_offer",
+          "situation": [
+            "stayed",
+            "stay_moved",
+            "appealed",
+            "levied"
+          ]
         },
         "settlement_accept": {
           "actor": "judgment creditor",
@@ -992,7 +1030,13 @@
             "interval",
             "amount_class"
           ],
-          "residual_question": "forecast_settlement_accept"
+          "residual_question": "forecast_settlement_accept",
+          "situation": [
+            "stayed",
+            "stay_moved",
+            "appealed",
+            "levied"
+          ]
         }
       }
     },
@@ -1037,7 +1081,12 @@
             "ripe",
             "amount_class"
           ],
-          "residual_question": "forecast_holders_act_judgment"
+          "residual_question": "forecast_holders_act_judgment",
+          "situation": [
+            "appealed",
+            "stay_moved",
+            "levied"
+          ]
         },
         "holders_act_delisting": {
           "actor": "holders",
@@ -1066,7 +1115,17 @@
           "context": [
             "delisting"
           ],
-          "residual_question": "forecast_holders_act_delisting"
+          "residual_question": "forecast_holders_act_delisting",
+          "situation": [
+            "ruled",
+            "settled",
+            "paid",
+            "stayed",
+            "stay_moved",
+            "appealed",
+            "levied",
+            "seeking"
+          ]
         },
         "petition_on_notes": {
           "actor": "issuer",
@@ -1093,7 +1152,17 @@
           "context": [
             "trigger"
           ],
-          "residual_question": "forecast_petition_on_notes"
+          "residual_question": "forecast_petition_on_notes",
+          "situation": [
+            "ruled",
+            "settled",
+            "paid",
+            "stayed",
+            "stay_moved",
+            "appealed",
+            "levied",
+            "seeking"
+          ]
         },
         "holders_involuntary": {
           "actor": "noteholders (three or more)",
@@ -1119,7 +1188,17 @@
           "context": [
             "trigger"
           ],
-          "residual_question": "forecast_holders_involuntary"
+          "residual_question": "forecast_holders_involuntary",
+          "situation": [
+            "ruled",
+            "settled",
+            "paid",
+            "stayed",
+            "stay_moved",
+            "appealed",
+            "levied",
+            "seeking"
+          ]
         },
         "reverse_split_board": {
           "actor": "board",
@@ -1144,7 +1223,14 @@
             "no"
           ],
           "context": [],
-          "residual_question": "forecast_reverse_split_board"
+          "residual_question": "forecast_reverse_split_board",
+          "situation": [
+            "ruled",
+            "settled",
+            "paid",
+            "stayed",
+            "levied"
+          ]
         },
         "split_approved": {
           "actor": "stockholders",
@@ -1168,7 +1254,14 @@
             "no"
           ],
           "context": [],
-          "residual_question": "forecast_split_approved"
+          "residual_question": "forecast_split_approved",
+          "situation": [
+            "ruled",
+            "settled",
+            "paid",
+            "stayed",
+            "levied"
+          ]
         },
         "nasdaq_hearing": {
           "actor": "issuer",
@@ -1192,7 +1285,14 @@
             "no"
           ],
           "context": [],
-          "residual_question": "forecast_nasdaq_hearing"
+          "residual_question": "forecast_nasdaq_hearing",
+          "situation": [
+            "ruled",
+            "settled",
+            "paid",
+            "stayed",
+            "levied"
+          ]
         },
         "panel_exception": {
           "actor": "Nasdaq Hearings Panel",
@@ -1216,7 +1316,14 @@
             "no"
           ],
           "context": [],
-          "residual_question": "forecast_panel_exception"
+          "residual_question": "forecast_panel_exception",
+          "situation": [
+            "ruled",
+            "settled",
+            "paid",
+            "stayed",
+            "levied"
+          ]
         }
       }
     },
@@ -1238,7 +1345,7 @@
           "path_facts": [
             "the dates the cash floor falls across the path's trajectories",
             "cash at the cash floor (P5 / P50)",
-            "the judgment and notes status"
+            "the amount owed on the judgment"
           ],
           "timing": "on the day the company's available cash first falls below its 30-day operating need",
           "asked_when": "the cash floor falls within the analysis period on some trajectory",
@@ -1246,11 +1353,55 @@
             "yes",
             "no"
           ],
-          "context": [
-            "amount_class",
-            "notes_status"
+          "context": [],
+          "residual_question": "forecast_petition_cash_floor",
+          "situation": [
+            "ruled",
+            "settled",
+            "paid",
+            "stayed",
+            "appealed",
+            "levied",
+            "seeking",
+            "notes_due",
+            "delisted"
+          ]
+        },
+        "petition_cash_out": {
+          "actor": "the company",
+          "decision": "files for bankruptcy when its available cash runs out",
+          "standard": [
+            "usc11_362"
           ],
-          "residual_question": "forecast_petition_cash_floor"
+          "record_items": [
+            "the company's going-concern and liquidity statements"
+          ],
+          "path_facts": [
+            "the dates available cash falls below zero across the path's trajectories",
+            "cash on that date (P5 / P50)",
+            "the amount owed on the judgment"
+          ],
+          "timing": "on the day the company's available cash first falls below zero",
+          "asked_when": "the company did not file at its cash floor, and its cash falls below zero within the analysis period on some trajectory",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "cash_exhausted"
+          ],
+          "residual_question": "forecast_petition_cash_out",
+          "situation": [
+            "ruled",
+            "settled",
+            "paid",
+            "stayed",
+            "appealed",
+            "levied",
+            "seeking",
+            "notes_due",
+            "delisted"
+          ]
         }
       }
     }
@@ -1261,16 +1412,17 @@
       "ruling (chain rule over the merits decisions)",
       "I2-I4: settlement, appeal, stay, debtor response, enforcement, judgment default",
       "listing chain",
-      "cash floor"
+      "cash floor, then cash exhaustion"
     ],
     "ruling_chain_rule": "P(outcome) = product of the merits answers along its branch, in order: liability, damages, remittitur election, patent, then trebling, fees and interest where trade-secret money survives. Outcomes group into amount classes by arithmetic: none; each distinct amount within reach of available cash on some trajectory; and amounts beyond available cash on every trajectory, grouped where their dates and cash are identical (increased and not-increased amounts in separate groups).",
     "composites": {
       "settlement": "offer x accept, per interval",
       "stay": "motion x approval",
-      "notes_petition": "petition_on_notes + (1 - petition_on_notes) x holders_involuntary",
+      "notes_petition": "the holders accelerate, then the issuer files, or else three holders file (petition_on_notes + (1 - petition_on_notes) x holders_involuntary); the notes are then either the subject of a petition, due and unpaid with no petition, or not accelerated",
       "listing": "board x approval, else hearing x exception"
     },
     "neutral": "Attribution step 2 sets every residual to neutral (a Noul at 0.5, a Choice uniform over the branches arithmetic leaves) and keeps everything the record fixes.",
-    "paths_to_the_engine": "Paths are sequences of decisions; each decision's effect is dated per trajectory and applies only where its condition holds on that date. A petition ends every later effect on its trajectory."
+    "paths_to_the_engine": "Paths are sequences of decisions; each decision's effect is dated per trajectory and applies only where its condition holds on that date. A petition ends every later effect on its trajectory.",
+    "situation": "Each question is asked in the conditions its actor weighs (the node's situation) that hold at the decision on every trajectory of the path where it is asked. A condition that holds on only some of them is left unstated."
   }
 }

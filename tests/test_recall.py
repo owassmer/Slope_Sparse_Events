@@ -70,7 +70,7 @@ class Stub:
 @pytest.fixture(scope="module")
 def fc():
     d = judgment(financing=(), components=(), amount=judgment().amount.model_copy(update={"value": 200_000_000}))
-    f = Forecaster([d], {"f": SimpleNamespace(finding_id="f")}, borrower=BORROWER, review=REVIEW,
+    f = Forecaster([d], {"f": SimpleNamespace(finding_id="f", dependency_id="dep_001", spans=())}, borrower=BORROWER, review=REVIEW,
                    horizon=SETUP.horizon, hydrate=lambda _f: dict(PASSAGE), setup=SETUP, basis=basis()[1])
     f.all_paths()
     return f

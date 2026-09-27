@@ -226,7 +226,9 @@ def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -
             for d in live]  # the instruments each judgment's terms reach (dispute model 4.0.0)
     fc = Forecaster(live, findings, borrower=borrower, review=review, horizon=setup.horizon,
                     hydrate=lambda f: evidence_state(evidence, f, [], sources)["passage"],
-                    setup=setup, basis=basis_for(feed, setup))  # path facts are simulated before Jev is asked
+                    setup=setup, basis=basis_for(feed, setup),  # path facts are simulated before Jev is asked
+                    court_record={s["source_id"] for s in evidence.list_sources()
+                                  if s["document_kind"] in ("court_filing", "court_docket")})
     per = fc.all_paths()
     records: list = []
     jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)

@@ -54,10 +54,12 @@ def test_conditional_probabilities_compose_and_conserve_mass():
     probs = m.probs()
     assert abs(probs.sum() - 1) < 1e-12 and len(m.combos) == len(probs)
     # a hand-computable path: stay (motion x approval), no levy before approval, settle while stayed (offer x
-    # accept), no filing at tau
-    i = next(i for i, c in enumerate(m.combos) if c[0].steps == (("stay", "post", "yes"), ("enforce", "post", "none"),
-                                                                  ("settle", "I4", "yes"), ("cash_floor", "", "no")))
-    assert abs(probs[i] - (0.3 * 0.3) * 0.7 * (0.3 * 0.3) * 0.7) < 1e-12
+    # accept), no filing at the cash floor, and none when cash runs out where it does
+    head = (("stay", "post", "yes"), ("enforce", "post", "none"), ("settle", "I4", "yes"), ("cash_floor", "", "no"))
+    i, steps = next((i, c[0].steps) for i, c in enumerate(m.combos)
+                    if c[0].steps in (head, head + (("cash_out", "", "no"),)))
+    out = 0.7 if steps[-1][0] == "cash_out" else 1.0
+    assert abs(probs[i] - (0.3 * 0.3) * 0.7 * (0.3 * 0.3) * 0.7 * out) < 1e-12
     # a choice node uses its full distribution; an override of one node keeps the total at one
     key = next(k for k in m.judgments if ":debtor_response" in k)
     assert abs(m.probs({key: {b: float(b == "file") for b in m.judgments[key].distribution}}).sum() - 1) < 1e-12

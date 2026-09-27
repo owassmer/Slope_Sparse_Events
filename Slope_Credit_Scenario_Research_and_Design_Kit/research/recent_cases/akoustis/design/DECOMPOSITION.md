@@ -11,10 +11,10 @@
 
 Law and the record fix the structure. Ruling dates come from data: this judge's 10 fully briefed rulings on this docket (median 61.5 days), drawn per motion from 8 Aug.
 
-**Jev questions (26).**
+**Jev questions (27).**
 - **Court:** trade-secret JMOL; damages ruling; patent JMOL; trebling; fees; pre-judgment interest; injunction; stay approved; early registration.
 - **Qorvo:** execute before the ruling; accept a remittitur; enforce after the final judgment; accept a settlement.
-- **Akoustis:** move for a stay; appeal; offer a settlement; respond to enforcement (pay, seek a sale or financing, file, neither); file on the notes; file at the cash floor; call the reverse-split vote; request a Nasdaq hearing.
+- **Akoustis:** move for a stay; appeal; offer a settlement; respond to enforcement (pay, seek a sale or financing, file, neither); file on the notes; file at the cash floor; file when cash runs out; call the reverse-split vote; request a Nasdaq hearing.
 - **Others:** stockholders approve the split; the panel grants an exception; holders act on the judgment default; holders act on delisting; holders file an involuntary petition.
 
 **What code computes.**
@@ -201,15 +201,15 @@ Collections stop or fall short only through a petition or too little cash above 
 
 ### 3.2 T2. The notes
 
-**Judgment default.** It ripens on 19 Aug if the judgment is still unpaid and unstayed, and again on the post-ruling judgment. At each ripe date the holders decide whether to give notice and accelerate: **H1**. Paying $44.0M is impossible (Arithmetic). Akoustis decides whether to file (**A5**); if it does not, the holders decide whether to file (**H3**).
+**Judgment default.** It ripens on 19 Aug if the judgment is still unpaid and unstayed, and again on the post-ruling judgment. At each ripe date the holders decide whether to give notice and accelerate: **H1**. Paying $44.0M is impossible (Arithmetic). Akoustis decides whether to file (**A5**); if it does not, the holders decide whether to file (**H3**). If neither files, the notes stay due and unpaid, and the listing chain no longer reaches the notes.
 
-**Delisting.** The board decides whether to call the reverse-split vote in time (**A7**), and the stockholders whether to approve (**ST1**). If the stock is not compliant on 21 Oct, Akoustis decides whether to request a hearing (**A8**), and the panel whether to grant an exception (**N1**). On delisting, an Event of Default exists at once. The holders accelerate, require repurchase only, or do neither (**H2**). Then A5 and H3.
+**Delisting.** The board decides whether to call the reverse-split vote in time (**A7**), and the stockholders whether to approve (**ST1**). If the stock is not compliant on 21 Oct, Akoustis decides whether to request a hearing (**A8**), and the panel whether to grant an exception (**N1**). On delisting, an Event of Default exists at once. The holders accelerate, require repurchase only, or do neither (**H2**). Then A5 and H3; if neither files, the notes stay due and unpaid.
 
 **Cross-default** does not reach collections (B3).
 
 ### 3.3 T3 and T5. Operating cash
 
-Operating flows come from the feed (§6). Dispute cash comes from T1, and legal spend continues until the dispute ends on the path. **τ** is the first date available cash falls below need (spec §2.2; sensitivity: below zero). At τ, Akoustis decides whether to file: **A6**. New financing is not booked as cash.
+Operating flows come from the feed (§6). Dispute cash comes from T1, and legal spend continues until the dispute ends on the path. **τ** is the first date available cash falls below need (spec §2.2; sensitivity: below zero). At τ, Akoustis decides whether to file: **A6**. If it keeps operating, it decides again on the first date its cash falls below zero: **A6b**. New financing is not booked as cash, so every Akoustis question states that no new financing or sale has closed.
 
 ### 3.4 T4. The coupon
 
@@ -217,13 +217,17 @@ The cash share is in §2. It reaches collections only through cash above need on
 
 ---
 
-## 4. Jev residual questions (26)
+## 4. Jev residual questions (27)
 
 Each question is one actor's decision. None asks about timing, an amount, affordability, enforceability or legal meaning. There are no outside-view anchors (spec §15.1). Standard path facts follow spec §3.3. Code multiplies the answers along each path in the order of §3.
 
 **Merits rulings (J1–J3).** Jev receives the public grounds in D.I. 613 and the D.I. 616 exhibits (616-1 to 616-4). The briefs (D.I. 607 and every supporting and answering brief) are sealed at D. The borrower's cash is deliberately withheld, because a court does not weigh solvency on the merits. J4–J6 are rulings on legal remedies and receive no cash either.
 
-**Evidence routing.** Present-state readings are evidence handed to a question. They are never its probability.
+**Situation.** Each question is asked in the conditions its actor weighs that hold at the decision on every trajectory of the path: whether the ruling has issued and its amount, a settlement or payment, a stay moved or in force, an appeal, a levy, the creditor's execution, the company's search for a sale or financing, the notes due and unpaid, and a delisting. A condition that holds on only some trajectories is left unstated.
+
+**Evidence.** A court decides on the record before it: court questions receive the findings drawn from the court's filings. Every other actor's question receives every accepted finding, grouped as the investigation grouped them.
+
+**Readings.** Present-state readings are evidence handed to a question. They are never its probability.
 - The `event_*` readings (judgment entered, stay secured, appeal filed, paid, amount fixed) set the stage: judgment entered 20 May, no stay, no appeal, unpaid. Code uses them for structure.
 - `bears_on_appeal_intent` and `bears_on_appeal_barred` feed A2.
 - `bears_on_settlement_signals` feeds A3 and Q4.
@@ -251,7 +255,8 @@ Each question is one actor's decision. None asks about timing, an amount, afford
 | A3 `forecast_settlement_offer` | Akoustis | Offers terms within its bound | Each interval |
 | A4 `forecast_debtor_response` | Akoustis | Pay / seek a sale or financing / file / neither (Choice; "pay" only where arithmetic allows) | T1-d, and again after "seek" |
 | A5 `forecast_petition_on_notes` | Akoustis | Files after acceleration or unpaid repurchase | H1 or H2 = acts |
-| A6 `forecast_petition_cash_floor` | Akoustis | Files at the cash floor | τ in horizon |
+| A6 `forecast_petition_cash_floor` | Akoustis | Files at the cash floor | τ in horizon, before any petition |
+| A6b `forecast_petition_cash_out` | Akoustis | Files when cash runs out | A6 = no; cash below zero in horizon |
 | A7 `forecast_reverse_split_board` | Board | Calls the vote in time | No earlier petition |
 | A8 `forecast_nasdaq_hearing` | Akoustis | Requests a hearing | Not compliant on 21 Oct |
 | ST1 `forecast_split_approved` | Stockholders | Approve the split | A7 = yes |

@@ -120,9 +120,9 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     appeal = next(n for n in fc.nodes.values() if n.node == "appeal")
     state, fids, readings = fc.state(appeal)
     assert readings[barred.label] == {"probability_present": 0.9}  # the waiver reaches Jev's appeal question
-    assert "a" in fids  # with the passage that states it, chosen only because it bears on the waiver
+    assert "a" in fids  # with the passage that states it
     settle = next(n for n in fc.nodes.values() if n.node == "settlement_offer")
-    assert "a" not in fc.state(settle)[1]  # a question the waiver is not routed to never sees it
+    assert set(fc.state(settle)[1]) == {"a", "b"}  # a party's question receives every accepted finding
     a4 = next(n for n in fc.nodes.values() if n.node == "debtor_response")
     assert "p50" in fc.state(a4)[0]["path_facts"]["cash_balance_at_decision"]  # the payer's cash is data
 

@@ -1,6 +1,6 @@
 {
   "registry_id": "slope_external_event_cashflow",
-  "registry_version": "4.1.0",
+  "registry_version": "4.2.0",
   "status": "design_contract_live_checked_against_labelled_cases_in_evals",
   "model_id": "jev-1.13.0",
   "sdk_requirement": "typesafe-sdk==0.7.1",
@@ -1785,6 +1785,35 @@
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
     },
     {
+      "id": "forecast_petition_cash_out",
+      "version": "4.0.0",
+      "profile": "dispute_forecast",
+      "primitive": "noul",
+      "question": "Does the company file for bankruptcy when its available cash runs out?",
+      "actor": "borrower",
+      "template": "bankruptcy_effects",
+      "node": "petition_cash_out",
+      "asked_when": "the company did not file at its cash floor, and its available cash falls below zero within the analysis period on some trajectory",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "path_facts",
+        "assumptions",
+        "evidence",
+        "readings"
+      ],
+      "prompt": {
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "criteria": {
+          "true": "The company files for bankruptcy on that date.",
+          "false": "The company does not file and keeps operating with its cash exhausted."
+        }
+      },
+      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+    },
+    {
       "version": "4.0.0",
       "profile": "dispute_interpretation",
       "state_fields": [
@@ -1864,22 +1893,7 @@
     "reason": "Timing, windows and security form are code; the chains' residual decisions replace the holistic node forecasts."
   },
   "evidence_routing": {
-    "note": "Present-state readings are evidence handed to a question, never its probability (DECOMPOSITION §4).",
-    "structure": {
-      "readings": [
-        "event_entitlement_decided",
-        "event_amount_fixed",
-        "event_judgment_entered",
-        "event_appeal_filed",
-        "event_mediation_ordered",
-        "event_stay_secured",
-        "event_paid",
-        "event_post_trial_motions_pending",
-        "event_post_trial_decided",
-        "event_injunction_entered"
-      ],
-      "use": "code places the stage (judgment entered, post-trial motions pending, stay, appeal, paid)"
-    },
+    "note": "Present-state readings are evidence handed to a question, never its probability.",
     "routes": {
       "appeal_intent": [
         "forecast_appeal"
@@ -1913,6 +1927,7 @@
       "forecast_fees_awarded",
       "forecast_prejudgment_interest",
       "forecast_injunction_ts"
-    ]
+    ],
+    "findings": "A court decides on the record before it: a court's question receives the accepted findings drawn from the court's own filings. Every other actor's question receives every accepted finding, grouped as the investigation grouped them."
   }
 }

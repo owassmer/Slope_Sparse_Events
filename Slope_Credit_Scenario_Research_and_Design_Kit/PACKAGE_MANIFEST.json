@@ -482,8 +482,8 @@
     },
     {
       "path": "research/revision_v2/contracts/dispute_model.json",
-      "bytes": 60042,
-      "sha256": "43e09bef405904aab3c5a4ab579d07c2dbf7bf9e290f96d49cb10485587d0551"
+      "bytes": 64321,
+      "sha256": "96a249bfade06e957469e472d5f6d7f922583cebe136564faceeaf117cbcbe66"
     },
     {
       "path": "research/revision_v2/contracts/economic-effects.json",
@@ -502,8 +502,8 @@
     },
     {
       "path": "research/revision_v2/contracts/question_registry.json",
-      "bytes": 105672,
-      "sha256": "0cb931f1c61303077436423b5b475228babe8c901c5f15b31af828620e074b85"
+      "bytes": 106972,
+      "sha256": "ad376cfbe3e946565e6adfdec8d2c327fc311344f6b9e5ea2835b705b11db941"
     },
     {
       "path": "research/revision_v2/contracts/synergy-decision-context.json",
