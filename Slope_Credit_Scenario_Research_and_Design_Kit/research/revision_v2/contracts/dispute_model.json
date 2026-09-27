@@ -137,10 +137,10 @@
       "unit": "days"
     },
     "indenture_final_judgment": {
-      "citation": "Indenture §7.01(i): an Event of Default occurs when \"a final judgment or final judgments for the payment of money are entered ... and such judgment or judgments remain undischarged, unpaid or unstayed for a period (during which execution shall not be effectively stayed) of 60 days\". A timely motion under Rule 50(b) or 59 suspends the finality of a judgment until the court disposes of it (Banister v. Davis, 590 U.S. 504 (2020); Osterneck v. Ernst & Whinney, 489 U.S. 169, 174 (1989)).",
+      "citation": "Indenture §7.01(i) (New York law, §17.10): an Event of Default occurs when \"a final judgment or final judgments for the payment of money are entered by a court or courts of competent jurisdiction against the Company or any of its Subsidiaries and such judgment or judgments remain undischarged, unpaid or unstayed for a period (during which execution shall not be effectively stayed) of 60 days\", above $10.0 million excluding amounts covered by insurance, after notice by the Trustee or the Holders of at least 25% in principal amount.",
       "modality": "shall",
-      "value": "after_post_trial_ruling",
-      "meaning": "The judgment becomes final on the court's ruling on the last post-trial motion, and the 60-day period starts on that ruling."
+      "value": "open",
+      "meaning": "Whether a money judgment entered under Rule 58 while timely Rule 50(b) and 59 motions are pending is a \"final judgment\" under §7.01(i) is an open question; no New York decision addresses it. Under one reading the judgment entered on 20 May 2024 is a final judgment for the payment of money: the clause measures the default by whether the judgment is undischarged, unpaid or unstayed and whether execution is effectively stayed, and execution was available once the Rule 62(a) stay ended on 19 Jun 2024, so the 60 days end on 19 Aug 2024. Under the other reading a timely Rule 50(b) or 59 motion suspends the finality of the judgment until the order disposing of it (Banister v. Davis, 590 U.S. 504 (2020); Osterneck v. Ernst & Whinney, 489 U.S. 169, 174 (1989); both decide finality for an appeal), so the 60 days run from the order disposing of the last pending motion. The company's 424B5 of 23 May 2024 refers to a final judgment still to be rendered."
     }
   },
   "readings": {
@@ -461,6 +461,15 @@
       "disposition": "sourced",
       "basis": "Legal spend in the feed continues until the dispute resolves on the path (payment, settlement, vacatur, petition), then stops.",
       "value": "feed_until_resolution"
+    },
+    "judgment_default_reading": {
+      "disposition": "bounded",
+      "basis": "Which judgment starts the 60 days in indenture §7.01(i) is an open question of New York contract law (rule indenture_final_judgment). Base: both readings. The default can ripen 60 days after the Rule 62(a) stay of the judgment as entered ends (19 Aug 2024), where the judgment is unpaid and execution is not effectively stayed; where the holders do not act then, it can ripen again 60 days after the order disposing of the last pending tolling motion, on the amount that survives the ruling. Sensitivities: the judgment as entered only; the post-trial ruling only.",
+      "value": "both",
+      "sensitivity": [
+        "entered",
+        "post_ruling"
+      ]
     }
   },
   "remittitur_scenarios": {
@@ -1088,7 +1097,7 @@
         "interest": "Interest (§16.02): paid on each interest date, in shares unless the company elects cash."
       },
       "clocks": {
-        "judgment_default_ripe": "the post-trial ruling's enforceable date + the instrument's period, with the judgment unpaid and unstayed throughout; then the holders' notice + holder_notice_lag_days",
+        "judgment_default_ripe": "per judgment_default_reading: the end of the Rule 62(a) stay of the judgment as entered + the instrument's period; and, where the holders did not act then, the order disposing of the last pending tolling motion + the instrument's period; each with the judgment unpaid and not effectively stayed; then the holders' notice + holder_notice_lag_days",
         "listing": "split effective by the vote date; Staff Determination the day after the compliance deadline; suspension + suspension_after_determination_days without a hearing; panel decision + panel_decision_days with one; 'not listed' per form25_after_panel_days"
       },
       "nodes": {

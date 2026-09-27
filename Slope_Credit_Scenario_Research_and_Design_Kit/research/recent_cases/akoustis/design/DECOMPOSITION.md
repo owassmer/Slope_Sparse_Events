@@ -5,7 +5,7 @@
 **What the model does.** It runs Slope's reusable line for Akoustis from 20 Jun to 17 Dec 2024. The limit is about $0.357M, a manual-review line. Cash at 20 Jun is about $17.16M. Five threats can stop or shrink collections:
 - Qorvo enforcing the $38.6M judgment;
 - the post-trial ruling changing it;
-- noteholders accelerating $44.0M on the judgment default (60 days after the post-trial ruling) or on delisting (after 21 Oct);
+- noteholders accelerating $44.0M on the judgment default (60 days after the judgment as entered, 19 Aug, or 60 days after the order disposing of the last post-trial motion; which judgment counts is open, L11) or on delisting (after 21 Oct);
 - operating burn;
 - the December coupon.
 
@@ -55,7 +55,7 @@ Law and the record fix the structure. Ruling dates come from data: this judge's 
 1. **Delisting is itself an Event of Default** (§7.01(b)), with no notice and no grace period. It is also a Fundamental Change with a cash repurchase right (§10.01). This supersedes spec §1.1 and `spec_corrections.md` item 7.
 2. **Interest is paid in shares unless the company elects cash** (§16.02(c)). The 17 Jun 2024 coupon was $0.442M cash and $0.878M shares (CASH_CHECK).
 3. **Execution is available from 20 Jun.** Entries 1–621 hold no stay, bond or supersedeas motion (R2h).
-4. **The judgment default runs from the post-trial ruling** (L11): the judgment is final at the ruling on the post-trial motions. Notice is still required. The insured-amounts exclusion is $0 (R7).
+4. **Which judgment starts the §7.01(i) period is open** (L11). One reading counts the judgment as entered, so the 60 days end on 19 Aug; the other counts the order disposing of the last post-trial motion. The model carries both. Notice is required under either. The insured-amounts exclusion is $0 (R7).
 5. **Remittitur follows the maximum-recovery rule** (R2a).
 6. **The fee motion does not toll the appeal clock** without a Rule 58(e) order.
 
@@ -93,7 +93,7 @@ $44.0M outstanding (`10q_0513` Note 10); guarantor Akoustis, Inc.
 
 | Node | Rule | Akoustis at D | Disposition |
 |---|---|---|---|
-| B1 Judgment default | §7.01(i): final money judgments "undischarged, unpaid or unstayed" for 60 days "during which execution shall not be effectively stayed"; above $10.0M "excluding amounts covered by insurance"; only after notice by the Trustee or 25% | $38.6M; insurance none (R7); clock from the post-trial ruling (L11); ripe 60 days after it | Finality: Law (L11); clock: Code timing |
+| B1 Judgment default | §7.01(i): final money judgments "undischarged, unpaid or unstayed" for 60 days "during which execution shall not be effectively stayed"; above $10.0M "excluding amounts covered by insurance"; only after notice by the Trustee or 25% | $38.6M; insurance none (R7); ripe 19 Aug on the judgment as entered, or 60 days after the order disposing of the last post-trial motion (L11) | Finality: open, both readings carried (L11); clock: Code timing |
 | B2 Delisting default | §7.01(b): not listed on an Eligible Market; no notice, no grace | Bid-price deadline 21 Oct | Law; date Code timing (L12) |
 | B3 Cross-default | §7.01(h): other debt ≥ $2.5M | GDSI payments Jan 2025; Slope line < $2.5M | Does not reach collections |
 | B4 Interest default | §7.01(c): 30 days late | No earlier than 15 Jan 2025 | After horizon |
@@ -125,7 +125,7 @@ SETTLED becomes Law. OPEN becomes evidence for the deciding actor's Jev question
 | L8 Amended judgments | **SETTLED:** an interest motion tolls (*Osterneck*, 489 U.S. 169). **Bounded:** (a) Rule 62(a) restart: base, only increases wait 30 days; sensitivity, the whole amount. (b) §1961 start: base, 20 May on the surviving amount and the amended date on increases (*Kaiser Aluminum*, 494 U.S. 827); under $1M in the horizon. (c) D.I. 608 tolls: base yes; it moves only registration |
 | L9 §1963; share attachment | **SETTLED (standard) → Law:** good cause is thin forum assets and substantial assets elsewhere (*Associated Bus. Tel. Sys. v. Greater Capital Corp.*, 128 F.R.D. 63 (D.N.J. 1989)). Grant: J9. Shares of a Delaware corporation are attachable in Delaware (8 Del. C. §§169, 324) but yield no cash in the horizon, so they are a record item for A4. **Bounded:** cash reachable before registration. Base none; sensitivity all consolidated cash |
 | L10 Injunction | **SETTLED** standards (R2c); scope **OPEN → J7**; cash in §5.3 |
-| L11 "Final judgment" in §7.01(i) | **SETTLED → Law** (Owen, 26 Sep 2026). A timely Rule 50(b)/59 motion "suspends the finality" of the judgment: "there is no longer a final judgment", and only the ruling that disposes of the motion restores finality (*Banister v. Davis*, 590 U.S. 504 (2020); *Osterneck v. Ernst & Whinney*, 489 U.S. 169, 174 (1989); FRAP 4(a)(4)(A)). The clause says "final", not "final, non-appealable", so the judgment is final at the ruling even if an appeal follows; "unstayed" then covers a stay pending appeal. The company reads it the same way: the final judgment is still to come (`424b5_0523`). The 60-day period runs from the ruling, never from entry. Rule `indenture_final_judgment` |
+| L11 "Final judgment" in §7.01(i) | **OPEN** (R2j; New York law, §17.10; no New York decision on the point). **Entered-judgment reading:** the 20 May judgment is a final money judgment; §7.01(i) measures the default by whether it is "undischarged, unpaid or unstayed" and whether "execution shall not be effectively stayed", and execution was available once the Rule 62(a) stay ended on 19 Jun, so the 60 days end on 19 Aug. **Post-ruling reading:** a timely Rule 50(b) or 59 motion suspends the judgment's finality until the order disposing of it (*Banister v. Davis*, 590 U.S. 504 (2020); *Osterneck v. Ernst & Whinney*, 489 U.S. 169, 174 (1989); both decide finality for an appeal), so the 60 days run from the order disposing of the last pending motion. The company refers to the final judgment as still to be rendered (`424b5_0523`). **Bounded** (`judgment_default_reading`): base both; sensitivities entered only, post-ruling only. Rule `indenture_final_judgment` |
 | L12 Nasdaq; reverse split | **SETTLED → Law** (R2d, mid-2024 rules). A timely hearing request stays suspension; the panel may extend up to 180 days from the determination. DGCL §242(d)(2) (2023): votes for must exceed votes against. **Bounded:** "not listed" at suspension (base) or Form 25 (sensitivity) |
 | L13 §303(b); §547(c)(2) | **SETTLED:** with 12 or more creditors, three petitioners are needed, so Qorvo cannot file alone. **Bounded:** §547(c)(2) is not computed |
 
@@ -138,10 +138,10 @@ Draws, collections and line reassessment follow spec §2.
 | Item | Value or rule | Disposition |
 |---|---|---|
 | Ruling date, per motion | 8 Aug (D.I. 605) plus a lag drawn from R4's 10 fully briefed matters on this docket: 17, 39, 52, 57, 58, 65, 91, 104, 146, 159 days (median 61.5). Independent per motion; sensitivity one common date. Lags above 131 days (2 of 10) land after 17 Dec | Code timing (Data) |
-| Final judgment | The last order changing the judgment (FRAP 4(a)(4)(A)) | Code timing |
+| Appeal clock | The time to appeal runs from the entry of the order disposing of the last remaining timely motion under Rule 50(b), 52(b) or 59, or under Rule 54 where the court orders under Rule 58(e) (FRAP 4(a)(4)(A)); a denial disposes of a motion as a grant does. D.I. 608 counts among them (L8(c) base); a motion without its own briefing date takes the shared 8 Aug schedule and its own lag draw | Code timing |
 | New stay; appeal deadline | +30 days on increases (L8); +30 days after the last tolling order | Code timing |
 | Registration in NC and NY | After the appeal deadline; earlier only on J9 | Code timing |
-| §7.01(i) ripe date | The post-trial ruling + 60 days, if still unpaid and unstayed (L11) | Code timing |
+| §7.01(i) ripe date | Base, both readings (L11): 19 Aug (the Rule 62(a) stay's end + 60 days), and, where the holders did not act then, the order disposing of the last tolling motion + 60 days on the amount that survives the ruling (the entered amount where no ruling has issued); each only if still unpaid and not effectively stayed by that date. Sensitivities: 19 Aug only; the post-ruling date only | Code timing; reading Bounded |
 | Levy lag; petition after a decision; holder notice | Base 0 days; sensitivity +30 | Bounded |
 | Bond | Path judgment + accrued §1961 interest + forward interest [0, 2 years], base 1. No costs filed by D | Sourced (L7) |
 | Surety collateral | 100% of the bond; lower bound 80% | Sourced (R2i); lower bound Bounded |
@@ -201,7 +201,7 @@ Collections stop or fall short only through a petition or too little cash above 
 
 ### 3.2 T2. The notes
 
-**Judgment default.** It ripens 60 days after the post-trial ruling if the judgment is still unpaid and unstayed (L11). At each ripe date the holders decide whether to give notice and accelerate: **H1**. Paying $44.0M is impossible (Arithmetic). Akoustis decides whether to file (**A5**); if it does not, the holders decide whether to file (**H3**). If neither files, the notes stay due and unpaid, and the listing chain no longer reaches the notes.
+**Judgment default.** Which judgment starts the 60 days is open (L11), so both readings are carried. On the judgment as entered it ripens on 19 Aug if the judgment is still unpaid and execution is not effectively stayed; the holders decide there whether to give notice and accelerate: **H1**. Where they do not, it can ripen again 60 days after the order disposing of the last tolling motion, on the amount that survives the ruling, and H1 is asked there in that situation: the ruling has issued, its amount, and no notice on the judgment as entered. An effective stay before a ripe date means no default at that date. Paying $44.0M is impossible (Arithmetic). Akoustis decides whether to file (**A5**); if it does not, the holders decide whether to file (**H3**). If neither files, the notes stay due and unpaid, and the listing chain no longer reaches the notes.
 
 **Delisting.** The board decides whether to call the reverse-split vote in time (**A7**), and the stockholders whether to approve (**ST1**). If the stock is not compliant on 21 Oct, Akoustis decides whether to request a hearing (**A8**), and the panel whether to grant an exception (**N1**). On delisting, an Event of Default exists at once. The holders accelerate, require repurchase only, or do neither (**H2**). Then A5 and H3; if neither files, the notes stay due and unpaid.
 

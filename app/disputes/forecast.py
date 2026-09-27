@@ -222,7 +222,8 @@ STATE_PHRASES = {"entered": "the judgment as entered", "first": "the company's f
                  "seeking": "the company has sought a sale or new financing",
                  "notes_due": "the notes are due and unpaid, and no bankruptcy petition has been filed",
                  "delisted": "the stock has been delisted",
-                 "cash_exhausted": "the company did not file when its cash fell below its 30-day operating need"}
+                 "cash_exhausted": "the company did not file when its cash fell below its 30-day operating need",
+                 "entered_not_acted": "the holders have not given notice of a default on the judgment as entered"}
 
 
 def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]]) -> list[str]:
@@ -790,7 +791,9 @@ class _Walk:
         if f is None or not f.judgment_default_days or not self.arises(s, ("judgment_default", phase, "no")):
             return then(s)
         probe = ("judgment_default", phase, "no")
-        h1 = self.node("holders_act_judgment", phase, s.cls, s=s, probe=probe)
+        earlier = ("entered_not_acted",) if phase != "I1" and any(x[:2] == ("judgment_default", "I1")
+                                                                  for x in s.steps) else ()
+        h1 = self.node("holders_act_judgment", phase, s.cls, *earlier, s=s, probe=probe)
         a5 = self.node("petition_on_notes", f"judgment_{phase}", s=s, probe=probe,
                        assumptions=("the holders accelerate the notes",))
         h3 = self.node("holders_involuntary", f"judgment_{phase}", s=s, probe=probe,

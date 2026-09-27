@@ -90,8 +90,11 @@ class Draws:
         return sample[np.minimum((u * len(sample)).astype(np.int64), len(sample) - 1)]
 
 
-def pval(model: dict, key: str, sensitivity: bool = False):
+def pval(model: dict, key: str, sensitivity: bool | str = False):
+    """The parameter's value: its base, its sensitivity (True), or the named sensitivity (a string)."""
     p = model["parameters"][key]
+    if isinstance(sensitivity, str):
+        return sensitivity
     return p["sensitivity"] if sensitivity and "sensitivity" in p else p["value"]
 
 
@@ -277,6 +280,7 @@ class Chain:
         self.lock_amount = np.zeros(self.n, dtype=np.int64)
         self.collateral_required = np.zeros(self.n, dtype=np.int64)
         self.marks = {k: np.full(self.n, BIG) for k in MARKS}
+        self.jd_acted = np.zeros(self.n, dtype=bool)  # the holders acted on the judgment default as entered
         self.settle_offer = np.zeros(self.n, dtype=np.int64)
         self.stay_offer = np.zeros(self.n, dtype=np.int64)
 
@@ -295,9 +299,10 @@ class Chain:
         d = self.d
         common = self.m["parameters"]["ruling_lag_days"].get("mode") == "common"
         rule = {}
-        for mo in d.motions:
+        close = max((mo.briefing_close for mo in d.motions if mo.briefing_close), default=None)
+        for mo in d.motions:  # a motion with no briefing date of its own follows the shared schedule (D.I. 605)
             lag = self.dr.lag(self.m, self.iid, "common" if common else mo.motion_id)
-            rule[mo.motion_id] = self.ix(mo.briefing_close) + lag
+            rule[mo.motion_id] = self.ix(mo.briefing_close or close) + lag
         self.ruling = rule
         money = [rule[mo.motion_id] for mo in d.motions if mo.kind in MONEY_MOTIONS]
         tolling = [rule[mo.motion_id] for mo in d.motions if mo.kind in TOLLING]
@@ -436,6 +441,27 @@ class Chain:
         return approval
 
 
+    def judgment_default(self, ctx: str) -> tuple[np.ndarray, np.ndarray]:
+        """§7.01(i) ripe date and where it ripens (rule indenture_final_judgment; parameter judgment_default_reading).
+        I1, the judgment as entered: 60 days from the end of the Rule 62(a) stay. post: 60 days from the order
+        disposing of the last pending tolling motion (A), on the path amount (the entered amount where no ruling step
+        set one), where the holders did not act on the judgment as entered. Either needs the amount above the
+        threshold net of insurance, unpaid, not effectively stayed by the ripe date, and no earlier petition."""
+        f, reading = self.fin, self.p("judgment_default_reading")
+        full = np.full(self.n, 0, dtype=np.int64)
+        if ctx == "I1":
+            ripe = full + self.e_ix + f.judgment_default_days
+            amount, on = self.entered, reading in ("both", "entered")
+            cond = np.full(self.n, on and self.d.judgment_date is not None)
+        else:
+            ripe = np.maximum(self.A, self.e_ix) + f.judgment_default_days
+            amount, on = (self.entered if self.cls_amount is None else self.cls_amount), reading in ("both",
+                                                                                                    "post_ruling")
+            cond = np.full(self.n, on) & (self.A >= 0) & ~self.jd_acted
+        cond = cond & (amount - f.insured_cents > f.judgment_default_threshold_cents)
+        cond = cond & (self.stayed_from > ripe) & self.live(ripe) & (self.owed_at(ripe) > 0)
+        return ripe, cond
+
     def tau(self) -> np.ndarray:
         """The first day available cash falls below operating need (sensitivity: below zero), or BIG."""
         cum = self.basis.cash + np.cumsum(self.ev.cash - self.ev.lock, axis=1)
@@ -563,21 +589,13 @@ class Chain:
                     self.levy(order)
             return motion
         if node == "judgment_default":
-            f = self.fin
-            if ctx == "I1":
-                # §7.01(i) runs from a final judgment: the judgment is final at the ruling on the post-trial
-                # motions (rule indenture_final_judgment).
-                ripe = full(self.e_ix + f.judgment_default_days)
-                cond = full(False).astype(bool)
-            else:
-                ripe = np.maximum(self.EF, self.e_ix) + f.judgment_default_days
-                amount = (self.cls_amount or 0) - f.insured_cents
-                cond = (self.F >= 0) & (amount > f.judgment_default_threshold_cents)
-            cond = cond & (self.stayed_from > ripe) & self.live(ripe) & (self.owed_at(ripe) > 0)
+            ripe, cond = self.judgment_default(ctx)
             if branch == "yes":
                 self.petition(ripe + int(self.p("holder_notice_lag_days")), cond, cause="notes")
             elif branch == "accelerated":  # the holders accelerate; neither the issuer nor the holders file
                 self.mark("notes_due", ripe + int(self.p("holder_notice_lag_days")), cond)
+            if ctx == "I1" and branch in ("yes", "accelerated"):
+                self.jd_acted |= cond
             return np.where(cond, ripe, BIG)
         if node == "ruling":
             self.retrial = branch == "retrial" or branch.endswith(":retrial")
