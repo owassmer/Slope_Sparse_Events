@@ -238,6 +238,16 @@ def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh:
 def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -> dict:
     """`roles`: also run the recall check (every forecast re-asked with the parties' names replaced by roles; its
     own Jev adapter and budget), stored per node and summarized; the analysis's probabilities are unchanged."""
+    from app.agent import jev as jev_module
+
+    jev_module.EXCHANGE_LOG = exchanges = []  # the run's Jev requests and responses, written beside it
+    try:
+        return _build(run_id, root, refresh, roles, exchanges)
+    finally:
+        jev_module.EXCHANGE_LOG = None
+
+
+def _build(run_id: str, root: Path, refresh: bool, roles: bool, exchanges: list[dict]) -> dict:
     from app.agent.jev import JevAdapter
     from app.agent.jev_profiles import DisputeProfile
 
@@ -299,6 +309,7 @@ def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -
                      recall=rc)
     (out / "page.json").write_text(json.dumps(state["payload"], default=str) + "\n")
     save_page_state(run_id, state)
+    write_exchanges(out / "jev_log.jsonl.gz", exchanges)
     (scratch / "jev_records.jsonl").write_text("\n".join(json.dumps(r, default=str) for r in records) + "\n")
     return data
 
@@ -333,6 +344,12 @@ def save_page_state(run_id: str, state: dict) -> None:
     path = page_state_path(run_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(pickle.dumps(state, protocol=pickle.HIGHEST_PROTOCOL))
+
+
+def write_exchanges(path: Path, exchanges: list[dict]) -> None:
+    """One JSON line per Jev exchange (request and raw response), in the order asked, gzipped."""
+    text = "".join(json.dumps(e, default=str, sort_keys=True) + "\n" for e in exchanges)
+    path.write_bytes(gzip.compress(text.encode(), mtime=0))
 
 
 def read_analysis(run_dir: Path) -> dict | None:
