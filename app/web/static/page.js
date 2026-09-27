@@ -375,8 +375,6 @@
     const lo = Math.min(...sens.map((s) => Math.min(s.lo, s.hi))), hi = Math.max(...sens.map((s) => Math.max(s.lo, s.hi)));
     const label = NEUTRAL ? D.meta.judgments_note : D.meta.probability_label || "";  // says 'Model judgment' once
     let html = `<div class="ohead"><span class="ctx">${esc(label)}</span><div class="sp" style="flex:1"></div>${Object.keys(S.overrides).length ? '<button id="rsall">Reset all</button>' : ""}</div>`;
-    const rc = D.recall;  // the recall check: every question re-asked with the parties' names replaced by roles
-    if (rc) html += `<div class="ctx" title="Largest change in any answer when the names are replaced by roles">Recall check: ${rc.questions} questions, max change ${pts(rc.max_abs_change)}, mean ${pts(rc.mean_abs_change)}${rc.moved.length ? `, ${rc.moved.length} moved more than ${pts(rc.threshold)}` : ""}</div>`;
     for (const g of DECIDERS) {
       const rows = D.nodes.map((n, i) => i).filter((i) => D.nodes[i].decider === g).sort((a, b) => sens[b].range - sens[a].range);
       if (rows.length) html += `<div class="ghead">${esc(GROUP[g] || g)}</div>` + rows.map((i) => rowHtml(i, [lo, hi])).join("");
@@ -429,9 +427,6 @@
     const link = (l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.text)}</a>`;
     const given = (det.assumptions || []).map((a) => `<li>${esc(a)}</li>`).join("");
     const quotes = (det.quotes || []).map((q) => `<blockquote>“${esc(q.quote)}”<br><span class="ctx">${esc(q.source)}${q.date ? `, ${esc(q.date)}` : ""}${q.link ? ` · ${link({ url: q.link, text: "source" })}` : ""}</span></blockquote>`).join("");
-    const rc = n.recall, recall = rc ? `<div class="ghead">Recall check: asked again with names replaced by roles</div><table class="t"><tr><th>Answer</th><th>As asked</th><th>Roles only</th><th>Change</th></tr>
-      ${n.branches.map((b) => `<tr><td>${esc(bname(b))}</td><td>${pct(rc.original[b] ?? 0)}</td><td>${pct(rc.roles[b] ?? 0)}</td><td>${pts((rc.roles[b] ?? 0) - (rc.original[b] ?? 0))}</td></tr>`).join("")}</table>
-      <p class="ctx">Largest change ${pts(rc.max_change)}.</p>` : "";
     const a = det.answer;  // Jev's answer in words: its distribution, confidence and readings of the record
     const ans = a ? `<p>${n.branches.map((b) => `${esc(bname(b))} <b>${pct(a.distribution[b] ?? 0)}</b>`).join(" · ")}${a.confidence != null ? ` <span class="ctx">· confidence ${esc(typeof a.confidence === "number" ? pct(a.confidence, 0) : a.confidence)}</span>` : ""}</p>
       ${readings(a.readings)}`
@@ -442,7 +437,7 @@
       ${det.steps.map((s) => `<div class="step"><span class="tag ${s.tag}">${s.tag}</span><span>${esc(s.text)}${(s.links || []).length ? ` · ${s.links.map(link).join(" · ")}` : ""}</span></div>`).join("")}
       ${given ? `<div class="ghead">Given</div><ul class="ctx">${given}</ul>` : ""}
       <div class="ghead">Sources</div>${quotes || '<p class="ctx">No quoted passages for this question.</p>'}
-      <div class="ghead">Jev's answer</div>${ans}${recall}</div>`;
+      <div class="ghead">Jev's answer</div>${ans}</div>`;
     $("back").onclick = () => { S.detail = null; renderProbs(); };
     atEnd();
   }

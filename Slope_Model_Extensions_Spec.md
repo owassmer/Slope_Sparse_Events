@@ -249,8 +249,6 @@ Each Jev question names:
 
 **Then the adjustment.** Jev receives the anchor and returns the case-adjusted probability. Both numbers are stored. The adjustment is the research's measurable contribution (§9).
 
-**Recall.** Anchor questions carry no case facts. Adjustment questions are covered by the role-name replay (§9).
-
 ### 3.5 Who does what
 
 - **Chains are host-owned design,** versioned in the dispute model contract and reviewed like it.
@@ -454,7 +452,7 @@ Jev's present-state readings (`financing_interpretation`) confirm the agent's ci
 - **`engine.py`:** the reusable line (§2.1), the collection rule (§2.2), the petition (§2.3), the outputs (§2.4). The single-draw reference arithmetic stays in `slope finance check`.
 - **`core.py`:** attribution (§9); `parameter_sensitivity` is dropped.
 
-## 9. Attribution and the recall replay
+## 9. Attribution
 
 **Attribution**, four reweightings of the same trajectories:
 1. **Bank data only.**
@@ -463,8 +461,6 @@ Jev's present-state readings (`financing_interpretation`) confirm the agent's ci
 4. **Plus Jev's case adjustments.**
 
 Step 4 minus step 3 is the qualitative signal from this record, measured in the loan's cash flows.
-
-**Recall replay:** `slope analyze --run <id> --roles` re-asks every adjustment question with the parties' names replaced by roles, and stores the deltas under `recall_check`.
 
 ## 10. Question registry 4.0.0 and `agent_config`
 
@@ -557,12 +553,12 @@ Only then is the rest Qorvo's choice.
    - builder-side, pre-D evidence only in the snapshots;
    - findings recorded against the requirement they answer.
 5. **`step-6a-cases`:**
-   - the kit gains the round 2 research, the acquisitions, the recall probe and the Stage 1–3 documents;
+   - the kit gains the round 2 research, the acquisitions and the Stage 1–3 documents;
    - snapshots for both cases (sources, isolation probes);
    - bank feeds (D1 proration);
    - `make_run_inputs.py`;
    - **the ChromaDex removal (§1.3)**, with the tests rewritten on Akoustis facts.
-6. **`step-6b-model`:** dispute model 4.0.0 with the approved chains, registry 4.0.0, financing instruments, engine, attribution, recall replay, page.
+6. **`step-6b-model`:** dispute model 4.0.0 with the approved chains, registry 4.0.0, financing instruments, engine, attribution, page.
 7. **`step-6c-record`:** record both runs; analyse; replay; browser walkthrough; one focused review; `merge-ready`.
 
 ## 14. Decisions and open research

@@ -235,19 +235,18 @@ def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh:
     return out
 
 
-def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -> dict:
-    """`roles`: also run the recall check (every forecast re-asked with the parties' names replaced by roles; its
-    own Jev adapter and budget), stored per node and summarized; the analysis's probabilities are unchanged."""
+def build(run_id: str, root: Path, refresh: bool = False) -> dict:
+    """The run's analysis, page and Jev exchange log, written beside it."""
     from app.agent import jev as jev_module
 
     jev_module.EXCHANGE_LOG = exchanges = []  # the run's Jev requests and responses, written beside it
     try:
-        return _build(run_id, root, refresh, roles, exchanges)
+        return _build(run_id, root, refresh, exchanges)
     finally:
         jev_module.EXCHANGE_LOG = None
 
 
-def _build(run_id: str, root: Path, refresh: bool, roles: bool, exchanges: list[dict]) -> dict:
+def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dict:
     from app.agent.jev import JevAdapter
     from app.agent.jev_profiles import DisputeProfile
 
@@ -287,17 +286,12 @@ def _build(run_id: str, root: Path, refresh: bool, roles: bool, exchanges: list[
                        neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments)
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in live if d.status not in ("interpreted", "resolved")]
-    # The recall pass needs only the tree and the judgments: run it before the simulation, which keeps peak memory
-    # lower on a small machine.
-    rc = recall_for(fc, judgments, borrower, run_id, refresh, records) if roles and judgments else None
     a = Analysis(feed, setup, model)
     data = payload(feed, setup, model, meta_for(model, borrower, not_modelled), analysis=a)
     data["model"] = _model_json(model)
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
     data["base_setup"] = setup_json(setup)
     data["jev"] = jev.usage_summary()
-    if rc:
-        attach_recall(data, rc)
     out = root / run_id
     text = json.dumps(data, indent=1, default=str) + "\n"
     (out / "analysis.json").write_text(text)
@@ -305,8 +299,7 @@ def _build(run_id: str, root: Path, refresh: bool, roles: bool, exchanges: list[
     write_csv(data, out)
     scratch = VAR / "analysis" / run_id
     scratch.mkdir(parents=True, exist_ok=True)
-    state = run_page(a, model, fc, borrower=borrower, snapshot_id=meta["snapshot_id"], stress_rows=data["stress"],
-                     recall=rc)
+    state = run_page(a, model, fc, borrower=borrower, snapshot_id=meta["snapshot_id"], stress_rows=data["stress"])
     (out / "page.json").write_text(json.dumps(state["payload"], default=str) + "\n")
     save_page_state(run_id, state)
     write_exchanges(out / "jev_log.jsonl.gz", exchanges)
@@ -314,11 +307,10 @@ def _build(run_id: str, root: Path, refresh: bool, roles: bool, exchanges: list[
     return data
 
 
-def run_page(a: Analysis, model: EventModel, fc: Forecaster, *, borrower: str, snapshot_id: str, stress_rows: list,
-             recall: dict | None = None) -> dict:
+def run_page(a: Analysis, model: EventModel, fc: Forecaster, *, borrower: str, snapshot_id: str,
+             stress_rows: list) -> dict:
     """The one-screen page for a recorded run (app/analysis/page.py), and the reduced state its reweight reads. The
-    settings re-simulate the dev page only, so a run's page has none. The recall check, when run, rides along: per
-    question in the drill-down, the summary in the panel header."""
+    settings re-simulate the dev page only, so a run's page has none."""
     from app.analysis.page import CLASSES, class_matrix, page_payload
 
     neutral = not any(j.observation_id for j in model.judgments.values())  # no Jev answer at all: even odds
@@ -326,10 +318,6 @@ def run_page(a: Analysis, model: EventModel, fc: Forecaster, *, borrower: str, s
                      stress_rows=stress_rows)
     p["settings"] = []
     p["meta"]["snapshot_id"] = snapshot_id
-    if recall:
-        for n in p["nodes"]:
-            n["recall"] = recall["nodes"].get(n["key"])
-        p["recall"] = {k: v for k, v in recall["summary"].items() if k != "jev"}
     return {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months,
             "class_of_path": class_matrix(p["paths"]["class"], len(CLASSES))}
 
@@ -379,28 +367,6 @@ def load_page_state(run_dir: Path) -> dict:
              "class_of_path": class_matrix(p["paths"]["class"], len(CLASSES))}
     save_page_state(run_dir.name, state)
     return state
-
-
-def recall_for(fc: Forecaster, judgments: dict, borrower: str, run_id: str, refresh: bool, records: list) -> dict:
-    from app.agent.jev import JevAdapter
-    from app.agent.jev_profiles import DisputeProfile
-    from app.disputes.recall import recall_check
-
-    jev = JevAdapter(run_id=f"{run_id}-recall", use_cache=not refresh)
-    judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, "recall": True,
-                                                                  **obj.model_dump(mode="json")}))
-    rc = recall_check(fc, judgments, judge, borrower)
-    rc["summary"]["jev"] = jev.usage_summary()
-    return rc
-
-
-def attach_recall(data: dict, rc: dict) -> None:
-    """The recall check beside the analysis: per node in the drill-down meta, the summary at the top level. The
-    judgments, model and every view are left as they are."""
-    for k, v in rc["nodes"].items():
-        if k in data["judgments"]:
-            data["judgments"][k]["recall_check"] = v
-    data["recall_check"] = rc["summary"]
 
 
 def write_csv(data: dict, out: Path) -> None:
@@ -463,8 +429,6 @@ def recompute(path: Path, controls: dict, overrides: dict | None) -> dict:
     meta = {k: data[k] for k in ("borrower", "probability_label", "disputes", "not_modelled", "judgments")}
     out = payload(feed, setup, model, meta, clean, analysis=a, stressed=stress(feed, setup, model, clean))
     out["run_id"] = data.get("run_id")
-    if "recall_check" in data:
-        out["recall_check"] = data["recall_check"]
     return out
 
 

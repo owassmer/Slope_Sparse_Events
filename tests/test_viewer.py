@@ -198,8 +198,7 @@ def _run_page(tmp_path, monkeypatch, state, snapshot_id):
 
     run = "akoustis_20240620-test"
     (tmp_path / run).mkdir()
-    payload = {**state["payload"], "meta": {**state["payload"]["meta"], "snapshot_id": snapshot_id}, "settings": [],
-               "recall": {"questions": 3, "mean_abs_change": 0.02, "max_abs_change": 0.05, "threshold": 0.1, "moved": []}}
+    payload = {**state["payload"], "meta": {**state["payload"]["meta"], "snapshot_id": snapshot_id}, "settings": []}
     (tmp_path / run / "page.json").write_text(json.dumps(payload))
     monkeypatch.setenv("SLOPE_RUNS_ROOT", str(tmp_path))
     monkeypatch.setitem(web._RUN_STATES, run, state)
@@ -235,7 +234,7 @@ def test_a_run_page_reveals_the_actual_outcome_only_where_its_case_has_one(small
     assert "disabled" in button and c2.get(f"/runs/{other}/outcome").status_code == 404
 
 
-def test_the_dev_page_has_no_reveal_or_recall(small_page, monkeypatch):
+def test_the_dev_page_has_no_reveal(small_page, monkeypatch):
     from app.analysis.page import DevPage
     from app.web import app as web
 
@@ -245,4 +244,3 @@ def test_the_dev_page_has_no_reveal_or_recall(small_page, monkeypatch):
     monkeypatch.setattr(web, "_DEV", page)
     r = TestClient(app).get("/dev/akoustis")
     assert r.status_code == 200 and 'id="actual"' not in r.text
-    assert "recall" not in state["payload"] and not any("recall" in n for n in state["payload"]["nodes"])
