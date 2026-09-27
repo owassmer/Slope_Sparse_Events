@@ -129,7 +129,7 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     settle = next(n for n in fc.nodes.values() if n.node == "settlement_offer")
     assert fc.state(settle)[1] == ("b",)  # each question receives the findings that supply its own record items
     a4 = next(n for n in fc.nodes.values() if n.node == "debtor_response")
-    assert "p50" in fc.state(a4)[0]["path_facts"]["cash_balance_at_decision"]  # the payer's cash is data
+    assert "p50" in fc.state(a4)[0]["path_facts"]["projected_available_cash_at_decision_date"]  # the payer's cash is data
 
 
 class FiledJudge(WaiverJudge):

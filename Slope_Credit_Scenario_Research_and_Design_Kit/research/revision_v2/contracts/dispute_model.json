@@ -823,8 +823,8 @@
           ],
           "residual_question": "forecast_stay_motion",
           "situation": {
-            "appealed": "Rule 62(b): security for a stay pending appeal; the actor's own earlier act on this path",
-            "levied": "Rule 62(b): a stay stops further execution; a completed levy changes what it protects"
+            "appealed": "Rule 62(b): security for a stay pending appeal; the actor's own earlier act",
+            "levied": "Rule 62(b): a stay takes effect when the court approves the security and stops further execution; a completed levy reduces the amount a stay protects"
           },
           "timing_parameters": []
         },
@@ -894,7 +894,7 @@
           ],
           "residual_question": "forecast_1963_good_cause",
           "situation": {
-            "stay_moved": "28 U.S.C. §1963 good cause turns on whether the debtor has posted a bond or secured a stay (Associated Bus. Tel. Sys.; 3M v. Mohan)"
+            "stay_moved": "28 U.S.C. §1963 good cause weighs whether the judgment debtor has posted a bond or obtained a stay (Associated Bus. Tel. Sys.; 3M v. Mohan); a pending stay motion shows the company seeks one"
           },
           "timing_parameters": [
             "ruling_lag_days",
@@ -939,7 +939,7 @@
             "neither": "the company takes no further step on the judgment; a later petition comes from the notes or the cash floor"
           },
           "situation": {
-            "appealed": "the actor's own earlier act on this path",
+            "appealed": "the actor's own earlier act",
             "levied": "the levy is the act the company responds to"
           },
           "timing_parameters": [
@@ -1009,8 +1009,8 @@
           ],
           "residual_question": "forecast_enforcement_after_final",
           "situation": {
-            "executing": "the actor's own earlier act on this path",
-            "levied": "the actor's own earlier act on this path"
+            "executing": "the actor's own earlier act",
+            "levied": "the actor's own earlier act"
           },
           "timing_parameters": []
         },
@@ -1041,8 +1041,8 @@
           ],
           "residual_question": "forecast_settlement_offer",
           "situation": {
-            "stayed": "Rule 62(b): a stay suspends the creditor's enforcement",
-            "stay_moved": "a pending stay motion may suspend the creditor's enforcement",
+            "stayed": "Rule 62(b): an approved stay suspends the creditor's enforcement",
+            "stay_moved": "Rule 62(b): the stay takes effect when the court approves the bond or other security; a pending stay motion does not suspend execution",
             "appealed": "an appeal puts the judgment at risk for both parties"
           },
           "timing_parameters": [
@@ -1076,8 +1076,8 @@
           ],
           "residual_question": "forecast_settlement_accept",
           "situation": {
-            "stayed": "Rule 62(b): a stay suspends the creditor's enforcement",
-            "stay_moved": "a pending stay motion may suspend the creditor's enforcement",
+            "stayed": "Rule 62(b): an approved stay suspends the creditor's enforcement",
+            "stay_moved": "Rule 62(b): the stay takes effect when the court approves the bond or other security; a pending stay motion does not suspend execution",
             "appealed": "an appeal puts the judgment at risk for both parties"
           },
           "timing_parameters": []
@@ -1127,8 +1127,8 @@
           ],
           "residual_question": "forecast_holders_act_judgment",
           "situation": {
-            "appealed": "§7.01(i) turns on a judgment that may be reversed on appeal",
-            "stay_moved": "§7.01(i): a judgment stayed before the 60 days run is no default"
+            "appealed": "an appeal may reverse or reduce the judgment, which bears on the holders' incentive to accelerate now; §7.01(i) turns on whether the judgment is paid, discharged or effectively stayed",
+            "stay_moved": "§7.01(i): the default requires the judgment to remain unpaid, undischarged and unstayed for 60 days during which execution is not effectively stayed; a stay takes effect when the court approves the security (Rule 62(b)), and a pending motion shows the company may obtain one"
           },
           "timing_parameters": [
             "holder_notice_lag_days"
@@ -1163,10 +1163,10 @@
           ],
           "residual_question": "forecast_holders_act_delisting",
           "situation": {
-            "ruled": "the issuer's other liabilities bear on what holders recover (§7.02; §10.01)",
-            "settled": "the issuer's other liabilities bear on what holders recover (§7.02; §10.01)",
-            "paid": "the issuer's other liabilities bear on what holders recover (§7.02; §10.01)",
-            "stayed": "the issuer's other liabilities bear on what holders recover (§7.02; §10.01)"
+            "ruled": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now",
+            "settled": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now",
+            "paid": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now",
+            "stayed": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now"
           },
           "timing_parameters": []
         },
@@ -1203,7 +1203,7 @@
             "stayed": "the company's liabilities and resources when it decides",
             "appealed": "the company's liabilities and resources when it decides",
             "levied": "the company's liabilities and resources when it decides",
-            "seeking": "the actor's own earlier act on this path"
+            "seeking": "the actor's own earlier act"
           },
           "timing_parameters": [
             "petition_lag_days"
@@ -1235,10 +1235,10 @@
           ],
           "residual_question": "forecast_holders_involuntary",
           "situation": {
-            "ruled": "the issuer's other liabilities bear on what holders recover (§303; §7.02)",
-            "settled": "the issuer's other liabilities bear on what holders recover (§303; §7.02)",
-            "paid": "the issuer's other liabilities bear on what holders recover (§303; §7.02)",
-            "stayed": "the issuer's other liabilities bear on what holders recover (§303; §7.02)"
+            "ruled": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now",
+            "settled": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now",
+            "paid": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now",
+            "stayed": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now"
           },
           "timing_parameters": [
             "petition_lag_days"
@@ -1390,7 +1390,7 @@
             "levied": "the company's liabilities and resources when it decides",
             "notes_due": "the company's liabilities and resources when it decides",
             "delisted": "the company's liabilities and resources when it decides",
-            "seeking": "the actor's own earlier act on this path"
+            "seeking": "the actor's own earlier act"
           },
           "timing_parameters": [
             "petition_lag_days"
@@ -1429,7 +1429,7 @@
             "levied": "the company's liabilities and resources when it decides",
             "notes_due": "the company's liabilities and resources when it decides",
             "delisted": "the company's liabilities and resources when it decides",
-            "seeking": "the actor's own earlier act on this path"
+            "seeking": "the actor's own earlier act"
           },
           "timing_parameters": [
             "petition_lag_days"

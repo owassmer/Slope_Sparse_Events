@@ -299,6 +299,7 @@ class Forecaster:
         self.reach = int(basis.cash.max()) if basis is not None else None  # no trajectory holds more cash than this
         self.class_members: dict[str, list[tuple[int, int]]] = {}  # ruling class -> (total, fees) of each outcome
         self.class_range: dict[str, tuple[int, int]] = {}  # merged amount class label -> (min, max) judgment
+        self.remit_classes: set[str] = set()  # amount class labels holding a remitted, accepted outcome
         self.nodes: dict[str, Node] = {}
         self.facts: dict[str, list] = {}  # node key -> the rows `record` keeps, one per path that asks it
         self._traces: dict = {}
@@ -433,6 +434,7 @@ class Forecaster:
         entered = entered_cents(d)
         classes: dict[str, list] = {}
         members: dict[str, list[tuple[int, int]]] = {}
+        remitted: set = set()
         for atoms_, o in leaves:
             a = ruling_amounts(d, o, self.m)
             total = sum(a.values())
@@ -447,6 +449,8 @@ class Forecaster:
             c = (c, retrial)
             classes.setdefault(c, []).append(atoms_)
             members.setdefault(c, []).append((total, a["fees"]))
+            if o.get("remittitur") == "accept":
+                remitted.add(c)
         out = {}
         for (c0, retrial), parts in classes.items():
             c = (c0, retrial)
@@ -455,6 +459,8 @@ class Forecaster:
             label = ("retrial" if label == "none" else f"{label}:retrial") if retrial else label
             out[label] = parts
             self.class_members[label] = members[c]
+            if c in remitted:
+                self.remit_classes.add(_label(label))
             if c0.startswith("beyond"):  # what Jev is told: the class's range, never one figure
                 self.class_range[_label(label)] = (lo[0], max(members[c])[0])
         return out
@@ -500,13 +506,10 @@ class Forecaster:
     def path_facts(self, n: Node, d: DisputeInstance) -> dict:
         """What code computed for this node, pooled over the paths that reach it, before any Jev answer."""
         reg = registry_entry(n.question_id)
-        remitted = self.m["remittitur_scenarios"]["scenarios"].get("remitted", {}).get("amount_cents")
-        facts: dict = {"components": [{"component": c.label, "status": c.status,
-                                       "amount": usd(c.amount_cents) if c.amount_cents is not None else
-                                       ("computed by statute" if c.statutory else "unknown"),
-                                       **({"remitted_amount": usd(remitted)} if remitted and c.kind == "compensatory"
-                                          else {})}
-                                      for c in d.components]}
+        remit = self.m["remittitur_scenarios"]["scenarios"].get("remitted", {})
+        premise = n.node in ("ts_damages_ruling", "remittitur_accepted") or bool(
+            set(n.context.split("|")) & self.remit_classes)
+        facts: dict = {"components": [self._component(c, remit if premise else {}) for c in d.components]}
         if n.node in MERITS:
             facts["pending_motions"] = self._pending(d, n.node)
         if n.question_id in self.no_cash:
@@ -519,8 +522,8 @@ class Forecaster:
                            for f in ("day", "cash", "owed"))
         facts["decision_date"] = {"p5": self._date(np.quantile(day, 0.05)), "p50": self._date(np.quantile(day, 0.5)),
                                   "p95": self._date(np.quantile(day, 0.95))}
-        facts["cash_balance_at_decision"] = {"p5": usd(int(np.quantile(cash, 0.05))),
-                                             "p50": usd(int(np.quantile(cash, 0.5)))}
+        facts["projected_available_cash_at_decision_date"] = {"p5": usd(int(np.quantile(cash, 0.05))),
+                                                              "p50": usd(int(np.quantile(cash, 0.5)))}
         facts["amount_owed_at_decision"] = {"p50": usd(int(np.quantile(owed, 0.5))), "max": usd(int(owed.max()))}
         merged = next((self.class_range[c] for c in n.context.split("|") if c in self.class_range), None)
         if merged is not None:  # a merged class: the range of its judgment amounts, beside the amount owed
@@ -538,8 +541,9 @@ class Forecaster:
             f = next(f for f in d.financing if f.status != "superseded")
             facts["notes"] = {"principal": usd(f.principal_cents),
                               "judgment_default": (f"final money judgments above {usd(f.judgment_default_threshold_cents)}"
-                                                   f" unpaid or unstayed for {f.judgment_default_days} days, after "
-                                                   f"notice" if f.judgment_default_days else "none")}
+                                                   f" that remain unpaid, undischarged and unstayed for "
+                                                   f"{f.judgment_default_days} days, after notice by the trustee or "
+                                                   f"holders of 25% of the notes" if f.judgment_default_days else "none")}
         return facts
 
     @staticmethod
@@ -600,6 +604,18 @@ class Forecaster:
             out[label] = text + (", or after the analysis period ends" if later else "")
         return out
 
+    @staticmethod
+    def _component(c, remit: dict) -> dict:
+        """One judgment component as the record states it; the declared remittitur scenario beside the compensatory
+        award where a remittitur is the question's premise or its outcome."""
+        sealed = c.unknown and "sealed" in c.label.lower()
+        out = {"component": c.label.split(";")[0].strip() if c.unknown else c.label, "status": c.status,
+               "amount": usd(c.amount_cents) if c.amount_cents is not None else
+               ("sealed; amount not public" if sealed else "computed by statute" if c.statutory else "unknown")}
+        if remit.get("amount_cents") and c.kind == "compensatory":
+            out["remittitur_scenario"] = f"{usd(remit['amount_cents'])}: {remit['label']} ({remit['basis']})"
+        return out
+
     def _pending(self, d: DisputeInstance, node: str) -> list[dict]:
         """The pending post-trial motions the court's ruling at this node decides: each motion's docket entry, what
         it is, and the close of its briefing."""
@@ -645,6 +661,12 @@ class Forecaster:
         for f in d.factors:
             if f.factor_id not in factors:
                 continue
+            if f.factor_id == "amount_finality":
+                fact = self._fixed_amount(d, f)
+                if fact and qid != "forecast_remittitur_accepted":
+                    out["Amount fixed by the court"] = fact
+                if fact or qid == "forecast_remittitur_accepted":
+                    continue
             if f.kind == "present" and f.probability is not None:
                 out[f.label] = {"probability_present": round(f.probability, 3)}
             elif f.distribution:
@@ -652,6 +674,16 @@ class Forecaster:
                                 **({"conflicting_readings": True} if f.conflict else {}),
                                 **({"passage_dated": f.decisive.source_date} if f.decisive else {})}
         return out
+
+    def _fixed_amount(self, d: DisputeInstance, f) -> str:
+        """Where the record reads the amount as fixed by the court: the judgment's amount and date, as a fact."""
+        from app.analysis.events import entered_cents
+
+        levels = self.m["factors"].get(f.factor_id, {}).get("levels", [])
+        dist = f.distribution or {}
+        if not (levels and dist and d.judgment_date) or max(dist, key=dist.get) != levels[-1]:
+            return ""
+        return f"{usd(entered_cents(d))}, in the judgment entered {fmt(d.judgment_date)}"
 
     def state(self, n: Node) -> tuple[dict, tuple[str, ...], dict]:
         d = next(x for x in self.disputes if x.instance_id == n.instance_id)
@@ -661,7 +693,7 @@ class Forecaster:
         ctx = context_phrases([c for c in n.context.split("|") if c], self.class_range)
         terms = {k: v for t in self.m["templates"].values() for k, v in t.get("terms_from_instrument", {}).items()}
         state = {"case": {"as_of": fmt(self.review), "analysis_period_ends": fmt(self.horizon),
-                          "borrower": self.borrower, "counterparty": d.counterparty,
+                          "company": self.borrower, "counterparty": d.counterparty,
                           "obligation": f"{self.m['natures'].get(d.nature, d.nature)}, {d.order_reference}"},
                  "question": {"actor": s["actor"], "decision": s["decision"], "branches": list(n.branches),
                               "timing": s["timing"], "context": ctx},

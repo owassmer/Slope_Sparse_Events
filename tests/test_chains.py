@@ -409,7 +409,7 @@ def test_readings_are_routed_evidence_and_merits_questions_carry_no_cash(base, f
     appeal, stay, merits = state("appeal"), state("stay_motion"), state("ts_liability_jmol")
     assert list(appeal["readings"]) == ["The payer's appeal intent"]  # A2 gets appeal intent only
     assert list(stay["readings"]) == ["The payer's willingness to pay this obligation"]  # A1 gets resistance
-    assert merits["readings"] == {} and "cash_balance_at_decision" not in merits["path_facts"]
+    assert merits["readings"] == {} and "projected_available_cash_at_decision_date" not in merits["path_facts"]
     assert "cash" not in str(merits["path_facts"]).lower()  # J1-J6: no borrower cash, only the record's components
     for q in ("forecast_ts_liability_jmol", "forecast_ts_damages_ruling", "forecast_patent_jmol", "forecast_trebling",
               "forecast_fees_awarded", "forecast_prejudgment_interest"):
@@ -417,6 +417,12 @@ def test_readings_are_routed_evidence_and_merits_questions_carry_no_cash(base, f
 
         text = registry_question(q)["prompt"]["instructions"]
         assert "on the merits or the remedy" in text and "briefs are sealed" in text
+    # the company named by role; the remittitur scenario only where it is the premise; the dated judgment fact
+    assert merits["case"]["company"] == "Akoustis Technologies, Inc." and "borrower" not in merits["case"]
+    assert "remittitur_scenario" not in str(merits["path_facts"])
+    assert "remittitur_scenario" in str(state("ts_damages_ruling")["path_facts"])
+    assert "remittitur_scenario" in str(state("remittitur_accepted")["path_facts"])
+    assert "Amount fixed by the court" not in state("remittitur_accepted")["readings"]
     # the court's standard for each ruling, and the motion it rules on
     assert [m["motion"] for m in merits["path_facts"]["pending_motions"]] == ["D.I. 607"]
     damages, patent, treble = state("ts_damages_ruling"), state("patent_jmol"), state("trebling")
@@ -425,7 +431,7 @@ def test_readings_are_routed_evidence_and_merits_questions_carry_no_cash(base, f
     assert any("Lightning Lube" in s for s in patent["standard"]) and any("Roebuck" in s for s in patent["standard"])
     assert any("Winant" in s and "Hardy v. Toler" in s for s in treble["standard"])  # both sides of an open question
     a4 = state("debtor_response")
-    assert set(a4["path_facts"]["cash_balance_at_decision"]) == {"p5", "p50"}  # the debtor's cash is a path fact
+    assert set(a4["path_facts"]["projected_available_cash_at_decision_date"]) == {"p5", "p50"}  # the debtor's cash is a path fact
     assert a4["question"]["branches"] == ["seek_sale_or_financing", "file", "neither"]  # pay removed (arithmetic)
 
 

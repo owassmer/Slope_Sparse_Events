@@ -1063,7 +1063,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
           "true": "The court grants judgment as a matter of law on trade-secret liability.",
           "false": "The court denies judgment as a matter of law on trade-secret liability."
@@ -1092,7 +1092,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
           "stands": "the damages verdict stands",
           "remit": "the court remits to the most the evidence supports",
@@ -1122,7 +1122,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "accept": "the creditor accepts the remitted amount",
           "new_trial": "the creditor takes a new trial"
@@ -1151,7 +1151,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
           "true": "The court sets aside the patent verdict.",
           "false": "The patent verdict stands."
@@ -1180,7 +1180,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
           "true": "The court grants the motion to treble under the unfair-trade-practices statute.",
           "false": "The court denies the motion to treble."
@@ -1209,7 +1209,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
           "true": "The court awards the requested attorneys' fees.",
           "false": "The court denies the fee motion."
@@ -1238,7 +1238,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
           "true": "The court awards pre-judgment interest on the unjust-enrichment award.",
           "false": "The court denies pre-judgment interest on the unjust-enrichment award."
@@ -1267,7 +1267,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The court decides this on the merits or the remedy. The parties' briefs are sealed as of state.case.as_of; the public grounds and exhibits are in state.record_items and state.evidence.",
         "criteria": {
           "true": "The court enters the requested trade-secret injunction.",
           "false": "The court denies the injunction."
@@ -1296,7 +1296,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The judgment creditor executes on the entered judgment before the post-trial ruling.",
           "false": "The judgment creditor waits for the post-trial ruling."
@@ -1325,7 +1325,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The judgment debtor moves for a stay on a bond or other security.",
           "false": "The judgment debtor leaves the judgment unstayed."
@@ -1354,7 +1354,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The court approves the offered security and stays execution.",
           "false": "The court denies the stay."
@@ -1383,7 +1383,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The court orders registration of the judgment in other districts for good cause.",
           "false": "The court denies registration before finality."
@@ -1412,7 +1412,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The options are state.question.branches; paying in full is among them where the company's cash covers the amount owed.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position. The options are state.question.branches; paying in full is among them where the company's cash covers the amount owed.",
         "criteria": {
           "pay": "pays the amount owed",
           "seek_sale_or_financing": "seeks a sale, strategic transaction or new financing",
@@ -1444,7 +1444,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The judgment debtor files a notice of appeal within 30 days of the final judgment.",
           "false": "The appeal deadline passes without a notice of appeal."
@@ -1473,7 +1473,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The judgment creditor enforces the final judgment.",
           "false": "The judgment creditor holds off enforcement."
@@ -1502,7 +1502,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The judgment debtor offers to settle for its available cash above its 30-day operating need.",
           "false": "The judgment debtor makes no settlement offer."
@@ -1531,7 +1531,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The judgment creditor accepts the offered settlement.",
           "false": "The judgment creditor rejects the offered settlement."
@@ -1560,7 +1560,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The holders of 25% (or the trustee) give notice of the judgment default and accelerate.",
           "false": "The notes stay outstanding on their terms."
@@ -1589,7 +1589,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "accelerate": "The holders declare the notes due.",
           "repurchase_only": "The holders require repurchase on the repurchase date.",
@@ -1619,7 +1619,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The issuer files for bankruptcy.",
           "false": "The issuer stays out of bankruptcy."
@@ -1648,7 +1648,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "Three or more noteholders file an involuntary bankruptcy petition against the issuer.",
           "false": "The noteholders file no involuntary petition."
@@ -1677,7 +1677,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The board calls the reverse-split vote in time to regain compliance.",
           "false": "The compliance date passes without a reverse-split vote."
@@ -1706,7 +1706,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The stockholders approve the reverse split.",
           "false": "The reverse split fails at the vote."
@@ -1735,7 +1735,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The issuer requests a hearing before the Nasdaq Hearings Panel.",
           "false": "The issuer accepts the Staff Determination without a hearing."
@@ -1764,7 +1764,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The Hearings Panel grants an exception that keeps the stock listed through the end of the analysis period.",
           "false": "The stock is delisted before the end of the analysis period."
@@ -1793,7 +1793,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The company files for bankruptcy on that date.",
           "false": "The company keeps operating without filing."
@@ -1822,7 +1822,7 @@
         "readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash on this path; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, evidence about the actor's position.",
         "criteria": {
           "true": "The company files for bankruptcy on that date.",
           "false": "The company does not file and keeps operating with its cash exhausted."
