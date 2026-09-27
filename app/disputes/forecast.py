@@ -261,6 +261,16 @@ MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "pate
 # questions about an unpaid judgment: their facts pool only trajectories where an amount is still owed
 OWED = {"execute_pre_ruling", "stay_motion", "stay_approved", "registration_early", "debtor_response",
         "enforce_after_final", "settlement_offer", "settlement_accept", "holders_act_judgment"}
+# questions whose actor weighs the contract dates ahead: settlement, the cash floor, cash running out, the notes
+DATED = {"settlement_offer", "settlement_accept", "petition_cash_floor", "petition_cash_out", "holders_act_judgment",
+         "holders_act_delisting", "holders_involuntary", "petition_on_notes"}
+TRIGGER_PHRASES = {
+    "judgment_default_entered": "60 days after the judgment's entry: the indenture's judgment-default period (§7.01(i)) counted from entry",
+    "judgment_default_ruling": "60 days after the post-trial ruling: the indenture's judgment-default period (§7.01(i)) counted from the ruling",
+    "appeal_deadline": "the deadline to file a notice of appeal",
+    "coupon": "the notes' interest payment date",
+    "listing_deadline": "Nasdaq's deadline to regain compliance with the minimum bid price",
+    "repurchase_due": "the repurchase date the holders may require after a delisting"}
 MOTION_PHRASES = {"rule_50b": "renewed motion for judgment as a matter of law (Fed. R. Civ. P. 50(b))",
                   "rule_52b": "motion to amend the findings (Fed. R. Civ. P. 52(b))",
                   "rule_59a": "motion for a new trial or remittitur (Fed. R. Civ. P. 59(a))",
@@ -517,6 +527,13 @@ class Forecaster:
             facts["judgment_after_ruling"] = f"{usd(merged[0])} to {usd(merged[1])}"
         if reg.get("node") in ("stay_motion", "stay_approved"):
             facts["bond_collateral_required"] = usd(int(np.quantile(self._collateral(d, owed), 0.5)))
+        if n.node == "stay_approved" and (offer := self._pooled(rows, masks, "stay_offer")) is not None:
+            facts["reduced_security_offered"] = {"p5": usd(int(np.quantile(offer, 0.05))),
+                                                 "p50": usd(int(np.quantile(offer, 0.5)))}
+        if n.node in ("settlement_offer", "settlement_accept"):
+            facts["settlement_offer"] = self._settlement(rows, masks)
+        if n.node in DATED and (dates := self._contract_dates(rows, masks)):
+            facts["contract_dates"] = dates
         if any(f.status != "superseded" for f in d.financing):
             f = next(f for f in d.financing if f.status != "superseded")
             facts["notes"] = {"principal": usd(f.principal_cents),
@@ -524,6 +541,64 @@ class Forecaster:
                                                    f" unpaid or unstayed for {f.judgment_default_days} days, after "
                                                    f"notice" if f.judgment_default_days else "none")}
         return facts
+
+    @staticmethod
+    def _pooled(rows: list[dict], masks: list, field: str) -> np.ndarray | None:
+        """A per-trajectory amount the chain computes at a step, pooled where the situation holds. Rows whose step
+        computes none (all zero: the branch that does not take the step) are left out, unless every row is."""
+        got = [(r[field], m) for r, m in zip(rows, masks, strict=True) if r.get(field) is not None and m.any()]
+        if not got:
+            return None
+        some = [(a, m) for a, m in got if a[m].any()]
+        return np.concatenate([a[m] for a, m in (some or got)])
+
+    def _settlement(self, rows: list[dict], masks: list) -> dict:
+        """The offer the settlement questions decide on: its amount, the company's 30-day operating need on the
+        settlement date, and the payment form and schedule of the scenario in force."""
+        p = self.m["parameters"]["settlement_date_in_interval"]
+        at_end = bool(self.sens.get("settlement_date_in_interval"))
+        monthly = self.m["settlement_scenarios"]["base"] == "monthly" or bool(self.sens.get("settlement_monthly"))
+        out: dict = {}
+        if (offer := self._pooled(rows, masks, "settle_offer")) is not None:
+            out["amount"] = {"p5": usd(int(np.quantile(offer, 0.05))), "p50": usd(int(np.quantile(offer, 0.5)))}
+        if self.draws is not None and self.draws.basis is not None and not at_end:
+            need = self.draws.basis.need
+            pd = [np.clip(r["day"] + int(p["value"]), 0, need.shape[1] - 1) for r in rows]
+            vals = np.concatenate([need[np.arange(need.shape[0]), x][m] for x, m in zip(pd, masks, strict=True)])
+            if vals.size:
+                out["thirty_day_operating_need"] = usd(int(np.quantile(vals, 0.5)))
+        out["basis"] = ("the company's available cash on the settlement date less its 30-day operating need, floored "
+                        "at zero and capped at the amount owed")
+        when = "at the end of the current stage of the dispute" if at_end else f"{int(p['value'])} days after the decision"
+        out["payment"] = (f"equal monthly payments from the settlement date ({when}) to {fmt(self.horizon)}" if monthly
+                          else f"one payment of the full amount on the settlement date, {when}")
+        return out
+
+    def _contract_dates(self, rows: list[dict], masks: list) -> dict:
+        """The dated contract and procedural triggers the chain computes, on or after the decision, inside the
+        analysis period: one date, or the range across these trajectories."""
+        from app.analysis.events import BIG
+
+        names = dict.fromkeys(k for r in rows for k in (r.get("triggers") or {}))
+        out = {}
+        for name in names:
+            label = TRIGGER_PHRASES.get(name)
+            if label is None:
+                raise ValueError(f"No plain phrase for contract trigger {name!r}")
+            vals, later = [], False
+            for r, m in zip(rows, masks, strict=True):
+                if name not in (r.get("triggers") or {}):
+                    continue
+                v, day = r["triggers"][name][m], r["day"][m]
+                vals.append(v[(v >= day) & (v < self.days)])
+                later |= bool(((v >= self.days) & (v < BIG)).any())
+            v = np.concatenate(vals) if vals else np.array([])
+            if not v.size:
+                continue
+            lo, hi = self._date(np.quantile(v, 0.05)), self._date(np.quantile(v, 0.95))
+            text = lo if lo == hi else f"between {lo} and {hi} (median {self._date(np.quantile(v, 0.5))})"
+            out[label] = text + (", or after the analysis period ends" if later else "")
+        return out
 
     def _pending(self, d: DisputeInstance, node: str) -> list[dict]:
         """The pending post-trial motions the court's ruling at this node decides: each motion's docket entry, what

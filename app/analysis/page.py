@@ -312,8 +312,9 @@ def _fact_lines(facts: dict) -> list[str]:
                 continue
             out.append("Components: " + "; ".join(f"{c['component']} {c['amount']} ({c['status']})" for c in v))
         elif isinstance(v, dict):
-            out.append(f"{name}: " + ", ".join(f"{kk.replace('_', ' ')} {vv if not isinstance(vv, dict) else vv}"
-                                                for kk, vv in v.items()))
+            def text(x) -> str:
+                return ", ".join(f"{a.replace('_', ' ')} {b}" for a, b in x.items()) if isinstance(x, dict) else str(x)
+            out.append(f"{name}: " + "; ".join(f"{kk.replace('_', ' ')} {text(vv)}" for kk, vv in v.items()))
         elif isinstance(v, list):
             if v:
                 out.append(f"{name}: " + "; ".join(", ".join(str(x) for x in e.values()) if isinstance(e, dict)

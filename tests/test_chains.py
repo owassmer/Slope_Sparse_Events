@@ -517,3 +517,33 @@ def test_neutral_residuals_reproduce_attribution_step_two(base):
     ec = Chain(d, SETUP, M, Draws(b.cash.shape[0], basis=b)).run(stayed.steps).events
     level = np.cumsum(ec.lock, axis=1)
     assert (ec.lock > 0).any() and (level >= 0).all() and (level[:, -1][ec.lock.sum(axis=1) == 0] == 0).all()
+
+
+def test_settlement_stay_and_contract_date_facts_state_what_the_chain_computes(full):
+    """The offer and the reduced security Jev weighs are the chain's own amounts; contract dates are those on or after
+    the decision inside the period. A stub row stands in for the chain's per-trajectory arrays."""
+    from app.analysis.events import BIG
+
+    fc, _ = full
+    n4 = next(n for n in fc.nodes.values() if n.node == "settlement_accept")
+    j8 = next(n for n in fc.nodes.values() if n.node == "stay_approved")
+    k = len(fc.draws.basis.cash)
+    day = np.full(k, 40)
+    base = {"day": day, "cash": np.full(k, 9_000_000_00), "owed": np.full(k, 38_000_000_00),
+            "collateral": np.zeros(k, dtype=np.int64), "petition": np.full(k, -1)}
+    offered = {**base, "settle_offer": np.full(k, 5_000_000_00), "stay_offer": np.full(k, 4_000_000_00),
+               "triggers": {"coupon": np.full(k, N - 3), "appeal_deadline": np.full(k, 20),
+                            "judgment_default_ruling": np.where(np.arange(k) % 2 == 0, 100, BIG)}}
+    declined = {**base, "settle_offer": np.zeros(k, dtype=np.int64), "stay_offer": np.zeros(k, dtype=np.int64),
+                "triggers": offered["triggers"]}
+    saved = fc.facts
+    try:
+        fc.facts = {**saved, n4.key: [offered, declined], j8.key: [offered, declined]}
+        s = fc.path_facts(n4, judgment())["settlement_offer"]
+        assert s["amount"] == {"p5": usd(5_000_000_00), "p50": usd(5_000_000_00)}  # the 'no' branch's zeros left out
+        assert "thirty_day_operating_need" in s and s["payment"].startswith("one payment of the full amount")
+        dates = fc.path_facts(n4, judgment())["contract_dates"]
+        assert len(dates) == 2 and not any("appeal" in x for x in dates)  # the appeal deadline passed before it
+        assert fc.path_facts(j8, judgment())["reduced_security_offered"]["p50"] == usd(4_000_000_00)
+    finally:
+        fc.facts = saved
