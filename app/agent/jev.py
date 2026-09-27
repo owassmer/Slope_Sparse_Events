@@ -66,9 +66,12 @@ def registry_question(question_id: str) -> dict:
 
 
 def build_question(entry: dict) -> Choice | Noul | Score:
-    """Registry mapping: global rules prefixed to the question's instructions; primitive from the entry."""
-    rules = "\n".join(f"- {r}" for r in question_registry()["global_rules"])
-    instructions = f"Global rules:\n{rules}\n\nQuestion:\n{entry['prompt']['instructions']}"
+    """Registry mapping: the profile's rules (the global rules unless the profile states its own) prefixed to the
+    question's instructions; primitive from the entry."""
+    reg = question_registry()
+    own = reg["profiles"].get(entry.get("profile", ""), {}).get("rules")
+    rules = "\n".join(f"- {r}" for r in (own if own is not None else reg["global_rules"]))
+    instructions = f"{'Rules' if own is not None else 'Global rules'}:\n{rules}\n\nQuestion:\n{entry['prompt']['instructions']}"
     if entry["primitive"] == "noul":
         return Noul(instructions=instructions, criteria=entry["prompt"]["criteria"])
     if entry["primitive"] == "score":
