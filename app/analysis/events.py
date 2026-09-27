@@ -16,7 +16,6 @@ at most one limit's worth, are left out of this pre-engine figure). Stress mode 
 from __future__ import annotations
 
 import copy
-
 import zlib
 from dataclasses import dataclass, field
 from datetime import date, timedelta

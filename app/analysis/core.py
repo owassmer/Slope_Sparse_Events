@@ -26,12 +26,20 @@ from datetime import timedelta
 import numpy as np
 
 from app.analysis import operating
-from app.analysis.engine import (NEED_DAYS, NO_DUE, PREFERENCE_DAYS, Trajectories, installment_amounts, prepare, run,
-                                 run_many)
+from app.analysis.engine import (
+    NEED_DAYS,
+    NO_DUE,
+    PREFERENCE_DAYS,
+    Trajectories,
+    installment_amounts,
+    prepare,
+    run,
+    run_many,
+)
 from app.analysis.events import BANK, Basis, Draws, EventCash, bank_trace, event_trace
 from app.analysis.setup import DRAWS, SEED, Setup
 from app.analysis.stats import expectation, weighted_quantiles
-from app.disputes.forecast import DisputePath, Judgment, combo_probability, distributions, joint_paths
+from app.disputes.forecast import DisputePath, Judgment, distributions, joint_paths
 from app.disputes.rules import load_model
 from app.domain.investigation import DisputeInstance
 from app.finance.bank import BankFeed

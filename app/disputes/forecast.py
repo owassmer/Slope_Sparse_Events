@@ -99,7 +99,7 @@ def atoms(key: str) -> set[str]:
     return {k for c in json.loads(key[1:]) for k, _ in c} if key.startswith(COMPOSITE) else {key}
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _conjunctions(key: str) -> tuple:
     """A composite key's disjoint conjunctions of (node, branch), parsed once."""
     return tuple(tuple(tuple(e) for e in c) for c in json.loads(key[1:]))
