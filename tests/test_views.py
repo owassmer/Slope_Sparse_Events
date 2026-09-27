@@ -331,7 +331,7 @@ def test_the_trace_carries_the_dated_triggers_the_engine_computes(base):
     g, n = tr.triggers, c.N
     ix = lambda d: (d - REVIEW).days - 1  # noqa: E731
     assert set(g) == {"judgment_default_entered", "judgment_default_ruling", "appeal_deadline", "coupon",
-                      "listing_deadline", "repurchase_due"}
+                      "listing_deadline", "repurchase_due", "holders_petition_earliest"}
     assert (g["coupon"] == ix(date(2024, 12, 16))).all() and (g["listing_deadline"] == ix(date(2024, 10, 21))).all()
     assert (g["judgment_default_entered"] == ix(date(2024, 8, 19))).all()
     ad = np.where(c.AD < n, c.AD, 10**6)

@@ -371,6 +371,29 @@ def test_an_effective_stay_before_the_ripe_date_prevents_the_default(base):
     assert (ripe[~early] == AUG19).all()
 
 
+def test_the_notes_petition_questions_get_the_facts_of_the_day_each_actor_may_file(base, full):
+    """H3 on the 19 Aug acceleration is dated at the earliest day §7.06 lets the holders file (acceleration + 60), the
+    day the engine books their petition; A5 at the acceleration. Both pool only trajectories where the holders
+    accelerated, and the holders' earliest filing date is a dated trigger."""
+    fc, _ = full
+    route = M["parameters"]["holder_petition_route"]["request_days"]
+    c = chain(base)
+    c.step("execute_pre_ruling", "I1", "no")
+    c.step("judgment_default", "I1", "holders_file")
+    assert (c.ev.petition == AUG19 + route).all()
+    tr = chain(base).run((("execute_pre_ruling", "I1", "no"), ("judgment_default", "I1", "accelerated")))
+    assert (tr.triggers["holders_petition_earliest"] == AUG19 + route).all()
+    assert (chain(base).run((("execute_pre_ruling", "I1", "no"),)).triggers["holders_petition_earliest"] >= 10**6).all()
+    for name, at in (("holders_involuntary", AUG19 + route), ("petition_on_notes", AUG19)):
+        keys = [k for k, n in fc.nodes.items() if n.node == name and n.context.startswith("judgment_I1")]
+        assert keys
+        for k in keys:
+            for r in fc.facts[k]:
+                day = r["day"][r["day"] < N]
+                assert day.size and (day == at).all()
+                assert (r["triggers"]["judgment_default_ruling"] >= 10**6).all()  # only where the holders acted
+
+
 def test_delisting_is_a_default_on_its_date_and_the_repurchase_date_is_code(base, full):
     fc, paths = full
     for cls, when in (("delisted_suspension", date(2024, 11, 1)), ("delisted_panel", date(2024, 12, 6))):

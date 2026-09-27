@@ -276,7 +276,8 @@ TRIGGER_PHRASES = {
     "appeal_deadline": "the deadline to file a notice of appeal",
     "coupon": "the notes' interest payment date",
     "listing_deadline": "Nasdaq's deadline to regain compliance with the minimum bid price",
-    "repurchase_due": "the repurchase date the holders may require after a delisting"}
+    "repurchase_due": "the repurchase date the holders may require after a delisting",
+    "holders_petition_earliest": "the earliest date the holders may file a petition (Indenture §7.06)"}
 MOTION_PHRASES = {"rule_50b": "renewed motion for judgment as a matter of law (Fed. R. Civ. P. 50(b))",
                   "rule_52b": "motion to amend the findings (Fed. R. Civ. P. 52(b))",
                   "rule_59a": "motion for a new trial or remittitur (Fed. R. Civ. P. 59(a))",
@@ -803,7 +804,8 @@ class _Walk:
         conds = list(self.fc.spec[name].get("situation", []))
         if not conds:
             return ()
-        held, never = self.fc.situation(self.d, s.steps + (probe,), conds)
+        at = probe if isinstance(probe[0], tuple) else (probe,)  # one probe step, or several
+        held, never = self.fc.situation(self.d, s.steps + at, conds)
         out = []
         for c in conds:
             if c == "ruled":
@@ -942,25 +944,33 @@ class _Walk:
         if f is None or not f.judgment_default_days or not self.arises(s, ("judgment_default", phase, "no")):
             return then(s)
         probe = ("judgment_default", phase, "no")
+        acc = ("judgment_default", phase, "accelerated")
+        issuer, holders = (acc, ("notes_due_date", "issuer", "")), (acc, ("notes_due_date", "holders", ""))
         earlier = ("entered_not_acted",) if phase != "I1" and any(x[:2] == ("judgment_default", "I1")
                                                                   for x in s.steps) else ()
         h1 = self.node("holders_act_judgment", phase, s.cls, *earlier, s=s, probe=probe)
-        a5 = self.node("petition_on_notes", f"judgment_{phase}", s=s, probe=probe,
+        a5 = self.node("petition_on_notes", f"judgment_{phase}", s=s, probe=issuer,
                        assumptions=("the holders accelerate the notes",))
-        h3 = self.node("holders_involuntary", f"judgment_{phase}", s=s, probe=probe,
+        h3 = self.node("holders_involuntary", f"judgment_{phase}", s=s, probe=holders,
                        assumptions=("the notes are accelerated and unpaid", "the issuer does not file"))
-        keys = (h1, a5, h3)
+        self.notes_facts(s, ((a5, issuer), (h3, holders)))
         classes = {"yes": [[(h1, "yes"), (a5, "yes")]],  # the issuer files on acceleration
                    "holders_file": [[(h1, "yes"), (a5, "no"), (h3, "yes")]],  # the holders file, per §7.06
                    "accelerated": [[(h1, "yes"), (a5, "no"), (h3, "no")]]}
         for branch, parts in self.unfiled(s, "judgment_default", phase, classes,
                                           (("holders_file", "accelerated"),)).items():
-            y = self.take(s, ("judgment_default", phase, branch), (composite(parts), "yes"), keys, notes_due=True)
+            y = self.take(s, ("judgment_default", phase, branch), (composite(parts), "yes"), (h1,), notes_due=True)
             if branch != "accelerated" and (self.fc.trace(self.d, y.steps).petition >= 0).all():
                 self.floor(y, "petition")  # a petition on every trajectory
             else:
                 then(y)
-        then(self.take(s, probe, (composite([[(h1, "no")]]), "yes"), keys))
+        then(self.take(s, probe, (composite([[(h1, "no")]]), "yes"), (h1,)))
+
+    def notes_facts(self, s: _S, at) -> None:
+        """The petition questions on notes due and unpaid get the facts of the day each actor may file, on the
+        trajectories where the notes fell due: the issuer on the day they fall due, the holders once §7.06 allows."""
+        for k, steps in at:
+            self.fc.record((k,), self.fc.trace(self.d, s.steps + steps))
 
     def unfiled(self, s: _S, node: str, ctx: str, classes: dict, pairs) -> dict:
         """A holders' petition that falls after the period on every trajectory books nothing: its class joins the
@@ -1095,31 +1105,36 @@ class _Walk:
             return self.floor(s, outcome)
         h2 = self.node("holders_act_delisting", dc, s=s, probe=probe,
                        assumptions=("the stock is not listed on an Eligible Market",))
-        a5 = self.node("petition_on_notes", f"delisting_{dc}", s=s, probe=probe,
+        acc = ("delisting_notes", dc, "accelerated")
+        issuer, holders = (acc, ("notes_due_date", "issuer", "")), (acc, ("notes_due_date", "holders", ""))
+        a5 = self.node("petition_on_notes", f"delisting_{dc}", s=s, probe=issuer,
                        assumptions=("the holders accelerate the notes",))
-        h3 = self.node("holders_involuntary", f"delisting_{dc}", s=s, probe=probe,
+        h3 = self.node("holders_involuntary", f"delisting_{dc}", s=s, probe=holders,
                        assumptions=("the notes are accelerated and unpaid", "the issuer does not file"))
+        facts = [(a5, issuer), (h3, holders)]
         classes = {"petition_delist": [[(h2, "accelerate"), (a5, "yes")]],
                    "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
                    "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]]}
         none = [[(h2, "neither")]]
-        keys = [h2, a5, h3]
         if Chain_(self.fc, self.d).repurchase_day(delist) < self.N:
-            a5r = self.node("petition_on_notes", f"repurchase_{dc}", s=s, probe=probe,
+            rep = ("delisting_notes", dc, "repurchase_unpaid")
+            r_issuer, r_holders = (rep, ("notes_due_date", "issuer", "")), (rep, ("notes_due_date", "holders", ""))
+            a5r = self.node("petition_on_notes", f"repurchase_{dc}", s=s, probe=r_issuer,
                             assumptions=("the repurchase falls due unpaid",))
-            h3r = self.node("holders_involuntary", f"repurchase_{dc}", s=s, probe=probe,
+            h3r = self.node("holders_involuntary", f"repurchase_{dc}", s=s, probe=r_holders,
                             assumptions=("the repurchase is unpaid", "the issuer does not file"))
             classes["petition_repurchase"] = [[(h2, "repurchase_only"), (a5r, "yes")]]
             classes["petition_repurchase_holders"] = [[(h2, "repurchase_only"), (a5r, "no"), (h3r, "yes")]]
             classes["repurchase_unpaid"] = [[(h2, "repurchase_only"), (a5r, "no"), (h3r, "no")]]
-            keys += [a5r, h3r]
+            facts += [(a5r, r_issuer), (h3r, r_holders)]
         else:  # the repurchase date falls after the horizon: requiring it moves nothing inside it
             none.append([(h2, "repurchase_only")])
         classes["none"] = none
+        self.notes_facts(s, facts)
         classes = self.unfiled(s, "delisting_notes", dc, classes, (("petition_delist_holders", "accelerated"),
                                                                    ("petition_repurchase_holders", "repurchase_unpaid")))
         for c, parts in classes.items():
-            y = self.take(s, ("delisting_notes", dc, c), (composite(parts), "yes"), keys,
+            y = self.take(s, ("delisting_notes", dc, c), (composite(parts), "yes"), (h2,),
                           notes_due=c != "none")
             self.floor(y, outcome)
 

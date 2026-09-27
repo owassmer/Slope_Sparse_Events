@@ -216,7 +216,7 @@ def interest_1961(principal: int, increase: int, since_entry: np.ndarray, since_
 BIG = 10**6  # a day index meaning "not in this path / never"
 BANK = "bank"  # the bank view's chain: the common borrower inputs and the company's distress decisions, no dispute
 TRIGGERS = ("judgment_default_entered", "judgment_default_ruling", "appeal_deadline", "coupon", "listing_deadline",
-            "repurchase_due")  # dated contract and rule triggers given to the questions (day index; BIG: none)
+            "repurchase_due", "holders_petition_earliest")  # dated contract and rule triggers given to the questions (day index; BIG: none)
 
 
 PETITION_CAUSES = ("none", "enforcement", "notes", "cash_floor")
@@ -726,6 +726,13 @@ class Chain:
             elif branch == "petition_repurchase_holders":
                 self.petition(rep + self.holder_route_days(), open_, cause="notes")
             return np.where(open_, self.delisted, BIG)
+        if node == "notes_due_date":
+            # a probe that books nothing: the day the issuer may file on notes due and unpaid (ctx "issuer"), or the
+            # earliest day the holders may file (ctx "holders": holder_petition_route); and whether the post-trial
+            # motions are ruled on by then
+            due = self.marks["notes_due"]
+            self.mark("ruled", self.F)
+            return np.where(due < BIG, due + (self.holder_route_days() if ctx == "holders" else 0), BIG)
         if node == "cash_floor":
             t = self.tau()
             if branch == "yes":
@@ -783,6 +790,9 @@ class Chain:
                 out["coupon"] = inside(np.full(self.n, pay))
             if f.listing_deadline is not None:
                 out["listing_deadline"] = inside(np.full(self.n, self.ix(f.listing_deadline)))
+            due = self.marks["notes_due"]
+            if f.kind == "convertible_notes" and (due < BIG).any():  # §7.06: the holders' request, then 60 days
+                out["holders_petition_earliest"] = inside(np.where(due < BIG, due + self.holder_route_days(), BIG))
             if f.repurchase_business_days and (self.delisted < self.N).any():
                 rep = never.copy()
                 rep[self.delisted < self.N] = self.repurchase_day(self.delisted[self.delisted < self.N])
