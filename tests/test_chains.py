@@ -20,6 +20,7 @@ from app.disputes.forecast import (
     path_probability,
 )
 from app.disputes.rules import load_model
+from app.domain.values import usd
 
 M = load_model()
 N = (SETUP.horizon - REVIEW).days
@@ -111,10 +112,22 @@ def test_every_merged_ruling_class_is_cash_and_date_identical_and_jev_gets_its_r
     for n in fc.nodes.values():
         label = next((x for x in n.context.split("|") if x in fc.class_range), None)
         if label and n.question_id not in fc.no_cash:
-            owed = fc.path_facts(n, judgment()).get("amount_owed_at_decision")
-            if owed:
+            facts = fc.path_facts(n, judgment())
+            if facts.get("amount_owed_at_decision"):  # the class's range of judgments, beside the amount owed
                 lo, hi = fc.class_range[label]
-                assert "p50" not in owed and owed["judgment_after_ruling"]["max"] != owed["judgment_after_ruling"]["min"]
+                assert lo != hi and facts["judgment_after_ruling"] == f"{usd(lo)} to {usd(hi)}"
+                assert "p50" in facts["amount_owed_at_decision"]
+
+
+def test_path_facts_pool_only_trajectories_where_the_situation_holds(full):
+    """Inside the analysis period, before any petition, and for a question about an unpaid judgment, still owed."""
+    fc, _ = full
+    row = {"day": np.array([5, 10, 12, N + 3]), "petition": np.array([-1, 3, -1, -1]),
+           "owed": np.array([100, 100, 0, 100])}
+    a4 = next(n for n in fc.nodes.values() if n.node == "debtor_response")
+    floor = next(n for n in fc.nodes.values() if n.node == "petition_cash_floor")
+    assert fc.live(a4, row).tolist() == [True, False, False, False]
+    assert fc.live(floor, row).tolist() == [True, False, True, False]
 
 
 def test_a_levy_can_come_before_stay_approval_and_none_after_it(full, base):

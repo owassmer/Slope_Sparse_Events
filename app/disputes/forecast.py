@@ -258,6 +258,9 @@ def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]]) -> list
 
 MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "patent_jmol", "trebling", "fees_awarded",
           "prejudgment_interest", "injunction")
+# questions about an unpaid judgment: their facts pool only trajectories where an amount is still owed
+OWED = {"execute_pre_ruling", "stay_motion", "stay_approved", "registration_early", "debtor_response",
+        "enforce_after_final", "settlement_offer", "settlement_accept", "holders_act_judgment"}
 MOTION_PHRASES = {"rule_50b": "renewed motion for judgment as a matter of law (Fed. R. Civ. P. 50(b))",
                   "rule_52b": "motion to amend the findings (Fed. R. Civ. P. 52(b))",
                   "rule_59a": "motion for a new trial or remittitur (Fed. R. Civ. P. 59(a))",
@@ -287,7 +290,7 @@ class Forecaster:
         self.class_members: dict[str, list[tuple[int, int]]] = {}  # ruling class -> (total, fees) of each outcome
         self.class_range: dict[str, tuple[int, int]] = {}  # merged amount class label -> (min, max) judgment
         self.nodes: dict[str, Node] = {}
-        self.facts: dict[str, list] = {}  # node key -> [(day, cash, owed, collateral) arrays] pooled over paths
+        self.facts: dict[str, list] = {}  # node key -> the rows `record` keeps, one per path that asks it
         self._traces: dict = {}
 
     def ordered(self) -> list[tuple[DisputeInstance, None]]:
@@ -461,8 +464,22 @@ class Forecaster:
         return {d.instance_id: {"": self.paths(d)} for d, _ in self.ordered()}
 
     def record(self, keys, tr) -> None:
+        """Keep, for each node the step asks, the facts code computed at the decision on every trajectory: its day,
+        cash, amount owed and bond collateral, the petition day, and (where the chain computes them) the settlement
+        offer, the reduced-security proposal and the dated contract triggers."""
+        row = {"day": tr.day[-1], "cash": tr.cash[-1], "owed": tr.owed[-1], "collateral": tr.collateral[-1],
+               "petition": tr.petition, "settle_offer": getattr(tr, "settle_offer", None),
+               "stay_offer": getattr(tr, "stay_offer", None), "triggers": getattr(tr, "triggers", None)}
         for k in keys:
-            self.facts.setdefault(k, []).append((tr.day[-1], tr.cash[-1], tr.owed[-1], tr.collateral[-1]))
+            self.facts.setdefault(k, []).append(row)
+
+    def live(self, n: Node, row: dict) -> np.ndarray:
+        """The trajectories where the question's situation holds: the decision falls inside the analysis period,
+        before any petition, and (for a question about an unpaid judgment) an amount is still owed."""
+        day = row["day"]
+        pet = np.where(row["petition"] < 0, np.iinfo(np.int64).max, row["petition"])
+        ok = (day < self.days) & (day < pet)
+        return ok & (row["owed"] > 0) if n.node in OWED else ok
 
 
     # --- the residual questions' state and Jev --------------------------------------------------------------------
@@ -485,26 +502,19 @@ class Forecaster:
         if n.question_id in self.no_cash:
             return facts
         rows = self.facts.get(n.key, [])
-        if not rows:
+        masks = [self.live(n, r) for r in rows]
+        if not any(m.any() for m in masks):
             return facts
-        day = np.concatenate([r[0] for r in rows])
-        inside = day < self.days
-        if not inside.any():
-            return facts
-        cash, owed, coll = (np.concatenate([r[i] for r in rows])[inside] for i in (1, 2, 3))
-        facts["decision_date"] = {"p5": self._date(np.quantile(day[inside], 0.05)),
-                                  "p50": self._date(np.quantile(day[inside], 0.5)),
-                                  "p95": self._date(np.quantile(day[inside], 0.95))}
+        day, cash, owed = (np.concatenate([r[f][m] for r, m in zip(rows, masks, strict=True)])
+                           for f in ("day", "cash", "owed"))
+        facts["decision_date"] = {"p5": self._date(np.quantile(day, 0.05)), "p50": self._date(np.quantile(day, 0.5)),
+                                  "p95": self._date(np.quantile(day, 0.95))}
         facts["cash_balance_at_decision"] = {"p5": usd(int(np.quantile(cash, 0.05))),
                                              "p50": usd(int(np.quantile(cash, 0.5)))}
-        facts["amount_owed_at_decision"] = {"p50": usd(int(np.quantile(owed, 0.5))),
-                                            "max": usd(int(owed.max()))}
+        facts["amount_owed_at_decision"] = {"p50": usd(int(np.quantile(owed, 0.5))), "max": usd(int(owed.max()))}
         merged = next((self.class_range[c] for c in n.context.split("|") if c in self.class_range), None)
-        if merged is not None:  # a merged class: its range of judgment amounts, not the representative's figure
-            facts["amount_owed_at_decision"] = {
-                "judgment_after_ruling": {"min": usd(merged[0]), "max": usd(merged[1])},
-                "note": "the range across these post-trial ruling outcomes; post-judgment interest accrues, less any "
-                        "amount collected"}
+        if merged is not None:  # a merged class: the range of its judgment amounts, beside the amount owed
+            facts["judgment_after_ruling"] = f"{usd(merged[0])} to {usd(merged[1])}"
         if reg.get("node") in ("stay_motion", "stay_approved"):
             facts["bond_collateral_required"] = usd(int(np.quantile(self._collateral(d, owed), 0.5)))
         if any(f.status != "superseded" for f in d.financing):
