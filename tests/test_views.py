@@ -3,14 +3,19 @@ common borrower inputs on the same operating draws; research facts enter the aug
 judgments are stubs."""
 
 import json
+from datetime import date
 
 import numpy as np
 import pytest
 from akoustis_fixture import REVIEW, SETUP, SNAP, basis, judgment
 
+from app.analysis import operating
 from app.analysis.core import Analysis, EventModel
-from app.analysis.events import BANK
+from app.analysis.events import BANK, Chain, Draws, bank_trace, coupon_terms
+from app.analysis.setup import DRAWS, SEED
+from app.disputes.akoustis_pre_d import NOTES
 from app.disputes.forecast import Forecaster, Judgment, bank_state
+from app.disputes.rules import load_model
 from app.finance.bank import load_feed
 
 BORROWER = "Akoustis Technologies, Inc."
@@ -86,3 +91,41 @@ def test_the_bank_questions_carry_bank_facts_only(base):
         text = json.dumps(st).lower()
         for word in ("judgment", "qorvo", "notes", "nasdaq", "listing", "default", "indenture"):
             assert word not in text, (n.key, word)
+
+
+# The notes coupon: a common borrower input -------------------------------------------------------------------------
+
+QUOTES = ["On June 9, 2022, Akoustis Technologies, Inc. (the \u201cCompany\u201d) issued $44.0 million aggregate principal "
+          "amount of its 6.0% Convertible Senior Notes due 2027 (the \u201cNotes\u201d)",
+          "The Notes bear interest at a rate of 6.0% per year until maturity on June 15, 2027",
+          "is payable semi-annually in arrears on June 15 and December 15 of each year, beginning on December 15, 2022"]
+DEC16 = (date(2024, 12, 16) - REVIEW).days - 1
+
+
+def test_the_coupon_is_arithmetic_on_its_quote_and_an_unstated_coupon_stays_unknown(base):
+    bare = NOTES.model_copy(update={"coupon_cents": None, "interest_dates": ()})
+    got = coupon_terms(bare, QUOTES, REVIEW, SETUP.horizon)
+    assert got.coupon_cents == 4_400_000_000 * 6 // 100 // 2 == 132_000_000
+    assert got.interest_dates == (date(2024, 12, 15),)
+    assert coupon_terms(bare, QUOTES[:1], REVIEW, SETUP.horizon).coupon_cents is None  # no rate period: unknown
+    wrong = bare.model_copy(update={"principal_cents": 4_500_000_000})
+    assert coupon_terms(wrong, QUOTES, REVIEW, SETUP.horizon).coupon_cents is None  # the quote must match
+    with pytest.raises(ValueError):  # a null never becomes a $0 obligation
+        bank_trace(bare, (), SETUP, load_model(), Draws(DRAWS, basis=base[1]))
+
+
+def test_both_views_pay_the_same_coupon_and_none_after_a_petition(base):
+    m, dr = load_model(), Draws(DRAWS, basis=base[1])
+    bank = bank_trace(NOTES, (), SETUP, m, dr).events.cash
+    aug = Chain(judgment(), SETUP, m, dr).run(()).events.cash
+    assert (bank[:, DEC16] == -75_000_000).all() and (aug[:, DEC16] == bank[:, DEC16]).all()
+    filed = bank_trace(NOTES, (("cash_floor", "", "yes"),), SETUP, m, dr)
+    pet = filed.events.petition
+    assert ((pet >= 0) & (pet <= DEC16)).any() and (filed.events.cash[(pet >= 0) & (pet <= DEC16), DEC16] == 0).all()
+
+
+def test_the_bootstrap_does_not_replay_the_june_coupon():
+    feed = load_feed(SNAP)
+    assert any(t["category"] == "debt_service" and t["date"] == "2024-06-17" for t in feed.transactions)
+    ops = operating.simulate(feed, (SETUP.horizon - REVIEW).days + 30, DRAWS, SEED)
+    assert not ops.by_category["debt_service"].any()  # the dated coupon is event cash, booked once

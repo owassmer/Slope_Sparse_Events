@@ -439,13 +439,17 @@
     },
     "coupon_cash_share": {
       "disposition": "bounded",
-      "basis": "Indenture §16.02(c): interest is paid in shares unless the company elects cash. Base: shares. Sensitivities: the June 2024 payment's split (cash $0.442M of $1.32M = 3,348 bps) and all cash.",
-      "value": "shares",
+      "basis": "The notes' interest, $44.0M at 6.0% a year payable semi-annually on 15 June and 15 December (8-K of 9 Jun 2022), is $1.32M on 15 Dec 2024, paid on the next business day. Indenture §16.02(c): interest is paid in shares unless the company elects cash; the shares delivered equal the payment divided by 95% of the ten-trading-day average VWAP. §9.02(k): without stockholder approval the shares delivered in respect of the notes may not exceed 11,403,332, and the company pays cash in lieu of shares above that limit. The company can issue 3.0 million authorized, unissued and unreserved shares (424B5, 23 May 2024). Base: shares up to that capacity at 95% of the 24 May 2024 registered direct price of $0.20, about $570,000, and the remainder, about $750,000, in cash. Sensitivities: the whole coupon in cash; the whole coupon in shares, which the capacity covers at a price of $0.4632 or more. A reverse split changes the price and the share quantities by its ratio, so the amount the capacity covers is unchanged; the record before the review date gives no ratio, so pre-split quantities apply on every path. No coupon is paid after a bankruptcy petition.",
+      "value": "shares_to_capacity",
       "sensitivity": [
-        "june_split",
-        "all_cash"
+        "all_cash",
+        "all_shares"
       ],
-      "june_split_bps": 3348
+      "share_price_cents": 20,
+      "share_value_bps": 9500,
+      "share_capacity": 3000000,
+      "share_limit": 11403332,
+      "split_ratio": null
     },
     "chips_credit_cents": {
       "disposition": "bounded",

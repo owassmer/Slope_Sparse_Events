@@ -435,12 +435,14 @@ def test_the_residual_questions_agree_in_number():
 
 # 7. Cash conventions ------------------------------------------------------------------------------------------------
 
-def test_coupon_in_shares_by_default_and_legal_spend_stops_on_settlement(base):
+def test_coupon_shares_to_capacity_and_legal_spend_stops_on_settlement(base):
     dec16 = ix(date(2024, 12, 16))  # 15 Dec 2024 is a Sunday: paid the next business day
-    assert not chain(base).run(()).events.cash.any()  # shares: no cash; CHIPS: $0 in the horizon
+    cash = chain(base).run(()).events.cash  # 3.0M shares at 95% of $0.20 cover $570,000; the rest in cash
+    assert (cash[:, dec16] == -75_000_000).all() and (np.delete(cash, dec16, axis=1) == 0).all()
+    assert not chain(base, sens={"coupon_cash_share": "all_shares"}).run(()).events.cash.any()  # CHIPS: $0
     cash = chain(base, sens={"coupon_cash_share": "all_cash"}).run(()).events.cash
     assert (cash[:, dec16] == -132_000_000).all() and (np.delete(cash, dec16, axis=1) == 0).all()
-    chips = chain(base, sens={"chips_credit_cents": True}).run(()).events.cash
+    chips = chain(base, sens={"chips_credit_cents": True, "coupon_cash_share": "all_shares"}).run(()).events.cash
     assert (chips.sum(axis=1) == 233_000_000).all()
     c = chain(base)
     c.step("settle", "I1", "yes")

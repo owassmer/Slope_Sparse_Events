@@ -167,6 +167,39 @@ def ruling_amounts(d: DisputeInstance, outcome: dict[str, str], model: dict) -> 
     return out
 
 
+MONTHS = {m: i for i, m in enumerate(("january", "february", "march", "april", "may", "june", "july", "august",
+                                       "september", "october", "november", "december"), 1)}
+PER_YEAR = {"semi-annually": 2, "semiannually": 2, "quarterly": 4, "annually": 1}
+
+
+def coupon_terms(fin, quotes: list[str], review: date, horizon: date):
+    """The instrument's coupon from its accepted findings' quoted terms: principal x annual rate / payments a year,
+    each figure read from the quote text (the principal must match the instrument's), and the interest dates inside
+    the analysis period. Where the quotes do not state them, the instrument is returned unchanged (its coupon stays
+    unknown)."""
+    import re
+    from decimal import Decimal
+
+    text = " ".join(quotes)
+    principal = re.search(r"\$(\d+(?:\.\d+)?) million aggregate principal amount", text)
+    rate = (re.search(r"interest at a rate of (\d+(?:\.\d+)?)% per year", text)
+            or re.search(r"(\d+(?:\.\d+)?)% Convertible", text))
+    freq = next((n for w, n in PER_YEAR.items() if f"payable {w}" in text), None)
+    days = re.search(r"on (\w+) (\d{1,2}) and (\w+) (\d{1,2}) of each year", text)
+    if not (principal and rate and freq and days) or fin.principal_cents is None:
+        return fin
+    if int(Decimal(principal.group(1)) * 100_000_000) != fin.principal_cents:
+        return fin
+    cents = Decimal(fin.principal_cents) * Decimal(rate.group(1)) / 100 / freq
+    if cents != cents.to_integral_value():
+        return fin
+    md = [(MONTHS[days.group(1).lower()], int(days.group(2))), (MONTHS[days.group(3).lower()], int(days.group(4)))]
+    dates = sorted(date(y, mo, dd) for y in range(review.year, horizon.year + 1) for mo, dd in md
+                   if review < date(y, mo, dd) <= horizon)
+    return fin.model_copy(update={"coupon_cents": fin.coupon_cents if fin.coupon_cents is not None else int(cents),
+                                  "interest_dates": tuple(fin.interest_dates) or tuple(dates)})
+
+
 def interest_1961(principal: int, increase: int, since_entry: np.ndarray, since_amended: np.ndarray, bps: int
                   ) -> np.ndarray:
     """§1961 simple within the horizon (it compounds annually): the surviving original amount from entry, increases
@@ -444,15 +477,30 @@ class Chain:
             return self.ix(business_days_after(when, lo))
         return self.ix(business_days_after(when, notice + hi))
 
+    def coupon_cash_cents(self) -> int:
+        """The cash part of one coupon (parameter coupon_cash_share): base, shares up to the share capacity at the
+        share value (95% of the price, §16.02(c)) and the rest in cash; sensitivities all cash or all shares. A split
+        ratio scales the price up and the capacity down by the same factor (none in the record: ratio 1)."""
+        c, p = self.fin.coupon_cents, self.m["parameters"]["coupon_cash_share"]
+        mode = self.sens.get("coupon_cash_share") or p["value"]
+        if mode is True or mode == "all_cash":
+            return c
+        if mode == "all_shares":
+            return 0
+        ratio = p.get("split_ratio") or 1
+        capacity = min(p["share_capacity"], p["share_limit"]) // ratio
+        covered = capacity * p["share_price_cents"] * ratio * p["share_value_bps"] // 10_000
+        return c - min(c, covered)
+
     def instrument_cash(self) -> None:
-        """The notes' coupon (shares unless cash is elected: base shares; sensitivity cash) and the CHIPS credit (base
-        $0; sensitivity prorated over the horizon)."""
+        """The notes' coupon, paid on the next business day after each interest date (coupon_cash_cents), and the
+        CHIPS credit (base $0; sensitivity prorated over the horizon). The petition zeroes both after it (run)."""
+        if self.fin is not None and self.fin.coupon_cents is None and self.fin.kind == "convertible_notes":
+            raise ValueError(f"{self.fin.instrument_id}: the coupon is unknown; its quoted terms must give it")
         if self.fin is not None and self.fin.coupon_cents:
-            share = {"shares": 0, "june_split": self.m["parameters"]["coupon_cash_share"].get("june_split_bps", 0),
-                     "all_cash": 10_000}[self.sens.get("coupon_cash_share", "shares")]
+            cash = self.coupon_cash_cents()
             for d in self.fin.interest_dates:
-                self.book(self.ev.cash, np.full(self.n, self.ix(next_business_day(d))),
-                          -(self.fin.coupon_cents * share // 10_000))
+                self.book(self.ev.cash, np.full(self.n, self.ix(next_business_day(d))), -cash)
         chips = int(self.p("chips_credit_cents"))
         if chips:
             per = np.full(self.N, chips // self.N, dtype=np.int64)

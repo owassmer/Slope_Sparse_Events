@@ -18,7 +18,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from app.analysis.core import Analysis, EventModel, dates, stress
-from app.analysis.events import BANK, Basis
+from app.analysis.events import BANK, Basis, coupon_terms
 from app.analysis.setup import Setup, setup_from_inputs
 from app.config import VAR, question_registry
 from app.disputes.forecast import DisputePath, Forecaster, Judgment, neutral_map
@@ -254,6 +254,8 @@ def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -
     sources = {s["source_id"]: (s["title"], s["available_at"][:10]) for s in evidence.list_sources()}
     feed = load_feed(meta["snapshot_id"])
     instruments = [f for f in store.graph.get("financing", {}).values() if f.status != "superseded"]
+    instruments = [coupon_terms(f, [s.quote for fid in f.finding_ids if fid in findings for s in findings[fid].spans],
+                                review, setup.horizon) for f in instruments]  # the coupon: arithmetic on its quote
     live = [d.model_copy(update={"financing": tuple(f for f in instruments if d.instance_id in f.dispute_ids)})
             for d in live]  # the instruments each judgment's terms reach (dispute model 4.0.0)
     hydrate = lambda f: evidence_state(evidence, f, [], sources)["passage"]  # noqa: E731

@@ -544,7 +544,7 @@ SETTINGS = [
     {"key": "bond_collateral_share_bps", "label": "Bond collateral", "kind": "tree", "value": False,
      "options": [[False, "100%"], [True, "80%"]]},
     {"key": "coupon_cash_share", "label": "15 Dec coupon", "kind": "tree", "value": "shares",
-     "options": [["shares", "Shares"], ["all_cash", "Cash"]]},
+     "options": [["shares", "Shares to capacity, rest cash"], ["all_cash", "Cash"], ["all_shares", "Shares"]]},
     {"key": "chips_credit_cents", "label": "CHIPS credit", "kind": "tree", "value": False,
      "options": [[False, "Off"], [True, "On"]]},
     {"key": "stay_restart_on_increase_days", "label": "Amended judgment: new stay clock on", "kind": "tree",

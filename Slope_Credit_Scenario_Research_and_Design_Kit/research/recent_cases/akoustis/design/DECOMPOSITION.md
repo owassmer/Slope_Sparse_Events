@@ -149,7 +149,7 @@ Draws, collections and line reassessment follow spec §2.
 | Determination; suspension | 22 Oct; +10 days with no hearing | Code timing (R2d) |
 | Panel decision | Determination + [30, 60] days; base 45 | Bounded |
 | Repurchase date | Latest §10.01 date (base); earliest (sensitivity) | Bounded |
-| 15 Dec coupon cash | Base: shares, as §16.02(c) provides unless the company elects cash; sensitivities the June split ($0.442M) and all cash ($1.32M) | Bounded |
+| 15 Dec coupon cash | $44.0M × 6.0% ÷ 2 = $1.32M (8-K of 9 Jun 2022), due 15 Dec, paid 16 Dec, in both views; none after a petition. Shares unless the company elects cash (§16.02(c)), each valued at 95% of the ten-day VWAP; §9.02(k) caps shares at 11,403,332 with cash in lieu above it; the company can issue 3.0M authorized, unissued, unreserved shares (`424b5_0523`). Price base $0.20 (24 May registered direct): $570,000 in shares, $750,000 in cash. Sensitivities: all cash ($1.32M); all shares (covered at $0.4632 or more). A reverse split scales price and share quantities by its ratio, so the covered amount is unchanged; no ratio is in the pre-D record, so pre-split quantities apply | Bounded |
 | CHIPS credits | Base $0 in the horizon; sensitivity $2.33M prorated June–December | Bounded, pending the transcript |
 | Interest rates | 8% simple from 4 Oct 2021; §1961 1-year CMT for the week before 20 May | Sourced (H.15 in Stage 3) |
 | Settlement date in an interval | Interval start + 30 days; sensitivity interval end | Bounded (D5) |
