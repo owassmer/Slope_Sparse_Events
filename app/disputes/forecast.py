@@ -258,6 +258,15 @@ def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]]) -> list
 
 MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "patent_jmol", "trebling", "fees_awarded",
           "prejudgment_interest", "injunction")
+MOTION_PHRASES = {"rule_50b": "renewed motion for judgment as a matter of law (Fed. R. Civ. P. 50(b))",
+                  "rule_52b": "motion to amend the findings (Fed. R. Civ. P. 52(b))",
+                  "rule_59a": "motion for a new trial or remittitur (Fed. R. Civ. P. 59(a))",
+                  "rule_59e": "motion to alter or amend the judgment (Fed. R. Civ. P. 59(e))",
+                  "rule_54_fees": "motion for attorneys' fees", "injunction": "motion for a permanent injunction"}
+# merits node -> the component kinds its ruling decides (the pending motions that decide them are its path fact)
+MERITS_KINDS = {"ts_liability_jmol": (), "ts_damages_ruling": ("compensatory",),
+                "remittitur_accepted": ("compensatory",), "patent_jmol": ("patent",), "trebling": ("trebling",),
+                "fees_awarded": ("fees",), "prejudgment_interest": ("prejudgment_interest",), "injunction": ()}
 
 
 class Forecaster:
@@ -471,6 +480,8 @@ class Forecaster:
                                        **({"remitted_amount": usd(remitted)} if remitted and c.kind == "compensatory"
                                           else {})}
                                       for c in d.components]}
+        if n.node in MERITS:
+            facts["pending_motions"] = self._pending(d, n.node)
         if n.question_id in self.no_cash:
             return facts
         rows = self.facts.get(n.key, [])
@@ -503,6 +514,15 @@ class Forecaster:
                                                    f" unpaid or unstayed for {f.judgment_default_days} days, after "
                                                    f"notice" if f.judgment_default_days else "none")}
         return facts
+
+    def _pending(self, d: DisputeInstance, node: str) -> list[dict]:
+        """The pending post-trial motions the court's ruling at this node decides: each motion's docket entry, what
+        it is, and the close of its briefing."""
+        ids = {c.component_id for c in d.components if c.kind in MERITS_KINDS[node]}
+        return [{"motion": mo.motion_id, "kind": MOTION_PHRASES[mo.kind], "briefing_closes": fmt(mo.briefing_close)}
+                for mo in d.motions
+                if set(mo.decides) & ids or (node == "ts_liability_jmol" and mo.kind == "rule_50b")
+                or (node == "injunction" and mo.kind == "injunction")]
 
     def _collateral(self, d: DisputeInstance, owed: np.ndarray) -> np.ndarray:
         """The cash collateral the law and surety practice require for a stay on each trajectory: the bond (the amount

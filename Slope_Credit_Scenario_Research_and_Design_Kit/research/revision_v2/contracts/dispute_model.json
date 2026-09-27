@@ -141,6 +141,14 @@
       "modality": "shall",
       "value": "after_post_trial_ruling",
       "meaning": "The judgment becomes final on the court's ruling on the last post-trial motion, and the 60-day period starts on that ruling."
+    },
+    "frcp_59a": {
+      "citation": "Fed. R. Civ. P. 59(a)(1)(A): after a jury trial the court may grant a new trial on all or some of the issues \"for any reason for which a new trial has heretofore been granted in an action at law in federal court.\" A new trial may be granted even where the evidence is legally sufficient to support the verdict, when the verdict is contrary to the great weight of the evidence, so that a new trial is necessary to prevent a miscarriage of justice (Roebuck v. Drexel Univ., 852 F.2d 715, 735-36 (3d Cir. 1988)). \"[N]ew trials because the verdict is against the weight of the evidence are proper only when the record shows that the jury's verdict resulted in a miscarriage of justice or where the verdict, on the record, cries out to be overturned or shocks our conscience\" (Williamson v. Consolidated Rail Corp., 926 F.2d 1344, 1353 (3d Cir. 1991)). An award \"so grossly excessive as to shock the judicial conscience\" is set aside: the court remits it to the maximum recovery that does not shock the judicial conscience, or orders a new trial (Gumbs v. Pueblo Int'l, Inc., 823 F.2d 768, 771-74 (3d Cir. 1987)).",
+      "modality": "may"
+    },
+    "udtpa_trebling_authorities": {
+      "citation": "Trebling a trade-secret award after the jury answered 'No' to the unfair-trade-practices question: the authorities each side relies on. Against trebling: this court's order of 14 May 2024 on the defendants' Rule 50(a) motion (D.I. 590) held that North Carolina courts have \"not recognized head start benefits to the Defendants as such a proxy\" for the plaintiff's injury and that \"[t]he jury has no reasonable basis to find compensable damages under the UDTPA, but has sufficient basis to find injury\"; §75-16 trebles damages, and a restitutionary award is not trebled (Winant v. Bostic, 5 F.3d 767, 775-76 (4th Cir. 1993)); a violation of the Trade Secrets Protection Act is not in itself a violation of §75-1.1 (Drouillard v. Keister Williams Newspaper Servs., 108 N.C. App. 169 (1992); Legacy Data Access, LLC v. MediQuant, Inc. (W.D.N.C. 2017), which declined to treble a trade-secret verdict where the jury awarded $1 on the unfair-trade-practices claim); and Qorvo filed no Rule 50 motion, the route for setting aside a jury finding for want of evidence (Unitherm Food Sys., Inc. v. Swift-Eckrich, Inc., 546 U.S. 394 (2006)). For trebling: the jury finds the facts, and the court decides as a matter of law whether they amount to an unfair or deceptive practice (Hardy v. Toler, 288 N.C. 303 (1975)); \"A violation of the Trade Secrets Protection Act constitutes an unfair act or practice under N.C. Gen. Stat. § 75-1.1\" (Medical Staffing Network, Inc. v. Ridgway, 194 N.C. App. 649 (2009)); and Grout Doctor Global Franchise Corp. v. Groutman, Inc. (E.D.N.C. 2015), which Qorvo cites (D.I. 587).",
+      "modality": "open; the court decides"
     }
   },
   "readings": {
@@ -574,8 +582,8 @@
           "actor": "court",
           "decision": "on the damages motion: the verdict stands, remits to the most the evidence supports, or orders a new trial on damages",
           "standard": [
-            "remittitur",
-            "jmol_standard"
+            "frcp_59a",
+            "remittitur"
           ],
           "record_items": [
             "the new-trial and remittitur motion's public grounds",
@@ -624,7 +632,8 @@
           "actor": "court",
           "decision": "sets aside the patent verdict",
           "standard": [
-            "jmol_standard"
+            "jmol_standard",
+            "frcp_59a"
           ],
           "record_items": [
             "the patent grounds in the post-trial motion"
@@ -648,12 +657,13 @@
           "actor": "court",
           "decision": "grants the motion to treble under the unfair-trade-practices statute",
           "standard": [
-            "nc_75_16"
+            "nc_75_16",
+            "udtpa_trebling_authorities"
           ],
           "record_items": [
-            "the trebling motion",
-            "the verdict form's answer on that claim",
-            "prior orders on the claim"
+            "Qorvo's motion to treble the trade-secret damages under the unfair-trade-practices statute",
+            "the jury's answer to the unfair-trade-practices question on the verdict form (Question 2(a))",
+            "the court's earlier orders on unfair-trade-practices damages"
           ],
           "path_facts": [
             "the judgment's components (awarded and requested amounts)",

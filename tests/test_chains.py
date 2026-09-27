@@ -404,6 +404,13 @@ def test_readings_are_routed_evidence_and_merits_questions_carry_no_cash(base, f
 
         text = registry_question(q)["prompt"]["instructions"]
         assert "on the merits or the remedy" in text and "briefs are sealed" in text
+    # the court's standard for each ruling, and the motion it rules on
+    assert [m["motion"] for m in merits["path_facts"]["pending_motions"]] == ["D.I. 607"]
+    damages, patent, treble = state("ts_damages_ruling"), state("patent_jmol"), state("trebling")
+    assert any("Williamson" in s and "Gumbs" in s for s in damages["standard"])
+    assert not any("Lightning Lube" in s for s in damages["standard"])
+    assert any("Lightning Lube" in s for s in patent["standard"]) and any("Roebuck" in s for s in patent["standard"])
+    assert any("Winant" in s and "Hardy v. Toler" in s for s in treble["standard"])  # both sides of an open question
     a4 = state("debtor_response")
     assert set(a4["path_facts"]["cash_balance_at_decision"]) == {"p5", "p50"}  # the debtor's cash is a path fact
     assert a4["question"]["branches"] == ["seek_sale_or_financing", "file", "neither"]  # pay removed (arithmetic)

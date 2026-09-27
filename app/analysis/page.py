@@ -314,6 +314,10 @@ def _fact_lines(facts: dict) -> list[str]:
         elif isinstance(v, dict):
             out.append(f"{name}: " + ", ".join(f"{kk.replace('_', ' ')} {vv if not isinstance(vv, dict) else vv}"
                                                 for kk, vv in v.items()))
+        elif isinstance(v, list):
+            if v:
+                out.append(f"{name}: " + "; ".join(", ".join(str(x) for x in e.values()) if isinstance(e, dict)
+                                                   else str(e) for e in v))
         elif k == "share_of_trajectories_where_it_arises":
             out.append(f"Arises on {v:.0%} of trajectories inside the period")
         else:
