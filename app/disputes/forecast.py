@@ -310,6 +310,7 @@ class Forecaster:
         self.nodes: dict[str, Node] = {}
         self.facts: dict[str, list] = {}  # node key -> the rows `record` keeps, one per path that asks it
         self._traces: dict = {}
+        self._sources: dict[str, str] = {}  # finding -> its source's title
         self.bank_nodes: dict[str, Node] = {}  # the bank view's questions (bank_state)
         self.bank_facts: dict[str, list] = {}  # bank node key -> [(day, cash, need) arrays]
 
@@ -708,37 +709,64 @@ class Forecaster:
         routes = load_registry().get("evidence_routing", {}).get("routes", {})
         return {f for f, qs in routes.items() if qid in qs}
 
-    def _evidence(self, d: DisputeInstance, node: str) -> tuple[list[dict], tuple[str, ...], list[dict]]:
-        """The accepted findings that supply the question's record items, each passage with the items it supplies;
-        and the record items, each marked as in the record or not."""
+    def _evidence(self, d: DisputeInstance, node: str, read_from: dict[str, list[str]] | None = None
+                  ) -> tuple[list[dict], tuple[str, ...], list[dict]]:
+        """The accepted findings that supply the question's record items, each passage with the items it supplies,
+        and the passages the question's readings were taken from (`read_from`: finding -> the reading labels), each
+        with the items the registry says such a passage supplies; and the record items, each marked as in the record
+        or not."""
         items = self.spec[node]["record_items"]
         supplies: dict[str, list[str]] = {}
         for item in items:
             for fid in self.slots.get(node, {}).get(item, []):
                 if fid in self.findings:
                     supplies.setdefault(fid, []).append(item)
-        evidence = [{**self.hydrate(self.findings[fid]), "supplies": its} for fid, its in supplies.items()]
+        read_from = {fid: labels for fid, labels in (read_from or {}).items() if fid in self.findings}
+        qid = self.spec[node]["residual_question"]
+        reading_items = load_registry().get("evidence_routing", {}).get("reading_items", {})
+        for fid in read_from:
+            its = supplies.setdefault(fid, [])
+            for factor in (f.factor_id for f in d.factors if f.decisive and f.decisive.finding_id == fid):
+                its += [x for x in reading_items.get(factor, {}).get(qid, []) if x in items and x not in its]
+        evidence = [{**self.hydrate(self.findings[fid]), "supplies": its,
+                     **({"readings_taken_from_it": read_from[fid]} if fid in read_from else {})}
+                    for fid, its in supplies.items()]
         record = [{"item": x, "in_the_record": any(x in its for its in supplies.values())} for x in items]
         return evidence, tuple(supplies), record
 
-    def _readings(self, d: DisputeInstance, qid: str) -> dict:
-        factors, out = self._routed(qid), {}
+    def _readings(self, d: DisputeInstance, qid: str) -> tuple[dict, dict[str, list[str]]]:
+        """The present-state readings routed to the question, each with the date and source of the passage it was
+        taken from; and, per source finding, the labels of the readings taken from it. A reading taken from no
+        passage is not handed on."""
+        factors, out, read_from = self._routed(qid), {}, {}
+        role = "the company" if d.borrower_role == "debtor" else d.counterparty
+        plain = lambda s: s.replace("The payer", role[0].upper() + role[1:]).replace("the payer", role)  # noqa: E731
         for f in d.factors:
-            if f.factor_id not in factors:
+            if f.factor_id not in factors or f.decisive is None:
                 continue
-            if f.factor_id == "amount_finality":
-                fact = self._fixed_amount(d, f)
-                if fact and qid != "forecast_remittitur_accepted":
-                    out["Amount fixed by the court"] = fact
-                if fact or qid == "forecast_remittitur_accepted":
-                    continue
-            if f.kind == "present" and f.probability is not None:
-                out[f.label] = {"probability_present": round(f.probability, 3)}
+            src = {"passage_dated": f.decisive.source_date, "source": self._source(f.decisive.finding_id)}
+            label = plain(f.label)
+            fact = self._fixed_amount(d, f) if f.factor_id == "amount_finality" else ""
+            if fact and qid == "forecast_remittitur_accepted":
+                continue
+            if fact:
+                label = "Amount fixed by the court"
+                out[label] = {"fact": fact, **src}
+            elif f.kind == "present" and f.probability is not None:
+                out[label] = {"probability_present": round(f.probability, 3), **src}
             elif f.distribution:
-                out[f.label] = {"distribution": {k: round(v, 3) for k, v in f.distribution.items()},
-                                **({"conflicting_readings": True} if f.conflict else {}),
-                                **({"passage_dated": f.decisive.source_date} if f.decisive else {})}
-        return out
+                out[label] = {"distribution": {plain(k): round(v, 3) for k, v in f.distribution.items()},
+                              **({"note": "passages of the same date read differently"} if f.conflict else {}), **src}
+            if label in out:
+                read_from.setdefault(f.decisive.finding_id, []).append(label)
+        return out, read_from
+
+    def _source(self, fid: str) -> str:
+        """The title of the source a finding's passage comes from."""
+        if fid not in self._sources:
+            f = self.findings.get(fid)
+            self._sources[fid] = self.hydrate(f).get("source", "") if f is not None else ""
+        return self._sources[fid]
 
     def _fixed_amount(self, d: DisputeInstance, f) -> str:
         """Where the record reads the amount as fixed by the court: the judgment's amount and date, as a fact."""
@@ -753,8 +781,8 @@ class Forecaster:
     def state(self, n: Node) -> tuple[dict, tuple[str, ...], dict]:
         d = next(x for x in self.disputes if x.instance_id == n.instance_id)
         s = self.spec[n.node]
-        evidence, fids, record = self._evidence(d, n.node)
-        readings = self._readings(d, n.question_id)
+        readings, read_from = self._readings(d, n.question_id)
+        evidence, fids, record = self._evidence(d, n.node, read_from)
         ctx = context_phrases([c for c in n.context.split("|") if c], self.class_range)
         state = {"case": {"as_of": fmt(self.review), "analysis_period_ends": fmt(self.horizon),
                           "company": self.borrower, "counterparty": d.counterparty,

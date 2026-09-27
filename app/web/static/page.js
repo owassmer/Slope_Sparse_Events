@@ -398,13 +398,19 @@
   }
   function recompute() { probs = pathProbs((k) => dist(k)); computeSens(); renderTiles(); renderOutcomes(); renderRight(); refreshCharts(); }
 
-  // Jev's readings of the record (evidence for the forecast, not its probability): each reading's likeliest levels.
+  // Jev's readings of the record (evidence for the forecast, not its probability): each reading's likeliest levels,
+  // with the passage it was taken from (its source, date and link).
   function readings(r) {
     const items = Array.isArray(r) ? r.map((x, k) => [String(k + 1), x]) : Object.entries(r || {});
     if (!items.length) return "";
     return `<div class="ctx">Readings of the record</div><ul class="ctx">${items.map(([name, v]) => {
-      const dd = (v && v.distribution) || {}, top = Object.entries(dd).sort((x, y) => y[1] - x[1]).slice(0, 2).filter(([, p]) => p > 0);
-      return `<li>${esc(name)}${v && v.passage_dated ? ` (passage of ${fdateY(v.passage_dated)})` : ""}: ${top.map(([k, p]) => `${esc(k)} ${pct(p, 0)}`).join("; ") || esc(typeof v === "string" ? v : "")}</li>`;
+      const o = v && typeof v === "object" ? v : {}, dd = o.distribution || {};
+      const top = Object.entries(dd).sort((x, y) => y[1] - x[1]).slice(0, 2).filter(([, p]) => p > 0);
+      const src = o.source || (o.passage_dated ? "passage" : "");
+      const from = src ? ` (${o.link ? `<a href="${esc(o.link)}" target="_blank" rel="noopener">${esc(src)}</a>` : esc(src)}${o.passage_dated ? `, ${fdateY(o.passage_dated)}` : ""})` : "";
+      const what = top.map(([k, p]) => `${esc(k)} ${pct(p, 0)}`).join("; ") || esc(o.fact || (typeof v === "string" ? v : ""))
+        || (o.probability_present != null ? `present ${pct(o.probability_present, 0)}` : "");
+      return `<li>${esc(name)}${from}: ${what}${o.note ? ` (${esc(o.note)})` : ""}</li>`;
     }).join("")}</ul>`;
   }
   function renderDetail() {

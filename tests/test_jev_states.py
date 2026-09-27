@@ -8,6 +8,7 @@ from akoustis_fixture import REVIEW, SETUP, basis, judgment
 
 from app.analysis import events
 from app.disputes.forecast import TRIGGER_PHRASES, Forecaster, bank_state
+from app.domain.investigation import Decisive, FactorResult
 
 BORROWER = "Akoustis Technologies, Inc."
 
@@ -62,3 +63,26 @@ def test_the_bank_and_research_cash_floor_questions_differ_only_in_research_fact
     assert bank["path_facts"]["contract_dates"][coupon] == (
         "16 Dec 2024: $1,320,000.00 due, $750,000.00 of it paid in cash and $570,000.00 in shares")
     assert not bank["evidence"] and not bank["record_items"] and not bank["readings"]
+
+
+def test_a_reading_travels_with_the_passage_it_was_taken_from(base):
+    settle = FactorResult(factor_id="settlement_signals", label="Settlement signals", kind="graded", aggregate="latest",
+                          distribution={"A party expresses general willingness to settle": 0.6,
+                                        "The passage describes no settlement discussion": 0.4},
+                          decisive=Decisive(finding_id="fnd_009", source_date="2024-05-23", quote="…settlement…"),
+                          finding_ids=("fnd_009",))
+    barred = FactorResult(factor_id="appeal_barred", label="An appeal of this obligation is waived or barred",
+                          kind="present", aggregate="max", probability=0.07)  # taken from no passage
+    d = judgment().model_copy(update={"factors": (settle, barred)})
+    fc = Forecaster([d], {"fnd_009": "424B5"}, borrower=BORROWER, review=REVIEW, horizon=SETUP.horizon,
+                    hydrate=lambda f: {"source": f"{f} prospectus supplement", "quotes": ["…settlement…"]},
+                    setup=SETUP, basis=base[1])
+    for node in ("settlement_offer", "settlement_accept"):
+        st, fids, readings = fc.state(fc.nodes[fc.node(d, node, "I1", "entered")])
+        assert "fnd_009" in fids and readings["Settlement signals"]["source"] == "424B5 prospectus supplement"
+        ev = next(e for e in st["evidence"] if e["source"] == "424B5 prospectus supplement")
+        item = "the company's statements on reaching a settlement with the judgment creditor"
+        assert ev["supplies"] == [item] and ev["readings_taken_from_it"] == ["Settlement signals"]
+        assert {"item": item, "in_the_record": True} in st["record_items"]
+    st, _, readings = fc.state(fc.nodes[fc.node(d, "appeal", "post")])
+    assert "An appeal of this obligation is waived or barred" not in readings and not st["evidence"]

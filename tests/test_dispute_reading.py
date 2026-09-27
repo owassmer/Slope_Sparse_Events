@@ -123,7 +123,8 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     assert any(("appeal", "", "yes") in p.steps for p in paths)  # the waiver is evidence, not a pruned branch
     appeal = next(n for n in fc.nodes.values() if n.node == "appeal")
     state, fids, readings = fc.state(appeal)
-    assert readings[barred.label] == {"probability_present": 0.9}  # the waiver reaches Jev's appeal question
+    assert readings[barred.label]["probability_present"] == 0.9  # the waiver reaches Jev's appeal question
+    assert readings[barred.label]["passage_dated"] == "2024-05-13"  # with the passage it was read from
     assert fids == ("a",)  # with the passage that supplies its record item
     assert {"item": WAIVER, "in_the_record": True} in state["record_items"]
     settle = next(n for n in fc.nodes.values() if n.node == "settlement_offer")

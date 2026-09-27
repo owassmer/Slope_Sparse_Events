@@ -508,7 +508,9 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
     answer = None
     if judgment is not None and not neutral:
         answer = {"distribution": judgment.distribution, "confidence": judgment.confidence,
-                  "observation_id": judgment.observation_id, "readings": judgment.readings}
+                  "observation_id": judgment.observation_id,
+                  "readings": {k: {**v, "link": links.get(v.get("source", ""), "")} if isinstance(v, dict) else v
+                               for k, v in (judgment.readings or {}).items()}}
     steps.append({"tag": "Jev", "text": question})
     return {"steps": steps, "facts": facts, "assumptions": list(judgment.assumptions) if judgment else [],
             "quotes": quotes, "answer": answer}
