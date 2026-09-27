@@ -77,12 +77,32 @@ class EventModel:
         return distributions({**self.bank_judgments, **self.judgments}, overrides)
 
     def probs(self, overrides: dict | None = None) -> np.ndarray:
-        dist = self._dist(overrides)
-        return np.array([combo_probability(c, dist) for c in self.combos])
+        return self._weigh("combos", self.combos, overrides)
 
     def bank_probs(self, overrides: dict | None = None) -> np.ndarray:
+        return self._weigh("bank", self.bank_combos, overrides)
+
+    def _weigh(self, name: str, combos: list, overrides: dict | None) -> np.ndarray:
+        """`combo_probability` of every combo, vectorised: each combo's edges (in order) index the distinct
+        (node, branch) pairs, padded with a factor of exactly 1; the product runs edge by edge, left to right, as
+        `path_probability` does, so every probability is the same float."""
+        cache = self.__dict__.setdefault("_edge_index", {})
+        enc = cache.get(name)
+        if enc is None or enc[0] != len(combos) or (combos and enc[1] is not combos[0]):
+            pairs: dict[tuple[str, str], int] = {}
+            rows = [[pairs.setdefault(e, len(pairs)) for p in c for e in p.edges] for c in combos]
+            width = max((len(r) for r in rows), default=0)
+            ref = np.full((len(rows), width), len(pairs), dtype=np.int64)  # len(pairs): the factor 1
+            for i, r in enumerate(rows):
+                ref[i, :len(r)] = r
+            enc = cache[name] = (len(combos), combos[0] if combos else None, list(pairs), np.asfortranarray(ref))
+        _, _, pairs, ref = enc
         dist = self._dist(overrides)
-        return np.array([combo_probability(c, dist) for c in self.bank_combos])
+        vals = np.array([dist[k][b] for k, b in pairs] + [1.0], dtype=np.float64)
+        out = np.ones(len(combos))
+        for j in range(ref.shape[1]):
+            out *= vals[ref[:, j]]
+        return out
 
 
 def neutral_overrides(model: EventModel) -> dict[str, dict[str, float]]:

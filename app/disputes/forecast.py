@@ -18,6 +18,7 @@ that share those facts share one judgment; the path facts are pooled over the pa
 from __future__ import annotations
 
 import asyncio
+import functools
 import hashlib
 import itertools
 import json
@@ -98,13 +99,19 @@ def atoms(key: str) -> set[str]:
     return {k for c in json.loads(key[1:]) for k, _ in c} if key.startswith(COMPOSITE) else {key}
 
 
+@functools.lru_cache(maxsize=None)
+def _conjunctions(key: str) -> tuple:
+    """A composite key's disjoint conjunctions of (node, branch), parsed once."""
+    return tuple(tuple(tuple(e) for e in c) for c in json.loads(key[1:]))
+
+
 class Dist(dict):
     """Node key -> branch distribution; composite keys are computed on demand by the chain rule."""
 
     def __missing__(self, key: str) -> dict[str, float]:
         if not key.startswith(COMPOSITE):
             raise KeyError(key)
-        p = sum(math.prod(self[k][b] for k, b in c) for c in json.loads(key[1:]))
+        p = sum(math.prod(self[k][b] for k, b in c) for c in _conjunctions(key))
         p = min(max(p, 0.0), 1.0)
         self[key] = v = {"yes": p, "no": 1.0 - p}
         return v
