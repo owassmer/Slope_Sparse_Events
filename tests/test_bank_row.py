@@ -56,6 +56,7 @@ def test_the_bank_question_is_a_row_asked_on_bank_data_alone_with_its_drill_down
         tags = {s["tag"] for s in n["detail"]["steps"]}
         assert {"Law", "Calculation", "Jev"} <= tags and "Record" not in tags  # no research facts
         assert n["detail"]["answer"]["distribution"] == m.bank_judgments[n["key"]].distribution
+        assert "dispute" not in " ".join(s["text"] for s in n["detail"]["steps"])
     assert all(e[j] >= len(p["nodes"]) - len(rows) for e in p["bank"]["edges"] for j in range(0, len(e), 2))
 
 

@@ -755,6 +755,9 @@ def bank_rows(model, fc, m: dict, spec: dict, questions: dict, links: dict, neut
                      "actor": sp["actor"], "decider": "Bank data", "branches": branches,
                      "jev": [j.distribution[b] for b in branches],
                      "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node)})
+        for s in rows[-1]["detail"]["steps"]:  # the bank view's cash has no dispute: its event cash is the coupon
+            s["text"] = s["text"].replace(" + the dispute's cash to that date", " + the notes' coupon to that date"
+                                          if fc.instrument() is not None else " to that date")
     edges = [[x + off if i % 2 == 0 else x for i, x in enumerate(flat)] for flat in enc["paths"]]
     return {"nodes": rows, "edges": edges}
 
