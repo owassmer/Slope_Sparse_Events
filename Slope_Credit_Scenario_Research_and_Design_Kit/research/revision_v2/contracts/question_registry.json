@@ -140,6 +140,13 @@
         "forecast_nasdaq_hearing",
         "forecast_panel_exception"
       ]
+    },
+    "evidence_routing": {
+      "primitive": "noul",
+      "trigger": "host, before the forecasts",
+      "questions": [
+        "record_item_supplied"
+      ]
     }
   },
   "state_contract": {
@@ -1872,6 +1879,23 @@
         }
       },
       "application": "Code places the stage from the most advanced established event."
+    },
+    {
+      "id": "record_item_supplied",
+      "version": "4.2.0",
+      "profile": "evidence_routing",
+      "primitive": "noul",
+      "question": "Does this passage supply this record item?",
+      "state_fields": [
+        "record_item",
+        "passage"
+      ],
+      "prompt": {
+        "instructions": "state.passage is a passage from the record, with its source, date and surrounding text. state.record_item names one item of the record that a decision rests on. Judge whether the passage supplies that item.",
+        "criteria_from_host": true,
+        "criteria": {}
+      },
+      "application": "Each forecast question receives the accepted findings that supply its record items."
     }
   ],
   "retired_in_4_0_0": {
@@ -1928,6 +1952,6 @@
       "forecast_prejudgment_interest",
       "forecast_injunction_ts"
     ],
-    "findings": "A court decides on the record before it: a court's question receives the accepted findings drawn from the court's own filings. Every other actor's question receives every accepted finding, grouped as the investigation grouped them."
+    "findings": "Each forecast question receives the accepted findings that supply its named record items. A record item no finding supplies is stated as not in the record."
   }
 }

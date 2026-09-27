@@ -29,7 +29,7 @@ CONTEXT = {"levied": "after a levy", "unlevied": "no levy", "appealed": "on appe
            "delisted_panel": "delisted after the panel", "delisted_suspension": "suspended without a hearing"}
 # Outcome by the end of the period (17 Dec for Akoustis), in the order the bar shows them.
 CLASSES = (("filed_enforcement", "Filed: Qorvo enforcement"), ("filed_notes", "Filed: notes"),
-           ("filed_cash", "Filed: cash floor"), ("settled", "Settled"), ("paid", "Paid"),
+           ("filed_cash", "Filed: short of cash"), ("settled", "Settled"), ("paid", "Paid"),
            ("stayed", "Stayed on appeal"), ("unresolved", "Unresolved"), ("vacated", "Vacated or new trial"))
 OUTCOME_CLASS = {"settled": "settled", "paid": "paid", "stayed": "stayed", "unresolved": "unresolved",
                  "vacated": "vacated", "new_trial": "vacated"}
@@ -95,7 +95,10 @@ SHORT_WHEN = {"I1": "Before ruling", "I2": "After ruling", "I3": "After appeal d
 SHORT_TAG = {"levied": "after a levy", "unlevied": "no levy", "appealed": "on appeal", "final": "no appeal",
              "stay_pending": "stay motion pending", "nopay": "can't pay in full", "after_seek": "after seeking a sale",
              "delisted_panel": "delisted after the panel", "delisted_suspension": "suspended, no hearing",
-             "none": "judgment set aside", "retrial": "new trial on damages"}
+             "none": "judgment set aside", "retrial": "new trial on damages", "stay_moved": "stay motion filed",
+             "stayed": "stayed", "settled": "after a settlement", "paid": "after payment", "seeking": "seeking a sale",
+             "notes_due": "notes due, unpaid", "delisted": "delisted", "motions_pending": "before ruling",
+             "executing": "Qorvo executing", "cash_exhausted": "cash run out"}
 
 
 def money_round(cents: int) -> str:
@@ -139,12 +142,12 @@ def filing_cause(steps: tuple) -> str:
             return "filed_enforcement"
         if (node == "judgment_default" and branch == "yes") or (node == "delisting_notes" and branch.startswith("petition")):
             return "filed_notes"
-        if node == "cash_floor" and branch == "yes":
+        if node in ("cash_floor", "cash_out") and branch == "yes":
             return "filed_cash"
     return "filed_enforcement"
 
 
-FILED_BY = {1: "Akoustis files", 2: "Noteholders accelerate; filing", 3: "Akoustis files at the cash floor"}
+FILED_BY = {1: "Akoustis files", 2: "Noteholders accelerate; filing", 3: "Akoustis files, short of cash"}
 CAUSE_CLASS = {1: "filed_enforcement", 2: "filed_notes", 3: "filed_cash"}  # events.PETITION_CAUSES indices
 
 
@@ -192,7 +195,8 @@ SETTLE = {"I1": "Settles before the ruling", "I2": "Settles after the ruling", "
 FILING = {("debtor_response", "file"): "Akoustis files", ("judgment_default", "yes"): "Noteholders accelerate; filing",
           ("delisting_notes", "petition_delist"): "Noteholders accelerate on the delisting; filing",
           ("delisting_notes", "petition_repurchase"): "Repurchase unpaid; filing",
-          ("cash_floor", "yes"): "Akoustis files at the cash floor"}
+          ("cash_floor", "yes"): "Akoustis files at the cash floor",
+          ("cash_out", "yes"): "Akoustis files when its cash runs out"}
 
 
 def step_phrase(node: str, ctx: str, branch: str, ranges: dict[str, tuple[int, int]]) -> str | None:
@@ -211,7 +215,10 @@ def step_phrase(node: str, ctx: str, branch: str, ranges: dict[str, tuple[int, i
             ("debtor_response", "pay"): "Akoustis pays",
             ("debtor_response", "seek_sale_or_financing"): "Akoustis seeks a sale or financing",
             ("appeal", "yes"): "Akoustis appeals", ("enforce", "levy"): "Qorvo levies",
-            ("listing", "delisted_panel"): "Nasdaq delists", ("listing", "delisted_suspension"): "Nasdaq suspends"
+            ("listing", "delisted_panel"): "Nasdaq delists", ("listing", "delisted_suspension"): "Nasdaq suspends",
+            ("judgment_default", "accelerated"): "Noteholders accelerate; no filing",
+            ("delisting_notes", "accelerated"): "Noteholders accelerate on the delisting; no filing",
+            ("delisting_notes", "repurchase_unpaid"): "Repurchase unpaid; no filing"
             }.get((node, branch))
 
 
@@ -335,9 +342,16 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
     """The 'why this probability' chain: each step tagged Law / Record / Data / Calculation / Jev, the facts Jev is
     given, the source quotes and Jev's answer."""
     steps = [{"tag": "Law", "text": model["rules"][r]["citation"] if r in model["rules"] else r} for r in spec["standard"]]
-    steps += [{"tag": "Record", "text": x} for x in spec["record_items"]]
-    steps += [{"tag": "Data", "text": f"{p['basis']}"} for name, p in model["parameters"].items()
-              if name in spec.get("timing", "") and p.get("basis") and p.get("disposition") in ("data", "sourced")]
+    supplied: dict[str, list[str]] = {}
+    for e in (judgment.evidence if judgment is not None else []) or []:
+        if isinstance(e, dict):
+            for item in e.get("supplies", []):
+                supplied.setdefault(item, []).append(e.get("source", ""))
+    steps += [{"tag": "Record", "text": f"{x}: " + ("; ".join(dict.fromkeys(supplied[x])) if x in supplied
+                                                     else "not in the record")} for x in spec["record_items"]]
+    steps += [{"tag": "Data", "text": model["parameters"][name]["basis"]} for name in spec.get("timing_parameters", [])
+              if model["parameters"][name].get("basis")
+              and model["parameters"][name].get("disposition") in ("data", "sourced")]
     steps.append({"tag": "Calculation", "text": f"Date set by code: {spec['timing']}"})
     steps += [{"tag": "Calculation", "text": line} for line in _fact_lines(facts)]
     quotes = []

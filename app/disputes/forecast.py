@@ -219,8 +219,6 @@ STATE_PHRASES = {"entered": "the judgment as entered", "first": "the company's f
                  "notes_due": "the notes are due and unpaid, and no bankruptcy petition has been filed",
                  "delisted": "the stock has been delisted",
                  "cash_exhausted": "the company did not file when its cash fell below its 30-day operating need"}
-COMPANY_ACTORS = ("judgment debtor", "issuer", "the company", "board")
-NO_NEW_MONEY = "no new financing or sale has closed"
 
 
 def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]]) -> list[str]:
@@ -265,7 +263,7 @@ MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "pate
 class Forecaster:
     def __init__(self, disputes: list[DisputeInstance], findings: dict[str, AtomicFinding], *, borrower: str,
                  review: date, horizon: date, hydrate: Callable[[AtomicFinding], dict], model: dict | None = None,
-                 setup=None, basis=None, sens: dict | None = None, court_record: set[str] | None = None) -> None:
+                 setup=None, basis=None, sens: dict | None = None, slots: dict[str, list[str]] | None = None) -> None:
         from app.analysis.events import Draws
 
         self.m = model or load_model()
@@ -273,7 +271,7 @@ class Forecaster:
         self.disputes = [d for d in disputes if d.status == "interpreted"]
         self.findings, self.borrower, self.review, self.horizon, self.hydrate = findings, borrower, review, horizon, hydrate
         self.setup, self.sens = setup, sens or {}
-        self.court_record = court_record  # source ids of the court's own filings (None: every source)
+        self.slots = slots or {}  # record item -> the accepted findings that supply it (app/disputes/slots.py)
         self.days = (horizon - review).days
         self.draws = Draws(basis.cash.shape[0], basis=basis) if basis is not None else None
         self.reach = int(basis.cash.max()) if basis is not None else None  # no trajectory holds more cash than this
@@ -367,9 +365,11 @@ class Forecaster:
         for kind, node in (("patent", "patent_jmol"), ("trebling", "trebling"), ("fees", "fees_awarded"),
                            ("prejudgment_interest", "prejudgment_interest")):
             c = kinds.get(kind)
-            if c is not None and c.motion:
+            asked = c is not None and (c.motion or (kind == "patent" and "rule_50b" in by_kind)
+                                       or (kind == "prejudgment_interest" and d.commenced is not None))
+            if asked:
                 out[node] = () if kind == "patent" else ("trade-secret money survives the ruling",)
-        if "injunction" in by_kind:
+        if "injunction" in by_kind and not self.spec["injunction"].get("stress_only"):
             out["injunction"] = ()
         return {n: self.node(d, n, assumptions=a) for n, a in out.items()}
 
@@ -522,14 +522,18 @@ class Forecaster:
         routes = load_registry().get("evidence_routing", {}).get("routes", {})
         return {f for f, qs in routes.items() if qid in qs}
 
-    def _evidence(self, d: DisputeInstance, node: str) -> tuple[list[dict], tuple[str, ...]]:
-        """A court decides on the record before it: its questions get the findings drawn from the court's filings.
-        Every other actor gets every accepted finding. Grouped as the investigation grouped them, oldest first."""
-        court = self.spec[node]["actor"] == "court" and self.court_record is not None
-        chosen = [f for f in self.findings.values()
-                  if not court or any(sp.source_id in self.court_record for sp in f.spans)]
-        chosen.sort(key=lambda f: (f.dependency_id, f.finding_id))
-        return [self.hydrate(f) for f in chosen], tuple(f.finding_id for f in chosen)
+    def _evidence(self, d: DisputeInstance, node: str) -> tuple[list[dict], tuple[str, ...], list[dict]]:
+        """The accepted findings that supply the question's record items, each passage with the items it supplies;
+        and the record items, each marked as in the record or not."""
+        items = self.spec[node]["record_items"]
+        supplies: dict[str, list[str]] = {}
+        for item in items:
+            for fid in self.slots.get(item, []):
+                if fid in self.findings:
+                    supplies.setdefault(fid, []).append(item)
+        evidence = [{**self.hydrate(self.findings[fid]), "supplies": its} for fid, its in supplies.items()]
+        record = [{"item": x, "in_the_record": any(x in its for its in supplies.values())} for x in items]
+        return evidence, tuple(supplies), record
 
     def _readings(self, d: DisputeInstance, qid: str) -> dict:
         factors, out = self._routed(qid), {}
@@ -547,7 +551,7 @@ class Forecaster:
     def state(self, n: Node) -> tuple[dict, tuple[str, ...], dict]:
         d = next(x for x in self.disputes if x.instance_id == n.instance_id)
         s = self.spec[n.node]
-        evidence, fids = self._evidence(d, n.node)
+        evidence, fids, record = self._evidence(d, n.node)
         readings = self._readings(d, n.question_id)
         ctx = context_phrases([c for c in n.context.split("|") if c], self.class_range)
         terms = {k: v for t in self.m["templates"].values() for k, v in t.get("terms_from_instrument", {}).items()}
@@ -558,7 +562,7 @@ class Forecaster:
                               "timing": s["timing"], "context": ctx},
                  "standard": [self.m["rules"][r]["citation"] if r in self.m["rules"] else terms.get(r, r)
                               for r in s["standard"]],
-                 "record_items": s["record_items"], "path_facts": self.path_facts(n, d),
+                 "record_items": record, "path_facts": self.path_facts(n, d),
                  "assumptions": list(n.assumptions), "evidence": evidence, "readings": readings}
         return state, fids, readings
 
@@ -610,11 +614,8 @@ class _Walk:
     # helpers
     def node(self, name, *ctx, s: _S | None = None, probe=None, assumptions=(), branches=None):
         """The question in its situation: the context tags given, plus the conditions its actor weighs (the model
-        node's `situation`) that hold at the decision on every trajectory. A company decision states that no new
-        money has closed, because the model books none."""
+        node's `situation`) that hold at the decision on every trajectory."""
         tags = self.situation(s, probe, name, ctx) if s is not None else ()
-        if self.fc.spec[name]["actor"] in COMPANY_ACTORS:
-            assumptions = (*assumptions, NO_NEW_MONEY)
         return self.fc.node(self.d, name, *ctx, *tags, assumptions=assumptions, branches=branches)
 
     def situation(self, s: _S, probe, name: str, ctx) -> tuple[str, ...]:

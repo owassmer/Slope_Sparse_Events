@@ -202,6 +202,26 @@ def _load_run(run_id: str, root: Path):
     return store, meta, inputs, evidence, review
 
 
+def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh: bool) -> dict[str, list[str]]:
+    """Which accepted findings supply each record item (app/disputes/slots.py), read once per run and kept beside
+    it in slots.json; its own Jev adapter and budget."""
+    from app.agent.jev import JevAdapter
+    from app.disputes.rules import load_model
+    from app.disputes.slots import load, match, record_items
+
+    path = root / run_id / "slots.json"
+    items = record_items(load_model())
+    kept = load(path)
+    if kept is not None and set(kept) == set(items) and not refresh:
+        return kept
+    jev = JevAdapter(run_id=f"{run_id}-slots", use_cache=not refresh, max_attempts=3000)
+    out = asyncio.run(match(findings, hydrate, items, jev))
+    path.write_text(json.dumps(out, indent=1) + "\n")
+    print("record items:", sum(1 for v in out.values() if v), "of", len(items), "in the record; Jev",
+          jev.usage_summary())
+    return out
+
+
 def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -> dict:
     """`roles`: also run the recall check (every forecast re-asked with the parties' names replaced by roles; its
     own Jev adapter and budget), stored per node and summarized; the analysis's probabilities are unchanged."""
@@ -224,11 +244,11 @@ def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -
     instruments = [f for f in store.graph.get("financing", {}).values() if f.status != "superseded"]
     live = [d.model_copy(update={"financing": tuple(f for f in instruments if d.instance_id in f.dispute_ids)})
             for d in live]  # the instruments each judgment's terms reach (dispute model 4.0.0)
-    fc = Forecaster(live, findings, borrower=borrower, review=review, horizon=setup.horizon,
-                    hydrate=lambda f: evidence_state(evidence, f, [], sources)["passage"],
+    hydrate = lambda f: evidence_state(evidence, f, [], sources)["passage"]  # noqa: E731
+    slots = record_item_slots(run_id, root, findings, hydrate, refresh)
+    fc = Forecaster(live, findings, borrower=borrower, review=review, horizon=setup.horizon, hydrate=hydrate,
                     setup=setup, basis=basis_for(feed, setup),  # path facts are simulated before Jev is asked
-                    court_record={s["source_id"] for s in evidence.list_sources()
-                                  if s["document_kind"] in ("court_filing", "court_docket")})
+                    slots=slots)
     per = fc.all_paths()
     records: list = []
     jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)

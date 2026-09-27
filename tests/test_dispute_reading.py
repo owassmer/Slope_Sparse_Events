@@ -86,11 +86,11 @@ class WaiverJudge:
         raise AssertionError("unexpected level call")
 
 
-def forecaster(d, fs):
+def forecaster(d, fs, slots=None):
     from akoustis_fixture import SETUP, basis
 
     return Forecaster([d], {f.finding_id: f for f in fs}, borrower=BORROWER, review=REVIEW, horizon=SETUP.horizon,
-                      hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=basis()[1])
+                      hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=basis()[1], slots=slots)
 
 
 class PendingWaiverJudge(WaiverJudge):
@@ -114,15 +114,16 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     barred = next(f for f in d.factors if f.factor_id == "appeal_barred")
     assert barred.probability == 0.9 and barred.level_label == "established"
 
-    fc = forecaster(d, fs)
+    fc = forecaster(d, fs, slots={"appeal waivers": ["a"], "settlement statements": ["b"]})
     paths = fc.all_paths()[d.instance_id][""]
     assert any(("appeal", "", "yes") in p.steps for p in paths)  # the waiver is evidence, not a pruned branch
     appeal = next(n for n in fc.nodes.values() if n.node == "appeal")
     state, fids, readings = fc.state(appeal)
     assert readings[barred.label] == {"probability_present": 0.9}  # the waiver reaches Jev's appeal question
-    assert "a" in fids  # with the passage that states it
+    assert fids == ("a",)  # with the passage that supplies its record item
+    assert {"item": "appeal waivers", "in_the_record": True} in state["record_items"]
     settle = next(n for n in fc.nodes.values() if n.node == "settlement_offer")
-    assert set(fc.state(settle)[1]) == {"a", "b"}  # a party's question receives every accepted finding
+    assert fc.state(settle)[1] == ("b",)  # each question receives the findings that supply its own record items
     a4 = next(n for n in fc.nodes.values() if n.node == "debtor_response")
     assert "p50" in fc.state(a4)[0]["path_facts"]["cash_balance_at_decision"]  # the payer's cash is data
 

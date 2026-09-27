@@ -525,6 +525,12 @@
       "basis": "The record before the review date gives no revenue by part; the injunction runs as one stress scenario."
     }
   ],
+  "feed_anchor": {
+    "method": "dated_lumps_plus_prorated_residual",
+    "excluded": [
+      "the $8.0M customer note of 26 Jun 2024, after the decision date"
+    ]
+  },
   "templates": {
     "federal_post_judgment": {
       "forum": "court",
@@ -559,7 +565,10 @@
           ],
           "context": [],
           "residual_question": "forecast_ts_liability_jmol",
-          "situation": []
+          "situation": {},
+          "timing_parameters": [
+            "ruling_lag_days"
+          ]
         },
         "ts_damages_ruling": {
           "actor": "court",
@@ -585,7 +594,8 @@
           ],
           "context": [],
           "residual_question": "forecast_ts_damages_ruling",
-          "situation": []
+          "situation": {},
+          "timing_parameters": []
         },
         "remittitur_accepted": {
           "actor": "judgment creditor",
@@ -607,7 +617,8 @@
           ],
           "context": [],
           "residual_question": "forecast_remittitur_accepted",
-          "situation": []
+          "situation": {},
+          "timing_parameters": []
         },
         "patent_jmol": {
           "actor": "court",
@@ -630,7 +641,8 @@
           ],
           "context": [],
           "residual_question": "forecast_patent_jmol",
-          "situation": []
+          "situation": {},
+          "timing_parameters": []
         },
         "trebling": {
           "actor": "court",
@@ -655,7 +667,8 @@
           ],
           "context": [],
           "residual_question": "forecast_trebling",
-          "situation": []
+          "situation": {},
+          "timing_parameters": []
         },
         "fees_awarded": {
           "actor": "court",
@@ -680,7 +693,8 @@
           ],
           "context": [],
           "residual_question": "forecast_fees_awarded",
-          "situation": []
+          "situation": {},
+          "timing_parameters": []
         },
         "prejudgment_interest": {
           "actor": "court",
@@ -706,7 +720,8 @@
           ],
           "context": [],
           "residual_question": "forecast_prejudgment_interest",
-          "situation": []
+          "situation": {},
+          "timing_parameters": []
         },
         "injunction": {
           "actor": "court",
@@ -719,7 +734,8 @@
           ],
           "record_items": [
             "the proposed injunction",
-            "the motion's grounds"
+            "the motion's grounds",
+            "the company's statements on its redesigned products"
           ],
           "path_facts": [
             "the judgment's components (awarded and requested amounts)",
@@ -734,7 +750,8 @@
           "context": [],
           "residual_question": "forecast_injunction_ts",
           "stress_only": true,
-          "situation": []
+          "situation": {},
+          "timing_parameters": []
         },
         "execute_pre_ruling": {
           "actor": "judgment creditor",
@@ -764,7 +781,8 @@
             "interval"
           ],
           "residual_question": "forecast_execution_pending_motions",
-          "situation": []
+          "situation": {},
+          "timing_parameters": []
         },
         "stay_motion": {
           "actor": "judgment debtor",
@@ -794,10 +812,11 @@
             "amount_class"
           ],
           "residual_question": "forecast_stay_motion",
-          "situation": [
-            "appealed",
-            "levied"
-          ]
+          "situation": {
+            "appealed": "Rule 62(b): security for a stay pending appeal; the actor's own earlier act on this path",
+            "levied": "Rule 62(b): a stay stops further execution; a completed levy changes what it protects"
+          },
+          "timing_parameters": []
         },
         "stay_approved": {
           "actor": "court",
@@ -807,7 +826,8 @@
             "bond_amount"
           ],
           "record_items": [
-            "the stay motion and the security it offers"
+            "the stay motion and the security it offers",
+            "the debtor's financial condition and its ability to pay the judgment"
           ],
           "path_facts": [
             "amount owed on the path, by component, with statutory interest to the decision date",
@@ -828,9 +848,13 @@
           ],
           "residual_question": "forecast_stay_approved",
           "note": "Collateral is locked on trajectories whose cash covers it; on the others the stay rests on the court's approval of lesser security, which books no cash.",
-          "situation": [
-            "appealed",
-            "levied"
+          "situation": {
+            "appealed": "the lesser-security standard (Dillon; Poplar Grove) governs a stay pending appeal",
+            "levied": "the lesser-security standard weighs confidence that funds will be available to pay"
+          },
+          "timing_parameters": [
+            "ruling_lag_days",
+            "briefing_days_new_motion"
           ]
         },
         "registration_early": {
@@ -859,8 +883,12 @@
             "interval"
           ],
           "residual_question": "forecast_1963_good_cause",
-          "situation": [
-            "stay_moved"
+          "situation": {
+            "stay_moved": "28 U.S.C. §1963 good cause turns on whether the debtor has posted a bond or secured a stay (Associated Bus. Tel. Sys.; 3M v. Mohan)"
+          },
+          "timing_parameters": [
+            "ruling_lag_days",
+            "levy_lag_days"
           ]
         },
         "debtor_response": {
@@ -900,9 +928,12 @@
             "file": "a petition on the decision date + petition_lag_days; on a levy day, the company's payment or petition comes before the levy",
             "neither": "the company takes no further step on the judgment; a later petition comes from the notes or the cash floor"
           },
-          "situation": [
-            "appealed",
-            "levied"
+          "situation": {
+            "appealed": "the actor's own earlier act on this path",
+            "levied": "the levy is the act the company responds to"
+          },
+          "timing_parameters": [
+            "levy_lag_days"
           ]
         },
         "appeal": {
@@ -934,10 +965,10 @@
           ],
           "residual_question": "forecast_appeal",
           "effect": "During an appeal, registration in other districts requires good cause (28 U.S.C. §1963).",
-          "situation": [
-            "stayed",
-            "levied"
-          ]
+          "situation": {
+            "stayed": "Rule 62(b): a stay in place protects the company while its appeal is pending"
+          },
+          "timing_parameters": []
         },
         "enforce_after_final": {
           "actor": "judgment creditor",
@@ -967,10 +998,11 @@
             "appealed"
           ],
           "residual_question": "forecast_enforcement_after_final",
-          "situation": [
-            "executing",
-            "levied"
-          ]
+          "situation": {
+            "executing": "the actor's own earlier act on this path",
+            "levied": "the actor's own earlier act on this path"
+          },
+          "timing_parameters": []
         },
         "settlement_offer": {
           "actor": "judgment debtor",
@@ -998,11 +1030,13 @@
             "amount_class"
           ],
           "residual_question": "forecast_settlement_offer",
-          "situation": [
-            "stayed",
-            "stay_moved",
-            "appealed",
-            "levied"
+          "situation": {
+            "stayed": "Rule 62(b): a stay suspends the creditor's enforcement",
+            "stay_moved": "a pending stay motion may suspend the creditor's enforcement",
+            "appealed": "an appeal puts the judgment at risk for both parties"
+          },
+          "timing_parameters": [
+            "settlement_date_in_interval"
           ]
         },
         "settlement_accept": {
@@ -1031,12 +1065,12 @@
             "amount_class"
           ],
           "residual_question": "forecast_settlement_accept",
-          "situation": [
-            "stayed",
-            "stay_moved",
-            "appealed",
-            "levied"
-          ]
+          "situation": {
+            "stayed": "Rule 62(b): a stay suspends the creditor's enforcement",
+            "stay_moved": "a pending stay motion may suspend the creditor's enforcement",
+            "appealed": "an appeal puts the judgment at risk for both parties"
+          },
+          "timing_parameters": []
         }
       }
     },
@@ -1082,10 +1116,12 @@
             "amount_class"
           ],
           "residual_question": "forecast_holders_act_judgment",
-          "situation": [
-            "appealed",
-            "stay_moved",
-            "levied"
+          "situation": {
+            "appealed": "§7.01(i) turns on a judgment that may be reversed on appeal",
+            "stay_moved": "§7.01(i): a judgment stayed before the 60 days run is no default"
+          },
+          "timing_parameters": [
+            "holder_notice_lag_days"
           ]
         },
         "holders_act_delisting": {
@@ -1116,16 +1152,13 @@
             "delisting"
           ],
           "residual_question": "forecast_holders_act_delisting",
-          "situation": [
-            "ruled",
-            "settled",
-            "paid",
-            "stayed",
-            "stay_moved",
-            "appealed",
-            "levied",
-            "seeking"
-          ]
+          "situation": {
+            "ruled": "the issuer's other liabilities bear on what holders recover (§7.02; §10.01)",
+            "settled": "the issuer's other liabilities bear on what holders recover (§7.02; §10.01)",
+            "paid": "the issuer's other liabilities bear on what holders recover (§7.02; §10.01)",
+            "stayed": "the issuer's other liabilities bear on what holders recover (§7.02; §10.01)"
+          },
+          "timing_parameters": []
         },
         "petition_on_notes": {
           "actor": "issuer",
@@ -1153,15 +1186,17 @@
             "trigger"
           ],
           "residual_question": "forecast_petition_on_notes",
-          "situation": [
-            "ruled",
-            "settled",
-            "paid",
-            "stayed",
-            "stay_moved",
-            "appealed",
-            "levied",
-            "seeking"
+          "situation": {
+            "ruled": "the company's liabilities and resources when it decides",
+            "settled": "the company's liabilities and resources when it decides",
+            "paid": "the company's liabilities and resources when it decides",
+            "stayed": "the company's liabilities and resources when it decides",
+            "appealed": "the company's liabilities and resources when it decides",
+            "levied": "the company's liabilities and resources when it decides",
+            "seeking": "the actor's own earlier act on this path"
+          },
+          "timing_parameters": [
+            "petition_lag_days"
           ]
         },
         "holders_involuntary": {
@@ -1189,15 +1224,14 @@
             "trigger"
           ],
           "residual_question": "forecast_holders_involuntary",
-          "situation": [
-            "ruled",
-            "settled",
-            "paid",
-            "stayed",
-            "stay_moved",
-            "appealed",
-            "levied",
-            "seeking"
+          "situation": {
+            "ruled": "the issuer's other liabilities bear on what holders recover (§303; §7.02)",
+            "settled": "the issuer's other liabilities bear on what holders recover (§303; §7.02)",
+            "paid": "the issuer's other liabilities bear on what holders recover (§303; §7.02)",
+            "stayed": "the issuer's other liabilities bear on what holders recover (§303; §7.02)"
+          },
+          "timing_parameters": [
+            "petition_lag_days"
           ]
         },
         "reverse_split_board": {
@@ -1224,13 +1258,8 @@
           ],
           "context": [],
           "residual_question": "forecast_reverse_split_board",
-          "situation": [
-            "ruled",
-            "settled",
-            "paid",
-            "stayed",
-            "levied"
-          ]
+          "situation": {},
+          "timing_parameters": []
         },
         "split_approved": {
           "actor": "stockholders",
@@ -1255,13 +1284,8 @@
           ],
           "context": [],
           "residual_question": "forecast_split_approved",
-          "situation": [
-            "ruled",
-            "settled",
-            "paid",
-            "stayed",
-            "levied"
-          ]
+          "situation": {},
+          "timing_parameters": []
         },
         "nasdaq_hearing": {
           "actor": "issuer",
@@ -1286,13 +1310,8 @@
           ],
           "context": [],
           "residual_question": "forecast_nasdaq_hearing",
-          "situation": [
-            "ruled",
-            "settled",
-            "paid",
-            "stayed",
-            "levied"
-          ]
+          "situation": {},
+          "timing_parameters": []
         },
         "panel_exception": {
           "actor": "Nasdaq Hearings Panel",
@@ -1317,12 +1336,9 @@
           ],
           "context": [],
           "residual_question": "forecast_panel_exception",
-          "situation": [
-            "ruled",
-            "settled",
-            "paid",
-            "stayed",
-            "levied"
+          "situation": {},
+          "timing_parameters": [
+            "panel_decision_days"
           ]
         }
       }
@@ -1355,16 +1371,19 @@
           ],
           "context": [],
           "residual_question": "forecast_petition_cash_floor",
-          "situation": [
-            "ruled",
-            "settled",
-            "paid",
-            "stayed",
-            "appealed",
-            "levied",
-            "seeking",
-            "notes_due",
-            "delisted"
+          "situation": {
+            "ruled": "the company's liabilities and resources when it decides",
+            "settled": "the company's liabilities and resources when it decides",
+            "paid": "the company's liabilities and resources when it decides",
+            "stayed": "the company's liabilities and resources when it decides",
+            "appealed": "the company's liabilities and resources when it decides",
+            "levied": "the company's liabilities and resources when it decides",
+            "notes_due": "the company's liabilities and resources when it decides",
+            "delisted": "the company's liabilities and resources when it decides",
+            "seeking": "the actor's own earlier act on this path"
+          },
+          "timing_parameters": [
+            "petition_lag_days"
           ]
         },
         "petition_cash_out": {
@@ -1391,16 +1410,19 @@
             "cash_exhausted"
           ],
           "residual_question": "forecast_petition_cash_out",
-          "situation": [
-            "ruled",
-            "settled",
-            "paid",
-            "stayed",
-            "appealed",
-            "levied",
-            "seeking",
-            "notes_due",
-            "delisted"
+          "situation": {
+            "ruled": "the company's liabilities and resources when it decides",
+            "settled": "the company's liabilities and resources when it decides",
+            "paid": "the company's liabilities and resources when it decides",
+            "stayed": "the company's liabilities and resources when it decides",
+            "appealed": "the company's liabilities and resources when it decides",
+            "levied": "the company's liabilities and resources when it decides",
+            "notes_due": "the company's liabilities and resources when it decides",
+            "delisted": "the company's liabilities and resources when it decides",
+            "seeking": "the actor's own earlier act on this path"
+          },
+          "timing_parameters": [
+            "petition_lag_days"
           ]
         }
       }
@@ -1423,6 +1445,6 @@
     },
     "neutral": "Attribution step 2 sets every residual to neutral (a Noul at 0.5, a Choice uniform over the branches arithmetic leaves) and keeps everything the record fixes.",
     "paths_to_the_engine": "Paths are sequences of decisions; each decision's effect is dated per trajectory and applies only where its condition holds on that date. A petition ends every later effect on its trajectory.",
-    "situation": "Each question is asked in the conditions its actor weighs (the node's situation) that hold at the decision on every trajectory of the path where it is asked. A condition that holds on only some of them is left unstated."
+    "situation": "Each question is asked in the conditions its node's situation names, each with its basis, that hold at the decision on every trajectory of the path where it is asked. A condition that holds on only some of them is left unstated."
   }
 }

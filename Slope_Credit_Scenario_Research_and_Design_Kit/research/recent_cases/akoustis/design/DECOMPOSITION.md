@@ -5,7 +5,7 @@
 **What the model does.** It runs Slope's reusable line for Akoustis from 20 Jun to 17 Dec 2024. The limit is about $0.357M, a manual-review line. Cash at 20 Jun is about $17.16M. Five threats can stop or shrink collections:
 - Qorvo enforcing the $38.6M judgment;
 - the post-trial ruling changing it;
-- noteholders accelerating $44.0M on the judgment default (from 19 Aug) or on delisting (after 21 Oct);
+- noteholders accelerating $44.0M on the judgment default (60 days after the post-trial ruling) or on delisting (after 21 Oct);
 - operating burn;
 - the December coupon.
 
@@ -55,7 +55,7 @@ Law and the record fix the structure. Ruling dates come from data: this judge's 
 1. **Delisting is itself an Event of Default** (§7.01(b)), with no notice and no grace period. It is also a Fundamental Change with a cash repurchase right (§10.01). This supersedes spec §1.1 and `spec_corrections.md` item 7.
 2. **Interest is paid in shares unless the company elects cash** (§16.02(c)). The 17 Jun 2024 coupon was $0.442M cash and $0.878M shares (CASH_CHECK).
 3. **Execution is available from 20 Jun.** Entries 1–621 hold no stay, bond or supersedeas motion (R2h).
-4. **The judgment default can ripen on the 20 May judgment** (R2j, OPEN): 19 Aug at the earliest. Notice is still required. The insured-amounts exclusion is $0 (R7).
+4. **The judgment default runs from the post-trial ruling** (L11): the judgment is final at the ruling on the post-trial motions. Notice is still required. The insured-amounts exclusion is $0 (R7).
 5. **Remittitur follows the maximum-recovery rule** (R2a).
 6. **The fee motion does not toll the appeal clock** without a Rule 58(e) order.
 
@@ -141,7 +141,7 @@ Draws, collections and line reassessment follow spec §2.
 | Final judgment | The last order changing the judgment (FRAP 4(a)(4)(A)) | Code timing |
 | New stay; appeal deadline | +30 days on increases (L8); +30 days after the last tolling order | Code timing |
 | Registration in NC and NY | After the appeal deadline; earlier only on J9 | Code timing |
-| §7.01(i) ripe date | 19 Aug if still unpaid and unstayed; otherwise the post-ruling judgment's enforceable date + 60 | Code timing |
+| §7.01(i) ripe date | The post-trial ruling + 60 days, if still unpaid and unstayed (L11) | Code timing |
 | Levy lag; petition after a decision; holder notice | Base 0 days; sensitivity +30 | Bounded |
 | Bond | Path judgment + accrued §1961 interest + forward interest [0, 2 years], base 1. No costs filed by D | Sourced (L7) |
 | Surety collateral | 100% of the bond; lower bound 80% | Sourced (R2i); lower bound Bounded |
@@ -149,7 +149,7 @@ Draws, collections and line reassessment follow spec §2.
 | Determination; suspension | 22 Oct; +10 days with no hearing | Code timing (R2d) |
 | Panel decision | Determination + [30, 60] days; base 45 | Bounded |
 | Repurchase date | Latest §10.01 date (base); earliest (sensitivity) | Bounded |
-| 15 Dec coupon cash | Base $0.442M (the June split); sensitivities $1.32M and $0 | Bounded |
+| 15 Dec coupon cash | Base: shares, as §16.02(c) provides unless the company elects cash; sensitivities the June split ($0.442M) and all cash ($1.32M) | Bounded |
 | CHIPS credits | Base $0 in the horizon; sensitivity $2.33M prorated June–December | Bounded, pending the transcript |
 | Interest rates | 8% simple from 4 Oct 2021; §1961 1-year CMT for the week before 20 May | Sourced (H.15 in Stage 3) |
 | Settlement date in an interval | Interval start + 30 days; sensitivity interval end | Bounded (D5) |
@@ -201,7 +201,7 @@ Collections stop or fall short only through a petition or too little cash above 
 
 ### 3.2 T2. The notes
 
-**Judgment default.** It ripens on 19 Aug if the judgment is still unpaid and unstayed, and again on the post-ruling judgment. At each ripe date the holders decide whether to give notice and accelerate: **H1**. Paying $44.0M is impossible (Arithmetic). Akoustis decides whether to file (**A5**); if it does not, the holders decide whether to file (**H3**). If neither files, the notes stay due and unpaid, and the listing chain no longer reaches the notes.
+**Judgment default.** It ripens 60 days after the post-trial ruling if the judgment is still unpaid and unstayed (L11). At each ripe date the holders decide whether to give notice and accelerate: **H1**. Paying $44.0M is impossible (Arithmetic). Akoustis decides whether to file (**A5**); if it does not, the holders decide whether to file (**H3**). If neither files, the notes stay due and unpaid, and the listing chain no longer reaches the notes.
 
 **Delisting.** The board decides whether to call the reverse-split vote in time (**A7**), and the stockholders whether to approve (**ST1**). If the stock is not compliant on 21 Oct, Akoustis decides whether to request a hearing (**A8**), and the panel whether to grant an exception (**N1**). On delisting, an Event of Default exists at once. The holders accelerate, require repurchase only, or do neither (**H2**). Then A5 and H3; if neither files, the notes stay due and unpaid.
 
@@ -209,7 +209,7 @@ Collections stop or fall short only through a petition or too little cash above 
 
 ### 3.3 T3 and T5. Operating cash
 
-Operating flows come from the feed (§6). Dispute cash comes from T1, and legal spend continues until the dispute ends on the path. **τ** is the first date available cash falls below need (spec §2.2; sensitivity: below zero). At τ, Akoustis decides whether to file: **A6**. If it keeps operating, it decides again on the first date its cash falls below zero: **A6b**. New financing is not booked as cash, so every Akoustis question states that no new financing or sale has closed.
+Operating flows come from the feed (§6). Dispute cash comes from T1, and legal spend continues until the dispute ends on the path. **τ** is the first date available cash falls below need (spec §2.2; sensitivity: below zero). At τ, Akoustis decides whether to file: **A6**. If it keeps operating, it decides again on the first date its cash falls below zero: **A6b**. New financing is not booked as cash.
 
 ### 3.4 T4. The coupon
 
@@ -225,7 +225,7 @@ Each question is one actor's decision. None asks about timing, an amount, afford
 
 **Situation.** Each question is asked in the conditions its actor weighs that hold at the decision on every trajectory of the path: whether the ruling has issued and its amount, a settlement or payment, a stay moved or in force, an appeal, a levy, the creditor's execution, the company's search for a sale or financing, the notes due and unpaid, and a delisting. A condition that holds on only some trajectories is left unstated.
 
-**Evidence.** A court decides on the record before it: court questions receive the findings drawn from the court's filings. Every other actor's question receives every accepted finding, grouped as the investigation grouped them.
+**Evidence.** Each question receives the accepted findings that supply its record items (§1 and §3). A record item no finding supplies is stated as not in the record.
 
 **Readings.** Present-state readings are evidence handed to a question. They are never its probability.
 - The `event_*` readings (judgment entered, stay secured, appeal filed, paid, amount fixed) set the stage: judgment entered 20 May, no stay, no appeal, unpaid. Code uses them for structure.
@@ -301,7 +301,7 @@ Declared scenarios, shown side by side, never weighted. If Stage 3 obtains Benni
 
 - **Patent part:** reaches only legacy versions of the 19 parts. The redesigns were released on 22 May (`8k_0522_ex991`); disputes over them go to contempt proceedings, not into the horizon.
 - **Trade-secret part:** not tied to part numbers. The only bound is the RF Filters segment, 59.5–66.9% of revenue, which also holds unaccused RFMi products.
-- **Result:** the cash effect cannot be obtained pre-D and is excluded from the weighted view. One stress scenario: where J7 = granted, RF Filters receipts (about 63%) fall to zero from the order date.
+- **Result:** the cash effect cannot be obtained pre-D and is excluded from the weighted view. One stress scenario: where J7 = granted, RF Filters receipts (about 63%) fall to zero from the order date. The stress scenario is not built for the proof of concept, so J7 is not asked.
 
 ### 5.4 Settlement (Decision D5)
 
@@ -321,7 +321,7 @@ The feasibility bound is available cash minus 30-day need, capped at the path am
 
 **Line limit: about $0.357M** = 15% × ($2.381M mean monthly receipts, March–May − $0 debt service). It exceeds Slope's $250k automatic approval, so it is a manual-review line.
 
-**Supplier-invoice outflows** (about $3.58M a month) depend on an assumed payroll of $1.462M a month and are labelled as estimates.
+**Supplier-invoice outflows** depend on the pre-D payroll basis of about $1.92M a month (Stage 3) and are labelled as estimates.
 
 ---
 

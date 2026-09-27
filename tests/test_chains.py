@@ -63,8 +63,8 @@ def chain(base, d=None, sens=None) -> Chain:
 def test_composition_sums_to_one_and_keeps_every_path(full):
     fc, paths = full
     assert 1_000 < len(paths) < 10_000  # thousands: collapsed by interval and amount class
-    assert {n.question_id for n in fc.nodes.values()} == {q for t in M["templates"].values()
-                                                          for q in (s["residual_question"] for s in t["nodes"].values())}
+    assert {n.question_id for n in fc.nodes.values()} == {s["residual_question"] for t in M["templates"].values()
+                                                          for s in t["nodes"].values() if not s.get("stress_only")}
     js = stub(fc)
     for dist in (distributions(js), distributions(js, neutral_map(js))):
         assert sum(path_probability(p.edges, dist) for p in paths) == pytest.approx(1.0, abs=1e-9)
