@@ -133,7 +133,7 @@ def test_path_facts_pool_only_trajectories_where_the_situation_holds(full):
 
 
 def _growing(base):
-    """Cash that grows by $100k a day, so an approved stay can post the security offered on the motion day (on the
+    """Cash that grows by $100k a day, so the company holds cash above its need when a stay is approved (on the
     fixture's own cash the company has burnt below offer plus need by approval, and no stay takes effect)."""
     return base[0], replace(base[1], cash=base[1].cash + np.arange(base[1].cash.shape[1])[None, :] * 10_000_000)
 

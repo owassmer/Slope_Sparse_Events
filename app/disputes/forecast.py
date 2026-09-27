@@ -189,7 +189,7 @@ class _Prefix:
     cause: np.ndarray | None = None  # per draw: the rule that booked the earliest petition (events.PETITION_CAUSES)
     marks: dict | None = None  # condition -> the day it holds from, per draw (events.MARKS)
     settle_offer: np.ndarray | None = None  # the traced step's settlement amount on its payment date (0: none)
-    stay_offer: np.ndarray | None = None  # cash above the 30-day operating need on the stay-motion day (0: none)
+    stay_offer: np.ndarray | None = None  # cash above the 30-day operating need on the stay-approval day (0: none)
     triggers: dict | None = None  # events.TRIGGERS name -> day index per draw (events.BIG: none)
 
     @classmethod

@@ -374,7 +374,7 @@ ARITHMETIC = {
     "operating_need_30_days_at_decision": "the lowest point of the next 30 days' cumulative operating flows",
     "bond_collateral_required": "the amount owed + 28 U.S.C. §1961 interest over the appeal, times the collateral "
                                 "share",
-    "reduced_security_offered": "the company's cash above its 30-day operating need on the stay-motion day",
+    "reduced_security_offered": "the company's cash above its 30-day operating need on the approval day, when the security is posted",
     "judgment_after_ruling": "the range of judgment amounts the ruling outcomes shown together here leave",
 }
 

@@ -136,7 +136,7 @@ def test_the_bootstrap_does_not_replay_the_june_coupon():
 # Stay security (Rule 62(b)) -----------------------------------------------------------------------------------------
 
 def _growing(b):
-    """Cash that grows by $100k a day: the company can post on approval what it offered on the motion day."""
+    """Cash that grows by $100k a day."""
     return replace(b, cash=b.cash + np.arange(b.cash.shape[1])[None, :] * 10_000_000)
 
 
@@ -155,11 +155,13 @@ def test_a_stay_locks_the_collateral_where_cash_covers_it_and_else_the_cash_abov
     covers = (c.stayed_from < c.N) & (c.stay_offer == 0)
     assert covers.sum() > DRAWS // 2 and (c.lock_amount[covers] == c.collateral_required[covers]).all()
     assert (c.ev.lock.sum(axis=1)[covers] == c.collateral_required[covers]).all()
-    c = _stay(b, judgment())  # $38.6M: the company's offer, its cash above its 30-day need on the motion day
-    t = np.full(DRAWS, c.E0)
-    offer = np.maximum(b.cash[np.arange(DRAWS), t] - b.need[np.arange(DRAWS), t], 0)
-    assert (c.stay_offer == offer).all() and (offer > 0).all()
-    assert (c.stayed_from >= 10**6).all() and not c.ev.lock.any()  # cash burnt by approval: the offer cannot be posted
+    c = _stay(b, judgment())  # $38.6M: the company offers its cash above its 30-day need on the approval day
+    inside = c.stayed_from < c.N
+    rows, day = np.arange(DRAWS)[inside], c.stayed_from[inside]
+    cash = b.cash + np.cumsum(c.ev.cash, axis=1)
+    offer = np.maximum(cash[rows, day] - b.need[rows, day], 0)
+    assert inside.any() and (c.stay_offer[inside] == offer).all() and (offer > 0).all()
+    assert (c.lock_amount[inside] == offer).all()  # the approved amount is locked on approval
     c = _stay(_growing(b), judgment())  # where cash grows to approval, the approved offer is posted and locked
     offer = c.stay_offer
     inside = c.stayed_from < c.N
@@ -170,8 +172,8 @@ def test_a_stay_locks_the_collateral_where_cash_covers_it_and_else_the_cash_abov
 
 
 def test_no_approved_stay_locks_the_company_below_its_30_day_need(base):
-    """Reduced security is the cash above the 30-day need on the motion day; on approval the stay is effective only
-    where the company can post that amount and keep its need, so no lock takes cash below the need that day."""
+    """Reduced security is the cash above the 30-day need on the approval day, so no lock takes cash below the
+    need that day."""
     b = base[1]
     small = judgment(stage="judgment_entered", motions=(), components=(), financing=(),
                      amount=judgment().amount.model_copy(update={"value": 200_000_000}))
@@ -183,7 +185,8 @@ def test_no_approved_stay_locks_the_company_below_its_30_day_need(base):
         after = c.cash_at(c.lock_day)[locked]  # the day's cash net of the lock booked that day
         assert (after >= bb.need[np.arange(DRAWS)[locked], day]).all()
     c = _stay(b, judgment())
-    assert ((c.stay_offer > 0) & (c.stayed_from >= 10**6)).any()  # elsewhere the stay is not effective
+    effective = c.stayed_from < c.N
+    assert effective.any() and (c.lock_amount[effective] > 0).all()  # in the base, an effective stay posts cash
 
 
 def _locked_end(c):

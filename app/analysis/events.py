@@ -236,7 +236,7 @@ class Trace:
     cause: np.ndarray | None = None  # per draw: which rule booked the earliest petition (PETITION_CAUSES index)
     marks: dict = field(default_factory=dict)  # MARKS name -> the day it holds from, per draw (BIG: never)
     settle_offer: np.ndarray | None = None  # the last step's settlement amount on its payment date (0: none)
-    stay_offer: np.ndarray | None = None  # the last step's cash above the 30-day need on the stay-motion day (0: none)
+    stay_offer: np.ndarray | None = None  # the last step's cash above the 30-day need on the stay-approval day (0: none)
     triggers: dict = field(default_factory=dict)  # TRIGGERS name -> day index per draw (BIG: none)
 
 
@@ -434,23 +434,21 @@ class Chain:
     def stay_security(self, motion: np.ndarray, key: str, approved: bool) -> np.ndarray:
         """Rule 62(b), effective on approval (motion + briefing + a lag draw). Where the company's cash at approval
         covers the bond collateral and its 30-day operating need, the collateral is locked. Elsewhere the company
-        proposes reduced security: its available cash above its 30-day operating need on the motion day
-        (`stay_offer`, what the court is told). On approval the stay is effective where the company can still post
-        that amount and keep its 30-day operating need on the approval day; there the amount is locked. Elsewhere the
-        stay is not effective, except under stay_security = noncash (security or a waiver not in cash; nothing
-        locked). The lock is released when the dispute ends (`release_lock`)."""
+        proposes reduced security, posted on approval: its available cash above its 30-day operating need on the
+        approval day (`stay_offer`, what the court is told). If approved, that amount is locked. Where the company has
+        no cash above its need that day, the stay is effective only under stay_security = noncash (security or a
+        waiver not in cash; nothing locked). The lock is released when the dispute ends (`release_lock`)."""
         approval = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, key)
         collateral = self.bond_collateral(approval)
         cash_a = self.cash_at(approval)
         need_a = self.basis.need[self.rows, np.clip(approval, 0, self.N - 1)]
         covers = cash_a - need_a >= collateral
-        t = np.clip(motion, 0, self.N - 1)
-        offer = np.maximum(self.cash_at(motion) - self.basis.need[self.rows, t], 0)
-        self.stay_offer = np.where(self.live(motion) & (motion < self.N) & ~covers, offer, 0).astype(np.int64)
+        offer = np.maximum(cash_a - need_a, 0)
+        self.stay_offer = np.where(self.live(approval) & (approval < self.N) & ~covers, offer, 0).astype(np.int64)
         self.collateral_required = collateral
         if not approved:
             return approval
-        posts = ~covers & (self.stay_offer > 0) & (cash_a - self.stay_offer >= need_a)
+        posts = ~covers & (self.stay_offer > 0)
         lock = np.where(covers, collateral, np.where(posts, self.stay_offer, 0))
         noncash = self.p("stay_security") == "noncash"
         effective = self.live(approval) & (covers | posts | noncash)
