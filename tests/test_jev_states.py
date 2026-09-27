@@ -86,3 +86,24 @@ def test_a_reading_travels_with_the_passage_it_was_taken_from(base):
         assert {"item": item, "in_the_record": True} in st["record_items"]
     st, _, readings = fc.state(fc.nodes[fc.node(d, "appeal", "post")])
     assert "An appeal of this obligation is waived or barred" not in readings and not st["evidence"]
+
+
+def test_jev_reads_the_clocks_and_the_remittitur_scenario_as_what_they_are(base):
+    from app.agent.jev import registry_question
+
+    d = judgment()
+    fc = forecaster(base, [d])
+    k = fc.node(d, "settlement_offer", "I1", "entered")
+    fc.record((k,), fc.trace(d, (("settle", "I1", "no"),)))
+    dates = fc.state(fc.nodes[k])[0]["path_facts"]["contract_dates"]
+    entered = ("the notes' judgment default (§7.01(i)) on the judgment as entered: 60 days after execution became "
+               "available on 20 Jun 2024")
+    assert dates[entered] == "19 Aug 2024"
+    assert any(x.endswith("60 days after the court's order on the last pending post-trial motion") for x in dates)
+    st = fc.state(fc.nodes[fc.node(d, "ts_damages_ruling")])[0]
+    comp = next(c for c in st["path_facts"]["components"] if "remittitur_scenario" in c)
+    assert comp["remittitur_scenario"].startswith("$23,100,000.00 (the model's remitted-amount scenario; basis: "
+                                                  "Bennis's method with Irwin's revenue corrections")
+    assert "D.I. 616-1" in comp["remittitur_scenario"] and "the most the evidence supports" not in comp["remittitur_scenario"]
+    for q in ("forecast_ts_liability_jmol", "forecast_ts_damages_ruling", "forecast_trebling"):
+        assert "merits or the remedy" not in registry_question(q)["prompt"]["instructions"]

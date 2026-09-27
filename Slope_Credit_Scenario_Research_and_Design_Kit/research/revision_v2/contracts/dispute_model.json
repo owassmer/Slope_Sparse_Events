@@ -511,7 +511,7 @@
       },
       "remitted": {
         "amount_cents": 2310000000,
-        "label": "Remitted to $23.1M, the most the evidence supports",
+        "label": "the model's remitted-amount scenario",
         "basis": "Bennis's method with Irwin's revenue corrections: 54% off $50.3M, or 65% off $66.1M (D.I. 616-1, tr. 1698-1700, 2346-47)"
       }
     }

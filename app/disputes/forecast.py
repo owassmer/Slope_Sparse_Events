@@ -271,8 +271,10 @@ OWED = {"execute_pre_ruling", "stay_motion", "stay_approved", "registration_earl
 DATED = {"settlement_offer", "settlement_accept", "petition_cash_floor", "petition_cash_out", "holders_act_judgment",
          "holders_act_delisting", "holders_involuntary", "petition_on_notes"}
 TRIGGER_PHRASES = {
-    "judgment_default_entered": "60 days after the judgment's entry: the indenture's judgment-default period (§7.01(i)) counted from entry",
-    "judgment_default_ruling": "60 days after the post-trial ruling: the indenture's judgment-default period (§7.01(i)) counted from the ruling",
+    "judgment_default_entered": "the notes' judgment default (§7.01(i)) on the judgment as entered: 60 days after "
+                                "execution became available{since}",
+    "judgment_default_ruling": "the notes' judgment default (§7.01(i)) if the judgment is final only on the post-trial "
+                               "ruling: 60 days after the court's order on the last pending post-trial motion",
     "appeal_deadline": "the deadline to file a notice of appeal",
     "coupon": "the notes' interest payment date",
     "listing_deadline": "Nasdaq's deadline to regain compliance with the minimum bid price",
@@ -646,6 +648,8 @@ class Forecaster:
             if not v.size:
                 continue
             lo, hi = self._date(np.quantile(v, 0.05)), self._date(np.quantile(v, 0.95))
+            if "{since}" in label:  # one date: the day execution became available, 60 days before it
+                label = label.format(since=f" on {self._date(v.min() - 60)}" if v.min() == v.max() else "")
             text = lo if lo == hi else f"between {lo} and {hi} (median {self._date(np.quantile(v, 0.5))})"
             out[label] = text + (", or after the analysis period ends" if later else "") + (
                 self.coupon_amount() if name == "coupon" else "")
@@ -679,7 +683,7 @@ class Forecaster:
                "amount": usd(c.amount_cents) if c.amount_cents is not None else
                ("sealed; amount not public" if sealed else "computed by statute" if c.statutory else "unknown")}
         if remit.get("amount_cents") and c.kind == "compensatory":
-            out["remittitur_scenario"] = f"{usd(remit['amount_cents'])}: {remit['label']} ({remit['basis']})"
+            out["remittitur_scenario"] = f"{usd(remit['amount_cents'])} ({remit['label']}; basis: {remit['basis']})"
         return out
 
     def _pending(self, d: DisputeInstance, node: str) -> list[dict]:
