@@ -271,8 +271,10 @@ OWED = {"execute_pre_ruling", "stay_motion", "stay_approved", "registration_earl
 DATED = {"settlement_offer", "settlement_accept", "petition_cash_floor", "petition_cash_out", "holders_act_judgment",
          "holders_act_delisting", "holders_involuntary", "petition_on_notes"}
 TRIGGER_PHRASES = {
-    "judgment_default_entered": "60 days after the judgment's entry: the indenture's judgment-default period (§7.01(i)) counted from entry",
-    "judgment_default_ruling": "60 days after the post-trial ruling: the indenture's judgment-default period (§7.01(i)) counted from the ruling",
+    "judgment_default_entered": "the notes' judgment default (§7.01(i)) on the judgment as entered: 60 days after "
+                                "execution became available{since}",
+    "judgment_default_ruling": "the notes' judgment default (§7.01(i)) if the judgment is final only on the post-trial "
+                               "ruling: 60 days after the court's order on the last pending post-trial motion",
     "appeal_deadline": "the deadline to file a notice of appeal",
     "coupon": "the notes' interest payment date",
     "listing_deadline": "Nasdaq's deadline to regain compliance with the minimum bid price",
@@ -310,6 +312,7 @@ class Forecaster:
         self.nodes: dict[str, Node] = {}
         self.facts: dict[str, list] = {}  # node key -> the rows `record` keeps, one per path that asks it
         self._traces: dict = {}
+        self._sources: dict[str, str] = {}  # finding -> its source's title
         self.bank_nodes: dict[str, Node] = {}  # the bank view's questions (bank_state)
         self.bank_facts: dict[str, list] = {}  # bank node key -> [(day, cash, need) arrays]
 
@@ -585,10 +588,13 @@ class Forecaster:
         if any(f.status != "superseded" for f in d.financing):
             f = next(f for f in d.financing if f.status != "superseded")
             facts["notes"] = {"principal": usd(f.principal_cents),
-                              "judgment_default": (f"final money judgments above {usd(f.judgment_default_threshold_cents)}"
-                                                   f" that remain unpaid, undischarged and unstayed for "
-                                                   f"{f.judgment_default_days} days, after notice by the trustee or "
-                                                   f"holders of 25% of the notes" if f.judgment_default_days else "none")}
+                              "judgment_default": (f"final judgments for the payment of money above "
+                                                   f"{usd(f.judgment_default_threshold_cents)} that \"remain "
+                                                   f"undischarged, unpaid or unstayed for a period (during which "
+                                                   f"execution shall not be effectively stayed) of "
+                                                   f"{f.judgment_default_days} days\" (§7.01(i)), after notice by the "
+                                                   f"trustee or holders of 25% of the notes"
+                                                   if f.judgment_default_days else "none")}
         return facts
 
     @staticmethod
@@ -645,9 +651,31 @@ class Forecaster:
             if not v.size:
                 continue
             lo, hi = self._date(np.quantile(v, 0.05)), self._date(np.quantile(v, 0.95))
+            if "{since}" in label:  # one date: the day execution became available, 60 days before it
+                label = label.format(since=f" on {self._date(v.min() - 60)}" if v.min() == v.max() else "")
             text = lo if lo == hi else f"between {lo} and {hi} (median {self._date(np.quantile(v, 0.5))})"
-            out[label] = text + (", or after the analysis period ends" if later else "")
+            out[label] = text + (", or after the analysis period ends" if later else "") + (
+                self.coupon_amount() if name == "coupon" else "")
         return out
+
+    def coupon_amount(self) -> str:
+        """The coupon as the engine books it: the amount due and the part paid in cash (a common borrower input)."""
+        from app.analysis.events import Chain
+
+        fin = self.instrument()
+        if fin is None or not fin.coupon_cents or self.draws is None:
+            return ""
+        total = fin.coupon_cents
+        cash = Chain(None, self.setup, self.m, self.draws, self.sens, fin=fin).coupon_cash_cents()
+        paid = ("paid in cash" if cash == total else "paid in shares" if cash == 0 else
+                f"{usd(cash)} of it paid in cash and {usd(total - cash)} in shares")
+        return f": {usd(total)} due, {paid}"
+
+    def standard(self, node: str) -> list[str]:
+        """The law and contract terms that govern the node's decision, as cited."""
+        terms = {k: v for t in self.m["templates"].values() for k, v in t.get("terms_from_instrument", {}).items()}
+        return [self.m["rules"][r]["citation"] if r in self.m["rules"] else terms.get(r, r)
+                for r in self.spec[node]["standard"]]
 
     @staticmethod
     def _component(c, remit: dict) -> dict:
@@ -658,7 +686,7 @@ class Forecaster:
                "amount": usd(c.amount_cents) if c.amount_cents is not None else
                ("sealed; amount not public" if sealed else "computed by statute" if c.statutory else "unknown")}
         if remit.get("amount_cents") and c.kind == "compensatory":
-            out["remittitur_scenario"] = f"{usd(remit['amount_cents'])}: {remit['label']} ({remit['basis']})"
+            out["remittitur_scenario"] = f"{usd(remit['amount_cents'])} ({remit['label']}; basis: {remit['basis']})"
         return out
 
     def _pending(self, d: DisputeInstance, node: str) -> list[dict]:
@@ -688,37 +716,64 @@ class Forecaster:
         routes = load_registry().get("evidence_routing", {}).get("routes", {})
         return {f for f, qs in routes.items() if qid in qs}
 
-    def _evidence(self, d: DisputeInstance, node: str) -> tuple[list[dict], tuple[str, ...], list[dict]]:
-        """The accepted findings that supply the question's record items, each passage with the items it supplies;
-        and the record items, each marked as in the record or not."""
+    def _evidence(self, d: DisputeInstance, node: str, read_from: dict[str, list[str]] | None = None
+                  ) -> tuple[list[dict], tuple[str, ...], list[dict]]:
+        """The accepted findings that supply the question's record items, each passage with the items it supplies,
+        and the passages the question's readings were taken from (`read_from`: finding -> the reading labels), each
+        with the items the registry says such a passage supplies; and the record items, each marked as in the record
+        or not."""
         items = self.spec[node]["record_items"]
         supplies: dict[str, list[str]] = {}
         for item in items:
             for fid in self.slots.get(node, {}).get(item, []):
                 if fid in self.findings:
                     supplies.setdefault(fid, []).append(item)
-        evidence = [{**self.hydrate(self.findings[fid]), "supplies": its} for fid, its in supplies.items()]
+        read_from = {fid: labels for fid, labels in (read_from or {}).items() if fid in self.findings}
+        qid = self.spec[node]["residual_question"]
+        reading_items = load_registry().get("evidence_routing", {}).get("reading_items", {})
+        for fid in read_from:
+            its = supplies.setdefault(fid, [])
+            for factor in (f.factor_id for f in d.factors if f.decisive and f.decisive.finding_id == fid):
+                its += [x for x in reading_items.get(factor, {}).get(qid, []) if x in items and x not in its]
+        evidence = [{**self.hydrate(self.findings[fid]), "supplies": its,
+                     **({"readings_taken_from_it": read_from[fid]} if fid in read_from else {})}
+                    for fid, its in supplies.items()]
         record = [{"item": x, "in_the_record": any(x in its for its in supplies.values())} for x in items]
         return evidence, tuple(supplies), record
 
-    def _readings(self, d: DisputeInstance, qid: str) -> dict:
-        factors, out = self._routed(qid), {}
+    def _readings(self, d: DisputeInstance, qid: str) -> tuple[dict, dict[str, list[str]]]:
+        """The present-state readings routed to the question, each with the date and source of the passage it was
+        taken from; and, per source finding, the labels of the readings taken from it. A reading taken from no
+        passage is not handed on."""
+        factors, out, read_from = self._routed(qid), {}, {}
+        role = "the company" if d.borrower_role == "debtor" else d.counterparty
+        plain = lambda s: s.replace("The payer", role[0].upper() + role[1:]).replace("the payer", role)  # noqa: E731
         for f in d.factors:
-            if f.factor_id not in factors:
+            if f.factor_id not in factors or f.decisive is None:
                 continue
-            if f.factor_id == "amount_finality":
-                fact = self._fixed_amount(d, f)
-                if fact and qid != "forecast_remittitur_accepted":
-                    out["Amount fixed by the court"] = fact
-                if fact or qid == "forecast_remittitur_accepted":
-                    continue
-            if f.kind == "present" and f.probability is not None:
-                out[f.label] = {"probability_present": round(f.probability, 3)}
+            src = {"passage_dated": f.decisive.source_date, "source": self._source(f.decisive.finding_id)}
+            label = plain(f.label)
+            fact = self._fixed_amount(d, f) if f.factor_id == "amount_finality" else ""
+            if fact and qid == "forecast_remittitur_accepted":
+                continue
+            if fact:
+                label = "Amount fixed by the court"
+                out[label] = {"fact": fact, **src}
+            elif f.kind == "present" and f.probability is not None:
+                out[label] = {"probability_present": round(f.probability, 3), **src}
             elif f.distribution:
-                out[f.label] = {"distribution": {k: round(v, 3) for k, v in f.distribution.items()},
-                                **({"conflicting_readings": True} if f.conflict else {}),
-                                **({"passage_dated": f.decisive.source_date} if f.decisive else {})}
-        return out
+                out[label] = {"distribution": {plain(k): round(v, 3) for k, v in f.distribution.items()},
+                              **({"note": "passages of the same date read differently"} if f.conflict else {}), **src}
+            if label in out:
+                read_from.setdefault(f.decisive.finding_id, []).append(label)
+        return out, read_from
+
+    def _source(self, fid: str) -> str:
+        """The title of the source a finding's passage comes from."""
+        if fid not in self._sources:
+            f = self.findings.get(fid)
+            self._sources[fid] = self.hydrate(f).get("source", "") if f is not None else ""
+        return self._sources[fid]
 
     def _fixed_amount(self, d: DisputeInstance, f) -> str:
         """Where the record reads the amount as fixed by the court: the judgment's amount and date, as a fact."""
@@ -733,17 +788,15 @@ class Forecaster:
     def state(self, n: Node) -> tuple[dict, tuple[str, ...], dict]:
         d = next(x for x in self.disputes if x.instance_id == n.instance_id)
         s = self.spec[n.node]
-        evidence, fids, record = self._evidence(d, n.node)
-        readings = self._readings(d, n.question_id)
+        readings, read_from = self._readings(d, n.question_id)
+        evidence, fids, record = self._evidence(d, n.node, read_from)
         ctx = context_phrases([c for c in n.context.split("|") if c], self.class_range)
-        terms = {k: v for t in self.m["templates"].values() for k, v in t.get("terms_from_instrument", {}).items()}
         state = {"case": {"as_of": fmt(self.review), "analysis_period_ends": fmt(self.horizon),
                           "company": self.borrower, "counterparty": d.counterparty,
                           "obligation": f"{self.m['natures'].get(d.nature, d.nature)}, {d.order_reference}"},
                  "question": {"actor": s["actor"], "decision": s["decision"], "branches": list(n.branches),
                               "timing": s["timing"], "context": ctx},
-                 "standard": [self.m["rules"][r]["citation"] if r in self.m["rules"] else terms.get(r, r)
-                              for r in s["standard"]],
+                 "standard": self.standard(n.node),
                  "record_items": record, "path_facts": self.path_facts(n, d),
                  "assumptions": list(n.assumptions), "evidence": evidence, "readings": readings}
         return state, fids, readings
@@ -1209,8 +1262,9 @@ class _BankWalk:
 
 
 def bank_state(fc: Forecaster, n: Node) -> dict:
-    """The bank view's question: the company, its decision, the decision dates, and its projected available cash and
-    30-day operating need at the decision, from the bank data and the common borrower inputs."""
+    """The bank view's question: the company, its decision, the decision dates, its projected available cash and
+    30-day operating need at the decision, the law that governs it and the notes' coupon (a common borrower input).
+    It differs from the research view's question only in the research facts."""
     s = fc.spec[n.node]
     facts: dict = {}
     rows = fc.bank_facts.get(n.key, [])
@@ -1223,11 +1277,15 @@ def bank_state(fc: Forecaster, n: Node) -> dict:
                                        for k, p in (("p5", 0.05), ("p50", 0.5), ("p95", 0.95))},
                      "projected_available_cash_at_decision_date": {"p5": q(cash, 0.05), "p50": q(cash, 0.5)},
                      "operating_need_30_days_at_decision": {"p50": q(need, 0.5)}}
+            coupon = {"day": day, "triggers": {"coupon": fc.bank_trace(()).triggers["coupon"]}}
+            if dates := fc._contract_dates([coupon], [inside]):  # the coupon: a common borrower input
+                facts["contract_dates"] = dates
     ctx = context_phrases([c for c in n.context.split("|")[1:] if c], {})
-    return {"case": {"as_of": fmt(fc.review), "company": "the company"},
+    return {"case": {"as_of": fmt(fc.review), "analysis_period_ends": fmt(fc.horizon), "company": "the company"},
             "question": {"actor": s["actor"], "decision": s["decision"], "branches": list(n.branches),
                          "timing": s["timing"], "context": ctx},
-            "standard": [], "record_items": [], "path_facts": facts, "assumptions": [], "evidence": [], "readings": {}}
+            "standard": fc.standard(n.node), "record_items": [], "path_facts": facts, "assumptions": [],
+            "evidence": [], "readings": {}}
 
 
 def Chain_(fc: Forecaster, d: DisputeInstance):

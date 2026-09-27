@@ -363,17 +363,19 @@ def _dist_text(v: dict) -> str:
 
 # What code did to get each computed figure a question is given (forecast.Forecaster.path_facts), in words.
 ARITHMETIC = {
-    "decision_date": "the date code sets for this decision, across the trajectories that reach it",
-    "projected_available_cash_at_decision_date": "opening cash + simulated operating flows + the dispute's cash to "
-                                                  "that date, across the trajectories that reach the decision",
-    "cash_balance_at_decision": "opening cash + simulated operating flows + the dispute's cash to that date",
+    "decision_date": "when the decision falls, across the simulations that reach it",
+    "projected_available_cash_at_decision_date": "opening cash + projected operating flows from the bank data + the "
+                                                  "dispute's cash to that date, across the simulations that reach "
+                                                  "the decision",
+    "cash_balance_at_decision": "opening cash + projected operating flows from the bank data + the dispute's cash to "
+                                "that date",
     "amount_owed_at_decision": "the judgment on this path (as entered, or as the ruling leaves it) + statutory "
                                "interest to the decision date - amounts already collected",
     "operating_need_30_days_at_decision": "the lowest point of the next 30 days' cumulative operating flows",
     "bond_collateral_required": "the amount owed + 28 U.S.C. §1961 interest over the appeal, times the collateral "
                                 "share",
     "reduced_security_offered": "the company's cash above its 30-day operating need on the stay-motion day",
-    "judgment_after_ruling": "the range of judgment amounts this ruling class covers",
+    "judgment_after_ruling": "the range of judgment amounts the ruling outcomes shown together here leave",
 }
 
 
@@ -384,18 +386,15 @@ def _fact_lines(facts: dict) -> list[str]:
     for k, v in facts.items():
         name = k.replace("_", " ").capitalize()
         how = ARITHMETIC.get(k, "")
-        if k in ("components", "pending_motions"):
+        if k in ("components", "pending_motions", "notes"):  # Record and Law steps of their own (drill_down)
             continue
         if k == "settlement_offer" and isinstance(v, dict):
-            amt = _dist_text(v["amount"]) if "amount" in v else "none on these trajectories"
+            amt = _dist_text(v["amount"]) if "amount" in v else "none in these simulations"
             need = f" (30-day need: median {_short_money(v['thirty_day_operating_need'])})" \
                 if "thirty_day_operating_need" in v else ""
             out.append(f"Settlement offer: {amt} = {v.get('basis', '')}{need}; paid as {v.get('payment', '')}")
         elif k == "contract_dates" and isinstance(v, dict):
             out += [f"{what[0].upper()}{what[1:]}: {when}" for what, when in v.items()]
-        elif k == "notes" and isinstance(v, dict):
-            out.append("Notes: " + "; ".join(f"{a.replace('_', ' ')}: {_short_money(b) if a == 'principal' else _whole(b)}"
-                                             for a, b in v.items()))
         elif isinstance(v, dict):
             basis = v.get("basis") or how
             out.append(f"{name}: {_dist_text(v)}" + (f" = {basis}" if basis else ""))
@@ -404,7 +403,7 @@ def _fact_lines(facts: dict) -> list[str]:
                 out.append(f"{name}: " + "; ".join(", ".join(str(x) for x in e.values()) if isinstance(e, dict)
                                                    else str(e) for e in v))
         elif k == "share_of_trajectories_where_it_arises":
-            out.append(f"Arises on {v:.0%} of trajectories inside the period")
+            out.append(f"Arises in {v:.0%} of simulations inside the period")
         else:
             out.append(f"{name}: {_short_money(v)}" + (f" = {how}" if how else ""))
     return out
@@ -495,7 +494,7 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
         srcs = list(dict.fromkeys(supplied.get(x, [])))
         steps.append({"tag": "Record", "text": f"{x}: " + ("; ".join(srcs) if srcs else "not in the record"),
                       "links": [{"text": t, "url": links[t]} for t in srcs if links.get(t)]})
-    comps = {c.label.split(";")[0].strip(): c for c in (d.components if d else [])}
+    comps = {label_head(c.label): c for c in (d.components if d else [])}
     for f in facts.get("components", []):
         c = next((c for lab, c in comps.items() if lab.startswith(f["component"]) or f["component"].startswith(lab)),
                  None)
@@ -518,7 +517,11 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
     steps += [{"tag": "Data", "text": model["parameters"][name]["basis"]} for name in spec.get("timing_parameters", [])
               if model["parameters"][name].get("basis")
               and model["parameters"][name].get("disposition") in ("data", "sourced")]
-    steps.append({"tag": "Calculation", "text": f"Date set by code: {spec['timing']}"})
+    if isinstance(facts.get("notes"), dict):  # the notes' terms, as the indenture states them
+        steps.append({"tag": "Law", "text": "Notes: " + "; ".join(
+            f"{a.replace('_', ' ')}: {_short_money(b) if a == 'principal' else _whole(b)}"
+            for a, b in facts["notes"].items())})
+    steps.append({"tag": "Calculation", "text": f"When it is decided: {spec['timing']}"})
     steps += [{"tag": "Calculation", "text": line} for line in _fact_lines(facts)]
     steps += [{"tag": "Cash", "text": line} for line in mechanism(node, spec, model)]
     quotes = []
@@ -530,10 +533,22 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
     answer = None
     if judgment is not None and not neutral:
         answer = {"distribution": judgment.distribution, "confidence": judgment.confidence,
-                  "observation_id": judgment.observation_id, "readings": judgment.readings}
+                  "observation_id": judgment.observation_id,
+                  "readings": {k: {**v, "link": links.get(v.get("source", ""), "")} if isinstance(v, dict) else v
+                               for k, v in (judgment.readings or {}).items()}}
     steps.append({"tag": "Jev", "text": question})
     return {"steps": steps, "facts": facts, "assumptions": list(judgment.assumptions) if judgment else [],
             "quotes": quotes, "answer": answer}
+
+
+def label_head(label: str) -> str:
+    """A component's label up to its first ';' outside parentheses (the rest is its source note)."""
+    depth = 0
+    for i, ch in enumerate(label):
+        depth += (ch == "(") - (ch == ")")
+        if ch == ";" and depth == 0:
+            return label[:i].strip()
+    return label.strip()
 
 
 def component_row(c, d, model: dict) -> dict:
@@ -542,8 +557,9 @@ def component_row(c, d, model: dict) -> dict:
     rates the engine computes it at."""
     import re
 
-    row = {"label": c.label.split(";")[0], "amount": usd(c.amount_cents) if c.amount_cents is not None
-           else "computed by statute", "status": c.status, "source": c.motion or d.order_reference}
+    row = {"label": label_head(c.label), "amount": usd(c.amount_cents) if c.amount_cents is not None
+           else "computed by statute", "status": c.status,
+           "source": d.order_reference if c.status == "awarded" else c.motion or d.order_reference}
     if c.kind == "compensatory":
         sc = model.get("remittitur_scenarios", {})
         rem = sc.get("scenarios", {}).get("remitted", {})
@@ -580,8 +596,10 @@ def case_terms(d, review: date, horizon: date, model: dict, links: dict[str, str
         money = (lambda c: usd(c) if c is not None else missing)  # noqa: E731
         dates = ", ".join(x.strftime("%-d %b %Y") for x in f.interest_dates)
         coupon = missing if f.coupon_cents is None else f"{usd(f.coupon_cents)}" + (f" due {dates}" if dates else "")
-        default = (f"final judgments above {money(f.judgment_default_threshold_cents)} unpaid or unstayed for "
-                   f"{f.judgment_default_days} days, after notice") if f.judgment_default_days else missing
+        default = (f"final judgments above {money(f.judgment_default_threshold_cents)} that \"remain undischarged, "
+                   f"unpaid or unstayed for a period (during which execution shall not be effectively stayed) of "
+                   f"{f.judgment_default_days} days\" (§7.01(i)), after notice by the trustee or holders of 25%"
+                   ) if f.judgment_default_days else missing
         rep = f.repurchase_business_days
         listing = (f"delisting is a fundamental change: repurchase within {rep[0]}–{rep[1]} business days of notice"
                    if rep and len(rep) == 2 else missing)
@@ -694,6 +712,8 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                       "branches": branches, "jev": [j.distribution[b] for b in branches],
                       "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node,
                                            model.disputes.get(j.instance_id))})
+    bank = bank_rows(model, fc, m, spec, questions, links, neutral, off=len(nodes))
+    nodes += bank["nodes"]
     lead = [c[0] for c in model.combos]
     d0 = model.disputes[lead[0].instance_id] if lead and lead[0].steps else None
     classes, seqs, seq_ix = [], [], {}
@@ -727,12 +747,42 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                   "scalars": {k: v.tolist() for k, v in path_scalars(a.r).items()}},
         "classes": [label for _, label in CLASSES], "sequences": list(seq_ix),
         "bank": {"scalars": {k: float(model.bank_probs() @ v) for k, v in path_scalars(a.bank_r).items()},
+                 "edges": bank["edges"], "path_scalars": {k: v.tolist() for k, v in path_scalars(a.bank_r).items()},
                  **chart_view(a.bank_r, model.bank_probs(), a.months)},
         "event": chart_view(a.r, probs, a.months),
         "worst": _worst(stress_rows, classes, seqs, list(seq_ix)) if stress_rows else [],
         "case_terms": case_terms(d0, setup.review, setup.horizon, m, links) if d0 is not None else {},
         "settings": SETTINGS,
     }
+
+
+BANK_LABELS = {"forecast_petition_cash_floor": "The company files at its cash floor",
+               "forecast_petition_cash_out": "The company files when its cash runs out"}
+
+
+def bank_rows(model, fc, m: dict, spec: dict, questions: dict, links: dict, neutral: bool, off: int) -> dict:
+    """The bank view's questions as page rows (after the research rows, from index `off`): each asked on bank data
+    alone, with its drill-down (its facts, Jev's question and answer); and each bank path's edges over those rows,
+    so page.js reweights the bank view as it does the research view."""
+    from app.disputes.forecast import bank_state
+
+    enc = encode_paths(model.bank_combos, model.bank_judgments)
+    assert not enc["composites"]  # the bank view's chain has none
+    rows = []
+    for k, branches in zip(enc["keys"], enc["branches"], strict=True):
+        j = model.bank_judgments[k]
+        sp, q = {**spec[j.node], "record_items": []}, questions.get(j.question_id, j.event)
+        facts = j.path_facts or (bank_state(fc, fc.bank_nodes[k])["path_facts"] if k in fc.bank_nodes else {})
+        rows.append({"key": k, "node": j.node, "view": "bank", "question": q, "context": "asked on bank data alone",
+                     "label": BANK_LABELS.get(j.question_id, q), "sub": "Asked on bank data alone",
+                     "actor": sp["actor"], "decider": "Bank data", "branches": branches,
+                     "jev": [j.distribution[b] for b in branches],
+                     "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node)})
+        for s in rows[-1]["detail"]["steps"]:  # the bank view's cash has no dispute: its event cash is the coupon
+            s["text"] = s["text"].replace(" + the dispute's cash to that date", " + the notes' coupon to that date"
+                                          if fc.instrument() is not None else " to that date")
+    edges = [[x + off if i % 2 == 0 else x for i, x in enumerate(flat)] for flat in enc["paths"]]
+    return {"nodes": rows, "edges": edges}
 
 
 def _pins(d, m: dict) -> dict:
@@ -778,7 +828,7 @@ SETTINGS = [
      "value": False, "options": [[False, "The increase"], [True, "The whole amount"]]},
 ]
 LINE_KEYS = {s["key"] for s in SETTINGS if s["kind"] == "line"}
-PAGE_FORMAT = 6  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
+PAGE_FORMAT = 7  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
 def build_dev(settings: dict | None = None, progress=None) -> dict:
@@ -837,7 +887,12 @@ def reweight(state: dict, overrides: dict[str, list[float]] | None, classes: lis
     probs = model.probs(ov)
     if classes is not None:
         probs = probs * state["class_of_path"][:, classes].sum(axis=1)  # each path by its share of draws in them
-    return chart_view(state["r"], probs, state["months"])
+    out = chart_view(state["r"], probs, state["months"])
+    bov = {k: {b: float(p) for b, p in zip(model.bank_judgments[k].distribution, v, strict=True)}
+           for k, v in (overrides or {}).items() if k in model.bank_judgments}
+    if out is not None and state.get("bank_r") is not None and model.bank_judgments:
+        out["bank"] = chart_view(state["bank_r"], model.bank_probs(bov), state["months"])  # the bank rows' sliders
+    return out
 
 
 class DevPage:
