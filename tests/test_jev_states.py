@@ -107,3 +107,29 @@ def test_jev_reads_the_clocks_and_the_remittitur_scenario_as_what_they_are(base)
     assert "D.I. 616-1" in comp["remittitur_scenario"] and "the most the evidence supports" not in comp["remittitur_scenario"]
     for q in ("forecast_ts_liability_jmol", "forecast_ts_damages_ruling", "forecast_trebling"):
         assert "merits or the remedy" not in registry_question(q)["prompt"]["instructions"]
+
+
+def test_the_case_terms_and_drill_down_read_as_the_record_states_them(base):
+    from app.analysis.page import case_terms, drill_down, label_head
+    from app.disputes.rules import load_model
+
+    d, m = judgment(), load_model()
+    t = case_terms(d, REVIEW, SETUP.horizon, m, {})
+    award = next(c for c in t["components"] if c["amount"] == "$31,315,215.00")
+    assert award["source"] == d.order_reference != next(c.motion for c in d.components if c.status == "awarded"
+                                                        and c.motion)  # the judgment, not a party's motion
+    fees = "Attorneys' fees requested by Qorvo (DTSA / NCTSPA; alternatively UDTPA)"
+    assert label_head(fees) == fees and label_head(fees + "; D.I. 612") == fees  # not cut inside the parentheses
+    default = dict(next(n for n in t["notes"])["terms"])["Judgment default"]
+    assert ('"remain undischarged, unpaid or unstayed for a period (during which execution shall not be effectively '
+            'stayed) of 60 days"') in default
+    fc = forecaster(base, [d])
+    k = fc.node(d, "settlement_offer", "I1", "entered")
+    fc.record((k,), fc.trace(d, (("settle", "I1", "no"),)))
+    facts = fc.state(fc.nodes[k])[0]["path_facts"]
+    assert "(during which execution shall not be effectively stayed) of 60 days" in facts["notes"]["judgment_default"]
+    spec = next(t["nodes"]["settlement_offer"] for t in m["templates"].values()
+                if "settlement_offer" in t.get("nodes", {}))
+    text = json.dumps(drill_down(spec, m, "q", facts, None, True, {}, "settlement_offer", d))
+    for internal in ("by code", "trajector", "ruling class", "simulated operating"):
+        assert internal not in text, internal

@@ -341,17 +341,19 @@ def _dist_text(v: dict) -> str:
 
 # What code did to get each computed figure a question is given (forecast.Forecaster.path_facts), in words.
 ARITHMETIC = {
-    "decision_date": "the date code sets for this decision, across the trajectories that reach it",
-    "projected_available_cash_at_decision_date": "opening cash + simulated operating flows + the dispute's cash to "
-                                                  "that date, across the trajectories that reach the decision",
-    "cash_balance_at_decision": "opening cash + simulated operating flows + the dispute's cash to that date",
+    "decision_date": "when the decision falls, across the simulations that reach it",
+    "projected_available_cash_at_decision_date": "opening cash + projected operating flows from the bank data + the "
+                                                  "dispute's cash to that date, across the simulations that reach "
+                                                  "the decision",
+    "cash_balance_at_decision": "opening cash + projected operating flows from the bank data + the dispute's cash to "
+                                "that date",
     "amount_owed_at_decision": "the judgment on this path (as entered, or as the ruling leaves it) + statutory "
                                "interest to the decision date - amounts already collected",
     "operating_need_30_days_at_decision": "the lowest point of the next 30 days' cumulative operating flows",
     "bond_collateral_required": "the amount owed + 28 U.S.C. §1961 interest over the appeal, times the collateral "
                                 "share",
     "reduced_security_offered": "the company's cash above its 30-day operating need on the stay-motion day",
-    "judgment_after_ruling": "the range of judgment amounts this ruling class covers",
+    "judgment_after_ruling": "the range of judgment amounts the ruling outcomes shown together here leave",
 }
 
 
@@ -362,18 +364,15 @@ def _fact_lines(facts: dict) -> list[str]:
     for k, v in facts.items():
         name = k.replace("_", " ").capitalize()
         how = ARITHMETIC.get(k, "")
-        if k in ("components", "pending_motions"):
+        if k in ("components", "pending_motions", "notes"):  # Record and Law steps of their own (drill_down)
             continue
         if k == "settlement_offer" and isinstance(v, dict):
-            amt = _dist_text(v["amount"]) if "amount" in v else "none on these trajectories"
+            amt = _dist_text(v["amount"]) if "amount" in v else "none in these simulations"
             need = f" (30-day need: median {_short_money(v['thirty_day_operating_need'])})" \
                 if "thirty_day_operating_need" in v else ""
             out.append(f"Settlement offer: {amt} = {v.get('basis', '')}{need}; paid as {v.get('payment', '')}")
         elif k == "contract_dates" and isinstance(v, dict):
             out += [f"{what[0].upper()}{what[1:]}: {when}" for what, when in v.items()]
-        elif k == "notes" and isinstance(v, dict):
-            out.append("Notes: " + "; ".join(f"{a.replace('_', ' ')}: {_short_money(b) if a == 'principal' else _whole(b)}"
-                                             for a, b in v.items()))
         elif isinstance(v, dict):
             basis = v.get("basis") or how
             out.append(f"{name}: {_dist_text(v)}" + (f" = {basis}" if basis else ""))
@@ -382,7 +381,7 @@ def _fact_lines(facts: dict) -> list[str]:
                 out.append(f"{name}: " + "; ".join(", ".join(str(x) for x in e.values()) if isinstance(e, dict)
                                                    else str(e) for e in v))
         elif k == "share_of_trajectories_where_it_arises":
-            out.append(f"Arises on {v:.0%} of trajectories inside the period")
+            out.append(f"Arises in {v:.0%} of simulations inside the period")
         else:
             out.append(f"{name}: {_short_money(v)}" + (f" = {how}" if how else ""))
     return out
@@ -473,7 +472,7 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
         srcs = list(dict.fromkeys(supplied.get(x, [])))
         steps.append({"tag": "Record", "text": f"{x}: " + ("; ".join(srcs) if srcs else "not in the record"),
                       "links": [{"text": t, "url": links[t]} for t in srcs if links.get(t)]})
-    comps = {c.label.split(";")[0].strip(): c for c in (d.components if d else [])}
+    comps = {label_head(c.label): c for c in (d.components if d else [])}
     for f in facts.get("components", []):
         c = next((c for lab, c in comps.items() if lab.startswith(f["component"]) or f["component"].startswith(lab)),
                  None)
@@ -496,7 +495,11 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
     steps += [{"tag": "Data", "text": model["parameters"][name]["basis"]} for name in spec.get("timing_parameters", [])
               if model["parameters"][name].get("basis")
               and model["parameters"][name].get("disposition") in ("data", "sourced")]
-    steps.append({"tag": "Calculation", "text": f"Date set by code: {spec['timing']}"})
+    if isinstance(facts.get("notes"), dict):  # the notes' terms, as the indenture states them
+        steps.append({"tag": "Law", "text": "Notes: " + "; ".join(
+            f"{a.replace('_', ' ')}: {_short_money(b) if a == 'principal' else _whole(b)}"
+            for a, b in facts["notes"].items())})
+    steps.append({"tag": "Calculation", "text": f"When it is decided: {spec['timing']}"})
     steps += [{"tag": "Calculation", "text": line} for line in _fact_lines(facts)]
     steps += [{"tag": "Cash", "text": line} for line in mechanism(node, spec, model)]
     quotes = []
@@ -516,14 +519,25 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
             "quotes": quotes, "answer": answer}
 
 
+def label_head(label: str) -> str:
+    """A component's label up to its first ';' outside parentheses (the rest is its source note)."""
+    depth = 0
+    for i, ch in enumerate(label):
+        depth += (ch == "(") - (ch == ")")
+        if ch == ";" and depth == 0:
+            return label[:i].strip()
+    return label.strip()
+
+
 def component_row(c, d, model: dict) -> dict:
     """A judgment component as the engine prices it: a compensatory award shows the model's remitted-amount scenario
     and its source (never a party's own remittitur request); a sealed request shows as sealed; interest shows the
     rates the engine computes it at."""
     import re
 
-    row = {"label": c.label.split(";")[0], "amount": usd(c.amount_cents) if c.amount_cents is not None
-           else "computed by statute", "status": c.status, "source": c.motion or d.order_reference}
+    row = {"label": label_head(c.label), "amount": usd(c.amount_cents) if c.amount_cents is not None
+           else "computed by statute", "status": c.status,
+           "source": d.order_reference if c.status == "awarded" else c.motion or d.order_reference}
     if c.kind == "compensatory":
         sc = model.get("remittitur_scenarios", {})
         rem = sc.get("scenarios", {}).get("remitted", {})
@@ -560,8 +574,10 @@ def case_terms(d, review: date, horizon: date, model: dict, links: dict[str, str
         money = (lambda c: usd(c) if c is not None else missing)  # noqa: E731
         dates = ", ".join(x.strftime("%-d %b %Y") for x in f.interest_dates)
         coupon = missing if f.coupon_cents is None else f"{usd(f.coupon_cents)}" + (f" due {dates}" if dates else "")
-        default = (f"final judgments above {money(f.judgment_default_threshold_cents)} unpaid or unstayed for "
-                   f"{f.judgment_default_days} days, after notice") if f.judgment_default_days else missing
+        default = (f"final judgments above {money(f.judgment_default_threshold_cents)} that \"remain undischarged, "
+                   f"unpaid or unstayed for a period (during which execution shall not be effectively stayed) of "
+                   f"{f.judgment_default_days} days\" (§7.01(i)), after notice by the trustee or holders of 25%"
+                   ) if f.judgment_default_days else missing
         rep = f.repurchase_business_days
         listing = (f"delisting is a fundamental change: repurchase within {rep[0]}–{rep[1]} business days of notice"
                    if rep and len(rep) == 2 else missing)

@@ -588,10 +588,13 @@ class Forecaster:
         if any(f.status != "superseded" for f in d.financing):
             f = next(f for f in d.financing if f.status != "superseded")
             facts["notes"] = {"principal": usd(f.principal_cents),
-                              "judgment_default": (f"final money judgments above {usd(f.judgment_default_threshold_cents)}"
-                                                   f" that remain unpaid, undischarged and unstayed for "
-                                                   f"{f.judgment_default_days} days, after notice by the trustee or "
-                                                   f"holders of 25% of the notes" if f.judgment_default_days else "none")}
+                              "judgment_default": (f"final judgments for the payment of money above "
+                                                   f"{usd(f.judgment_default_threshold_cents)} that \"remain "
+                                                   f"undischarged, unpaid or unstayed for a period (during which "
+                                                   f"execution shall not be effectively stayed) of "
+                                                   f"{f.judgment_default_days} days\" (§7.01(i)), after notice by the "
+                                                   f"trustee or holders of 25% of the notes"
+                                                   if f.judgment_default_days else "none")}
         return facts
 
     @staticmethod
