@@ -623,6 +623,16 @@ class Chain:
             motion = full(self.E0) if ctx == "I1" else np.maximum(self.F, 0)
             self.stay_security(motion, f"stay_{ctx}", approved=branch == "yes")
             return motion
+        if node == "court_order":
+            # a probe that books nothing: the day the court rules on a motion (ctx "stay_I1" / "stay_post": the stay's
+            # approval, with its collateral and reduced security measured that day; "registration_I1" /
+            # "registration_post": the early registration order), dated as the step that books it dates it
+            kind, phase = ctx.split("_")
+            if kind == "stay":
+                return self.stay_security(full(self.E0) if phase == "I1" else np.maximum(self.F, 0), f"stay_{phase}",
+                                          approved=False)
+            motion = full(self.E0) if phase == "I1" else self.EF  # post: the creditor moves once the ruling is enforceable
+            return motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, f"registration_{phase}")
         if node == "debtor_response":
             lv = self.pending_levy if self.pending_levy is not None else full(BIG)
             if ctx == "I1":  # the levy the early-registration order makes possible, where it

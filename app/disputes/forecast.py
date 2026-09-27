@@ -894,6 +894,11 @@ class _Walk:
             self.fc.record(keys, self.fc.trace(self.d, s.steps + (step,)))
         return s.add(step, edge, **kw)
 
+    def court(self, s: _S, key: str, ctx: str) -> None:
+        """A court's ruling on a motion gets the facts of its own day (events.py court_order): the stay's approval, with
+        the security measured that day, or the registration order; the motion question keeps the motion day."""
+        self.fc.record((key,), self.fc.trace(self.d, s.steps + (("court_order", ctx, ""),)))
+
     def binary(self, s: _S, node: str, ctx: str, parts: list[list[tuple[str, str]]], keys, then_yes, then_no):
         k = composite(parts)
         then_yes(self.take(s, (node, ctx, "yes"), (k, "yes"), keys))
@@ -940,7 +945,8 @@ class _Walk:
         a1 = self.node("stay_motion", "I1", s.cls, s=s, probe=probe,
                        assumptions=("the creditor executes before the ruling",))
         j8 = self.node("stay_approved", "I1", s.cls, s=s, probe=probe, assumptions=("the company moves for a stay",))
-        self.binary(s, "stay", "I1", [[(a1, "yes"), (j8, "yes")]], (a1, j8),
+        self.court(s, j8, "stay_I1")
+        self.binary(s, "stay", "I1", [[(a1, "yes"), (j8, "yes")]], (a1,),
                     lambda y: self.j9_stayed(replace(y, stayed=True)), self.j9_i1)
 
     def j9_stayed(self, s: _S) -> None:
@@ -956,8 +962,9 @@ class _Walk:
         the debtor; without the order nothing reaches cash before the ruling, and the debtor's response waits for it."""
         k = self.node("registration_early", "I1", s=s, probe=("registration_early", "I1", "no"),
                       assumptions=("the creditor executes before finality",))
-        self.a4_i1(self.take(s, ("registration_early", "I1", "yes"), (k, "yes"), (k,), early=True))
-        self.ripe_i1(self.take(s, ("registration_early", "I1", "no"), (k, "no"), (k,)))
+        self.court(s, k, "registration_I1")
+        self.a4_i1(self.take(s, ("registration_early", "I1", "yes"), (k, "yes"), early=True))
+        self.ripe_i1(self.take(s, ("registration_early", "I1", "no"), (k, "no")))
 
     def a4_i1(self, s: _S) -> None:
         """The debtor's response on the levy day (order + levy_lag_days), where it falls inside the horizon, before stay approval and
@@ -1068,7 +1075,8 @@ class _Walk:
         probe = ("stay", "post", "no")
         a1 = self.node("stay_motion", "post", s.cls, s=s, probe=probe, assumptions=("the final judgment is entered",))
         j8 = self.node("stay_approved", "post", s.cls, s=s, probe=probe, assumptions=("the company moves for a stay",))
-        self.binary(s, "stay", "post", [[(a1, "yes"), (j8, "yes")]], (a1, j8),
+        self.court(s, j8, "stay_post")
+        self.binary(s, "stay", "post", [[(a1, "yes"), (j8, "yes")]], (a1,),
                     lambda y: self.enforce(replace(y, stayed=True), self.stayed_tail, pending=True), self.i3)
 
     def stayed_tail(self, s: _S) -> None:
@@ -1098,7 +1106,8 @@ class _Walk:
         if s.appealed and not s.early:
             j9 = self.node("registration_early", "post", s.cls, *extra, s=s, probe=none_step,
                            assumptions=("the creditor enforces before finality",))
-            levy, none, keys = [[(q3, "yes"), (j9, "yes")]], [[(q3, "no")], [(q3, "yes"), (j9, "no")]], (q3, j9)
+            self.court(s, j9, "registration_post")
+            levy, none, keys = [[(q3, "yes"), (j9, "yes")]], [[(q3, "no")], [(q3, "yes"), (j9, "no")]], (q3,)
         else:
             levy, none, keys = [[(q3, "yes")]], [[(q3, "no")]], (q3,)
         self.a4_post(self.take(s, levy_step, (composite(levy), "yes"), keys), then)
