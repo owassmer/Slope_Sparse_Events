@@ -37,7 +37,7 @@ Law and the record fix the structure. Ruling dates come from data: this judge's 
 **Approved (Owen, 26 Sep 2026).** This decomposition, with the three decisions below as recommended.
 1. **Remittitur:** two declared, unweighted scenarios. The verdict stands ($31.3M), or it is remitted to $23.1M. $305,000 is not a scenario.
 2. **Fees:** $12,116,123.30 if awarded, otherwise $0 (D4 (a)).
-3. **Stay:** the bond is the full judgment plus interest and costs, with 100% collateral (80% lower bound). The stay remains a court question, although the company's own cash cannot fund it.
+3. **Stay:** the bond is the full judgment plus interest and costs, with 100% collateral (80% lower bound). Where the company's cash covers the collateral, the collateral is locked on approval. Otherwise the company proposes reduced security, its available cash above its 30-day operating need on the motion day; if the court approves (J8), that amount is locked on approval. Where that amount is zero, the stay is effective only in the sensitivity `stay_security` = noncash (security or a waiver not in cash; nothing locked).
 
 **Stage 3 still acquires:** OCR of D.I. 601 and 616-4; the 13 May earnings-call transcript; the H.15 rate for §1961; any pre-D proxy filing; a pre-D headcount; Bennis Appendix C, if public; checks on the bounded legal unknowns (§1.4).
 
@@ -168,7 +168,7 @@ Collections stop or fall short only through a petition or too little cash above 
 2. Qorvo decides whether to execute now: **Q1**.
 3. Cash is reachable only after registration (L9 base). Early registration needs **J9**.
 4. Akoustis decides whether to move for a stay: **A1**.
-5. **Arithmetic:** collateral of at least $30.9M (80% of $38.6M) against about $17.2M of cash. No trajectory funds a bond, so a stay needs new money or court-approved alternative security. **J8** decides it.
+5. **Arithmetic:** collateral of at least $30.9M (80% of $38.6M) against about $17.2M of cash. No trajectory funds a bond, so the company proposes reduced security: its available cash above its 30-day operating need on the motion day, locked on approval. **J8** decides it (decision 3).
 6. An unstayed levy takes min(owed, reachable cash) on the levy date, whatever the operating need. Go to T1-d.
 
 **T1-b. What the ruling decides**, asked in order, each conditional on the earlier outcomes.

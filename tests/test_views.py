@@ -3,6 +3,7 @@ common borrower inputs on the same operating draws; research facts enter the aug
 judgments are stubs."""
 
 import json
+from dataclasses import replace
 from datetime import date
 
 import numpy as np
@@ -129,3 +130,38 @@ def test_the_bootstrap_does_not_replay_the_june_coupon():
     assert any(t["category"] == "debt_service" and t["date"] == "2024-06-17" for t in feed.transactions)
     ops = operating.simulate(feed, (SETUP.horizon - REVIEW).days + 30, DRAWS, SEED)
     assert not ops.by_category["debt_service"].any()  # the dated coupon is event cash, booked once
+
+
+# Stay security (Rule 62(b)) -----------------------------------------------------------------------------------------
+
+def _stay(b, d, sens=None):
+    c = Chain(d, SETUP, load_model(), Draws(DRAWS, basis=b), sens)
+    c.step("execute_pre_ruling", "I1", "yes")
+    c.step("stay", "I1", "yes")
+    return c
+
+
+def test_a_stay_locks_the_collateral_where_cash_covers_it_and_else_the_cash_above_need(base):
+    b = base[1]
+    small = judgment(stage="judgment_entered", motions=(), components=(), financing=(),
+                     amount=judgment().amount.model_copy(update={"value": 200_000_000}))
+    c = _stay(b, small)  # $2.0M: where cash at approval covers the collateral, the collateral is locked
+    covers = (c.stayed_from < c.N) & (c.stay_offer == 0)
+    assert covers.sum() > DRAWS // 2 and (c.lock_amount[covers] == c.collateral_required[covers]).all()
+    assert (c.ev.lock.sum(axis=1)[covers] == c.collateral_required[covers]).all()
+    c = _stay(b, judgment())  # $38.6M: the company's offer, its cash above its 30-day need on the motion day
+    t = np.full(DRAWS, c.E0)
+    offer = np.maximum(b.cash[np.arange(DRAWS), t] - b.need[np.arange(DRAWS), t], 0)
+    assert (c.stay_offer == offer).all() and (offer > 0).all()
+    inside = c.stayed_from < c.N
+    rows = np.arange(DRAWS)[inside]
+    assert inside.any() and (c.ev.lock[rows, c.stayed_from[inside]] == c.lock_amount[inside]).all()
+    assert (c.lock_amount <= offer).all() and (c.lock_amount > 0).all()
+
+
+def test_a_stay_on_zero_offered_security_is_effective_only_in_the_noncash_sensitivity(base):
+    poor = replace(base[1], cash=base[1].cash - 2_000_000_000)  # no cash above need on the motion day
+    c = _stay(poor, judgment())
+    assert (c.stay_offer == 0).all() and (c.stayed_from >= 10**6).all() and not c.ev.lock.any()
+    n = _stay(poor, judgment(), {"stay_security": "noncash"})
+    assert (n.stayed_from < n.N).any() and not n.ev.lock.any()

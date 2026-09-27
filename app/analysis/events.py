@@ -419,27 +419,40 @@ class Chain:
         self.mark("settled", pd, ok)
         return pd
 
-    def stay(self, motion: np.ndarray, key: str) -> np.ndarray:
-        """Rule 62(b): effective on approval (motion + briefing + a lag draw). The bond is the path judgment plus
-        interest; its collateral is locked only on trajectories whose cash covers it; elsewhere the stay rests
-        on approved lesser security (no terms in the record: nothing booked)."""
+    def stay_security(self, motion: np.ndarray, key: str, approved: bool) -> np.ndarray:
+        """Rule 62(b), effective on approval (motion + briefing + a lag draw). Where the company's cash at approval
+        covers the bond collateral, the collateral is locked. Elsewhere the company proposes reduced security: its
+        available cash above its 30-day operating need on the motion day (`stay_offer`), locked on approval. Where
+        that amount is zero the stay is effective only under stay_security = noncash (security or a waiver not in
+        cash; nothing locked)."""
         approval = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, key)
+        collateral = self.bond_collateral(approval)
+        covers = self.cash_at(approval) >= collateral
+        t = np.clip(motion, 0, self.N - 1)
+        offer = np.maximum(self.cash_at(motion) - self.basis.need[self.rows, t], 0)
+        self.stay_offer = np.where(self.live(motion) & (motion < self.N) & ~covers, offer, 0).astype(np.int64)
+        self.collateral_required = collateral
+        if not approved:
+            return approval
+        lock = np.where(covers, collateral, np.minimum(self.stay_offer, np.maximum(self.cash_at(approval), 0)))
+        noncash = self.p("stay_security") == "noncash"
+        effective = self.live(approval) & (covers | (lock > 0) | noncash)
         self.mark("stay_moved", motion, self.live(motion))
-        self.mark("stayed", approval, self.live(approval))
-        self.stayed_from = np.minimum(self.stayed_from, np.where(approval < self.N, approval, BIG))
+        self.mark("stayed", approval, effective)
+        self.stayed_from = np.minimum(self.stayed_from, np.where(effective & (approval < self.N), approval, BIG))
+        self.lock_amount = np.where(effective, lock, 0)
+        self.book(self.ev.lock, approval, self.lock_amount)
+        return approval
+
+    def bond_collateral(self, approval: np.ndarray) -> np.ndarray:
+        """The bond (the path judgment plus §1961 interest over the appeal) times the collateral share."""
         years = self.p("bond_forward_interest_years")
         owed = self.owed_at(approval)
         bond = owed + np.rint(owed * self.bps / 10_000 * years).astype(np.int64)
         share = (self.s.collateral_share[0] if self.s.collateral_share else
                  (self.m["parameters"]["bond_collateral_share_bps"]["lower"] if self.sens.get("bond_collateral_share_bps")
                   else self.m["parameters"]["bond_collateral_share_bps"]["value"]) / 10_000)
-        collateral = np.rint(bond * share).astype(np.int64)
-        funded = self.live(approval) & (self.cash_at(approval) >= collateral)
-        self.book(self.ev.lock, approval, np.where(funded, collateral, 0))
-        self.lock_amount = np.where(funded, collateral, 0)
-        self.collateral_required = collateral
-        return approval
-
+        return np.rint(bond * share).astype(np.int64)
 
     def judgment_default(self, ctx: str) -> tuple[np.ndarray, np.ndarray]:
         """§7.01(i) ripe date and where it ripens (rule indenture_final_judgment; parameter judgment_default_reading).
@@ -556,8 +569,7 @@ class Chain:
             return full(self.E0)
         if node == "stay":
             motion = full(self.E0) if ctx == "I1" else np.maximum(self.F, 0)
-            if branch == "yes":
-                self.stay(motion, f"stay_{ctx}")
+            self.stay_security(motion, f"stay_{ctx}", approved=branch == "yes")
             return motion
         if node == "debtor_response":
             if ctx == "I1":  # the levy the early-registration order makes possible, where it

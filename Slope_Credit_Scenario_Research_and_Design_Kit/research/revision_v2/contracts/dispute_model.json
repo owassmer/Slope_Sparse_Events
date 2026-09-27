@@ -390,6 +390,12 @@
       "value": 10000,
       "lower": 8000
     },
+    "stay_security": {
+      "disposition": "bounded",
+      "basis": "Rule 62(b): a stay takes effect when the court approves the bond or other security. Where the company's cash at approval covers the bond collateral, the collateral is locked on approval. Otherwise the company proposes reduced security: its available cash above its 30-day operating need on the day it moves; if the court approves, that amount is locked on approval. Base: where that amount is zero, the stay is not effective. Sensitivity (noncash): such a stay rests on security or a waiver not in cash, and nothing is locked.",
+      "value": "cash_offer",
+      "sensitivity": "noncash"
+    },
     "reachable_before_registration": {
       "disposition": "bounded",
       "basis": "Cash a levy reaches before the judgment is registered where the cash sits: none (base); all consolidated cash (sensitivity).",
