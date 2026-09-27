@@ -305,6 +305,8 @@ class Forecaster:
         self.slots = slots or {}  # node -> record item -> the accepted findings that supply it (app/disputes/slots.py)
         self.days = (horizon - review).days
         self.draws = Draws(basis.cash.shape[0], basis=basis) if basis is not None else None
+        if self.draws is not None:
+            self.draws.prefixes = {}  # the tree is walked depth-first: each trace resumes from its prefix
         self.reach = int(basis.cash.max()) if basis is not None else None  # no trajectory holds more cash than this
         self.class_members: dict[str, list[tuple[int, int]]] = {}  # ruling class -> (total, fees) of each outcome
         self.class_range: dict[str, tuple[int, int]] = {}  # merged amount class label -> (min, max) judgment

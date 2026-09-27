@@ -15,6 +15,8 @@ at most one limit's worth, are left out of this pre-engine figure). Stress mode 
 
 from __future__ import annotations
 
+import copy
+
 import zlib
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -73,6 +75,7 @@ class Draws:
 
     def __init__(self, draws: int, stress: bool = False, basis: Basis | None = None) -> None:
         self.n, self.stress, self.cache, self.basis = draws, stress, {}, basis
+        self.prefixes: dict | None = None  # {}: walk chains from cached prefixes (events._run)
 
     def u(self, *key: str, adverse_high: bool | None = None) -> np.ndarray:
         if self.stress and adverse_high is not None:
@@ -764,17 +767,25 @@ class Chain:
         self.instrument_cash()
         tr = Trace(self.ev)
         for node, ctx, branch in steps:
-            if not answers_levy(node, ctx):
-                self.flush_levy()  # an earlier levy is in the cash the next decision sees
-            self.settle_offer = np.zeros(self.n, dtype=np.int64)
-            self.stay_offer = np.zeros(self.n, dtype=np.int64)
-            before_cash = self.basis.cash + np.cumsum(self.ev.cash - self.ev.lock, axis=1)
-            day = self.step(node, ctx, branch)
-            t = np.clip(day, 0, self.N - 1)
-            tr.day.append(day)
-            tr.cash.append(before_cash[self.rows, t])
-            tr.owed.append(self.owed_at(day))
-            tr.collateral.append(self.collateral_required.copy())
+            self.advance(tr, node, ctx, branch)
+        return self.finish(tr)
+
+    def advance(self, tr: Trace, node: str, ctx: str, branch: str) -> None:
+        """One step of `run`: book it and record its decision day and path facts."""
+        if not answers_levy(node, ctx):
+            self.flush_levy()  # an earlier levy is in the cash the next decision sees
+        self.settle_offer = np.zeros(self.n, dtype=np.int64)
+        self.stay_offer = np.zeros(self.n, dtype=np.int64)
+        before_cash = self.basis.cash + np.cumsum(self.ev.cash - self.ev.lock, axis=1)
+        day = self.step(node, ctx, branch)
+        t = np.clip(day, 0, self.N - 1)
+        tr.day.append(day)
+        tr.cash.append(before_cash[self.rows, t])
+        tr.owed.append(self.owed_at(day))
+        tr.collateral.append(self.collateral_required.copy())
+
+    def finish(self, tr: Trace) -> Trace:
+        """The end of `run`: the pending levy, the petition's stay of the feed's cash, and the path's marks."""
         self.flush_levy()
         pet = self.ev.petition
         after = (pet[:, None] >= 0) & (np.arange(self.N)[None, :] >= pet[:, None])
@@ -785,6 +796,14 @@ class Chain:
         tr.settle_offer, tr.stay_offer = self.settle_offer, self.stay_offer
         tr.triggers = self.trigger_days()
         return tr
+
+    SHARED = frozenset({"d", "s", "m", "dr", "basis", "sens", "fin", "rows"})  # read-only inputs, never copied
+
+    def clone(self) -> Chain:
+        """An independent copy of the walk's state (every array it books into), sharing its read-only inputs."""
+        new = Chain.__new__(Chain)
+        new.__dict__.update({k: v if k in Chain.SHARED else _copied(v) for k, v in self.__dict__.items()})
+        return new
 
     def trigger_days(self) -> dict[str, np.ndarray]:
         """The dated contract and rule triggers on this path (TRIGGERS), per draw, as the engine computes them at the
@@ -815,9 +834,56 @@ class Chain:
         return out
 
 
+def _copied(v):
+    """A deep copy of a chain attribute: arrays, EventCash, and dicts, lists and tuples of them; scalars as they are."""
+    if isinstance(v, np.ndarray):
+        return v.copy()
+    if isinstance(v, (int, float, str, bool, np.generic)) or v is None:
+        return v
+    if isinstance(v, EventCash):
+        return EventCash(v.cash.copy(), v.lock.copy(), v.capacity.copy(), v.petition.copy())
+    if type(v) is dict:
+        return {k: _copied(x) for k, x in v.items()}
+    if type(v) is list:
+        return [_copied(x) for x in v]
+    if type(v) is tuple:
+        return tuple(_copied(x) for x in v)
+    return copy.deepcopy(v)
+
+
+def _run(make, steps, draws: Draws, key: tuple, inputs: tuple) -> Trace:
+    """`make().run(steps)`, resumed from the deepest prefix of `steps` already walked. A chain's state after k steps
+    depends only on those k steps, so with `draws.prefixes` on (the tree builder and the analysis walk paths in
+    depth-first order) each call walks only the steps after the prefix it shares with the previous call. The cache
+    holds one stack of states per chain: the root (after the instrument's cash) and each step of the last path."""
+    cache = draws.prefixes
+    if cache is None:
+        return make().run(steps)
+    entry = cache.get(key)
+    if entry is None or len(entry[0]) != len(inputs) or any(a is not b for a, b in zip(entry[0], inputs, strict=True)):
+        root = make()
+        root.instrument_cash()
+        entry = cache[key] = (inputs, [(None, root, None)])
+    stack = entry[1]
+    k = 0
+    while k < len(steps) and k + 1 < len(stack) and stack[k + 1][0] == steps[k]:
+        k += 1
+    del stack[k + 1:]
+    ch = stack[k][1].clone()
+    tr = Trace(ch.ev)
+    for _, _, rec in stack[1:k + 1]:
+        for lst, x in zip((tr.day, tr.cash, tr.owed, tr.collateral), rec, strict=True):
+            lst.append(x)
+    for step in steps[k:]:
+        ch.advance(tr, *step)
+        stack.append((step, ch.clone(), (tr.day[-1], tr.cash[-1], tr.owed[-1], tr.collateral[-1])))
+    return ch.finish(tr)
+
+
 def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws,
                 sens: dict | None = None) -> Trace:
-    return Chain(d, setup, model, draws, sens).run(path.steps)
+    return _run(lambda: Chain(d, setup, model, draws, sens), tuple(path.steps), draws, (d.instance_id,),
+                (d, setup, model, sens))
 
 
 def answers_levy(node: str, ctx: str) -> bool:
@@ -827,7 +893,8 @@ def answers_levy(node: str, ctx: str) -> bool:
 
 def bank_trace(fin, steps, setup: Setup, model: dict, draws: Draws, sens: dict | None = None) -> Trace:
     """The bank view's chain: the borrower's instrument `fin` (common input; None: none) and its distress steps."""
-    return Chain(None, setup, model, draws, sens, fin=fin).run(steps)
+    return _run(lambda: Chain(None, setup, model, draws, sens, fin=fin), tuple(steps), draws, (BANK,),
+                (fin, setup, model, sens))
 
 
 def event_cash(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws) -> EventCash:
