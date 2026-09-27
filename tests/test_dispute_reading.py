@@ -102,6 +102,10 @@ class PendingWaiverJudge(WaiverJudge):
                 self._o("event_post_trial_motions_pending", noul_value=pending)]
 
 
+WAIVER = "any waiver of the right to appeal the judgment"
+SETTLE = "the company's statements on reaching a settlement with the judgment creditor"
+
+
 def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     from akoustis_fixture import COMPONENTS, MOTIONS
 
@@ -114,14 +118,14 @@ def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
     barred = next(f for f in d.factors if f.factor_id == "appeal_barred")
     assert barred.probability == 0.9 and barred.level_label == "established"
 
-    fc = forecaster(d, fs, slots={"appeal": {"appeal waivers": ["a"]}, "settlement_offer": {"settlement statements": ["b"]}})
+    fc = forecaster(d, fs, slots={"appeal": {WAIVER: ["a"]}, "settlement_offer": {SETTLE: ["b"]}})
     paths = fc.all_paths()[d.instance_id][""]
     assert any(("appeal", "", "yes") in p.steps for p in paths)  # the waiver is evidence, not a pruned branch
     appeal = next(n for n in fc.nodes.values() if n.node == "appeal")
     state, fids, readings = fc.state(appeal)
     assert readings[barred.label] == {"probability_present": 0.9}  # the waiver reaches Jev's appeal question
     assert fids == ("a",)  # with the passage that supplies its record item
-    assert {"item": "appeal waivers", "in_the_record": True} in state["record_items"]
+    assert {"item": WAIVER, "in_the_record": True} in state["record_items"]
     settle = next(n for n in fc.nodes.values() if n.node == "settlement_offer")
     assert fc.state(settle)[1] == ("b",)  # each question receives the findings that supply its own record items
     a4 = next(n for n in fc.nodes.values() if n.node == "debtor_response")

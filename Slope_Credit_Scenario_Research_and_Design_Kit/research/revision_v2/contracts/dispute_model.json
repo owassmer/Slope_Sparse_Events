@@ -557,9 +557,9 @@
             "jmol_standard"
           ],
           "record_items": [
-            "the renewed motion's public grounds",
-            "the verdict form",
-            "public trial exhibits"
+            "the public grounds of the renewed motion for judgment as a matter of law on trade-secret liability",
+            "the verdict form's answers on trade-secret misappropriation",
+            "public trial exhibits on trade-secret liability"
           ],
           "path_facts": [
             "the judgment's components (awarded and requested amounts)",
@@ -586,8 +586,8 @@
             "remittitur"
           ],
           "record_items": [
-            "the new-trial and remittitur motion's public grounds",
-            "the damages evidence it cites"
+            "the public grounds of the motion for a new trial or remittitur of the trade-secret damages",
+            "the trial evidence on the amount of trade-secret damages that the motion cites"
           ],
           "path_facts": [
             "the judgment's components (awarded and requested amounts)",
@@ -612,7 +612,7 @@
             "remittitur"
           ],
           "record_items": [
-            "the creditor's statements on the verdict and the damages record"
+            "the judgment creditor's public statements on the damages award"
           ],
           "path_facts": [
             "the verdict amount and the remitted amount"
@@ -636,7 +636,7 @@
             "frcp_59a"
           ],
           "record_items": [
-            "the patent grounds in the post-trial motion"
+            "the public grounds on which the post-trial motions ask the court to set aside the patent verdict or its damages"
           ],
           "path_facts": [
             "the judgment's components (awarded and requested amounts)",
@@ -661,8 +661,8 @@
             "udtpa_trebling_authorities"
           ],
           "record_items": [
-            "Qorvo's motion to treble the trade-secret damages under the unfair-trade-practices statute",
-            "the jury's answer to the unfair-trade-practices question on the verdict form (Question 2(a))",
+            "the judgment creditor's motion to treble the trade-secret damages under the unfair-trade-practices statute",
+            "the jury's answer on the unfair-trade-practices claim, as the verdict form or a motion to amend the verdict states it",
             "the court's earlier orders on unfair-trade-practices damages"
           ],
           "path_facts": [
@@ -688,8 +688,8 @@
             "nc_66_154_d"
           ],
           "record_items": [
-            "the fee motion",
-            "the willful-and-malicious finding"
+            "the judgment creditor's motion for attorneys' fees and its stated grounds",
+            "the statement of the jury's finding that the trade-secret misappropriation was willful and malicious"
           ],
           "path_facts": [
             "the judgment's components (awarded and requested amounts)",
@@ -714,8 +714,8 @@
             "nc_24_1"
           ],
           "record_items": [
-            "the public docket entry for the interest motion",
-            "the verdict form's designation of the award",
+            "the docket entry for the judgment creditor's motion for pre-judgment and post-judgment interest",
+            "the verdict form's designation of the trade-secret award as compensatory damages or unjust enrichment",
             "the parties' public positions on whether unjust-enrichment damages are compensatory"
           ],
           "path_facts": [
@@ -743,8 +743,8 @@
             "frcp_62c"
           ],
           "record_items": [
-            "the proposed injunction",
-            "the motion's grounds",
+            "the proposed injunction order and the products it covers",
+            "the grounds of the injunction motion",
             "the company's statements on its redesigned products"
           ],
           "path_facts": [
@@ -771,8 +771,8 @@
             "frcp_69a"
           ],
           "record_items": [
-            "the creditor's statements on enforcement",
-            "the debtor's statements on resisting or satisfying the judgment"
+            "the judgment creditor's public statements on collecting or enforcing the judgment",
+            "the company's statements on contesting, paying or settling the judgment"
           ],
           "path_facts": [
             "amount owed on the path, by component, with statutory interest to the decision date",
@@ -802,7 +802,7 @@
             "bond_amount"
           ],
           "record_items": [
-            "the debtor's statements on the judgment and its liquidity"
+            "the company's statements on the judgment, its cash and its ability to pay the judgment"
           ],
           "path_facts": [
             "amount owed on the path, by component, with statutory interest to the decision date",
@@ -836,8 +836,8 @@
             "bond_amount"
           ],
           "record_items": [
-            "the stay motion and the security it offers",
-            "the debtor's financial condition and its ability to pay the judgment"
+            "the company's stay motion and the security it offers",
+            "the company's statements on its cash, its going-concern status and its ability to pay the judgment"
           ],
           "path_facts": [
             "amount owed on the path, by component, with statutory interest to the decision date",
@@ -874,7 +874,7 @@
             "usc28_1963"
           ],
           "record_items": [
-            "where the debtor's operating assets and cash sit"
+            "where the company's operating assets, facilities and cash are located"
           ],
           "path_facts": [
             "amount owed on the path, by component, with statutory interest to the decision date",
@@ -909,7 +909,7 @@
             "usc11_362"
           ],
           "record_items": [
-            "the debtor's stated options: equity, debt, asset financing, collaborations or licensing, a sale or strategic transaction, restructuring or insolvency"
+            "the company's statements of the options it has to fund its operations and obligations: equity, debt, asset financing, collaborations or licensing, a sale or strategic transaction, restructuring or insolvency"
           ],
           "path_facts": [
             "amount owed on the path, by component, with statutory interest to the decision date",
@@ -954,8 +954,8 @@
             "frap_4a4a"
           ],
           "record_items": [
-            "statements of appeal intent",
-            "appeal waivers"
+            "the company's statements on whether it will appeal the judgment",
+            "any waiver of the right to appeal the judgment"
           ],
           "path_facts": [
             "amount owed on the path, by component, with statutory interest to the decision date",
@@ -988,7 +988,7 @@
             "usc28_1963"
           ],
           "record_items": [
-            "the creditor's statements on enforcement"
+            "the judgment creditor's public statements on collecting or enforcing the judgment"
           ],
           "path_facts": [
             "amount owed on the path, by component, with statutory interest to the decision date",
@@ -1019,8 +1019,8 @@
           "decision": "offers to settle for its available cash above its 30-day operating need",
           "standard": [],
           "record_items": [
-            "settlement statements",
-            "mediation orders"
+            "the company's statements on reaching a settlement with the judgment creditor",
+            "court orders referring the case to mediation"
           ],
           "path_facts": [
             "amount owed on the path, by component, with statutory interest to the decision date",
@@ -1054,8 +1054,8 @@
           "decision": "accepts the offered settlement",
           "standard": [],
           "record_items": [
-            "settlement statements",
-            "the creditor's statements on the judgment"
+            "the company's statements on reaching a settlement with the judgment creditor",
+            "the judgment creditor's public statements on the judgment and the verdict"
           ],
           "path_facts": [
             "amount owed on the path, by component, with statutory interest to the decision date",
@@ -1106,8 +1106,8 @@
             "acceleration"
           ],
           "record_items": [
-            "the indenture's default and acceleration terms",
-            "holder statements"
+            "the indenture's judgment default, notice and acceleration terms",
+            "public statements by holders of the notes"
           ],
           "path_facts": [
             "principal and accrued interest",
@@ -1143,7 +1143,7 @@
             "repurchase"
           ],
           "record_items": [
-            "the indenture's listing, acceleration and repurchase terms"
+            "the indenture's listing default, acceleration and repurchase terms"
           ],
           "path_facts": [
             "principal and accrued interest",
@@ -1178,7 +1178,7 @@
             "usc11_362"
           ],
           "record_items": [
-            "the issuer's stated options"
+            "the issuer's statements on its financing options and on seeking bankruptcy protection"
           ],
           "path_facts": [
             "principal and accrued interest",
@@ -1216,7 +1216,7 @@
             "usc11_303b"
           ],
           "record_items": [
-            "the holders' public statements"
+            "public statements by holders of the notes"
           ],
           "path_facts": [
             "principal and accrued interest",
@@ -1251,8 +1251,8 @@
             "listing_default"
           ],
           "record_items": [
-            "deficiency notices",
-            "prior vote history"
+            "Nasdaq's minimum bid price deficiency notices and the compliance deadline they set",
+            "the results of earlier stockholder votes on reverse splits or share authorizations"
           ],
           "path_facts": [
             "principal and accrued interest",
@@ -1278,7 +1278,7 @@
             "DGCL §242(d)(2): votes for exceed votes against"
           ],
           "record_items": [
-            "prior votes and the standard applied"
+            "the results of earlier stockholder votes and the vote required to approve a reverse split"
           ],
           "path_facts": [
             "principal and accrued interest",
@@ -1304,7 +1304,7 @@
             "Nasdaq Rule 5815(a): a timely request for a hearing before a Hearings Panel stays the suspension and delisting until the panel decides."
           ],
           "record_items": [
-            "deficiency notices"
+            "Nasdaq's minimum bid price deficiency notices and the compliance deadline they set"
           ],
           "path_facts": [
             "principal and accrued interest",
@@ -1330,7 +1330,7 @@
             "Nasdaq Rule 5815(c)(1)(A): a Hearings Panel may grant an exception of up to 180 days from the Staff Delisting Determination."
           ],
           "record_items": [
-            "the issuer's compliance plan"
+            "the issuer's stated plan to regain compliance with Nasdaq's listing rules"
           ],
           "path_facts": [
             "principal and accrued interest",
@@ -1366,7 +1366,7 @@
             "usc11_362"
           ],
           "record_items": [
-            "the company's going-concern and liquidity statements"
+            "the company's statements on its cash, its going-concern status and its plans if its cash runs short"
           ],
           "path_facts": [
             "the dates the cash floor falls across the path's trajectories",
@@ -1403,7 +1403,7 @@
             "usc11_362"
           ],
           "record_items": [
-            "the company's going-concern and liquidity statements"
+            "the company's statements on its cash, its going-concern status and its plans if its cash runs short"
           ],
           "path_facts": [
             "the dates available cash falls below zero across the path's trajectories",

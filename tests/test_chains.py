@@ -421,6 +421,9 @@ def test_the_injunction_and_settlement_questions_cite_their_own_law():
     assert nodes["injunction"]["standard"] == ["ebay_2006", "usc18_1836_b3a", "nc_66_154_a", "frcp_62c"]
     assert "547 U.S. 388" in M["rules"]["ebay_2006"]["citation"] and "62(c)" in M["rules"]["frcp_62c"]["citation"]
     assert all("frcp_62b" not in nodes[n]["standard"] for n in ("injunction", "settlement_offer", "settlement_accept"))
+    for n in ("ts_liability_jmol", "ts_damages_ruling", "patent_jmol", "trebling", "fees_awarded", "prejudgment_interest"):
+        items = " ".join(nodes[n]["record_items"]).lower()  # a court does not weigh solvency on the merits
+        assert not any(w in items for w in ("cash", "going-concern", "bankruptcy", "financing", "liquidity")), n
 
 
 def test_the_residual_questions_agree_in_number():
