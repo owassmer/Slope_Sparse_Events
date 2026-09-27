@@ -85,8 +85,8 @@ def test_the_bank_questions_carry_bank_facts_only(base):
     fc, _ = bank_model(base, np.random.default_rng(1), disputes=[judgment()])
     for n in fc.bank_nodes.values():
         st = bank_state(fc, n)
-        assert set(st["case"]) == {"as_of", "borrower"}
-        assert set(st["path_facts"]) == {"decision_date", "cash_balance_at_decision",
+        assert st["case"] == {"as_of": st["case"]["as_of"], "company": "the company"}  # by role: no remembered facts
+        assert set(st["path_facts"]) == {"decision_date", "projected_available_cash_at_decision_date",
                                          "operating_need_30_days_at_decision"}
         assert not st["evidence"] and not st["record_items"] and not st["readings"] and not st["standard"]
         text = json.dumps(st).lower()

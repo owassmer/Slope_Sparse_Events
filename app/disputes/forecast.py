@@ -563,6 +563,10 @@ class Forecaster:
         facts["projected_available_cash_at_decision_date"] = {"p5": usd(int(np.quantile(cash, 0.05))),
                                                               "p50": usd(int(np.quantile(cash, 0.5)))}
         facts["amount_owed_at_decision"] = {"p50": usd(int(np.quantile(owed, 0.5))), "max": usd(int(owed.max()))}
+        if n.node in ("petition_cash_floor", "petition_cash_out") and self.draws is not None:
+            need = np.concatenate([self.draws.basis.need[np.arange(len(r["day"])), np.clip(r["day"], 0, self.days - 1)][m]
+                                   for r, m in zip(rows, masks, strict=True)])
+            facts["operating_need_30_days_at_decision"] = {"p50": usd(int(np.quantile(need, 0.5)))}
         merged = next((self.class_range[c] for c in n.context.split("|") if c in self.class_range), None)
         if merged is not None:  # a merged class: the range of its judgment amounts, beside the amount owed
             facts["judgment_after_ruling"] = f"{usd(merged[0])} to {usd(merged[1])}"
@@ -1202,10 +1206,10 @@ def bank_state(fc: Forecaster, n: Node) -> dict:
             q = lambda x, p: usd(int(np.quantile(x[inside], p)))  # noqa: E731
             facts = {"decision_date": {k: fc._date(np.quantile(day[inside], p))
                                        for k, p in (("p5", 0.05), ("p50", 0.5), ("p95", 0.95))},
-                     "cash_balance_at_decision": {"p5": q(cash, 0.05), "p50": q(cash, 0.5)},
+                     "projected_available_cash_at_decision_date": {"p5": q(cash, 0.05), "p50": q(cash, 0.5)},
                      "operating_need_30_days_at_decision": {"p50": q(need, 0.5)}}
     ctx = context_phrases([c for c in n.context.split("|")[1:] if c], {})
-    return {"case": {"as_of": fmt(fc.review), "borrower": fc.borrower},
+    return {"case": {"as_of": fmt(fc.review), "company": "the company"},
             "question": {"actor": s["actor"], "decision": s["decision"], "branches": list(n.branches),
                          "timing": s["timing"], "context": ctx},
             "standard": [], "record_items": [], "path_facts": facts, "assumptions": [], "evidence": [], "readings": {}}

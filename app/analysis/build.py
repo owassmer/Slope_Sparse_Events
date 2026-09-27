@@ -268,8 +268,10 @@ def build(run_id: str, root: Path, refresh: bool = False, roles: bool = False) -
     records: list = []
     jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
     judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
-    judgments = asyncio.run(fc.judge(judge)) if fc.nodes else {}
-    bank_judgments = asyncio.run(fc.judge_bank(judge)) if fc.bank_nodes else {}
+    async def ask_both() -> tuple[dict, dict]:  # one event loop: the adapter's HTTP client is bound to it
+        return (await fc.judge(judge) if fc.nodes else {}), (await fc.judge_bank(judge) if fc.bank_nodes else {})
+
+    judgments, bank_judgments = asyncio.run(ask_both())
     model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered(),
                        neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments)
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
