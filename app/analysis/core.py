@@ -261,6 +261,16 @@ class Reduction:
             c.finish()
         return self
 
+    def for_reweight(self) -> Reduction:
+        """The part the page's reweight reads (page.chart_view: the per-day sums, the cash and headroom bins and
+        counts, the line's limit), sharing its arrays; the per-draw minima and horizon totals and the collected
+        counts, which only the analysis's own metrics read, are left out of the saved page state."""
+        new = Reduction.__new__(Reduction)
+        new.__dict__.update({k: v for k, v in self.__dict__.items()
+                             if k not in ("min_cash", "min_headroom", "collected", "counts")})
+        new.counts = {k: c for k, c in self.counts.items() if k != "collected"}
+        return new
+
     # --- reweighting ---------------------------------------------------------------------------------------------
 
     def expected(self, probs: np.ndarray) -> dict[str, float]:

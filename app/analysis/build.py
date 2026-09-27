@@ -293,9 +293,10 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dic
     data["base_setup"] = setup_json(setup)
     data["jev"] = jev.usage_summary()
     out = root / run_id
-    text = json.dumps(data, indent=1, default=str) + "\n"
-    (out / "analysis.json").write_text(text)
-    (out / "analysis.json.gz").write_bytes(gzip.compress(text.encode(), mtime=0))  # committed; analysis.json is not
+    text = json.dumps(data, default=str, separators=(",", ":")).encode() + b"\n"  # compact: C encoder
+    (out / "analysis.json").write_bytes(text)
+    (out / "analysis.json.gz").write_bytes(gzip.compress(text, compresslevel=6, mtime=0))  # committed; .json is not
+    del text
     write_csv(data, out)
     scratch = VAR / "analysis" / run_id
     scratch.mkdir(parents=True, exist_ok=True)
@@ -331,7 +332,8 @@ def save_page_state(run_id: str, state: dict) -> None:
 
     path = page_state_path(run_id)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(pickle.dumps(state, protocol=pickle.HIGHEST_PROTOCOL))
+    with path.open("wb") as fh:  # streamed: no second copy of the state in memory
+        pickle.dump({**state, "r": state["r"].for_reweight()}, fh, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def write_exchanges(path: Path, exchanges: list[dict]) -> None:
@@ -358,7 +360,8 @@ def load_page_state(run_dir: Path) -> dict:
 
     path = page_state_path(run_dir.name)
     if path.exists():
-        return pickle.loads(path.read_bytes())
+        with path.open("rb") as fh:
+            return pickle.load(fh)
     data = read_analysis(run_dir)
     p = json.loads((run_dir / "page.json").read_text())
     model, setup = model_from_json(data["model"]), setup_from_json(data["base_setup"])
