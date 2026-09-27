@@ -635,6 +635,7 @@ class Chain:
             else:  # "ripe": after seeking a sale or financing, the post-ruling judgment default's ripe date
                 ripe, cond = self.judgment_default("post")
                 milestone = np.where(cond, ripe, BIG)
+            milestone = np.where(self.owed_at(milestone) > 0, milestone, BIG)  # nothing owed: no response arises
             if branch == "pay":
                 ok = self.live(milestone) & (milestone < N) & (self.cash_at(milestone) >= self.owed_at(milestone))
                 amt = np.where(ok, self.owed_at(milestone), 0)

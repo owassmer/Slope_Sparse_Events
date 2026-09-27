@@ -661,6 +661,17 @@ def test_the_settled_share_counts_only_draws_that_paid_a_settlement(full, base):
     assert zero  # some 'settles' paths have draws where nothing was paid
 
 
+def test_every_company_response_question_has_its_date_cash_and_amount_owed(full):
+    """The company's response arises only where an amount is still owed on the day (a levy before the ruling can
+    already have taken all that survives it), so each one asked carries its decision date, cash and amount owed."""
+    fc, _ = full
+    a4 = [n for n in fc.nodes.values() if n.node == "debtor_response"]
+    assert {n.context.split("|")[0] for n in a4} >= {"I1", "post", "ripe"}
+    for n in a4:
+        facts = fc.path_facts(n, judgment())
+        assert {"decision_date", "projected_available_cash_at_decision_date", "amount_owed_at_decision"} <= set(facts), n.key
+
+
 # 8. Chain order -----------------------------------------------------------------------------------------------------
 
 def test_the_post_ruling_response_comes_on_the_levy_day_and_again_at_the_ripe_date_after_seeking(full):
