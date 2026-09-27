@@ -370,6 +370,13 @@
       "value": 0,
       "sensitivity": 30
     },
+    "holder_petition_route": {
+      "disposition": "bounded",
+      "basis": "Indenture §7.06: no Holder may institute any proceeding in respect of the Indenture unless it has given the Trustee written notice of a continuing Event of Default, Holders of at least 25% have made a written request to the Trustee to pursue the remedy and offered indemnity, the Trustee has not complied within 60 days, and the Majority Holders have given no inconsistent direction in that period. §7.07: each Holder's right to receive payment of principal and interest on or after its due date, and to sue for it, is unimpaired. Base: §7.06 governs the holders' involuntary petition, so it comes no earlier than their request, made at acceleration, plus 60 days. Sensitivity: the holders may file at once on acceleration. The default, the notice and acceleration, and the petition are separate dated events.",
+      "value": "section_7_06",
+      "sensitivity": "immediate",
+      "request_days": 60
+    },
     "stay_restart_on_increase_days": {
       "disposition": "bounded",
       "basis": "Rule 62(a) stays the increase from an amended judgment for 30 days from its entry (base); sensitivity: the whole amended amount waits 30 days.",
@@ -1103,8 +1110,8 @@
         "interest": "Interest (§16.02): paid on each interest date, in shares unless the company elects cash."
       },
       "clocks": {
-        "judgment_default_ripe": "per judgment_default_reading: the end of the Rule 62(a) stay of the judgment as entered + the instrument's period; and, where the holders did not act then, the order disposing of the last pending tolling motion + the instrument's period; each with the judgment unpaid and not effectively stayed; then the holders' notice + holder_notice_lag_days",
-        "listing": "split effective by the vote date; Staff Determination the day after the compliance deadline; suspension + suspension_after_determination_days without a hearing; panel decision + panel_decision_days with one; 'not listed' per form25_after_panel_days"
+        "judgment_default_ripe": "per judgment_default_reading: the end of the Rule 62(a) stay of the judgment as entered + the instrument's period; and, where the holders did not act then, the order disposing of the last pending tolling motion + the instrument's period; each with the judgment unpaid and not effectively stayed; then the holders' notice and acceleration + holder_notice_lag_days; the issuer's petition at acceleration, the holders' per holder_petition_route",
+        "listing": "board vote call 20 days before the split must take effect; split effective by the first of the 10 consecutive business days ending on the compliance deadline; Staff Determination the day after the deadline; hearing request within 7 days; suspension + suspension_after_determination_days without a hearing; panel decision + panel_decision_days with one; 'not listed' per form25_after_panel_days. The chain runs where no acceleration of the notes precedes the vote call; delisting is a default only where the notes are not already due"
       },
       "nodes": {
         "holders_act_judgment": {

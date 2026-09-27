@@ -140,7 +140,8 @@ def filing_cause(steps: tuple) -> str:
     for node, _ctx, branch in steps:
         if node == "debtor_response" and branch == "file":
             return "filed_enforcement"
-        if (node == "judgment_default" and branch == "yes") or (node == "delisting_notes" and branch.startswith("petition")):
+        if (node == "judgment_default" and branch in ("yes", "holders_file")) or (
+                node == "delisting_notes" and branch.startswith("petition")):
             return "filed_notes"
         if node in ("cash_floor", "cash_out") and branch == "yes":
             return "filed_cash"
@@ -193,8 +194,11 @@ def _when(review: date, day: np.ndarray | None, exact: bool = False) -> str:
 SETTLE = {"I1": "Settles before the ruling", "I2": "Settles after the ruling", "I3": "Settles after the appeal deadline",
           "I4": "Settles during the appeal"}
 FILING = {("debtor_response", "file"): "Akoustis files", ("judgment_default", "yes"): "Noteholders accelerate; filing",
+          ("judgment_default", "holders_file"): "Noteholders accelerate; noteholders file",
           ("delisting_notes", "petition_delist"): "Noteholders accelerate on the delisting; filing",
+          ("delisting_notes", "petition_delist_holders"): "Noteholders accelerate on the delisting; noteholders file",
           ("delisting_notes", "petition_repurchase"): "Repurchase unpaid; filing",
+          ("delisting_notes", "petition_repurchase_holders"): "Repurchase unpaid; noteholders file",
           ("cash_floor", "yes"): "Akoustis files at the cash floor",
           ("cash_out", "yes"): "Akoustis files when its cash runs out"}
 

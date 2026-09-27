@@ -143,6 +143,7 @@ Draws, collections and line reassessment follow spec §2.
 | Registration in NC and NY | After the appeal deadline; earlier only on J9 | Code timing |
 | §7.01(i) ripe date | Base, both readings (L11): 19 Aug (the Rule 62(a) stay's end + 60 days), and, where the holders did not act then, the order disposing of the last tolling motion + 60 days on the amount that survives the ruling (the entered amount where no ruling has issued); each only if still unpaid and not effectively stayed by that date. Sensitivities: 19 Aug only; the post-ruling date only | Code timing; reading Bounded |
 | Levy lag; petition after a decision; holder notice | Base 0 days; sensitivity +30 | Bounded |
+| Holders' involuntary petition | Base: §7.06 governs, so no earlier than the holders' request to the trustee, made at acceleration, + 60 days; sensitivity: at acceleration (§7.07) | Bounded (`holder_petition_route`) |
 | Bond | Path judgment + accrued §1961 interest + forward interest [0, 2 years], base 1. No costs filed by D | Sourced (L7) |
 | Surety collateral | 100% of the bond; lower bound 80% | Sourced (R2i); lower bound Bounded |
 | Split effective by | 8 Oct; vote called by about 18 Sep (Rule 14a-6; DGCL §222) | Code timing |
@@ -190,20 +191,20 @@ Collections stop or fall short only through a petition or too little cash above 
 
 **T1-d. Enforceable, unstayed and unpaid (I1–I3).**
 1. **Arithmetic:** "pay" exists only where the path amount is within the path's maximum cash. Every path with surviving trade-secret money excludes it.
-2. Akoustis responds: **A4** (Choice). The options come from what the record says the company can do: equity, debt, real-estate or equipment financing, collaborations or licensing, a sale or other strategic transaction, and restructuring or insolvency (`10q_0513` Note 2 and risk factors; `424b5_0523` risk factors).
+2. Qorvo decides whether to enforce: **Q3**. The levy follows T1-a step 6.
+3. Akoustis responds on the levy day, before the levy is booked: **A4** (Choice). The options come from what the record says the company can do: equity, debt, real-estate or equipment financing, collaborations or licensing, a sale or other strategic transaction, and restructuring or insolvency (`10q_0513` Note 2 and risk factors; `424b5_0523` risk factors).
    - **Pay:** only where step 1 allows.
-   - **Seek a sale or new financing:** every financing and transaction route. Its effect is timing only: the petition decision is deferred to the next interval, and A4 is asked again at the next milestone on the path (ruling, appeal deadline, levy, ripe default date or τ). No cash is booked, because the record gives no terms.
-   - **File:** restructuring or insolvency. Petition date per §2.
+   - **Seek a sale or new financing:** every financing and transaction route. Its effect is timing only: the petition decision is deferred, and A4 is asked again at the next consequential milestone on the path (the post-ruling levy, or the post-ruling judgment default's ripe date). No cash is booked, because the record gives no terms.
+   - **File:** restructuring or insolvency, on the levy day, before the levy. Petition date per §2.
    - **Neither:** A4 is not asked again. Later petitions come only through A5 or A6.
-3. Qorvo decides whether to enforce: **Q3**. The levy follows T1-a step 6.
 
 **Settlement.** In each interval (I1 before the ruling, I2 before the appeal deadline, I3 unstayed from the later of the enforceable date and the appeal deadline, I4 stayed), Akoustis decides whether to offer (**A3**) and Qorvo whether to accept (**Q4**). The amount follows §5.4. A paid settlement removes the §7.01(i) trigger.
 
 ### 3.2 T2. The notes
 
-**Judgment default.** Which judgment starts the 60 days is open (L11), so both readings are carried. On the judgment as entered it ripens on 19 Aug if the judgment is still unpaid and execution is not effectively stayed; the holders decide there whether to give notice and accelerate: **H1**. Where they do not, it can ripen again 60 days after the order disposing of the last tolling motion, on the amount that survives the ruling, and H1 is asked there in that situation: the ruling has issued, its amount, and no notice on the judgment as entered. An effective stay before a ripe date means no default at that date. Paying $44.0M is impossible (Arithmetic). Akoustis decides whether to file (**A5**); if it does not, the holders decide whether to file (**H3**). If neither files, the notes stay due and unpaid, and the listing chain no longer reaches the notes.
+**Judgment default.** Which judgment starts the 60 days is open (L11), so both readings are carried. On the judgment as entered it ripens on 19 Aug if the judgment is still unpaid and execution is not effectively stayed; the holders decide there whether to give notice and accelerate: **H1**. Where they do not, it can ripen again 60 days after the order disposing of the last tolling motion, on the amount that survives the ruling, and H1 is asked there in that situation: the ruling has issued, its amount, and no notice on the judgment as entered. An effective stay before a ripe date means no default at that date. Paying $44.0M is impossible (Arithmetic). Akoustis decides whether to file (**A5**), on acceleration; if it does not, the holders decide whether to file (**H3**), no earlier than their written request to the trustee, made at acceleration, plus 60 days (§7.06; sensitivity: at once, §2). The default, the notice and acceleration, and the petition are separate dated events. If neither files, the notes stay due and unpaid. An acceleration before the board's vote call ends the listing chain on that trajectory; elsewhere the listing chain continues.
 
-**Delisting.** The board decides whether to call the reverse-split vote in time (**A7**), and the stockholders whether to approve (**ST1**). If the stock is not compliant on 21 Oct, Akoustis decides whether to request a hearing (**A8**), and the panel whether to grant an exception (**N1**). On delisting, an Event of Default exists at once. The holders accelerate, require repurchase only, or do neither (**H2**). Then A5 and H3; if neither files, the notes stay due and unpaid.
+**Delisting.** The board decides whether to call the reverse-split vote in time (**A7**), and the stockholders whether to approve (**ST1**). If the stock is not compliant on 21 Oct, Akoustis decides whether to request a hearing (**A8**), and the panel whether to grant an exception (**N1**). On delisting, an Event of Default exists at once, except where the notes are already due. The holders accelerate, require repurchase only, or do neither (**H2**). Then A5 and H3 as for the judgment default; if neither files, the notes stay due and unpaid. A7, ST1, A8 and N1 are each asked with the facts of their own decision date: the vote call, the date the split must take effect, the hearing request and the panel decision.
 
 **Cross-default** does not reach collections (B3).
 
@@ -255,7 +256,7 @@ Each question is one actor's decision. None asks about timing, an amount, afford
 | A1 `forecast_stay_motion` | Akoustis | Moves for a stay | Q1 or Q3 = acts, or final judgment |
 | A2 `forecast_appeal` | Akoustis | Appeals within 30 days | Money award survives |
 | A3 `forecast_settlement_offer` | Akoustis | Offers terms within its bound | Each interval |
-| A4 `forecast_debtor_response` | Akoustis | Pay / seek a sale or financing / file / neither (Choice; "pay" only where arithmetic allows) | T1-d, and again after "seek" |
+| A4 `forecast_debtor_response` | Akoustis | Pay / seek a sale or financing / file / neither (Choice; "pay" only where arithmetic allows) | On the levy day, before the levy (T1-d); again after "seek", at the next levy or ripe default date |
 | A5 `forecast_petition_on_notes` | Akoustis | Files after acceleration or unpaid repurchase | H1 or H2 = acts |
 | A6 `forecast_petition_cash_floor` | Akoustis | Files at the cash floor | τ in horizon, before any petition |
 | A6b `forecast_petition_cash_out` | Akoustis | Files when cash runs out | A6 = no; cash below zero in horizon |

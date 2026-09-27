@@ -217,7 +217,8 @@ def test_frap_tolling_moves_the_post_ruling_windows_with_the_drawn_ruling(base):
     beyond = "beyond:3010000000:0"
     days = [c.step(*s) for s in (("execute_pre_ruling", "I1", "no"), ("ruling", "", beyond), ("appeal", "", "no"),
                                  ("settle", "I2", "no"), ("stay", "post", "no"), ("debtor_response", "post", "neither"))]
-    assert all((x == c.F).all() for x in days[1:5]) and (days[5] == c.F).all()  # no increase: enforceable at once
+    assert all((x == c.F).all() for x in days[1:5])  # no increase: enforceable at once
+    assert (days[5] >= 10**6).all()  # no levy pending: the company's response to a levy does not arise
     up = chain(base)
     up.step("ruling", "", "beyond:11292377711:1211612330")  # only the increase waits 30 days (L8(a) base)
     assert (up.EF == up.F).all() and (up.EI == up.F + 30).all()
@@ -380,7 +381,10 @@ def test_a_filing_path_sets_the_petition_and_the_engine_stays_the_claim(base, fu
     c = Chain(judgment(), SETUP, M, Draws(b.cash.shape[0], basis=b))
     tr = c.run(p.steps)
     on = tr.events.petition >= 0
-    assert on.any() and (tr.events.petition[on] <= c.EF[on]).all()
+    at = tr.day[p.steps.index(("debtor_response", "post", "file"))]  # the levy day, before the levy
+    hit = on & (at < N)  # the petition is the earliest one: another filing on the path can come first
+    assert (tr.events.petition[hit] == at[hit]).any() and (tr.events.petition[hit] <= at[hit]).all()
+    assert (at[hit] >= c.EF[hit]).all()
     t = run(line, feed.available_cents, tr.events)
     assert (t.petition == tr.events.petition).all() and t.stayed[on].mean() > 0
     i1 = next(q for q in paths if ("debtor_response", "I1", "file") in q.steps)
@@ -528,3 +532,30 @@ def test_neutral_residuals_reproduce_attribution_step_two(base):
     ec = Chain(d, SETUP, M, Draws(b.cash.shape[0], basis=b)).run(stayed.steps).events
     level = np.cumsum(ec.lock, axis=1)
     assert (ec.lock > 0).any() and (level >= 0).all() and (level[:, -1][ec.lock.sum(axis=1) == 0] == 0).all()
+
+
+# 8. Chain order -----------------------------------------------------------------------------------------------------
+
+def test_the_post_ruling_response_comes_on_the_levy_day_and_again_at_the_ripe_date_after_seeking(full):
+    fc, paths = full
+    for p in paths:
+        for i, s in enumerate(p.steps):
+            if s[:2] == ("debtor_response", "post"):
+                assert p.steps[i - 1] == ("enforce", "post", "levy")
+            if s[:2] == ("debtor_response", "ripe"):
+                assert any(x[0] == "debtor_response" and x[2].startswith("seek") for x in p.steps[:i])
+    assert any(s[:2] == ("debtor_response", "ripe") for p in paths for s in p.steps)
+
+
+def test_each_listing_question_has_the_facts_of_its_own_decision_date(full, base):
+    fc, _ = full
+    dates = chain(base).listing_dates()
+    own = {"reverse_split_board": "vote_call", "split_approved": "effective_by", "nasdaq_hearing": "hearing_request",
+           "panel_exception": "panel_decision"}
+    seen = set()
+    for k, n in fc.nodes.items():
+        if n.node in own:
+            days = np.concatenate([r[0] for r in fc.facts[k]])
+            assert set(days[days < 10**6].tolist()) <= {dates[own[n.node]]}
+            seen.add(n.node)
+    assert seen == set(own)

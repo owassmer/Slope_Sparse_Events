@@ -471,6 +471,8 @@ class Chain:
         threshold net of insurance, unpaid, not effectively stayed by the ripe date, and no earlier petition."""
         f, reading = self.fin, self.p("judgment_default_reading")
         full = np.full(self.n, 0, dtype=np.int64)
+        if f is None or not f.judgment_default_days or self.d is None:
+            return full + BIG, np.zeros(self.n, dtype=bool)
         if ctx == "I1":
             ripe = full + self.e_ix + f.judgment_default_days
             amount, on = self.entered, reading in ("both", "entered")
@@ -514,16 +516,27 @@ class Chain:
         f25 = int(self.p("form25_after_panel_days")) if self.sens.get("form25_after_panel_days") else 0
         return {"vote_call": self.ix(effective_by - timedelta(days=20)), "effective_by": self.ix(effective_by),
                 "determination": self.ix(det), "hearing_request": self.ix(det + timedelta(days=7)),
+                "panel_decision": self.ix(panel),
                 "delisted_suspension": self.ix(suspension) + (10 if f25 else 0),
                 "delisted_panel": self.ix(panel) + f25}
 
-    def repurchase_day(self, delist: int) -> int:
-        when = self.s.review + timedelta(days=delist + 1)
+    def repurchase_day(self, delist):
+        """The Fundamental Change repurchase date for a delisting day (a day index, or an array of them)."""
+        if np.ndim(delist):
+            days = {int(x): self.repurchase_day(int(x)) for x in np.unique(delist)}
+            return np.array([days[int(x)] for x in delist], dtype=np.int64)
+        when = self.s.review + timedelta(days=int(delist) + 1)
         notice = self.fin.repurchase_notice_business_days or 0
         lo, hi = self.fin.repurchase_business_days or (0, 0)
         if self.p("repurchase_date") == "earliest":
             return self.ix(business_days_after(when, lo))
         return self.ix(business_days_after(when, notice + hi))
+
+    def holder_route_days(self) -> int:
+        """Days from acceleration to the holders' involuntary petition (holder_petition_route): under §7.06 the
+        holders' written request to the trustee, made at acceleration, plus 60 days; immediate in the sensitivity."""
+        p = self.m["parameters"]["holder_petition_route"]
+        return int(p["request_days"]) if self.p("holder_petition_route") == p["value"] else 0
 
     def coupon_cash_cents(self) -> int:
         """The cash part of one coupon (parameter coupon_cash_share): base, shares up to the share capacity at the
@@ -560,7 +573,7 @@ class Chain:
     def step(self, node: str, ctx: str, branch: str) -> np.ndarray:
         """Book one step's effects; return its decision day per draw (BIG where it never arises)."""
         N, full = self.N, (lambda v: np.full(self.n, v, dtype=np.int64))
-        if (node, ctx) != ("debtor_response", "I1"):
+        if not answers_levy(node, ctx):
             self.flush_levy()
         if node == "settle":
             start = {"I1": full(-1), "I2": self.F, "I3": np.maximum(self.EF, self.AD), "I4": self.stayed_from}[ctx]
@@ -580,12 +593,15 @@ class Chain:
             self.stay_security(motion, f"stay_{ctx}", approved=branch == "yes")
             return motion
         if node == "debtor_response":
+            lv = self.pending_levy if self.pending_levy is not None else full(BIG)
             if ctx == "I1":  # the levy the early-registration order makes possible, where it
                 # comes before stay approval and before the ruling; nowhere else does an act reach cash before it
-                lv = self.pending_levy if self.pending_levy is not None else full(BIG)
                 milestone = np.where((lv < self.stayed_from) & (lv < self.F), lv, BIG)
-            else:
-                milestone = np.maximum(self.EF, 0)
+            elif ctx == "post":  # the day the creditor's levy after the ruling falls, before it is booked
+                milestone = np.where((lv < self.stayed_from) & (lv < N), lv, BIG)
+            else:  # "ripe": after seeking a sale or financing, the post-ruling judgment default's ripe date
+                ripe, cond = self.judgment_default("post")
+                milestone = np.where(cond, ripe, BIG)
             if branch == "pay":
                 ok = self.live(milestone) & (milestone < N) & (self.cash_at(milestone) >= self.owed_at(milestone))
                 amt = np.where(ok, self.owed_at(milestone), 0)
@@ -609,13 +625,18 @@ class Chain:
                     self.levy(order)
             return motion
         if node == "judgment_default":
+            # the default ripens; the holders give notice and accelerate (+ holder_notice_lag_days); the issuer
+            # files on acceleration, or the holders file once §7.06 allows (holder_petition_route), or neither
             ripe, cond = self.judgment_default(ctx)
+            accel = ripe + int(self.p("holder_notice_lag_days"))
+            if branch in ("yes", "holders_file", "accelerated"):
+                self.mark("notes_due", accel, cond)
+                if ctx == "I1":
+                    self.jd_acted |= cond
             if branch == "yes":
-                self.petition(ripe + int(self.p("holder_notice_lag_days")), cond, cause="notes")
-            elif branch == "accelerated":  # the holders accelerate; neither the issuer nor the holders file
-                self.mark("notes_due", ripe + int(self.p("holder_notice_lag_days")), cond)
-            if ctx == "I1" and branch in ("yes", "accelerated"):
-                self.jd_acted |= cond
+                self.petition(accel, cond, cause="notes")
+            elif branch == "holders_file":
+                self.petition(accel + self.holder_route_days(), cond, cause="notes")
             return np.where(cond, ripe, BIG)
         if node == "ruling":
             self.retrial = branch == "retrial" or branch.endswith(":retrial")
@@ -650,25 +671,39 @@ class Chain:
                     order = self.EF + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid,
                                                                                          "registration_post")
                     day = np.where(self.early_registration < BIG, np.maximum(self.EF, self.early_registration), order)
-                self.levy(np.maximum(day, 0))
+                # booked at the next step, after the company's response on the levy day
+                self.pending_levy = np.maximum(day, 0) + int(self.p("levy_lag_days"))
             return np.maximum(self.EF, 0)
-        if node == "listing":
+        if node in ("listing", "listing_date"):
+            # the listing chain runs where no acceleration precedes the board's vote call
             dates = self.listing_dates()
+            on = self.marks["notes_due"] > dates["vote_call"]
+            if node == "listing_date":  # a listing question's own decision date (ctx: the listing_dates key)
+                return np.where(on, dates[ctx], BIG)
             if branch.startswith("delisted"):
-                self.delisted = full(dates[branch])
+                self.delisted = np.where(on, dates[branch], BIG)
                 self.mark("delisted", self.delisted)
-                return full(dates["determination"])
-            return full(dates["vote_call"])
+                return np.where(on, dates["determination"], BIG)
+            return np.where(on, dates["vote_call"], BIG)
         if node == "delisting_notes":
+            # delisting is an Event of Default and a Fundamental Change, except where the notes are already due
+            open_ = self.live(self.delisted) & (self.marks["notes_due"] > self.delisted) & (self.delisted < N)
+            accel = self.delisted + int(self.p("holder_notice_lag_days"))
+            rep = full(BIG)
+            rep[self.delisted < N] = self.repurchase_day(self.delisted[self.delisted < N])
+            if branch.startswith("petition_delist") or branch == "accelerated":
+                self.mark("notes_due", accel, open_)
+            elif branch.startswith("petition_repurchase") or branch == "repurchase_unpaid":
+                self.mark("notes_due", rep, open_)
             if branch == "petition_delist":
-                self.petition(self.delisted + int(self.p("holder_notice_lag_days")), cause="notes")
+                self.petition(accel, open_, cause="notes")
+            elif branch == "petition_delist_holders":
+                self.petition(accel + self.holder_route_days(), open_, cause="notes")
             elif branch == "petition_repurchase":
-                self.petition(full(self.repurchase_day(int(self.delisted[0]))), cause="notes")
-            elif branch == "accelerated":  # the holders accelerate; neither the issuer nor the holders file
-                self.mark("notes_due", self.delisted + int(self.p("holder_notice_lag_days")))
-            elif branch == "repurchase_unpaid":  # the repurchase falls due unpaid; neither the issuer nor the holders file
-                self.mark("notes_due", full(self.repurchase_day(int(self.delisted[0]))))
-            return self.delisted
+                self.petition(rep, open_, cause="notes")
+            elif branch == "petition_repurchase_holders":
+                self.petition(rep + self.holder_route_days(), open_, cause="notes")
+            return np.where(open_, self.delisted, BIG)
         if node == "cash_floor":
             t = self.tau()
             if branch == "yes":
@@ -685,7 +720,7 @@ class Chain:
         self.instrument_cash()
         tr = Trace(self.ev)
         for node, ctx, branch in steps:
-            if (node, ctx) != ("debtor_response", "I1"):
+            if not answers_levy(node, ctx):
                 self.flush_levy()  # an earlier levy is in the cash the next decision sees
             self.settle_offer = np.zeros(self.n, dtype=np.int64)
             self.stay_offer = np.zeros(self.n, dtype=np.int64)
@@ -711,10 +746,14 @@ class Chain:
         """The dated contract and rule triggers on this path (TRIGGERS), per draw; BIG where none."""
         return {k: np.full(self.n, BIG, dtype=np.int64) for k in TRIGGERS}
 
-
 def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws,
                 sens: dict | None = None) -> Trace:
     return Chain(d, setup, model, draws, sens).run(path.steps)
+
+
+def answers_levy(node: str, ctx: str) -> bool:
+    """The company's response on a levy day, asked before the pending levy is booked."""
+    return node == "debtor_response" and ctx in ("I1", "post")
 
 
 def bank_trace(fin, steps, setup: Setup, model: dict, draws: Draws, sens: dict | None = None) -> Trace:

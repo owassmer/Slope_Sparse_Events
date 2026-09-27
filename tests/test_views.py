@@ -209,3 +209,54 @@ def test_the_i3_settlement_starts_at_the_later_of_enforceability_and_the_appeal_
     start = np.maximum(c.EF, c.AD)
     inside = start < c.N
     assert (day[inside] == start[inside]).all() and (c.AD > c.EF).all()
+
+
+# Chain order --------------------------------------------------------------------------------------------------------
+
+POST = (("ruling", "", "beyond:3010000000:0"), ("appeal", "", "no"), ("settle", "I2", "no"), ("stay", "post", "no"),
+        ("settle", "I3", "no"), ("enforce", "post", "levy"))
+
+
+def test_the_company_answers_the_post_ruling_levy_before_it_is_booked(base):
+    m = load_model()
+    c = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]), {"coupon_cash_share": "all_shares"})
+    tr = c.run(POST + (("debtor_response", "post", "neither"),))
+    day, cash = tr.day[-1], tr.cash[-1]
+    inside = day < c.N
+    assert inside.any()
+    rows = np.arange(DRAWS)[inside]
+    assert (c.writs[0][0][inside] == day[inside]).all()  # the levy falls on the day the company answered
+    assert (tr.events.cash[rows, day[inside]] < 0).any() and (cash[inside] > 0).all()  # answered before the levy
+    f = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]), {"coupon_cash_share": "all_shares"})
+    ft = f.run(POST + (("debtor_response", "post", "file"),))
+    assert (ft.events.petition[inside] == day[inside]).all() and not (f.taken[inside] > 0).any()  # pre-empted
+
+
+def test_the_holders_petition_waits_for_section_7_06_unless_the_sensitivity_says_otherwise(base):
+    m = load_model()
+    aug19 = (date(2024, 8, 19) - REVIEW).days - 1
+    for sens, lag in ((None, 60), ({"holder_petition_route": "immediate"}, 0)):
+        c = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]), sens)
+        c.step("execute_pre_ruling", "I1", "no")
+        c.step("judgment_default", "I1", "holders_file")
+        assert (c.marks["notes_due"] == aug19).all() and (c.ev.petition == aug19 + lag).all()
+    i = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]))
+    i.step("execute_pre_ruling", "I1", "no")
+    i.step("judgment_default", "I1", "yes")  # the issuer files on acceleration
+    assert (i.ev.petition == aug19).all()
+
+
+def test_an_acceleration_before_the_vote_call_ends_the_listing_chain_and_a_due_note_has_no_delisting_default(base):
+    m = load_model()
+    c = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]))
+    c.step("execute_pre_ruling", "I1", "no")
+    c.step("judgment_default", "I1", "accelerated")  # 19 Aug, before the vote call
+    assert (c.step("listing", "", "delisted_suspension") >= 10**6).all() and (c.delisted >= 10**6).all()
+    later = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]))
+    dates = later.listing_dates()
+    assert (later.step("listing", "", "delisted_suspension") == dates["determination"]).all()
+    later.mark("notes_due", np.full(DRAWS, dates["delisted_suspension"] - 1), np.arange(DRAWS) % 2 == 0)
+    day = later.step("delisting_notes", "delisted_suspension", "petition_delist")
+    due = np.arange(DRAWS) % 2 == 0
+    assert (day[due] >= 10**6).all() and (later.ev.petition[due] == -1).all()
+    assert (later.ev.petition[~due] == dates["delisted_suspension"]).all()
