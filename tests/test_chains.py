@@ -445,8 +445,8 @@ def test_readings_are_routed_evidence_and_merits_questions_carry_no_cash(base, f
         return fc.state(next(n for n in fc.nodes.values() if n.node == node))[0]
 
     appeal, stay, merits = state("appeal"), state("stay_motion"), state("ts_liability_jmol")
-    assert list(appeal["readings"]) == ["The payer's appeal intent"]  # A2 gets appeal intent only
-    assert list(stay["readings"]) == ["The payer's willingness to pay this obligation"]  # A1 gets resistance
+    assert list(appeal["readings"]) == ["The company's appeal intent"]  # A2 gets appeal intent only
+    assert list(stay["readings"]) == ["The company's willingness to pay this obligation"]  # A1 gets resistance
     assert merits["readings"] == {} and "projected_available_cash_at_decision_date" not in merits["path_facts"]
     assert "cash" not in str(merits["path_facts"]).lower()  # J1-J6: no borrower cash, only the record's components
     for q in ("forecast_ts_liability_jmol", "forecast_ts_damages_ruling", "forecast_patent_jmol", "forecast_trebling",
@@ -454,7 +454,7 @@ def test_readings_are_routed_evidence_and_merits_questions_carry_no_cash(base, f
         from app.agent.jev import registry_question
 
         text = registry_question(q)["prompt"]["instructions"]
-        assert "on the merits or the remedy" in text and "briefs are sealed" in text
+        assert "on the merits or the remedy" not in text and "briefs are sealed" in text  # the standard only
     # the company named by role; the remittitur scenario only where it is the premise; the dated judgment fact
     assert merits["case"]["company"] == "Akoustis Technologies, Inc." and "borrower" not in merits["case"]
     assert "remittitur_scenario" not in str(merits["path_facts"])
