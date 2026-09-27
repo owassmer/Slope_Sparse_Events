@@ -203,15 +203,6 @@ def outcome_shares(steps: tuple, outcome: str, petition_p: float, cause: np.ndar
     return out
 
 
-def class_matrix(paths_class: list, n_classes: int) -> np.ndarray:
-    """[paths, classes] shares of draws, from the payload's sparse per-path [class, share] pairs."""
-    m = np.zeros((len(paths_class), n_classes))
-    for i, pairs in enumerate(paths_class):
-        for c, share in pairs:
-            m[i, c] = share
-    return m
-
-
 def _when(review: date, day: np.ndarray | None, exact: bool = False) -> str:
     """The median day inside the horizon, as '5 Dec' (exact) or 'Dec'."""
     if day is None:
@@ -874,19 +865,16 @@ def build_dev(settings: dict | None = None, progress=None) -> dict:
     payload = page_payload(a, model, fc, borrower=borrower, snapshot_id=SNAP, neutral=True, stress_rows=rows)
     payload["meta"]["dev"] = True
     payload["settings_value"] = settings
-    return {"payload": payload, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months,
-            "class_of_path": class_matrix(payload["paths"]["class"], len(CLASSES))}
+    return {"payload": payload, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months}
 
 
-def reweight(state: dict, overrides: dict[str, list[float]] | None, classes: list[int] | None = None) -> dict | None:
-    """The daily series and monthly table under the browser's node distributions (branch order as encoded),
-    optionally only over the paths of some outcome classes. No re-simulation."""
+def reweight(state: dict, overrides: dict[str, list[float]] | None) -> dict | None:
+    """The daily series and monthly table under the browser's node distributions (branch order as encoded). No
+    re-simulation."""
     model = state["model"]
     ov = {k: {b: float(p) for b, p in zip(model.judgments[k].distribution, v, strict=True)}
           for k, v in (overrides or {}).items() if k in model.judgments}
     probs = model.probs(ov)
-    if classes is not None:
-        probs = probs * state["class_of_path"][:, classes].sum(axis=1)  # each path by its share of draws in them
     out = chart_view(state["r"], probs, state["months"])
     bov = {k: {b: float(p) for b, p in zip(model.bank_judgments[k].distribution, v, strict=True)}
            for k, v in (overrides or {}).items() if k in model.bank_judgments}

@@ -311,15 +311,14 @@ def run_page(a: Analysis, model: EventModel, fc: Forecaster, *, borrower: str, s
              stress_rows: list) -> dict:
     """The one-screen page for a recorded run (app/analysis/page.py), and the reduced state its reweight reads. The
     settings re-simulate the dev page only, so a run's page has none."""
-    from app.analysis.page import CLASSES, class_matrix, page_payload
+    from app.analysis.page import page_payload
 
     neutral = not any(j.observation_id for j in model.judgments.values())  # no Jev answer at all: even odds
     p = page_payload(a, model, fc, borrower=borrower, snapshot_id=snapshot_id, neutral=neutral,
                      stress_rows=stress_rows)
     p["settings"] = []
     p["meta"]["snapshot_id"] = snapshot_id
-    return {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months,
-            "class_of_path": class_matrix(p["paths"]["class"], len(CLASSES))}
+    return {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months}
 
 
 def page_state_path(run_id: str) -> Path:
@@ -354,8 +353,6 @@ def load_page_state(run_dir: Path) -> dict:
     analysis.json and page.json (the same judgments, seeds and trajectories; no agent or Jev call)."""
     import pickle
 
-    from app.analysis.page import CLASSES, class_matrix
-
     path = page_state_path(run_dir.name)
     if path.exists():
         return pickle.loads(path.read_bytes())
@@ -363,8 +360,7 @@ def load_page_state(run_dir: Path) -> dict:
     p = json.loads((run_dir / "page.json").read_text())
     model, setup = model_from_json(data["model"]), setup_from_json(data["base_setup"])
     a = Analysis(load_feed(data["snapshot_id"]), setup, model)
-    state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months,
-             "class_of_path": class_matrix(p["paths"]["class"], len(CLASSES))}
+    state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months}
     save_page_state(run_dir.name, state)
     return state
 

@@ -47,7 +47,7 @@ def small_page():
     from akoustis_fixture import REVIEW, SETUP, SNAP, basis, judgment
 
     from app.analysis.core import Analysis, EventModel, stress
-    from app.analysis.page import CLASSES, class_matrix, page_payload
+    from app.analysis.page import page_payload
     from app.disputes.forecast import Forecaster, Judgment, neutral_map
     from app.finance.bank import load_feed
 
@@ -64,8 +64,7 @@ def small_page():
     a = Analysis(feed, SETUP, m)
     rows = [{"index": r["index"], **r} for r in stress(load_feed(SNAP), SETUP, m)]
     p = page_payload(a, m, fc, borrower="Akoustis Technologies, Inc.", snapshot_id=SNAP, neutral=True, stress_rows=rows)
-    state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": m, "months": a.months,
-             "class_of_path": class_matrix(p["paths"]["class"], len(CLASSES))}
+    state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": m, "months": a.months}
     return a, m, state
 
 
@@ -82,9 +81,10 @@ def test_the_page_renders_from_its_payload_and_reweights(small_page, monkeypatch
     assert r.status_code == 200 and "page-data" in r.text and "Bank data + research" in r.text
     assert state["payload"]["meta"]["judgments"] == "neutral" and "No Jev answers yet" in r.text
     node = state["payload"]["nodes"][0]
-    out = c.post("/dev/akoustis/reweight", json={"overrides": {node["key"]: [0.9] + [0.1 / (len(node["branches"]) - 1)]
-                                                               * (len(node["branches"]) - 1)}}).json()
+    body = {"overrides": {node["key"]: [0.9] + [0.1 / (len(node["branches"]) - 1)] * (len(node["branches"]) - 1)}}
+    out = c.post("/dev/akoustis/reweight", json=body).json()
     assert len(out["daily"]["outstanding_mean"]) == len(state["payload"]["dates"]) and out["monthly"]
+    assert c.post("/dev/akoustis/reweight", json={**body, "classes": [0]}).json() == out  # always over every path
 
 
 def test_the_browser_reweight_arithmetic_matches_the_analysis_for_one_override(small_page):
@@ -128,7 +128,11 @@ def test_filed_shares_sum_to_the_bankruptcy_probability(small_page):
     from app.analysis.page import CLASSES
 
     a, m, state = small_page
-    p, cm = state["payload"], state["class_of_path"]
+    p = state["payload"]
+    cm = np.zeros((len(p["paths"]["class"]), len(CLASSES)))  # [paths, classes] shares of draws
+    for i, pairs in enumerate(p["paths"]["class"]):
+        for c, share in pairs:
+            cm[i, c] = share
     assert np.allclose(cm.sum(axis=1), 1.0, atol=1e-4)
     filed = [i for i, (c, _) in enumerate(CLASSES) if c.startswith("filed")]
     for probs in (m.probs(), np.full(len(m.combos), 1 / len(m.combos))):
