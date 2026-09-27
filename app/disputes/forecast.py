@@ -702,9 +702,12 @@ class _Walk:
         then_no(self.take(s, (node, ctx, "no"), (k, "no"), keys))
 
     def settle(self, s: _S, interval: str, then_no) -> None:
-        if not self.arises(s, ("settle", interval, "no")):
-            return then_no(s)
+        """A settlement exists only where its amount (cash above the 30-day need, capped at the amount owed) is
+        positive: where it is zero on every trajectory the question does not arise."""
         probe = ("settle", interval, "no")
+        tr = self.fc.trace(self.d, s.steps + (probe,))
+        if not ((tr.day[-1] < self.N) & (tr.settle_offer > 0)).any():
+            return then_no(s)
         a3 = self.node("settlement_offer", interval, s.cls, s=s, probe=probe)
         q4 = self.node("settlement_accept", interval, s.cls, s=s, probe=probe, assumptions=("the judgment debtor offers to settle for its available cash above its 30-day operating need",))
         self.binary(s, "settle", interval, [[(a3, "yes"), (q4, "yes")]], (a3, q4),

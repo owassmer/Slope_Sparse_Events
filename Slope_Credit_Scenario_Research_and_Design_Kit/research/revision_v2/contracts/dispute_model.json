@@ -499,11 +499,11 @@
     "denied": 0
   },
   "settlement_scenarios": {
-    "note": "The settlement amount is the company's available cash on the settlement date less its 30-day operating need, floored at zero and capped at the amount owed. Declared scenarios, each run on its own. A settlement books cash. A paid settlement ends the dispute and with it the judgment default.",
+    "note": "The settlement amount is the company's available cash on the settlement date less its 30-day operating need, floored at zero and capped at the amount owed; a settlement exists only where that amount is positive. Declared scenarios, each run on its own. A settlement books cash. A paid settlement ends the dispute and with it the judgment default.",
     "base": "lump_sum",
     "scenarios": {
-      "lump_sum": "the settlement amount, paid on the settlement date",
-      "monthly": "the settlement amount in equal monthly payments from the settlement date to the end of the analysis period"
+      "lump_sum": "the settlement amount, paid on the settlement date; the claim is released on payment",
+      "monthly": "the settlement amount in equal monthly payments from the settlement date to the end of the analysis period; no payment after a bankruptcy petition; the claim is released when the last payment is made"
     },
     "asked": "once in each stage: before the post-trial ruling; from the ruling to the appeal deadline; while the judgment is enforceable and unstayed; while it is stayed"
   },
@@ -557,7 +557,7 @@
       "intervals": {
         "I1": "from the review date to the post-trial ruling (the last order changing the judgment)",
         "I2": "from the post-trial ruling to the appeal deadline",
-        "I3": "judgment enforceable and unstayed",
+        "I3": "judgment enforceable and unstayed, from the later of the date it is enforceable and the appeal deadline",
         "I4": "judgment stayed on approved security"
       },
       "nodes": {

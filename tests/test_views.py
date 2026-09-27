@@ -165,3 +165,47 @@ def test_a_stay_on_zero_offered_security_is_effective_only_in_the_noncash_sensit
     assert (c.stay_offer == 0).all() and (c.stayed_from >= 10**6).all() and not c.ev.lock.any()
     n = _stay(poor, judgment(), {"stay_security": "noncash"})
     assert (n.stayed_from < n.N).any() and not n.ev.lock.any()
+
+
+# Settlement ---------------------------------------------------------------------------------------------------------
+
+def test_a_settlement_exists_only_where_its_amount_is_positive(base):
+    poor = replace(base[1], cash=base[1].cash - 2_000_000_000)  # nothing above need
+    c = Chain(judgment(), SETUP, load_model(), Draws(DRAWS, basis=poor))
+    c.step("settle", "I1", "yes")
+    assert (c.settle_offer == 0).all() and (c.resolved >= 10**6).all() and (c.marks["settled"] >= 10**6).all()
+    rich = Chain(judgment(), SETUP, load_model(), Draws(DRAWS, basis=base[1]))
+    rich.step("settle", "I1", "yes")
+    pd = (REVIEW - REVIEW).days + 29  # the review date + 30 days
+    ok = rich.settle_offer > 0
+    assert ok.any() and (rich.resolved[ok] == pd).all()
+    assert (rich.ev.cash[ok, pd] == -rich.settle_offer[ok] - base[1].legal[ok, pd]).all()  # spend stops from pd
+
+
+def test_monthly_installments_stop_at_a_petition_and_release_the_claim_on_the_last(base):
+    b = replace(base[1], legal=np.zeros_like(base[1].legal))  # the installments alone
+    m, sens = load_model(), {"settlement_monthly": True, "coupon_cash_share": "all_shares"}
+    c = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=b), sens)
+    tr = c.run((("settle", "I1", "yes"),))
+    pd = 29  # the review date + 30 days
+    k = (c.N - pd + 29) // 30
+    ok = c.settle_offer > 0
+    assert ok.any() and (c.resolved[ok] == pd + 30 * (k - 1)).all()  # released when the last one is paid
+    assert (-tr.events.cash[ok].sum(axis=1) == c.settle_offer[ok]).all()
+    assert not np.delete(tr.events.cash, pd + 30 * np.arange(k), axis=1).any()
+    ft = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=b), sens).run(
+        (("settle", "I1", "yes"), ("cash_floor", "", "yes")))
+    pet = ft.events.petition
+    cut = ok & (pet > pd) & (pet < pd + 30 * (k - 1))
+    assert cut.any()
+    after = np.arange(c.N)[None, :] >= pet[:, None]
+    assert not ft.events.cash[cut & after.any(axis=1)][after[cut & after.any(axis=1)]].any()
+
+
+def test_the_i3_settlement_starts_at_the_later_of_enforceability_and_the_appeal_deadline(base):
+    c = Chain(judgment(), SETUP, load_model(), Draws(DRAWS, basis=base[1]))
+    c.step("ruling", "", "beyond:3010000000:0")
+    day = c.step("settle", "I3", "no")
+    start = np.maximum(c.EF, c.AD)
+    inside = start < c.N
+    assert (day[inside] == start[inside]).all() and (c.AD > c.EF).all()

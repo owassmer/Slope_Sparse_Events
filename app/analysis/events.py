@@ -400,24 +400,33 @@ class Chain:
             day, self.pending_levy = self.pending_levy, None
             self.levy(day, lagged=True)
 
-    def settle(self, start: np.ndarray, end: np.ndarray) -> np.ndarray:
-        """Settlement: available cash less 30-day need, floored at 0 and capped at the amount owed, paid on
-        interval start + 30 days (sensitivity: the interval's end); lump sum or monthly to the horizon."""
+    def settle(self, start: np.ndarray, end: np.ndarray, agreed: bool = True) -> tuple[np.ndarray, np.ndarray]:
+        """Settlement: available cash less 30-day need, floored at 0 and capped at the amount owed (`settle_offer`),
+        paid on interval start + 30 days (sensitivity: the interval's end). A settlement exists only where that
+        amount is positive. Lump sum: the claim is released on payment. Monthly (sensitivity): installments to the
+        horizon, none after a petition (run), and the claim is released when the last one is paid. Returns the
+        payment date and where a settlement exists."""
         pd = np.asarray(end) if self.sens.get("settlement_date_in_interval") else np.asarray(start) + int(
             self.m["parameters"]["settlement_date_in_interval"]["value"])
         ok = self.live(pd) & (pd < self.N)
         need = self.basis.need[self.rows, np.clip(pd, 0, self.N - 1)]
-        bound = np.where(ok, np.clip(self.cash_at(pd) - need, 0, self.owed_at(pd)), 0)
+        bound = np.where(ok, np.clip(self.cash_at(pd) - need, 0, self.owed_at(pd)), 0).astype(np.int64)
+        self.settle_offer = bound
+        ok = ok & (bound > 0)
+        if not agreed:
+            return pd, ok
+        release = pd
         if self.m["settlement_scenarios"]["base"] == "monthly" or self.sens.get("settlement_monthly"):
             k = np.maximum((self.N - pd + 29) // 30, 1)
             for i in range(int(k.max())):
-                part = np.where(i < k, bound // k + np.where(i == k - 1, bound % k, 0), 0)
+                part = np.where(ok & (i < k), bound // k + np.where(i == k - 1, bound % k, 0), 0)
                 self.book(self.ev.cash, pd + 30 * i, -part)
+            release = pd + 30 * (k - 1)
         else:
-            self.book(self.ev.cash, pd, -bound)
-        self.resolve(pd, ok)
+            self.book(self.ev.cash, pd, -np.where(ok, bound, 0))
+        self.resolve(release, ok & self.live(release))
         self.mark("settled", pd, ok)
-        return pd
+        return pd, ok
 
     def stay_security(self, motion: np.ndarray, key: str, approved: bool) -> np.ndarray:
         """Rule 62(b), effective on approval (motion + briefing + a lag draw). Where the company's cash at approval
@@ -554,13 +563,12 @@ class Chain:
         if (node, ctx) != ("debtor_response", "I1"):
             self.flush_levy()
         if node == "settle":
-            start = {"I1": full(-1), "I2": self.F, "I3": self.EF, "I4": self.stayed_from}[ctx]
+            start = {"I1": full(-1), "I2": self.F, "I3": np.maximum(self.EF, self.AD), "I4": self.stayed_from}[ctx]
             start = np.maximum(start, -1)  # an interval that began before the review date runs from it
             end = {"I1": self.F, "I2": self.AD, "I3": full(N - 1), "I4": full(N - 1)}[ctx]
-            if branch == "yes":
-                pd = self.settle(start, end)
-                if ctx == "I4":  # the bond is discharged when the settlement is paid
-                    self.book(self.ev.lock, pd, -np.where(self.live(pd - 1), self.lock_amount, 0))
+            pd, ok = self.settle(start, end, agreed=branch == "yes")
+            if branch == "yes" and ctx == "I4":  # the security is released when the settlement is paid
+                self.book(self.ev.lock, pd, -np.where(ok & self.live(pd - 1), self.lock_amount, 0))
             return np.where(end < 0, BIG, np.maximum(start, 0))  # a closed interval asks nothing
         if node == "execute_pre_ruling":
             self.q1 = branch == "yes"

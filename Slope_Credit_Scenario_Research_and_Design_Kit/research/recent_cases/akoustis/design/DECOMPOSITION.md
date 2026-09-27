@@ -197,7 +197,7 @@ Collections stop or fall short only through a petition or too little cash above 
    - **Neither:** A4 is not asked again. Later petitions come only through A5 or A6.
 3. Qorvo decides whether to enforce: **Q3**. The levy follows T1-a step 6.
 
-**Settlement.** In each interval (I1 before the ruling, I2 before the appeal deadline, I3 unstayed, I4 stayed), Akoustis decides whether to offer (**A3**) and Qorvo whether to accept (**Q4**). The amount follows §5.4. A paid settlement removes the §7.01(i) trigger.
+**Settlement.** In each interval (I1 before the ruling, I2 before the appeal deadline, I3 unstayed from the later of the enforceable date and the appeal deadline, I4 stayed), Akoustis decides whether to offer (**A3**) and Qorvo whether to accept (**Q4**). The amount follows §5.4. A paid settlement removes the §7.01(i) trigger.
 
 ### 3.2 T2. The notes
 
@@ -307,7 +307,7 @@ Declared scenarios, shown side by side, never weighted. If Stage 3 obtains Benni
 
 ### 5.4 Settlement (Decision D5)
 
-The feasibility bound is available cash minus 30-day need, capped at the path amount. Two declared scenarios: a lump sum at the bound, or monthly payments to the bound through 17 Dec. Non-cash terms are not booked.
+The feasibility bound is available cash minus 30-day need, capped at the path amount. A settlement exists only on trajectories where the bound is positive. Two declared scenarios: a lump sum at the bound, which releases the claim on payment; or monthly payments to the bound through 17 Dec, which stop at a petition, with the claim released when the last payment is made. Non-cash terms are not booked.
 
 ---
 
