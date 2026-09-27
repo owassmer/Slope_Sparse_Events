@@ -108,8 +108,14 @@ def test_the_browser_reweight_arithmetic_matches_the_analysis_for_one_override(s
     probs = decode_probs(enc, dist)
     assert np.allclose(probs, m.probs(override), atol=1e-12)
     ref = a.expected(m.probs(override))
-    for k in ("collected", "unrecovered", "petition_p", "stayed", "preference", "peak_outstanding"):
-        assert float(np.dot(probs, p["paths"]["scalars"][k])) == pytest.approx(ref[k], rel=1e-6, abs=1.0), k
+    daily = a.r.daily(m.probs(override))
+    ref = {"funded": ref["drawn"], "collected": ref["collected"], "petition_p": ref["petition_p"],
+           "clawback": ref["preference"], "peak_outstanding": ref["peak_outstanding"],
+           "avg_outstanding": ref["avg_outstanding"], "due": daily["contractual"][-1],
+           "unpaid": daily["contractual"][-1] - daily["collected_mean"][-1], "past_due": daily["past_due_mean"][-1],
+           "frozen_due": daily["frozen_due_mean"][-1]}
+    for k, v in ref.items():
+        assert float(np.dot(probs, p["paths"]["scalars"][k])) == pytest.approx(v, rel=1e-6, abs=2.0), k
     out = reweight(state, {node["key"]: moved})
     assert out["daily"]["outstanding_mean"] == a.r.daily(m.probs(override))["outstanding_mean"]
 
@@ -144,14 +150,38 @@ def test_the_collections_table_reconciles(small_page):
         for r in rows:
             due, coll = due + r["due"], coll + r["collected"]
             assert abs((due - coll) - (r["past_due"] + r["frozen_due"])) <= 2, (view, r["month"])
-        if view == "event":
-            probs = m.probs()
-            frozen, unrec = (float(np.dot(probs, a.r.means[k])) for k in ("stayed", "unrecovered"))
-        else:
-            frozen, unrec = (p["bank"]["scalars"][k] for k in ("stayed", "unrecovered"))
+        r, probs = (a.r, m.probs()) if view == "event" else (a.bank_r, m.bank_probs())
+        frozen = float(np.dot(probs, r.means["stayed"]))
+        tiles = p["bank"]["scalars"] if view == "bank" else {k: float(np.dot(probs, v))
+                                                              for k, v in p["paths"]["scalars"].items()}
         last = rows[-1]
         assert abs(last["frozen_due"] + last["frozen_not_due"] - frozen) <= 2, view
-        assert abs(last["past_due"] + last["frozen_due"] + last["frozen_not_due"] - unrec) <= 2, view
+        assert abs(last["past_due"] - tiles["past_due"]) <= 2 and abs(last["frozen_due"] - tiles["frozen_due"]) <= 2
+        assert abs(due - tiles["due"]) <= 2 and abs(coll - tiles["collected"]) <= 2, view
+
+
+def test_the_bridge_splits_the_collected_difference_exactly(small_page):
+    """Funded -> payments due -> collected: on every path collected + due and unpaid = payments due and past due +
+    frozen = due and unpaid, in whole cents; so what research adds to collections is exactly the change in payments
+    due plus the change in due and unpaid (sign reversed), under Jev's answers and under a moved slider."""
+    import numpy as np
+
+    from app.analysis.page import bridge, path_scalars
+
+    a, m, state = small_page
+    p = state["payload"]
+    for r in (a.r, a.bank_r):
+        s = path_scalars(r)
+        assert np.array_equal(s["collected"] + s["unpaid"], s["due"])
+        assert np.array_equal(s["past_due"] + s["frozen_due"], s["unpaid"])
+        assert (s["collected"] <= s["due"]).all() and (s["unpaid"] >= 0).all()
+    node = p["nodes"][0]
+    for override in ({}, {node["key"]: dict(zip(node["branches"], [0.9] + [0.1 / (len(node["branches"]) - 1)]
+                                                 * (len(node["branches"]) - 1), strict=True))}):
+        probs = m.probs(override)
+        research = {k: float(np.dot(probs, v)) for k, v in p["paths"]["scalars"].items()}
+        b = bridge(p["bank"]["scalars"], research)
+        assert b["due"] + b["unpaid"] == pytest.approx(b["collected"], abs=1e-6)
 
 
 def test_question_rows_have_short_distinct_labels(small_page):

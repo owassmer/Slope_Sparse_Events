@@ -55,38 +55,60 @@
     return base.map((v, k) => (k === b ? x : rest > 0 ? (1 - x) * v / rest : (1 - x) / (n - 1)));
   }
 
-  // --- tiles ------------------------------------------------------------------------------------------------------
+  // --- tiles: the lender bridge, funded -> payments due -> collected -----------------------------------------------
+  const END = fdate(D.meta.horizon);
+  // good: +1 if more helps the lender, -1 if more hurts it, 0 for volume (coloured neither way)
   const TILES = [
-    { key: "collected", label: "Collected", fmt: money, good: +1, tab: "collections", hl: "collected" },
-    { key: "unrecovered", label: "Unrecovered", fmt: money, good: -1, tab: "collections", hl: "past_due" },
-    { key: "petition_p", label: "Bankruptcy probability", fmt: (p) => pct(p), good: -1, tab: "exposure", hl: "petition" },
-    { key: "peak_outstanding", label: "Peak outstanding", fmt: money, good: 0, tab: "exposure", hl: "outstanding" },
-    { key: "stayed", label: "Frozen by bankruptcy", fmt: money, good: -1, tab: "exposure", hl: "frozen" },
-    { key: "preference", label: "Clawback exposure", fmt: money, good: -1, tab: "collections", hl: "clawback" },
+    { key: "funded", label: "Funded", fmt: money, good: 0, tab: "collections", hl: ["drawn"] },
+    { key: "due", label: `Payments due by ${END}`, fmt: money, good: 0, tab: "collections", hl: ["due"] },
+    { key: "collected", label: "Collected", fmt: money, good: +1, tab: "collections", hl: ["collected"] },
+    { key: "unpaid", label: "Due and unpaid", fmt: money, good: -1, tab: "collections", hl: ["past_due", "frozen_due"] },
+    { key: "petition_p", label: `Chance of a filing by ${END}`, fmt: (p) => pct(p), good: -1, tab: "exposure", hl: ["petition"] },
+    { key: "clawback", label: "Clawback exposure (gross, before new value)", fmt: money, good: -1, tab: "collections", hl: ["clawback"],
+      tip: "Collections in the 90 days before a filing" },
   ];
   let probs = pathProbs((i) => dist(i));
-  let steps = null;  // [bank, + case facts, + Jev] per tile key
+  let steps = null;  // [bank, + research at even odds, + Jev] per scalar key
   function attribution() {
     const neu = pathProbs(neutralDist);
     steps = {};
-    for (const t of TILES) steps[t.key] = [D.bank.scalars[t.key], expect(neu, t.key), expect(probs, t.key)];
+    for (const k of Object.keys(D.paths.scalars)) steps[k] = [D.bank.scalars[k], expect(neu, k), expect(probs, k)];
+  }
+  // What research adds, signed and coloured by whether it helps (green) or hurts (red) the lender.
+  function adds(d, good, fmt) {
+    const cls = Math.abs(d) < 1e-9 || !good ? "" : (d > 0) === (good > 0) ? "down" : "up";
+    return `<span class="d ${cls}">${d >= 0 ? "+" : "−"}${fmt(Math.abs(d))}</span>`;
+  }
+  const dollars = (c) => `$${Math.round(Math.abs(c) / 100).toLocaleString("en-US")}`;
+  // The change in collections in its two parts: payments due (Slope funds more or less, so more or fewer
+  // installments fall due) and due and unpaid. In whole dollars, the second part taken as the rest, so the line adds up.
+  function bridgeLine() {
+    const [cb, , ce] = steps.collected, [db, , de] = steps.due;
+    const dC = Math.round(ce / 100) - Math.round(cb / 100), dDue = Math.round(de / 100) - Math.round(db / 100), dUn = dC - dDue;
+    const amt = (v, id) => `<span id="${id}" class="d ${Math.abs(v) < 0.5 ? "" : v > 0 ? "down" : "up"}" data-dollars="${v}">${v >= 0 ? "+" : "−"}${dollars(100 * v)}</span>`;
+    $("bridge").innerHTML = `Research adds ${amt(dC, "br-collected")} to collections: `
+      + `${amt(dDue, "br-due")} from ${dDue <= 0 ? "fewer installments due, because Slope funds less" : "more installments due, because Slope funds more"}, and `
+      + `${amt(dUn, "br-unpaid")} from ${dUn <= 0 ? "more due but unpaid" : "less due but unpaid"}.`;
   }
   function renderTiles() {
     attribution();
     $("tiles").innerHTML = TILES.map((t) => {
-      const [b, , e] = steps[t.key], d = e - b, main = S.view === "bank" ? b : e;
-      const dcls = Math.abs(d) < 1e-9 || !t.good ? "" : (d > 0) === (t.good < 0) ? "up" : "down";
-      const dtxt = (d >= 0 ? "+" : "") + (t.key === "petition_p" ? pct(d) : money(d));
+      const [b, , e] = steps[t.key], main = S.view === "bank" ? b : e;
       return `<div class="tile${S.tile === t.key ? " sel" : ""}" data-k="${t.key}"><div class="l">${t.label}</div>
         <div class="v">${t.fmt(main)}</div>
         <div class="s"><span>Bank data</span><span>${t.fmt(b)}</span></div><div class="s"><span>Bank data + research</span><span>${t.fmt(e)}</span></div>
-        <div class="s"><span>Research adds</span><span class="d ${dcls}">${dtxt}</span></div></div>`;
+        <div class="s"><span>Research adds</span>${adds(e - b, t.good, t.fmt)}</div></div>`;
     }).join("");
+    bridgeLine();
     document.querySelectorAll(".tile").forEach((el) => {
       el.onclick = () => { const t = TILES.find((x) => x.key === el.dataset.k); S.tile = t.key; S.mtab = t.tab; renderTabs(); renderTiles(); renderMain(); };
       el.onmousemove = (ev) => {
         const t = TILES.find((x) => x.key === el.dataset.k), [b, r, e] = steps[t.key];
-        showTip(ev, `<table><tr><td>Bank data</td><td>${t.fmt(b)}</td></tr><tr><td>+ research, questions at even odds</td><td>${t.fmt(r)}</td></tr>
+        if (t.key === "unpaid") {  // due and unpaid = past due + frozen by a filing (installments already due)
+          const row = (k, l) => `<tr><td>${l}</td><td>${money(steps[k][0])}</td><td>${money(steps[k][2])}</td></tr>`;
+          return showTip(ev, `<table><tr><td></td><td>Bank data</td><td>+ research</td></tr>${row("past_due", "Past due")}${row("frozen_due", "Frozen by a filing")}${row("unpaid", "Due and unpaid")}</table>`);
+        }
+        showTip(ev, `${t.tip ? `<div>${t.tip}</div>` : ""}<table><tr><td>Bank data</td><td>${t.fmt(b)}</td></tr><tr><td>+ research, questions at even odds</td><td>${t.fmt(r)}</td></tr>
           <tr><td>+ Jev's answers${NEUTRAL ? " (none yet)" : ""}</td><td>${t.fmt(e)}</td></tr></table>`);
       };
       el.onmouseleave = hideTip;
@@ -108,7 +130,9 @@
   const axisMoney = (c) => { const v = c / 100, a = Math.abs(v), s = v < 0 ? "−" : "";
     if (a >= 1e6) return `${s}$${+(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}k`; return `${s}$${Math.round(a)}`; };
   function chart(host, o) {
-    const W = Math.max(host.clientWidth, 300), H = Math.max(host.clientHeight - 22, 160);
+    // the chart fills what is left of the pane below its legend (and the Exposure tab's figures)
+    const svg = host.querySelector("svg"), W = Math.max(host.clientWidth, 300), H = Math.max(host.clientHeight - (svg.getBoundingClientRect().top - host.getBoundingClientRect().top) - 10, 160);
+    svg.style.height = `${H}px`;
     const m = { l: 62, r: o.right ? 46 : 12, t: 10, b: 22 }, w = W - m.l - m.r, h = H - m.t - m.b;
     const all = [...o.series.filter((s) => !s.right).flatMap((s) => s.y), ...(o.bands || []).flatMap((b) => [...b.lo, ...b.hi])];
     let lo = Math.min(0, ...all), hi = niceMax(Math.max(...all, 1));
@@ -139,7 +163,8 @@
     for (const s of o.series) g += `<path d="${path(s.y, s.right ? Y2 : Y)}" fill="none" stroke="${s.color}" stroke-width="${s.width || 1.8}"${s.dash ? ' stroke-dasharray="5 4"' : ""}/>`;
     for (const s of o.series.filter((x) => x.right && x.tag)) {  // the probability line labelled at its end
       const v = s.y[days - 1];
-      labels += `<text x="${m.l + w - 10}" y="${Math.min(Y2(v) + 16, m.t + h - 22)}" text-anchor="end" fill="${s.color}" font-weight="600"${HALO}>${esc(s.tag(v))}</text>`;
+      const y = s.below === false ? Math.max(Y2(v) - 6, m.t + 10) : Math.min(Y2(v) + 16, m.t + h - 22);
+      labels += `<text x="${m.l + w - 10}" y="${y}" text-anchor="end" fill="${s.color}" font-weight="600"${HALO}>${esc(s.tag(v))}</text>`;
     }
     for (const p of o.pins || []) {
       const t = ix(p.date); if (t < 0) continue;
@@ -156,14 +181,16 @@
     hov.onmousemove = (ev) => {
       const r = hov.getBoundingClientRect(), t = Math.round(((ev.clientX - r.left) / r.width) * (days - 1));
       hx.setAttribute("x1", X(t)); hx.setAttribute("x2", X(t)); hx.setAttribute("visibility", "visible");
-      showTip(ev, `<b>${fdateY(D.dates[t])}</b><table>${o.hover(t).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}</table>`);
+      showTip(ev, `<b>${fdateY(D.dates[t])}</b><table>${o.hover(t).map(([k, ...v]) => `<tr><td>${k}</td>${v.map((x) => `<td>${x}</td>`).join("")}</tr>`).join("")}</table>`);
     };
     hov.onmouseleave = () => { hx.setAttribute("visibility", "hidden"); hideTip(); };
   }
   const cur = () => (S.view === "bank" ? D.bank : S.event);
   const legend = (items) => `<div class="legend">${items.map(([label, c, k]) => `<span><i class="${k || ""}" style="--c:${c}"></i>${label}</span>`).join("")}</div>`;
+  // Exposure: both views on one chart (outstanding and frozen by a filing on the left axis, the cumulative chance of
+  // a filing on the right; dashed = bank data), with peak outstanding and capital tied up above it.
   function exposure(host) {
-    const v = cur().daily, hl = S.tile, col = S.view === "bank" ? "var(--bank)" : "var(--lit)";
+    const B = D.bank.daily, R = S.event.daily, hl = (TILES.find((t) => t.key === S.tile) || { hl: [] }).hl;
     const pins = [];
     if (D.pins.briefing_close) pins.push({ date: D.pins.briefing_close, label: "Briefing closes", row: 0 });
     if (D.pins.nasdaq) pins.push({ date: D.pins.nasdaq, label: "Nasdaq deadline", row: 1 });
@@ -176,15 +203,28 @@
       if (named.length) k++;
     }
     const windows = D.pins.ruling_window ? [{ from: D.pins.ruling_window[0], to: D.pins.ruling_window[1], label: "Ruling window" }] : [];
-    const series = [{ y: v.limit_mean, color: "#94a3b8", dash: true, width: 1.4 },
-                    { y: v.outstanding_mean, color: col, width: hl === "outstanding" ? 3 : 2 },
-                    { y: v.frozen_mean, color: "#ea580c", width: hl === "frozen" ? 3 : 1.5 },
-                    { y: v.petition_cum_p, color: "#b91c1c", right: true, width: hl === "petition" ? 3 : 1.6, tag: (p) => `Bankruptcy ${pct(p)} by ${fdate(D.meta.horizon)}` }];
-    host.innerHTML = legend([["Limit", "#94a3b8", "dash"], ["Outstanding", col], ["Frozen by bankruptcy", "#ea580c"], ["Bankruptcy probability, cumulative (right axis)", "#b91c1c"],
-      ...(actual.length ? [["What actually happened", ACT, "dash"]] : [])]) + `<svg class="chart"></svg>`;
+    const pw = hl.includes("petition") ? 3 : 1.6;
+    const bankEnd = B.petition_cum_p[days - 1], resEnd = R.petition_cum_p[days - 1];
+    const series = [{ y: B.limit_mean, color: "#94a3b8", dash: true, width: 1.2 },
+                    { y: B.outstanding_mean, color: "var(--bank)", width: 2 },
+                    { y: R.outstanding_mean, color: "var(--lit)", width: 2 },
+                    { y: B.frozen_mean, color: "#ea580c", dash: true, width: 1.3 },
+                    { y: R.frozen_mean, color: "#ea580c", width: 1.5 },
+                    { y: B.petition_cum_p, color: "#b91c1c", right: true, dash: true, width: pw,
+                      tag: (p) => `Bank data ${pct(p)}`, below: bankEnd <= resEnd },
+                    { y: R.petition_cum_p, color: "#b91c1c", right: true, width: pw,
+                      tag: (p) => `Bank data + research ${pct(p)}`, below: resEnd < bankEnd }];
+    const fig = (key, label) => { const [b, , e] = steps[key];
+      return `<div class="xrow"><span>${label}</span><span>Bank data <b>${money(b)}</b></span><span>Bank data + research <b>${money(e)}</b></span><span>Research adds ${adds(e - b, 0, money)}</span></div>`; };
+    host.innerHTML = `<div class="xstats">${fig("peak_outstanding", "Peak outstanding")}${fig("avg_outstanding", "Capital tied up (average outstanding)")}</div>`
+      + legend([["Outstanding, bank data", "var(--bank)"], ["Outstanding, bank data + research", "var(--lit)"], ["Frozen by a filing", "#ea580c"],
+        ["Chance of a filing by date (right axis)", "#b91c1c"], ["Limit", "#94a3b8", "dash"], ["dashed: bank data", "#6b7280", "dash"],
+        ...(actual.length ? [["What actually happened", ACT, "dash"]] : [])]) + `<svg class="chart"></svg>`;
     const onDay = new Map(actual);
-    chart(host, { series, pins, windows, right: true, hover: (t) => [["Limit", money(v.limit_mean[t])], ["Outstanding", money(v.outstanding_mean[t])],
-      ["Frozen by bankruptcy", money(v.frozen_mean[t])], ["Bankruptcy probability", pct(v.petition_cum_p[t])],
+    chart(host, { series, pins, windows, right: true, hover: (t) => [["", "Bank data", "+ research"],
+      ["Outstanding", money(B.outstanding_mean[t]), money(R.outstanding_mean[t])],
+      ["Frozen by a filing", money(B.frozen_mean[t]), money(R.frozen_mean[t])],
+      ["Chance of a filing", pct(B.petition_cum_p[t]), pct(R.petition_cum_p[t])], ["Limit", money(B.limit_mean[t])],
       ...(onDay.get(D.dates[t]) || []).map((e) => ["Actual", esc(e.description)])] });
   }
   function cash(host) {
@@ -197,7 +237,7 @@
   const COLS = [["drawn", "Drawn"], ["due", "Due"], ["collected", "Collected"], ["past_due", "Past due"], ["frozen_due", "Frozen, due"], ["frozen_not_due", "Frozen, not yet due"],
                 ["clawback", "Clawback exposure"], ["above_need_p5", "Cash above 30-day need after the amount due, P5"]];
   function collections(host) {
-    const rows = cur().monthly, hl = { unrecovered: ["past_due", "frozen_due", "frozen_not_due"], stayed: ["frozen_due", "frozen_not_due"], preference: ["clawback"] }[S.tile] || [S.tile];
+    const rows = cur().monthly, hl = (TILES.find((t) => t.key === S.tile) || { hl: [] }).hl;
     const mname = (m) => `${MON[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
     host.innerHTML = `<table class="t"><tr><th>Month</th>${COLS.map(([k, l]) => `<th class="${hl.includes(k) ? "hl" : ""}">${l}</th>`).join("")}</tr>
       ${rows.map((r) => `<tr><td>${mname(r.month)}</td>${COLS.map(([k]) => `<td class="${hl.includes(k) ? "hl" : ""}">${r[k] === null ? "–" : money(r[k])}</td>`).join("")}</tr>`).join("")}</table>
@@ -291,20 +331,20 @@
   let sens = [];
   const dragBase = {};  // node index -> its distribution when the current drag started (cleared on change)
   function computeSens() {
-    const at = expect(probs, "unrecovered");
+    const at = expect(probs, "collected");
     sens = D.nodes.map((n, i) => {
-      const b = selB(i), var_ = (x) => expect(pathProbs((k) => (k === i ? withBranch(i, b, x) : dist(k))), "unrecovered");
+      const b = selB(i), var_ = (x) => expect(pathProbs((k) => (k === i ? withBranch(i, b, x) : dist(k))), "collected");
       const lo = var_(0), hi = var_(1);
       return { lo, hi, at, range: Math.abs(hi - lo) };
     });
   }
-  // The effect row: Unrecovered is linear in the question's probability, so a track from its value at 0% (left) to
-  // its value at 100% (right, arrowhead) carries the current value at the current probability. Red if 'yes' raises
-  // it, green if it lowers it. Values to $0.1k when the move is small, so the numbers agree with the stated change.
+  // The effect row: Collected is linear in the question's probability, so a track from its value at 0% (left) to
+  // its value at 100% (right, arrowhead) carries the current value at the current probability. Green if 'yes' raises
+  // it, red if it lowers it. Values to $0.1k when the move is small, so the numbers agree with the stated change.
   function effRow(s, p, yesName) {
     const dv = s.hi - s.lo, fine = Math.abs(dv) < 2e6, fm = (v) => money(v, fine && Math.abs(v) >= 1e5 && Math.abs(v) < 1e8 ? 1 : undefined);
-    const flat = Math.abs(dv) < 100, col = flat ? "#9ca3af" : dv > 0 ? "var(--warn)" : "var(--ok)";
-    const say = flat ? "No effect on Unrecovered" : `${esc(yesName)} ${dv > 0 ? "raises" : "lowers"} Unrecovered by ${fm(Math.abs(dv))}`;
+    const flat = Math.abs(dv) < 100, col = flat ? "#9ca3af" : dv < 0 ? "var(--warn)" : "var(--ok)";
+    const say = flat ? "No effect on Collected" : `${esc(yesName)} ${dv > 0 ? "raises" : "lowers"} Collected by ${fm(Math.abs(dv))}`;
     // same columns as the slider row, so the marker sits under the slider's thumb and each end value at its end
     return `<div class="effw" style="--c:${col}"><div class="effg"><span class="v0">0%: <b>${fm(s.lo)}</b></span>
       <div class="eff"><div class="trk"></div><div class="ah"></div><div class="mk j" style="left:calc(8px + ${p} * (100% - 16px))"></div></div>

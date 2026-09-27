@@ -418,8 +418,34 @@ def case_terms(d, review: date, horizon: date, model: dict) -> dict:
     return {"components": comps, "notes": notes, "deadlines": rows}
 
 
-# Per-path means the browser reweights for the tiles (core._scalars names).
-TILES = ("collected", "unrecovered", "petition_p", "peak_outstanding", "stayed", "preference")
+# Per-path means the browser reweights: the lender bridge's tiles (funded -> payments due -> collected, then due and
+# unpaid split into past due and frozen by a filing, the chance of a filing and clawback exposure) and the Exposure
+# tab's peak outstanding and capital tied up (time-weighted outstanding).
+TILES = ("funded", "due", "collected", "unpaid", "past_due", "frozen_due", "petition_p", "clawback",
+         "peak_outstanding", "avg_outstanding")
+
+
+def path_scalars(r) -> dict[str, np.ndarray]:
+    """Per path, the mean over its draws of each TILES figure. Payments due, past due and frozen by the end of the
+    period are the per-day records' last day (core.Reduction.per_day). Amounts are whole cents; due and unpaid is
+    payments due less collected and frozen is due and unpaid less past due, so on every path collected + due and
+    unpaid = payments due and past due + frozen = due and unpaid exactly (the bridge's two parts reconcile)."""
+    last = {k: np.rint(r.per_day[k][:, -1] / r.draws) for k in ("due_cum", "past_due")}
+    collected = np.rint(r.means["collected"])
+    unpaid = last["due_cum"] - collected
+    return {"funded": np.rint(r.means["drawn"]), "due": last["due_cum"], "collected": collected, "unpaid": unpaid,
+            "past_due": last["past_due"], "frozen_due": unpaid - last["past_due"],
+            "petition_p": np.round(r.means["petition_p"], 4), "clawback": np.rint(r.means["preference"]),
+            "peak_outstanding": np.rint(r.means["peak_outstanding"]),
+            "avg_outstanding": np.rint(r.means["avg_outstanding"])}
+
+
+def bridge(bank: dict[str, float], research: dict[str, float]) -> dict[str, float]:
+    """What research adds to collections, in two parts (page.js bridgeLine): the change in payments due (Slope funds
+    more or less, so more or fewer installments fall due) and the change in due and unpaid, sign reversed. Collected
+    = payments due - due and unpaid in each view, so the parts sum to the collected difference."""
+    return {"collected": research["collected"] - bank["collected"], "due": research["due"] - bank["due"],
+            "unpaid": -(research["unpaid"] - bank["unpaid"])}
 CHART = ("limit_mean", "outstanding_mean", "petition_cum_p", "frozen_mean", "cash_mean", "cash_p5", "cash_p50",
          "cash_p95", "collected_mean", "contractual")
 
@@ -507,9 +533,9 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         "nodes": nodes, "composites": enc["composites"],
         "paths": {"edges": enc["paths"], "class": [[[cls_ix[c], round(v, 4)] for c, v in sh.items()] for sh in shares],
                   "seq": seqs,
-                  "scalars": {k: np.round(a.r.means[k], 4 if k == "petition_p" else 0).tolist() for k in TILES}},
+                  "scalars": {k: v.tolist() for k, v in path_scalars(a.r).items()}},
         "classes": [label for _, label in CLASSES], "sequences": list(seq_ix),
-        "bank": {"scalars": {k: float(model.bank_probs() @ a.bank_r.means[k]) for k in TILES},
+        "bank": {"scalars": {k: float(model.bank_probs() @ v) for k, v in path_scalars(a.bank_r).items()},
                  **chart_view(a.bank_r, model.bank_probs(), a.months)},
         "event": chart_view(a.r, probs, a.months),
         "worst": _worst(stress_rows, classes, seqs, list(seq_ix)) if stress_rows else [],
