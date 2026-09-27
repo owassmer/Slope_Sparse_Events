@@ -134,6 +134,11 @@ def test_the_bootstrap_does_not_replay_the_june_coupon():
 
 # Stay security (Rule 62(b)) -----------------------------------------------------------------------------------------
 
+def _growing(b):
+    """Cash that grows by $100k a day: the company can post on approval what it offered on the motion day."""
+    return replace(b, cash=b.cash + np.arange(b.cash.shape[1])[None, :] * 10_000_000)
+
+
 def _stay(b, d, sens=None):
     c = Chain(d, SETUP, load_model(), Draws(DRAWS, basis=b), sens)
     c.step("execute_pre_ruling", "I1", "yes")
@@ -153,10 +158,65 @@ def test_a_stay_locks_the_collateral_where_cash_covers_it_and_else_the_cash_abov
     t = np.full(DRAWS, c.E0)
     offer = np.maximum(b.cash[np.arange(DRAWS), t] - b.need[np.arange(DRAWS), t], 0)
     assert (c.stay_offer == offer).all() and (offer > 0).all()
+    assert (c.stayed_from >= 10**6).all() and not c.ev.lock.any()  # cash burnt by approval: the offer cannot be posted
+    c = _stay(_growing(b), judgment())  # where cash grows to approval, the approved offer is posted and locked
+    offer = c.stay_offer
     inside = c.stayed_from < c.N
     rows = np.arange(DRAWS)[inside]
     assert inside.any() and (c.ev.lock[rows, c.stayed_from[inside]] == c.lock_amount[inside]).all()
-    assert (c.lock_amount <= offer).all() and (c.lock_amount > 0).all()
+    assert (c.lock_amount[inside] == offer[inside]).all()  # the approved amount, in full, where the stay is effective
+    assert ((c.lock_amount == offer) | (c.lock_amount == 0)).all()
+
+
+def test_no_approved_stay_locks_the_company_below_its_30_day_need(base):
+    """Reduced security is the cash above the 30-day need on the motion day; on approval the stay is effective only
+    where the company can post that amount and keep its need, so no lock takes cash below the need that day."""
+    b = base[1]
+    small = judgment(stage="judgment_entered", motions=(), components=(), financing=(),
+                     amount=judgment().amount.model_copy(update={"value": 200_000_000}))
+    for bb, d in ((_growing(b), judgment()), (b, small)):
+        c = _stay(bb, d)
+        locked = c.lock_amount > 0
+        assert locked.any()
+        day = np.clip(c.lock_day[locked], 0, c.N - 1)
+        after = c.cash_at(c.lock_day)[locked]  # the day's cash net of the lock booked that day
+        assert (after >= bb.need[np.arange(DRAWS)[locked], day]).all()
+    c = _stay(b, judgment())
+    assert ((c.stay_offer > 0) & (c.stayed_from >= 10**6)).any()  # elsewhere the stay is not effective
+
+
+def _locked_end(c):
+    return c.ev.lock.sum(axis=1)
+
+
+def test_a_stay_lock_is_released_on_the_day_the_dispute_ends(base):
+    b = _growing(base[1])
+    for ruling in ("none", "retrial"):  # vacatur or a new trial with no money award: released on the ruling
+        c = _stay(b, judgment())
+        held, approval = c.lock_amount.copy(), c.lock_day.copy()
+        c.step("ruling", "", ruling)
+        r = np.arange(DRAWS)
+        before = (held > 0) & (approval < c.F) & (c.F < c.N)
+        assert before.any() and (c.ev.lock[r[before], c.F[before]] == -held[before]).all()
+        ended = (held > 0) & (c.F < c.N)  # a ruling after the period ends releases nothing inside it
+        assert not _locked_end(c)[ended].any() and not c.lock_amount[ended].any()
+    c = _stay(b, judgment())  # a settlement releases the lock on its payment day
+    held = c.lock_amount.copy()
+    c.step("ruling", "", "amt:27980800:0")
+    pd, ok = c.settle(np.maximum(c.F, 0), c.AD)
+    rel = ok & (held > 0) & (pd < c.N)
+    assert rel.any() and not _locked_end(c)[rel].any()
+    on = rel & (c.stayed_from < pd)
+    assert (c.ev.lock[np.arange(DRAWS)[on], pd[on]] == -held[on]).all()
+    rich = replace(b, cash=b.cash + 5_000_000_000)  # paid in full while a post-ruling stay is pending: no lock
+    c = Chain(judgment(), SETUP, load_model(), Draws(DRAWS, basis=rich))
+    for s in (("ruling", "", "amt:27980800:0"), ("appeal", "", "no"), ("stay", "post", "yes"),
+              ("enforce", "post", "levy")):
+        c.step(*s)
+    held = c.lock_amount.copy()
+    c.step("debtor_response", "post", "pay")
+    paid = c.marks["paid"] < c.N
+    assert (paid & (held > 0)).any() and not _locked_end(c)[paid].any() and not c.lock_amount[paid].any()
 
 
 def test_a_stay_on_zero_offered_security_is_effective_only_in_the_noncash_sensitivity(base):

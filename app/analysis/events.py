@@ -278,6 +278,7 @@ class Chain:
         self.writs: list[tuple[np.ndarray, np.ndarray]] = []  # (day, amount taken) per writ, per trajectory
         self.cls_fees = 0
         self.lock_amount = np.zeros(self.n, dtype=np.int64)
+        self.lock_day = np.full(self.n, BIG)  # the approval day of the stay whose security is locked
         self.collateral_required = np.zeros(self.n, dtype=np.int64)
         self.marks = {k: np.full(self.n, BIG) for k in MARKS}
         self.jd_acted = np.zeros(self.n, dtype=bool)  # the holders acted on the judgment default as entered
@@ -371,6 +372,7 @@ class Chain:
         """The dispute ends (payment, settlement or vacatur; a petition zeroes the feed's cash after it): legal spend
         in the feed stops from that day."""
         day = np.where(where & (day < self.N), day, BIG)
+        self.release_lock(day, where)
         old, self.resolved = self.resolved, np.minimum(self.resolved, day)
         t = np.arange(self.N)
         stop = (t[None, :] >= self.resolved[:, None]) & (t[None, :] < old[:, None])
@@ -430,28 +432,47 @@ class Chain:
 
     def stay_security(self, motion: np.ndarray, key: str, approved: bool) -> np.ndarray:
         """Rule 62(b), effective on approval (motion + briefing + a lag draw). Where the company's cash at approval
-        covers the bond collateral, the collateral is locked. Elsewhere the company proposes reduced security: its
-        available cash above its 30-day operating need on the motion day (`stay_offer`), locked on approval. Where
-        that amount is zero the stay is effective only under stay_security = noncash (security or a waiver not in
-        cash; nothing locked)."""
+        covers the bond collateral and its 30-day operating need, the collateral is locked. Elsewhere the company
+        proposes reduced security: its available cash above its 30-day operating need on the motion day
+        (`stay_offer`, what the court is told). On approval the stay is effective where the company can still post
+        that amount and keep its 30-day operating need on the approval day; there the amount is locked. Elsewhere the
+        stay is not effective, except under stay_security = noncash (security or a waiver not in cash; nothing
+        locked). The lock is released when the dispute ends (`release_lock`)."""
         approval = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, key)
         collateral = self.bond_collateral(approval)
-        covers = self.cash_at(approval) >= collateral
+        cash_a = self.cash_at(approval)
+        need_a = self.basis.need[self.rows, np.clip(approval, 0, self.N - 1)]
+        covers = cash_a - need_a >= collateral
         t = np.clip(motion, 0, self.N - 1)
         offer = np.maximum(self.cash_at(motion) - self.basis.need[self.rows, t], 0)
         self.stay_offer = np.where(self.live(motion) & (motion < self.N) & ~covers, offer, 0).astype(np.int64)
         self.collateral_required = collateral
         if not approved:
             return approval
-        lock = np.where(covers, collateral, np.minimum(self.stay_offer, np.maximum(self.cash_at(approval), 0)))
+        posts = ~covers & (self.stay_offer > 0) & (cash_a - self.stay_offer >= need_a)
+        lock = np.where(covers, collateral, np.where(posts, self.stay_offer, 0))
         noncash = self.p("stay_security") == "noncash"
-        effective = self.live(approval) & (covers | (lock > 0) | noncash)
+        effective = self.live(approval) & (covers | posts | noncash)
         self.mark("stay_moved", motion, self.live(motion))
         self.mark("stayed", approval, effective)
         self.stayed_from = np.minimum(self.stayed_from, np.where(effective & (approval < self.N), approval, BIG))
-        self.lock_amount = np.where(effective, lock, 0)
+        self.lock_amount = np.where(effective, lock, 0).astype(np.int64)
+        self.lock_day = np.where(self.lock_amount > 0, approval, BIG)
         self.book(self.ev.lock, approval, self.lock_amount)
         return approval
+
+    def release_lock(self, day: np.ndarray, where: np.ndarray) -> None:
+        """The dispute ends on the day (vacatur, new trial, settlement or payment): the stay's security is released
+        that day. Where the approval falls on or after it there is nothing left to stay, and no lock is booked."""
+        day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        held = np.asarray(where, dtype=bool) & (self.lock_amount > 0) & (day < self.N)
+        if not held.any():
+            return
+        late = held & (self.lock_day >= day)
+        self.book(self.ev.lock, np.where(late, self.lock_day, day), -np.where(held, self.lock_amount, 0))
+        self.marks["stayed"] = np.where(late, BIG, self.marks["stayed"])
+        self.lock_amount = np.where(held, 0, self.lock_amount)
+        self.lock_day = np.where(held, BIG, self.lock_day)
 
     def bond_collateral(self, approval: np.ndarray) -> np.ndarray:
         """The bond (the path judgment plus §1961 interest over the appeal) times the collateral share."""
@@ -579,9 +600,7 @@ class Chain:
             start = {"I1": full(-1), "I2": self.F, "I3": np.maximum(self.EF, self.AD), "I4": self.stayed_from}[ctx]
             start = np.maximum(start, -1)  # an interval that began before the review date runs from it
             end = {"I1": self.F, "I2": self.AD, "I3": full(N - 1), "I4": full(N - 1)}[ctx]
-            pd, ok = self.settle(start, end, agreed=branch == "yes")
-            if branch == "yes" and ctx == "I4":  # the security is released when the settlement is paid
-                self.book(self.ev.lock, pd, -np.where(ok & self.live(pd - 1), self.lock_amount, 0))
+            self.settle(start, end, agreed=branch == "yes")  # a settlement releases the stay's security (resolve)
             return np.where(end < 0, BIG, np.maximum(start, 0))  # a closed interval asks nothing
         if node == "execute_pre_ruling":
             self.q1 = branch == "yes"
@@ -608,6 +627,7 @@ class Chain:
                 self.book(self.ev.cash, milestone, -amt)
                 self.taken += amt
                 self.resolve(milestone, ok & (not self.retrial))  # under a new trial the dispute goes on
+                self.release_lock(milestone, ok)  # paid in full: nothing left to secure
                 self.mark("paid", milestone, ok)
             elif branch == "file":
                 self.petition(milestone, self.live(milestone) & (milestone < N))
@@ -647,6 +667,8 @@ class Chain:
                 self.cls_amount, self.cls_fees = int(total), int(fees)
             if branch == "none":  # vacated: the dispute ends on the ruling, and legal spend stops
                 self.resolve(np.maximum(self.F, 0), self.live(self.F))
+            elif branch == "retrial":  # no money award survives: the stay secures nothing from the ruling
+                self.release_lock(np.maximum(self.F, 0), self.live(self.F))
             self.mark("ruled", self.F)
             self.increase = max((self.cls_amount or 0) - self.entered, 0)
             restart = self.m["parameters"]["stay_restart_on_increase_days"]

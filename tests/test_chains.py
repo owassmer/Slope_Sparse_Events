@@ -132,9 +132,15 @@ def test_path_facts_pool_only_trajectories_where_the_situation_holds(full):
     assert fc.live(floor, row).tolist() == [True, False, True, False]
 
 
+def _growing(base):
+    """Cash that grows by $100k a day, so an approved stay can post the security offered on the motion day (on the
+    fixture's own cash the company has burnt below offer plus need by approval, and no stay takes effect)."""
+    return base[0], replace(base[1], cash=base[1].cash + np.arange(base[1].cash.shape[1])[None, :] * 10_000_000)
+
+
 def test_a_levy_can_come_before_stay_approval_and_none_after_it(full, base):
     fc, paths = full
-    b = base[1]
+    b = _growing(base)[1]
     for ctx, lev in (("I1", ("registration_early", "I1", "yes")), ("post", ("enforce", "post", "levy"))):
         stayed = [p for p in paths if ("stay", ctx, "yes") in p.steps and lev in p.steps]
         assert stayed
@@ -355,7 +361,7 @@ def test_the_judgment_default_ripens_under_both_readings_unpaid_unstayed_and_not
 
 
 def test_an_effective_stay_before_the_ripe_date_prevents_the_default(base):
-    c = chain(base)
+    c = chain(_growing(base))
     c.step("execute_pre_ruling", "I1", "yes")
     c.step("stay", "I1", "yes")  # approval = motion + briefing + a lag draw
     early = c.stayed_from <= AUG19
