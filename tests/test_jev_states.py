@@ -130,6 +130,6 @@ def test_the_case_terms_and_drill_down_read_as_the_record_states_them(base):
     assert "(during which execution shall not be effectively stayed) of 60 days" in facts["notes"]["judgment_default"]
     spec = next(t["nodes"]["settlement_offer"] for t in m["templates"].values()
                 if "settlement_offer" in t.get("nodes", {}))
-    text = json.dumps(drill_down(spec, m, "q", facts, None, True, {}, "settlement_offer", d))
+    text = json.dumps(drill_down(spec, m, "q", facts, None, True, {}, "settlement_offer", d, setup=fc.setup))
     for internal in ("by code", "trajector", "ruling class", "simulated operating"):
         assert internal not in text, internal

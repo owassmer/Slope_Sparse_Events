@@ -249,6 +249,37 @@ def test_an_unknown_component_amount_stays_unknown():
     assert verdict_basis(extra, m, "claimant_theory") == (6_752_641_200, "record")
 
 
+def test_the_claimants_sums_exclude_the_defense_theory():
+    """A component marked as the defense's theory is never part of the claimant's sums, known or unknown."""
+    from app.analysis.events import verdict_basis
+    from app.domain.investigation import Component
+
+    m, d = fx.model(), fx.pending()
+    for amount in (50_000_000, None):
+        extra = d.model_copy(update={"components": d.components + (
+            Component(component_id="defense_measure", label="the defense's measure", kind="compensatory",
+                      status="requested", amount_cents=amount, unknown=amount is None, claim="trade_secrets",
+                      theory="defense"),)})
+        assert verdict_basis(extra, m, "claimant_theory") == (6_752_641_200, "record")
+        assert verdict_basis(extra, m, "without_principal_measure") == (142_641_200, "record")
+
+
+@pytest.mark.parametrize("collection", ["debit", "protect_need"])
+def test_the_page_states_the_collection_rule_of_the_setup(collection):
+    """The page's cash sentence follows Setup.collection: an automatic debit (14 May central), or collections only from
+    cash above the cash floor (the sensitivity); never the other mode's rule."""
+    from app.analysis.page import mechanism
+
+    from dataclasses import replace
+
+    s = replace(fx.setup(), collection=collection)
+    spec = next(t["nodes"]["settlement_offer"] for t in fx.model()["templates"].values()
+                if "settlement_offer" in t.get("nodes", {}))
+    text = " ".join(mechanism("settlement_offer", spec, fx.model(), s))
+    assert ("debits each installment in full" in text) == (collection == "debit")
+    assert ("only from cash above the 30-day operating need" in text) == (collection == "protect_need")
+
+
 def _sample(paths, pred, k=20):
     got = [p for p in paths if pred(p)]
     return got[:: max(1, len(got) // k)][:k]

@@ -471,7 +471,7 @@
     },
     "cash_floor": {
       "disposition": "sourced",
-      "basis": "The cash floor is the first date available cash falls below the 30-day operating need of the collection rule (base) or below zero (sensitivity). Where the company keeps operating at the floor, it decides again on the first date its available cash falls below zero.",
+      "basis": "The cash floor is the first date available cash falls below the 30-day operating need (base; the common model's cash floor under either collection mode, spec §16.3) or below zero (sensitivity). Where the company keeps operating at the floor, it decides again on the first date its available cash falls below zero.",
       "value": "need",
       "sensitivity": "zero"
     },
@@ -1975,7 +1975,7 @@
         }
       },
       "amount_rules": {
-        "components": "the claimant's requested components, excluding any that restates another (duplicates), any of a claim whose damages the court has barred, and the kinds the claimant_enhancements term stands for; an unknown component amount leaves the sum unknown, never 0",
+        "components": "the claimant's requested components (never one marked as the defense's theory), excluding any that restates another (duplicates), any of a claim whose damages the court has barred, and the kinds the claimant_enhancements term stands for; an unknown component amount leaves the sum unknown, never 0",
         "components_without_principal": "the same, also excluding the claimant's principal damages measure"
       },
       "label_templates": {

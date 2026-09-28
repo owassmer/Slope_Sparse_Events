@@ -157,13 +157,13 @@ class UnknownAmount(ValueError):
 
 def counted_components(d: DisputeInstance, model: dict, principal: bool = True) -> list:
     """The claimant's requested components a verdict branch sums (amount_rules): no restatement of another
-    (duplicates), none of a claim whose damages the court barred, none of the kinds the bounded claimant_enhancements
-    term stands for (exemplary, enhanced and statutory additions, fees, costs, interest); principal False also leaves
-    out the claimant's principal measure."""
+    (duplicates), none of the defense's theory, none of a claim whose damages the court barred, none of the kinds the
+    bounded claimant_enhancements term stands for (exemplary, enhanced and statutory additions, fees, costs,
+    interest); principal False also leaves out the claimant's principal measure."""
     barred = {c.claim_id for c in d.claims if c.damages_barred}
     plus = set(model["parameters"].get("claimant_enhancements", {}).get("kinds", ()))
     return [c for c in d.components if c.status == "requested" and not c.duplicates and c.claim not in barred
-            and c.kind not in plus and (principal or not c.principal)]
+            and c.theory != "defense" and c.kind not in plus and (principal or not c.principal)]
 
 
 def claim_components(d: DisputeInstance, model: dict, principal: bool = True) -> int | None:

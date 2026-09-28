@@ -421,7 +421,21 @@ def docket_url(ref: str, links: dict[str, str]) -> str:
                 next((u for t, u in links.items() if "docket report" in t), ""))
 
 
-def mechanism(node: str, spec: dict, model: dict) -> list[str]:
+def loan_rule(setup) -> str:
+    """How the company's cash reaches Slope's line, from the setup's collection mode and cash floor (Setup.collection,
+    Setup.need_days): the sentence the page shows for every decision that moves the company's cash."""
+    if setup.collection == "debit":
+        how = ("Slope debits each installment in full on its due date when the company's available cash covers it; a "
+               "debit that fails stays past due and is retried on the next due date or month-end")
+    elif setup.collection == "protect_need":
+        how = f"Slope collects each installment only from cash above the {setup.need_days}-day operating need"
+    else:
+        raise ValueError(f"No collection rule {setup.collection!r}")
+    return (f"On the loan: through the company's cash. {how}. Slope funds a draw only while nothing is overdue and no "
+            "petition is filed")
+
+
+def mechanism(node: str, spec: dict, model: dict, setup) -> list[str]:
     """How the decision moves cash, and how that reaches the loan: the model node's effects by branch (parameters
     and rules in words), then the line's rule for a filing or for the company's cash."""
     import re
@@ -447,8 +461,7 @@ def mechanism(node: str, spec: dict, model: dict) -> list[str]:
         out.append("On the loan: from the petition Slope collects nothing and funds no draw; the balance owed is "
                    "frozen, and collections in the 90 days before it are clawback exposure")
     else:
-        out.append("On the loan: through the company's cash. Slope collects each installment only from cash above the "
-                   "30-day operating need, and funds a draw only while nothing is overdue and no petition is filed")
+        out.append(loan_rule(setup))
     return out
 
 
@@ -469,7 +482,7 @@ def source_links(snapshot_id: str) -> dict[str, str]:
 
 
 def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, neutral: bool,
-               links: dict[str, str], node: str = "", d=None) -> dict:
+               links: dict[str, str], node: str = "", d=None, *, setup) -> dict:
     """The 'why this probability' chain: each step tagged Law / Record / Data / Calculation / Cash / Jev, sourced
     steps with links to their evidence, computed amounts with their arithmetic, the facts Jev is given, the source
     quotes and Jev's answer."""
@@ -514,7 +527,7 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
             for a, b in facts["notes"].items())})
     steps.append({"tag": "Calculation", "text": f"When it is decided: {spec['timing']}"})
     steps += [{"tag": "Calculation", "text": line} for line in _fact_lines(facts)]
-    steps += [{"tag": "Cash", "text": line} for line in mechanism(node, spec, model)]
+    steps += [{"tag": "Cash", "text": line} for line in mechanism(node, spec, model, setup)]
     quotes = []
     for e in (judgment.evidence if judgment is not None else []) or []:
         if isinstance(e, dict):
@@ -549,7 +562,7 @@ def component_row(c, d, model: dict) -> dict:
     import re
 
     row = {"label": label_head(c.label), "amount": usd(c.amount_cents) if c.amount_cents is not None
-           else "computed by statute", "status": c.status,
+           else "computed by statute" if c.statutory else "unknown", "status": c.status,
            "source": d.order_reference if c.status == "awarded" else c.motion or d.order_reference}
     if c.kind == "compensatory":
         sc = model.get("remittitur_scenarios", {})
@@ -702,7 +715,7 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                       "actor": sp["actor"], "decider": ACTOR_GROUP.get(sp["actor"], "Akoustis"),
                       "branches": branches, "jev": [j.distribution[b] for b in branches],
                       "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node,
-                                           model.disputes.get(j.instance_id))})
+                                           model.disputes.get(j.instance_id), setup=setup)})
     bank = bank_rows(model, fc, m, spec, questions, links, neutral, off=len(nodes))
     nodes += bank["nodes"]
     lead = [c[0] for c in model.combos]
@@ -768,7 +781,7 @@ def bank_rows(model, fc, m: dict, spec: dict, questions: dict, links: dict, neut
                      "label": BANK_LABELS.get(j.question_id, q), "sub": "Asked on bank data alone",
                      "actor": sp["actor"], "decider": "Bank data", "branches": branches,
                      "jev": [j.distribution[b] for b in branches],
-                     "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node)})
+                     "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node, setup=fc.setup)})
         for s in rows[-1]["detail"]["steps"]:  # the bank view's cash has no dispute: its event cash is the coupon
             s["text"] = s["text"].replace(" + the dispute's cash to that date", " + the notes' coupon to that date"
                                           if fc.instrument() is not None else " to that date")
