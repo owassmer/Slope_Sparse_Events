@@ -645,9 +645,10 @@ def case_terms(d, review: date, horizon: date, model: dict, links: dict[str, str
         money = (lambda c: usd(c) if c is not None else missing)  # noqa: E731
         dates = ", ".join(x.strftime("%-d %b %Y") for x in f.interest_dates)
         coupon = missing if f.coupon_cents is None else f"{usd(f.coupon_cents)}" + (f" due {dates}" if dates else "")
-        default = (f"a final judgment above {money(f.judgment_default_threshold_cents)} left unpaid and unstayed for "
-                   f"{f.judgment_default_days} days" + (", after notice" if f.judgment_default_notice else "")
-                   ) if f.judgment_default_days else missing
+        default = (f"final judgments above {money(f.judgment_default_threshold_cents)} that \"remain undischarged, "
+                   f"unpaid or unstayed for a period (during which execution shall not be effectively stayed) of "
+                   f"{f.judgment_default_days} days\" (§7.01(i)), after notice by the trustee or holders of 25%"
+                   ) if f.judgment_default_days else missing  # the indenture template's words, as Jev's facts quote them
         rep = f.repurchase_business_days
         listing = (f"delisting is a fundamental change: repurchase within {rep[0]}–{rep[1]} business days of notice"
                    if rep and len(rep) == 2 else missing)
