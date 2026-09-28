@@ -47,3 +47,12 @@ def test_the_limit_is_slopes_rule_on_the_14_may_feed():
     ops = operating.simulate(feed, (setup.horizon - REVIEW).days + 30, DRAWS, SEED)
     assert (prepare(setup, ops).limit[:, 0] == limit).all()
     assert setup.horizon == date(2024, 11, 10)
+
+
+def test_the_line_opens_on_the_first_day_with_three_complete_months_of_feed_history():
+    feed, opened = load_feed(SNAP), INPUTS["financing_plan"]["line"]["opened"]
+    first = min(t["date"] for t in feed.transactions)
+    assert first[:7] == "2024-01" and opened["date"] == "2024-04-01"  # January, February, March complete
+    receipts = sum(_month(feed, f"2024-0{m}", "customer_receipts") for m in (1, 2, 3))
+    assert opened["limit_cents"] == int((Decimal("0.15") * Decimal(receipts) / 3).to_integral_value(ROUND_DOWN))
+    assert opened["limit_cents"] > 25_000_000  # Slope's manual-review band

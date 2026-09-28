@@ -73,6 +73,11 @@
       "reassessment": "same rule at every draw date, on each trajectory's trailing receipts (next engine step)",
       "draw_rule": "each supplier_invoice outflow is routed while outstanding + invoice <= the day's limit, no installment is overdue and no petition has been filed",
       "line_usage_bps": 10000,
+      "opened": {
+        "date": "2024-04-01",
+        "limit_cents": 39550000,
+        "basis": "The earliest date with three complete months of connected-bank history in the feed (January to March 2024): Slope's rule gives 15% of mean monthly receipts net of debt service, USD 395,500.00, above the USD 250k automatic approval, so a manually reviewed line. It opens five weeks before the jury trial began on 6 May (docket as of 14 May); the trial and the 13 May 10-Q then trigger this review. Eligibility (Slope's published criteria): in business since May 2014 (FY2023 10-K: 'since its inception in May 2014'), so more than 3 years for a line above USD 100k; banking history of more than 1 year (the company's own accounts; the feed reconstructs only the months the rule reads); no bankruptcy in the last 5 years."
+      },
       "supplied_draw": {
         "transaction_id": "txn_00077",
         "date": "2024-03-22",
