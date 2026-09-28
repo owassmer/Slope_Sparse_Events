@@ -2,7 +2,7 @@
   "package": "Slope credit-event scenario research and design kit",
   "revision": "2",
   "status": "Research and design; not a built agent or lending application",
-  "primary_catalog_records": 71,
+  "primary_catalog_records": 72,
   "warning": "Build dated agent evidence stores. Do not expose this entire kit, outcomes or evaluator answers to investigator/reviewer runtimes.",
   "files": [
     {
@@ -381,6 +381,11 @@
       "sha256": "0a2f32a9ae6430f7bfeee95b830e8f4058d0f157cd4a66f0a277658fc3e4de55"
     },
     {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_docket_20240514.html",
+      "bytes": 174860,
+      "sha256": "ce300cf5007e0e57aae43ccedd9ef0c124f93d71f9ac992a81505cdfdcd175df"
+    },
+    {
       "path": "research/recent_cases/akoustis/ded_21cv1417_docket_20240620.html",
       "bytes": 182754,
       "sha256": "9d5b42ada2cbd3f00cc681e6d76d3a8c8e019dd28d498a330bc13d051ce41b00"
@@ -537,8 +542,8 @@
     },
     {
       "path": "research/revision_v2/data/sources.json",
-      "bytes": 82767,
-      "sha256": "3d2adb164cc64aaaff1945dd033a0a0ad25a30d174d18502b9b5104650fa2ecc"
+      "bytes": 87085,
+      "sha256": "6ed0fe88b60b5234a4e2ddc38b802ed7049c9585775c3e2d91e004179802768e"
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",

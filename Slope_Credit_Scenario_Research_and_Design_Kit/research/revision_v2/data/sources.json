@@ -20,6 +20,10 @@
     "akoustis_20240620": {
       "cutoff": "2024-06-20T23:59:59-04:00",
       "financial_measurement": "2024-03-31"
+    },
+    "akoustis_20240514": {
+      "cutoff": "2024-05-14T23:59:59-04:00",
+      "financial_measurement": "2024-03-31"
     }
   },
   "rules": [
@@ -64,7 +68,8 @@
       "mission_membership": {
         "synergy_20240813": "eligible",
         "barfresh_20241025": "out_of_case",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -98,7 +103,8 @@
       "mission_membership": {
         "synergy_20240813": "eligible",
         "barfresh_20241025": "out_of_case",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -135,7 +141,8 @@
       "mission_membership": {
         "synergy_20240813": "eligible",
         "barfresh_20241025": "out_of_case",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -164,7 +171,8 @@
       "mission_membership": {
         "synergy_20240813": "outcome",
         "barfresh_20241025": "out_of_case",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -193,7 +201,8 @@
       "mission_membership": {
         "synergy_20240813": "outcome",
         "barfresh_20241025": "out_of_case",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -222,7 +231,8 @@
       "mission_membership": {
         "synergy_20240813": "outcome",
         "barfresh_20241025": "out_of_case",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -251,7 +261,8 @@
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "eligible",
         "barfresh_20241025": "eligible",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -275,7 +286,8 @@
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "metadata_only",
         "barfresh_20241025": "metadata_only",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -304,7 +316,8 @@
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "eligible",
         "barfresh_20241025": "eligible",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -333,7 +346,8 @@
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "eligible",
         "barfresh_20241025": "eligible",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -362,7 +376,8 @@
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "eligible",
         "barfresh_20241025": "eligible",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -391,7 +406,8 @@
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "outcome",
         "barfresh_20241025": "eligible",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -420,7 +436,8 @@
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "outcome",
         "barfresh_20241025": "eligible",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -449,7 +466,8 @@
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "outcome",
         "barfresh_20241025": "outcome",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -478,7 +496,8 @@
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "outcome",
         "barfresh_20241025": "outcome",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -502,7 +521,8 @@
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "metadata_only",
         "barfresh_20241025": "metadata_only",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -531,7 +551,8 @@
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "eligible",
         "barfresh_20241025": "eligible",
-        "akoustis_20240620": "out_of_case"
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -559,7 +580,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -587,7 +609,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -615,7 +638,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -643,7 +667,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -671,7 +696,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -699,7 +725,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -727,7 +754,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -755,7 +783,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -783,7 +812,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -811,7 +841,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -839,7 +870,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -867,7 +899,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -895,7 +928,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -923,7 +957,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -951,7 +986,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -979,7 +1015,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1007,7 +1044,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1035,7 +1073,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1063,7 +1102,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1091,7 +1131,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -1119,7 +1160,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "out_of_case"
       }
     },
     {
@@ -1147,7 +1189,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1175,7 +1218,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1203,7 +1247,8 @@
         "akoustis_20240620": "outcome",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1231,7 +1276,8 @@
         "akoustis_20240620": "outcome",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1259,7 +1305,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1287,7 +1334,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1315,7 +1363,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1343,7 +1392,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1371,7 +1421,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1399,7 +1450,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1427,7 +1479,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1455,7 +1508,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1483,7 +1537,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1511,7 +1566,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1539,7 +1595,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1567,7 +1624,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1595,7 +1653,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -1623,7 +1682,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1651,7 +1711,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1679,7 +1740,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1707,7 +1769,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1735,7 +1798,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1763,7 +1827,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1791,7 +1856,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1819,7 +1885,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1847,7 +1914,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1875,7 +1943,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1903,7 +1972,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1931,7 +2001,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1959,7 +2030,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -1987,7 +2059,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     },
     {
@@ -2015,7 +2088,37 @@
         "akoustis_20240620": "outcome",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
+      }
+    },
+    {
+      "source_id": "ded_21cv1417_docket_20240514",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.courtlistener.com/docket/60622376/",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_docket_20240620.html",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_docket_20240514.html",
+      "sha256": "ce300cf5007e0e57aae43ccedd9ef0c124f93d71f9ac992a81505cdfdcd175df",
+      "bytes": 174860,
+      "availability": {
+        "date": "2024-05-14",
+        "precision": "day",
+        "basis": "Filtered view of ded_21cv1417_docket_20240620: only the entries whose filing date is on or before 14 May 2024 (every kept entry was also entered by 14 May)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "docket_report",
+          "date": "2024-05-14"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "akoustis_20240620": "out_of_case",
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "eligible"
       }
     },
     {
@@ -2043,7 +2146,8 @@
         "akoustis_20240620": "eligible",
         "synergy_20240813": "out_of_case",
         "barfresh_20240815": "out_of_case",
-        "barfresh_20241025": "out_of_case"
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240514": "outcome"
       }
     }
   ]
