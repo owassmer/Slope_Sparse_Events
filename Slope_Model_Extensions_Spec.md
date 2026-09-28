@@ -712,12 +712,13 @@ Every path shares these. They decide much of the result, so each is stated.
 - **Legal meaning comes first**, in `DECOMPOSITION_20240514.md`, in the stage order of §15.2(1): the law map, then clocks and parameters, then arithmetic. Evidence fills named slots afterwards.
 - **Depth goes where money moves.** A distinction survives only if it changes payment timing, cash availability, operating receipts, financing access, or another actor's material decision. Financially equivalent paths are merged. The number of questions is not a measure of completeness.
 - **Amounts stay code-owned.**
-  - One acquisition pass looks for public monetary evidence from before the verdict.
-  - Where the amount stays unknown, it is a declared scenario class, cut at the thresholds that change the mechanism:
-    - below the notes' $10.0M default threshold;
-    - above that threshold but payable from cash above the reserve;
-    - beyond that cash.
-  - Each class is computed on its own, with Jev's probabilities inside it. There are no probabilities across classes.
+  - The record fixes the claimed amounts. Qorvo itemised its claim before the review date: at least $66.1M of trade-secret unjust enrichment, plus $2.2M on other claims (D.I. 543-1, 22 Apr 2024).
+  - Which damages theory the jury adopts is the jury's decision, so it is a Jev question. Code sets each branch's amount from the record:
+    - Qorvo's theory: the claimed amount;
+    - the defense's theory: a bounded amount, because the defense figure was not public.
+  - Branch amounts are cut only at the thresholds that change a mechanism. Examples: the notes' $10.0M default threshold, and cash above the reserve.
+  - Differences in amount that change no mechanism are one bounded term with a sensitivity, not more branches.
+  - Where no figure is public, the amount is a declared scenario class, and there are no probabilities across classes.
 - **Jev answers one actor's decision per question.**
   - Material factors are established first; aggregation receives the factor results and the structured facts, not the whole record again.
   - A reading of the evidence is never a forecast's probability.
