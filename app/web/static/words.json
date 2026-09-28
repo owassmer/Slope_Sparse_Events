@@ -1,0 +1,322 @@
+{
+  "_about": "Every word the analysis page shows that does not come from the run's payload: lending terms, section labels, and plain wording of legal concepts keyed by the model's node type. No party name, figure or case fact: {company} and {claimant} are filled from the payload's parties, figures from its data.",
+  "sections": {
+    "situation": "Situation",
+    "forecast": "The line's forecast to {horizon}",
+    "resolve": "How the lawsuit can resolve",
+    "judgment": "The judgment that matters most",
+    "assumption": "One economic assumption",
+    "actual": "What actually happened"
+  },
+  "line": {
+    "title": "The line",
+    "limit": "Limit",
+    "limit_note": "Slope's published sizing rule on the connected bank data",
+    "fee": "Fee",
+    "fee_value": "{fee} of each draw",
+    "repaid": "Repaid in",
+    "repaid_value": "{n} monthly installments",
+    "draws": "Draws",
+    "opened": "Opened",
+    "state": "On {review}",
+    "outstanding": "Outstanding",
+    "due_next": "Installments due",
+    "due_next_value": "{amount}, {first} to {last}"
+  },
+  "facts": {
+    "claim": "Claimed at trial",
+    "cash": "Cash",
+    "notes": "Convertible notes",
+    "listing": "Listing deadline"
+  },
+  "terms": {
+    "funded": "Funded",
+    "due": "Due by {horizon}",
+    "collected": "Collected",
+    "rate": "Collection rate",
+    "past_due": "Past due",
+    "stayed": "Balance at filing",
+    "not_yet_due": "Not yet due",
+    "filing": "Filing probability by {horizon}",
+    "preference": "Preference exposure",
+    "outstanding": "Outstanding",
+    "filing_short": "Filing probability"
+  },
+  "notes": {
+    "due": "Installments falling due by {horizon}, including the line's installments outstanding on the review date.",
+    "rate": "Collected ÷ due by {horizon}.",
+    "past_due": "Due, not collected and not stayed by a filing, at {horizon}.",
+    "stayed": "Owed to Slope on the day of a bankruptcy filing; collection stops. Averaged over all outcomes; includes installments not yet due at the filing.",
+    "not_yet_due": "Installments falling due after {horizon}, on outcomes with no filing.",
+    "filing": "Share of outcomes in which {company} files, or is put into, bankruptcy by {horizon}.",
+    "preference": "Collections in the 90 days before a filing, which a trustee can seek to recover. Averaged over all outcomes.",
+    "unavailable": "Not in this run's data yet."
+  },
+  "forecast": {
+    "chart": "By month: funded, due and collected; outstanding at month end",
+    "range": "Collected to date, P5–P95",
+    "assumptions": "Assumptions",
+    "assumptions_note": "Settings every outcome shares. Section 5 switches one of them.",
+    "months_hover": "{month}: funded {funded}, due {due}, collected {collected}; outstanding at month end {outstanding}"
+  },
+  "resolve": {
+    "verdict": "The verdict",
+    "before": "Before the verdict",
+    "p": "Probability",
+    "judgment": "Judgment",
+    "collected": "Collected",
+    "filing": "Filing probability",
+    "follows": "Most likely next",
+    "attribution": "What the lawsuit adds",
+    "attribution_note": "One forecast, read twice: with the lawsuit's cash effects, and with the lawsuit given no cash effect (the company's ordinary operating risk).",
+    "without": "Lawsuit given no cash effect",
+    "with": "Full forecast",
+    "difference": "Lawsuit's effect",
+    "when": "Filing probability by date",
+    "grid": "Outcomes at {horizon}",
+    "grid_note": "Each square is 1% of outcomes.",
+    "filed": "Filed by {horizon}",
+    "not_filed": "Not filed by {horizon}",
+    "none": "none",
+    "nothing": "No further event in the period",
+    "other": "Other paths"
+  },
+  "dates": {
+    "ruling_window": "Post-trial ruling window",
+    "listing": "Listing deadline",
+    "coupon": "Notes coupon",
+    "verdict": "Verdict expected"
+  },
+  "judgment": {
+    "jev": "Jev is a forecasting model that reads the public record and gives the probability of one party's next move. Code sets every date and amount and combines the probabilities along each path.",
+    "question": "Question",
+    "asked": "Asked",
+    "reach": "Reached in {p} of outcomes",
+    "evidence": "Evidence",
+    "inputs": "Inputs",
+    "forecast": "Jev's forecast",
+    "effect": "Effect on collections",
+    "sources": "Sources",
+    "at": "Jev {p}",
+    "zero": "0% {branch}",
+    "hundred": "100% {branch}",
+    "drag": "Drag to override Jev's answer; every figure on the page follows.",
+    "reset": "Reset",
+    "jev_said": "Jev: {p}",
+    "why": "Chosen because settling it moves expected collections most: the swing between 0% and 100% times Jev's own uncertainty.",
+    "paths": "Paths",
+    "paths_note": "The paths' first three events, sized by probability. Red: share of the path that ends in a filing by {horizon}.",
+    "tornado": "Collections by judgment",
+    "tornado_note": "Expected collections with each judgment set to 0% and 100% of the named answer. Jev's own answer is shown beside each swing.",
+    "earlier": "Earlier answers on the form",
+    "none": "None",
+    "amount_unknown": "amount not stated"
+  },
+  "assumption": {
+    "pick": "Assumption",
+    "central": "Central",
+    "shown": "Shown: the assumption that moves the filing probability and collections most.",
+    "basis": "Basis",
+    "switched": "Figures on this page use: {label}.",
+    "back": "Back to central",
+    "col_central": "Central",
+    "col_variant": "This assumption",
+    "col_diff": "Difference",
+    "path_note": "Sections 3 and 4 break down the central forecast.",
+    "compared": "compared below"
+  },
+  "actual": {
+    "button": "Show what actually happened",
+    "hide": "Hide",
+    "intro": "Everything below happened after the review date; none of it was available to the forecast.",
+    "filed": "{company} filed on {date}. The forecast gave a filing by that date {p}.",
+    "filed_after": "{company} filed on {date}, after the period ended on {horizon}. The forecast gave a filing by {horizon} {p}.",
+    "source": "source"
+  },
+  "ui": {
+    "close": "Close",
+    "source": "source",
+    "terms": "Case terms",
+    "components": "Claim components",
+    "deadlines": "Dates",
+    "record": "Investigation record",
+    "changed": "{n} answers changed",
+    "reset_all": "Reset all",
+    "legend_filed": "ends in a filing",
+    "legend_quiet": "no filing by {horizon}",
+    "legend_open": "continues",
+    "root": "{review}",
+    "yes": "yes",
+    "no": "no"
+  },
+  "decisions": {
+    "settlement_offer": {
+      "short": "{company} offers to settle",
+      "branches": {
+        "yes": "offers",
+        "no": "no offer"
+      }
+    },
+    "settlement_accept": {
+      "short": "{claimant} accepts the settlement",
+      "branches": {
+        "yes": "accepts",
+        "no": "rejects"
+      }
+    },
+    "verdict_finding": {
+      "short": "Jury: verdict-form question",
+      "branches": {
+        "yes": "yes",
+        "no": "no"
+      }
+    },
+    "verdict_measure": {
+      "short": "Jury: damages measure",
+      "branches": {
+        "yes": "the claimant's principal measure",
+        "no": "another measure"
+      }
+    },
+    "judgment_response": {
+      "short": "{company} responds to the judgment",
+      "question": "Once judgment is entered, does {company} pay it, file for bankruptcy, or keep operating and contest it?",
+      "branches": {
+        "pay": "pays",
+        "file": "files",
+        "continue": "contests, keeps operating"
+      }
+    },
+    "post_trial_motions": {
+      "short": "{company} moves after trial",
+      "branches": {
+        "yes": "moves",
+        "no": "no motions"
+      }
+    },
+    "post_trial_ruling": {
+      "short": "Court's post-trial ruling",
+      "branches": {
+        "stands": "judgment stands",
+        "set_aside": "set aside"
+      }
+    },
+    "execute_pre_ruling": {
+      "short": "{claimant} enforces before the ruling",
+      "branches": {
+        "yes": "enforces",
+        "no": "waits"
+      }
+    },
+    "stay_motion": {
+      "short": "{company} asks to pause collection",
+      "question": "Does {company} ask the court to pause collection of the judgment against a bond or other security?",
+      "branches": {
+        "yes": "asks",
+        "no": "doesn't ask"
+      }
+    },
+    "stay_approved": {
+      "short": "Court pauses collection",
+      "question": "Does the court accept the offered security and pause collection?",
+      "branches": {
+        "yes": "pauses",
+        "no": "refuses"
+      }
+    },
+    "registration_early": {
+      "short": "Court lets {claimant} collect in other states early",
+      "branches": {
+        "yes": "allows",
+        "no": "refuses"
+      }
+    },
+    "appeal": {
+      "short": "{company} appeals",
+      "branches": {
+        "yes": "appeals",
+        "no": "no appeal"
+      }
+    },
+    "enforce_after_final": {
+      "short": "{claimant} enforces after the ruling",
+      "branches": {
+        "yes": "enforces",
+        "no": "waits"
+      }
+    },
+    "listing_kept": {
+      "short": "{company} keeps its listing",
+      "branches": {
+        "yes": "kept",
+        "no": "delisted"
+      }
+    },
+    "financing_at_floor": {
+      "short": "{company} at its cash floor",
+      "branches": {
+        "raise_equity": "raises equity",
+        "file": "files",
+        "continue": "keeps going"
+      }
+    },
+    "petition_cash_out": {
+      "short": "{company} files when cash runs out",
+      "branches": {
+        "yes": "files",
+        "no": "doesn't file"
+      }
+    },
+    "petition_cash_floor": {
+      "short": "{company} files at its cash floor",
+      "branches": {
+        "yes": "files",
+        "no": "doesn't file"
+      }
+    },
+    "petition_on_notes": {
+      "short": "{company} files after noteholders demand repayment",
+      "branches": {
+        "yes": "files",
+        "no": "doesn't file"
+      }
+    },
+    "holders_act_judgment": {
+      "short": "Noteholders demand repayment (judgment default)",
+      "question": "Once the judgment default ripens, do the holders of 25% of the notes (or the trustee) give notice and demand repayment of the notes?",
+      "branches": {
+        "yes": "demand repayment",
+        "no": "don't act"
+      }
+    },
+    "holders_act_delisting": {
+      "short": "Noteholders act on a delisting",
+      "branches": {
+        "accelerate": "demand repayment",
+        "repurchase_only": "require repurchase",
+        "neither": "neither"
+      }
+    },
+    "holders_involuntary": {
+      "short": "Noteholders file a petition",
+      "branches": {
+        "yes": "file",
+        "no": "don't file"
+      }
+    }
+  },
+  "inputs": {
+    "decision_date": "Decision date",
+    "projected_available_cash_at_decision_date": "Cash available",
+    "operating_need_30_days_at_decision": "30-day operating need",
+    "amount_owed_at_decision": "Owed on the judgment",
+    "settlement_offer": "Settlement offer",
+    "bond_collateral_required": "Bond collateral",
+    "reduced_security_offered": "Security offered"
+  },
+  "status": {
+    "requested": "claimed",
+    "awarded": "awarded",
+    "pending": "pending"
+  }
+}

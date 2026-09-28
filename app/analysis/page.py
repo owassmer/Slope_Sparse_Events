@@ -24,9 +24,11 @@ ACTOR_GROUP = {"court": "Court and jury", "jury": "Court and jury", "judgment cr
                "holders of 25% (or the trustee)": "Noteholders and the exchange",
                "holders": "Noteholders and the exchange", "noteholders (three or more)": "Noteholders and the exchange",
                "Nasdaq hearings panel": "Noteholders and the exchange"}  # keys: the contract's actor names
-INTERVALS = {"I1": "before the ruling", "I2": "after the ruling, before the appeal deadline",
+INTERVALS = {"I0": "before the verdict", "entry": "on the day the judgment is entered", "I1": "before the ruling", "I2": "after the ruling, before the appeal deadline",
              "I3": "after the appeal deadline", "I4": "during a stayed appeal", "post": "after the ruling"}
-CONTEXT = {"levied": "after a levy", "unlevied": "no levy", "appealed": "on appeal", "final": "no appeal",
+CONTEXT = {"claimed": "before the verdict", "claimant_theory": "after a verdict on the claimant's theory",
+           "without_principal_measure": "after a lower award", "no_award": "after no award",
+           "raise": "equity can be raised", "noraise": "no equity can be raised", "levied": "after a levy", "unlevied": "no levy", "appealed": "on appeal", "final": "no appeal",
            "stay_pending": "stay motion pending", "pay": "", "nopay": "paying in full is out of reach",
            "first": "", "after_seek": "after seeking a sale or financing", "entered": "",
            "delisted_panel": "delisted after the panel", "delisted_suspension": "suspended without a hearing",
@@ -113,7 +115,7 @@ SHORT_LABELS = {
     "forecast_holders_act_judgment": "Holders accelerate (judgment default)",
     "forecast_holders_act_delisting": "Holders act on delisting",
     "forecast_holders_involuntary": "Holders file after no-action period"}
-SHORT_WHEN = {"I1": "Before ruling", "I2": "After ruling", "I3": "After appeal deadline", "I4": "During appeal",
+SHORT_WHEN = {"I0": "Before verdict", "entry": "At entry", "I1": "Before ruling", "I2": "After ruling", "I3": "After appeal deadline", "I4": "During appeal",
               "post": "After ruling", "entered": "Before ruling"}
 SHORT_TAG = {"levied": "after a levy", "unlevied": "no levy", "appealed": "on appeal", "final": "no appeal",
              "stay_pending": "stay motion pending", "nopay": "can't pay in full", "after_seek": "after seeking a sale",
@@ -122,7 +124,10 @@ SHORT_TAG = {"levied": "after a levy", "unlevied": "no levy", "appealed": "on ap
              "stayed": "stayed", "settled": "after a settlement", "paid": "after payment", "seeking": "seeking a sale",
              "notes_due": "notes due, unpaid", "delisted": "delisted", "motions_pending": "before ruling",
              "executing": "{claimant} executing", "cash_exhausted": "cash run out", "ripe": "notes' default date",
-             "entered_not_acted": "entered judgment not acted on", "bank": "bank data alone"}
+             "entered_not_acted": "entered judgment not acted on", "bank": "bank data alone",
+             "claimed": "before the verdict", "claimant_theory": "{claimant}'s theory", "no_award": "no award",
+             "without_principal_measure": "lower award", "set_aside": "judgment set aside", "raise": "can raise equity",
+             "noraise": "can't raise equity"}
 
 
 def money_round(cents: int) -> str:
@@ -768,7 +773,9 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         sp, ctx = spec[j.node], (k.split("|", 1)[1] if "|" in k else "")
         facts = j.path_facts or (fc.path_facts(fc.nodes[k], model.disputes[j.instance_id]) if k in fc.nodes else {})
         q = questions.get(j.question_id, j.event)
-        nodes.append({"key": k, "node": j.node, "question": q, "context": context_text(ctx, ranges),
+        form = fc.verdict_context(fc.nodes[k]) if j.node.startswith("verdict_") and k in fc.nodes \
+            and hasattr(fc, "verdict_context") else None  # a verdict-form question: the form's own words
+        nodes.append({"key": k, "node": j.node, "question": q, "context": context_text(ctx, ranges), "form": form,
                       "label": SHORT_LABELS.get(j.question_id, q), "sub": short_context(ctx, ranges),
                       "actor": sp["actor"], "decider": ACTOR_GROUP.get(sp["actor"], "{company}"),
                       "branches": branches, "jev": [j.distribution[b] for b in branches],
@@ -814,6 +821,7 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                   "seq": seqs,
                   "scalars": {k: v.tolist() for k, v in path_scalars(a.r).items()}},
         "classes": [named(label, names) for _, label in CLASSES], "sequences": list(seq_ix), "parties": names,
+        "filing_steps": sorted({named(x, names) for x in (*FILING.values(), *FILED_BY.values())}),
         "bank": {"scalars": {k: float(model.bank_probs() @ v) for k, v in path_scalars(a.bank_r).items()},
                  "edges": bank["edges"], "path_scalars": {k: v.tolist() for k, v in path_scalars(a.bank_r).items()},
                  **chart_view(a.bank_r, model.bank_probs(), a.months)},
