@@ -16,7 +16,7 @@
   // money: $339k, $1.2M; whole units unless a value is under 10 of its unit
   const money = (c) => {
     const v = c / 100, a = Math.abs(v), s = v < 0 ? "−" : "";
-    if (a >= 1e6) { const m = a / 1e6; return `${s}$${m < 10 ? m.toFixed(1) : m >= 100 ? Math.round(m) : m.toFixed(1)}M`; }
+    if (a >= 1e6) { const m = a / 1e6; return `${s}$${m >= 100 ? Math.round(m) : +m.toFixed(1)}M`; }
     if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}k`;
     return `${s}$${Math.round(a)}`;
   };
@@ -77,21 +77,26 @@
   const OUT = W.outcomes;
   const CLS = D.classes;
   const COLOR = { "Filed: notes": "#8f1d1d", "Filed: short of cash": "#c2412d", "Filed: Qorvo enforcement": "#e0826b",
-    "bank_filed": "#c2412d", "Settled": "#5f8f6c", "Paid": "#8a9199", "Stayed on appeal": "#a9aeb5",
-    "Vacated or new trial": "#c3c8ce", "Unresolved": "#dde0e4", "bank_not_filed": "#dde0e4" };
+    "bank_filed": "#c2412d", "Settled": "#5f8f6c", "Paid": "#6f7780", "Stayed on appeal": "#8fa3b3",
+    "Vacated or new trial": "#c9b99c", "Unresolved": "#dde0e4", "bank_not_filed": "#dde0e4" };
   const outLabel = (c) => fill((OUT[c] || { label: c }).label, WH);
   const isFiled = (c) => !!(OUT[c] || {}).filed;
   function classProbs() { const c = new Float64Array(CLS.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
-  // largest-remainder rounding of shares to 100 dots
-  function allocate(shares) {
-    const tot = shares.reduce((a, b) => a + b, 0) || 1, raw = shares.map((s) => (100 * s) / tot);
-    const n = raw.map(Math.floor); let left = 100 - n.reduce((a, b) => a + b, 0);
+  // largest-remainder rounding of shares to a whole number of dots
+  function apportion(shares, total = 100) {
+    const tot = shares.reduce((a, b) => a + b, 0) || 1, raw = shares.map((s) => (total * s) / tot);
+    const n = raw.map(Math.floor); let left = total - n.reduce((a, b) => a + b, 0);
     raw.map((r, k) => [r - n[k], k]).sort((a, b) => b[0] - a[0]).forEach(([, k]) => { if (left > 0) { n[k]++; left--; } });
     return n;
   }
-  // dot groups in display order: filed first (largest cause first), then not filed
+  const allocate = (shares) => apportion(shares, 100);
+  // dot groups in display order: filed first (largest cause first), then not filed. Filed against not filed is
+  // rounded first, so the filed dots always equal the rounded chance of a filing.
   function dotGroups(names, shares) {
-    const n = allocate(shares), g = names.map((c, k) => ({ c, share: shares[k], n: n[k], k, filed: isFiled(c) }));
+    const ks = names.map((c, k) => k), fi = ks.filter((k) => isFiled(names[k])), nf = ks.filter((k) => !isFiled(names[k]));
+    const sum = (g) => g.reduce((a, k) => a + shares[k], 0), [nF, nN] = allocate([sum(fi), sum(nf)]), n = [];
+    for (const [g, t] of [[fi, nF], [nf, nN]]) apportion(g.map((k) => shares[k]), t).forEach((v, j) => (n[g[j]] = v));
+    const g = names.map((c, k) => ({ c, share: shares[k], n: n[k], k, filed: isFiled(c) }));
     return g.sort((a, b) => (b.filed - a.filed) || (b.share - a.share));
   }
   const researchDots = () => dotGroups(CLS, [...classProbs()]);
@@ -112,12 +117,13 @@
     for (const st of SEQ[q]) { if (FILING.has(st.base)) { if (!cut) out.push(st); return { steps: out, filed: true }; } out.push(st); }
     return { steps: out, filed: false };
   }
-  function sentence(q, filed) {
+  function pathLines(q, filed) {  // [[when, what], ...]
     const { steps, filed: hasFiling } = stepsOf(q, !filed);
-    const parts = steps.map((st) => `${st.when ? `${st.when}: ` : ""}${phrase(st.base)}`);
-    if (!filed || !hasFiling) parts.push(`${HOR}: ${W.steps.quiet}`);
-    return parts.join("; ") + ".";
+    const parts = steps.map((st) => [st.when, phrase(st.base)]);
+    if (!filed || !hasFiling) parts.push([`by ${HOR}`, W.steps.quiet]);
+    return parts;
   }
+  const linesHtml = (ls) => `<table class="pl">${ls.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join("")}</table>`;
   // Representative paths for each outcome's dots: its most probable sequences, in proportion to their mass.
   function dotPaths(groups, bank) {
     if (bank) return groups.map(() => []);
@@ -213,6 +219,175 @@
   };
   const levers = () => sens.map((s, i) => ({ i, ...s })).filter((s) => !isBank(s.i)).sort((a, b) => b.range - a.range).slice(0, 6);
 
+  // --- hover tips -------------------------------------------------------------------------------------------------
+  function showTip(ev, html, above) {
+    const tip = $("tip"); tip.innerHTML = html; tip.style.display = "block";
+    const w = tip.offsetWidth, h = tip.offsetHeight, up = above ? ev.clientY - h - 14 >= 0 : ev.clientY + 16 + h > innerHeight;
+    tip.style.left = `${Math.max(8, Math.min(ev.clientX - (above ? w / 2 : -14), innerWidth - w - 10))}px`;
+    tip.style.top = `${up ? ev.clientY - h - 14 : ev.clientY + 16}px`;
+  }
+  const hideTip = () => { $("tip").style.display = "none"; };
+  document.addEventListener("mouseover", (ev) => { const t = ev.target.closest("[data-tip]"); if (t) showTip(ev, esc(t.dataset.tip)); });
+  document.addEventListener("mouseout", (ev) => { if (ev.target.closest("[data-tip]")) hideTip(); });
+
+  // --- 1. the situation -----------------------------------------------------------------------------------------
+  const factCash = (() => {  // the cash before the ruling, from the pre-ruling settlement question's facts
+    const n = D.nodes.find((x) => x.node === "settlement_offer" && /before the ruling/.test(x.context)) || D.nodes.find((x) => x.detail.facts.projected_available_cash_at_decision_date);
+    const v = n && n.detail.facts.projected_available_cash_at_decision_date; return v ? Math.round(100 * parseFloat(String(v.p50).replace(/[$,]/g, ""))) : null;
+  })();
+  const factOffer = (() => {
+    const n = D.nodes.find((x) => x.node === "settlement_offer" && /before the ruling/.test(x.context)), o = n && n.detail.facts.settlement_offer;
+    return o ? Math.round(100 * parseFloat(String(o.amount.p50).replace(/[$,]/g, ""))) : null;
+  })();
+  const judgmentDefault = (() => {  // the notes' 60-day clock on the judgment as entered
+    for (const n of D.nodes) for (const [k, v] of Object.entries(n.detail.facts.contract_dates || {})) if (/as entered/.test(k)) {
+      const m = /^(\d+) (\w{3}) (\d{4})$/.exec(v); if (m) return `${m[3]}-${String(MON.indexOf(m[2]) + 1).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+    }
+    return null;
+  })();
+  function renderSituation() {
+    const U = W.ui, L = U.line_rows, lim = money(D.meta.limit_cents);
+    const rule = W.situation.line.split(". ").slice(1).join(". ");
+    const cents = (t) => Math.round(100 * parseFloat(String(t).replace(/[$,]/g, "")));
+    const judgment = (D.case_terms.components || []).filter((c) => c.status === "awarded").reduce((a, c) => a + cents(c.amount), 0);
+    const notes = ((D.case_terms.notes || [])[0] || { terms: [] }).terms.find(([k]) => k === "Principal");
+    const facts = [[U.facts.judgment, money(judgment)], [U.facts.cash, factCash ? money(factCash) : "–"], [U.facts.notes, notes ? money(cents(notes[1])) : "–"], [U.facts.nasdaq, fdate(D.pins.nasdaq)]];
+    $("s-situation").innerHTML = `<div class="sit">
+      <div><h1>${esc(W.situation.title)}</h1>${W.situation.lines.map((l) => `<p>${esc(fill(l, { cash: money(factCash) }))}</p>`).join("")}
+        <p class="question">${esc(fill(W.situation.question, WH))}</p></div>
+      <div class="line"><h3>${esc(U.line_title)}</h3><dl>
+        <dt>${esc(L.limit)}</dt><dd>${lim}<span class="mute small"> · ${esc(L.limit_note)}</span></dd>
+        <dt>${esc(L.fee)}</dt><dd>${esc(fill(L.fee_value, { fee: `${(D.meta.fee_bps / 100).toFixed(1)}%` }))}</dd>
+        <dt>${esc(L.repaid)}</dt><dd>${esc(fill(L.repaid_value, { n: D.meta.installments }))}</dd></dl>
+        <p class="rule">${esc(rule)}</p></div></div>
+      <div class="facts">${facts.map(([k, v]) => `<div><span class="mute small">${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>
+      <p class="mute small">${esc(W.situation.bank_note)}</p>`;
+  }
+
+  // --- 2. the 100 dots and the comparison -------------------------------------------------------------------------
+  let DOTS = { bank: [], research: [] };
+  function dotRow(view, groups) {
+    const reps = dotPaths(groups, view === "bank"), filed = groups.filter((g) => g.filed).reduce((s, g) => s + g.n, 0);
+    let dots = "", k = 0; const list = [];
+    groups.forEach((g, gi) => { for (let r = 0; r < g.n; r++) { list.push({ c: g.c, n: g.n, filed: g.filed, q: reps[gi][r] }); dots += `<i data-v="${view}" data-d="${k++}" style="background:${COLOR[g.c]}"></i>`; } });
+    DOTS[view] = list;
+    const name = view === "bank" ? W.views.bank.name : W.ui.col_research;
+    const leg = groups.filter((g) => g.n).map((g) => `<span><i style="background:${COLOR[g.c]}"></i>${esc(outLabel(g.c))} <b>${g.n}</b></span>`).join("");
+    return `<div class="drow ${view}"><div class="dhead"><b>${esc(name)}</b><span>${esc(fill(W.ui.files_by, { n: filed, horizon: HOR }))}</span></div>
+      <div class="dots">${dots}</div><div class="dleg">${leg}</div></div>`;
+  }
+  function renderFutures() {
+    const f = figures(), U = W.ui, M = W.measures;
+    const rate = (v) => fill(U.rate_fmt, { n: Math.round(100 * v) });
+    const sgn = (d, fmt) => `${d > 0 ? "+" : d < 0 ? "−" : ""}${fmt(Math.abs(d))}`;
+    const rows = [["funded", money], ["collected", money], ["rate", rate], ["stuck", money], ["clawback", money]].map(([k, fmt]) => {
+      const m = M[k], shown = (v) => (k === "rate" ? Math.round(100 * v) / 100 : Math.round(v / 1e5) * 1e5), d = shown(f.research[k]) - shown(f.bank[k]);
+      return `<tr><td${m.note ? ` data-tip="${esc(m.note)}" class="hastip"` : ""}>${esc(fill(m.label, WH))}</td><td>${fmt(f.bank[k])}</td><td>${fmt(f.research[k])}</td>
+        <td>${k === "rate" ? fill(U.rate_diff, { n: sgn(Math.round(100 * d), (x) => `$${x}`) }) : sgn(d, fmt)}</td></tr>`;
+    }).join("");
+    $("s-futures").innerHTML = `<h2>${esc(W.futures.title)}</h2><p class="mute">${esc(W.futures.dot)}</p>
+      ${dotRow("bank", bankDots())}${dotRow("research", researchDots())}
+      <table class="cmp"><tr><th></th><th>${esc(W.views.bank.name)}</th><th>${esc(U.col_research)}</th><th>${esc(W.views.difference)}</th></tr>${rows}</table>
+      <p class="why">${esc(W.why_lower)}</p>`;
+    $("s-futures").querySelectorAll(".dots i").forEach((el) => {
+      el.onmouseenter = (ev) => {
+        const d = DOTS[el.dataset.v][+el.dataset.d];
+        const r = el.getBoundingClientRect(), at = { clientX: r.left + r.width / 2, clientY: r.top };
+        showTip(at, `<div class="tt"><i style="background:${COLOR[d.c]}"></i><b>${esc(outLabel(d.c))}</b></div><div class="mute">${esc(fill(U.dot_hover, { n: d.n }))}</div>`
+          + (d.q === undefined ? "" : linesHtml(pathLines(d.q, d.filed))), true);
+      };
+      el.onmouseleave = hideTip;
+      el.onclick = () => {
+        const d = DOTS[el.dataset.v][+el.dataset.d];
+        if (d.q === undefined) return openNode(D.nodes.findIndex((n, i) => isBank(i)));
+        const st = stepsOf(d.q, !d.filed).steps, last = st[st.length - 1];
+        const paths = []; for (let i = 0; i < P; i++) if (D.paths.seq[i] === d.q) paths.push(i);
+        const i = last ? pickNode(stepTypes(last.base), paths) : -1; if (i >= 0) openNode(i);
+      };
+    });
+  }
+
+  // --- 3. when trouble arrives ------------------------------------------------------------------------------------
+  // The most probable cause of filings dated on a day: paths whose filing step falls on it (or in its month, for a
+  // step dated only by month), weighted by their filed share per outcome.
+  function filingCause(iso) {
+    const day = fdate(iso), mon = MON[+iso.slice(5, 7) - 1], c = new Float64Array(CLS.length);
+    for (let i = 0; i < P; i++) {
+      const st = SEQ[D.paths.seq[i]].find((x) => FILING.has(x.base));
+      if (!st || (st.when !== day && st.when !== mon)) continue;
+      for (const [k, s] of D.paths.class[i]) if (isFiled(CLS[k])) c[k] += probs[i] * s;
+    }
+    const k = c.indexOf(Math.max(...c)); return c[k] > 0 ? outLabel(CLS[k]) : "";
+  }
+  function renderWhen() {
+    const host = $("s-when");
+    if (!host.querySelector("svg")) host.innerHTML = `<h2>${esc(W.ui.when_title)}</h2><p class="mute">${esc(W.ui.when_sub)}</p><svg class="when"></svg>`;
+    const svg = host.querySelector("svg"), Wd = host.clientWidth, H = 500, days = D.dates.length;
+    const B = S.bank.daily.petition_cum_p, R = S.event.daily.petition_cum_p;
+    const m = { l: 40, r: 200, t: 92, b: 30 }, w = Wd - m.l - m.r, h = H - m.t - m.b;
+    const X = (t) => m.l + (w * t) / (days - 1), Y = (p) => m.t + h - h * p, ix = (iso) => D.dates.indexOf(iso);
+    let g = "";
+    const rw = D.pins.ruling_window; if (rw && ix(rw[0]) >= 0) g += `<rect x="${X(ix(rw[0]))}" y="${m.t}" width="${X(days - 1) - X(ix(rw[0]))}" height="${h}" fill="#f4f5f6"/>`;
+    for (const v of [0, 25, 50, 75, 100]) g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v / 100)}" y2="${Y(v / 100)}" stroke="${v ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v / 100) + 4}" text-anchor="end">${v}</text>`;
+    D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 8}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text><line x1="${X(t)}" x2="${X(t)}" y1="${m.t + h}" y2="${m.t + h + 5}" stroke="#c9cdd2"/>`; });
+    const pins = [["briefing_close", D.pins.briefing_close], ["judgment_default", judgmentDefault], ["ruling_window", rw && rw[0]], ["nasdaq", D.pins.nasdaq], ["coupon", D.pins.coupon]]
+      .filter(([, d]) => d && ix(d) >= 0).sort((a, b) => (a[1] < b[1] ? -1 : 1));
+    const ends = [];
+    pins.forEach(([k, d]) => {
+      const x = X(ix(d)), label = `${fdate(d)} · ${W.dates[k]}`, len = 6.4 * label.length, flip = x + 6 + len > m.l + w + m.r - 8;
+      const [a, z] = flip ? [x - 5 - len, x] : [x, x + 5 + len];
+      let row = ends.findIndex((e) => e.every(([p, q]) => z + 10 < p || a > q + 10)); if (row < 0) { row = ends.length; ends.push([]); }
+      ends[row].push([a, z]); const y = 14 + row * 17;
+      g += `<line x1="${x}" x2="${x}" y1="${y + 4}" y2="${m.t + h}" stroke="#b9bec5" stroke-dasharray="2 3"/><text class="pin" x="${flip ? x - 5 : x + 5}" y="${y}"${flip ? ' text-anchor="end"' : ""}>${esc(label)}</text>`;
+    });
+    const line = (ys) => ys.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join("");
+    g += `<path d="${line(B)}" fill="none" stroke="var(--bank)" stroke-width="2.2" stroke-dasharray="6 4"/><path d="${line(R)}" fill="none" stroke="var(--teal)" stroke-width="2.8"/>`;
+    // the lines labelled at their ends, pushed apart if they would overlap
+    let yb = Y(B[days - 1]), yr = Y(R[days - 1]);
+    if (Math.abs(yb - yr) < 36) { const mid = (yb + yr) / 2, s = yb >= yr ? 1 : -1; yb = mid + 18 * s; yr = mid - 18 * s; }
+    const endLab = (y, col, name, p) => `<text x="${m.l + w + 10}" y="${y - 2}" fill="${col}" class="end">${esc(name)}</text><text x="${m.l + w + 10}" y="${y + 15}" fill="${col}" class="endv">${esc(freq(p))}</text>`;
+    g += endLab(yb, "var(--bank)", W.views.bank.name, B[days - 1]) + endLab(yr, "var(--teal)", W.ui.col_research, R[days - 1]);
+    // the research curve's biggest one-day step, and where the bank line starts rising
+    let tj = 1; for (let t = 2; t < days; t++) if (R[t] - R[t - 1] > R[tj] - R[tj - 1]) tj = t;
+    const jump = R[tj] - R[tj - 1];
+    if (jump > 0.005) {
+      const x = X(tj), y0 = Y(R[tj - 1]), cause = filingCause(D.dates[tj]);
+      const txt = fill(W.ui.biggest_step, { date: fdate(D.dates[tj]), n: n100(jump) }), txt2 = cause ? fill(W.ui.biggest_cause, { cause }) : "";
+      const y1 = Y(R[tj]), ya = Y(Math.max(0.62, R[tj] + 0.25));
+      g += `<line x1="${x}" x2="${x + 12}" y1="${y1 - 5}" y2="${ya + 6}" stroke="var(--teal)"/><circle cx="${x}" cy="${y1}" r="4" fill="#fff" stroke="var(--teal)" stroke-width="1.5"/>
+        <text class="ann" x="${x + 16}" y="${ya}" fill="var(--teal)">${esc(txt)}</text><text class="ann2" x="${x + 16}" y="${ya + 17}" fill="var(--teal)">${esc(txt2)}</text>`;
+    }
+    const tb = B.findIndex((p) => p >= 0.005);
+    if (tb > 0) g += `<line x1="${X(tb)}" x2="${X(tb) - 14}" y1="${Y(0.01)}" y2="${Y(0.09)}" stroke="var(--bank)"/><text class="ann" x="${X(tb) - 18}" y="${Y(0.1)}" text-anchor="end" fill="#6b7178">${esc(fill(W.ui.bank_rises, { date: fdate(D.dates[tb]) }))}</text>`;
+    g += `<line id="whx" y1="${m.t}" y2="${m.t + h}" stroke="#9aa0a8" visibility="hidden"/><rect id="whov" x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent"/>`;
+    svg.setAttribute("viewBox", `0 0 ${Wd} ${H}`); svg.style.height = `${H}px`; svg.innerHTML = g;
+    const hov = svg.querySelector("#whov"), hx = svg.querySelector("#whx");
+    hov.onmousemove = (ev) => {
+      const r = hov.getBoundingClientRect(), t = Math.max(0, Math.min(days - 1, Math.round(((ev.clientX - r.left) / r.width) * (days - 1))));
+      hx.setAttribute("x1", X(t)); hx.setAttribute("x2", X(t)); hx.setAttribute("visibility", "visible");
+      showTip(ev, `<b>${fdate(D.dates[t])}</b><br>${esc(W.views.bank.name)}: ${freq(B[t])}<br>${esc(W.ui.col_research)}: ${freq(R[t])}`);
+    };
+    hov.onmouseleave = () => { hx.setAttribute("visibility", "hidden"); hideTip(); };
+  }
+
+  // --- the server's daily series (debounced) ------------------------------------------------------------------------
+  let ctrl = null, deb = null;
+  function refreshSeries(t0) {
+    clearTimeout(deb);
+    deb = setTimeout(async () => {
+      if (ctrl) ctrl.abort();
+      ctrl = new AbortController();
+      try {
+        const r = await fetch(`${API}/reweight`, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal, body: JSON.stringify({ overrides: S.overrides }) });
+        const v = await r.json();
+        if (v && v.daily) { S.event = v; if (v.bank) S.bank = { ...D.bank, ...v.bank }; renderWhen(); renderFutures(); }
+        if (t0) S.lat.push(performance.now() - t0);
+      } catch (e) { if (e.name !== "AbortError") console.error(e); }
+    }, 250);
+  }
+
+  function openNode(i) { S.open = i; }  // @@DRAWER (replaced in step 4)
+  // @@PART3B
   // --- init -------------------------------------------------------------------------------------------------------
   function recompute() { probs = pathProbs((k) => dist(k)); bprobs = bankProbs((k) => dist(k)); }
   recompute();
@@ -228,5 +403,9 @@
     return out;
   }
   window.__summary = summary();
+  renderSituation(); renderFutures(); renderWhen();
+  // @@RENDER
+  let rz = null; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(renderWhen, 150); });
+  refreshSeries();  // warms the server's reweight, so the first slider move is as quick as the rest
   // @@PART3
 })();
