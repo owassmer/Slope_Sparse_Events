@@ -1,0 +1,391 @@
+{
+ "run_id": "akoustis_20240514-agent_plus_jev-20260928T052641Z",
+ "note": "Each economic assumption changes one declared setting from the central case (spec \u00a716.6). Amounts in cents; shares 0-1. 'due' is every installment contracted in the period; the uncollected part is split into past due, stayed at a filing and not yet due.",
+ "variants": [
+  {
+   "id": "central",
+   "label": "Central setting",
+   "central": true,
+   "change": {
+    "scenario": "central",
+    "sens": {}
+   },
+   "paths": 3698,
+   "jev": {
+    "questions": 218,
+    "cached": 218,
+    "re_asked": 0,
+    "spent_usd": "0"
+   },
+   "headline": {
+    "contractual_cents": 117909119.29302907,
+    "collected_cents": 82265425.2133095,
+    "uncollected_horizon_cents": 904138.4456603164,
+    "stayed_claim_cents": 9635522.559708705,
+    "not_yet_due_cents": 25104033.074350514,
+    "petition_p": 0.2660910128063379,
+    "preference_exposed_cents": 10580745.59310539,
+    "drawn_cents": 74734473.50801581,
+    "raise_share": 0.7141572721656819,
+    "survival_share": 0.7339089871936622,
+    "floor_share": 0.8751895092379025,
+    "first_floor_median": "2024-08-27"
+   },
+   "vs_central": null
+  },
+  {
+   "id": "cost_plan",
+   "label": "The announced 30% cut in operating burn",
+   "central": false,
+   "change": {
+    "scenario": "cost_plan",
+    "sens": {}
+   },
+   "paths": 3915,
+   "jev": {
+    "questions": 242,
+    "cached": 16,
+    "re_asked": 226,
+    "spent_usd": "0.042820848"
+   },
+   "headline": {
+    "contractual_cents": 121762016.45195186,
+    "collected_cents": 85178081.69888088,
+    "uncollected_horizon_cents": 122058.60188805967,
+    "stayed_claim_cents": 8864767.179091007,
+    "not_yet_due_cents": 27597108.972091906,
+    "petition_p": 0.23947220473529973,
+    "preference_exposed_cents": 7583534.311718324,
+    "drawn_cents": 78449901.36091703,
+    "raise_share": 0.48068454087982243,
+    "survival_share": 0.7605277952647003,
+    "floor_share": 0.47637328420151603,
+    "first_floor_median": null
+   },
+   "vs_central": {
+    "contractual_cents": 3852897.1589227915,
+    "collected_cents": 2912656.4855713844,
+    "uncollected_horizon_cents": -782079.8437722567,
+    "stayed_claim_cents": -770755.3806176987,
+    "not_yet_due_cents": 2493075.8977413923,
+    "petition_p": -0.02661880807103817,
+    "preference_exposed_cents": -2997211.2813870665,
+    "drawn_cents": 3715427.8529012203,
+    "raise_share": -0.2334727312858595,
+    "survival_share": 0.026618808071038114,
+    "floor_share": -0.3988162250363865
+   }
+  },
+  {
+   "id": "equity_injection",
+   "label": "A USD 5.0M equity injection on 14 Jun 2024",
+   "central": false,
+   "change": {
+    "scenario": "equity_injection",
+    "sens": {}
+   },
+   "paths": 4019,
+   "jev": {
+    "questions": 233,
+    "cached": 30,
+    "re_asked": 203,
+    "spent_usd": "0.037484790"
+   },
+   "headline": {
+    "contractual_cents": 121887153.05271144,
+    "collected_cents": 86278969.29669373,
+    "uncollected_horizon_cents": 116301.22623155413,
+    "stayed_claim_cents": 7946907.888148475,
+    "not_yet_due_cents": 27544974.641637675,
+    "petition_p": 0.21880710551467458,
+    "preference_exposed_cents": 7813408.228158692,
+    "drawn_cents": 78570571.6221496,
+    "raise_share": 0.7175861755080921,
+    "survival_share": 0.7811928944853255,
+    "floor_share": 0.7011060650759262,
+    "first_floor_median": "2024-10-26"
+   },
+   "vs_central": {
+    "contractual_cents": 3978033.759682372,
+    "collected_cents": 4013544.0833842307,
+    "uncollected_horizon_cents": -787837.2194287622,
+    "stayed_claim_cents": -1688614.6715602297,
+    "not_yet_due_cents": 2440941.567287162,
+    "petition_p": -0.04728390729166332,
+    "preference_exposed_cents": -2767337.364946699,
+    "drawn_cents": 3836098.11413379,
+    "raise_share": 0.0034289033424101945,
+    "survival_share": 0.04728390729166332,
+    "floor_share": -0.1740834441619763
+   }
+  },
+  {
+   "id": "raise_capacity_low",
+   "label": "USD 5.0M of equity can be raised at the cash floor, with or without an adverse judgment",
+   "central": false,
+   "change": {
+    "scenario": "central",
+    "sens": {
+     "raise_capacity": true,
+     "raise_capacity_after_adverse_judgment": true
+    }
+   },
+   "paths": 5085,
+   "jev": {
+    "questions": 253,
+    "cached": 186,
+    "re_asked": 67,
+    "spent_usd": "0.011920440"
+   },
+   "headline": {
+    "contractual_cents": 118817239.21139681,
+    "collected_cents": 83211379.16524145,
+    "uncollected_horizon_cents": 1156077.7318671048,
+    "stayed_claim_cents": 9685811.648596797,
+    "not_yet_due_cents": 24763970.665691447,
+    "petition_p": 0.2686530574366292,
+    "preference_exposed_cents": 10717011.199407369,
+    "drawn_cents": 75610191.84181641,
+    "raise_share": 0.7398429848470992,
+    "survival_share": 0.7313469425633707,
+    "floor_share": 0.9876771573828993,
+    "first_floor_median": "2024-08-25"
+   },
+   "vs_central": {
+    "contractual_cents": 908119.9183677435,
+    "collected_cents": 945953.9519319534,
+    "uncollected_horizon_cents": 251939.28620678838,
+    "stayed_claim_cents": 50289.08888809197,
+    "not_yet_due_cents": -340062.408659067,
+    "petition_p": 0.0025620446302913047,
+    "preference_exposed_cents": 136265.60630197823,
+    "drawn_cents": 875718.333800599,
+    "raise_share": 0.025685712681417283,
+    "survival_share": -0.0025620446302914157,
+    "floor_share": 0.11248764814499679
+   }
+  },
+  {
+   "id": "settlement_lump_sum",
+   "label": "A settlement is paid at once, not over 12 months",
+   "central": false,
+   "change": {
+    "scenario": "central",
+    "sens": {
+     "settlement_payment": "lump_sum"
+    }
+   },
+   "paths": 3698,
+   "jev": {
+    "questions": 218,
+    "cached": 175,
+    "re_asked": 43,
+    "spent_usd": "0.007162050"
+   },
+   "headline": {
+    "contractual_cents": 115625626.29203239,
+    "collected_cents": 79940865.29979041,
+    "uncollected_horizon_cents": 1344442.1763469577,
+    "stayed_claim_cents": 10411632.585355937,
+    "not_yet_due_cents": 23928686.230539095,
+    "petition_p": 0.2870667192258394,
+    "preference_exposed_cents": 11086471.260936368,
+    "drawn_cents": 72532455.19514363,
+    "raise_share": 0.6854714706921254,
+    "survival_share": 0.7129332807741606,
+    "floor_share": 0.8585267910011916,
+    "first_floor_median": "2024-08-27"
+   },
+   "vs_central": {
+    "contractual_cents": -2283493.000996679,
+    "collected_cents": -2324559.9135190845,
+    "uncollected_horizon_cents": 440303.7306866413,
+    "stayed_claim_cents": 776110.0256472323,
+    "not_yet_due_cents": -1175346.8438114189,
+    "petition_p": 0.020975706419501472,
+    "preference_exposed_cents": 505725.6678309776,
+    "drawn_cents": -2202018.3128721863,
+    "raise_share": -0.028685801473556483,
+    "survival_share": -0.020975706419501527,
+    "floor_share": -0.01666271823671095
+   }
+  },
+  {
+   "id": "collection_protect_need",
+   "label": "The borrower keeps 30 days of operating need back before paying Slope",
+   "central": false,
+   "change": {
+    "scenario": "protect_need",
+    "sens": {}
+   },
+   "paths": 3698,
+   "jev": {
+    "questions": 218,
+    "cached": 64,
+    "re_asked": 154,
+    "spent_usd": "0.028747740"
+   },
+   "headline": {
+    "contractual_cents": 116414419.40139034,
+    "collected_cents": 80698648.08818299,
+    "uncollected_horizon_cents": 1406080.970283489,
+    "stayed_claim_cents": 9714068.743005428,
+    "not_yet_due_cents": 24595621.599918444,
+    "petition_p": 0.2671051815722605,
+    "preference_exposed_cents": 9879077.501483276,
+    "drawn_cents": 73293104.30412206,
+    "raise_share": 0.7130278213239389,
+    "survival_share": 0.7328948184277395,
+    "floor_share": 0.8748799747623115,
+    "first_floor_median": "2024-08-27"
+   },
+   "vs_central": {
+    "contractual_cents": -1494699.891638726,
+    "collected_cents": -1566777.1251265109,
+    "uncollected_horizon_cents": 501942.5246231726,
+    "stayed_claim_cents": 78546.18329672329,
+    "not_yet_due_cents": -508411.4744320698,
+    "petition_p": 0.001014168765922585,
+    "preference_exposed_cents": -701668.0916221142,
+    "drawn_cents": -1441369.203893751,
+    "raise_share": -0.001129450841742985,
+    "survival_share": -0.0010141687659226406,
+    "floor_share": -0.0003095344755910112
+   }
+  },
+  {
+   "id": "cash_floor_60_days",
+   "label": "The cash floor at 60 days of operating need",
+   "central": false,
+   "change": {
+    "scenario": "cash_floor_60_days",
+    "sens": {}
+   },
+   "paths": 3365,
+   "jev": {
+    "questions": 202,
+    "cached": 75,
+    "re_asked": 127,
+    "spent_usd": "0.023476992",
+    "note": "two attempts: the first stopped on a provider timeout after 124 new answers (cached, counted here from the cache files it wrote)"
+   },
+   "headline": {
+    "contractual_cents": 117692908.09157829,
+    "collected_cents": 81950413.94917746,
+    "uncollected_horizon_cents": 766914.357460086,
+    "stayed_claim_cents": 9127172.871565305,
+    "not_yet_due_cents": 25848406.913375456,
+    "petition_p": 0.24852399778107398,
+    "preference_exposed_cents": 8258210.253545979,
+    "drawn_cents": 74525976.69261777,
+    "raise_share": 0.7314076530305677,
+    "survival_share": 0.751476002218926,
+    "floor_share": 0.7244286313007433,
+    "first_floor_median": "2024-07-28"
+   },
+   "vs_central": {
+    "contractual_cents": -216211.20145078003,
+    "collected_cents": -315011.26413203776,
+    "uncollected_horizon_cents": -137224.08820023038,
+    "stayed_claim_cents": -508349.6881434005,
+    "not_yet_due_cents": 744373.8390249424,
+    "petition_p": -0.01756701502526392,
+    "preference_exposed_cents": -2322535.3395594116,
+    "drawn_cents": -208496.81539803743,
+    "raise_share": 0.017250380864885728,
+    "survival_share": 0.01756701502526381,
+    "floor_share": -0.1507608779371592
+   }
+  },
+  {
+   "id": "lower_award_high",
+   "label": "The lower verdict branch at USD 9,999,999",
+   "central": false,
+   "change": {
+    "scenario": "central",
+    "sens": {
+     "lower_award_amount": true
+    }
+   },
+   "paths": 3480,
+   "jev": {
+    "questions": 217,
+    "cached": 134,
+    "re_asked": 83,
+    "spent_usd": "0.015725346"
+   },
+   "headline": {
+    "contractual_cents": 114897380.18604401,
+    "collected_cents": 79170738.40346313,
+    "uncollected_horizon_cents": 1326612.0279853716,
+    "stayed_claim_cents": 12236916.045657247,
+    "not_yet_due_cents": 22163113.70893826,
+    "petition_p": 0.33794535447395024,
+    "preference_exposed_cents": 13418598.762963805,
+    "drawn_cents": 71830192.79909933,
+    "raise_share": 0.699833499045586,
+    "survival_share": 0.6620546455260498,
+    "floor_share": 0.894132367064281,
+    "first_floor_median": "2024-08-25"
+   },
+   "vs_central": {
+    "contractual_cents": -3011739.1069850624,
+    "collected_cents": -3094686.8098463714,
+    "uncollected_horizon_cents": 422473.58232505526,
+    "stayed_claim_cents": 2601393.485948542,
+    "not_yet_due_cents": -2940919.365412254,
+    "petition_p": 0.07185434166761234,
+    "preference_exposed_cents": 2837853.1698584147,
+    "drawn_cents": -2904280.7089164853,
+    "raise_share": -0.014323773120095917,
+    "survival_share": -0.0718543416676124,
+    "floor_share": 0.0189428578263785
+   }
+  },
+  {
+   "id": "coupon_cash",
+   "label": "The June notes coupon paid in cash",
+   "central": false,
+   "change": {
+    "scenario": "central",
+    "sens": {
+     "coupon_cash_share": "all_cash"
+    }
+   },
+   "paths": 3349,
+   "jev": {
+    "questions": 205,
+    "cached": 16,
+    "re_asked": 189,
+    "spent_usd": "0.036003828"
+   },
+   "headline": {
+    "contractual_cents": 116851496.7953969,
+    "collected_cents": 81437532.37206079,
+    "uncollected_horizon_cents": 1266205.8910469725,
+    "stayed_claim_cents": 9088556.157620668,
+    "not_yet_due_cents": 25059202.37466846,
+    "petition_p": 0.2566566270888029,
+    "preference_exposed_cents": 9554699.123811202,
+    "drawn_cents": 73714586.82256912,
+    "raise_share": 0.7140697114065119,
+    "survival_share": 0.7433433729111971,
+    "floor_share": 0.743771524858813,
+    "first_floor_median": "2024-08-14"
+   },
+   "vs_central": {
+    "contractual_cents": -1057622.4976321757,
+    "collected_cents": -827892.841248706,
+    "uncollected_horizon_cents": 362067.4453866561,
+    "stayed_claim_cents": -546966.4020880368,
+    "not_yet_due_cents": -44830.69968205318,
+    "petition_p": -0.009434385717535021,
+    "preference_exposed_cents": -1026046.4692941885,
+    "drawn_cents": -1019886.6854466945,
+    "raise_share": -8.756075917004669e-05,
+    "survival_share": 0.009434385717534965,
+    "floor_share": -0.13141798437908947
+   }
+  }
+ ]
+}

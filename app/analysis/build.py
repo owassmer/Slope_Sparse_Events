@@ -255,10 +255,9 @@ def build(run_id: str, root: Path, refresh: bool = False) -> dict:
         jev_module.EXCHANGE_LOG = None
 
 
-def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dict:
-    from app.agent.jev import JevAdapter
-    from app.agent.jev_profiles import DisputeProfile
-
+def run_context(run_id: str, root: Path, refresh: bool = False) -> dict:
+    """What the analysis of a recorded run reads before it asks Jev: the run's inputs, the live disputes with the
+    instruments their terms reach, the dispute model with the case's parameters, the feed and the record-item slots."""
     store, meta, inputs, evidence, review = _load_run(run_id, root)
     setup = setup_from_inputs(inputs, review)
     borrower = inputs["baseline_profile"]["borrower"]
@@ -282,22 +281,42 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dic
     version = max((d.model_version for d in live), key=lambda v: tuple(map(int, v.split("."))), default=current)
     slots = record_item_slots(run_id, root, findings, hydrate, refresh, version,
                               list(store.graph.get("record_items", {}).values()))
-    fc = Forecaster(live, findings, borrower=borrower, review=review, horizon=setup.horizon, hydrate=hydrate,
-                    setup=setup, basis=basis_for(feed, setup),  # path facts are simulated before Jev is asked
-                    slots=slots, model=m)
+    return {"meta": meta, "inputs": inputs, "review": review, "setup": setup, "borrower": borrower,
+            "findings": findings, "live": live, "m": m, "feed": feed, "hydrate": hydrate, "slots": slots}
+
+
+def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None = None) -> tuple[Forecaster, EventModel]:
+    """The tree for `setup` (and the chains' parameter sensitivities `sens`), with Jev's answer to every question.
+    A question whose facts are unchanged is answered from Jev's cache; one whose facts changed is asked again."""
+    from app.agent.jev_profiles import DisputeProfile
+
+    fc = Forecaster(ctx["live"], ctx["findings"], borrower=ctx["borrower"], review=ctx["review"],
+                    horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup,
+                    basis=basis_for(ctx["feed"], setup),  # path facts are simulated before Jev is asked
+                    slots=ctx["slots"], model=ctx["m"], sens=sens)
     per = fc.all_paths()
     bank_paths = fc.bank_paths()  # the bank view: the same distress decisions on the bank data alone
-    records: list = []
-    jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
     judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
+
     async def ask_both() -> tuple[dict, dict]:  # one event loop: the adapter's HTTP client is bound to it
         return (await fc.judge(judge) if fc.nodes else {}), (await fc.judge_bank(judge) if fc.bank_nodes else {})
 
     judgments, bank_judgments = asyncio.run(ask_both())
     model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered(),
                        neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments)
+    return fc, model
+
+
+def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dict:
+    from app.agent.jev import JevAdapter
+
+    ctx = run_context(run_id, root, refresh)
+    meta, setup, borrower, feed, m = ctx["meta"], ctx["setup"], ctx["borrower"], ctx["feed"], ctx["m"]
+    records: list = []
+    jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
+    fc, model = judged_model(ctx, setup, jev, records)
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
-                    for d in live if d.status not in ("interpreted", "resolved")]
+                    for d in ctx["live"] if d.status not in ("interpreted", "resolved")]
     a = Analysis(feed, setup, model, dispute_model=m)
     data = payload(feed, setup, model, meta_for(model, borrower, not_modelled), analysis=a)
     data["model"] = _model_json(model)

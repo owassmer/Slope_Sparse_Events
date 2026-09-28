@@ -222,8 +222,11 @@ class Reduction:
     metrics and daily series read from it."""
 
     def __init__(self, n: int, draws: int, days: int, setup: Setup, line_limit: np.ndarray, bins: dict[str, Bins],
-                 month_of_day: np.ndarray) -> None:
+                 month_of_day: np.ndarray, need: np.ndarray | None = None) -> None:
         self.n, self.draws, self.days, self.setup, self.limit = n, draws, days, setup, line_limit
+        self.need = need  # per draw and day, the cash floor (the operating need)
+        # per draw, the first day available cash is below the floor (-1: never in the period)
+        self.floor_day = np.full((n, draws), -1, dtype=np.int16)
         self.bins, self.month_of_day = bins, month_of_day
         self.means: dict[str, np.ndarray] = {}
         self.min_cash = np.empty((n, draws), dtype=np.int64)
@@ -240,6 +243,9 @@ class Reduction:
         for k, v in _scalars(t).items():
             self.means.setdefault(k, np.zeros(self.n))[i] = float(v.mean())
         self.min_cash[i], self.min_headroom[i], self.collected[i] = t.min_cash, t.min_headroom, t.collected
+        if self.need is not None:
+            below = t.cash < self.need
+            self.floor_day[i] = np.where(below.any(axis=1), below.argmax(axis=1), -1)
         idx, pet = np.arange(self.days), t.petition[:, None]
         by_day = (pet >= 0) & (pet <= idx)
         window = (pet >= 0) & (idx >= pet - PREFERENCE_DAYS) & (idx < pet)
@@ -274,7 +280,7 @@ class Reduction:
         counts, which only the analysis's own metrics read, are left out of the saved page state."""
         new = Reduction.__new__(Reduction)
         new.__dict__.update({k: v for k, v in self.__dict__.items()
-                             if k not in ("min_cash", "min_headroom", "collected", "counts")})
+                             if k not in ("min_cash", "min_headroom", "collected", "counts", "need", "floor_day")})
         new.counts = {k: c for k, c in self.counts.items() if k != "collected"}
         return new
 
@@ -320,6 +326,20 @@ class Reduction:
             "full_collection_by_maturity_p": min(1.0, e["recovered_all"]),
             "uncollected_maturity_cents": e["unrecovered"],
         }
+
+    def first_floor(self, probs: np.ndarray) -> dict:
+        """When available cash first falls below the operating need, over the probability-weighted draws: the share
+        that reaches it in the period and the median day (None where under half do)."""
+        probs = np.asarray(probs, dtype=np.float64)
+        w = np.repeat(probs / probs.sum(), self.draws) / self.draws
+        day = self.floor_day.ravel()
+        reached = day >= 0
+        share = float(w[reached].sum())
+        order = np.argsort(np.where(reached, day, self.days), kind="stable")
+        cum = np.cumsum(w[order])
+        k = int(np.searchsorted(cum, 0.5))
+        median = int(day[order][k]) if share >= 0.5 else None
+        return {"share": share, "median_day": median}
 
     def collected_quantiles(self, probs: np.ndarray) -> np.ndarray:
         """P5 / P50 / P95 of collected at the horizon, exact from each trajectory's total."""
@@ -423,7 +443,8 @@ class Analysis:
             bins = self._bins()
 
             def make(n: int) -> Reduction:
-                return Reduction(n, DRAWS, self.days, setup, self.line.limit, bins, self.month_of_day)
+                return Reduction(n, DRAWS, self.days, setup, self.line.limit, bins, self.month_of_day,
+                                 need=self.line.need[:, :self.days])
 
             self.bank_r = make(len(model.bank_combos))
             for i, c in enumerate(model.bank_combos):

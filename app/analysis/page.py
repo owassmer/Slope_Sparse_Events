@@ -904,6 +904,9 @@ def reweight(state: dict, overrides: dict[str, list[float]] | None) -> dict | No
           for k, v in (overrides or {}).items() if k in model.judgments}
     probs = model.probs(ov)
     out = chart_view(state["r"], probs, state["months"])
+    if out is not None:  # the tiles too: an assumption variant's paths are not the page's (page.js reads its own)
+        p = probs / probs.sum()
+        out["metrics"] = {k: float(p @ v) for k, v in path_scalars(state["r"]).items()}
     bov = {k: {b: float(p) for b, p in zip(model.bank_judgments[k].distribution, v, strict=True)}
            for k, v in (overrides or {}).items() if k in model.bank_judgments}
     if out is not None and state.get("bank_r") is not None and model.bank_judgments:

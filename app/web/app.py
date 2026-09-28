@@ -114,13 +114,22 @@ def run_reweight(run_id: str, body: dict = EMPTY_BODY) -> JSONResponse:
     from app.analysis.build import load_page_state
     from app.analysis.page import reweight
 
-    _run_payload(run_id)
-    if run_id not in _RUN_STATES:
-        if len(_RUN_STATES) >= 2:
+    page = _run_payload(run_id)
+    variant = body.get("assumption") or "central"  # a saved economic-assumption variant (page.json assumptions)
+    if variant != "central" and variant not in {a["id"] for a in page.get("assumptions", [])}:
+        raise HTTPException(404, f"No assumption variant {variant!r} for this run")
+    key = run_id if variant == "central" else (run_id, variant)
+    if key not in _RUN_STATES:
+        if len(_RUN_STATES) >= 2:  # one run and one variant at a time: each state is ~150 MB
             _RUN_STATES.clear()
-        _RUN_STATES[run_id] = load_page_state(_run_dir(run_id))
+        if variant == "central":
+            _RUN_STATES[key] = load_page_state(_run_dir(run_id))
+        else:
+            from app.analysis.assumptions import load_state
+
+            _RUN_STATES[key] = load_state(run_id, variant)
     try:
-        out = reweight(_RUN_STATES[run_id], body.get("overrides") or {})
+        out = reweight(_RUN_STATES[key], body.get("overrides") or {})
     except (ValueError, TypeError, KeyError, IndexError) as e:
         raise HTTPException(422, f"Invalid overrides: {e}") from e
     return JSONResponse(out)

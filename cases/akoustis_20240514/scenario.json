@@ -150,5 +150,60 @@
         "why": "5(b) is an amount (inside the lower branch's bounded amount); willfulness only lets the court enhance patent damages later (35 U.S.C. §284), inside the same bound. Neither changes a verdict branch."
       }
     ]
+  },
+  "assumption_variants": {
+    "note": "Economic sensitivities precomputed for the page (spec §16.6). Each changes one declared setting from the central case: a common-model scenario (run_inputs.json common_model.scenarios) or a parameter's declared sensitivity (above). Its basis is that setting's own. A question whose facts the change moves is asked again.",
+    "central_label": "Central setting",
+    "variants": [
+      {
+        "id": "cost_plan",
+        "label": "The announced 30% cut in operating burn",
+        "common_model": "cost_plan"
+      },
+      {
+        "id": "equity_injection",
+        "label": "A USD 5.0M equity injection on 14 Jun 2024",
+        "common_model": "equity_injection"
+      },
+      {
+        "id": "raise_capacity_low",
+        "label": "USD 5.0M of equity can be raised at the cash floor, with or without an adverse judgment",
+        "parameters": [
+          "raise_capacity",
+          "raise_capacity_after_adverse_judgment"
+        ]
+      },
+      {
+        "id": "settlement_lump_sum",
+        "label": "A settlement is paid at once, not over 12 months",
+        "parameters": [
+          "settlement_payment"
+        ]
+      },
+      {
+        "id": "collection_protect_need",
+        "label": "The borrower keeps 30 days of operating need back before paying Slope",
+        "common_model": "protect_need"
+      },
+      {
+        "id": "cash_floor_60_days",
+        "label": "The cash floor at 60 days of operating need",
+        "common_model": "cash_floor_60_days"
+      },
+      {
+        "id": "lower_award_high",
+        "label": "The lower verdict branch at USD 9,999,999",
+        "parameters": [
+          "lower_award_amount"
+        ]
+      },
+      {
+        "id": "coupon_cash",
+        "label": "The June notes coupon paid in cash",
+        "parameters": [
+          "coupon_cash_share"
+        ]
+      }
+    ]
   }
 }
