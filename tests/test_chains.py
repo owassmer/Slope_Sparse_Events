@@ -65,7 +65,8 @@ def test_composition_sums_to_one_and_keeps_every_path(full):
     fc, paths = full
     assert 1_000 < len(paths) < 20_000  # thousands: collapsed by interval and amount class
     assert {n.question_id for n in fc.nodes.values()} == {s["residual_question"] for t in M["templates"].values()
-                                                          for s in t["nodes"].values() if not s.get("stress_only")}
+                                                          for s in t["nodes"].values()
+                                                          if not s.get("stress_only") and "since" not in s}  # 4.0.0 nodes
     js = stub(fc)
     for dist in (distributions(js), distributions(js, neutral_map(js))):
         assert sum(path_probability(p.edges, dist) for p in paths) == pytest.approx(1.0, abs=1e-9)
@@ -518,7 +519,7 @@ def test_the_residual_questions_agree_in_number():
     from app.disputes.forecast import load_registry
 
     qs = [q for q in load_registry()["questions"] if q.get("node")]
-    assert len(qs) == 27
+    assert len([q for q in qs if q["version"] == "4.0.0"]) == 27  # 4.1.0 adds its own (tests/test_pending_claim.py)
     third = r"\b(grants|sets|awards|enters|executes|moves|approves|orders|files|enforces|offers|accepts|calls|requests|stays)\b"
     for q in qs:
         assert not re.match(r"^Do(es)? the [^?]*?" + third, q["question"]), q["question"]  # 'Does the court grants'
