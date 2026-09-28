@@ -1,6 +1,12 @@
 {
   "snapshot_id": "akoustis_20240514",
   "note": "Scenario parameters of the 14 May 2024 review for the pending-claim event model (dispute model 4.1.0; DECOMPOSITION_20240514.md §3, §5, §7.7). They overlay the contract's parameters of the same name for this case only (app/disputes/rules.py load_model). The operating reserve, financing and cost plan are the common model's (run_inputs.json common_model) and are read, not restated here. The central case books no exogenous financing: equity is raised only by the company's decision at the cash floor (raise_capacity); the common model's equity_injection scenario is a sensitivity only.",
+  "narrative": [
+    "{company} designs and makes radio-frequency filters; its shares trade on Nasdaq.",
+    "{claimant} sued {company} in federal court in Delaware on {commenced} for trade-secret misappropriation, patent infringement and related claims. The jury trial began on {trial_started}; on the review date it is still under way, and the company expects a verdict within days. Nothing is owed until a judgment is entered.",
+    "Before trial {claimant} itemised {claim} of damages, almost all of it one measure: the unjust enrichment of a head start built on its trade secrets.",
+    "{company} holds about {cash} of cash and owes {notes} on convertible notes. A final judgment above {threshold} left unpaid and unstayed for {days} days is a default under the notes, which lets the noteholders demand repayment. Its shares trade below the exchange's minimum bid price; the compliance deadline is {listing}."
+  ],
   "labels": {
     "principal_measure": "the claimed head-start measure of trade-secret unjust enrichment"
   },
@@ -89,7 +95,12 @@
         "quote": "Has Qorvo established by the greater weight or preponderance of the evidence that (a) this alleged trade secret qualifies as a trade secret and (b) Akoustis is liable for trade secret misappropriation for this trade secret? / Has Qorvo established by a greater weight or preponderance of the evidence that Akoustis was unjustly enriched by misappropriating this trade secret?",
         "asks": "whether the jury answers “YES” in both columns for at least one alleged trade secret (the form's gate: “IF YOU ANSWERED “YES” IN BOTH COLUMNS FOR ANY ALLEGED TRADE SECRET IN QUESTION 1(a), THEN ANSWER QUESTIONS 1(b) AND 1(c)”)",
         "yes": "q1b",
-        "no": "q2a"
+        "no": "q2a",
+        "plain": {
+          "asks": "whether the jury finds {company} liable for misappropriating at least one of {claimant}'s trade secrets and unjustly enriched by it",
+          "yes": "trade-secret liability found",
+          "no": "no trade-secret liability"
+        }
       },
       "q1b": {
         "node": "verdict_measure",
@@ -97,21 +108,34 @@
         "quote": "State the amount Akoustis was unjustly enriched by misappropriating Qorvo’s trade secrets as to which you have answered “Yes” and “Yes” in Question 1(a) above.",
         "asks": "whether the unjust-enrichment award adopts the claimant's head-start measure (never the amount)",
         "yes": "claimant_theory",
-        "no": "without_principal_measure"
+        "no": "without_principal_measure",
+        "plain": {
+          "asks": "whether the jury's award for the trade-secret claim adopts {claimant}'s head-start measure"
+        }
       },
       "q2a": {
         "node": "verdict_finding",
         "form": "Question No. 2(a)",
         "quote": "Has Qorvo proven by a preponderance of the evidence its Civil Conspiracy claim against Akoustis?",
         "yes": "q2b",
-        "no": "q3a"
+        "no": "q3a",
+        "plain": {
+          "asks": "whether the jury finds the civil conspiracy claim proven",
+          "yes": "civil conspiracy proven",
+          "no": "no civil conspiracy"
+        }
       },
       "q2b": {
         "node": "verdict_finding",
         "form": "Question No. 2(b)",
         "quote": "Do you find that Qorvo has proven by a preponderance of the evidence that actual damage to Qorvo was caused by the conspiracy?",
         "yes": "q2c",
-        "no": "q3a"
+        "no": "q3a",
+        "plain": {
+          "asks": "whether the jury finds the conspiracy caused {claimant} actual damage",
+          "yes": "damage from the conspiracy found",
+          "no": "no damage from the conspiracy"
+        }
       },
       "q2c": {
         "node": "verdict_measure",
@@ -119,14 +143,22 @@
         "quote": "What amount of damages for actual loss, if any, were caused by Akoustis’ action and thus you award to Qorvo against Akoustis?",
         "asks": "whether the conspiracy award adopts the claimant's head-start measure, which its conspiracy claim restates (D.I. 543-1 Ex. A.2 ¶56) (never the amount)",
         "yes": "claimant_theory",
-        "no": "without_principal_measure"
+        "no": "without_principal_measure",
+        "plain": {
+          "asks": "whether the jury's award for the conspiracy claim adopts {claimant}'s head-start measure"
+        }
       },
       "q3a": {
         "node": "verdict_finding",
         "form": "Question No. 3(a)",
         "quote": "Has Qorvo proven by a preponderance of the evidence each of the elements of its False Advertising claim against Akoustis?",
         "yes": "without_principal_measure",
-        "no": "q5a"
+        "no": "q5a",
+        "plain": {
+          "asks": "whether the jury finds the false-advertising claim proven",
+          "yes": "false advertising proven",
+          "no": "no false advertising"
+        }
       },
       "q5a": {
         "node": "verdict_finding",
@@ -134,7 +166,12 @@
         "quote": "Do you find that Qorvo has proven by a preponderance of the evidence that the claims of the ’018 or the ’755 Patents have been infringed?",
         "asks": "whether the jury answers “YES” for at least one patent claim",
         "yes": "without_principal_measure",
-        "no": "no_award"
+        "no": "no_award",
+        "plain": {
+          "asks": "whether the jury finds at least one patent claim infringed",
+          "yes": "patent infringed",
+          "no": "no patent infringed"
+        }
       }
     },
     "collapsed": [

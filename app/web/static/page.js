@@ -1,37 +1,45 @@
-// The one-screen analysis page. Path probabilities, tiles, outcomes and each question's 0% / Jev / 100% bar are
-// recomputed here from the payload's edges and per-path means; the daily series come from the server's reweight.
-(() => {
+// The analysis page: one forecast of the line's dated cash flows, how the lawsuit can resolve, the judgment that
+// matters most, one economic assumption, and what happened. Every number is recomputed here from the payload (path
+// probabilities from the edges, expectations from per-path means) or comes from the server's /reweight (the daily and
+// monthly series, and an assumption variant's figures). Words come from the payload or /static/words.json; no party
+// name or figure is written here.
+(async () => {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  let D = JSON.parse($("page-data").textContent);
-  const API = document.querySelector(".app").dataset.api;
-  const S = { view: "lit", mtab: "exposure", rtab: "probs", tile: null, overrides: {}, sel: {},
-              omode: "weighted", detail: null, event: D.event, bank: D.bank, settings: {}, lat: [],
-              reveal: false, outcome: null };
+  const D = JSON.parse($("page-data").textContent);
+  const API = document.body.dataset.api;
+  const W = await (await fetch("/static/words.json")).json();
+  const S = { overrides: {}, sel: {}, event: D.event, bank: D.bank, assumption: "central", vm: null, compare: null, open: null, reveal: false, outcome: null, focus: null };
   window.__page = S;
-  const CLS_COL = ["#b91c1c", "#dc2626", "#f87171", "#15803d", "#22c55e", "#2563eb", "#9ca3af", "#a16207"];
-  const NEUTRAL = D.meta.judgments === "neutral";
 
-  // --- formatting ---------------------------------------------------------------------------------------------
+  // --- formatting -----------------------------------------------------------------------------------------------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const money = (c, dp) => {
-    const v = c / 100, a = Math.abs(v), s = v < 0 ? "−" : "";
-    if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(dp ?? 2)}M`;
-    if (a >= 1e3) return `${s}$${(a / 1e3).toFixed(dp ?? 0)}k`;
-    return `${s}$${a.toFixed(0)}`;
-  };
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const pct = (p, dp = 1) => `${(100 * p).toFixed(dp)}%`;
-  const pts = (x) => `${(100 * x).toFixed(1)} pts`;
-  const ACT = "#047857";  // the actual-outcome reveal's colour
-  const fdate = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  const fdateY = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const fdate = (iso) => `${+iso.slice(8, 10)} ${MON[+iso.slice(5, 7) - 1]}`;
+  const fyear = (iso) => `${fdate(iso)} ${iso.slice(0, 4)}`;
+  const NAMES = { ...(D.parties || {}), horizon: fdate(D.meta.horizon), review: fdate(D.meta.review) };
+  const fill = (t, o = {}) => String(t ?? "").replace(/\{(\w+)\}/g, (m, k) => (k in o ? o[k] : k in NAMES ? NAMES[k] : m));
+  const money = (c) => {  // $823k, $1.2M, $66M; whole units unless under 10 of the unit
+    if (c === null || c === undefined || Number.isNaN(c)) return "–";
+    const v = c / 100, a = Math.abs(v), s = v < 0 ? "−" : "";
+    if (a >= 1e6) { const m = a / 1e6; return `${s}$${m >= 100 ? Math.round(m) : +m.toFixed(1)}M`; }
+    if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}k`;
+    return `${s}$${Math.round(a)}`;
+  };
+  const pct = (p) => (p === null || p === undefined ? "–" : `${Math.round(100 * p)}%`);
+  const pct1 = (p) => `${(100 * p).toFixed(1)}%`;
+  const pts = (d) => { const r = Math.round(100 * d); return `${r > 0 ? "+" : r < 0 ? "−" : ""}${Math.abs(r)} ${Math.abs(r) === 1 ? "pt" : "pts"}`; };
+  const dmoney = (d) => (Math.abs(d) < 50 ? "$0" : `${d > 0 ? "+" : "−"}${money(Math.abs(d))}`);
+  const usdText = (t) => String(t ?? "").replace(/\bUSD\s?(?=\d)/g, "$");  // case-input text: "USD 5.0M" -> "$5.0M"
+  const cents = (t) => Math.round(100 * parseFloat(String(t).replace(/[$,]/g, "")));
+  const cap = (t) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+  const T = (k) => fill(W.terms[k]);
+  const last = (a) => a[a.length - 1];
 
-  // --- probability arithmetic ---------------------------------------------------------------------------------
+  // --- probability arithmetic -------------------------------------------------------------------------------------
   const N = D.nodes.length, P = D.paths.edges.length;
   const jevDist = (i) => D.nodes[i].jev;
   const dist = (i, ov = S.overrides) => ov[D.nodes[i].key] || jevDist(i);
-  const neutralDist = (i) => D.nodes[i].branches.map(() => 1 / D.nodes[i].branches.length);
   function pathProbs(get) {
     const node = []; for (let i = 0; i < N; i++) node.push(get(i));
     const comp = D.composites.map((conj) => {
@@ -47,453 +55,514 @@
     }
     return out;
   }
-  const expect = (probs, key) => { const x = D.paths.scalars[key]; let s = 0; for (let i = 0; i < P; i++) s += probs[i] * x[i]; return s; };
-  // The bank view: its own paths over the bank rows (asked on bank data alone), reweighted the same way.
+  const hasKey = (k) => k in D.paths.scalars;
+  const expect = (probs, key) => { const x = D.paths.scalars[key]; if (!x) return null; let s = 0; for (let i = 0; i < P; i++) s += probs[i] * x[i]; return s; };
   const BE = D.bank.edges || [];
   const bankProbs = (get) => BE.map((e) => { let p = 1; for (let j = 0; j < e.length; j += 2) p *= get(e[j])[e[j + 1]]; return p; });
   const bexpect = (bp, key) => {
-    const x = (D.bank.path_scalars || {})[key]; if (!x) return D.bank.scalars[key];
+    const x = (D.bank.path_scalars || {})[key]; if (!x) return (D.bank.scalars || {})[key] ?? null;
     let s = 0; for (let i = 0; i < bp.length; i++) s += bp[i] * x[i]; return s;
   };
-  // A slider sets the selected branch; the other branches keep their proportions in `base`, the distribution when
-  // the drag started (uniform if they were all zero), so the result depends only on where the slider ends up.
-  function withBranch(i, b, x, base = dist(i)) {
+  function withBranch(i, b, x, base = dist(i)) {  // branch b takes x; the others keep their proportions
     const rest = base.reduce((s, v, k) => s + (k === b ? 0 : v), 0), n = base.length;
     return base.map((v, k) => (k === b ? x : rest > 0 ? (1 - x) * v / rest : (1 - x) / (n - 1)));
   }
+  const isBank = (i) => D.nodes[i].view === "bank";
+  const selB = (i) => S.sel[D.nodes[i].key] ?? 0;
+  let probs = null, bprobs = null;
+  function recompute() { probs = pathProbs((k) => dist(k)); bprobs = bankProbs((k) => dist(k)); }
 
-  // --- tiles: the lender bridge, funded -> payments due -> collected -----------------------------------------------
-  const END = fdate(D.meta.horizon);
-  // good: +1 if more helps the lender, -1 if more hurts it, 0 for volume (coloured neither way)
-  const TILES = [
-    { key: "funded", label: "Funded", fmt: money, good: 0, tab: "collections", hl: ["drawn"] },
-    { key: "due", label: `Payments due by ${END}`, fmt: money, good: 0, tab: "collections", hl: ["due"] },
-    { key: "collected", label: "Collected", fmt: money, good: +1, tab: "collections", hl: ["collected"] },
-    { key: "unpaid", label: "Due and unpaid", fmt: money, good: -1, tab: "collections", hl: ["past_due", "frozen_due"] },
-    { key: "petition_p", label: `Chance of a filing by ${END}`, fmt: (p) => pct(p), good: -1, tab: "exposure", hl: ["petition"] },
-    { key: "clawback", label: "Clawback exposure (gross, before new value)", fmt: money, good: -1, tab: "collections", hl: ["clawback"],
-      tip: "Collections in the 90 days before a filing" },
-  ];
-  let probs = pathProbs((i) => dist(i));
-  let steps = null;  // [bank, + research at even odds, + Jev] per scalar key
-  function attribution() {
-    const neu = pathProbs(neutralDist), bp = bankProbs((i) => dist(i));
-    steps = {};
-    for (const k of Object.keys(D.paths.scalars)) steps[k] = [bexpect(bp, k), expect(neu, k), expect(probs, k)];
+  // --- the figures: central from the paths here; a variant's from the server (/reweight) ----------------------------
+  const KEYS = ["funded", "due", "collected", "past_due", "frozen_due", "not_yet_due", "petition_p", "clawback", "stayed"];
+  const variant = (id = S.assumption) => (D.assumptions || []).find((a) => a.id === id);
+  function figures() {
+    const r = {}, b = {}, v = S.assumption !== "central" ? variant() : null;
+    for (const k of KEYS) {
+      r[k] = v ? (S.vm || v.metrics)[k] ?? null : expect(probs, k);
+      b[k] = v ? (v.ordinary.metrics || {})[k] ?? null : bexpect(bprobs, k);
+    }
+    r.stayed = r.stayed ?? last(S.event.daily.frozen_mean); b.stayed = b.stayed ?? last(S.bank.daily.frozen_mean);
+    return { full: given(r), ordinary: given(b) };
   }
-  // What research adds, signed and coloured by whether it helps (green) or hurts (red) the lender.
-  function adds(d, good, fmt) {
-    const cls = Math.abs(d) < 1e-9 || !good ? "" : (d > 0) === (good > 0) ? "down" : "up";
-    return `<span class="d ${cls}">${d >= 0 ? "+" : "−"}${fmt(Math.abs(d))}</span>`;
+  // the rate on due; the balance at filing and preference exposure given a filing (a lender's exposure at default),
+  // from the weighted figures (zero where no filing) and the filing probability
+  const given = (f) => ({ ...f, rate: f.due ? f.collected / f.due : null, stayed_if: f.petition_p > 0 && f.stayed != null ? f.stayed / f.petition_p : null,
+    clawback_if: f.petition_p > 0 && f.clawback != null ? f.clawback / f.petition_p : null });
+  const vFigures = (a) => given(a.metrics);
+
+  // --- hover tips -------------------------------------------------------------------------------------------------
+  function showTip(ev, html, above) {
+    const tip = $("tip"); tip.innerHTML = html; tip.style.display = "block";
+    const w = tip.offsetWidth, h = tip.offsetHeight, up = above ? ev.clientY - h - 14 >= 0 : ev.clientY + 16 + h > innerHeight;
+    tip.style.left = `${Math.max(8, Math.min(ev.clientX - (above ? w / 2 : -14), innerWidth - w - 10))}px`;
+    tip.style.top = `${up ? ev.clientY - h - 14 : ev.clientY + 16}px`;
   }
-  const dollars = (c) => `$${Math.round(Math.abs(c) / 100).toLocaleString("en-US")}`;
-  // The change in collections in its two parts: payments due (Slope funds more or less, so more or fewer
-  // installments fall due) and due and unpaid. In whole dollars, the second part taken as the rest, so the line adds up.
-  function bridgeLine() {
-    const [cb, , ce] = steps.collected, [db, , de] = steps.due;
-    const dC = Math.round(ce / 100) - Math.round(cb / 100), dDue = Math.round(de / 100) - Math.round(db / 100), dUn = dC - dDue;
-    const amt = (v, id) => `<span id="${id}" class="d ${Math.abs(v) < 0.5 ? "" : v > 0 ? "down" : "up"}" data-dollars="${v}">${v >= 0 ? "+" : "−"}${dollars(100 * v)}</span>`;
-    $("bridge").innerHTML = `Research adds ${amt(dC, "br-collected")} to collections: `
-      + `${amt(dDue, "br-due")} from ${dDue <= 0 ? "fewer installments due, because Slope funds less" : "more installments due, because Slope funds more"}, and `
-      + `${amt(dUn, "br-unpaid")} from ${dUn <= 0 ? "more due but unpaid" : "less due but unpaid"}.`;
+  const hideTip = () => { $("tip").style.display = "none"; };
+  document.addEventListener("mouseover", (ev) => { const t = ev.target.closest("[data-tip]"); if (t) showTip(ev, esc(t.dataset.tip)); });
+  document.addEventListener("mouseout", (ev) => { if (ev.target.closest("[data-tip]")) hideTip(); });
+
+  // --- 1. situation -----------------------------------------------------------------------------------------------
+  const notes = ((D.dispute || {}).notes || [])[0] || {};
+  const claimBranch = ((D.verdict || {}).branches || []).find((b) => b.key === "claimant_theory");
+  function renderSituation() {
+    const L = W.line, l = D.line || {}, inst = l.installments || [];
+    const owed = inst.reduce((s, x) => s + x[1], 0);
+    const vals = { commenced: D.dispute.commenced ? fyear(D.dispute.commenced) : "–", trial_started: D.dispute.trial_started ? fyear(D.dispute.trial_started) : "–",
+      claim: claimBranch ? money(claimBranch.lo) : "–", cash: money(D.opening_cash_cents), notes: money(notes.principal_cents),
+      threshold: money(notes.default_threshold_cents), days: notes.default_days ?? "–", listing: notes.listing_deadline ? fyear(notes.listing_deadline) : "–" };
+    const facts = [[W.facts.claim, vals.claim], [W.facts.cash, vals.cash], [W.facts.notes, vals.notes], [W.facts.listing, vals.listing]];
+    $("s-situation").innerHTML = `<div class="sit"><div><h3>${esc(fill(W.sections.situation))} · ${esc(fyear(D.meta.review))}</h3><h1>${esc(D.meta.borrower)}</h1>
+        ${D.meta.judgments_note ? `<p class="mute small">${esc(D.meta.judgments_note)}</p>` : ""}
+        ${(D.narrative || []).map((t) => `<p>${esc(fill(t, vals))}</p>`).join("")}</div>
+      <div class="line"><h3>${esc(L.title)}</h3><dl>
+        <dt>${esc(L.limit)}</dt><dd>${money(D.meta.limit_cents)}<span class="mute small"> · ${esc(L.limit_note)}</span></dd>
+        <dt>${esc(L.fee)}</dt><dd>${esc(fill(L.fee_value, { fee: `${(D.meta.fee_bps / 100).toFixed(1)}%` }))}</dd>
+        <dt>${esc(L.repaid)}</dt><dd>${esc(fill(L.repaid_value, { n: D.meta.installments }))}</dd>
+        <dt>${esc(L.draws)}</dt><dd>${esc(l.draw_rule || "")}</dd>
+        ${l.opened ? `<dt>${esc(L.opened)}</dt><dd>${esc(fyear(l.opened))}</dd>` : ""}</dl>
+        <h3>${esc(fill(L.state))}</h3><dl>
+        <dt>${esc(L.outstanding)}</dt><dd>${money(l.principal_cents)}</dd>
+        ${inst.length ? `<dt>${esc(L.due_next)}</dt><dd>${esc(fill(L.due_next_value, { amount: money(owed), first: fdate(inst[0][0]), last: fdate(last(inst)[0]) }))}</dd>` : ""}</dl></div></div>
+      <div class="facts">${facts.map(([k, v]) => `<div><span class="mute small">${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>`;
   }
-  function renderTiles() {
-    attribution();
-    $("tiles").innerHTML = TILES.map((t) => {
-      const [b, , e] = steps[t.key], main = S.view === "bank" ? b : e;
-      return `<div class="tile${S.tile === t.key ? " sel" : ""}" data-k="${t.key}"><div class="l">${t.label}</div>
-        <div class="v">${t.fmt(main)}</div>
-        <div class="s"><span>Bank data</span><span>${t.fmt(b)}</span></div><div class="s"><span>Bank data + research</span><span>${t.fmt(e)}</span></div>
-        <div class="s"><span>Research adds</span>${adds(e - b, t.good, t.fmt)}</div></div>`;
-    }).join("");
-    bridgeLine();
-    document.querySelectorAll(".tile").forEach((el) => {
-      el.onclick = () => { const t = TILES.find((x) => x.key === el.dataset.k); S.tile = t.key; S.mtab = t.tab; renderTabs(); renderTiles(); renderMain(); };
+
+  // --- 2. the line's forecast -------------------------------------------------------------------------------------
+  function tileHtml(f) {
+    const nyd = f.not_yet_due === null || f.not_yet_due === undefined;
+    const t = [["due", money(f.due)], ["collected", money(f.collected), `${T("rate")} ${pct(f.rate)}`], ["past_due", money(f.past_due)],
+      ["frozen_due", money(f.frozen_due)], ["not_yet_due", nyd ? "–" : money(f.not_yet_due), nyd ? W.notes.unavailable : ""],
+      ["funded", money(f.funded)], ["filing", pct(f.petition_p)], ["stayed", money(f.stayed_if), "", money(f.stayed)],
+      ["preference", money(f.clawback_if), "", money(f.clawback)]];
+    return `<div class="tiles">${t.map(([k, v, s, wt]) => `<div><span class="mute small${W.notes[k] ? " hastip" : ""}"${W.notes[k] ? ` data-tip="${esc(fill(W.notes[k], { weighted: wt ?? "" }))}"` : ""}>${esc(T(k))}</span><b>${esc(v)}</b>${s ? `<span class="sub">${esc(s)}</span>` : ""}</div>`).join("")}</div>`;
+  }
+  const monthEnd = (ym) => { let t = -1; D.dates.forEach((d, k) => { if (d.startsWith(ym)) t = k; }); return t; };
+  function ladder(host) {
+    const rows = S.event.monthly, Wd = host.clientWidth || 1000, H = 300, m = { l: 56, r: 16, t: 16, b: 30 }, w = Wd - m.l - m.r, h = H - m.t - m.b;
+    const out = rows.map((r) => S.event.daily.outstanding_mean[monthEnd(r.month)]);
+    const raw = Math.max(...rows.map((r) => Math.max(r.drawn, r.due, r.collected)), ...out, (D.line || {}).principal_cents || 0) || 1;
+    const mag = 10 ** Math.floor(Math.log10(raw / 4)), step = [1, 2, 2.5, 5, 10].map((s) => s * mag).find((s) => s * 4 >= raw), top = step * 4;
+    const Y = (v) => m.t + h - (h * v) / top, gw = w / rows.length, bw = Math.min(26, gw / 4.5);
+    const COL = { drawn: "#b8c2cf", due: "#8a9199", collected: "var(--teal)" };
+    let g = "";
+    for (let k = 0; k <= 4; k++) { const v = step * k; g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="${k ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${money(v)}</text>`; }
+    const hz = D.meta.horizon, partial = (ym) => hz.startsWith(ym) && last(D.dates) === hz && +hz.slice(8) < 28;
+    const range = S.assumption === "central" && !Object.keys(S.overrides).length ? D.collected_range || [] : [];
+    rows.forEach((r, j) => {
+      const x0 = m.l + gw * j + gw / 2 - 1.5 * bw;
+      ["drawn", "due", "collected"].forEach((k, q) => { g += `<rect x="${x0 + q * bw}" y="${Y(r[k])}" width="${bw - 2}" height="${Y(0) - Y(r[k])}" fill="${COL[k]}"/>`; });
+      g += `<text x="${m.l + gw * j + gw / 2}" y="${H - 8}" text-anchor="middle">${partial(r.month) ? fill(W.forecast.to, { date: fdate(hz) }) : MON[+r.month.slice(5) - 1]}</text>`;
+      g += `<rect class="hov" data-j="${j}" x="${m.l + gw * j}" y="${m.t}" width="${gw}" height="${h}" fill="transparent"/>`;
+    });
+    const px = (j) => m.l + gw * j + gw / 2;
+    g += `<path d="${out.map((v, j) => `${j ? "L" : "M"}${px(j)},${Y(v)}`).join("")}" fill="none" stroke="#c0842b" stroke-width="2"/>` + out.map((v, j) => `<circle cx="${px(j)}" cy="${Y(v)}" r="3.5" fill="#c0842b"/>`).join("");
+    host.innerHTML = `<svg class="ladder" viewBox="0 0 ${Wd} ${H}" style="height:${H}px">${g}</svg>
+      <div class="lg"><span><i style="background:#b8c2cf"></i>${esc(T("funded"))}</span><span><i style="background:#8a9199"></i>${esc(W.terms.due.replace(" by {horizon}", ""))}</span><span><i style="background:var(--teal)"></i>${esc(T("collected"))}</span><span><i style="background:#c0842b;height:3px;vertical-align:3px"></i>${esc(T("outstanding"))}</span></div>`;
+    host.querySelectorAll(".hov").forEach((el) => {
       el.onmousemove = (ev) => {
-        const t = TILES.find((x) => x.key === el.dataset.k), [b, r, e] = steps[t.key];
-        if (t.key === "unpaid") {  // due and unpaid = past due + frozen by a filing (installments already due)
-          const row = (k, l) => `<tr><td>${l}</td><td>${money(steps[k][0])}</td><td>${money(steps[k][2])}</td></tr>`;
-          return showTip(ev, `<table><tr><td></td><td>Bank data</td><td>+ research</td></tr>${row("past_due", "Past due")}${row("frozen_due", "Frozen by a filing")}${row("unpaid", "Due and unpaid")}</table>`);
-        }
-        showTip(ev, `${t.tip ? `<div>${t.tip}</div>` : ""}<table><tr><td>Bank data</td><td>${t.fmt(b)}</td></tr><tr><td>+ research, questions at even odds</td><td>${t.fmt(r)}</td></tr>
-          <tr><td>+ Jev's answers${NEUTRAL ? " (none yet)" : ""}</td><td>${t.fmt(e)}</td></tr></table>`);
+        const j = +el.dataset.j, r = rows[j], cum = S.event.daily.collected_mean[monthEnd(r.month)];
+        const rg = range[j] ? `<br>${esc(W.forecast.range)}: ${money(range[j][0])} – ${money(range[j][1])} (${esc(W.terms.collected)} ${money(cum)})` : "";
+        showTip(ev, esc(fill(W.forecast.months_hover, { month: `${MON[+r.month.slice(5) - 1]} ${r.month.slice(0, 4)}`, funded: money(r.drawn), due: money(r.due), collected: money(r.collected), outstanding: money(out[j]) })) + rg);
       };
       el.onmouseleave = hideTip;
     });
   }
-  function showTip(ev, html) {
-    const tip = $("tip"); tip.innerHTML = html; tip.style.display = "block";
-    const w = tip.offsetWidth, h = tip.offsetHeight;
-    tip.style.left = `${Math.min(ev.clientX + 14, innerWidth - w - 8)}px`;
-    tip.style.top = `${Math.min(ev.clientY + 14, innerHeight - h - 8)}px`;
+  function cumChart(host) {  // collected to date: the mean, and the P5–P95 range at each month end where the data has it
+    const Wd = host.clientWidth || 1000, H = 220, m = { l: 56, r: 16, t: 12, b: 28 }, w = Wd - m.l - m.r, h = H - m.t - m.b, days = D.dates.length;
+    const mean = S.event.daily.collected_mean, rows = S.event.monthly, ends = rows.map((r) => monthEnd(r.month));
+    const range = S.assumption === "central" && !Object.keys(S.overrides).length ? D.collected_range || [] : [];
+    const raw = 1.08 * Math.max(...mean, ...range.map((x) => x[1])) || 1, mag = 10 ** Math.floor(Math.log10(raw / 4));
+    const step = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((s) => s * mag).find((s) => s * 4 >= raw), top = step * 4;
+    const X = (t) => m.l + (w * t) / (days - 1), Y = (v) => m.t + h - (h * v) / top;
+    let g = "";
+    for (let k = 0; k <= 4; k++) { const v = step * k; g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="${k ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${money(v)}</text>`; }
+    D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 8}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text>`; });
+    const pts = ends.map((t, j) => [t, range[j]]).filter(([t, r]) => t >= 0 && r && r[1] > r[0]);
+    g += pts.map(([t, r]) => { const x = X(t), cap = (y) => `<line x1="${x - 5}" x2="${x + 5}" y1="${y}" y2="${y}" stroke="#5fa69d" stroke-width="1.5"/>`;
+      return `<line x1="${x}" x2="${x}" y1="${Y(r[1])}" y2="${Y(r[0])}" stroke="#5fa69d" stroke-width="1.5"/>${cap(Y(r[1]))}${cap(Y(r[0]))}<circle cx="${x}" cy="${Y(mean[t])}" r="3" fill="var(--teal)"/>`; }).join("");
+    const lastPt = pts[pts.length - 1];
+    if (lastPt) g += `<text x="${X(lastPt[0]) - 10}" y="${Y(lastPt[1][1]) - 8}" class="rl" text-anchor="end">${esc(fill(W.forecast.cum_end, { date: fdate(D.dates[lastPt[0]]), lo: money(lastPt[1][0]), hi: money(lastPt[1][1]), mean: money(mean[lastPt[0]]) }))}</text>`;
+    g += `<path d="${mean.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join("")}" fill="none" stroke="var(--teal)" stroke-width="2.2"/>`;
+    host.innerHTML = `<svg class="ladder" viewBox="0 0 ${Wd} ${H}" style="height:${H}px">${g}</svg>
+      <div class="lg"><span><i style="background:var(--teal);height:3px;vertical-align:3px"></i>${esc(W.forecast.cum_mean)}</span>${pts.length ? `<span><i style="background:#5fa69d;width:2px;height:12px;vertical-align:-1px"></i>${esc(W.forecast.cum_range)}</span>` : ""}</div>`;
   }
-  const hideTip = () => { $("tip").style.display = "none"; };
+  function renderForecast() {
+    const sec = $("s-forecast"), f = figures().full;
+    if (!sec.querySelector(".lad")) {
+      sec.innerHTML = `<h2>${esc(fill(W.sections.forecast))}</h2><div class="tl"></div><h4 class="sub">${esc(W.forecast.chart)}</h4><div class="lad"></div><h4 class="sub">${esc(W.forecast.cum_chart)}</h4><div class="cum"></div>
+        <details class="assume"><summary>${esc(W.forecast.assumptions)}</summary><p class="mute small">${esc(W.forecast.assumptions_note)}</p>
+        <dl class="common">${(D.common || []).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></details>`;
+    }
+    sec.querySelector(".tl").innerHTML = tileHtml(f);
+    ladder(sec.querySelector(".lad")); cumChart(sec.querySelector(".cum"));
+  }
 
-  // --- charts -----------------------------------------------------------------------------------------------------
-  const days = D.dates.length, ix = (iso) => D.dates.indexOf(iso);
-  function niceMax(v) { if (v <= 0) return 1; const e = 10 ** Math.floor(Math.log10(v)), m = v / e; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * e; }
-  const HALO = ' stroke="#fff" stroke-width="3" paint-order="stroke"';
-  // Axis money: whole thousands ($500k), millions to one decimal only when needed ($1.5M, $2M).
-  const axisMoney = (c) => { const v = c / 100, a = Math.abs(v), s = v < 0 ? "−" : "";
-    if (a >= 1e6) return `${s}$${+(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}k`; return `${s}$${Math.round(a)}`; };
-  function chart(host, o) {
-    // the chart fills what is left of the pane below its legend (and the Exposure tab's figures)
-    const svg = host.querySelector("svg"), W = Math.max(host.clientWidth, 300), H = Math.max(host.clientHeight - (svg.getBoundingClientRect().top - host.getBoundingClientRect().top) - 10, 160);
-    svg.style.height = `${H}px`;
-    const m = { l: 62, r: o.right ? 46 : 12, t: 10, b: 22 }, w = W - m.l - m.r, h = H - m.t - m.b;
-    const all = [...o.series.filter((s) => !s.right).flatMap((s) => s.y), ...(o.bands || []).flatMap((b) => [...b.lo, ...b.hi])];
-    let lo = Math.min(0, ...all), hi = niceMax(Math.max(...all, 1));
-    if (lo < 0) lo = -niceMax(-lo);
-    const X = (t) => m.l + (w * t) / (days - 1), Y = (v) => m.t + h - (h * (v - lo)) / (hi - lo), Y2 = (p) => m.t + h - h * p;
-    const path = (ys, f) => ys.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${f(v).toFixed(1)}`).join("");
-    let g = "", labels = "";  // labels are drawn after every line, on a white halo
-    for (let k = 0; k <= 4; k++) {
-      const v = lo + ((hi - lo) * k) / 4;
-      g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="#f1f5f9"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${axisMoney(v)}</text>`;
+  // --- steps of a path ------------------------------------------------------------------------------------------------
+  const FILING = new Set(D.filing_steps || []);
+  const parseStep = (s) => { const m = /^(.*) \(([^)]*)\)$/.exec(s); return m ? { base: m[1], when: m[2] } : { base: s.replace(/, after the period$/, ""), when: "" }; };
+  const SEQ = D.sequences.map((s) => (s ? s.split(" → ").map(parseStep) : []));
+  function stepsOf(q) {  // up to and including the first filing (after a filing the line has stopped)
+    const out = []; for (const st of SEQ[q]) { out.push(st); if (FILING.has(st.base)) return { steps: out, filed: true }; }
+    return { steps: out, filed: false };
+  }
+  const linesHtml = (ls) => `<table class="pl">${ls.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join("")}</table>`;
+
+  // --- 3. how the lawsuit can resolve ---------------------------------------------------------------------------------
+  const V = D.verdict || {};
+  function verdictGroups() {
+    const bs = V.branches || [], groups = [{ k: -1, label: V.before, lo: null, hi: null }, ...bs.map((b, k) => ({ k, label: b.label, text: b.text, lo: b.lo, hi: b.hi })), { k: -2, label: W.resolve.other, lo: null, hi: null }];
+    const pp = D.paths.scalars.petition_p, co = D.paths.scalars.collected;
+    for (const g of groups) { g.p = 0; g.c = 0; g.f = 0; g.seq = new Map(); }
+    const at = new Map(groups.map((g) => [g.k, g]));
+    for (let i = 0; i < P; i++) {
+      const g = at.get((V.path || [])[i] ?? -2); g.p += probs[i]; g.c += probs[i] * co[i]; g.f += probs[i] * pp[i];
+      const q = D.paths.seq[i]; g.seq.set(q, (g.seq.get(q) || 0) + probs[i]);
     }
-    // The probability axis has its own ticks (20% steps, never on the money gridlines) and no gridlines of its own.
-    if (o.right) for (let p = 0; p <= 1.001; p += 0.2) g += `<line x1="${m.l + w}" x2="${m.l + w + 4}" y1="${Y2(p)}" y2="${Y2(p)}" stroke="#b91c1c"/><text x="${m.l + w + 7}" y="${Y2(p) + 4}" fill="#b91c1c">${Math.round(100 * p)}%</text>`;
-    let yearShown = null;  // the year once, on the first month label (and again only if the year changes)
-    D.dates.forEach((d, t) => {
-      if (!d.endsWith("-01")) return;
-      const yr = d.slice(0, 4), lab = MON[+d.slice(5, 7) - 1] + (yr !== yearShown ? ` ${yr}` : "");
-      yearShown = yr;
-      g += `<text x="${X(t)}" y="${H - 6}" text-anchor="middle">${lab}</text><line x1="${X(t)}" x2="${X(t)}" y1="${m.t + h}" y2="${m.t + h + 4}" stroke="#d1d5db"/>`;
-    });
-    for (const b of o.windows || []) {
-      const a = Math.max(0, ix(b.from) < 0 ? 0 : ix(b.from)), z = ix(b.to) < 0 ? days - 1 : ix(b.to);
-      // the band's label sits at its foot, clear of the pin labels along the top
-      g += `<rect x="${X(a)}" y="${m.t}" width="${Math.max(X(z) - X(a), 1)}" height="${h}" fill="#fef3c7" opacity=".55"/>`;
-      labels += `<text x="${X(a) + 4}" y="${m.t + h - 6}" fill="#92400e"${HALO}>${esc(b.label)}</text>`;
-    }
-    for (const b of o.bands || []) g += `<path d="${path(b.hi, Y)}L${[...b.lo].reverse().map((v, k) => `${X(days - 1 - k).toFixed(1)},${Y(v).toFixed(1)}`).join("L")}Z" fill="${b.color}" opacity=".18"/>`;
-    for (const s of o.series) g += `<path d="${path(s.y, s.right ? Y2 : Y)}" fill="none" stroke="${s.color}" stroke-width="${s.width || 1.8}"${s.dash ? ' stroke-dasharray="5 4"' : ""}/>`;
-    for (const s of o.series.filter((x) => x.right && x.tag)) {  // the probability line labelled at its end
-      const v = s.y[days - 1];
-      const y = s.below === false ? Math.max(Y2(v) - 6, m.t + 10) : Math.min(Y2(v) + 16, m.t + h - 22);
-      labels += `<text x="${m.l + w - 10}" y="${y}" text-anchor="end" fill="${s.color}" font-weight="600"${HALO}>${esc(s.tag(v))}</text>`;
-    }
-    for (const p of o.pins || []) {
-      const t = ix(p.date); if (t < 0) continue;
-      // a label runs right of its pin unless it would cross the plot's right edge; each pin keeps its own row
-      const flip = X(t) + 3 + 6.2 * p.label.length > m.l + w;
-      g += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + h}" stroke="${p.color || "var(--pin)"}" stroke-dasharray="3 3"/>`;
-      if (p.label) labels += `<text x="${flip ? X(t) - 4 : X(t) + 4}" y="${m.t + 12 + 13 * (p.row || 0)}" fill="${p.color || "#92400e"}"${flip ? ' text-anchor="end"' : ""}${HALO}>${esc(p.label)}</text>`;
-    }
-    g += labels;
-    g += `<line id="hx" x1="0" x2="0" y1="${m.t}" y2="${m.t + h}" stroke="#9ca3af" visibility="hidden"/><rect x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent" id="hov"/>`;
-    host.querySelector("svg").setAttribute("viewBox", `0 0 ${W} ${H}`);
-    host.querySelector("svg").innerHTML = g;
-    const hov = host.querySelector("#hov"), hx = host.querySelector("#hx");
+    return groups.filter((g) => g.p > 1e-9);
+  }
+  function follows(g) {
+    const top = [...g.seq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+    return top.map(([q, m]) => {
+      const st = stepsOf(q).steps.filter((s) => s.base !== g.label && s.base !== V.before);
+      const txt = st.length ? st.map((s) => `${s.base}${s.when ? ` (${s.when})` : ""}`).join(" → ") : W.resolve.nothing;
+      return `<div>${esc(fill(W.resolve.of_outcome, { p: pct(m / g.p) }))} · ${esc(txt)}</div>`;
+    }).join("");
+  }
+  const amountText = (g) => (g.lo === null ? "–" : g.hi === 0 ? W.resolve.none : g.lo === g.hi ? money(g.lo) : `${money(g.lo)} – ${money(g.hi)}`);
+  function attributionRows(f) {
+    const R = W.resolve, rows = [["filing", "petition_p", pct, -1], ["collected", "collected", money, 1], ["rate", "rate", pct, 1], ["past_due", "past_due", money, -1], ["frozen_due", "frozen_due", money, -1], ["stayed", "stayed_if", money, -1]];
+    return rows.map(([t, k, fmt, good]) => {
+      const rd = (v) => (fmt === pct ? Math.round(100 * v) / 100 : Math.round(v / 1e5) * 1e5), a = f.ordinary[k], b = f.full[k], d = a === null || b === null ? null : rd(b) - rd(a);
+      const cls = !d ? "" : (d > 0) === (good > 0) ? "good" : "bad";
+      return `<tr><td>${esc(T(t))}</td><td>${fmt(a)}</td><td>${fmt(b)}</td><td class="${cls}">${d === null ? "–" : fmt === money ? dmoney(d) : pts(d)}</td></tr>`;
+    }).join("") + `<tr><td colspan="4" class="mute small" style="text-align:left">${esc(R.attribution_note)}</td></tr>`;
+  }
+  const CLS = D.classes;
+  const CCOL = ["#e3a008", "#e0582a", "#9b1c1c", "#4d7c5a", "#6b7280", "#5b7aa8", "#cfd4da", "#b8955a"];
+  const isFiled = (k) => /^Filed/.test(CLS[k]);
+  function classProbs() { const c = new Float64Array(CLS.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
+  function apportion(shares, total = 100) {  // largest remainder
+    const tot = shares.reduce((a, b) => a + b, 0) || 1, raw = shares.map((s) => (total * s) / tot), n = raw.map(Math.floor);
+    let left = total - n.reduce((a, b) => a + b, 0);
+    raw.map((r, k) => [r - n[k], k]).sort((a, b) => b[0] - a[0]).forEach(([, k]) => { if (left > 0) { n[k]++; left--; } });
+    return n;
+  }
+  function dots() {  // filed first (so the filed squares equal the rounded filing probability), largest first
+    const sh = [...classProbs()], ks = sh.map((_, k) => k), fi = ks.filter(isFiled), nf = ks.filter((k) => !isFiled(k));
+    const sum = (g) => g.reduce((a, k) => a + sh[k], 0), [nF, nN] = apportion([sum(fi), sum(nf)]), n = [];
+    for (const [g, t] of [[fi, nF], [nf, nN]]) apportion(g.map((k) => sh[k]), t).forEach((v, j) => (n[g[j]] = v));
+    return ks.map((k) => ({ k, n: n[k], share: sh[k], filed: isFiled(k) })).sort((a, b) => (b.filed - a.filed) || (b.share - a.share));
+  }
+  function gridHtml() {
+    const g = dots(), filed = g.filter((x) => x.filed).reduce((s, x) => s + x.n, 0);
+    let sq = ""; g.forEach((x) => { for (let r = 0; r < x.n; r++) sq += `<i style="background:${CCOL[x.k]}" data-tip="${esc(`${CLS[x.k]}: ${x.n}%`)}"></i>`; });
+    const item = (x) => `<li><i style="background:${CCOL[x.k]}"></i><span>${esc(CLS[x.k])}</span><b>${x.n}%</b></li>`;
+    return `<div class="gbody"><div class="waffle">${sq}</div><div class="gleg"><h4>${esc(fill(W.resolve.filed))} <b>${filed}%</b></h4><ul>${g.filter((x) => x.filed && x.n).map(item).join("")}</ul>
+      <h4>${esc(fill(W.resolve.not_filed))} <b>${100 - filed}%</b></h4><ul>${g.filter((x) => !x.filed && x.n).map(item).join("")}</ul></div></div>`;
+  }
+  const box = (x, y, anchor, size, text, cls = "", fillc = "", bg = "#fff") => {
+    const w = text.length * size * 0.6 + 8, x0 = anchor === "end" ? x - w + 4 : x - 4;
+    return `<rect x="${x0}" y="${y - size}" width="${w}" height="${size + 5}" fill="${bg}"/><text x="${x}" y="${y}"${anchor === "end" ? ' text-anchor="end"' : ""}${cls ? ` class="${cls}"` : ""}${fillc ? ` fill="${fillc}"` : ""}>${esc(text)}</text>`;
+  };
+  function renderWhen(host) {
+    const Wd = host.clientWidth || 1000, H = 380, days = D.dates.length, B = S.bank.daily.petition_cum_p, R = S.event.daily.petition_cum_p;
+    const top = Math.min(1, Math.max(0.1, Math.ceil(Math.max(last(B), last(R)) * 10 + 1) / 10));
+    const m = { l: 40, r: 210, t: 70, b: 30 }, w = Wd - m.l - m.r, h = H - m.t - m.b;
+    const X = (t) => m.l + (w * t) / (days - 1), Y = (p) => m.t + h - (h * p) / top, ix = (iso) => D.dates.indexOf(iso);
+    let g = "";
+    const rw = D.pins.ruling_window; if (rw && ix(rw[0]) >= 0) g += `<rect x="${X(ix(rw[0]))}" y="${m.t}" width="${X(ix(rw[1]) >= 0 ? ix(rw[1]) : days - 1) - X(ix(rw[0]))}" height="${h}" fill="#f4f5f6"/>`;
+    for (let k = 0; k <= 4; k++) { const v = (top * k) / 4; g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="${k ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${pct(v)}</text>`; }
+    D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 8}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text>`; });
+    const pins = [["ruling_window", rw && rw[0]], ["listing", D.pins.listing], ["coupon", D.pins.coupon]].filter(([, d]) => d && ix(d) >= 0).sort((a, b) => (a[1] < b[1] ? -1 : 1));
+    let pt = ""; pins.forEach(([k, d], row) => { const x = X(ix(d)), y = 14 + (row % 3) * 17; g += `<line x1="${x}" x2="${x}" y1="${y + 4}" y2="${m.t + h}" stroke="#b9bec5" stroke-dasharray="2 3"/>`; pt += box(x + 5, y, "start", 12, `${fdate(d)} · ${W.dates[k]}`, "pin"); });
+    const line = (ys, off = 0) => ys.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${(Y(v) - off).toFixed(1)}`).join("");
+    g += `<path d="${line(B, 1.5)}" fill="none" stroke="#6b7178" stroke-width="2.2" stroke-dasharray="6 4"/><path d="${line(R)}" fill="none" stroke="var(--teal)" stroke-width="2.8"/>`;
+    let yb = Y(last(B)), yr = Y(last(R)); if (Math.abs(yb - yr) < 36) { const mid = (yb + yr) / 2, s = yb >= yr ? 1 : -1; yb = mid + 18 * s; yr = mid - 18 * s; }
+    const endLab = (y, col, name, p) => `<text x="${m.l + w + 10}" y="${y - 2}" fill="${col}" class="end">${esc(name)}</text><text x="${m.l + w + 10}" y="${y + 15}" fill="${col}" class="endv">${esc(pct(p))}</text>`;
+    g += endLab(yb, "#6b7178", W.resolve.without, last(B)) + endLab(yr, "var(--teal)", W.resolve.with, last(R)) + pt;
+    g += `<line id="whx" y1="${m.t}" y2="${m.t + h}" stroke="#9aa0a8" visibility="hidden"/><rect id="whov" x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent"/>`;
+    host.innerHTML = `<svg class="when" viewBox="0 0 ${Wd} ${H}" style="height:${H}px">${g}</svg>`;
+    const svg = host.querySelector("svg"), hov = svg.querySelector("#whov"), hx = svg.querySelector("#whx");
     hov.onmousemove = (ev) => {
-      const r = hov.getBoundingClientRect(), t = Math.round(((ev.clientX - r.left) / r.width) * (days - 1));
+      const r = hov.getBoundingClientRect(), t = Math.max(0, Math.min(days - 1, Math.round(((ev.clientX - r.left) / r.width) * (days - 1))));
       hx.setAttribute("x1", X(t)); hx.setAttribute("x2", X(t)); hx.setAttribute("visibility", "visible");
-      showTip(ev, `<b>${fdateY(D.dates[t])}</b><table>${o.hover(t).map(([k, ...v]) => `<tr><td>${k}</td>${v.map((x) => `<td>${x}</td>`).join("")}</tr>`).join("")}</table>`);
+      showTip(ev, `<b>${fdate(D.dates[t])}</b><br>${esc(W.resolve.without)}: ${pct(B[t])}<br>${esc(W.resolve.with)}: ${pct(R[t])}`);
     };
     hov.onmouseleave = () => { hx.setAttribute("visibility", "hidden"); hideTip(); };
   }
-  const cur = () => (S.view === "bank" ? S.bank : S.event);
-  const legend = (items) => `<div class="legend">${items.map(([label, c, k]) => `<span><i class="${k || ""}" style="--c:${c}"></i>${label}</span>`).join("")}</div>`;
-  // Exposure: both views on one chart (outstanding and frozen by a filing on the left axis, the cumulative chance of
-  // a filing on the right; dashed = bank data), with peak outstanding and capital tied up above it.
-  function exposure(host) {
-    const B = S.bank.daily, R = S.event.daily, hl = (TILES.find((t) => t.key === S.tile) || { hl: [] }).hl;
-    const pins = [];
-    if (D.pins.briefing_close) pins.push({ date: D.pins.briefing_close, label: "Briefing closes", row: 0 });
-    if (D.pins.nasdaq) pins.push({ date: D.pins.nasdaq, label: "Nasdaq deadline", row: 1 });
-    if (D.pins.coupon) pins.push({ date: D.pins.coupon, label: "Notes coupon", row: 2 });
-    const actual = revealed();  // the dated events that happened, pinned only while the reveal is on
-    let k = 0;  // key events carry a label (rows 3-6); the others are a line, with their text on hover
-    for (const [d, evs] of actual) {
-      const named = evs.filter((e) => e.label).map((e) => e.short);
-      pins.push({ date: d, label: named.length ? `${fdate(d)} ${named.join(", ")}` : "", row: 3 + (k % 4), color: ACT });
-      if (named.length) k++;
-    }
-    const windows = D.pins.ruling_window ? [{ from: D.pins.ruling_window[0], to: D.pins.ruling_window[1], label: "Ruling window" }] : [];
-    const pw = hl.includes("petition") ? 3 : 1.6;
-    const bankEnd = B.petition_cum_p[days - 1], resEnd = R.petition_cum_p[days - 1];
-    const series = [{ y: B.limit_mean, color: "#94a3b8", dash: true, width: 1.2 },
-                    { y: B.outstanding_mean, color: "var(--bank)", width: 2 },
-                    { y: R.outstanding_mean, color: "var(--lit)", width: 2 },
-                    { y: B.frozen_mean, color: "#ea580c", dash: true, width: 1.3 },
-                    { y: R.frozen_mean, color: "#ea580c", width: 1.5 },
-                    { y: B.petition_cum_p, color: "#b91c1c", right: true, dash: true, width: pw,
-                      tag: (p) => `Bank data ${pct(p)}`, below: bankEnd <= resEnd },
-                    { y: R.petition_cum_p, color: "#b91c1c", right: true, width: pw,
-                      tag: (p) => `Bank data + research ${pct(p)}`, below: resEnd < bankEnd }];
-    const fig = (key, label) => { const [b, , e] = steps[key];
-      return `<div class="xrow"><span>${label}</span><span>Bank data <b>${money(b)}</b></span><span>Bank data + research <b>${money(e)}</b></span><span>Research adds ${adds(e - b, 0, money)}</span></div>`; };
-    host.innerHTML = `<div class="xstats">${fig("peak_outstanding", "Peak outstanding")}${fig("avg_outstanding", "Capital tied up (average outstanding)")}</div>`
-      + legend([["Outstanding, bank data", "var(--bank)"], ["Outstanding, bank data + research", "var(--lit)"], ["Frozen by a filing", "#ea580c"],
-        ["Chance of a filing by date (right axis)", "#b91c1c"], ["Limit", "#94a3b8", "dash"], ["dashed: bank data", "#6b7280", "dash"],
-        ...(actual.length ? [["What actually happened", ACT, "dash"]] : [])]) + `<svg class="chart"></svg>`;
-    const onDay = new Map(actual);
-    chart(host, { series, pins, windows, right: true, hover: (t) => [["", "Bank data", "+ research"],
-      ["Outstanding", money(B.outstanding_mean[t]), money(R.outstanding_mean[t])],
-      ["Frozen by a filing", money(B.frozen_mean[t]), money(R.frozen_mean[t])],
-      ["Chance of a filing", pct(B.petition_cum_p[t]), pct(R.petition_cum_p[t])], ["Limit", money(B.limit_mean[t])],
-      ...(onDay.get(D.dates[t]) || []).map((e) => ["Actual", esc(e.description)])] });
-  }
-  function cash(host) {
-    const v = cur().daily, col = S.view === "bank" ? "#64748b" : "#7c3aed";
-    host.innerHTML = legend([["Available cash P5–P95", col, "band"], ["Median", col], ["30-day operating need", "#111827", "dash"]]) + `<svg class="chart"></svg>`;
-    chart(host, { bands: [{ lo: v.cash_p5, hi: v.cash_p95, color: col }],
-      series: [{ y: v.cash_p50, color: col }, { y: D.need_mean, color: "#111827", dash: true, width: 1.3 }],
-      hover: (t) => [["P95", money(v.cash_p95[t])], ["Median", money(v.cash_p50[t])], ["P5", money(v.cash_p5[t])], ["30-day need", money(D.need_mean[t])]] });
-  }
-  const COLS = [["drawn", "Drawn"], ["due", "Due"], ["collected", "Collected"], ["past_due", "Past due"], ["frozen_due", "Frozen, due"], ["frozen_not_due", "Frozen, not yet due"],
-                ["clawback", "Clawback exposure"], ["above_need_p5", "Cash above 30-day need after the amount due, P5"]];
-  function collections(host) {
-    const rows = cur().monthly, hl = (TILES.find((t) => t.key === S.tile) || { hl: [] }).hl;
-    const mname = (m) => `${MON[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
-    host.innerHTML = `<table class="t"><tr><th>Month</th>${COLS.map(([k, l]) => `<th class="${hl.includes(k) ? "hl" : ""}">${l}</th>`).join("")}</tr>
-      ${rows.map((r) => `<tr><td>${mname(r.month)}</td>${COLS.map(([k]) => `<td class="${hl.includes(k) ? "hl" : ""}">${r[k] === null ? "–" : money(r[k])}</td>`).join("")}</tr>`).join("")}</table>
-      <p><button id="csv">Export CSV</button></p>`;
-    $("csv").onclick = () => {
-      const lines = [["month", ...COLS.map(([k]) => `${k}_cents`)].join(","), ...rows.map((r) => [r.month, ...COLS.map(([k]) => r[k] ?? "")].join(","))];
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
-      a.download = `collections_${S.view === "bank" ? "bank_data" : "bank_data_plus_research"}.csv`; a.click();
-    };
-  }
-  function renderMain() {
-    const host = $("mview");
-    ({ exposure, cash, collections })[S.mtab](host);
-  }
-  function renderTabs() {
-    document.querySelectorAll("#mtabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === S.mtab));
-    document.querySelectorAll("#rtabs button[data-t]").forEach((b) => b.classList.toggle("on", b.dataset.t === S.rtab));
-    document.querySelectorAll("#viewsw button").forEach((b) => b.classList.toggle("on", b.dataset.v === S.view));
+  function renderResolve() {
+    const sec = $("s-resolve"), R = W.resolve, f = figures();
+    if (!sec.querySelector(".vt")) sec.innerHTML = `<h2>${esc(W.sections.resolve)}</h2><p class="mute small cn" hidden>${esc(W.assumption.path_note)}</p><h4 class="sub">${esc(R.verdict)}</h4><table class="vt"></table>
+      <h4 class="sub">${esc(R.attribution)}</h4><table class="at" style="max-width:760px"></table><h4 class="sub">${esc(R.when)}</h4><div class="wh"></div>
+      <h4 class="sub">${esc(fill(R.grid))}</h4><p class="mute small">${esc(R.grid_note)}</p><div class="gd"></div>`;
+    sec.querySelector(".cn").hidden = S.assumption === "central";
+    sec.querySelector(".vt").innerHTML = `<tr><th></th><th>${esc(R.p)}</th><th>${esc(R.judgment)}</th><th>${esc(R.collected)}</th><th>${esc(fill(R.filing))}</th><th style="text-align:left">${esc(R.follows)}</th></tr>`
+      + verdictGroups().map((g) => `<tr${g.k === -2 ? ' class="sub"' : ""}><td${g.text ? ` class="hastip" data-tip="${esc(cap(g.text))}"` : ""}><b>${esc(g.label)}</b></td><td><b>${pct(g.p)}</b></td><td>${esc(amountText(g))}</td><td>${money(g.c / g.p)}</td><td>${pct(g.f / g.p)}</td><td class="fl">${follows(g)}</td></tr>`).join("");
+    sec.querySelector(".at").innerHTML = `<tr><th></th><th>${esc(R.without)}</th><th>${esc(R.with)}</th><th>${esc(R.difference)}</th></tr>${attributionRows(f)}`;
+    renderWhen(sec.querySelector(".wh"));
+    sec.querySelector(".gd").innerHTML = gridHtml();
   }
 
-  // --- outcomes ---------------------------------------------------------------------------------------------------
-  // Each path carries its share of draws in each class ([class, share] pairs): a path's draws whose petition falls
-  // inside the horizon are Filed, the rest keep the path's other outcome. So the Filed shares sum to the tile.
-  function classProbs() { const c = new Float64Array(D.classes.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
-  function topSequences(n = 3) {
-    const m = new Map();
-    for (let i = 0; i < P; i++) { const w = probs[i]; if (w > 0) m.set(D.paths.seq[i], (m.get(D.paths.seq[i]) || 0) + w); }
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
-  }
-  // --- the actual outcome (a recorded run whose case has an outcome file; off until the button is pressed) ------
-  function revealed() {  // [date, events] inside the chart's period, in date order
-    if (!S.reveal || !S.outcome) return [];
-    const by = new Map();
-    for (const e of S.outcome.events) if (ix(e.date) >= 0) by.set(e.date, [...(by.get(e.date) || []), e]);
-    return [...by.entries()].sort();
-  }
-  function actualHtml() {
-    if (!S.reveal || !S.outcome) return "";
-    const a = S.outcome.petition, t = ix(a.date), cum = S.event.daily.petition_cum_p;
-    const by = t >= 0 ? ` The model gave ${pct(cum[t])} to a filing by then (${pct(cum[days - 1])} by ${fdateY(D.meta.horizon)}).` : "";
-    return `<div class="actual"><b>Actual: ${esc(a.label)}, petition ${fdateY(a.date)}.</b>${by}</div>
-      <div class="actual">${esc(a.cause)}</div>`;
-  }
-  $("actual") && ($("actual").onclick = async () => {
-    if (!S.outcome) S.outcome = await (await fetch(`${API}/outcome`)).json();
-    S.reveal = !S.reveal;
-    $("actual").textContent = S.reveal ? "Hide actual outcome" : "Show actual outcome";
-    $("actual").classList.toggle("on", S.reveal);
-    renderOutcomes(); renderMain();
+  // --- 4. the judgment that matters most ------------------------------------------------------------------------------
+  const dec = (i) => (W.decisions || {})[D.nodes[i].node] || {};
+  const decShort = (i) => { const n = D.nodes[i], s = dec(i).short; return s ? fill(s) + (n.form ? ` (${n.form.form_question.split(":")[0]})` : "") : n.label; };
+  const earlier = (f) => f.earlier_plain || f.earlier_answers || [];
+  const noCash = (n, x) => n.ordinary ? [W.resolve.without, x].filter(Boolean).join("; ") : x;  // the ordinary view's situation
+  const situ = (i) => { const n = D.nodes[i]; return n.form ? (earlier(n.form).join("; ") || W.judgment.first) : noCash(n, n.sub); };
+  const blabel = (i, b) => { const f = D.nodes[i].form; return (f && f.answers && f.answers[b]) || fill((dec(i).branches || {})[b]) || b.replace(/_/g, " "); };
+  const PNODES = D.paths.edges.map((e) => {  // every node a path passes through, including inside its composites
+    const s = new Set(); for (let j = 0; j < e.length; j += 2) { if (e[j] >= 0) s.add(e[j]); else for (const c of D.composites[-e[j] - 1]) for (const [n] of c) s.add(n); }
+    return Int32Array.from(s);
   });
-
-  function renderOutcomes() {
-    const cp = classProbs(), el = $("outcomes");
-    const act = S.reveal && S.outcome ? D.classes.indexOf(S.outcome.petition.label) : -1;
-    let html = `<div class="ohead"><b>Outcomes by ${fdateY(D.meta.horizon)}</b><div class="seg" id="osw"><button data-m="weighted" class="${S.omode === "weighted" ? "on" : ""}">Weighted</button><button data-m="worst" class="${S.omode === "worst" ? "on" : ""}">Worst paths</button></div></div>`;
-    if (S.omode === "weighted") {
-      html += `<div class="sbar">${[...cp].map((p, c) => p > 0 ? `<div class="${act === c ? "act" : ""}" style="width:${100 * p}%;background:${CLS_COL[c]}" title="${esc(D.classes[c])} ${pct(p)}"></div>` : "").join("")}</div>${actualHtml()}
-        <div class="skeys">${[...cp].map((p, c) => p > 0 ? `<span${act === c ? ` style="color:${ACT};font-weight:600"` : ""}><i style="background:${CLS_COL[c]}"></i>${esc(D.classes[c])} ${pct(p)}${act === c ? " ← actual" : ""}</span>` : "").join("")}</div>
-        <div class="seqs">${topSequences().map(([s, p]) => `<div><b>${pct(p)}</b>${esc(D.sequences[s])}</div>`).join("")}</div>`;
-    } else {
-      html += `<table class="t"><tr><th>Path</th><th>Unrecovered</th><th>Frozen if a filing lands at peak outstanding</th><th>Peak day</th></tr>
-        ${D.worst.slice(0, 12).map((w) => `<tr><td>${esc(w.sequence)}</td><td>${money(w.unrecovered)}</td><td>${money(w.frozen_at_peak)}</td><td>${fdate(w.peak_day)}</td></tr>`).join("")}</table>`;
-    }
-    el.innerHTML = html;
-    el.querySelectorAll("#osw button").forEach((b) => (b.onclick = () => { S.omode = b.dataset.m; renderOutcomes(); }));
+  function nodeReach(i) {  // share of outcomes that meet node i: each path's probability is linear in the node's answer
+    if (isBank(i)) return 1;
+    const qs = D.nodes[i].branches.map((_, b) => pathProbs((k) => (k === i ? D.nodes[i].branches.map((__, c) => +(c === b)) : dist(k))));
+    let r = 0; for (let p = 0; p < P; p++) { let lo = Infinity, hi = -Infinity; for (const q of qs) { if (q[p] < lo) lo = q[p]; if (q[p] > hi) hi = q[p]; } r += hi - lo; }
+    return Math.min(1, r / qs.length);
   }
-
-  // --- server reweight of the daily series ----------------------------------------------------------------------
-  let ctrl = null;
-  async function refreshCharts(t0) {
-    if (ctrl) ctrl.abort();
-    ctrl = new AbortController();
-    try {
-      const r = await fetch(`${API}/reweight`, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal,
-        body: JSON.stringify({ overrides: S.overrides }) });
-      const v = await r.json();
-      if (v) { S.event = v; if (v.bank) S.bank = { ...D.bank, ...v.bank }; }
-      renderMain();
-      if (t0) S.lat.push(performance.now() - t0);
-    } catch (e) { if (e.name !== "AbortError") console.error(e); }
+  function effOf(i, at = null) {  // collections and the filing probability at 0%, the current answer (or `at`) and 100% of the selected branch
+    const b = selB(i), get = (x) => (k) => (k === i ? withBranch(i, b, x) : dist(k));
+    if (at) { const g = (k) => (k === i ? at : dist(k)); if (isBank(i)) { const bp = bankProbs(g); return { at: bexpect(bp, "collected"), fat: bexpect(bp, "petition_p") }; }
+      const pp = pathProbs(g); return { at: expect(pp, "collected"), fat: expect(pp, "petition_p") }; }
+    const v = (x) => { if (isBank(i)) { const bp = bankProbs(get(x)); return [bexpect(bp, "collected"), bexpect(bp, "petition_p")]; }
+      const pp = pathProbs(get(x)); return [expect(pp, "collected"), expect(pp, "petition_p")]; };
+    const [c0, f0] = v(0), [c1, f1] = v(1);
+    return { lo: c0, hi: c1, at: isBank(i) ? bexpect(bprobs, "collected") : expect(probs, "collected"), flo: f0, fhi: f1, fat: isBank(i) ? bexpect(bprobs, "petition_p") : expect(probs, "petition_p") };
   }
-
-  // --- probabilities --------------------------------------------------------------------------------------------
-  const DECIDERS = ["Bank data", "Court", "Qorvo", "Akoustis", "Noteholders and Nasdaq"];
-  const GROUP = { "Bank data": "Bank data: asked on bank data alone" };
-  const selB = (i) => S.sel[D.nodes[i].key] ?? 0;
   let sens = [];
-  const dragBase = {};  // node index -> its distribution when the current drag started (cleared on change)
-  function computeSens() {
-    const at = expect(probs, "collected"), bat = bexpect(bankProbs((k) => dist(k)), "collected");
-    sens = D.nodes.map((n, i) => {  // a bank row moves the bank view's Collected, a research row the research view's
-      const b = selB(i), get = (x) => (k) => (k === i ? withBranch(i, b, x) : dist(k));
-      const var_ = n.view === "bank" ? (x) => bexpect(bankProbs(get(x)), "collected") : (x) => expect(pathProbs(get(x)), "collected");
-      const lo = var_(0), hi = var_(1);
-      return { lo, hi, at: n.view === "bank" ? bat : at, range: Math.abs(hi - lo) };
-    });
-  }
-  // The effect row: Collected is linear in the question's probability, so a track from its value at 0% (left) to
-  // its value at 100% (right, arrowhead) carries the current value at the current probability. Green if 'yes' raises
-  // it, red if it lowers it. Values to $0.1k when the move is small, so the numbers agree with the stated change.
-  function effRow(s, p, yesName) {
-    const dv = s.hi - s.lo, fine = Math.abs(dv) < 2e6, fm = (v) => money(v, fine && Math.abs(v) >= 1e5 && Math.abs(v) < 1e8 ? 1 : undefined);
-    const flat = Math.abs(dv) < 100, col = flat ? "#9ca3af" : dv < 0 ? "var(--warn)" : "var(--ok)";
-    const say = flat ? "No effect on Collected" : `${esc(yesName)} ${dv > 0 ? "raises" : "lowers"} Collected by ${fm(Math.abs(dv))}`;
-    // same columns as the slider row, so the marker sits under the slider's thumb and each end value at its end
-    return `<div class="effw" style="--c:${col}"><div class="effg"><span class="v0">0%: <b>${fm(s.lo)}</b></span>
-      <div class="eff"><div class="trk"></div><div class="ah"></div><div class="mk j" style="left:calc(8px + ${p} * (100% - 16px))"></div></div>
-      <span class="v1">100%: <b>${fm(s.hi)}</b></span></div>
-      <div class="dir">Now <b>${fm(s.at)}</b> · ${say}</div></div>`;
-  }
-  function rowHtml(i, scale) {
-    const n = D.nodes[i], b = selB(i), d = dist(i), ch = n.key in S.overrides, s = sens[i];
-    const pos = (v) => `${(100 * (v - scale[0])) / (scale[1] - scale[0] || 1)}%`;
-    const yesName = n.branches.length > 2 ? `More “${n.branches[b].replace(/_/g, " ")}”` : "Yes";
-    const sel = n.branches.length > 2 ? `<select data-i="${i}">${n.branches.map((x, k) => `<option value="${k}"${k === b ? " selected" : ""}>${esc(x.replace(/_/g, " "))}</option>`).join("")}</select>` : `<span class="ctx">yes</span>`;
-    return `<div class="row${ch ? " changed" : ""}" data-i="${i}"><div class="q" data-i="${i}" title="${esc(n.question)}">${esc(n.label || n.question)}${ch ? '<span class="dot"></span>' : ""}</div>
-      ${n.sub ? `<div class="ctx">${esc(n.sub)}</div>` : ""}
-      <div class="ctl">${sel}<input type="range" min="0" max="1000" value="${Math.round(1000 * d[b])}" data-i="${i}"><span class="p" id="p${i}">${pct(d[b], 0)}</span>${ch ? `<button class="rs" data-i="${i}">Reset</button>` : "<span></span>"}</div>
-      ${effRow(s, d[b], yesName)}</div>`;
-  }
-  function renderProbs() {
-    if (S.detail !== null) return renderDetail();
-    const lo = Math.min(...sens.map((s) => Math.min(s.lo, s.hi))), hi = Math.max(...sens.map((s) => Math.max(s.lo, s.hi)));
-    const label = NEUTRAL ? D.meta.judgments_note : D.meta.probability_label || "";  // says 'Model judgment' once
-    let html = `<div class="ohead"><span class="ctx">${esc(label)}</span><div class="sp" style="flex:1"></div>${Object.keys(S.overrides).length ? '<button id="rsall">Reset all</button>' : ""}</div>`;
-    for (const g of DECIDERS) {
-      const rows = D.nodes.map((n, i) => i).filter((i) => D.nodes[i].decider === g).sort((a, b) => sens[b].range - sens[a].range);
-      if (rows.length) html += `<div class="ghead">${esc(GROUP[g] || g)}</div>` + rows.map((i) => rowHtml(i, [lo, hi])).join("");
+  function computeSens() { sens = D.nodes.map((n, i) => { if (isBank(i)) return null; const e = effOf(i), p = dist(i)[selB(i)]; return { i, ...e, range: Math.abs(e.hi - e.lo), score: Math.abs(e.hi - e.lo) * 2 * p * (1 - p) }; }); }
+  function inputs(f) {  // the facts Jev was given, as label: value
+    const out = [], m = (v) => money(cents(v)), rng = (o, fmt) => { const a = fmt(o.p50); return o.p5 && o.p95 && o.p5 !== o.p95 ? `${a} (${fmt(o.p5)} – ${fmt(o.p95)})` : a; };
+    const L = W.inputs;
+    for (const [k, lab] of Object.entries(L)) {
+      const v = f[k]; if (!v) continue;
+      out.push([lab, k === "decision_date" ? rng(v, (t) => t) : k === "settlement_offer" ? (v.amount ? rng(v.amount, m) : "–") : typeof v === "object" ? rng(v, m) : m(v)]);
     }
-    const panel = $("rpanel"), top = panel.scrollTop;
-    panel.innerHTML = html;
-    panel.scrollTop = top;
-    panel.querySelectorAll("input[type=range]").forEach((r) => {
-      const start = () => { const i = +r.dataset.i; if (!(i in dragBase)) dragBase[i] = dist(i).slice(); };
-      r.onpointerdown = start;
-      r.oninput = () => {
-        start();
-        const t0 = performance.now(), i = +r.dataset.i, b = selB(i);
-        S.overrides[D.nodes[i].key] = withBranch(i, b, r.value / 1000, dragBase[i]);
-        probs = pathProbs((k) => dist(k));
-        $(`p${i}`).textContent = pct(r.value / 1000, 0);
-        const row = r.closest(".row"), x = r.value / 1000;  // the effect row follows the slider (linear in x)
-        row.querySelector(".mk.j").style.left = `calc(8px + ${x} * (100% - 16px))`;
-        renderTiles(); renderOutcomes(); refreshCharts(t0);
-      };
-      r.onchange = () => { delete dragBase[+r.dataset.i]; computeSens(); renderProbs(); };
-    });
-    panel.querySelectorAll("select").forEach((s) => (s.onchange = () => { S.sel[D.nodes[+s.dataset.i].key] = +s.value; computeSens(); renderProbs(); }));
-    panel.querySelectorAll(".rs").forEach((b) => (b.onclick = () => { delete S.overrides[D.nodes[+b.dataset.i].key]; recompute(); }));
-    panel.querySelectorAll(".q").forEach((q) => (q.onclick = () => { S.detail = +q.dataset.i; renderProbs(); }));
-    if ($("rsall")) $("rsall").onclick = () => { S.overrides = {}; recompute(); };
-    atEnd();
+    for (const c of f.components || []) out.push([c.component, `${c.amount === "unknown" ? W.judgment.amount_unknown : money(cents(c.amount))}, ${statusText(c.component, c.status)}`]);
+    return out;
   }
-  function recompute() { probs = pathProbs((k) => dist(k)); computeSens(); renderTiles(); renderOutcomes(); renderRight(); refreshCharts(); }
+  const THEORY = new Map(((D.case_terms || {}).components || []).map((c) => [c.label, c.theory]));
+  const statusText = (label, status) => fill((W.status || {})[THEORY.get(label) === "defense" ? "defense" : status] || status);
+  const link = (l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.text)}</a>`;
+  const dragBase = {};
+  function closeupHtml(i, id) {
+    const n = D.nodes[i], det = n.detail || {}, J = W.judgment, b = selB(i);
+    const q = n.form ? n.form.form_question : fill(dec(i).question || n.question);
+    const ask = n.form && (n.form.plain_asks || n.form.asked);
+    const asked = n.form ? `${ask ? `<p class="mute small">${esc(cap(ask))}</p>` : ""}<dl class="meta"><dt>${esc(J.earlier)}</dt><dd>${esc(earlier(n.form).join("; ") || J.none)}</dd></dl>`
+      : `<dl class="meta"><dt>${esc(J.asked)}</dt><dd>${esc(cap(noCash(n, n.context)) || "–")}</dd></dl>`;
+    const quotes = (det.quotes || []).slice(0, 3).map((x) => `<blockquote><p>“${esc(x.quote)}”</p><cite>${esc(x.source)}${x.link ? ` · <a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(W.ui.source)}</a>` : ""}</cite></blockquote>`).join("");
+    const ins = inputs(det.facts || {});
+    return `<h3>${esc(J.question)} · <span class="nt">${esc(decShort(i))}</span></h3><p class="q">${esc(q)}</p>${asked}<p class="mute small" id="${id}-reach"></p>
+      <h3>${esc(J.forecast)}</h3><div class="ans"><span id="${id}-blab"></span><span class="big" id="${id}-big"></span><span class="mute small" id="${id}-jev"></span></div>
+      <div class="jbar" id="${id}-bar"></div><div class="slabs" id="${id}-slabs"></div>
+      <div class="sw"><input type="range" id="${id}-slider" min="0" max="100" step="1" value="${Math.round(100 * dist(i)[b])}"><span class="jm" style="left:${100 * jevDist(i)[b]}%" title="Jev"></span></div>
+      <p class="mute small">${esc(J.drag)} <a href="#" id="${id}-reset"${n.key in S.overrides ? "" : " hidden"}>${esc(J.reset)}</a></p>
+      <h3>${esc(J.effect)}</h3><p class="mute small" id="${id}-of"></p><table class="eff"><tr><th></th><th id="${id}-h0"></th><th class="j" id="${id}-hj"></th><th class="y" id="${id}-hy"></th><th id="${id}-h1"></th></tr>
+        <tr><td>${esc(T("collected"))}</td><td id="${id}-lo"></td><td class="j" id="${id}-at"></td><td class="y" id="${id}-yat"></td><td id="${id}-hi"></td></tr>
+        <tr><td>${esc(T("filing"))}</td><td id="${id}-flo"></td><td class="j" id="${id}-fat"></td><td class="y" id="${id}-yfat"></td><td id="${id}-fhi"></td></tr></table>
+      ${ins.length ? `<h3>${esc(J.inputs)}</h3><dl class="inputs">${ins.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}
+      <h3>${esc(J.evidence)}</h3>${quotes || `<p class="mute">${esc(J.none)}</p>`}
+      <details class="law"><summary>${esc(J.sources)}</summary>${(det.steps || []).map((x) => `<div class="step"><span class="tag">${esc(x.tag)}</span><span>${esc(x.text)}${(x.links || []).length ? ` · ${x.links.map(link).join(" · ")}` : ""}</span></div>`).join("")}</details>`;
+  }
+  const BCOL = ["var(--teal)", "#8ea3bd", "#d8c9a8"];
+  function updateCloseup(i, id) {
+    if (!$(`${id}-big`)) return;
+    const n = D.nodes[i], b = selB(i), d = dist(i), e = effOf(i), J = W.judgment, bn = blabel(i, n.branches[b]);
+    $(`${id}-big`).textContent = pct(d[b]); $(`${id}-blab`).textContent = `${cap(bn)}:`;
+    $(`${id}-jev`).textContent = n.key in S.overrides ? fill(J.jev_said, { p: pct(jevDist(i)[b]) }) : "";
+    $(`${id}-bar`).innerHTML = d.map((p, k) => `<i style="width:${100 * p}%;background:${BCOL[k % 3]}"></i>`).join("");
+    $(`${id}-slabs`).innerHTML = `<span>${esc(n.branches.map((x, k) => `${blabel(i, x)} ${pct(d[k])}`).join(" · "))}</span>`;
+    $(`${id}-reach`).textContent = fill(J.reach, { p: pct(nodeReach(i)) });
+    const ov = n.key in S.overrides, jv = ov ? effOf(i, jevDist(i)) : e;  // Jev's column at Jev's answer; the reader's beside it
+    $(`${id}-h0`).textContent = "0%"; $(`${id}-h1`).textContent = "100%"; $(`${id}-of`).textContent = fill(J.of, { branch: bn }); $(`${id}-hj`).textContent = fill(J.at, { p: pct(jevDist(i)[b]) });
+    $(`${id}-lo`).textContent = money(e.lo); $(`${id}-at`).textContent = money(jv.at); $(`${id}-hi`).textContent = money(e.hi);
+    $(`${id}-flo`).textContent = pct(e.flo); $(`${id}-fat`).textContent = pct(jv.fat); $(`${id}-fhi`).textContent = pct(e.fhi);
+    document.querySelectorAll(`#${id}-hy, #${id}-yat, #${id}-yfat`).forEach((el) => { el.hidden = !ov; });
+    $(`${id}-hy`).textContent = fill(J.yours, { p: pct(d[b]) }); $(`${id}-yat`).textContent = money(e.at); $(`${id}-yfat`).textContent = pct(e.fat);
+    $(`${id}-reset`).hidden = !(n.key in S.overrides);
+  }
+  function bindCloseup(i, id) {
+    const n = D.nodes[i], sl = $(`${id}-slider`);
+    sl.onpointerdown = () => { if (!(i in dragBase)) dragBase[i] = dist(i).slice(); };
+    sl.oninput = () => { if (!(i in dragBase)) dragBase[i] = dist(i).slice(); S.overrides[n.key] = withBranch(i, selB(i), sl.value / 100, dragBase[i]); onChange(false); };
+    sl.onchange = () => { delete dragBase[i]; onChange(true); };
+    $(`${id}-reset`).onclick = (ev) => { ev.preventDefault(); delete S.overrides[n.key]; delete dragBase[i]; onChange(true); rebuildCloseups(); };
+  }
+  function openNode(i) {
+    if (i < 0) return; S.open = i; hideTip();
+    $("drawer").innerHTML = `<button class="x" id="dx" aria-label="${esc(W.ui.close)}">×</button>${closeupHtml(i, "d")}`;
+    $("drawer").classList.add("open"); $("drawer").setAttribute("aria-hidden", "false"); $("drawer").scrollTop = 0;
+    updateCloseup(i, "d"); bindCloseup(i, "d"); $("dx").onclick = closeDrawer;
+  }
+  function closeDrawer() { S.open = null; $("drawer").classList.remove("open"); $("drawer").setAttribute("aria-hidden", "true"); }
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeDrawer(); });
+  function rebuildCloseups() { renderJudgment(true); if (S.open !== null) openNode(S.open); }
 
-  // Jev's readings of the record (evidence for the forecast, not its probability): each reading's likeliest levels,
-  // with the passage it was taken from (its source, date and link).
-  function readings(r) {
-    const items = Array.isArray(r) ? r.map((x, k) => [String(k + 1), x]) : Object.entries(r || {});
-    if (!items.length) return "";
-    return `<div class="ctx">Readings of the record</div><ul class="ctx">${items.map(([name, v]) => {
-      const o = v && typeof v === "object" ? v : {}, dd = o.distribution || {};
-      const top = Object.entries(dd).sort((x, y) => y[1] - x[1]).slice(0, 2).filter(([, p]) => p > 0);
-      const src = o.source || (o.passage_dated ? "passage" : "");
-      const from = src ? ` (${o.link ? `<a href="${esc(o.link)}" target="_blank" rel="noopener">${esc(src)}</a>` : esc(src)}${o.passage_dated ? `, ${fdateY(o.passage_dated)}` : ""})` : "";
-      const what = top.map(([k, p]) => `${esc(k)} ${pct(p, 0)}`).join("; ") || esc(o.fact || (typeof v === "string" ? v : ""))
-        || (o.probability_present != null ? `present ${pct(o.probability_present, 0)}` : "");
-      return `<li>${esc(name)}${from}: ${what}${o.note ? ` (${esc(o.note)})` : ""}</li>`;
-    }).join("")}</ul>`;
+  // the path tree: a prefix tree over each path's first steps, sized by probability
+  const DEPTH = 3, MERGE = 0.02, month = (when) => when.split(" ").pop();
+  const TRIE = { kids: new Map(), paths: [], depth: 0 };
+  for (let i = 0; i < P; i++) {
+    TRIE.paths.push(i); const { steps } = stepsOf(D.paths.seq[i]); let t = TRIE;
+    for (let d = 0; d < DEPTH; d++) {
+      const st = steps[d]; if (!st && d > 0 && FILING.has(steps[d - 1].base)) break;
+      const key = st ? `${st.base}|${month(st.when)}` : "quiet";
+      if (!t.kids.has(key)) t.kids.set(key, { key, base: st ? st.base : "quiet", when: st ? month(st.when) : "", kids: new Map(), paths: [], depth: d + 1 });
+      t = t.kids.get(key); t.paths.push(i); if (!st) break;
+    }
   }
-  function renderDetail() {
-    const i = S.detail, n = D.nodes[i], det = n.detail, d = dist(i);
-    const bname = (b) => b.replace(/_/g, " ");
-    const dl = n.branches.map((b, k) => `${esc(bname(b))} ${pct(d[k])}`).join(" · ");
-    const link = (l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.text)}</a>`;
-    const given = (det.assumptions || []).map((a) => `<li>${esc(a)}</li>`).join("");
-    const quotes = (det.quotes || []).map((q) => `<blockquote>“${esc(q.quote)}”<br><span class="ctx">${esc(q.source)}${q.date ? `, ${esc(q.date)}` : ""}${q.link ? ` · ${link({ url: q.link, text: "source" })}` : ""}</span></blockquote>`).join("");
-    const a = det.answer;  // Jev's answer in words: its distribution, confidence and readings of the record
-    const ans = a ? `<p>${n.branches.map((b) => `${esc(bname(b))} <b>${pct(a.distribution[b] ?? 0)}</b>`).join(" · ")}${a.confidence != null ? ` <span class="ctx">· confidence ${esc(typeof a.confidence === "number" ? pct(a.confidence, 0) : a.confidence)}</span>` : ""}</p>
-      ${readings(a.readings)}`
-      : `<p class="ctx">No Jev answer yet.</p>`;
-    $("rpanel").innerHTML = `<div class="detail"><button class="back" id="back">← Probabilities</button>
-      <div style="font-weight:600">${esc(n.question)}</div><div class="ctx">${esc(n.context)} · decided by ${esc(n.actor)}</div>
-      <p><b>${dl}</b>${n.key in S.overrides ? " (changed)" : ""}</p>
-      ${det.steps.map((s) => `<div class="step"><span class="tag ${s.tag}">${s.tag}</span><span>${esc(s.text)}${(s.links || []).length ? ` · ${s.links.map(link).join(" · ")}` : ""}</span></div>`).join("")}
-      ${given ? `<div class="ghead">Given</div><ul class="ctx">${given}</ul>` : ""}
-      <div class="ghead">Sources</div>${quotes || '<p class="ctx">No quoted passages for this question.</p>'}
-      <div class="ghead">Jev's answer</div>${ans}</div>`;
-    $("back").onclick = () => { S.detail = null; renderProbs(); };
-    atEnd();
+  function tree() {
+    const pp = D.paths.scalars.petition_p;
+    const weigh = (t) => {
+      let m = 0, f = 0; for (const i of t.paths) { m += probs[i]; f += probs[i] * pp[i]; }
+      const node = { key: t.key, base: t.base, when: t.when, depth: t.depth, mass: m, filed: f, kids: [] };
+      const mo = (k) => (k.base === "quiet" ? 98 : MON.indexOf(k.when) < 0 ? 97 : MON.indexOf(k.when));
+      const kids = [...t.kids.values()].map(weigh).sort((a, b) => b.mass - a.mass), other = { key: "other", base: "other", when: "", depth: t.depth + 1, mass: 0, filed: 0, kids: [] };
+      for (const k of kids) { if (k.mass >= MERGE) node.kids.push(k); else { other.mass += k.mass; other.filed += k.filed; } }
+      node.kids.sort((a, b) => (mo(a) - mo(b)) || (b.mass - a.mass));
+      if (other.mass > 1e-9 && node.kids.length) node.kids.push(other);
+      if (node.kids.length === 1 && node.kids[0].base === "quiet") node.kids = [];
+      return node;
+    };
+    const Tr = weigh(TRIE), share = (t, n) => { t.pct = n; if (t.kids.length) apportion(t.kids.map((k) => k.mass), n).forEach((v, j) => share(t.kids[j], v)); };
+    share(Tr, 100); return Tr;
   }
-  function renderTerms() {
-    const t = D.case_terms;
-    $("rpanel").innerHTML = `<div class="ghead">Judgment components</div><table class="t"><tr><th>Component</th><th>Amount</th><th>Status</th><th>Source</th></tr>
-      ${(t.components || []).map((c) => `<tr><td>${esc(c.label)}${c.remittitur ? `<div class="ctx">${esc(c.remittitur)}${c.remittitur_link ? ` · <a href="${esc(c.remittitur_link)}" target="_blank" rel="noopener">source</a>` : ""}</div>` : ""}${c.model ? `<div class="ctx">${esc(c.model)}</div>` : ""}</td><td>${esc(c.amount)}</td><td>${esc(c.status)}</td><td>${c.link ? `<a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.source)}</a>` : esc(c.source)}</td></tr>`).join("")}</table>
-      ${(t.notes || []).map((n) => `<div class="ghead">${esc(n.title)}</div><table class="t">${n.terms.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:left">${esc(v)}</td></tr>`).join("")}</table>`).join("")}
-      <div class="ghead">Deadlines</div><table class="t">${(t.deadlines || []).map((d) => `<tr><td>${fdateY(d.date)}</td><td style="text-align:left">${esc(d.what)}</td></tr>`).join("")}</table>`;
+  const nodeLabel = (t) => (t.base === "quiet" ? W.resolve.nothing : t.base === "other" ? W.resolve.other : t.base);
+  function wrap(text, max) { const out = [""]; for (const w of text.split(" ")) { const cur = last(out); if ((cur + " " + w).trim().length > max && cur) { if (out.length === 2) { out[1] += "…"; break; } out.push(w); } else out[out.length - 1] = (cur + " " + w).trim(); } return out; }
+  function renderPaths(host) {
+    const Tr = tree(), Wd = host.clientWidth || 1000, root = 64, colW = Math.min(305, (Wd - root - 40) / DEPTH - 12), gap = (Wd - root - DEPTH * colW - 4) / DEPTH, pad = 4, H = 480, MINH = 15, TOP = 8;
+    const cols = Array.from({ length: DEPTH + 1 }, () => []), all = [];
+    const walk = (t, parent) => { t.parent = parent; cols[t.depth].push(t); all.push(t); t.kids.forEach((k) => walk(k, t)); }; walk(Tr, null);
+    const scale = Math.min(...cols.map((c) => (c.length ? (H - pad * (c.length - 1)) / c.reduce((a, t) => a + t.mass, 0) : Infinity)));
+    const X = (d) => (d === 0 ? 0 : root + gap + (d - 1) * (colW + gap)), wOf = (d) => (d === 0 ? root - 8 : colW);
+    Tr.y = TOP; Tr.h = Tr.mass * scale;
+    for (let d = 1; d <= DEPTH; d++) { let end = TOP - pad; for (const t of cols[d]) { const p = t.parent; p.off = p.off ?? p.y; t.slice = p.off; p.off += t.mass * scale; t.h = Math.max(t.mass * scale, MINH); t.y = Math.max(end + pad, t.slice); end = t.y + t.h; } }
+    const Hmax = Math.max(...all.map((t) => t.y + t.h)) + 4;
+    const mix = (f) => { const a = [223, 234, 226], b = [243, 205, 196]; return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(",")})`; };
+    let links = "", nodes = "";
+    all.forEach((t, id) => {
+      t.id = id;
+      if (t.parent) { const x0 = X(t.depth - 1) + wOf(t.depth - 1), x1 = X(t.depth), y0 = t.slice, y1 = t.y, h = Math.max(t.mass * scale, 1), mx = (x0 + x1) / 2;
+        links += `<path class="lk${t.base === "quiet" ? " q" : FILING.has(t.base) ? " f" : ""}" data-id="${id}" d="M${x0},${y0}C${mx},${y0} ${mx},${y1} ${x1},${y1}L${x1},${y1 + h}C${mx},${y1 + h} ${mx},${y0 + h} ${x0},${y0 + h}Z"/>`; }
+      const x = X(t.depth), w = wOf(t.depth); let txt = "";
+      if (t.depth === 0) txt = `<text x="${x + 6}" y="${t.y + 16}" class="tn b">${esc(fill(W.ui.root))}</text>`;
+      else if (t.h >= 13) { const label = (t.when ? `${t.when} · ` : "") + nodeLabel(t), two = t.h >= 30 ? wrap(label, Math.floor((w - 48) / 6.4)) : [label.length > (w - 48) / 6.3 ? label.slice(0, Math.floor((w - 48) / 6.3) - 1) + "…" : label], y0 = t.y + t.h / 2 - (two.length - 1) * 7.5 + 4;
+        txt = two.map((l, k) => `<text x="${x + 8}" y="${y0 + 15 * k}" class="tn">${esc(l)}</text>`).join("") + `<text x="${x + w - 8}" y="${t.y + t.h / 2 + 4}" class="tn b" text-anchor="end">${t.pct}%</text>`; }
+      nodes += `<g class="nd" data-id="${id}"><rect x="${x}" y="${t.y}" width="${w}" height="${Math.max(t.h, 1)}" rx="2" fill="${t.depth ? (t.kids.length ? "#e3e6ea" : mix(t.mass > 0 ? t.filed / t.mass : 0)) : "#dfe2e6"}"/>${txt}</g>`;
+    });
+    nodes = nodes.replace(`height="${Math.max(Tr.h, 1)}" rx="2" fill="#dfe2e6"`, `height="${Hmax - 4 - TOP}" rx="2" fill="#dfe2e6"`);
+    host.innerHTML = `<p class="mute small">${esc(fill(W.judgment.paths_note))}</p><div class="tleg"><span><i style="background:#f3cdc4"></i>${esc(W.ui.legend_filed)}</span><span><i style="background:#dfeae2"></i>${esc(fill(W.ui.legend_quiet))}</span><span><i style="background:#e3e6ea"></i>${esc(W.ui.legend_open)}</span></div><svg class="tree" viewBox="0 0 ${Wd} ${Hmax}" style="height:${Hmax}px">${links}${nodes}</svg>`;
+    const svg = host.querySelector("svg"), chain = (t) => { const s = new Set(); for (let u = t; u; u = u.parent) s.add(u.id); return s; };
+    svg.querySelectorAll(".nd").forEach((g) => { const t = all[+g.dataset.id];
+      g.onmouseenter = (ev) => { const on = chain(t); svg.classList.add("hl"); svg.querySelectorAll(".nd, .lk").forEach((e) => e.classList.toggle("on", on.has(+e.dataset.id)));
+        const steps = []; for (let u = t; u && u.depth; u = u.parent) steps.unshift([u.when, nodeLabel(u)]); showTip(ev, `${linesHtml(steps)}<div class="mute" style="margin-top:6px">${t.pct}% · ${esc(fill(W.judgment.paths_filing))} ${pct(t.mass > 0 ? t.filed / t.mass : 0)}</div>`); };
+      g.onmousemove = (ev) => showTip(ev, $("tip").innerHTML); g.onmouseleave = () => { svg.classList.remove("hl"); hideTip(); }; });
   }
-  let polling = null;
-  function renderSettings(prog) {
-    const cur = D.settings_value || {};
-    const want = { ...cur, ...S.settings };
-    const changed = D.settings.some((s) => JSON.stringify(want[s.key] ?? s.value) !== JSON.stringify(s.value));
-    $("rpanel").innerHTML = D.settings.map((s) => {
-      const v = want[s.key] ?? s.value, dot = JSON.stringify(v) !== JSON.stringify(s.value) ? '<span class="dot"></span>' : "";
-      return `<div class="setting"><span>${esc(s.label)}${dot}</span><div class="seg">${s.options.map(([o, l]) => `<button data-k="${s.key}" data-o='${JSON.stringify(o)}' class="${JSON.stringify(o) === JSON.stringify(v) ? "on" : ""}">${esc(l)}</button>`).join("")}</div></div>`;
-    }).join("") + `<p>${changed ? '<button id="sreset">Reset</button>' : ""}</p>`
-      + (prog && prog.running ? `<div class="prog"><i style="width:${(100 * prog.done) / Math.max(prog.total, 1)}%"></i></div><div class="ctx">${esc({ tree: "Building the event tree", bins: "Event cash", simulate: "Simulating", stress: "Worst paths" }[prog.phase] || prog.phase)} ${prog.done} / ${prog.total}</div>` : "")
-      + (prog && prog.error ? `<p class="ctx">${esc(prog.error)}</p>` : "");
-    $("rpanel").querySelectorAll(".seg button").forEach((b) => (b.onclick = () => { S.settings[b.dataset.k] = JSON.parse(b.dataset.o); applySettings(); }));
-    if ($("sreset")) $("sreset").onclick = () => { S.settings = Object.fromEntries(D.settings.map((s) => [s.key, s.value])); applySettings(); };
+  function renderTornado(host) {
+    const L = sens.filter(Boolean).sort((a, b) => b.range - a.range).slice(0, 8), lo0 = Math.min(...L.map((l) => Math.min(l.lo, l.hi, l.at))), hi0 = Math.max(...L.map((l) => Math.max(l.lo, l.hi, l.at)));
+    const pd = 0.06 * (hi0 - lo0 || 1), lo = lo0 - pd, hi = hi0 + pd, pos = (v) => (100 * (v - lo)) / (hi - lo), J = W.judgment;
+    host.innerHTML = `<p class="mute small">${esc(J.tornado_note)}</p><div class="levers">${L.map((l, r) => {
+      const n = D.nodes[l.i], bn = blabel(l.i, n.branches[selB(l.i)]), a0 = fill(J.zero, { branch: bn }), a1 = fill(J.hundred, { branch: bn });
+      const left = l.lo <= l.hi ? [a0, l.lo] : [a1, l.hi], right = l.lo <= l.hi ? [a1, l.hi] : [a0, l.lo];
+      return `<button class="lever" data-i="${l.i}"><span class="ll"><b>${esc(decShort(l.i))}</b><span class="lm">${esc(`${fill(n.key in S.overrides ? J.yours : J.at, { p: pct(dist(l.i)[selB(l.i)]) })} ${bn}`)} · ${esc(situ(l.i))}</span></span>
+        <span class="lt"><span class="rng" style="left:${pos(left[1])}%;width:${pos(right[1]) - pos(left[1])}%"></span><span class="mk" style="left:${pos(l.at)}%"></span>${r === 0 ? `<span class="mkl" style="left:${pos(l.at)}%">${esc(fill(n.key in S.overrides ? J.yours : J.at, { p: "" }).trim())} ${money(l.at)}</span>` : ""}
+        <span class="endl" style="right:${100 - pos(left[1])}%">${esc(left[0])} · <b>${money(left[1])}</b></span><span class="endr" style="left:${pos(right[1])}%"><b>${money(right[1])}</b> · ${esc(right[0])}</span></span></button>`; }).join("")}</div>`;
+    host.querySelectorAll(".lever").forEach((x) => (x.onclick = () => openNode(+x.dataset.i)));
   }
-  async function applySettings() {
-    const want = { ...(D.settings_value || {}), ...S.settings };
-    const r = await (await fetch(`${API}/settings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: want }) })).json();
-    if (!r.progress.running) return reload();
-    renderSettings(r.progress);
-    clearInterval(polling);
-    polling = setInterval(async () => {
-      const p = await (await fetch(`${API}/progress`)).json();
-      if (S.rtab === "settings") renderSettings(p);
-      if (!p.running) { clearInterval(polling); if (!p.error) reload(); }
-    }, 1000);
+  function renderJudgment(rebuild) {
+    const sec = $("s-judgment"), J = W.judgment;
+    if (!sec.querySelector(".card") || rebuild) {
+      sec.innerHTML = `<h2>${esc(W.sections.judgment)}</h2><p>${esc(J.jev)}</p><p class="mute small">${esc(J.why)}</p><div class="card"></div>
+        <h4 class="sub">${esc(J.paths)}</h4><div class="pt"></div><h4 class="sub">${esc(J.tornado)}</h4><div class="tnd"></div>`;
+      const c = sec.querySelector(".card"), html = closeupHtml(S.focus, "c"), cut = html.indexOf(`<h3>${esc(J.forecast)}</h3>`), cut2 = html.indexOf(`<h3>${esc(J.evidence)}</h3>`);
+      const ins = html.indexOf(`<h3>${esc(J.inputs)}</h3>`), mid = html.slice(cut, ins >= 0 ? ins : cut2);  // left: question and inputs; right: forecast, effect, evidence
+      c.innerHTML = `<div>${html.slice(0, cut)}${ins >= 0 ? html.slice(ins, cut2) : ""}</div><div>${mid}${html.slice(cut2)}</div>`;
+      bindCloseup(S.focus, "c");
+    }
+    updateCloseup(S.focus, "c"); renderPaths(sec.querySelector(".pt")); renderTornado(sec.querySelector(".tnd"));
   }
-  async function reload() {
-    D = await (await fetch(`${API}/payload`)).json();
-    S.event = D.event; S.bank = D.bank; S.overrides = {}; S.settings = {};
-    recompute();
+
+  // --- 5. one economic assumption -----------------------------------------------------------------------------------
+  const AS = D.assumptions || [], CEN = AS.find((a) => a.central), AT = D.assumption_text || {};
+  const aLabel = (a) => usdText((AT[a.central ? "central" : a.id] || {}).label || a.label), aNote = (a) => usdText((AT[a.central ? "central" : a.id] || {}).note || "");
+  const aDiff = (a) => ({ f: a.metrics.petition_p - CEN.metrics.petition_p, c: a.metrics.collected - CEN.metrics.collected });
+  const aScore = (a) => { const d = aDiff(a); return Math.abs(d.f) + Math.abs(d.c) / (CEN.metrics.due || 1); };  // points of filing + points of collection rate
+  S.compare = AS.filter((a) => !a.central).sort((a, b) => aScore(b) - aScore(a)).map((a) => a.id)[0] || null;
+  function renderAssumption() {
+    const sec = $("s-assumption"), A = W.assumption; if (!CEN) { sec.hidden = true; return; }
+    const cmp = variant(S.compare), cf = vFigures(CEN), vf = cmp ? vFigures(cmp) : null;
+    const rows = [["due", "due", money], ["collected", "collected", money], ["rate", "rate", pct], ["past_due", "past_due", money], ["frozen_due", "frozen_due", money], ["not_yet_due", "not_yet_due", money], ["funded", "funded", money], ["filing", "petition_p", pct], ["stayed", "stayed_if", money], ["preference", "clawback_if", money]];
+    const rd = (v, fmt) => (fmt === pct ? Math.round(100 * v) / 100 : Math.round(v / 1e5) * 1e5);
+    const diff = (k, fmt) => { const a = cf[k], b = vf && vf[k]; return a === undefined || b === undefined || a === null || b === null ? "–" : fmt === money ? dmoney(rd(b, fmt) - rd(a, fmt)) : pts(rd(b, fmt) - rd(a, fmt)); };
+    sec.innerHTML = `<h2>${esc(W.sections.assumption)}</h2><p class="mute small">${esc(A.shown)}</p>
+      <div class="apick"><div class="ah"><span></span><span></span><span class="d">${esc(T("filing_short"))}</span><span class="d">${esc(T("collected"))}</span></div>${AS.map((a) => { const d = aDiff(a);
+        const used = a.central ? S.assumption === "central" : a.id === S.assumption;
+        return `<label class="${used ? "on" : ""}${!a.central && a.id === S.compare ? " cmp" : ""}"><input type="radio" name="asm" value="${esc(a.id)}"${used ? " checked" : ""}><span>${esc(a.central ? A.central : aLabel(a))}${!a.central && a.id === S.compare ? ` <em class="tag">${esc(A.compared)}</em>` : ""}</span>
+          <span class="d">${a.central ? pct(a.metrics.petition_p) : pts(d.f)}</span><span class="d">${a.central ? money(a.metrics.collected) : dmoney(d.c)}</span></label>`; }).join("")}</div>
+      ${cmp ? `<table class="at" style="max-width:720px"><tr><th></th><th>${esc(A.col_central)}</th><th>${esc(A.col_variant)}</th><th>${esc(A.col_diff)}</th></tr>
+        ${rows.map(([t, k, fmt]) => `<tr><td>${esc(T(t))}</td><td>${fmt(cf[k])}</td><td>${fmt(vf[k])}</td><td>${diff(k, fmt)}</td></tr>`).join("")}</table>
+        ${aNote(cmp) ? `<p class="basis"><b>${esc(aLabel(cmp))}.</b> ${esc(aNote(cmp))}</p>` : ""}` : ""}`;
+    sec.querySelectorAll('input[name="asm"]').forEach((r) => (r.onchange = () => { if (r.value !== CEN.id) S.compare = r.value; setAssumption(r.value === CEN.id ? "central" : r.value); }));
   }
-  function renderRight() { ({ probs: renderProbs, terms: renderTerms, settings: () => renderSettings() })[S.rtab](); atEnd(); }
-  // The bottom fade shows while more of the list lies below.
-  function atEnd() { const p = $("rpanel"); $("right").classList.toggle("atend", p.scrollTop + p.clientHeight >= p.scrollHeight - 2); }
+  function setAssumption(id) {
+    S.assumption = id; S.vm = null; renderAssumption(); renderSwitched();
+    if (id === "central" && !Object.keys(S.overrides).length) { S.event = D.event; S.bank = D.bank; renderSeries(); } else refreshSeries();
+  }
+  function renderSwitched() {
+    const el = $("switched"), v = S.assumption !== "central" ? variant() : null; el.hidden = !v; if (!v) return;
+    el.innerHTML = `${esc(fill(W.assumption.switched, { label: aLabel(v) }))} <a href="#" id="sw-back">${esc(W.assumption.back)}</a>`;
+    $("sw-back").onclick = (ev) => { ev.preventDefault(); setAssumption("central"); };
+  }
+
+  // --- 6. what actually happened, and the footer --------------------------------------------------------------------
+  function renderActual() {
+    $("actual-h").textContent = W.sections.actual;
+    const btn = $("actual"); if (!btn) return;
+    btn.textContent = S.reveal ? W.actual.hide : W.actual.button;
+    btn.onclick = async () => { if (!S.outcome) S.outcome = await (await fetch(`${API}/outcome`)).json(); S.reveal = !S.reveal; renderActual(); };
+    const o = S.outcome, body = $("actual-body"); if (!S.reveal || !o) { body.innerHTML = ""; return; }
+    const pd = o.petition && o.petition.date, t = pd ? D.dates.indexOf(pd) : -1, cum = S.event.daily.petition_cum_p;
+    const filed = pd ? fill(t >= 0 ? W.actual.filed : W.actual.filed_after, { date: fyear(pd), p: pct(t >= 0 ? cum[t] : last(cum)) }) : "";
+    body.innerHTML = `<p>${esc(W.actual.intro)}</p>${filed ? `<p class="filed">${esc(filed)}</p>` : ""}
+      <ol class="events">${o.events.map((e) => `<li><span class="mute">${esc(fyear(e.date))}</span><span>${esc(e.description)}${e.source_url ? ` <a href="${esc(e.source_url)}" target="_blank" rel="noopener">${esc(W.actual.source)}</a>` : ""}</span></li>`).join("")}</ol>`;
+  }
+  function renderFoot() {
+    if ($("record")) $("record").textContent = W.ui.record;
+    const t = D.case_terms || {}, U = W.ui;
+    $("terms").innerHTML = `<details><summary>${esc(U.terms)}</summary><h3>${esc(U.components)}</h3><table class="terms">${(t.components || []).map((c) => `<tr><td>${esc(c.label)}</td><td>${esc(c.amount)}</td><td>${esc(statusText(c.label, c.status))}</td><td>${c.link ? `<a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.source)}</a>` : esc(c.source)}</td></tr>`).join("")}</table>
+      ${(t.notes || []).map((x) => `<h3>${esc(x.title)}</h3><table class="terms">${x.terms.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table>`).join("")}
+      <h3>${esc(U.deadlines)}</h3><table class="terms">${(t.deadlines || []).map((x) => `<tr><td>${esc(fyear(x.date))}</td><td>${esc(x.what)}</td></tr>`).join("")}</table></details>`;
+  }
+
+  // --- any change: figures recomputed here, the series (and a variant's figures) from the server ---------------------
+  let ctrl = null, deb = null;
+  function renderSeries() { renderForecast(); renderResolve(); renderActual(); }
+  function refreshSeries() {
+    clearTimeout(deb);
+    deb = setTimeout(async () => {
+      if (ctrl) ctrl.abort(); ctrl = new AbortController();
+      try {
+        const r = await fetch(`${API}/reweight`, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal, body: JSON.stringify({ assumption: S.assumption, overrides: S.overrides }) });
+        const v = await r.json();
+        if (v && v.daily) { S.event = v; S.vm = S.assumption !== "central" ? v.metrics : null; if (v.bank) S.bank = { ...D.bank, ...v.bank }; renderSeries(); }
+      } catch (e) { if (e.name !== "AbortError") console.error(e); }
+    }, 200);
+  }
+  function renderChanged() {
+    const k = Object.keys(S.overrides).length, el = $("changed"); el.hidden = !k; if (!k) return;
+    el.innerHTML = `${esc(fill(W.ui.changed, { n: k }))} <a href="#" id="rs-all">${esc(W.ui.reset_all)}</a>`;
+    $("rs-all").onclick = (ev) => { ev.preventDefault(); S.overrides = {}; onChange(true); rebuildCloseups(); };
+  }
+  function onChange(settled) {
+    recompute(); if (settled) computeSens();
+    renderForecast(); renderResolve(); renderJudgment(false); if (S.open !== null) updateCloseup(S.open, "d"); renderChanged();
+    refreshSeries();
+  }
 
   // --- init -------------------------------------------------------------------------------------------------------
-  const lim = Math.floor(D.meta.limit_cents / 100).toLocaleString("en-US");
-  // The facility terms, stated once: the line's limit, its fee, the installments per draw and the period.
-  const fee = D.meta.fee_bps != null ? ` · ${(D.meta.fee_bps / 100).toFixed(1)}% fee` : "";
-  const inst = D.meta.installments ? ` · each draw repaid in ${D.meta.installments} monthly installments` : "";
-  $("title").innerHTML = `<b>${esc(D.meta.borrower.replace(/,? Inc\.?$/, ""))}</b> · Slope line: limit $${lim}${fee}${inst} · ${fdate(D.meta.review)} to ${fdateY(D.meta.horizon)}`;
-  document.querySelectorAll("#mtabs button").forEach((b) => (b.onclick = () => { S.mtab = b.dataset.t; renderTabs(); renderMain(); }));
-  document.querySelectorAll("#rtabs button[data-t]").forEach((b) => (b.onclick = () => { S.rtab = b.dataset.t; S.detail = null; renderTabs(); renderRight(); }));
-  document.querySelectorAll("#viewsw button").forEach((b) => (b.onclick = () => { S.view = b.dataset.v; renderTabs(); renderTiles(); renderMain(); }));
-  if (!(D.settings || []).length) document.querySelector('#rtabs button[data-t="settings"]').style.display = "none";  // a run's page has no settings
-  $("rpanel").addEventListener("scroll", atEnd);
-  $("drawer").onclick = () => { $("right").classList.toggle("open"); atEnd(); };
-  $("drawer-close").onclick = () => $("right").classList.remove("open");
-  let rz = null;
-  window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(renderMain, 120); });
-  computeSens(); renderTabs(); renderTiles(); renderOutcomes(); renderRight(); renderMain();
-  refreshCharts();  // warms the server's reweight, so the first slider move is as quick as the rest
+  recompute(); computeSens();
+  S.focus = sens.filter(Boolean).sort((a, b) => b.score - a.score)[0].i;
+  window.__figures = () => ({ ...figures(), assumption: S.assumption, focus: D.nodes[S.focus].key, compare: S.compare });
+  renderSituation(); renderForecast(); renderResolve(); renderJudgment(true); renderAssumption(); renderActual(); renderFoot(); renderChanged();
+  let rz = null; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { renderForecast(); renderResolve(); renderJudgment(false); }, 150); });
+  refreshSeries();  // warms the server's reweight
 })();

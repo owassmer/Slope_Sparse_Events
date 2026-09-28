@@ -1,0 +1,10 @@
+[
+  {"key": "line_usage", "label": "Line usage", "kind": "line", "value": 1.0, "options": [[1.0, "100%"], [0.5, "50%"]]},
+  {"key": "limit_multiplier", "label": "Limit", "kind": "line", "value": 1.0, "options": [[1.0, "1x"], [1.5, "1.5x"], [2.2, "2.2x"]]},
+  {"key": "fee_bps", "label": "Fee", "kind": "line", "value": 370, "options": [[250, "2.5%"], [370, "3.7%"], [500, "5.0%"]]},
+  {"key": "remittitur", "label": "Remitted damages", "kind": "tree", "value": "remitted", "options": [["remitted", "Remitted amount (D.I. 616-1)"], ["verdict_stands", "Verdict amount"]]},
+  {"key": "bond_collateral_share_bps", "label": "Bond collateral", "kind": "tree", "value": false, "options": [[false, "100%"], [true, "80%"]]},
+  {"key": "coupon_cash_share", "label": "15 Dec coupon", "kind": "tree", "value": "shares", "options": [["shares", "Shares to capacity, rest cash"], ["all_cash", "Cash"], ["all_shares", "Shares"]]},
+  {"key": "chips_credit_cents", "label": "CHIPS credit", "kind": "tree", "value": false, "options": [[false, "Off"], [true, "On"]]},
+  {"key": "stay_restart_on_increase_days", "label": "Amended judgment: new stay clock on", "kind": "tree", "value": false, "options": [[false, "The increase"], [true, "The whole amount"]]}
+]

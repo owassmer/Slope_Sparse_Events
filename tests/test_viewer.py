@@ -78,7 +78,8 @@ def test_the_page_renders_from_its_payload_and_reweights(small_page, monkeypatch
     monkeypatch.setattr(web, "_DEV", page)
     c = TestClient(app)
     r = c.get("/dev/akoustis")
-    assert r.status_code == 200 and "page-data" in r.text and "Bank data + research" in r.text
+    assert r.status_code == 200 and "page-data" in r.text and all(f'id="s-{s}"' in r.text for s in (
+        "situation", "forecast", "resolve", "judgment", "assumption"))
     assert state["payload"]["meta"]["judgments"] == "neutral" and "No Jev answers yet" in r.text
     node = state["payload"]["nodes"][0]
     body = {"overrides": {node["key"]: [0.9] + [0.1 / (len(node["branches"]) - 1)] * (len(node["branches"]) - 1)}}
@@ -214,7 +215,6 @@ def test_a_run_page_reveals_the_actual_outcome_only_where_its_case_has_one(small
     reveal is served from the viewer only; the page reweights from the run's state."""
     import re
 
-    from app.analysis.page import CLASSES
     from app.config import OUTCOMES
 
     _, _, state = small_page
@@ -224,7 +224,7 @@ def test_a_run_page_reveals_the_actual_outcome_only_where_its_case_has_one(small
     assert r.status_code == 200 and "page-data" in r.text and "disabled" not in button
     out = c.get(f"/runs/{run}/outcome").json()
     assert out == json.loads((OUTCOMES / "akoustis_20240620.json").read_text())
-    assert out["petition"]["label"] in dict(CLASSES).values() and out["petition"]["date"] <= out["period_ends"]
+    assert out["petition"]["label"] in state["payload"]["classes"] and out["petition"]["date"] <= out["period_ends"]
     for e in out["events"]:
         assert e["date"] > out["decision_date"] and e["quote"] and e["short"]
         assert e["source_url"].startswith(("https://www.sec.gov/", "https://storage.courtlistener.com/"))
@@ -248,3 +248,24 @@ def test_the_dev_page_has_no_reveal(small_page, monkeypatch):
     monkeypatch.setattr(web, "_DEV", page)
     r = TestClient(app).get("/dev/akoustis")
     assert r.status_code == 200 and 'id="actual"' not in r.text
+
+
+def test_the_page_code_and_vocabulary_name_no_party():
+    """page.js, page.html, words.json and page.py carry no party name: names come from the payload (spec §16.5)."""
+    import re
+
+    from app.analysis.build import short_name
+    from app.config import CASES_DIR, ROOT
+
+    names = set()
+    for f in CASES_DIR.glob("*/run_inputs.json"):
+        b = json.loads(f.read_text()).get("baseline_profile", {}).get("borrower")
+        names |= {short_name(b)} if b else set()
+    for f in (ROOT / "runs" / "recorded").glob("*/page.json"):  # the parties each recorded page names
+        names |= set((json.loads(f.read_text()).get("parties") or {}).values())
+    assert names
+    for rel in ("app/web/static/page.js", "app/web/templates/page.html", "app/web/static/words.json"):
+        text = (ROOT / rel).read_text()
+        assert not [n for n in names if re.search(rf"\b{re.escape(n)}\b", text)], rel
+    code = (ROOT / "app/analysis/page.py").read_text().split("# Settings.")[0]  # the dev page's settings and fixture follow
+    assert not [n for n in names if re.search(rf"\b{re.escape(n)}\b", code)]

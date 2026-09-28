@@ -86,3 +86,17 @@ def test_the_lines_history_is_the_engine_on_the_feed_and_reconciles_to_the_openi
         assert (txn["date"], -txn["amount_cents"]) == (d["date"], d["amount_cents"])
     limit_now = hist["limit_by_day_cents"][max(k for k in hist["limit_by_day_cents"] if k <= REVIEW.isoformat())]
     assert limit_now == line["limit_cents"] and ex.principal_cents <= limit_now
+
+
+def test_the_page_names_no_docket_entry_filed_after_the_review_date():
+    """Nothing dated after 14 May reaches the 14 May page's payload (its reveal file aside): every docket entry it
+    cites is at most the last one the snapshot admits."""
+    import re
+
+    run = next(p for p in sorted((ROOT / "runs" / "recorded").glob(f"{SNAP}-agent_plus_jev-*")) if (p / "page.json").exists())
+    shown = json.loads((ROOT / "cases" / SNAP / "snapshot.json").read_text())["source_display"]
+    admitted = {int(n) for k in shown for n in re.findall(r"_d(\d{3,4})(?:_|$)", k)}
+    text = (run / "page.json").read_text()
+    cited = {int(n) for n in re.findall(r"(?:D\.I\.|Dkt\.)\s*(\d+)", text)}
+    cited |= {int(n) for n in re.findall(r"gov\.uscourts\.[a-z]+\.\d+\.(\d+)\.\d+\.pdf", text)}
+    assert admitted and cited and max(cited) <= max(admitted), sorted(x for x in cited if x > max(admitted))

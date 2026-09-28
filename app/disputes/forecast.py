@@ -320,6 +320,15 @@ MERITS_KINDS = {"ts_liability_jmol": (), "ts_damages_ruling": ("compensatory",),
                 "fees_awarded": ("fees",), "prejudgment_interest": ("prejudgment_interest",), "injunction": ()}
 
 
+def notes_default_text(m: dict, f) -> str:
+    """The notes' judgment default in the indenture's own words (contract template quotes), filled from the
+    instrument's threshold and days; '' where the instrument states no period."""
+    if not f.judgment_default_days:
+        return ""
+    q = next(t["quotes"]["judgment_default"] for t in m["templates"].values() if "judgment_default" in t.get("quotes", {}))
+    return q.format(threshold=usd(f.judgment_default_threshold_cents), days=f.judgment_default_days)
+
+
 class Forecaster:
     def __init__(self, disputes: list[DisputeInstance], findings: dict[str, AtomicFinding], *, borrower: str,
                  review: date, horizon: date, hydrate: Callable[[AtomicFinding], dict], model: dict | None = None,
@@ -786,21 +795,14 @@ class Forecaster:
         out.update(self.obligation_facts(fin))
         return out
 
-    @staticmethod
-    def obligation_facts(fin) -> dict:
+    def obligation_facts(self, fin) -> dict:
         """The terms of the borrower's existing obligation that the path facts carry (spec §16.3: the same existing
         debt on every path): the notes' principal and their judgment-default clause. Their source is the instrument,
         not the dispute, so the forecast and the ordinary view carry them alike."""
         if fin is None:
             return {}
         return {"notes": {"principal": usd(fin.principal_cents),
-                          "judgment_default": (f"final judgments for the payment of money above "
-                                               f"{usd(fin.judgment_default_threshold_cents)} that \"remain "
-                                               f"undischarged, unpaid or unstayed for a period (during which "
-                                               f"execution shall not be effectively stayed) of "
-                                               f"{fin.judgment_default_days} days\" (§7.01(i)), after notice by the "
-                                               f"trustee or holders of 25% of the notes"
-                                               if fin.judgment_default_days else "none")}}
+                          "judgment_default": notes_default_text(self.m, fin) or "none"}}
 
     def raise_facts(self, eq: np.ndarray) -> dict:
         """What the company can raise at the cash floor in its situation (code-owned case inputs), and how it arrives."""
