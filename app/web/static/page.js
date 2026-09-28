@@ -12,7 +12,7 @@
 
   // --- formatting -----------------------------------------------------------------------------------------------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const fill = (t, o = {}) => String(t).replace(/\{(\w+)\}/g, (m, k) => (k in o ? o[k] : m)).replace(/(\d+) in 100/g, "$1\u00a0in\u00a0100");
+  const fill = (t, o = {}) => String(t).replace(/\{(\w+)\}/g, (m, k) => (k in o ? o[k] : m));
   // money: $339k, $1.2M; whole units unless a value is under 10 of its unit
   const money = (c) => {
     const v = c / 100, a = Math.abs(v), s = v < 0 ? "−" : "";
@@ -20,7 +20,8 @@
     if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}k`;
     return `${s}$${Math.round(a)}`;
   };
-  const freq = (p) => `${Math.round(100 * p)}\u00a0in\u00a0100`;
+  const pct = (p) => `${Math.round(100 * p)}%`;
+  const pts = (d) => `${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(Math.round(100 * d))} pts`;
   const n100 = (p) => Math.round(100 * p);
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const fdate = (iso) => `${+iso.slice(8, 10)} ${MON[+iso.slice(5, 7) - 1]}`;
@@ -76,9 +77,9 @@
   // --- outcomes and the 100 dots --------------------------------------------------------------------------------
   const OUT = W.outcomes;
   const CLS = D.classes;
-  const COLOR = { "Filed: notes": "#8f1d1d", "Filed: short of cash": "#c2412d", "Filed: Qorvo enforcement": "#e0826b",
-    "bank_filed": "#c2412d", "Settled": "#5f8f6c", "Paid": "#6f7780", "Stayed on appeal": "#8fa3b3",
-    "Vacated or new trial": "#c9b99c", "Unresolved": "#dde0e4", "bank_not_filed": "#dde0e4" };
+  const COLOR = { "Filed: notes": "#e0582a", "Filed: short of cash": "#9b1c1c", "Filed: Qorvo enforcement": "#e3a008",
+    "bank_filed": "#9b1c1c", "Settled": "#4d7c5a", "Paid": "#6b7280", "Stayed on appeal": "#5b7aa8",
+    "Vacated or new trial": "#b8955a", "Unresolved": "#cfd4da", "bank_not_filed": "#cfd4da" };
   const outLabel = (c) => fill((OUT[c] || { label: c }).label, WH);
   const isFiled = (c) => !!(OUT[c] || {}).filed;
   function classProbs() { const c = new Float64Array(CLS.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
@@ -120,7 +121,7 @@
   function pathLines(q, filed) {  // [[when, what], ...]
     const { steps, filed: hasFiling } = stepsOf(q, !filed);
     const parts = steps.map((st) => [st.when, phrase(st.base)]);
-    if (!filed || !hasFiling) parts.push([`by ${HOR}`, W.steps.quiet]);
+    if (!filed || !hasFiling) parts.push([HOR, fill(W.steps.quiet, WH)]);
     return parts;
   }
   const linesHtml = (ls) => `<table class="pl">${ls.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join("")}</table>`;
@@ -165,6 +166,12 @@
     for (const i of it) for (const n of PNODES[i]) m[n] += probs[i];
     return m;
   }
+  function nodeReach(i) {  // probability that a path meets node i: each path's probability is linear in the node's answer
+    if (isBank(i)) return 1;
+    const qs = D.nodes[i].branches.map((_, b) => pathProbs((k) => (k === i ? D.nodes[i].branches.map((__, c) => +(c === b)) : dist(k))));
+    let r = 0; for (let p = 0; p < P; p++) { let lo = Infinity, hi = -Infinity; for (const q of qs) { if (q[p] < lo) lo = q[p]; if (q[p] > hi) hi = q[p]; } r += hi - lo; }
+    return Math.min(1, r / qs.length);  // every answer's subtree moves by the full reach, so the spread counts it once per answer
+  }
   function pickNode(types, paths) {
     const m = nodeMass(paths); let best = -1, bm = -1;
     for (const t of types) for (const i of TYPE_NODES[t] || []) if (m[i] > bm) { bm = m[i]; best = i; }
@@ -193,13 +200,17 @@
     const weigh = (t) => {
       let m = 0, f = 0; for (const i of t.paths) { m += probs[i]; f += probs[i] * pp[i]; }
       const node = { key: t.key, base: t.base, when: t.when, depth: t.depth, mass: m, filed: f, paths: t.paths, kids: [] };
+      const mo = (k) => (k.base === "quiet" ? 98 : MON.indexOf(k.when) < 0 ? 97 : MON.indexOf(k.when));
       const kids = [...t.kids.values()].map(weigh).sort((a, b) => b.mass - a.mass), other = { key: "other", base: "other", when: "", depth: t.depth + 1, mass: 0, filed: 0, paths: [], kids: [] };
       for (const k of kids) { if (k.mass >= MERGE) node.kids.push(k); else { other.mass += k.mass; other.filed += k.filed; other.paths = other.paths.concat(k.paths); } }
-      if (other.mass > 1e-9 && node.kids.length) node.kids.push(other);  // no lone 'other ways': the node ends there
+      node.kids.sort((a, b) => (mo(a) - mo(b)) || (b.mass - a.mass));
+      if (other.mass > 1e-9 && node.kids.length) node.kids.push(other);  // no lone 'other': the node ends there
       if (node.kids.length === 1 && node.kids[0].base === "quiet") node.kids = [];  // a lone 'nothing forces a filing' adds nothing
       return node;
     };
-    return weigh(TRIE);
+    const T = weigh(TRIE), share = (t, n) => { t.pct = n; if (t.kids.length) apportion(t.kids.map((k) => k.mass), n).forEach((v, j) => share(t.kids[j], v)); };
+    share(T, 100);
+    return T;
   }
 
   // --- how much each judgment moves collections (0% / Jev / 100% for its selected branch) ---------------------------
@@ -213,10 +224,13 @@
       return { lo, hi, at: isBank(i) ? bat : at, range: Math.abs(hi - lo) };
     });
   }
-  const effOf = (i) => {  // the same arithmetic for one node, on demand
+  const effOf = (i) => {  // collections and the filing probability at 0%, the current value and 100%, for one node
     const b = selB(i), get = (x) => (k) => (k === i ? withBranch(i, b, x) : dist(k));
-    const v = isBank(i) ? (x) => bexpect(bankProbs(get(x)), "collected") : (x) => expect(pathProbs(get(x)), "collected");
-    return { lo: v(0), hi: v(1), at: isBank(i) ? bexpect(bprobs, "collected") : expect(probs, "collected") };
+    const at = (key) => (isBank(i) ? bexpect(bprobs, key) : expect(probs, key));
+    const v = (x) => { if (isBank(i)) { const bp = bankProbs(get(x)); return [bexpect(bp, "collected"), bexpect(bp, "petition_p")]; }
+      const pp = pathProbs(get(x)); return [expect(pp, "collected"), expect(pp, "petition_p")]; };
+    const [c0, f0] = v(0), [c1, f1] = v(1);
+    return { lo: c0, hi: c1, at: at("collected"), flo: f0, fhi: f1, fat: at("petition_p") };
   };
   const levers = () => sens.map((s, i) => ({ i, ...s })).filter((s) => !isBank(s.i)).sort((a, b) => b.range - a.range).slice(0, 6);
 
@@ -248,7 +262,6 @@
   })();
   function renderSituation() {
     const U = W.ui, L = U.line_rows, lim = money(D.meta.limit_cents);
-    const rule = W.situation.line.split(". ").slice(1).join(". ");
     const cents = (t) => Math.round(100 * parseFloat(String(t).replace(/[$,]/g, "")));
     const judgment = (D.case_terms.components || []).filter((c) => c.status === "awarded").reduce((a, c) => a + cents(c.amount), 0);
     const notes = ((D.case_terms.notes || [])[0] || { terms: [] }).terms.find(([k]) => k === "Principal");
@@ -259,43 +272,48 @@
       <div class="line"><h3>${esc(U.line_title)}</h3><dl>
         <dt>${esc(L.limit)}</dt><dd>${lim}<span class="mute small"> · ${esc(L.limit_note)}</span></dd>
         <dt>${esc(L.fee)}</dt><dd>${esc(fill(L.fee_value, { fee: `${(D.meta.fee_bps / 100).toFixed(1)}%` }))}</dd>
-        <dt>${esc(L.repaid)}</dt><dd>${esc(fill(L.repaid_value, { n: D.meta.installments }))}</dd></dl>
-        <p class="rule">${esc(rule)}</p></div></div>
+        <dt>${esc(L.repaid)}</dt><dd>${esc(fill(L.repaid_value, { n: D.meta.installments }))}</dd>
+        <dt>${esc(L.draws)}</dt><dd>${esc(L.draws_value)}</dd></dl></div></div>
       <div class="facts">${facts.map(([k, v]) => `<div><span class="mute small">${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>
       <p class="mute small">${esc(W.situation.bank_note)}</p>`;
   }
 
-  // --- 2. the 100 dots and the comparison -------------------------------------------------------------------------
+  // --- 2. outcomes: two 10 x 10 grids, each square 1% of outcomes, and the comparison ------------------------------
   let DOTS = { bank: [], research: [] };
-  function dotRow(view, groups) {
+  function grid(view, groups) {
     const reps = dotPaths(groups, view === "bank"), filed = groups.filter((g) => g.filed).reduce((s, g) => s + g.n, 0);
-    let dots = "", k = 0; const list = [];
-    groups.forEach((g, gi) => { for (let r = 0; r < g.n; r++) { list.push({ c: g.c, n: g.n, filed: g.filed, q: reps[gi][r] }); dots += `<i data-v="${view}" data-d="${k++}" style="background:${COLOR[g.c]}"></i>`; } });
+    let sq = "", k = 0; const list = [];
+    groups.forEach((g, gi) => { for (let r = 0; r < g.n; r++) { list.push({ c: g.c, n: g.n, filed: g.filed, q: reps[gi][r] }); sq += `<i data-v="${view}" data-d="${k++}" style="background:${COLOR[g.c]}"></i>`; } });
     DOTS[view] = list;
-    const name = view === "bank" ? W.views.bank.name : W.ui.col_research;
-    const leg = groups.filter((g) => g.n).map((g) => `<span><i style="background:${COLOR[g.c]}"></i>${esc(outLabel(g.c))} <b>${g.n}</b></span>`).join("");
-    return `<div class="drow ${view}"><div class="dhead"><b>${esc(name)}</b><span>${esc(fill(W.ui.files_by, { n: filed, horizon: HOR }))}</span></div>
-      <div class="dots">${dots}</div><div class="dleg">${leg}</div></div>`;
+    const F = W.futures, name = view === "bank" ? W.views.bank.name : W.views.research.name;
+    const item = (g) => `<li><i style="background:${COLOR[g.c]}"></i><span>${esc(outLabel(g.c))}</span><b>${g.n}%</b></li>`;
+    const part = (isF) => groups.filter((g) => g.n && g.filed === isF);
+    return `<div class="gblock ${view}"><div class="ghead"><span class="gname">${esc(name)}</span>
+        <span class="gbig">${filed}%</span><span class="gsub">${esc(fill(W.ui.files_by, WH))}</span></div>
+      <div class="gbody"><div class="waffle">${sq}</div>
+        <div class="gleg"><h4>${esc(fill(F.filed_group, WH))} <b>${filed}%</b></h4><ul>${part(true).map(item).join("")}</ul>
+          <h4>${esc(fill(F.not_filed_group, WH))} <b>${100 - filed}%</b></h4><ul>${part(false).map(item).join("")}</ul></div></div></div>`;
   }
   function renderFutures() {
-    const f = figures(), U = W.ui, M = W.measures;
-    const rate = (v) => fill(U.rate_fmt, { n: Math.round(100 * v) });
-    const sgn = (d, fmt) => `${d > 0 ? "+" : d < 0 ? "−" : ""}${fmt(Math.abs(d))}`;
-    const rows = [["funded", money], ["collected", money], ["rate", rate], ["stuck", money], ["clawback", money]].map(([k, fmt]) => {
-      const m = M[k], shown = (v) => (k === "rate" ? Math.round(100 * v) / 100 : Math.round(v / 1e5) * 1e5), d = shown(f.research[k]) - shown(f.bank[k]);
-      return `<tr><td${m.note ? ` data-tip="${esc(fill(m.note, WH))}" class="hastip"` : ""}>${esc(fill(m.label, WH))}</td><td>${fmt(f.bank[k])}</td><td>${fmt(f.research[k])}</td>
-        <td>${k === "rate" ? fill(U.rate_diff, { n: sgn(Math.round(100 * d), (x) => `$${x}`) }) : sgn(d, fmt)}</td></tr>`;
+    const f = figures(), M = W.measures;
+    const GOOD = { funded: 0, due: 0, collected: 1, rate: 1, unpaid: -1, stuck: -1, clawback: -1 };
+    const rows = ["funded", "due", "collected", "rate", "unpaid", "stuck", "clawback"].map((k) => {
+      const m = M[k], rate = k === "rate", fmt = rate ? pct : money;
+      const shown = (v) => (rate ? Math.round(100 * v) / 100 : Math.round(v / 1e5) * 1e5), d = shown(f.research[k]) - shown(f.bank[k]);
+      const cls = !GOOD[k] || !d ? "" : (d > 0) === (GOOD[k] > 0) ? "good" : "bad";
+      const dtxt = rate ? pts(d) : `${d > 0 ? "+" : d < 0 ? "−" : ""}${money(Math.abs(d))}`;
+      return `<tr><td${m.note ? ` data-tip="${esc(fill(m.note, WH))}" class="hastip"` : ""}>${esc(fill(m.label, WH))}</td><td>${fmt(f.bank[k])}</td><td>${fmt(f.research[k])}</td><td class="${cls}">${dtxt}</td></tr>`;
     }).join("");
-    $("s-futures").innerHTML = `<h2>${esc(W.futures.title)}</h2><p class="mute">${esc(W.futures.dot)}</p>
-      ${dotRow("bank", bankDots())}${dotRow("research", researchDots())}
-      <table class="cmp"><tr><th></th><th>${esc(W.views.bank.name)}</th><th>${esc(U.col_research)}</th><th>${esc(W.views.difference)}</th></tr>${rows}</table>
-      <p class="why">${esc(W.why_lower)}</p>`;
-    $("s-futures").querySelectorAll(".dots i").forEach((el) => {
-      el.onmouseenter = (ev) => {
+    $("s-futures").innerHTML = `<h2>${esc(fill(W.futures.title, WH))}</h2><p class="mute">${esc(W.futures.sub)}</p>
+      <div class="grids">${grid("bank", bankDots())}${grid("research", researchDots())}</div>
+      <table class="cmp"><tr><th></th><th>${esc(W.views.bank.name)}</th><th>${esc(W.views.research.name)}</th><th>${esc(W.views.difference)}</th></tr>${rows}</table>
+      <p class="mute small">${esc(W.ui.change_note)}</p><p class="why">${esc(W.why_lower)}</p>`;
+    $("s-futures").querySelectorAll(".waffle i").forEach((el) => {
+      el.onmouseenter = () => {
         const d = DOTS[el.dataset.v][+el.dataset.d];
         const r = el.getBoundingClientRect(), at = { clientX: r.left + r.width / 2, clientY: r.top };
-        showTip(at, `<div class="tt"><i style="background:${COLOR[d.c]}"></i><b>${esc(outLabel(d.c))}</b></div><div class="mute">${esc(fill(U.dot_hover, { n: d.n }))}</div>`
-          + (d.q === undefined ? "" : linesHtml(pathLines(d.q, d.filed))), true);
+        showTip(at, `<div class="tt"><i style="background:${COLOR[d.c]}"></i><b>${esc(outLabel(d.c))}</b></div>`
+          + (d.q === undefined ? `<div class="mute">${esc(`${d.n}%`)}</div>` : `<div class="mute">${esc(fill(W.ui.square_hover, { p: `${d.n}%` }))}</div>${linesHtml(pathLines(d.q, d.filed))}`), true);
       };
       el.onmouseleave = hideTip;
       el.onclick = () => {
@@ -320,6 +338,10 @@
     }
     const k = c.indexOf(Math.max(...c)); return c[k] > 0 ? outLabel(CLS[k]) : "";
   }
+  const box = (x, y, anchor, size, text, cls = "", fillc = "", bg = "#fff") => {  // a label with a box behind it
+    const w = text.length * size * 0.6 + 8, x0 = anchor === "end" ? x - w + 4 : x - 4;
+    return `<rect x="${x0}" y="${y - size}" width="${w}" height="${size + 5}" fill="${bg}"/><text x="${x}" y="${y}"${anchor === "end" ? ' text-anchor="end"' : ""}${cls ? ` class="${cls}"` : ""}${fillc ? ` fill="${fillc}"` : ""}>${esc(text)}</text>`;
+  };
   function renderWhen() {
     const host = $("s-when");
     if (!host.querySelector("svg")) host.innerHTML = `<h2>${esc(W.ui.when_title)}</h2><p class="mute">${esc(W.ui.when_sub)}</p><svg class="when"></svg>`;
@@ -328,45 +350,50 @@
     const m = { l: 40, r: 200, t: 92, b: 30 }, w = Wd - m.l - m.r, h = H - m.t - m.b;
     const X = (t) => m.l + (w * t) / (days - 1), Y = (p) => m.t + h - h * p, ix = (iso) => D.dates.indexOf(iso);
     let g = "";
-    const rw = D.pins.ruling_window; if (rw && ix(rw[0]) >= 0) g += `<rect x="${X(ix(rw[0]))}" y="${m.t}" width="${X(days - 1) - X(ix(rw[0]))}" height="${h}" fill="#f4f5f6"/><text x="${X(days - 1) - 8}" y="${Y(0.97)}" text-anchor="end" class="band">${esc(W.ui.ruling_band)}</text>`;
-    for (const v of [0, 25, 50, 75, 100]) g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v / 100)}" y2="${Y(v / 100)}" stroke="${v ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v / 100) + 4}" text-anchor="end">${v}</text>`;
+    const rw = D.pins.ruling_window; if (rw && ix(rw[0]) >= 0) g += `<rect x="${X(ix(rw[0]))}" y="${m.t}" width="${X(days - 1) - X(ix(rw[0]))}" height="${h}" fill="#f4f5f6"/>`;
+    const bandLabel = rw && ix(rw[0]) >= 0 ? box(X(days - 1) - 8, Y(0.97), "end", 12, W.ui.ruling_band, "band", "", "#f4f5f6") : "";
+    for (const v of [0, 25, 50, 75, 100]) g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v / 100)}" y2="${Y(v / 100)}" stroke="${v ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v / 100) + 4}" text-anchor="end">${v}%</text>`;
     D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 8}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text><line x1="${X(t)}" x2="${X(t)}" y1="${m.t + h}" y2="${m.t + h + 5}" stroke="#c9cdd2"/>`; });
     const pins = [["briefing_close", D.pins.briefing_close], ["judgment_default", judgmentDefault], ["ruling_window", rw && rw[0]], ["nasdaq", D.pins.nasdaq], ["coupon", D.pins.coupon]]
       .filter(([, d]) => d && ix(d) >= 0).sort((a, b) => (a[1] < b[1] ? -1 : 1));
-    const ends = [];
+    const ends = []; let plines = "", ptexts = "";
     pins.forEach(([k, d]) => {
       const x = X(ix(d)), label = `${fdate(d)} · ${W.dates[k]}`, len = 6.4 * label.length, flip = x + 6 + len > m.l + w + m.r - 8;
       const [a, z] = flip ? [x - 5 - len, x] : [x, x + 5 + len];
       let row = ends.findIndex((e) => e.every(([p, q]) => z + 10 < p || a > q + 10)); if (row < 0) { row = ends.length; ends.push([]); }
       ends[row].push([a, z]); const y = 14 + row * 17;
-      g += `<line x1="${x}" x2="${x}" y1="${y + 4}" y2="${m.t + h}" stroke="#b9bec5" stroke-dasharray="2 3"/><text class="pin" x="${flip ? x - 5 : x + 5}" y="${y}"${flip ? ' text-anchor="end"' : ""}>${esc(label)}</text>`;
+      plines += `<line x1="${x}" x2="${x}" y1="${y + 4}" y2="${m.t + h}" stroke="#b9bec5" stroke-dasharray="2 3"/>`;
+      ptexts += box(flip ? x - 5 : x + 5, y, flip ? "end" : "start", 12, label, "pin");
     });
+    g += plines;
     const line = (ys) => ys.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join("");
-    g += `<path d="${line(B)}" fill="none" stroke="var(--bank)" stroke-width="2.2" stroke-dasharray="6 4"/><path d="${line(R)}" fill="none" stroke="var(--teal)" stroke-width="2.8"/>`;
+    const lineUp = (ys) => ys.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${(Y(v) - 1.5).toFixed(1)}`).join("");
+    g += `<path d="${lineUp(B)}" fill="none" stroke="#6b7178" stroke-width="2.2" stroke-dasharray="6 4"/><path d="${line(R)}" fill="none" stroke="var(--teal)" stroke-width="2.8"/>`;
     // the lines labelled at their ends, pushed apart if they would overlap
     let yb = Y(B[days - 1]), yr = Y(R[days - 1]);
     if (Math.abs(yb - yr) < 36) { const mid = (yb + yr) / 2, s = yb >= yr ? 1 : -1; yb = mid + 18 * s; yr = mid - 18 * s; }
-    const endLab = (y, col, name, p) => `<text x="${m.l + w + 10}" y="${y - 2}" fill="${col}" class="end">${esc(name)}</text><text x="${m.l + w + 10}" y="${y + 15}" fill="${col}" class="endv">${esc(freq(p))}</text>`;
-    g += endLab(yb, "var(--bank)", W.views.bank.name, B[days - 1]) + endLab(yr, "var(--teal)", W.ui.col_research, R[days - 1]);
+    const endLab = (y, col, name, p) => `<text x="${m.l + w + 10}" y="${y - 2}" fill="${col}" class="end">${esc(name)}</text><text x="${m.l + w + 10}" y="${y + 15}" fill="${col}" class="endv">${esc(pct(p))}</text>`;
+    g += endLab(yb, "#6b7178", W.views.bank.name, B[days - 1]) + endLab(yr, "var(--teal)", W.views.research.name, R[days - 1]);
     // the research curve's biggest one-day step, and where the bank line starts rising
     let tj = 1; for (let t = 2; t < days; t++) if (R[t] - R[t - 1] > R[tj] - R[tj - 1]) tj = t;
     const jump = R[tj] - R[tj - 1];
     if (jump > 0.005) {
       const x = X(tj), y0 = Y(R[tj - 1]), cause = filingCause(D.dates[tj]);
-      const txt = fill(W.ui.biggest_step, { date: fdate(D.dates[tj]), n: n100(jump) }), txt2 = cause ? fill(W.ui.biggest_cause, { cause }) : "";
+      const txt = fill(W.ui.biggest_step, { date: fdate(D.dates[tj]), n: n100(jump) }), txt2 = cause ? fill(W.ui.biggest_cause, { cause: cause[0].toLowerCase() + cause.slice(1) }) : "";
       const y1 = Y(R[tj]), ya = Y(Math.max(0.62, R[tj] + 0.25));
       g += `<line x1="${x}" x2="${x + 12}" y1="${y1 - 5}" y2="${ya + 6}" stroke="var(--teal)"/><circle cx="${x}" cy="${y1}" r="4" fill="#fff" stroke="var(--teal)" stroke-width="1.5"/>
-        <text class="ann" x="${x + 16}" y="${ya}" fill="var(--teal)">${esc(txt)}</text><text class="ann2" x="${x + 16}" y="${ya + 17}" fill="var(--teal)">${esc(txt2)}</text>`;
+        ${box(x + 16, ya, "start", 13, txt, "ann", "var(--teal)")}${txt2 ? box(x + 16, ya + 17, "start", 13, txt2, "ann2", "var(--teal)") : ""}`;
     }
     const tb = B.findIndex((p) => p >= 0.005);
-    if (tb > 0) g += `<line x1="${X(tb)}" x2="${X(tb) - 14}" y1="${Y(0.01)}" y2="${Y(0.09)}" stroke="var(--bank)"/><text class="ann" x="${X(tb) - 18}" y="${Y(0.1)}" text-anchor="end" fill="#6b7178">${esc(fill(W.ui.bank_rises, { date: fdate(D.dates[tb]) }))}</text>`;
+    if (tb > 0) g += `<line x1="${X(tb)}" x2="${X(tb) - 14}" y1="${Y(0.01)}" y2="${Y(0.09)}" stroke="var(--bank)"/>${box(X(tb) - 18, Y(0.1), "end", 13, fill(W.ui.bank_rises, { date: fdate(D.dates[tb]) }), "ann", "#6b7178")}`;
+    g += ptexts + bandLabel;
     g += `<line id="whx" y1="${m.t}" y2="${m.t + h}" stroke="#9aa0a8" visibility="hidden"/><rect id="whov" x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent"/>`;
     svg.setAttribute("viewBox", `0 0 ${Wd} ${H}`); svg.style.height = `${H}px`; svg.innerHTML = g;
     const hov = svg.querySelector("#whov"), hx = svg.querySelector("#whx");
     hov.onmousemove = (ev) => {
       const r = hov.getBoundingClientRect(), t = Math.max(0, Math.min(days - 1, Math.round(((ev.clientX - r.left) / r.width) * (days - 1))));
       hx.setAttribute("x1", X(t)); hx.setAttribute("x2", X(t)); hx.setAttribute("visibility", "visible");
-      showTip(ev, `<b>${fdate(D.dates[t])}</b><br>${esc(W.views.bank.name)}: ${freq(B[t])}<br>${esc(W.ui.col_research)}: ${freq(R[t])}`);
+      showTip(ev, `<b>${fdate(D.dates[t])}</b><br>${esc(W.views.bank.name)}: ${pct(B[t])}<br>${esc(W.views.research.name)}: ${pct(R[t])}`);
     };
     hov.onmouseleave = () => { hx.setAttribute("visibility", "hidden"); hideTip(); };
   }
@@ -388,7 +415,7 @@
   }
 
   // --- 4. how it could unfold: the path tree (variant A) and the decision map (variant B) ---------------------------
-  const nodeLabel = (t) => (t.base === "quiet" ? W.steps.quiet : t.base === "other" ? W.ui.tree_other : phrase(t.base));
+  const nodeLabel = (t) => (t.base === "quiet" ? fill(W.steps.quiet, WH) : t.base === "other" ? W.ui.tree_other : phrase(t.base));
   const shortLabel = (t) => {  // the tree's short step names (words.steps_short); the full phrase shows on hover
     const S2 = W.steps_short || {};
     if (t.base in S2) return S2[t.base];
@@ -401,44 +428,50 @@
     return out;
   }
   function renderPaths(host) {
-    const T = tree(), Wd = host.clientWidth, root = 64, colW = 290, gap = (Wd - root - DEPTH * colW - 4) / DEPTH, pad = 4, H = 560, MINH = 15;
+    const T = tree(), Wd = host.clientWidth, root = 64, colW = 305, gap = (Wd - root - DEPTH * colW - 4) / DEPTH, pad = 4, H = 560, MINH = 15, TOP = 24;
     const cols = Array.from({ length: DEPTH + 1 }, () => []), all = [];
     const walk = (t, parent) => { t.parent = parent; cols[t.depth].push(t); all.push(t); t.kids.forEach((k) => walk(k, t)); };
     walk(T, null);
     const scale = Math.min(...cols.map((c) => (c.length ? (H - pad * (c.length - 1)) / c.reduce((a, t) => a + t.mass, 0) : Infinity)));
     const X = (d) => (d === 0 ? 0 : root + gap + (d - 1) * (colW + gap)), wOf = (d) => (d === 0 ? root - 8 : colW);
-    T.y = 0; T.h = T.mass * scale;
+    T.y = TOP; T.h = T.mass * scale;
     for (let d = 1; d <= DEPTH; d++) {
-      let end = -pad;
+      let end = TOP - pad;
       for (const t of cols[d]) {  // children stay beside their parent's slice where there is room
         const p = t.parent; p.off = p.off ?? p.y; t.slice = p.off; p.off += t.mass * scale;
+        if (t === p.kids[0] && end > TOP) end += 8;
         t.h = Math.max(t.mass * scale, MINH); t.y = Math.max(end + pad, t.slice); end = t.y + t.h;
       }
     }
     const Hmax = Math.max(...all.map((t) => t.y + t.h)) + 4;
-    const fillOf = (t) => (t.base === "quiet" ? "#e3ece5" : FILING.has(t.base) ? "#f3d9d3" : t.base === "other" ? "#f5f6f7" : "#eceef1");
-    let links = "", nodes = "";
+    const mix = (f) => { const a = [223, 234, 226], b = [243, 205, 196]; return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(",")})`; };
+    const fillOf = (t) => (t.kids.length ? "#e3e6ea" : mix(t.mass > 0 ? t.filed / t.mass : 0));
+    let links = "", nodes = "", conds = "";
     all.forEach((t, id) => {
       t.id = id;
       if (t.parent) {
         const x0 = X(t.depth - 1) + wOf(t.depth - 1), x1 = X(t.depth), y0 = t.slice, y1 = t.y, h = Math.max(t.mass * scale, 1), mx = (x0 + x1) / 2;
         links += `<path class="lk${t.base === "quiet" ? " q" : FILING.has(t.base) ? " f" : ""}" data-id="${id}" d="M${x0},${y0}C${mx},${y0} ${mx},${y1} ${x1},${y1}L${x1},${y1 + h}C${mx},${y1 + h} ${mx},${y0 + h} ${x0},${y0 + h}Z"/>`;
+        if (t.parent.depth) conds += `<text class="cond" x="${x1 - 5}" y="${y1 + Math.max(t.h, 1) / 2 + 4}" text-anchor="end">${Math.round((100 * t.mass) / (t.parent.mass || 1))}%</text>`;
       }
-      const leaf = !t.kids.length, x = X(t.depth), w = wOf(t.depth), share = n100(t.mass), fshare = t.mass > 0 ? t.filed / t.mass : 0;
+      const leaf = !t.kids.length, x = X(t.depth), w = wOf(t.depth), fshare = t.mass > 0 ? t.filed / t.mass : 0;
+      const mixedAll = leaf && t.depth && t.base !== "quiet" && !FILING.has(t.base);
+      const full = mixedAll ? (t.when ? `${t.when} · ` : "") + shortLabel(t) : "", mixed = mixedAll && full.length * 6.4 <= wOf(t.depth) - 104;
       let txt = "";
       const fit = (str, px) => { const n = Math.floor(px / 6.3); return str.length > n ? str.slice(0, n - 1).trimEnd() + "…" : str; };
       if (t.depth === 0) txt = `<text x="${x + 6}" y="${t.y + t.h / 2 - 4}" class="tn m">${esc(W.ui.tree_root_sub)}</text><text x="${x + 6}" y="${t.y + t.h / 2 + 12}" class="tn b">${esc(W.ui.tree_root)}</text>`;
       else if (t.h >= 13) {
-        const label = (t.when ? `${t.when} · ` : "") + shortLabel(t), two = t.h >= 36 ? wrap(label, Math.floor((w - 84) / 6.4)) : [fit(label, w - 84)];
+        const room = mixed ? 104 : 48, label = (t.when ? `${t.when} · ` : "") + shortLabel(t), two = t.h >= 30 ? wrap(label, Math.floor((w - room) / 6.4)) : [fit(label, w - room)];
         const y0 = t.y + t.h / 2 - (two.length - 1) * 7.5 + 4;
         txt = two.map((l, k) => `<text x="${x + 8}" y="${y0 + 15 * k}" class="tn">${esc(l)}</text>`).join("")
-          + `<text x="${x + w - 12}" y="${t.y + t.h / 2 + 4}" class="tn m" text-anchor="end">${esc(fill(W.ui.leaf, { n: share }))}</text>`;
+          + `<text x="${x + w - 8}" y="${t.y + t.h / 2 + 4}" class="tn b" text-anchor="end">${t.pct}%</text>`
+          + (mixed ? `<text x="${x + w - 44}" y="${t.y + t.h / 2 + 4}" class="tn m" text-anchor="end">${esc(fill(W.ui.leaf_filed, { f: pct(fshare) }))}</text>` : "");
       }
-      const bar = leaf && t.depth ? `<rect x="${x + w - 5}" y="${t.y}" width="5" height="${t.h}" fill="#dde0e4"/><rect x="${x + w - 5}" y="${t.y}" width="5" height="${t.h * fshare}" fill="#c2412d"/>` : "";
-      nodes += `<g class="nd${t.depth && t.base !== "other" && t.base !== "quiet" ? " click" : ""}" data-id="${id}"><rect x="${x}" y="${t.y}" width="${w}" height="${Math.max(t.h, 1)}" rx="2" fill="${t.depth ? fillOf(t) : "#dfe2e6"}"/>${bar}${txt}</g>`;
+      nodes += `<g class="nd${t.depth && t.base !== "other" && t.base !== "quiet" ? " click" : ""}" data-id="${id}"><rect x="${x}" y="${t.y}" width="${w}" height="${Math.max(t.h, 1)}" rx="2" fill="${t.depth ? fillOf(t) : "#dfe2e6"}"/>${txt}</g>`;
     });
-    const LG = W.ui.tree_legend;
-    host.innerHTML = `<p class="mute small">${esc(W.ui.tree_note)}</p><div class="tleg"><span><i style="background:#f3d9d3"></i>${esc(LG.filed)}</span><span><i style="background:#e3ece5"></i>${esc(fill(LG.quiet, WH))}</span><span><i style="background:#eceef1"></i>${esc(LG.open)}</span><span><i class="bar"></i>${esc(fill(LG.bar, WH))}</span></div><svg class="tree" viewBox="0 0 ${Wd} ${Hmax}" style="height:${Hmax}px">${links}${nodes}</svg>`;
+    nodes = nodes.replace(`height="${Math.max(T.h, 1)}" rx="2" fill="#dfe2e6"`, `height="${Hmax - 4 - TOP}" rx="2" fill="#dfe2e6"`);
+    const LG = W.ui.tree_legend, heads = W.ui.tree_cols.map((c, k) => `<text class="colh" x="${X(k + 1)}" y="14">${esc(c)}</text>`).join("");
+    host.innerHTML = `<p class="mute small">${esc(W.ui.tree_note)}</p><div class="tleg"><span><i style="background:#f3cdc4"></i>${esc(LG.filed)}</span><span><i style="background:#dfeae2"></i>${esc(fill(LG.quiet, WH))}</span><span><i style="background:#e3e6ea"></i>${esc(LG.open)}</span></div><svg class="tree" viewBox="0 0 ${Wd} ${Hmax}" style="height:${Hmax}px">${heads}${links}${conds}${nodes}</svg>`;
     const svg = host.querySelector("svg"), chain = (t) => { const s = new Set(); for (let u = t; u; u = u.parent) s.add(u.id); return s; };
     svg.querySelectorAll(".nd").forEach((g) => {
       const t = all[+g.dataset.id];
@@ -446,7 +479,7 @@
         const on = chain(t); svg.classList.add("hl");
         svg.querySelectorAll(".nd, .lk").forEach((e) => e.classList.toggle("on", on.has(+e.dataset.id)));
         const steps = []; for (let u = t; u && u.depth; u = u.parent) steps.unshift([u.when, nodeLabel(u)]);
-        showTip(ev, `${linesHtml(steps)}<div class="mute" style="margin-top:6px">${esc(fill(W.ui.tree_hover, { n: n100(t.mass), f: n100(t.filed), horizon: HOR }))}</div>`);
+        showTip(ev, `${linesHtml(steps)}<div class="mute" style="margin-top:6px">${esc(fill(W.ui.tree_hover, { p: `${t.pct}%`, f: pct(t.mass > 0 ? t.filed / t.mass : 0), horizon: HOR }))}</div>`);
       };
       g.onmousemove = (ev) => showTip(ev, $("tip").innerHTML);
       g.onmouseleave = () => { svg.classList.remove("hl"); hideTip(); };
@@ -459,11 +492,12 @@
     const cell = (type) => {
       const dec = W.decisions[type], ids = TYPE_NODES[type] || []; if (!ids.length) return "";
       const i = ids.reduce((a, b) => (mass[b] > mass[a] ? b : a)), d = dist(i), br = D.nodes[i].branches, bl = (b) => (dec.branches || {})[b] || b;
-      const COLS = br.length > 2 ? ["var(--teal)", "#7fb0b3", "#c9ced4"] : ["var(--teal)", "#bfc5cc"];
+      const COLS = br.length > 2 ? ["var(--teal)", "#8ea3bd", "#d8c9a8"] : ["var(--teal)", "#d8c9a8"];
+      const ys = ids.map((k) => dist(k)[0]), lo = Math.min(...ys), hi = Math.max(...ys);
       return `<button class="fork" data-i="${i}"><span class="fs">${esc(dec.short)}</span><span class="fw">${esc(W.deciders[dec.who] || dec.who)}</span>
         <span class="sb">${d.map((p, k) => `<i style="width:${100 * p}%;background:${COLS[k]}"></i>`).join("")}</span>
-        <span class="fb">${br.map((b, k) => `<span><i style="background:${COLS[k]}"></i>${esc(bl(b))}&nbsp;${n100(d[k])}</span>`).join(" ")}</span>
-        ${ids.length > 1 ? `<span class="fa">${esc(fill(U.asked_in, { n: ids.length }))}</span>` : ""}</button>`;
+        <span class="fb">${br.map((b, k) => `<span><i style="background:${COLS[k]}"></i>${esc(bl(b))}&nbsp;${pct(d[k])}</span>`).join(" ")}</span>
+        <span class="fa">${ids.length > 1 ? esc(fill(U.asked_in, { n: ids.length, lo: Math.round(100 * lo), hi: pct(hi) })).replace(/(Jev \S+)$/, '<span class="nw">$1</span>') : esc(fill(U.reach_card, { p: pct(nodeReach(i)) }))}</span></button>`;
     };
     host.innerHTML = `<p class="mute small">${esc(U.map_note)}</p><div class="lanes">` + LANES.map((l) => `<div class="lane"><h3>${esc(W.lanes[l])}</h3><div class="forks">
       ${Object.entries(W.decisions).filter(([, v]) => v.lane === l).map(([k]) => cell(k)).join("")}</div></div>`).join("") + "</div>";
@@ -495,8 +529,23 @@
   const blabel = (i, b) => (decOf(i).branches || {})[b] || b.replace(/_/g, " ");
   const atLabels = (i) => {  // 'If no' / 'If yes' for a yes-no question, else never / always the selected answer
     const n = D.nodes[i], b = selB(i);
-    return n.branches.length > 2 ? [fill(W.ui.at_never, { branch: blabel(i, n.branches[b]) }), fill(W.ui.at_always, { branch: blabel(i, n.branches[b]) })] : [W.levers.at0, W.levers.at100];
+    return ["0%", "100%"];
   };
+  const cents = (t) => Math.round(100 * parseFloat(String(t).replace(/[$,]/g, "")));
+  function inputs(f) {  // the facts Jev was given, as label: value
+    const U = W.ui, out = [], m = (v) => money(cents(v));
+    const rng = (o, fmt) => { const a = fmt(o.p50); return o.p5 && o.p95 && o.p5 !== o.p95 ? `${a} (${fmt(o.p5)} – ${fmt(o.p95)})` : a; };
+    const dd = (t) => t;
+    if (f.decision_date) out.push([U.in_date, rng(f.decision_date, dd)]);
+    if (f.projected_available_cash_at_decision_date) out.push([U.in_cash, rng(f.projected_available_cash_at_decision_date, m)]);
+    if (f.operating_need_30_days_at_decision) out.push([U.in_need, m(f.operating_need_30_days_at_decision.p50)]);
+    if (f.amount_owed_at_decision) out.push([U.in_owed, m(f.amount_owed_at_decision.p50)]);
+    if (f.judgment_after_ruling) out.push([U.in_after, String(f.judgment_after_ruling).split(" to ").map(m).join(" – ")]);
+    if (f.settlement_offer) out.push([U.in_offer, rng(f.settlement_offer.amount, m)]);
+    if (f.bond_collateral_required) out.push([U.in_bond, m(f.bond_collateral_required)]);
+    if (f.reduced_security_offered) out.push([U.in_security, rng(f.reduced_security_offered, m)]);
+    return out;
+  }
   const dragBase = {};
   function openNode(i) {
     if (i < 0) return;
@@ -507,21 +556,27 @@
     const link = (l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.text)}</a>`;
     const quotes = (det.quotes || []).slice(0, 3).map((q) => `<blockquote><p>“${esc(q.quote)}”</p><cite>${esc(q.source)}${q.link ? ` · <a href="${esc(q.link)}" target="_blank" rel="noopener">${esc(U.source)}</a>` : ""}</cite></blockquote>`).join("");
     const pick = n.branches.length > 2 ? `<div class="pick"><span class="mute small">${esc(U.branch_pick)}</span>${n.branches.map((x, k) => `<label><input type="radio" name="br" value="${k}"${k === b ? " checked" : ""}> ${esc(blabel(i, x))}</label>`).join("")}</div>` : "";
-    const [l0, l1] = atLabels(i);
+    const [l0, l1] = atLabels(i), ins = inputs(det.facts || {});
     $("drawer").innerHTML = `<button class="x" id="dx" aria-label="${esc(U.close)}">×</button>
-      <div class="who">${esc(U.decided_by)} <b>${esc(W.deciders[dec.who] || n.decider)}</b></div>
-      <h2>${esc(dec.question || n.question)}</h2><p>${esc(fill(dec.why || "", { offer: factOffer ? money(factOffer) : "–" }))}</p>
-      <h3>${esc(U.asked_when)}</h3><p>${esc(situation(n.context))}</p>
-      <h3>${esc(J.read)}</h3>${quotes || `<p class="mute">${esc(U.no_quotes)}</p>`}
-      <h3>${esc(J.answer)}</h3>${pick}
+      <h3>${esc(J.question)}</h3>
+      <h2>${esc(dec.question || n.question)}</h2>
+      <dl class="meta"><dt>${esc(U.decided_by)}</dt><dd>${esc(W.deciders[dec.who] || n.decider)}</dd>
+        <dt>${esc(U.asked_when)}</dt><dd>${esc(situation(n.context))}</dd>
+        <dt>${esc(U.reached)}</dt><dd id="d-reach"></dd></dl>
+      <p class="mute small">${esc(fill(dec.why || "", { offer: factOffer ? money(factOffer) : "–" }))}</p>
+      <h3>${esc(J.forecast)}</h3>${pick}
       <div class="ans"><span id="d-blab"></span><span class="big" id="d-big"></span><span class="mute small" id="d-jev"></span></div>
-      <input type="range" id="d-slider" min="0" max="100" step="1" value="${Math.round(100 * d[b])}"><div class="slabs" id="d-slabs"></div>
-      <p class="mute small">${esc(U.conditional)}</p>
+      <div class="sw"><input type="range" id="d-slider" min="0" max="100" step="1" value="${Math.round(100 * d[b])}"><span class="jm" style="left:${100 * jevDist(i)[b]}%" title="Jev"></span></div>
+      <div class="slabs" id="d-slabs"></div>
       <p class="mute small">${esc(J.drag)} <a href="#" id="d-reset"${n.key in S.overrides ? "" : " hidden"}>${esc(U.reset)}</a></p>
-      <h3>${esc(J.effect)}</h3><p class="mute small">${esc(fill(U.collected_short, WH))}</p>
-      <div class="eff"><div><span class="mute small">${esc(l0)}</span><b id="d-lo"></b></div><div class="j"><span class="mute small">${esc(U.at_jev)}</span><b id="d-at"></b></div><div><span class="mute small">${esc(l1)}</span><b id="d-hi"></b></div></div>
-      <details class="law"><summary>${esc(J.sources)}</summary>${(det.steps || []).map((s) => `<div class="step"><span class="tag">${esc(s.tag)}</span><span>${esc(s.text)}${(s.links || []).length ? ` · ${s.links.map(link).join(" · ")}` : ""}</span></div>`).join("")}</details>
-      ${others.length ? `<h3>${esc(U.other_situations)}</h3><div class="others">${others.slice(0, 5).map((k) => `<button data-i="${k}"><span>${esc(situation(D.nodes[k].context))}</span><b>${esc(blabel(k, D.nodes[k].branches[0]))} ${n100(dist(k)[0])}</b></button>`).join("")}</div>` : ""}`;
+      <h3>${esc(J.effect)}</h3><p class="mute small" id="d-ah"></p>
+      <table class="eff"><tr><th></th><th>${esc(l0)}</th><th class="j" id="d-jh"></th><th>${esc(l1)}</th></tr>
+        <tr><td>${esc(fill(U.row_collected, WH))}</td><td id="d-lo"></td><td class="j" id="d-at"></td><td id="d-hi"></td></tr>
+        <tr><td>${esc(fill(U.row_filing, WH))}</td><td id="d-flo"></td><td class="j" id="d-fat"></td><td id="d-fhi"></td></tr></table>
+      ${ins.length ? `<h3>${esc(J.inputs)}</h3><dl class="inputs">${ins.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}
+      <h3>${esc(J.evidence)}</h3>${quotes || `<p class="mute">${esc(U.no_quotes)}</p>`}
+      <details class="law"><summary>${esc(J.sources)}</summary>${(det.steps || []).map((x) => `<div class="step"><span class="tag">${esc(x.tag)}</span><span>${esc(x.text)}${(x.links || []).length ? ` · ${x.links.map(link).join(" · ")}` : ""}</span></div>`).join("")}</details>
+      ${others.length ? `<h3>${esc(U.other_situations)}</h3><div class="others">${others.slice(0, 5).map((k) => `<button data-i="${k}"><span>${esc(situation(D.nodes[k].context))}</span><b>${esc(blabel(k, D.nodes[k].branches[0]))} ${pct(dist(k)[0])}</b></button>`).join("")}</div>` : ""}`;
     $("drawer").classList.add("open"); $("drawer").setAttribute("aria-hidden", "false"); $("drawer").scrollTop = 0;
     updateDrawer();
     $("dx").onclick = closeDrawer;
@@ -541,10 +596,13 @@
   function updateDrawer() {  // the numbers in the open close-up, without rebuilding its slider
     const i = S.open; if (i === null || !$("d-big")) return;
     const n = D.nodes[i], b = selB(i), d = dist(i), e = effOf(i);
-    $("d-big").textContent = freq(d[b]); $("d-blab").textContent = `${blabel(i, n.branches[b])}:`;
-    $("d-jev").textContent = n.key in S.overrides ? fill(W.ui.jev_said, { n: n100(jevDist(i)[b]) }) : "";
-    $("d-slabs").innerHTML = [b, ...n.branches.map((x, k) => k).filter((k) => k !== b)].map((k) => `<span>${esc(blabel(i, n.branches[k]))} ${freq(d[k])}</span>`).join("");
+    $("d-big").textContent = pct(d[b]); $("d-blab").textContent = `${blabel(i, n.branches[b])}:`;
+    $("d-jev").textContent = n.key in S.overrides ? fill(W.ui.jev_said, { p: pct(jevDist(i)[b]) }) : "";
+    $("d-slabs").innerHTML = `<span>0%</span><span>${esc(n.branches.map((x, k) => `${blabel(i, x)} ${pct(d[k])}`).join(" · "))}</span><span>100%</span>`;
+    $("d-reach").textContent = fill(W.jev.reach, { p: pct(nodeReach(i)) });
+    $("d-jh").textContent = `${W.ui.at_jev} ${pct(d[b])}`; $("d-ah").textContent = fill(W.ui.override_of, { branch: blabel(i, n.branches[b]), horizon: HOR });
     $("d-lo").textContent = money(e.lo); $("d-at").textContent = money(e.at); $("d-hi").textContent = money(e.hi);
+    $("d-flo").textContent = pct(e.flo); $("d-fat").textContent = pct(e.fat); $("d-fhi").textContent = pct(e.fhi);
     $("d-reset").hidden = !(n.key in S.overrides);
   }
   function closeDrawer() { S.open = null; $("drawer").classList.remove("open"); $("drawer").setAttribute("aria-hidden", "true"); }
@@ -552,14 +610,18 @@
 
   // --- 6. which judgments matter most -------------------------------------------------------------------------------
   function renderLevers() {
-    const L = levers(), lo = Math.min(...L.map((l) => Math.min(l.lo, l.hi, l.at))), hi = Math.max(...L.map((l) => Math.max(l.lo, l.hi, l.at)));
-    const pos = (v) => `${(100 * (v - lo)) / (hi - lo || 1)}%`;
+    const L = levers(), lo0 = Math.min(...L.map((l) => Math.min(l.lo, l.hi, l.at))), hi0 = Math.max(...L.map((l) => Math.max(l.lo, l.hi, l.at)));
+    const padd = 0.06 * (hi0 - lo0 || 1), lo = lo0 - padd, hi = hi0 + padd, pos = (v) => (100 * (v - lo)) / (hi - lo);
     $("s-levers").innerHTML = `<h2>${esc(W.levers.title)}</h2><p class="mute">${esc(fill(W.levers.sub, WH))}</p>
-      <div class="levers">${L.map((l) => {
-        const [a0, a1] = atLabels(l.i), dec = decOf(l.i);
-        return `<button class="lever" data-i="${l.i}"><span class="ll"><b>${esc(dec.short || D.nodes[l.i].label)}</b><span class="mute">${esc(situation(D.nodes[l.i].context))} · ${esc(fill(W.ui.lever_jev, { branch: blabel(l.i, D.nodes[l.i].branches[selB(l.i)]), n: n100(dist(l.i)[selB(l.i)]) }))}</span><span class="lw">${esc(fill(dec.why || "", { offer: factOffer ? money(factOffer) : "–" }))}</span></span>
-          <span class="lt"><span class="rng" style="left:${pos(Math.min(l.lo, l.hi))};width:calc(${pos(Math.max(l.lo, l.hi))} - ${pos(Math.min(l.lo, l.hi))})"></span><span class="mk" style="left:${pos(l.at)}"></span></span>
-          <span class="lv">${(l.hi < l.lo ? [[a1, l.hi], [W.ui.at_jev, l.at], [a0, l.lo]] : [[a0, l.lo], [W.ui.at_jev, l.at], [a1, l.hi]]).map(([a, v]) => `${esc(a)} <b>${money(v)}</b>`).join(" · ")}</span></button>`;
+      <div class="levers">${L.map((l, r) => {
+        const [a0, a1] = atLabels(l.i), dec = decOf(l.i), b = selB(l.i), sit = situation(D.nodes[l.i].context);
+        const left = l.lo <= l.hi ? [a0, l.lo] : [a1, l.hi], right = l.lo <= l.hi ? [a1, l.hi] : [a0, l.lo];
+        return `<button class="lever" data-i="${l.i}"><span class="ll"><b>${esc(dec.short || D.nodes[l.i].label)}</b>
+            <span class="lm" title="${esc(sit)}">${esc(fill(W.ui.lever_jev, { p: pct(dist(l.i)[b]), branch: blabel(l.i, D.nodes[l.i].branches[b]) }))} · ${esc(sit)}</span></span>
+          <span class="lt"><span class="rng" style="left:${pos(left[1])}%;width:${pos(right[1]) - pos(left[1])}%"></span>
+            <span class="mk" style="left:${pos(l.at)}%"></span>${r === 0 ? `<span class="mkl" style="left:${pos(l.at)}%">${esc(W.ui.at_jev)} ${money(l.at)}</span>` : ""}
+            <span class="endl" style="right:${100 - pos(left[1])}%">${esc(left[0])} · <b>${money(left[1])}</b></span>
+            <span class="endr" style="left:${pos(right[1])}%"><b>${money(right[1])}</b> · ${esc(right[0])}</span></span></button>`;
       }).join("")}</div>`;
     $("s-levers").querySelectorAll(".lever").forEach((x) => (x.onclick = () => openNode(+x.dataset.i)));
   }
@@ -590,8 +652,8 @@
     const o = S.outcome, body = $("actual-body");
     if (!S.reveal || !o) { body.innerHTML = ""; return; }
     const fy = (iso) => `${fdate(iso)} ${iso.slice(0, 4)}`, t = D.dates.indexOf(o.petition.date);
-    const by = t >= 0 ? n100(S.event.daily.petition_cum_p[t]) : null;
-    body.innerHTML = `<p>${esc(W.reveal.intro)}</p>${by !== null ? `<p class="filed">${esc(fill(W.reveal.filed, { date: fy(o.petition.date), n: by }))}</p>` : ""}
+    const by = t >= 0 ? pct(S.event.daily.petition_cum_p[t]) : null, bb = t >= 0 ? pct(S.bank.daily.petition_cum_p[t]) : null;
+    body.innerHTML = `<p>${esc(W.reveal.intro)}</p>${by !== null ? `<p class="filed">${esc(fill(W.reveal.filed, { date: fy(o.petition.date), r: by, b: bb }))}</p>` : ""}
       <ol class="events">${o.events.map((e) => `<li><span class="mute">${esc(fy(e.date))}</span><span>${esc(e.description)}${e.source_url ? ` <a href="${esc(e.source_url)}" target="_blank" rel="noopener">${esc(W.ui.source)}</a>` : ""}</span></li>`).join("")}</ol>`;
   }
   function renderFoot() {
