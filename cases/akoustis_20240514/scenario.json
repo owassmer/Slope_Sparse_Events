@@ -1,6 +1,12 @@
 {
   "snapshot_id": "akoustis_20240514",
   "note": "Scenario parameters of the 14 May 2024 review for the pending-claim event model (dispute model 4.1.0; DECOMPOSITION_20240514.md §3, §5, §7.7). They overlay the contract's parameters of the same name for this case only (app/disputes/rules.py load_model). The operating reserve, financing and cost plan are the common model's (run_inputs.json common_model) and are read, not restated here. The central case books no exogenous financing: equity is raised only by the company's decision at the cash floor (raise_capacity); the common model's equity_injection scenario is a sensitivity only.",
+  "narrative": [
+    "{company} designs and makes radio-frequency filters; its shares trade on Nasdaq.",
+    "{claimant} sued {company} in federal court in Delaware on {commenced} for trade-secret misappropriation, patent infringement and related claims. The jury trial began on {trial_started}; on the review date it is still under way, and the company expects a verdict within days. Nothing is owed until a judgment is entered.",
+    "Before trial {claimant} itemised {claim} of damages, almost all of it one measure: the unjust enrichment of a head start built on its trade secrets.",
+    "{company} holds about {cash} of cash and owes {notes} on convertible notes. A final judgment above {threshold} left unpaid and unstayed for {days} days is a default under the notes, which lets the noteholders demand repayment. Its shares trade below the exchange's minimum bid price; the compliance deadline is {listing}."
+  ],
   "labels": {
     "principal_measure": "the claimed head-start measure of trade-secret unjust enrichment"
   },

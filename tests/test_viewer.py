@@ -224,7 +224,7 @@ def test_a_run_page_reveals_the_actual_outcome_only_where_its_case_has_one(small
     assert r.status_code == 200 and "page-data" in r.text and "disabled" not in button
     out = c.get(f"/runs/{run}/outcome").json()
     assert out == json.loads((OUTCOMES / "akoustis_20240620.json").read_text())
-    assert out["petition"]["label"] in dict(CLASSES).values() and out["petition"]["date"] <= out["period_ends"]
+    assert out["petition"]["label"] in state["payload"]["classes"] and out["petition"]["date"] <= out["period_ends"]
     for e in out["events"]:
         assert e["date"] > out["decision_date"] and e["quote"] and e["short"]
         assert e["source_url"].startswith(("https://www.sec.gov/", "https://storage.courtlistener.com/"))
