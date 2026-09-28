@@ -2584,6 +2584,152 @@
         "akoustis_20240620": "out_of_case",
         "akoustis_20240514": "eligible"
       }
+    },
+    {
+      "source_id": "akts_2022_02_04_s3",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390022005538/ea154498-s3_akoustistech.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2022_02_04_s3.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2022_02_04_s3.html",
+      "sha256": "cb187ffbbd4bc60a1bd488b58b592ae076440cab09fd9e82f116a5c1abd5c3e7",
+      "bytes": 443098,
+      "availability": {
+        "date": "2022-02-04",
+        "precision": "day",
+        "accepted_at": "2022-02-04T17:02:01.000Z",
+        "basis": "SEC submissions JSON: filingDate (acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2022-02-04"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "akts_2022_05_02_atm_agreement",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390022022900/f10q0322ex1-1_akoustis.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2022_05_02_atm_agreement.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2022_05_02_atm_agreement.html",
+      "sha256": "43b47980d400adc46dd3dc25b9ca69bbb5042f4a42aea731b074d483d504bd1f",
+      "bytes": 220383,
+      "availability": {
+        "date": "2022-05-02",
+        "precision": "day",
+        "accepted_at": "2022-05-02T07:45:07.000Z",
+        "basis": "SEC submissions JSON: filingDate (acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2022-05-02"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "akts_2023_09_19_def14a",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023077402/def14a0923_akoustistech.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2023_09_19_def14a.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2023_09_19_def14a.html",
+      "sha256": "331c172e74271f353684e4160b73cceb323678d167e0ac443e31e7f147d87f3d",
+      "bytes": 187915,
+      "availability": {
+        "date": "2023-09-19",
+        "precision": "day",
+        "accepted_at": "2023-09-18T18:01:34.000Z",
+        "basis": "SEC submissions JSON: filingDate (acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2023-09-19"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      },
+      "kit_copy": "Excerpt of the EDGAR document: the cover, notice and 'General Information Concerning Voting' (through 'Quorum and Vote Necessary for Action') and Proposal 3; the other sections (directors, compensation, Proposals 1-2 and 4-5, audit, future stockholder proposals, householding) are omitted as not bearing on any question."
+    },
+    {
+      "source_id": "akts_2023_11_02_8k",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023082841/ea187610-8k_akoustis.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2023_11_02_8k.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2023_11_02_8k.html",
+      "sha256": "bda68cdcfac26165b844f10a6ab66a399ae928bdd77cdc65dfab921467fe2f70",
+      "bytes": 47803,
+      "availability": {
+        "date": "2023-11-02",
+        "precision": "day",
+        "accepted_at": "2023-11-02T17:01:05.000Z",
+        "basis": "SEC submissions JSON: filingDate (acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2023-11-02"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "ded_21cv1417_d565_limiting_instructions",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.565.0.pdf",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d565_limiting_instructions.pdf",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d565_limiting_instructions.pdf",
+      "sha256": "a2ffd69c0ec2c8e642c0c7a84b2387d07f050627bbb64850bf2075344c70e2bb",
+      "bytes": 158789,
+      "availability": {
+        "date": "2024-05-02",
+        "precision": "day",
+        "basis": "Federal docket entry filing date (CourtListener RECAP copy of the PACER document)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2024-05-02"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
     }
   ]
 }

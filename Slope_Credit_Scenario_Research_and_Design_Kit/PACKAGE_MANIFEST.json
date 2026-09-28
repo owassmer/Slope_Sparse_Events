@@ -2,7 +2,7 @@
   "package": "Slope credit-event scenario research and design kit",
   "revision": "2",
   "status": "Research and design; not a built agent or lending application",
-  "primary_catalog_records": 87,
+  "primary_catalog_records": 92,
   "warning": "Build dated agent evidence stores. Do not expose this entire kit, outcomes or evaluator answers to investigator/reviewer runtimes.",
   "files": [
     {
@@ -126,9 +126,19 @@
       "sha256": "43cdb7e4a1eaf964262ca7fcb4c589b6648ed3bdc37ab9adac5fdb3cc32befc9"
     },
     {
+      "path": "research/recent_cases/akoustis/akts_2022_02_04_s3.html",
+      "bytes": 443098,
+      "sha256": "cb187ffbbd4bc60a1bd488b58b592ae076440cab09fd9e82f116a5c1abd5c3e7"
+    },
+    {
       "path": "research/recent_cases/akoustis/akts_2022_05_02_424b5.html",
       "bytes": 432384,
       "sha256": "0b471ec0eb28f7cdbbe57f11e232cc09f75efe689bfb00ebb6bae350e95a6c8d"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_2022_05_02_atm_agreement.html",
+      "bytes": 220383,
+      "sha256": "43b47980d400adc46dd3dc25b9ca69bbb5042f4a42aea731b074d483d504bd1f"
     },
     {
       "path": "research/recent_cases/akoustis/akts_2022_06_notes_8k.html",
@@ -141,9 +151,19 @@
       "sha256": "2aa3ccf1a3ecdb58b759faace8d1f03e7d0d1b0e351067bb9e0d04d3ab5aecb7"
     },
     {
+      "path": "research/recent_cases/akoustis/akts_2023_09_19_def14a.html",
+      "bytes": 187915,
+      "sha256": "331c172e74271f353684e4160b73cceb323678d167e0ac443e31e7f147d87f3d"
+    },
+    {
       "path": "research/recent_cases/akoustis/akts_2023_10_27_8k.html",
       "bytes": 25254,
       "sha256": "a928b76b54b6e844c44aeee8d7e584fbea205374a8ca380248951f4fb35c53ac"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_2023_11_02_8k.html",
+      "bytes": 47803,
+      "sha256": "bda68cdcfac26165b844f10a6ab66a399ae928bdd77cdc65dfab921467fe2f70"
     },
     {
       "path": "research/recent_cases/akoustis/akts_2024_01_29_424b5.html",
@@ -366,6 +386,11 @@
       "sha256": "b95021b815621923d6891dba191d9c13471daff7831a12c1b5bc48e19dbdca41"
     },
     {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d565_limiting_instructions.pdf",
+      "bytes": 158789,
+      "sha256": "a2ffd69c0ec2c8e642c0c7a84b2387d07f050627bbb64850bf2075344c70e2bb"
+    },
+    {
       "path": "research/recent_cases/akoustis/ded_21cv1417_d580_verdict_form.pdf",
       "bytes": 228470,
       "sha256": "58ac4822c64d32184adf5b9c9d6477a1101c6d982189dca6e042b5b044fb707e"
@@ -482,8 +507,8 @@
     },
     {
       "path": "research/recent_cases/akoustis/display.json",
-      "bytes": 16140,
-      "sha256": "5ef1e0a5d939ab1b1d35f0b5c82ee86b5411163c727fc30a4d0628332d682a17"
+      "bytes": 17599,
+      "sha256": "2985c535e7384a4fb716ba666d8da830bb427f99d6c8a74c5500c0ba46d69181"
     },
     {
       "path": "research/recent_cases/akoustis/qorvo_2024_05_20_8k.html",
@@ -632,8 +657,8 @@
     },
     {
       "path": "research/revision_v2/data/sources.json",
-      "bytes": 105139,
-      "sha256": "d9370e9f93f6add9d0c1f7df6457b197e028b76288ffd7ec9448b12e33aface9"
+      "bytes": 111369,
+      "sha256": "4977abd65353b63057ce93e0b4036aa0d8db6385badb5146d38fa38908817dec"
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",

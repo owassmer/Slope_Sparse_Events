@@ -348,5 +348,30 @@
     "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), order on jurors' lunches for the trial, 6-17 May 2024 (D.I. 550)",
     "document_kind": "court_filing",
     "publisher": "U.S. District Court (PACER via RECAP)"
+  },
+  "akts_2022_02_04_s3": {
+    "title": "Akoustis Technologies Form S-3 shelf registration statement, File No. 333-262540 (filed 4 Feb 2022; base prospectus of the at-the-market and January 2024 takedowns)",
+    "document_kind": "sec_registration_statement",
+    "publisher": "SEC EDGAR"
+  },
+  "akts_2022_05_02_atm_agreement": {
+    "title": "ATM Sales Agreement of 2 May 2022 with Oppenheimer, Craig-Hallum and Roth (Exhibit 1.1 to the Form 10-Q for the quarter ended 31 March 2022)",
+    "document_kind": "contract",
+    "publisher": "SEC EDGAR"
+  },
+  "akts_2023_09_19_def14a": {
+    "title": "Akoustis Technologies definitive proxy statement for the 2 Nov 2023 annual meeting (DEF 14A), excerpt: notice, voting information and Proposal 3 (charter amendment increasing authorized shares)",
+    "document_kind": "sec_proxy_statement",
+    "publisher": "SEC EDGAR"
+  },
+  "akts_2023_11_02_8k": {
+    "title": "Akoustis Technologies Form 8-K, 2 Nov 2023 (Items 5.03 and 5.07: charter amendment to 175,000,000 authorized shares and annual meeting vote results)",
+    "document_kind": "sec_current_report",
+    "publisher": "SEC EDGAR"
+  },
+  "ded_21cv1417_d565_limiting_instructions": {
+    "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), stipulated limiting instructions to the jury on the Akoustis defendants' motions in limine nos. 1 and 4 (D.I. 565)",
+    "document_kind": "court_filing",
+    "publisher": "U.S. District Court (PACER via RECAP)"
   }
 }
