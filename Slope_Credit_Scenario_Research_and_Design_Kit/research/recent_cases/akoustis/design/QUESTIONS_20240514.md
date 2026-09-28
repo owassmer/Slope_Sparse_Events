@@ -255,7 +255,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Event:** the proposed offering raises at least its proposed net amount by its close date.
 - **Proposed terms, stated as facts:** an underwritten public offering of common stock on the company's shelf, at the price the market sets; the size under §2.6; the close date, as many days after initiation as the January 2024 offering took from launch to close. It is not described as committed.
 - **Answers:** yes, the proposed net amount is received by the close date; no, it is not received by that date.
-- **Asked:** after every initiation (D2, D7), including after an earlier offering on the path did not close. The situation states any earlier attempt and its outcome.
+- **Asked:** after every initiation (D2, D7, D8), including after an earlier offering on the path did not close. The situation states any earlier attempt and its outcome.
 - **Situation:** the judgment and its standing; available cash and any arrears; at-the-market proceeds to date; the listing status and deadline; the notes' status and any default continuing; the share capacity left.
 - **Record:** the January 2024 offering (the 8-K of 29 Jan 2024 and its prospectus supplement: 23.0M shares at $0.50, 29% below the prior close, underwritten by Roth), as evidence of what the market did then, not a guarantee; the at-the-market program and its re-activation on 13 May; the 10-Q's liquidity and going-concern text; counsel's statement on the ability to raise money; the shelf's capacity.
 - **Consequences:** yes, the net amount on the close date, and its shares drawn from capacity. No, nothing; the next decision point on the path follows, where an offering can be initiated again.
@@ -263,11 +263,11 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 #### D8 · Akoustis files when it cannot pay an obligation · `forecast_petition_cash_out`
 
-- **Event:** on the first day an obligation goes unpaid (§2.2), Akoustis files a voluntary petition, rather than carry arrears.
-- **Answers:** no, no petition that day; nothing more.
+- **Event:** on the first day an obligation goes unpaid (§2.2), Akoustis files a voluntary petition, initiates an underwritten offering where one is available (§2.6; N1 follows), or does neither.
+- **Answers:** neither, no petition and no offering that day; nothing more.
 - **Situation:** it did not file at the cash floor; available cash nil; the obligation unpaid that day and its class; the notes' status; the judgment's standing.
-- **Consequences:** yes, a petition on the day. No: processing under §2.2 continues. Slope's debits clear only when the balance covers them, arrears accrue, and after 30 days of continuous arrears §3.3 makes the notes due, with D9 and H3 following.
-- **Build:** change. The trigger becomes the first unpaid obligation, and the state after "no" follows §2.2. Keep the conditioning on the floor decision. There is no monthly re-ask.
+- **Consequences:** file, a petition on the day; initiate, N1, with processing under §2.2 continuing until the close date; neither: processing under §2.2 continues. Slope's debits clear only when the balance covers them, arrears accrue, and after 30 days of continuous arrears §3.3 makes the notes due, with D9 and H3 following.
+- **Build:** change. The trigger becomes the first unpaid obligation, the offering is added where available, and the state after "neither" follows §2.2. Keep the conditioning on the floor decision. There is no monthly re-ask.
 
 #### D9 · Akoustis files on the notes · `forecast_petition_on_notes`
 
