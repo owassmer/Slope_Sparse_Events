@@ -120,49 +120,93 @@
    }
   },
   {
-   "id": "raise_capacity_low",
-   "label": "USD 5.0M of equity can be raised at the cash floor, with or without an adverse judgment",
+   "id": "raise_capacity_no_judgment_low",
+   "label": "USD 5.0M of equity can be raised at the cash floor without an adverse judgment (central USD 9.7M)",
    "central": false,
    "change": {
     "scenario": "central",
     "sens": {
-     "raise_capacity": true,
-     "raise_capacity_after_adverse_judgment": true
+     "raise_capacity": true
     }
    },
-   "paths": 5085,
+   "paths": 3971,
    "jev": {
-    "questions": 253,
-    "cached": 186,
-    "re_asked": 67,
-    "spent_usd": "0.011920440"
+    "questions": 242,
+    "cached": 230,
+    "re_asked": 12,
+    "spent_usd": "0.002197104"
    },
    "headline": {
-    "contractual_cents": 118817239.21139681,
-    "collected_cents": 83211379.16524145,
-    "uncollected_horizon_cents": 1156077.7318671048,
-    "stayed_claim_cents": 9685811.648596797,
-    "not_yet_due_cents": 24763970.665691447,
-    "petition_p": 0.2686530574366292,
-    "preference_exposed_cents": 10717011.199407369,
-    "drawn_cents": 75610191.84181641,
-    "raise_share": 0.7398429848470992,
-    "survival_share": 0.7313469425633707,
+    "contractual_cents": 116864037.63126956,
+    "collected_cents": 81224063.52562965,
+    "uncollected_horizon_cents": 1284127.7903013814,
+    "stayed_claim_cents": 10688809.534818497,
+    "not_yet_due_cents": 23667036.780520014,
+    "petition_p": 0.2961742469663595,
+    "preference_exposed_cents": 12140901.505782299,
+    "drawn_cents": 73726680.20094457,
+    "raise_share": 0.6694221714643456,
+    "survival_share": 0.7038257530336405,
     "floor_share": 0.9876771573828993,
     "first_floor_median": "2024-08-25"
    },
    "vs_central": {
-    "contractual_cents": 908119.9183677435,
-    "collected_cents": 945953.9519319534,
-    "uncollected_horizon_cents": 251939.28620678838,
-    "stayed_claim_cents": 50289.08888809197,
-    "not_yet_due_cents": -340062.408659067,
-    "petition_p": 0.0025620446302913047,
-    "preference_exposed_cents": 136265.60630197823,
-    "drawn_cents": 875718.333800599,
-    "raise_share": 0.025685712681417283,
-    "survival_share": -0.0025620446302914157,
+    "contractual_cents": -1045081.6617595106,
+    "collected_cents": -1041361.6876798421,
+    "uncollected_horizon_cents": 379989.344641065,
+    "stayed_claim_cents": 1053286.9751097914,
+    "not_yet_due_cents": -1436996.293830499,
+    "petition_p": 0.03008323416002162,
+    "preference_exposed_cents": 1560155.912676908,
+    "drawn_cents": -1007793.3070712388,
+    "raise_share": -0.04473510070133635,
+    "survival_share": -0.030083234160021677,
     "floor_share": 0.11248764814499679
+   }
+  },
+  {
+   "id": "raise_after_judgment_available",
+   "label": "USD 5.0M of equity can still be raised at the cash floor after an adverse judgment (central none)",
+   "central": false,
+   "change": {
+    "scenario": "central",
+    "sens": {
+     "raise_capacity_after_adverse_judgment": true
+    }
+   },
+   "paths": 4812,
+   "jev": {
+    "questions": 237,
+    "cached": 226,
+    "re_asked": 11,
+    "spent_usd": "0.002068332"
+   },
+   "headline": {
+    "contractual_cents": 120003141.58942628,
+    "collected_cents": 84394761.27969076,
+    "uncollected_horizon_cents": 763411.7956545689,
+    "stayed_claim_cents": 8547175.11766956,
+    "not_yet_due_cents": 26297793.39641139,
+    "petition_p": 0.23617588541109694,
+    "preference_exposed_cents": 9015382.53986718,
+    "drawn_cents": 76753781.40319243,
+    "raise_share": 0.7887320999343052,
+    "survival_share": 0.7638241145889031,
+    "floor_share": 0.8743981281665265,
+    "first_floor_median": "2024-08-27"
+   },
+   "vs_central": {
+    "contractual_cents": 2094022.2963972092,
+    "collected_cents": 2129336.0663812608,
+    "uncollected_horizon_cents": -140726.65000574745,
+    "stayed_claim_cents": -1088347.4420391452,
+    "not_yet_due_cents": 1193760.3220608756,
+    "petition_p": -0.029915127395240965,
+    "preference_exposed_cents": -1565363.0532382112,
+    "drawn_cents": 2019307.8951766193,
+    "raise_share": 0.07457482776862323,
+    "survival_share": 0.029915127395240937,
+    "floor_share": -0.0007913810713759961
    }
   },
   {

@@ -166,10 +166,16 @@
         "common_model": "equity_injection"
       },
       {
-        "id": "raise_capacity_low",
-        "label": "USD 5.0M of equity can be raised at the cash floor, with or without an adverse judgment",
+        "id": "raise_capacity_no_judgment_low",
+        "label": "USD 5.0M of equity can be raised at the cash floor without an adverse judgment (central USD 9.7M)",
         "parameters": [
-          "raise_capacity",
+          "raise_capacity"
+        ]
+      },
+      {
+        "id": "raise_after_judgment_available",
+        "label": "USD 5.0M of equity can still be raised at the cash floor after an adverse judgment (central none)",
+        "parameters": [
           "raise_capacity_after_adverse_judgment"
         ]
       },
