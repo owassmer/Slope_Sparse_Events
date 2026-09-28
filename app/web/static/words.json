@@ -64,7 +64,8 @@
     "cum_chart": "Collected to date",
     "cum_mean": "Collected to date (mean)",
     "cum_range": "P5–P95 at month end",
-    "cum_hover": "{month}: collected to date {mean}"
+    "cum_hover": "{month}: collected to date {mean}",
+    "cum_end": "{date}: mean {mean}, P5–P95 {lo} – {hi}"
   },
   "resolve": {
     "verdict": "The verdict",

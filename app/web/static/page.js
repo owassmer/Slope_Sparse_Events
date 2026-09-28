@@ -170,19 +170,20 @@
     const Wd = host.clientWidth || 1000, H = 220, m = { l: 56, r: 16, t: 12, b: 28 }, w = Wd - m.l - m.r, h = H - m.t - m.b, days = D.dates.length;
     const mean = S.event.daily.collected_mean, rows = S.event.monthly, ends = rows.map((r) => monthEnd(r.month));
     const range = S.assumption === "central" && !Object.keys(S.overrides).length ? D.collected_range || [] : [];
-    const raw = Math.max(...mean, ...range.map((x) => x[1])) || 1, mag = 10 ** Math.floor(Math.log10(raw / 4));
+    const raw = 1.08 * Math.max(...mean, ...range.map((x) => x[1])) || 1, mag = 10 ** Math.floor(Math.log10(raw / 4));
     const step = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((s) => s * mag).find((s) => s * 4 >= raw), top = step * 4;
     const X = (t) => m.l + (w * t) / (days - 1), Y = (v) => m.t + h - (h * v) / top;
     let g = "";
     for (let k = 0; k <= 4; k++) { const v = step * k; g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="${k ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${money(v)}</text>`; }
     D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 8}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text>`; });
-    const pts = ends.map((t, j) => [t, range[j]]).filter(([t, r]) => t >= 0 && r);
-    g += pts.map(([t, r]) => { const x = X(t); return `<rect x="${x - 5}" y="${Y(r[1])}" width="10" height="${Math.max(Y(r[0]) - Y(r[1]), 1)}" fill="#cfe6e3"/>`
-      + `<line x1="${x - 7}" x2="${x + 7}" y1="${Y(r[1])}" y2="${Y(r[1])}" stroke="#5fa69d" stroke-width="1.5"/><line x1="${x - 7}" x2="${x + 7}" y1="${Y(r[0])}" y2="${Y(r[0])}" stroke="#5fa69d" stroke-width="1.5"/>`
-      + (x > m.l + w - 60 ? `<text x="${x - 9}" y="${Y(r[1]) + 4}" class="rl" text-anchor="end">${money(r[1])}</text>` : `<text x="${x + 9}" y="${Y(r[1]) + 4}" class="rl">${money(r[1])}</text>`); }).join("");
+    const pts = ends.map((t, j) => [t, range[j]]).filter(([t, r]) => t >= 0 && r && r[1] > r[0]);
+    g += pts.map(([t, r]) => { const x = X(t), cap = (y) => `<line x1="${x - 5}" x2="${x + 5}" y1="${y}" y2="${y}" stroke="#5fa69d" stroke-width="1.5"/>`;
+      return `<line x1="${x}" x2="${x}" y1="${Y(r[1])}" y2="${Y(r[0])}" stroke="#5fa69d" stroke-width="1.5"/>${cap(Y(r[1]))}${cap(Y(r[0]))}<circle cx="${x}" cy="${Y(mean[t])}" r="3" fill="var(--teal)"/>`; }).join("");
+    const lastPt = pts[pts.length - 1];
+    if (lastPt) g += `<text x="${X(lastPt[0]) - 10}" y="${Y(lastPt[1][1]) - 8}" class="rl" text-anchor="end">${esc(fill(W.forecast.cum_end, { date: fdate(D.dates[lastPt[0]]), lo: money(lastPt[1][0]), hi: money(lastPt[1][1]), mean: money(mean[lastPt[0]]) }))}</text>`;
     g += `<path d="${mean.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join("")}" fill="none" stroke="var(--teal)" stroke-width="2.2"/>`;
     host.innerHTML = `<svg class="ladder" viewBox="0 0 ${Wd} ${H}" style="height:${H}px">${g}</svg>
-      <div class="lg"><span><i style="background:var(--teal);height:3px;vertical-align:3px"></i>${esc(W.forecast.cum_mean)}</span>${pts.length ? `<span><i style="background:#cfe6e3"></i>${esc(W.forecast.cum_range)}</span>` : ""}</div>`;
+      <div class="lg"><span><i style="background:var(--teal);height:3px;vertical-align:3px"></i>${esc(W.forecast.cum_mean)}</span>${pts.length ? `<span><i style="background:#5fa69d;width:2px;height:12px;vertical-align:-1px"></i>${esc(W.forecast.cum_range)}</span>` : ""}</div>`;
   }
   function renderForecast() {
     const sec = $("s-forecast"), f = figures().full;
