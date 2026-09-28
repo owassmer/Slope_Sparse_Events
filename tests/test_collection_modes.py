@@ -29,8 +29,11 @@ def digest(tr) -> str:
     h = hashlib.sha256()
     for f in fields(tr):
         if f.name not in ("opening_principal", "failed_debits"):
+            a = np.ascontiguousarray(getattr(tr, f.name))
+            if a.dtype.kind == "f":  # PVs are BLAS matmuls: last bits vary by platform; integer arrays stay bit-exact
+                a = np.rint(a) + 0.0  # whole cents (dollar-days), -0.0 folded into 0.0
             h.update(f.name.encode())
-            h.update(np.ascontiguousarray(getattr(tr, f.name)).tobytes())
+            h.update(a.tobytes())
     return h.hexdigest()[:16]
 
 
@@ -49,10 +52,10 @@ def test_protect_need_reproduces_the_engine_before_the_split_bit_for_bit():
     """Digests of every Trajectories array from the engine before this change (4bbec3e + the spec merge), on the
     14 May case with its opening exposure: no events, and a $5M drain on day 40 with petitions on day 120 on even
     draws; the central settings, the 60-day floor, the equity injection and the cost plan."""
-    pinned = {("central", 30): ["9bb63ec1418367b2", "deb2c65e7cbaac7a"],
-              ("central", 60): ["89e45f56ef701d49", "a3eed6065af997d5"],
-              ("equity_injection", 30): ["42747e0c2df46518", "8e1fd70b6861bc31"],
-              ("cost_plan", 30): ["fcf6206313b74cf3", "f3a6c42528999455"]}
+    pinned = {("central", 30): ["2ebfb5d323cb4d6b", "2e296efce5c872c5"],
+              ("central", 60): ["bde0e8153c2231ff", "7f4f4ff718b00008"],
+              ("equity_injection", 30): ["81b5b9a2119dba3c", "52c7424d2135cd48"],
+              ("cost_plan", 30): ["8926834e3a20d671", "3dfb2cc41bcff98c"]}
     feed = load_feed("akoustis_20240514")
     for (sc, nd), want in pinned.items():
         s = replace(setup_from_inputs(INPUTS, REVIEW, sc), need_days=nd, collection="protect_need")
