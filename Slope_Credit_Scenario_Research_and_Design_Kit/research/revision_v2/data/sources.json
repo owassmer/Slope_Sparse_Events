@@ -2644,6 +2644,35 @@
       }
     },
     {
+      "source_id": "akts_2023_01_23_424b5",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023004470/ea171983-424b5_akoustistech.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2023_01_23_424b5.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2023_01_23_424b5.html",
+      "sha256": "194ecec0bd8a209591523822ac1f842374222d960e8e02987498aeece2df636e",
+      "bytes": 527042,
+      "availability": {
+        "date": "2023-01-23",
+        "precision": "day",
+        "accepted_at": "2023-01-23T16:56:59.000Z",
+        "basis": "SEC submissions JSON: filingDate (acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2023-01-23"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
       "source_id": "akts_2023_09_19_def14a",
       "case_id": "akoustis_qorvo_2024",
       "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023077402/def14a0923_akoustistech.htm",

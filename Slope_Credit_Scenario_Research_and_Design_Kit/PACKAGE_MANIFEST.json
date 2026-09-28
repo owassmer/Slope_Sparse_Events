@@ -2,7 +2,7 @@
   "package": "Slope credit-event scenario research and design kit",
   "revision": "2",
   "status": "Research and design; not a built agent or lending application",
-  "primary_catalog_records": 92,
+  "primary_catalog_records": 93,
   "warning": "Build dated agent evidence stores. Do not expose this entire kit, outcomes or evaluator answers to investigator/reviewer runtimes.",
   "files": [
     {
@@ -149,6 +149,11 @@
       "path": "research/recent_cases/akoustis/akts_2022_06_notes_indenture.html",
       "bytes": 795819,
       "sha256": "2aa3ccf1a3ecdb58b759faace8d1f03e7d0d1b0e351067bb9e0d04d3ab5aecb7"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_2023_01_23_424b5.html",
+      "bytes": 527042,
+      "sha256": "194ecec0bd8a209591523822ac1f842374222d960e8e02987498aeece2df636e"
     },
     {
       "path": "research/recent_cases/akoustis/akts_2023_09_19_def14a.html",
@@ -507,8 +512,8 @@
     },
     {
       "path": "research/recent_cases/akoustis/display.json",
-      "bytes": 17599,
-      "sha256": "2985c535e7384a4fb716ba666d8da830bb427f99d6c8a74c5500c0ba46d69181"
+      "bytes": 17871,
+      "sha256": "275e2c5ca497643fa78beb81ba7d8267e73218a34c8861a79add59406e6ecfb0"
     },
     {
       "path": "research/recent_cases/akoustis/qorvo_2024_05_20_8k.html",
@@ -657,8 +662,8 @@
     },
     {
       "path": "research/revision_v2/data/sources.json",
-      "bytes": 111369,
-      "sha256": "4977abd65353b63057ce93e0b4036aa0d8db6385badb5146d38fa38908817dec"
+      "bytes": 112529,
+      "sha256": "3f69f56551821ec42588d4e460c293cd21918ef7859141b7be9de29a9bc4f007"
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
