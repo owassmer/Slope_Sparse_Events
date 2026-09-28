@@ -36,6 +36,7 @@ from app.config import ConfigurationError
 from app.domain.investigation import (
     CASH_FREE_MECHANISMS,
     AtomicFinding,
+    Claim,
     Component,
     DecisionDependency,
     Disposition,
@@ -636,9 +637,32 @@ def _components(items: list[dict], quotes: str, model: dict) -> tuple[Component,
             out.append(Component(component_id=cid, label=c.get("label") or cid, kind=c.get("kind"),
                                  status=c.get("status"), amount_cents=amount, statutory=c.get("statutory") or "",
                                  unknown=bool(c.get("unknown")), remittitur_cents=remit,
-                                 motion=c.get("motion") or "", basis=c.get("basis") or ""))
+                                 motion=c.get("motion") or "", basis=c.get("basis") or "",
+                                 claim=c.get("claim") or "", theory=c.get("theory") or "",
+                                 duplicates=c.get("duplicates") or "", principal=bool(c.get("principal"))))
         except ValueError as e:
             raise ToolError(f"Component {cid}: {e}") from e
+    dup = [c.component_id for c in out if c.duplicates and c.duplicates not in seen]
+    if dup:
+        raise ToolError(f"Components {dup} restate a component id that is not given")
+    return tuple(out)
+
+
+def _claims(items: list[dict], quotes: str, fids: tuple[str, ...]) -> tuple[Claim, ...]:
+    """A pending claim's claims: each rests on cited findings; a ruling that barred its damages is quoted."""
+    out = []
+    for c in items or []:
+        cid, label = (c.get("claim_id") or "").strip(), (c.get("label") or "").strip()
+        if not cid or not label:
+            raise ToolError("Each claim needs a claim_id and a label")
+        bad = [f for f in c.get("finding_ids") or [] if f not in fids]
+        if bad:
+            raise ToolError(f"Claim {cid} rests on findings not cited for the dispute: {bad}")
+        barred = (c.get("damages_barred") or "").strip()
+        if barred and barred not in quotes:
+            raise ToolError(f"Claim {cid}: {barred!r} is not in the cited quotes; cite the ruling that barred damages")
+        out.append(Claim(claim_id=cid, label=label, finding_ids=tuple(c.get("finding_ids") or ()),
+                         damages_barred=barred))
     return tuple(out)
 
 
@@ -715,12 +739,17 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
     commenced = _quoted_date(args["commenced"], "commenced", quotes, review) if args.get("commenced") else None
     components = _components(args.get("components") or [], quotes, model)
     motions = _motions(args.get("motions") or [], quotes, review, components)
+    claims = _claims(args.get("claims") or [], quotes, fids)
+    unknown = sorted({c.claim for c in components if c.claim} - {c.claim_id for c in claims})
+    if unknown:
+        raise ToolError(f"Components name claims that are not given: {unknown}")
+    trial = _quoted_date(args["trial_started"], "trial_started", quotes, review) if args.get("trial_started") else None
     draft = DisputeInstance(
         instance_id=ctx.run.new_id("dispute"), dependency_id=dep.dependency_id, model_id=model["model_id"],
         model_version=model["model_version"], title=title, order_reference=reference, nature=args["nature"],
         counterparty=counterparty, finding_ids=fids, amount=_dispute_amount(args.get("amount") or {}, quotes),
         judgment_date=judgment_date, forum=forum, commenced=commenced, components=components, motions=motions,
-        proposed_extension=(args.get("proposed_extension") or "").strip())
+        trial_started=trial, claims=claims, proposed_extension=(args.get("proposed_extension") or "").strip())
     sources = {s["source_id"]: (s["title"], s["available_at"][:10]) for s in ctx.evidence.list_sources()}
     judge = None
     if ctx.semantics is not None:
@@ -752,8 +781,15 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
                         if f.level_label != "unknown"],
             "evidence_requests": [r.action for r in instance.evidence_requests],
             **({"proposed_extension": "recorded and flagged; the model is unchanged"} if instance.proposed_extension else {}),
+            "template": _template_for(model, instance.stage),
             "note": ("Jev read the present state from the passages. After your run the host asks Jev for the conditional "
                      "probabilities of each future development and builds the financial analysis.")}
+
+
+def _template_for(model: dict, stage: str | None) -> str:
+    """The event template the dispute's stage selects (its findings feed that chain)."""
+    t = next((k for k, v in model["templates"].items() if v.get("stage") == stage), None)
+    return t or ("federal_post_judgment" if stage in model["stages"]["court"] else "none")
 
 
 async def instantiate_financing(ctx: RunContext, args: dict) -> dict:
@@ -1289,10 +1325,16 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
           "components": {"type": "array", "items": obj({
               "component_id": S, "label": S, "basis": S, "motion": S,
               "kind": {"type": "string", "enum": ["compensatory", "exemplary", "patent", "trebling", "fees",
-                                                  "prejudgment_interest", "costs"]},
+                                                  "prejudgment_interest", "costs", "other_compensatory"]},
               "status": {"type": "string", "enum": ["awarded", "requested"]},
               "amount_cents": {"type": "integer"}, "statutory": S, "unknown": {"type": "boolean"},
-              "remittitur_cents": {"type": "integer"}}, ["component_id", "kind", "status"])},
+              "remittitur_cents": {"type": "integer"}, "claim": S,
+              "theory": {"type": "string", "enum": ["claimant", "defense"]}, "duplicates": S,
+              "principal": {"type": "boolean"}}, ["component_id", "kind", "status"])},
+          "trial_started": S,
+          "claims": {"type": "array", "items": obj({"claim_id": S, "label": S, "damages_barred": S,
+                                                    "finding_ids": {"type": "array", "items": S}},
+                                                   ["claim_id", "label"])},
           "motions": {"type": "array", "items": obj({
               "motion_id": S, "briefing_close": S, "decides": {"type": "array", "items": S},
               "kind": {"type": "string", "enum": ["rule_50b", "rule_52b", "rule_59a", "rule_59e", "rule_54_fees",

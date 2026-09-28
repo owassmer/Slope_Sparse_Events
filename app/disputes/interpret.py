@@ -170,7 +170,7 @@ class Interpreter:
         update: dict = {"model_id": self.m["model_id"], "model_version": self.m["model_version"]}
         if self.judge is None:  # agent-only arm: the agent's own reading of the side and the stage
             role, stage = self.agent_reading.get("borrower_role"), self.agent_reading.get("stage")
-            if role not in ("debtor", "creditor") or stage not in DATED_STAGES + ("amount_pending",):
+            if role not in ("debtor", "creditor") or stage not in DATED_STAGES + ("amount_pending", "liability_pending"):
                 return self.d.model_copy(update={**update, "status": "not_judged"})
             return self.d.model_copy(update={**update, "borrower_role": role, "stage": stage, "status": "not_judged"})
         order = self.m["readings"]["amount_status_order"]

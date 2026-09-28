@@ -1,0 +1,34 @@
+{
+  "note": "The pending dispute and the notes as the agent would instantiate them from the 14 May 2024 record, with fixed readings (no Jev), for tests (tests/akoustis_20240514_fixture.py). Figures: D.I. 543-1 Ex. A.2 (22 Apr 2024) ¶¶19, 31, 42, 49, 50, 56; D.I. 590 (14 May 2024); the notes' terms (indenture §§7.01, 10.01, 16.02; 10-Q of 13 May 2024). Nothing dated after 14 May 2024.",
+  "dispute": {
+    "instance_id": "claim",
+    "title": "Trade-secret and patent claims at jury trial",
+    "order_reference": "D. Del. 1:21-cv-01417",
+    "nature": "damages_award",
+    "counterparty": "Qorvo, Inc.",
+    "commenced": "2021-10-04",
+    "trial_started": "2024-05-06",
+    "amount_cents": 6610000000,
+    "claims": [
+      {"claim_id": "trade_secrets", "label": "Trade-secret misappropriation (DTSA, NCTSPA)"},
+      {"claim_id": "conspiracy", "label": "Civil conspiracy"},
+      {"claim_id": "lanham", "label": "False advertising (Lanham Act)"},
+      {"claim_id": "udtpa", "label": "Unfair and deceptive trade practices (UDTPA)", "damages_barred": "D.I. 590"},
+      {"claim_id": "patent", "label": "Patent infringement"}
+    ],
+    "components": [
+      {"component_id": "ts_ue", "label": "Trade-secret unjust enrichment on a 55-month head start", "kind": "compensatory", "amount_cents": 6610000000, "claim": "trade_secrets", "theory": "claimant", "principal": true},
+      {"component_id": "udtpa_ue", "label": "UDTPA unjust enrichment", "kind": "compensatory", "amount_cents": 6610000000, "claim": "udtpa", "theory": "claimant", "duplicates": "ts_ue"},
+      {"component_id": "conspiracy_ue", "label": "Civil conspiracy unjust enrichment", "kind": "compensatory", "amount_cents": 6610000000, "claim": "conspiracy", "theory": "claimant", "duplicates": "ts_ue"},
+      {"component_id": "patent", "label": "Patent damages", "kind": "patent", "amount_cents": 27980800, "claim": "patent", "theory": "claimant"},
+      {"component_id": "advertising", "label": "Corrective advertising", "kind": "other_compensatory", "amount_cents": 114660400, "claim": "lanham", "theory": "claimant"},
+      {"component_id": "poaching", "label": "Employee poaching", "kind": "other_compensatory", "amount_cents": 80977200, "claim": "udtpa", "theory": "claimant"}
+    ]
+  },
+  "notes": {
+    "instrument_id": "notes", "title": "6.0% convertible senior notes due 2027", "issuer": "Akoustis Technologies, Inc.",
+    "principal_cents": 4400000000, "coupon_cents": 132000000, "interest_dates": ["2024-06-15"],
+    "judgment_default_threshold_cents": 1000000000, "judgment_default_days": 60, "insured_cents": 0,
+    "listing_deadline": "2024-10-21", "repurchase_notice_business_days": 20, "repurchase_business_days": [20, 35]
+  }
+}

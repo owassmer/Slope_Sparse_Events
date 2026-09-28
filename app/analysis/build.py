@@ -24,7 +24,7 @@ from app.analysis.setup import Setup, controls_from_json, controls_json, setup_f
 from app.config import VAR, question_registry
 from app.disputes.forecast import DisputePath, Forecaster, Judgment, neutral_map
 from app.disputes.hydrate import evidence_state
-from app.disputes.rules import load_model
+from app.disputes.rules import compatible, load_model
 from app.domain.investigation import AtomicFinding, DisputeInstance
 from app.domain.values import usd
 from app.finance.bank import BankFeed, load_feed
@@ -175,7 +175,7 @@ def payload(feed: BankFeed, setup: Setup, model: EventModel, meta: dict, overrid
         "scenarios": a.scenarios(overrides),
         "attribution": a.attribution(overrides),
         "sensitivity": {"judgments": _sens_rows(a, model, overrides)},
-        "stress": stressed if stressed is not None else stress(feed, setup, model, overrides),
+        "stress": stressed if stressed is not None else stress(feed, setup, model, overrides, dispute_model=a.m),
         "overrides": overrides or {}, **meta,
     }
 
@@ -197,7 +197,8 @@ def basis_for(feed: BankFeed, setup: Setup) -> Basis:
     from app.analysis.engine import prepare
 
     ops = operating.simulate_for(feed, setup)
-    return Basis.of(ops, prepare(setup, ops).need, feed.available_cents)
+    line = prepare(setup, ops)
+    return Basis.of(ops, line.need, feed.available_cents, line=line)
 
 
 def _load_run(run_id: str, root: Path):
@@ -212,7 +213,8 @@ def _load_run(run_id: str, root: Path):
     return store, meta, inputs, evidence, review
 
 
-def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh: bool) -> dict:
+def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh: bool,
+                      version: str | None = None) -> dict:
     """Which accepted findings supply each record item (app/disputes/slots.py), read once per run and kept beside
     it in slots.json; its own Jev adapter and budget."""
     from app.agent.jev import JevAdapter
@@ -220,7 +222,7 @@ def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh:
     from app.disputes.slots import load, match, record_items
 
     path = root / run_id / "slots.json"
-    nodes = record_items(load_model())
+    nodes = record_items(load_model(), version)  # the nodes the disputes' interpretation version has
     kept = load(path)
     if kept is not None and {n: list(v) for n, v in kept.items()} == {n: s["items"] for n, s in nodes.items()} \
             and not refresh:
@@ -253,8 +255,9 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dic
     borrower = inputs["baseline_profile"]["borrower"]
     findings: dict[str, AtomicFinding] = {k: f for k, f in store.graph["findings"].items() if f.status == "accepted"}
     live = [d for d in store.graph["disputes"].values() if d.status != "superseded"]
-    current = load_model()["model_version"]
-    stale = sorted({d.model_version for d in live if d.model_version != current})
+    m = load_model(meta["snapshot_id"])  # the contract, with the case's scenario parameters where it has any
+    current = m["model_version"]
+    stale = sorted({d.model_version for d in live if not compatible(m, d.model_version)})
     if stale and not refresh:
         raise RuntimeError(f"{run_id}: disputes were interpreted under dispute model {', '.join(stale)}, not the current "
                            f"{current}; their readings do not fit the current tree. Re-interpret the run, or pass "
@@ -267,10 +270,11 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dic
     live = [d.model_copy(update={"financing": tuple(f for f in instruments if d.instance_id in f.dispute_ids)})
             for d in live]  # the instruments each judgment's terms reach (dispute model 4.0.0)
     hydrate = lambda f: evidence_state(evidence, f, [], sources)["passage"]  # noqa: E731
-    slots = record_item_slots(run_id, root, findings, hydrate, refresh)
+    version = max((d.model_version for d in live), key=lambda v: tuple(map(int, v.split("."))), default=current)
+    slots = record_item_slots(run_id, root, findings, hydrate, refresh, version)
     fc = Forecaster(live, findings, borrower=borrower, review=review, horizon=setup.horizon, hydrate=hydrate,
                     setup=setup, basis=basis_for(feed, setup),  # path facts are simulated before Jev is asked
-                    slots=slots)
+                    slots=slots, model=m)
     per = fc.all_paths()
     bank_paths = fc.bank_paths()  # the bank view: the same distress decisions on the bank data alone
     records: list = []
@@ -284,7 +288,7 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dic
                        neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments)
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in live if d.status not in ("interpreted", "resolved")]
-    a = Analysis(feed, setup, model)
+    a = Analysis(feed, setup, model, dispute_model=m)
     data = payload(feed, setup, model, meta_for(model, borrower, not_modelled), analysis=a)
     data["model"] = _model_json(model)
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
@@ -360,7 +364,7 @@ def load_page_state(run_dir: Path) -> dict:
     data = read_analysis(run_dir)
     p = json.loads((run_dir / "page.json").read_text())
     model, setup = model_from_json(data["model"]), setup_from_json(data["base_setup"])
-    a = Analysis(load_feed(data["snapshot_id"]), setup, model)
+    a = Analysis(load_feed(data["snapshot_id"]), setup, model, dispute_model=load_model(data["snapshot_id"]))
     state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months}
     save_page_state(run_dir.name, state)
     return state
@@ -424,10 +428,10 @@ def recompute(path: Path, controls: dict, overrides: dict | None) -> dict:
     if key not in _ANALYSES:
         if len(_ANALYSES) > 8:
             _ANALYSES.clear()
-        _ANALYSES[key] = (Analysis(feed, setup, model), None)
+        _ANALYSES[key] = (Analysis(feed, setup, model, dispute_model=load_model(data.get("snapshot_id"))), None)
     a, _ = _ANALYSES[key]
     meta = {k: data[k] for k in ("borrower", "probability_label", "disputes", "not_modelled", "judgments")}
-    out = payload(feed, setup, model, meta, clean, analysis=a, stressed=stress(feed, setup, model, clean))
+    out = payload(feed, setup, model, meta, clean, analysis=a, stressed=stress(feed, setup, model, clean, dispute_model=a.m))
     out["run_id"] = data.get("run_id")
     return out
 

@@ -452,7 +452,7 @@ class Analysis:
         self.ops = operating.simulate_for(feed, setup)
         self.line = prepare(setup, self.ops)
         self.opening = feed.available_cents
-        self._draws = Draws(DRAWS, stress=stress, basis=Basis.of(self.ops, self.line.need, self.opening))
+        self._draws = Draws(DRAWS, stress=stress, basis=Basis.of(self.ops, self.line.need, self.opening, line=self.line))
         self._draws.prefixes = {}  # the combos run depth-first: each walks only the steps after the shared prefix
         self._cache: dict = {}
         self._packed: dict = {}  # (kind, index) -> the bin pass's event cash, sparse, for the main pass
@@ -634,11 +634,12 @@ class Analysis:
                                            -round(r["range"]["dollar_days"], 2), -r["range"]["min_cash"]))
 
 
-def stress(feed: BankFeed, setup: Setup, model: EventModel, overrides: dict | None = None) -> list[dict]:
+def stress(feed: BankFeed, setup: Setup, model: EventModel, overrides: dict | None = None,
+           dispute_model: dict | None = None) -> list[dict]:
     """Every feasible joint path under adverse placement, whatever its probability. Never weighted, never decisive.
     Each path is also run with a petition placed on the day of its highest expected outstanding balance: the stayed
     claim and preference exposure a petition would leave at the worst point for the lender."""
-    a = Analysis(feed, setup, model, stress=True)
+    a = Analysis(feed, setup, model, stress=True, dispute_model=dispute_model)
     probs = model.probs(overrides)
     rows = [{"index": i, "probability": float(probs[i]),
              "paths": [{"dispute": p.instance_id, "outcome": p.outcome, "label": path_label(p)} for p in combo], **r}

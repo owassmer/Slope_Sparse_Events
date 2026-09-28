@@ -1,6 +1,6 @@
 {
   "model_id": "post_judgment_money_dispute",
-  "model_version": "4.0.0",
+  "model_version": "4.1.0",
   "scope": "The post-trial and post-judgment course of a US federal civil money judgment, and the financing instruments whose terms it triggers, as they bear on the lender's collections: a bankruptcy petition (11 U.S.C. §362) and the borrower's cash above operating need on each due date. Templates are by forum and instrument; each case's dispute, components and financing instruments fill them. Any appeal is decided after the analysis period.",
   "design": "Each quantity has one source: the law, the record, measured data, arithmetic, a bounded term with a sensitivity, or Jev. Dates, amounts, cash, enforceability and legal meaning come from the first five. Jev answers one actor's decision at a time, given the path's dates, amounts and cash and the record items. Readings of the record are evidence for those decisions.",
   "roles": {
@@ -157,6 +157,27 @@
     "udtpa_trebling_authorities": {
       "citation": "Trebling a trade-secret award after the jury answered 'No' to the unfair-trade-practices question: the authorities each side relies on. Against trebling: this court's order of 14 May 2024 on the defendants' Rule 50(a) motion (D.I. 590) held that North Carolina courts have \"not recognized head start benefits to the Defendants as such a proxy\" for the plaintiff's injury and that \"[t]he jury has no reasonable basis to find compensable damages under the UDTPA, but has sufficient basis to find injury\"; §75-16 trebles damages, and a restitutionary award is not trebled (Winant v. Bostic, 5 F.3d 767, 775-76 (4th Cir. 1993)); a violation of the Trade Secrets Protection Act is not in itself a violation of §75-1.1 (Drouillard v. Keister Williams Newspaper Servs., 108 N.C. App. 169 (1992); Legacy Data Access, LLC v. MediQuant, Inc. (W.D.N.C. 2017), which declined to treble a trade-secret verdict where the jury awarded $1 on the unfair-trade-practices claim); and Qorvo filed no Rule 50 motion, the route for setting aside a jury finding for want of evidence (Unitherm Food Sys., Inc. v. Swift-Eckrich, Inc., 546 U.S. 394 (2006)). For trebling: the jury finds the facts, and the court decides as a matter of law whether they amount to an unfair or deceptive practice (Hardy v. Toler, 288 N.C. 303 (1975)); \"A violation of the Trade Secrets Protection Act constitutes an unfair act or practice under N.C. Gen. Stat. § 75-1.1\" (Medical Staffing Network, Inc. v. Ridgway, 194 N.C. App. 649 (2009)); and Grout Doctor Global Franchise Corp. v. Groutman, Inc. (E.D.N.C. 2015), which Qorvo cites (D.I. 587).",
       "modality": "open; the court decides"
+    },
+    "frcp_58b2": {
+      "citation": "Fed. R. Civ. P. 58(b)(2): on a special verdict, the court must promptly approve the form of the judgment, which the clerk must promptly enter.",
+      "modality": "shall"
+    },
+    "frcp_50b_59_deadline": {
+      "citation": "Fed. R. Civ. P. 50(b), 52(b), 59(b), 59(e): no later than 28 days after the entry of judgment; timely motions toll the time to appeal (FRAP 4(a)(4)(A)) and do not stay execution (Rule 62, 2018 Advisory Committee Note).",
+      "modality": "may",
+      "value": 28
+    },
+    "stay_as_of_right": {
+      "citation": "Fed. R. Civ. P. 62(b): a party may obtain a stay by providing a bond or other security; a sufficient supersedeas bond gives a stay as of right (American Mfrs. Mut. Ins. Co. v. American Broadcasting-Paramount Theatres, Inc., 87 S. Ct. 1, 3 (1966) (Harlan, J., in chambers)).",
+      "modality": "may"
+    },
+    "nasdaq_5815_hearing_stay": {
+      "citation": "Nasdaq Rule 5815(a)(1)(B): a timely request for a hearing (within 7 days of the Staff Determination) ordinarily stays the suspension and delisting until the Hearings Panel's written decision; the Panel may grant up to 180 days from the Determination (Rule 5815(c)(1)(A)).",
+      "modality": "may"
+    },
+    "jury_verdict": {
+      "citation": "U.S. Const. amend. VII; Fed. R. Civ. P. 48(b) (a unanimous verdict unless the parties stipulate otherwise) and 49(a) (special verdict): the jury finds each claim by a preponderance of the evidence and fixes the damages the form asks for.",
+      "modality": "may"
     }
   },
   "readings": {
@@ -182,7 +203,8 @@
       "mediation_ordered": "the court has ordered the parties to mediate or attend a settlement conference on this obligation",
       "post_trial_motions_pending": "timely post-judgment motions under Fed. R. Civ. P. 50(b), 52(b) or 59 that could change this obligation are pending and undecided",
       "post_trial_decided": "the court has decided every pending post-judgment motion that could change this obligation",
-      "injunction_entered": "the court has entered an injunction in this dispute"
+      "injunction_entered": "the court has entered an injunction in this dispute",
+      "trial_pending": "the claims are being tried, or are set for trial, and no verdict has been returned"
     },
     "stage_rules": [
       {
@@ -216,6 +238,10 @@
       {
         "event": "entitlement_decided",
         "stage": "amount_pending"
+      },
+      {
+        "event": "trial_pending",
+        "stage": "liability_pending"
       }
     ],
     "stage_rules_note": "The stage is the most advanced procedural event any cited passage establishes, in the order listed. Pending post-trial motions place an entered judgment in post_trial: execution may issue once Rule 62(a)'s stay ends, the amount can still change, and the time to appeal runs from the last ruling (FRAP 4(a)(4)(A)). A ruling on every such motion moves it to judgment_entered. A dispute with no established event carries an evidence request."
@@ -329,6 +355,7 @@
   },
   "stages": {
     "court": [
+      "liability_pending",
       "amount_pending",
       "post_trial",
       "judgment_entered",
@@ -499,6 +526,40 @@
         "entered",
         "post_ruling"
       ]
+    },
+    "judgment_entry": {
+      "disposition": "bounded",
+      "value": "next_business_day",
+      "sensitivity": "with_ruling",
+      "basis": "Fed. R. Civ. P. 58(b)(2) (rule frcp_58b2): on a special verdict the judgment is entered 'promptly'. Base: the first business day after the modeled verdict, the earliest reading, so every enforcement clock starts earliest (lender-adverse). Sensitivity: entry deferred until the court rules on the post-verdict equitable remedies, dated as a post-trial ruling (verdict + the motion deadline + briefing + one lag drawn from ruling_lag_days)."
+    },
+    "verdict_window": {
+      "disposition": "code_timing",
+      "source": "case_scenario",
+      "basis": "The verdict date is drawn per trajectory, uniformly over the court days of the case's window (a case input quoted from the record before the review date), keyed (instance, verdict, date) so no probability moves it."
+    },
+    "lower_award_amount": {
+      "disposition": "bounded",
+      "source": "case_scenario",
+      "value": "components_without_principal",
+      "basis": "The J1 branch 'liability without the principal measure': the claimant's requested components outside its principal damages measure, excluding components that restate another (duplicates) and components of a claim whose damages the court has barred. Sensitivity: the case's stated amount (a declared scenario class where no figure is public)."
+    },
+    "claimant_enhancements": {
+      "disposition": "bounded",
+      "source": "case_scenario",
+      "value": 0,
+      "basis": "Exemplary, enhanced and statutory additions and pre-judgment interest on the claimant's-theory branch: one bounded term (they only raise an award already beyond cash). Base 0 added; the case states the sensitivity."
+    },
+    "rate_1961_bps_pending": {
+      "disposition": "bounded",
+      "source": "case_scenario",
+      "basis": "28 U.S.C. §1961 on a judgment not yet entered at the review date: the latest weekly 1-year CMT published by the review date (H.15), a case input with its source. The rate for the week before the modeled entry is not yet published."
+    },
+    "cash_facts": {
+      "disposition": "sourced",
+      "value": "pre_engine",
+      "sensitivity": "engine_forward_run",
+      "basis": "Where the chains read the borrower's available cash. pre_engine (the recorded 4.0.0 runs): the opening balance plus operating flows and event cash, without the line's draws and collections. engine_forward_run (spec §16.4; set by a 4.1.0 case's scenario): the loan engine run forward on the prefix's event cash up to the decision day, so the cash facts, 'pay' feasibility and the cash floor include the line's own flows. The engine is causal, so no feedback solver is needed."
     }
   },
   "remittitur_scenarios": {
@@ -565,6 +626,26 @@
       "branch": "injunction revenue effect",
       "ground": "fact not holdable",
       "basis": "The record before the review date gives no revenue by part; the injunction runs as one stress scenario."
+    },
+    {
+      "branch": "Hearings Panel decision and Form 25 within the analysis period (pending_money_claim cases)",
+      "ground": "window closed",
+      "basis": "Rule 5815(c)(1)(A): the Panel decides 30-60 days or more after the Determination; where that falls after the analysis period on every trajectory, only suspension can delist."
+    },
+    {
+      "branch": "repurchase after delisting within the analysis period",
+      "ground": "window closed",
+      "basis": "The repurchase date (20-35 business days after the company's notice) falls after the analysis period wherever the delisting falls at its end; 'repurchase only' then merges with 'neither'."
+    },
+    {
+      "branch": "cash effect of an injunction on a pending claim",
+      "ground": "cannot be obtained",
+      "basis": "No proposed order and no part-level revenue before the review date: its revenue effect cannot be specified."
+    },
+    {
+      "branch": "trebling of an amount the court held not compensable",
+      "ground": "record",
+      "basis": "A statutory trebling applies to the amount fixed by the verdict; a claim whose damages the court barred before the verdict carries none."
     }
   ],
   "feed_anchor": {
@@ -1386,7 +1467,51 @@
           "timing_parameters": [
             "panel_decision_days"
           ]
+        },
+        "listing_kept": {
+          "actor": "issuer",
+          "decision": "keeps its stock listed through the analysis period: a reverse split effective in time to regain compliance, or a timely request for a hearing, which stays suspension",
+          "standard": [
+            "nasdaq_5815_hearing_stay",
+            "listing_default"
+          ],
+          "record_items": [
+            "the listing deficiency notice and compliance deadline",
+            "the company's stated cure",
+            "the latest stockholder vote on a charter amendment",
+            "the company's financing routes and their status"
+          ],
+          "path_facts": [
+            "available cash at the decision date (P5 / P50)",
+            "the notes' status and dated triggers",
+            "the compliance deadline"
+          ],
+          "timing": "on the last day to request a hearing (7 days after the Staff Determination)",
+          "asked_when": "the stock can be suspended inside the analysis period and no earlier petition or acceleration",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [],
+          "residual_question": "forecast_listing_kept",
+          "situation": {
+            "ruled": "the company's liabilities and resources when it decides",
+            "settled": "the company's liabilities and resources when it decides",
+            "paid": "the company's liabilities and resources when it decides",
+            "stayed": "the company's liabilities and resources when it decides",
+            "appealed": "the company's liabilities and resources when it decides",
+            "levied": "the company's liabilities and resources when it decides",
+            "notes_due": "the company's liabilities and resources when it decides",
+            "seeking": "the actor's own earlier act"
+          },
+          "timing_parameters": [],
+          "since": "4.1.0"
         }
+      },
+      "listing_route": {
+        "rule": "Where the Hearings Panel's decision falls after the analysis period on every trajectory, the stock can stop being listed inside it only by suspension without a timely hearing request, the company's own act: the listing chain is listing_kept alone (classes listed / delisted_suspension). Otherwise the four nodes reverse_split_board, split_approved, nasdaq_hearing, panel_exception. Chosen by dates, never by case.",
+        "kept_node": "listing_kept",
+        "decided_on": "hearing_request"
       }
     },
     "bankruptcy_effects": {
@@ -1472,10 +1597,256 @@
           ]
         }
       }
+    },
+    "pending_money_claim": {
+      "forum": "court",
+      "instrument": "a civil money claim at jury trial in US district court",
+      "stage": "liability_pending",
+      "intervals": [
+        "I0",
+        "I1",
+        "I2",
+        "I3",
+        "I4"
+      ],
+      "reuses": [
+        "execute_pre_ruling",
+        "enforce_after_final",
+        "stay_motion",
+        "stay_approved",
+        "registration_early",
+        "appeal",
+        "settlement_offer",
+        "settlement_accept"
+      ],
+      "response_node": "judgment_response",
+      "nodes": {
+        "verdict_theory": {
+          "actor": "jury",
+          "decision": "which damages theory it adopts on the claims submitted to it",
+          "standard": [
+            "jury_verdict"
+          ],
+          "record_items": [
+            "the claimant's itemised damages claim",
+            "the defense's statement of intended proof on damages",
+            "the court's rulings admitting or limiting the damages evidence",
+            "the final verdict form",
+            "the summary-judgment and validity rulings",
+            "the defendant's public statements on the trial and its likely damages",
+            "the challenges to the damages method"
+          ],
+          "path_facts": [
+            "the claims and the amounts the claimant requested on each"
+          ],
+          "timing": "on the day of the verdict, drawn per trajectory over the case's verdict window",
+          "asked_when": "the claims are with the jury and no settlement has been paid",
+          "branches": [
+            "no_award",
+            "without_principal_measure",
+            "claimant_theory"
+          ],
+          "context": [
+            "interval"
+          ],
+          "residual_question": "forecast_verdict_theory",
+          "situation": {},
+          "timing_parameters": [
+            "verdict_window"
+          ],
+          "since": "4.1.0"
+        },
+        "judgment_response": {
+          "actor": "judgment debtor",
+          "decision": "responds to the entered money judgment: pay it, file for bankruptcy, or continue (operate and contest it, which includes seeking a sale or new financing)",
+          "standard": [
+            "frcp_62a",
+            "frcp_69a",
+            "usc11_362"
+          ],
+          "record_items": [
+            "the company's going-concern and bankruptcy statements",
+            "the company's financing routes and their status",
+            "the company's statements on its liquidity and ability to post security",
+            "the defendant's public statements on the trial and its likely damages"
+          ],
+          "path_facts": [
+            "available cash at the decision date (P5 / P50 across the path's trajectories)",
+            "the 30-day operating need",
+            "amount owed on the path, with statutory interest to the decision date",
+            "notes status and dated triggers"
+          ],
+          "timing": "on the day the judgment is entered; on each day a levy falls, before it; on the day the notes' judgment default ripens after the company continued",
+          "asked_when": "a money judgment is entered on the path, unpaid and unstayed, and the company has not filed",
+          "branches": [
+            "pay",
+            "file",
+            "continue"
+          ],
+          "context": [
+            "milestone",
+            "amount_class"
+          ],
+          "residual_question": "forecast_judgment_response",
+          "situation": {
+            "appealed": "the actor's own earlier act",
+            "levied": "the levy is the act the company responds to"
+          },
+          "timing_parameters": [
+            "judgment_entry",
+            "levy_lag_days",
+            "petition_lag_days"
+          ],
+          "since": "4.1.0"
+        },
+        "post_trial_motions": {
+          "actor": "judgment debtor",
+          "decision": "files timely post-trial motions (judgment as a matter of law, a new trial or remittitur)",
+          "standard": [
+            "frcp_50b_59_deadline",
+            "jmol_standard"
+          ],
+          "record_items": [
+            "the company's statements on contesting the claims",
+            "the motions for judgment as a matter of law made at trial",
+            "the defendant's public statements on the trial and its likely damages"
+          ],
+          "path_facts": [
+            "the judgment amount on the path"
+          ],
+          "timing": "by the 28th day after entry",
+          "asked_when": "a money judgment is entered and the company continued",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "amount_class"
+          ],
+          "residual_question": "forecast_post_trial_motions",
+          "situation": {},
+          "timing_parameters": [],
+          "since": "4.1.0"
+        },
+        "post_trial_ruling": {
+          "actor": "court",
+          "decision": "rules on the post-trial motions: the money judgment stands, or it is set aside (judgment as a matter of law on liability, or a new trial)",
+          "standard": [
+            "jmol_standard",
+            "frcp_59a",
+            "remittitur"
+          ],
+          "record_items": [
+            "the motions for judgment as a matter of law made at trial",
+            "the court's rulings admitting or limiting the damages evidence",
+            "the challenges to the damages method"
+          ],
+          "path_facts": [
+            "the judgment amount on the path",
+            "the grounds preserved at trial"
+          ],
+          "timing": "close of briefing plus one lag drawn from the judge's measured pace",
+          "asked_when": "post-trial motions are filed and the ruling can fall inside the analysis period",
+          "branches": [
+            "stands",
+            "set_aside"
+          ],
+          "context": [
+            "amount_class"
+          ],
+          "residual_question": "forecast_post_trial_ruling",
+          "situation": {},
+          "timing_parameters": [
+            "ruling_lag_days"
+          ],
+          "since": "4.1.0"
+        }
+      },
+      "edges": [
+        {
+          "from": "start",
+          "next": "settle_I0"
+        },
+        {
+          "from": "settle_I0",
+          "branch": "no",
+          "next": "verdict_theory"
+        },
+        {
+          "from": "verdict_theory",
+          "branch": "no_award",
+          "next": "tail",
+          "outcome": "no_judgment"
+        },
+        {
+          "from": "verdict_theory",
+          "branch": "*",
+          "next": "entry"
+        },
+        {
+          "from": "entry",
+          "branch": "continue",
+          "next": "post_trial_motions"
+        },
+        {
+          "from": "post_trial_motions",
+          "branch": "yes",
+          "next": "settle_I1"
+        },
+        {
+          "from": "post_trial_motions",
+          "branch": "no",
+          "next": "post"
+        },
+        {
+          "from": "post_trial_ruling",
+          "branch": "stands",
+          "next": "post"
+        },
+        {
+          "from": "post_trial_ruling",
+          "branch": "set_aside",
+          "next": "tail",
+          "outcome": "set_aside"
+        }
+      ],
+      "verdict_branches": {
+        "no_award": {
+          "judgment": false
+        },
+        "without_principal_measure": {
+          "judgment": true,
+          "amount": "lower_award_amount"
+        },
+        "claimant_theory": {
+          "judgment": true,
+          "amount": "components",
+          "plus": "claimant_enhancements"
+        }
+      },
+      "amount_rules": {
+        "components": "the claimant's requested components, excluding any that restates another (duplicates) and any of a claim whose damages the court has barred",
+        "components_without_principal": "the same, also excluding the claimant's principal damages measure"
+      },
+      "label_templates": {
+        "I0": "before the jury's verdict",
+        "entry": "on the day the judgment is entered",
+        "I1": "after the judgment is entered, before the post-trial ruling",
+        "I2": "after the post-trial ruling, or once the time for post-trial motions has run, before the appeal deadline",
+        "I3": "judgment enforceable and unstayed, after the appeal deadline",
+        "I4": "judgment stayed on approved security",
+        "post": "after the post-trial ruling, or once the time for post-trial motions has run",
+        "ripe": "on the date the notes' judgment default ripens",
+        "claimant_theory": "the jury adopted {claimant}'s damages theory: judgment of {range}",
+        "without_principal_measure": "the jury found liability but rejected {principal_measure}: judgment of {amount}"
+      },
+      "cash_facts": "engine_forward_run where the case's scenario sets parameter cash_facts (spec §16.4)"
     }
   },
   "composition": {
     "order": [
+      "I0: settlement, then the verdict (J1)",
+      "entry: the response (D2), then post-trial motions (D1)",
       "I1: settlement, execution, stay, debtor response, early registration",
       "ruling (chain rule over the merits decisions)",
       "I2-I4: settlement, appeal, stay, debtor response, enforcement, judgment default",
@@ -1491,6 +1862,56 @@
     },
     "neutral": "Attribution step 2 sets every residual to neutral (a Noul at 0.5, a Choice uniform over the branches arithmetic leaves) and keeps everything the record fixes.",
     "paths_to_the_engine": "Paths are sequences of decisions; each decision's effect is dated per trajectory and applies only where its condition holds on that date. A petition ends every later effect on its trajectory.",
-    "situation": "Each question is asked in the conditions its node's situation names, each with its basis, that hold at the decision on every trajectory of the path where it is asked. A condition that holds on only some of them is left unstated."
+    "situation": "Each question is asked in the conditions its node's situation names, each with its basis, that hold at the decision on every trajectory of the path where it is asked. A condition that holds on only some of them is left unstated.",
+    "pending_ruling": "pending_money_claim: the post-trial ruling is one real node (J2, stands / set_aside); the verdict is one real Choice node (J1). No composite changes."
+  },
+  "compatible_versions": [
+    "4.0.0"
+  ],
+  "branch_bookings": {
+    "note": "For each decision whose branches the chain books directly: branch -> booking. Each booking names one Chain booking (app/analysis/events.py) and what the path does next. Adding a branch is a contract edit here plus one Chain booking; the walker reads the branch list from the node.",
+    "bookings": {
+      "pay": {
+        "effect": "pays the amount owed with interest on the decision day; the dispute ends",
+        "path": "ends",
+        "outcome": "paid",
+        "needs_arithmetic": "cash_covers_owed"
+      },
+      "petition": {
+        "effect": "a bankruptcy petition on the decision day + petition_lag_days",
+        "path": "ends",
+        "outcome": "petition"
+      },
+      "seek": {
+        "effect": "books no cash; the company is asked again at its next milestone",
+        "path": "continues",
+        "mark": "seeking"
+      },
+      "none": {
+        "effect": "books nothing",
+        "path": "continues"
+      }
+    },
+    "nodes": {
+      "debtor_response": {
+        "pay": "pay",
+        "seek_sale_or_financing": "seek",
+        "file": "petition",
+        "neither": "none"
+      },
+      "judgment_response": {
+        "pay": "pay",
+        "continue": "seek",
+        "file": "petition"
+      },
+      "petition_cash_floor": {
+        "yes": "petition",
+        "no": "none"
+      },
+      "petition_cash_out": {
+        "yes": "petition",
+        "no": "none"
+      }
+    }
   }
 }

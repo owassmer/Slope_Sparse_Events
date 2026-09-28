@@ -17,7 +17,7 @@ from collections.abc import Callable
 from datetime import date
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 from app.domain.values import EvidenceValue
 
@@ -259,7 +259,8 @@ class EvidenceRequest(Frozen):
     if_not: str
 
 
-ComponentKind = Literal["compensatory", "exemplary", "patent", "trebling", "fees", "prejudgment_interest", "costs"]
+ComponentKind = Literal["compensatory", "exemplary", "patent", "trebling", "fees", "prejudgment_interest", "costs",
+                        "other_compensatory"]
 MotionKind = Literal["rule_50b", "rule_52b", "rule_59a", "rule_59e", "rule_54_fees", "injunction"]
 
 
@@ -278,6 +279,29 @@ class Component(Frozen):
     remittitur_cents: int | None = None  # the most the evidence supports (a declared scenario), where the record gives one
     motion: str = ""  # motion_id of the pending motion that decides it
     basis: str = ""  # finding id(s) and the quote the figure rests on
+    claim: str = ""  # the claim it belongs to (a pending claim: Claim.claim_id)
+    theory: Literal["claimant", "defense", ""] = ""  # whose damages theory the figure is
+    duplicates: str = ""  # the component id it restates under another theory (not additive)
+    principal: bool = False  # the claimant's principal damages measure (the one the lower verdict branch rejects)
+
+    @model_serializer(mode="wrap")
+    def _without_new_defaults(self, handler):
+        """The 4.1.0 fields are left out at their defaults, so a recorded run's packet (nested components) still
+        matches its replayed log."""
+        out = handler(self)
+        for k, v in (("claim", ""), ("theory", ""), ("duplicates", ""), ("principal", False)):
+            if isinstance(out, dict) and out.get(k) == v:
+                out.pop(k)
+        return out
+
+
+class Claim(Frozen):
+    """One claim of a pending action, as the case states it (dispute model 4.1.0, pending_money_claim)."""
+
+    claim_id: str
+    label: str
+    finding_ids: tuple[str, ...] = ()
+    damages_barred: str = ""  # the ruling (docket reference) that left the claim no compensable damages
 
 
 class PendingMotion(Frozen):
@@ -332,8 +356,10 @@ class DisputeInstance(Frozen):
     counterparty: str
     finding_ids: tuple[str, ...] = Field(min_length=1)
     amount: EvidenceValue
-    judgment_date: date | None = None
+    judgment_date: date | None = None  # None by design at stage liability_pending (no judgment yet)
     forum: Literal["court", "arbitration"] = "court"
+    trial_started: date | None = None  # a pending claim at trial: the quoted first trial day
+    claims: tuple[Claim, ...] = ()  # a pending claim: its claims, each resting on accepted findings
     commenced: date | None = None  # the action's commencement (N.C. Gen. Stat. §24-5(b) interest start)
     components: tuple[Component, ...] = ()
     motions: tuple[PendingMotion, ...] = ()

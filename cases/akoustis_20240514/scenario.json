@@ -1,0 +1,51 @@
+{
+  "snapshot_id": "akoustis_20240514",
+  "note": "Scenario parameters of the 14 May 2024 review for the pending-claim event model (dispute model 4.1.0; DECOMPOSITION_20240514.md §3, §5, §7.7). They overlay the contract's parameters of the same name for this case only (app/disputes/rules.py load_model). The operating reserve, financing and cost plan are the common model's (run_inputs.json common_model) and are read, not restated here.",
+  "labels": {
+    "principal_measure": "the claimed head-start measure of trade-secret unjust enrichment"
+  },
+  "parameters": {
+    "verdict_window": {
+      "days": ["2024-05-16", "2024-05-17", "2024-05-20", "2024-05-21", "2024-05-22"],
+      "sensitivity": "2024-05-22",
+      "basis": "Court days Thu 16 to Wed 22 May 2024, drawn uniformly per trajectory. The claimant rested on 13 May and the case was 'expected to go to the jury before the end of the week, and the jury is expected to issue a verdict in the next several days' (earnings call, 13 May 2024); jurors provided for through Fri 17 May (D.I. 550, 26 Apr 2024); trial day 7 on 14 May (minute entry). Sensitivity: the window's last day."
+    },
+    "lower_award_amount": {
+      "value": "components_without_principal",
+      "sensitivity": 999999900,
+      "basis": "Owen, O1 (27 Sep 2026): the lower J1 branch is liability without the head-start measure. Base: the claimant's own figures for a verdict that rejects that measure, patent USD 279,808 plus corrective advertising USD 1,146,604 = USD 1,426,412 (D.I. 543-1 Ex. A.2 ¶¶19, 42). The poaching USD 809,772 is a UDTPA claim, and D.I. 590 (14 May 2024) held the jury has no basis for compensable UDTPA damages, so it is excluded. Sensitivity: USD 9,999,999, the most an award can be and stay below the notes' USD 10.0M threshold."
+    },
+    "claimant_enhancements": {
+      "value": 0,
+      "sensitivity": 14610000000,
+      "basis": "Base: nothing added. Sensitivity: DTSA exemplary damages at the 2x cap (USD 132.2M on the USD 66.1M) plus N.C. Gen. Stat. §24-5(b) interest at 8% from 4 Oct 2021 to entry (about USD 13.9M): USD 146.1M added. Either setting leaves the award beyond cash on every trajectory."
+    },
+    "coupon_cash_share": {
+      "value": "all_shares",
+      "sensitivity": "all_cash",
+      "share_price_cents": 60,
+      "share_capacity": 5000000,
+      "share_limit": 11403332,
+      "split_ratio": null,
+      "basis": "The 15 Jun 2024 coupon, USD 1.32M, paid Mon 17 Jun. Indenture §16.02(c): paid in shares unless the company elects cash. The resale S-3 of 13 May 2024 registers 5,000,000 Note Shares for interest and make-whole payments; at USD 0.60 (close, 1 May 2024; 10-Q) the coupon needs about 2.3M shares, inside the registered 5.0M and the 11,403,332 cap. Base: all shares, no cash. Sensitivity: all cash."
+    },
+    "rate_1961_bps_pending": {
+      "value": 513,
+      "basis": "28 U.S.C. §1961: the latest weekly 1-year CMT published by 14 May 2024, the week ending 10 May 2024: 5.13% (FRED WGS1YR, H.15 weekly)."
+    },
+    "ruling_lag_days": {
+      "mode": "common",
+      "sensitivity": "later_of_two",
+      "basis": "One common lag for the post-trial motions (which motions will be filed is unknown before the verdict). Sensitivity: the later of two independent draws."
+    },
+    "chips_credit_cents": {
+      "value": 0,
+      "sensitivity": 0,
+      "basis": "The CHIPS tax credit is the common model's chips_itc_low scenario (run_inputs.json); the event chain books none, so it is never counted twice."
+    },
+    "cash_facts": {
+      "value": "engine_forward_run",
+      "basis": "Spec §16.4: the cash facts, 'pay' feasibility and the cash floor read the loan engine run forward on the prefix's event cash."
+    }
+  }
+}

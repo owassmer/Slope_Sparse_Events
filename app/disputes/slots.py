@@ -17,10 +17,16 @@ QUESTION = "record_item_supplied"
 CONCURRENCY = 8
 
 
-def record_items(model: dict) -> dict[str, dict]:
-    """question node -> its actor, decision and record items, for every node the forecasts can ask."""
+def _v(version: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in version.split("."))
+
+
+def record_items(model: dict, version: str | None = None) -> dict[str, dict]:
+    """question node -> its actor, decision and record items, for every node the forecasts can ask; with `version`
+    (the disputes' interpretation version), only the nodes that version has (a node's `since`)."""
     return {n: {"actor": s["actor"], "decision": s["decision"], "items": s["record_items"]}
-            for t in model["templates"].values() for n, s in t.get("nodes", {}).items() if not s.get("stress_only")}
+            for t in model["templates"].values() for n, s in t.get("nodes", {}).items() if not s.get("stress_only")
+            and (version is None or _v(s.get("since", "0.0.0")) <= _v(version))}
 
 
 async def match(findings: dict, hydrate: Callable, nodes: dict[str, dict], jev) -> dict[str, dict[str, list[str]]]:
