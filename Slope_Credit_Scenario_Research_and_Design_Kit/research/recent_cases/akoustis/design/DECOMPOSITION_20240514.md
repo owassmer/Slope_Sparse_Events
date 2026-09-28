@@ -116,7 +116,7 @@ Every clock after the verdict runs from the **modeled** verdict and entry dates 
 
 | Item | Rule and base value | Disposition |
 |---|---|---|
-| Verdict date V | Drawn per trajectory, uniformly over the court days **Thu 16 May to Wed 22 May 2024** (16, 17, 20, 21, 22 May). Basis, all dated on or before 14 May: the claimant rested on 13 May and the case is "expected to go to the jury before the end of the week, and the jury is expected to issue a verdict in the next several days" (13 May call, ACQ §1(g)); jurors provided for through Fri 17 May (D.I. 550, filed 26 Apr 2024: "furnish lunch for 14 jurors ... from Monday, May 6, 2024 through Friday, May 17, 2024"); trial day 7 on 14 May (minute entry). Thursday is the earliest day the case can reach the jury after a defense case begun on 13 May; three court days after Friday cover "the next several days" | Code timing (Record). Draw key `(instance, verdict, date)`, so no probability moves it. Sensitivity: the window's last day |
+| Verdict date V | Drawn per trajectory, uniformly over the court days **Thu 16 May to Wed 22 May 2024** (16, 17, 20, 21, 22 May). Basis, all dated on or before 14 May: the claimant rested on 13 May and the case is "expected to go to the jury before the end of the week, and the jury is expected to issue a verdict in the next several days" (13 May call, ACQ §1(g)); jurors provided for through Fri 17 May (D.I. 550, filed 26 Apr 2024: "furnish lunch for 14 jurors ... from Monday, May 6, 2024 through Friday, May 17, 2024"); trial day 7 on 14 May (minute entry). the parties' proposal of "no more than 25 hours per side" (D.I. 543 n.3, 22 Apr) puts the close of evidence at about the ninth to eleventh court day, 16–20 May (ACQ §2, inference); the window runs from the earliest of those days to three court days after Friday, which covers "the next several days" | Code timing (Record). Draw key `(instance, verdict, date)`, so no probability moves it. Sensitivity: the window's last day |
 | Judgment entry E | FRCP 58(b)(2), "promptly" (L14). Base **V + 1 business day: 17–23 May**. Sensitivity: entry deferred to the court's ruling on the post-verdict equitable remedies, dated like the post-trial ruling below | Bounded (`judgment_entry`) |
 | Execution available | FRCP 62(a): 30 days after entry. **17–23 Jun** | Law |
 | Post-trial motions filed | L17: within 28 days of entry. Base: on the deadline, **14–20 Jun** | Code timing (Law deadline) |
@@ -236,5 +236,44 @@ Each distinction below changes no payment timing, cash, receipts, financing acce
 | The appeal's outcome | Removed | Cannot be decided by 10 Nov (window closed) |
 | Injunction | Excluded from cash | Its revenue effect cannot be obtained (R8); no proposed order by 14 May |
 | Surety willingness | J3 | No trajectory funds a bond on the claimant's branch; J3 gates the reduced-security route |
+
+---
+
+## 5. Amounts
+
+Amounts are code-owned: record figures, arithmetic on them, and bounded terms with sensitivities. Jev never sets an amount (spec §0, §16.4).
+
+### 5.1 What the record fixes before the verdict (ACQ §1; slot filled by the research worker)
+
+| Claim | Claimed amount (D.I. 543-1 Ex. A.2, 22 Apr 2024) | Treatment |
+|---|---|---|
+| Trade secrets (DTSA, NCTSPA), unjust enrichment on a 55-month head start | "at least $66.1 million" (¶31) | The claimant's-theory amount; the record figure is $66,100,000 |
+| UDTPA unjust enrichment; civil conspiracy | $66.1 million each (¶¶50, 56) | The same money under other theories: not additive. UDTPA damages are out in any case (D.I. 590) |
+| Patent ('018, '755) | $279,808 (¶19) | Added |
+| Lanham Act corrective advertising | $1,146,604 (¶42) | Added |
+| UDTPA poaching | $809,772 (¶49) | Added. D.I. 590 removed compensable UDTPA damages from the jury; kept here, lender-adverse, because it moves no mechanism (it sits inside a branch already beyond cash, or inside the defense-theory bound) |
+| Exemplary, punitive, enhanced, treble damages; fees; interest | Requested, never quantified (¶¶32, 57, 61–62; D.I. 535 Q4 proposes exemplary up to 3× the trade-secret damages) | The bounded term below |
+| The defense's figure | Not public before the verdict (D.I. 543-1 Ex. A.4 gives none; the $305k avoided-cost figure first appears at trial) | The defense-theory bound below |
+| Defense counsel, 13 May call | "if the jury adopts the theories of [the claimant]'s experts, it is possible the jury will issue an eight-figure verdict" | Read as: the claimant's theories give $10M or more; the defense's give less. **Inference**, labelled |
+
+### 5.2 The branch amounts
+
+| J1 branch | Amount | Disposition |
+|---|---|---|
+| No award | $0; no judgment | Record (the branch's definition) |
+| Defense theory | Bounded `defense_theory_amount`. **Base $9,999,999**, the most an award can be and stay below eight figures (the record's upper bound, as approved Decision D4(a)). **Sensitivity $2,236,184**, the claimant's own itemised claims outside the head-start measure (patent, corrective advertising, poaching), the only record figures on this branch. The two sit either side of the one mechanism threshold on this branch, whether the judgment is payable from cash above the reserve | Bounded. **Open decision O1** (§1): which setting is the base |
+| Claimant's theory | **$68,336,184** = $66,100,000 + $279,808 + $1,146,604 + $809,772 (Arithmetic on the record). Plus the bounded `claimant_enhancements` term: base $0 added; sensitivity DTSA exemplary at the 2× cap ($132,200,000) and §24-5(b) interest at 8% from 4 Oct 2021 to entry (about $13.9M), about $214.4M in all. Fees have no public figure and are left out; they would only raise the same amount | Record and Arithmetic; enhancements Bounded. Beyond cash on every trajectory under both settings, so the setting changes no date and no cash (checked, §7.5). Jev is told the range, never one figure |
+
+Post-judgment interest (§1961) accrues on the branch amount from E at the L8 rate. The bond is the branch amount plus accrued and one year's forward interest; collateral 100% (80% lower bound) (L7).
+
+### 5.3 Where the mechanism thresholds fall (Arithmetic, checked on the built feed)
+
+- **$10.0M (§7.01(i)).** Crossed only by the claimant's theory. The defense-theory base is set one dollar below it, so no reading of the bound triggers the notes.
+- **Cash above the reserve.** At 31 Mar cash was $15.2M (10-Q); the June-quarter operating burn is guided at about $5.5M (13 May call, `STAGE3.md` E16). So at entry cash above the reserve is of the order of $8–11M: the defense-theory base ($9,999,999) is payable on few or no trajectories and the sensitivity ($2,236,184) on all. The implementer reports both shares from the §16.3 feed; if both settings fall on the same side on every trajectory, one of them needs no run.
+- **A compromise award between $10.0M and cash above the reserve** has no record figure. It is payable only where cash above the reserve exceeds $10.0M. The implementer reports the share of trajectories where it does; if none, the band is empty and nothing is lost. If some, it is **open decision O2**: add a declared scenario class for it (spec §16.4, "where no figure is public"), run on its own.
+
+### 5.4 Settlement and stay security
+
+Both are the approved 20 Jun rules (`DECOMPOSITION.md` decisions 3 and §5.4), reading the §16.3 reserve: available cash above the 30-day need, capped at the amount owed (the claimed amount before the verdict). Neither is a Jev amount.
 
 <!-- next -->
