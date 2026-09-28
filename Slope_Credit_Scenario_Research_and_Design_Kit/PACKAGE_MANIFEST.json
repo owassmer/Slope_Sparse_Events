@@ -457,8 +457,8 @@
     },
     {
       "path": "research/recent_cases/akoustis/ded_21cv1417_docket_20240514.html",
-      "bytes": 174860,
-      "sha256": "ce300cf5007e0e57aae43ccedd9ef0c124f93d71f9ac992a81505cdfdcd175df"
+      "bytes": 174832,
+      "sha256": "aa8abc3714ae443053670159c036d027fce0689e200eab400259517411c4b797"
     },
     {
       "path": "research/recent_cases/akoustis/ded_21cv1417_docket_20240620.html",
@@ -628,7 +628,7 @@
     {
       "path": "research/revision_v2/data/sources.json",
       "bytes": 105139,
-      "sha256": "004b629564c66590c69f411e646b1a50ed1c28b93f19655b6c87439c0fe0da50"
+      "sha256": "d9370e9f93f6add9d0c1f7df6457b197e028b76288ffd7ec9448b12e33aface9"
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
