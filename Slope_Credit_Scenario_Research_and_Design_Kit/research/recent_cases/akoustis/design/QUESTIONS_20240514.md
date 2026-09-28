@@ -74,7 +74,7 @@ One of four types, each with its terms: full bond collateral (the amount); reduc
 
 **At-the-market sales (Scenario).** The program the company re-activated on 13 May sells from 14 May on each trading day while the stock is listed and no petition has been filed. Volume: 20% of the average daily dollar volume from 15 Mar to 14 May 2024 (about $337k), with 10% and 25% as sensitivities. Price: the 14 May close. Proceeds are net of the agents' commission (up to 3%). They settle two business days after the sale for sales before 28 May 2024, and one business day after it from that date. No Jev question: the company's decision to sell is on the record; the pace is the declared assumption.
 
-**Underwritten offerings (N1).** An offering is available while the stock is listed, no petition has been filed, no other offering is pending, and capacity covers it. Its proposed size is the January 2024 offering's net proceeds, or less where capacity binds: the shares available times the offering price. The offering price is the 14 May close less the January offering's discount to the prior close. There is no fixed count of offerings per path.
+**Underwritten offerings (N1).** An offering is available while the stock is listed, no petition has been filed, no other offering is pending, and capacity covers it. Its proposed size is the January 2024 offering's net proceeds, or less where capacity binds: the shares available times the offering price. For the ledger, an offering's shares are counted at the 14 May close less the January offering's discount to the prior close, and at-the-market shares at the 14 May close. These prices serve only the share count: the market sets the actual price, and no question states one. There is no fixed count of offerings per path.
 
 ---
 
@@ -253,7 +253,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 #### N1 · The offering raises its proceeds · new
 
 - **Event:** the proposed offering raises at least its proposed net amount by its close date.
-- **Proposed terms, stated as facts:** an underwritten public offering of common stock on the company's shelf; the size and price under §2.6; the close date, as many days after initiation as the January 2024 offering took from launch to close. It is not described as committed.
+- **Proposed terms, stated as facts:** an underwritten public offering of common stock on the company's shelf, at the price the market sets; the size under §2.6; the close date, as many days after initiation as the January 2024 offering took from launch to close. It is not described as committed.
 - **Answers:** yes, the proposed net amount is received by the close date; no, it is not received by that date.
 - **Asked:** after every initiation (D2, D7), including after an earlier offering on the path did not close. The situation states any earlier attempt and its outcome.
 - **Situation:** the judgment and its standing; available cash and any arrears; at-the-market proceeds to date; the listing status and deadline; the notes' status and any default continuing; the share capacity left.
