@@ -1891,6 +1891,26 @@
       "application": "Code places the stage from the most advanced established event."
     },
     {
+      "version": "4.1.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "event_trial_pending",
+      "primitive": "noul",
+      "question": "Does the cited text establish that the claims are being tried, or are set for trial, and no verdict has been returned?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that the claims are being tried, or are set for trial, and no verdict has been returned? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that the claims are being tried, or are set for trial, and no verdict has been returned.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
       "id": "record_item_supplied",
       "version": "4.2.0",
       "profile": "evidence_routing",
@@ -1907,6 +1927,213 @@
         "criteria": {}
       },
       "application": "Each forecast question receives the accepted findings that supply its record items."
+    },
+    {
+      "id": "forecast_verdict_finding",
+      "version": "4.1.0",
+      "profile": "dispute_forecast",
+      "primitive": "noul",
+      "question": "Does the jury answer this question on its verdict form 'yes'?",
+      "actor": "jury",
+      "template": "pending_money_claim",
+      "node": "verdict_finding",
+      "asked_when": "the question is reached on the verdict form given the earlier answers",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "path_facts",
+        "assumptions",
+        "evidence",
+        "readings"
+      ],
+      "prompt": {
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. state.question.form_question quotes the question on the jury's verdict form and state.question.earlier_answers the jury's answers to the form's earlier questions; state.question.asked, where present, says what the answer turns on.",
+        "criteria": {
+          "true": "The jury answers the question 'yes'.",
+          "false": "The jury answers the question 'no'."
+        }
+      },
+      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+    },
+    {
+      "id": "forecast_verdict_measure",
+      "version": "4.1.0",
+      "profile": "dispute_forecast",
+      "primitive": "noul",
+      "question": "Does the jury's award on this verdict-form question rest on the claimant's principal damages measure?",
+      "actor": "jury",
+      "template": "pending_money_claim",
+      "node": "verdict_measure",
+      "asked_when": "the form asks for an award on a claim carrying the claimant's principal measure, liability found",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "path_facts",
+        "assumptions",
+        "evidence",
+        "readings"
+      ],
+      "prompt": {
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. state.question.form_question quotes the question on the jury's verdict form and state.question.earlier_answers the jury's answers to the form's earlier questions; state.question.asked, where present, says what the answer turns on.",
+        "criteria": {
+          "true": "The award adopts the claimant's principal damages measure.",
+          "false": "The award rests on another measure, or awards nothing under that measure."
+        }
+      },
+      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+    },
+    {
+      "id": "forecast_post_trial_motions",
+      "version": "4.1.0",
+      "profile": "dispute_forecast",
+      "primitive": "noul",
+      "question": "Does the judgment debtor file timely post-trial motions (judgment as a matter of law, a new trial or remittitur) within 28 days of entry?",
+      "actor": "judgment debtor",
+      "template": "pending_money_claim",
+      "node": "post_trial_motions",
+      "asked_when": "a money judgment is entered and the company continued",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "path_facts",
+        "assumptions",
+        "evidence",
+        "readings"
+      ],
+      "prompt": {
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
+        "criteria": {
+          "true": "The company files timely post-trial motions.",
+          "false": "The time for post-trial motions runs without a motion."
+        }
+      },
+      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+    },
+    {
+      "id": "forecast_post_trial_ruling",
+      "version": "4.1.0",
+      "profile": "dispute_forecast",
+      "primitive": "choice",
+      "question": "Does the court's ruling on the post-trial motions leave the money judgment standing, or set it aside (judgment as a matter of law on liability, or a new trial)?",
+      "actor": "court",
+      "template": "pending_money_claim",
+      "node": "post_trial_ruling",
+      "asked_when": "post-trial motions are filed and the ruling can fall inside the analysis period",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "path_facts",
+        "assumptions",
+        "evidence",
+        "readings"
+      ],
+      "prompt": {
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
+        "criteria": {
+          "stands": "a money judgment stands (with or without a remittitur the claimant accepts)",
+          "set_aside": "no money judgment survives: judgment as a matter of law, or a new trial"
+        }
+      },
+      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+    },
+    {
+      "id": "forecast_judgment_response",
+      "version": "4.1.0",
+      "profile": "dispute_forecast",
+      "primitive": "choice",
+      "question": "How does the judgment debtor respond to the entered money judgment: pay it, file for bankruptcy, or continue (operate and contest it, including seeking a sale or new financing)?",
+      "actor": "judgment debtor",
+      "template": "pending_money_claim",
+      "node": "judgment_response",
+      "asked_when": "at entry, on each levy day before the levy, and on a ripe judgment default after it continued",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "path_facts",
+        "assumptions",
+        "evidence",
+        "readings"
+      ],
+      "prompt": {
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The options are state.question.branches; paying in full is among them where the company's cash covers the amount owed.",
+        "criteria": {
+          "pay": "pays the amount owed",
+          "file": "files for bankruptcy",
+          "continue": "continues operating and contests the judgment, which includes seeking a sale or new financing"
+        },
+        "criteria_from_host": true
+      },
+      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+    },
+    {
+      "id": "forecast_listing_kept",
+      "version": "4.1.0",
+      "profile": "financing_forecast",
+      "primitive": "noul",
+      "question": "Does the company keep its stock listed through the analysis period, by a reverse split effective in time or a timely request for a hearing?",
+      "actor": "issuer",
+      "template": "indenture_convertible",
+      "node": "listing_kept",
+      "asked_when": "the stock can be suspended inside the analysis period and no earlier petition or acceleration",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "path_facts",
+        "assumptions",
+        "evidence",
+        "readings"
+      ],
+      "prompt": {
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
+        "criteria": {
+          "true": "The stock stays listed through the analysis period.",
+          "false": "The stock is suspended without a timely hearing request."
+        }
+      },
+      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+    },
+    {
+      "id": "forecast_financing_at_floor",
+      "version": "4.1.0",
+      "profile": "dispute_forecast",
+      "primitive": "choice",
+      "question": "When its available cash first falls below its 30-day operating need, does the company raise equity, file for bankruptcy, or continue operating?",
+      "actor": "borrower",
+      "template": "bankruptcy_effects",
+      "node": "financing_at_floor",
+      "asked_when": "the cash floor falls inside the analysis period and the case sets the equity the company can raise",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "path_facts",
+        "assumptions",
+        "evidence",
+        "readings"
+      ],
+      "prompt": {
+        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The options are state.question.branches; raising equity is among them where the company can raise a positive amount in its situation (state.path_facts.equity_raise_available).",
+        "criteria": {
+          "raise_equity": "raises equity under its existing programs, in the amount state.path_facts gives as available",
+          "file": "files for bankruptcy",
+          "continue": "keeps operating without raising equity or filing"
+        },
+        "criteria_from_host": true
+      },
+      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
     }
   ],
   "retired_in_4_0_0": {
@@ -1931,7 +2158,8 @@
     "note": "Present-state readings are evidence handed to a question, never its probability.",
     "routes": {
       "appeal_intent": [
-        "forecast_appeal"
+        "forecast_appeal",
+        "forecast_post_trial_motions"
       ],
       "appeal_barred": [
         "forecast_appeal"
@@ -1944,11 +2172,13 @@
         "forecast_stay_motion",
         "forecast_debtor_response",
         "forecast_execution_pending_motions",
-        "forecast_enforcement_after_final"
+        "forecast_enforcement_after_final",
+        "forecast_judgment_response"
       ],
       "amount_finality": [
         "forecast_ts_damages_ruling",
-        "forecast_remittitur_accepted"
+        "forecast_remittitur_accepted",
+        "forecast_post_trial_ruling"
       ]
     },
     "reading_items": {
@@ -1976,7 +2206,11 @@
       "forecast_trebling",
       "forecast_fees_awarded",
       "forecast_prejudgment_interest",
-      "forecast_injunction_ts"
+      "forecast_injunction_ts",
+      "forecast_verdict_finding",
+      "forecast_verdict_measure",
+      "forecast_post_trial_motions",
+      "forecast_post_trial_ruling"
     ],
     "findings": "Each forecast question receives the accepted findings that supply its named record items. A record item no finding supplies is stated as not in the record.",
     "readings": "Each reading is handed on with the passage it was taken from, as evidence with its source; that passage supplies the record items reading_items names for the question. A reading taken from no passage is not handed on."

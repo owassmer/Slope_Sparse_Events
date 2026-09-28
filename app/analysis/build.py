@@ -20,11 +20,19 @@ from pathlib import Path
 
 from app.analysis.core import Analysis, EventModel, dates, stress
 from app.analysis.events import BANK, Basis, coupon_terms
-from app.analysis.setup import Setup, setup_from_inputs
+from app.analysis.setup import (
+    Exposure,
+    Setup,
+    controls_from_json,
+    controls_json,
+    exposure_from_json,
+    exposure_json,
+    setup_from_inputs,
+)
 from app.config import VAR, question_registry
 from app.disputes.forecast import DisputePath, Forecaster, Judgment, neutral_map
 from app.disputes.hydrate import evidence_state
-from app.disputes.rules import load_model
+from app.disputes.rules import compatible, load_model
 from app.domain.investigation import AtomicFinding, DisputeInstance
 from app.domain.values import usd
 from app.finance.bank import BankFeed, load_feed
@@ -168,14 +176,16 @@ def payload(feed: BankFeed, setup: Setup, model: EventModel, meta: dict, overrid
                   "line": {"limit_share_bps": setup.limit_share_bps, "limit_multiplier": setup.limit_multiplier,
                            "effective_share_bps": setup.share_bps, "line_usage": setup.line_usage,
                            "limit_at_review_cents": int(a.line.limit[0, 0]), "fee_bps": setup.fee_bps,
-                           "installments": setup.installments, "facility_cents": setup.facility_cents},
+                           "installments": setup.installments, "facility_cents": setup.facility_cents,
+                           **({"opening_exposure": exposure_json(setup.exposure)}
+                              if setup.exposure != Exposure() else {})},
                   "schedule": [{"due": p.due.isoformat(), "amount_cents": p.amount_cents, "principal_cents": p.principal_cents,
                                 "fee_cents": p.fee_cents} for p in setup.offer.schedule(setup.funding)] if setup.amount_cents else []},
         "dates": dates(setup), "views": views, "delta": {k: e[k] - b[k] for k in b if isinstance(b[k], float) and isinstance(e[k], float)},
         "scenarios": a.scenarios(overrides),
         "attribution": a.attribution(overrides),
         "sensitivity": {"judgments": _sens_rows(a, model, overrides)},
-        "stress": stressed if stressed is not None else stress(feed, setup, model, overrides),
+        "stress": stressed if stressed is not None else stress(feed, setup, model, overrides, dispute_model=a.m),
         "overrides": overrides or {}, **meta,
     }
 
@@ -194,12 +204,12 @@ def meta_for(model: EventModel, borrower: str, not_modelled: list[dict]) -> dict
 def basis_for(feed: BankFeed, setup: Setup) -> Basis:
     """The operating draws' cash, need and legal spend: the same simulation the analysis runs."""
     from app.analysis import operating
-    from app.analysis.engine import NEED_DAYS, prepare
-    from app.analysis.setup import DRAWS, SEED
+    from app.analysis.engine import prepare
 
-    days = (setup.horizon - setup.review).days
-    ops = operating.simulate(feed, days + NEED_DAYS, DRAWS, SEED, setup.variability)
-    return Basis.of(ops, prepare(setup, ops).need, feed.available_cents)
+    ops = operating.simulate_for(feed, setup)
+    line = prepare(setup, ops)
+    # the borrower's cash on the review date includes what an existing line's history moved (Setup.exposure)
+    return Basis.of(ops, line.need, feed.available_cents + setup.exposure.cash_cents, line=line)
 
 
 def _load_run(run_id: str, root: Path):
@@ -214,15 +224,21 @@ def _load_run(run_id: str, root: Path):
     return store, meta, inputs, evidence, review
 
 
-def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh: bool) -> dict:
-    """Which accepted findings supply each record item (app/disputes/slots.py), read once per run and kept beside
-    it in slots.json; its own Jev adapter and budget."""
+def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh: bool,
+                      version: str | None = None, recorded: list | None = None) -> dict:
+    """Which accepted findings supply each record item (app/disputes/slots.py), kept beside the run in slots.json.
+    The agent's own records (RecordItemSlot) decide it where the run has them (spec §3.5); a run recorded before the
+    agent was given the record items is read once by Jev, on its own adapter and budget."""
     from app.agent.jev import JevAdapter
     from app.disputes.rules import load_model
-    from app.disputes.slots import load, match, record_items
+    from app.disputes.slots import from_agent, load, match, record_items
 
     path = root / run_id / "slots.json"
-    nodes = record_items(load_model())
+    nodes = record_items(load_model(), version)  # the nodes the disputes' interpretation version has
+    if recorded:
+        out = from_agent(recorded, nodes, set(findings))
+        path.write_text(json.dumps(out, indent=1) + "\n")
+        return out
     kept = load(path)
     if kept is not None and {n: list(v) for n, v in kept.items()} == {n: s["items"] for n, s in nodes.items()} \
             and not refresh:
@@ -246,17 +262,17 @@ def build(run_id: str, root: Path, refresh: bool = False) -> dict:
         jev_module.EXCHANGE_LOG = None
 
 
-def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dict:
-    from app.agent.jev import JevAdapter
-    from app.agent.jev_profiles import DisputeProfile
-
+def run_context(run_id: str, root: Path, refresh: bool = False) -> dict:
+    """What the analysis of a recorded run reads before it asks Jev: the run's inputs, the live disputes with the
+    instruments their terms reach, the dispute model with the case's parameters, the feed and the record-item slots."""
     store, meta, inputs, evidence, review = _load_run(run_id, root)
     setup = setup_from_inputs(inputs, review)
     borrower = inputs["baseline_profile"]["borrower"]
     findings: dict[str, AtomicFinding] = {k: f for k, f in store.graph["findings"].items() if f.status == "accepted"}
     live = [d for d in store.graph["disputes"].values() if d.status != "superseded"]
-    current = load_model()["model_version"]
-    stale = sorted({d.model_version for d in live if d.model_version != current})
+    m = load_model(meta["snapshot_id"])  # the contract, with the case's scenario parameters where it has any
+    current = m["model_version"]
+    stale = sorted({d.model_version for d in live if not compatible(m, d.model_version)})
     if stale and not refresh:
         raise RuntimeError(f"{run_id}: disputes were interpreted under dispute model {', '.join(stale)}, not the current "
                            f"{current}; their readings do not fit the current tree. Re-interpret the run, or pass "
@@ -269,24 +285,46 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dic
     live = [d.model_copy(update={"financing": tuple(f for f in instruments if d.instance_id in f.dispute_ids)})
             for d in live]  # the instruments each judgment's terms reach (dispute model 4.0.0)
     hydrate = lambda f: evidence_state(evidence, f, [], sources)["passage"]  # noqa: E731
-    slots = record_item_slots(run_id, root, findings, hydrate, refresh)
-    fc = Forecaster(live, findings, borrower=borrower, review=review, horizon=setup.horizon, hydrate=hydrate,
-                    setup=setup, basis=basis_for(feed, setup),  # path facts are simulated before Jev is asked
-                    slots=slots)
+    version = max((d.model_version for d in live), key=lambda v: tuple(map(int, v.split("."))), default=current)
+    slots = record_item_slots(run_id, root, findings, hydrate, refresh, version,
+                              list(store.graph.get("record_items", {}).values()))
+    return {"meta": meta, "inputs": inputs, "review": review, "setup": setup, "borrower": borrower,
+            "findings": findings, "live": live, "m": m, "feed": feed, "hydrate": hydrate, "slots": slots}
+
+
+def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None = None) -> tuple[Forecaster, EventModel]:
+    """The tree for `setup` (and the chains' parameter sensitivities `sens`), with Jev's answer to every question.
+    A question whose facts are unchanged is answered from Jev's cache; one whose facts changed is asked again."""
+    from app.agent.jev_profiles import DisputeProfile
+
+    fc = Forecaster(ctx["live"], ctx["findings"], borrower=ctx["borrower"], review=ctx["review"],
+                    horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup,
+                    basis=basis_for(ctx["feed"], setup),  # path facts are simulated before Jev is asked
+                    slots=ctx["slots"], model=ctx["m"], sens=sens)
     per = fc.all_paths()
     bank_paths = fc.bank_paths()  # the bank view: the same distress decisions on the bank data alone
-    records: list = []
-    jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
     judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
+
     async def ask_both() -> tuple[dict, dict]:  # one event loop: the adapter's HTTP client is bound to it
         return (await fc.judge(judge) if fc.nodes else {}), (await fc.judge_bank(judge) if fc.bank_nodes else {})
 
     judgments, bank_judgments = asyncio.run(ask_both())
     model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered(),
                        neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments)
+    return fc, model
+
+
+def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dict:
+    from app.agent.jev import JevAdapter
+
+    ctx = run_context(run_id, root, refresh)
+    meta, setup, borrower, feed, m = ctx["meta"], ctx["setup"], ctx["borrower"], ctx["feed"], ctx["m"]
+    records: list = []
+    jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
+    fc, model = judged_model(ctx, setup, jev, records)
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
-                    for d in live if d.status not in ("interpreted", "resolved")]
-    a = Analysis(feed, setup, model)
+                    for d in ctx["live"] if d.status not in ("interpreted", "resolved")]
+    a = Analysis(feed, setup, model, dispute_model=m)
     data = payload(feed, setup, model, meta_for(model, borrower, not_modelled), analysis=a)
     data["model"] = _model_json(model)
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
@@ -362,7 +400,7 @@ def load_page_state(run_dir: Path) -> dict:
     data = read_analysis(run_dir)
     p = json.loads((run_dir / "page.json").read_text())
     model, setup = model_from_json(data["model"]), setup_from_json(data["base_setup"])
-    a = Analysis(load_feed(data["snapshot_id"]), setup, model)
+    a = Analysis(load_feed(data["snapshot_id"]), setup, model, dispute_model=load_model(data["snapshot_id"]))
     state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months}
     save_page_state(run_dir.name, state)
     return state
@@ -389,12 +427,16 @@ def write_csv(data: dict, out: Path) -> None:
 
 
 def setup_json(setup: Setup) -> dict:
-    return {k: (v.isoformat() if isinstance(v, date) else v) for k, v in asdict(setup).items()}
+    controls = {**controls_json(setup), "exposure": exposure_json(setup.exposure)}
+    return {k: (controls[k] if k in controls else v.isoformat() if isinstance(v, date) else v)
+            for k, v in asdict(setup).items() if k != "exposure" or setup.exposure != Exposure()}
 
 
 def setup_from_json(d: dict) -> Setup:
     return Setup(**{k: (date.fromisoformat(v) if k in ("review", "horizon", "funding", "invoice_due") else
-                        tuple(v) if k == "collateral_share" and v is not None else v) for k, v in d.items()})
+                        tuple(v) if k == "collateral_share" and v is not None else v) for k, v in d.items()
+                    if k not in ("need_days", "collection", "financing", "cost_plan", "exposure")}, **controls_from_json(d),
+                 exposure=exposure_from_json(d.get("exposure")))
 
 
 @lru_cache(maxsize=4)
@@ -423,10 +465,10 @@ def recompute(path: Path, controls: dict, overrides: dict | None) -> dict:
     if key not in _ANALYSES:
         if len(_ANALYSES) > 8:
             _ANALYSES.clear()
-        _ANALYSES[key] = (Analysis(feed, setup, model), None)
+        _ANALYSES[key] = (Analysis(feed, setup, model, dispute_model=load_model(data.get("snapshot_id"))), None)
     a, _ = _ANALYSES[key]
     meta = {k: data[k] for k in ("borrower", "probability_label", "disputes", "not_modelled", "judgments")}
-    out = payload(feed, setup, model, meta, clean, analysis=a, stressed=stress(feed, setup, model, clean))
+    out = payload(feed, setup, model, meta, clean, analysis=a, stressed=stress(feed, setup, model, clean, dispute_model=a.m))
     out["run_id"] = data.get("run_id")
     return out
 

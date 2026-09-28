@@ -1,0 +1,229 @@
+{
+  "snapshot_id": "akoustis_20240514",
+  "note": "Scenario parameters of the 14 May 2024 review for the pending-claim event model (dispute model 4.1.0; DECOMPOSITION_20240514.md §3, §5, §7.7). They overlay the contract's parameters of the same name for this case only (app/disputes/rules.py load_model). The operating reserve, financing and cost plan are the common model's (run_inputs.json common_model) and are read, not restated here. The central case books no exogenous financing: equity is raised only by the company's decision at the cash floor (raise_capacity); the common model's equity_injection scenario is a sensitivity only.",
+  "labels": {
+    "principal_measure": "the claimed head-start measure of trade-secret unjust enrichment"
+  },
+  "parameters": {
+    "verdict_window": {
+      "days": [
+        "2024-05-16",
+        "2024-05-17",
+        "2024-05-20",
+        "2024-05-21",
+        "2024-05-22"
+      ],
+      "sensitivity": "2024-05-22",
+      "basis": "Court days Thu 16 to Wed 22 May 2024, drawn uniformly per trajectory. The claimant rested on 13 May and the case was 'expected to go to the jury before the end of the week, and the jury is expected to issue a verdict in the next several days' (earnings call, 13 May 2024); jurors provided for through Fri 17 May (D.I. 550, 26 Apr 2024); trial day 7 on 14 May (minute entry). Sensitivity: the window's last day."
+    },
+    "lower_award_amount": {
+      "value": "components_without_principal",
+      "sensitivity": 999999900,
+      "basis": "Owen, O1 (27 Sep 2026): the lower J1 branch is liability without the head-start measure. Base: the claimant's own figures for a verdict that rejects that measure, patent USD 279,808 plus corrective advertising USD 1,146,604 = USD 1,426,412 (D.I. 543-1 Ex. A.2 ¶¶19, 42). The poaching USD 809,772 is a UDTPA claim, and D.I. 590 (14 May 2024) held the jury has no basis for compensable UDTPA damages, so it is excluded. The same USD 1,426,412 is the declared bound: where the agent's record leaves a counted component's amount unknown, the branch uses it, labelled as the bound. Sensitivity: USD 9,999,999, the most an award can be and stay below the notes' USD 10.0M threshold.",
+      "bound": 142641200
+    },
+    "claimant_enhancements": {
+      "value": 0,
+      "sensitivity": 14610000000,
+      "basis": "Base: nothing added. Sensitivity: DTSA exemplary damages at the 2x cap (USD 132.2M on the USD 66.1M) plus N.C. Gen. Stat. §24-5(b) interest at 8% from 4 Oct 2021 to entry (about USD 13.9M): USD 146.1M added. Either setting leaves the award beyond cash on every trajectory."
+    },
+    "settlement_payment": {
+      "value": "installments",
+      "installments": 12,
+      "sensitivity": "lump_sum",
+      "basis": "Owen, 28 Sep 2026. The settlement amount, the company's available cash above its 30-day operating need on the settlement date capped at the amount claimed or owed, bounds what can be paid (spec §16.3). Base: that amount in 12 equal monthly installments, the first on the settlement date. A distressed company does not pay out its runway at once. Installments due after 10 Nov 2024 fall outside the horizon. Sensitivity: the same amount as one lump sum on the settlement date."
+    },
+    "coupon_cash_share": {
+      "value": "all_shares",
+      "sensitivity": "all_cash",
+      "share_price_cents": 60,
+      "share_capacity": 5000000,
+      "share_limit": 11403332,
+      "split_ratio": null,
+      "basis": "The 15 Jun 2024 coupon, USD 1.32M, paid Mon 17 Jun. Indenture §16.02(c): paid in shares unless the company elects cash. The resale S-3 of 13 May 2024 registers 5,000,000 Note Shares for interest and make-whole payments; at USD 0.60 (close, 1 May 2024; 10-Q) the coupon needs about 2.3M shares, inside the registered 5.0M and the 11,403,332 cap. Base: all shares, no cash. Sensitivity: all cash."
+    },
+    "rate_1961_bps_pending": {
+      "value": 513,
+      "basis": "28 U.S.C. §1961: the latest weekly 1-year CMT published by 14 May 2024, the week ending 10 May 2024: 5.13% (FRED WGS1YR, H.15 weekly)."
+    },
+    "ruling_lag_days": {
+      "mode": "common",
+      "sensitivity": "later_of_two",
+      "basis": "One common lag for the post-trial motions (which motions will be filed is unknown before the verdict). Sensitivity: the later of two independent draws."
+    },
+    "chips_credit_cents": {
+      "value": 0,
+      "sensitivity": 0,
+      "basis": "The CHIPS tax credit is the common model's chips_itc_low scenario (run_inputs.json); the event chain books none, so it is never counted twice."
+    },
+    "cash_facts": {
+      "value": "engine_forward_run",
+      "basis": "Spec §16.4: the cash facts, 'pay' feasibility and the cash floor read the loan engine run forward on the prefix's event cash."
+    },
+    "raise_capacity": {
+      "value": 970000000,
+      "sensitivity": 500000000,
+      "basis": "Owen, item 1 (27 Sep 2026). With no adverse money judgment on the path (no award, or the lower award): the ATM's likely usable capacity under the baby-shelf cap, USD 9.7M. An inference: one third of public float per 12 months, net of the January 2024 USD 10M raise. Record: the ATM (Sales Agreement of 2 May 2022) re-activated on 13 May 2024 with USD 48.0M remaining, and the agents are not obliged to sell (10-Q of 13 May 2024; 424B5 of 2 May 2022 and 29 Jan 2024). Sensitivity: USD 5.0M."
+    },
+    "raise_capacity_after_adverse_judgment": {
+      "value": 0,
+      "sensitivity": 500000000,
+      "basis": "Owen, item 1 (27 Sep 2026). After a judgment on the claimant's theory: nothing through the ATM. The baby-shelf cap falls with the share price, and the 10-Q (13 May 2024) says an adverse judgment creates 'an urgent need for additional liquidity'. Sensitivity: a distressed raise of USD 5.0M."
+    },
+    "raise_days": {
+      "value": 30,
+      "basis": "Owen, item 1 (27 Sep 2026): ATM sales take time; the proceeds arrive in equal daily amounts over 30 days from the decision."
+    },
+    "ordinary_view": {
+      "value": "same_forecast",
+      "basis": "Spec §16.1 (orchestrator, 28 Sep 2026): ordinary operating risk is the same forecast with the event, including its legal costs, given no cash effect. The dispute ends on the review date at no cost, so its legal spend stops from then (the one dispute-end rule); operations, the line, the coupon, the cash-floor decisions and the listing chain with the notes' delisting route are the same as in the forecast."
+    }
+  },
+  "verdict_form": {
+    "source": "D.I. 580, the final special verdict form filed 9 May 2024 (RECAP gov.uscourts.ded.76727.580.0), read with the claimant's proposed form D.I. 535 (12 Apr 2024), which puts the same claims in the order trade secrets, UDTPA, false advertising, conspiracy, patent.",
+    "start": "q1a",
+    "questions": {
+      "q1a": {
+        "node": "verdict_finding",
+        "form": "Question No. 1(a)",
+        "quote": "Has Qorvo established by the greater weight or preponderance of the evidence that (a) this alleged trade secret qualifies as a trade secret and (b) Akoustis is liable for trade secret misappropriation for this trade secret? / Has Qorvo established by a greater weight or preponderance of the evidence that Akoustis was unjustly enriched by misappropriating this trade secret?",
+        "asks": "whether the jury answers “YES” in both columns for at least one alleged trade secret (the form's gate: “IF YOU ANSWERED “YES” IN BOTH COLUMNS FOR ANY ALLEGED TRADE SECRET IN QUESTION 1(a), THEN ANSWER QUESTIONS 1(b) AND 1(c)”)",
+        "yes": "q1b",
+        "no": "q2a"
+      },
+      "q1b": {
+        "node": "verdict_measure",
+        "form": "Question No. 1(b)",
+        "quote": "State the amount Akoustis was unjustly enriched by misappropriating Qorvo’s trade secrets as to which you have answered “Yes” and “Yes” in Question 1(a) above.",
+        "asks": "whether the unjust-enrichment award adopts the claimant's head-start measure (never the amount)",
+        "yes": "claimant_theory",
+        "no": "without_principal_measure"
+      },
+      "q2a": {
+        "node": "verdict_finding",
+        "form": "Question No. 2(a)",
+        "quote": "Has Qorvo proven by a preponderance of the evidence its Civil Conspiracy claim against Akoustis?",
+        "yes": "q2b",
+        "no": "q3a"
+      },
+      "q2b": {
+        "node": "verdict_finding",
+        "form": "Question No. 2(b)",
+        "quote": "Do you find that Qorvo has proven by a preponderance of the evidence that actual damage to Qorvo was caused by the conspiracy?",
+        "yes": "q2c",
+        "no": "q3a"
+      },
+      "q2c": {
+        "node": "verdict_measure",
+        "form": "Question No. 2(c)",
+        "quote": "What amount of damages for actual loss, if any, were caused by Akoustis’ action and thus you award to Qorvo against Akoustis?",
+        "asks": "whether the conspiracy award adopts the claimant's head-start measure, which its conspiracy claim restates (D.I. 543-1 Ex. A.2 ¶56) (never the amount)",
+        "yes": "claimant_theory",
+        "no": "without_principal_measure"
+      },
+      "q3a": {
+        "node": "verdict_finding",
+        "form": "Question No. 3(a)",
+        "quote": "Has Qorvo proven by a preponderance of the evidence each of the elements of its False Advertising claim against Akoustis?",
+        "yes": "without_principal_measure",
+        "no": "q5a"
+      },
+      "q5a": {
+        "node": "verdict_finding",
+        "form": "Question No. 5(a)",
+        "quote": "Do you find that Qorvo has proven by a preponderance of the evidence that the claims of the ’018 or the ’755 Patents have been infringed?",
+        "asks": "whether the jury answers “YES” for at least one patent claim",
+        "yes": "without_principal_measure",
+        "no": "no_award"
+      }
+    },
+    "collapsed": [
+      {
+        "form": "Question No. 1(c) and 1(d)",
+        "quote": "Was Akoustis’s misappropriation of any of Qorvo’s trade secrets as to which you answered “Yes” and “Yes” in Question 1(a) above willful and malicious?",
+        "why": "Its answer sets only exemplary damages (1(d)). Where the award adopts the head-start measure they raise an award already beyond cash on every trajectory (the bounded claimant_enhancements term, DECOMPOSITION §4.6); on the lower branch the O1 amount carries no trade-secret award to multiply. It changes no verdict branch, so it would change no path probability."
+      },
+      {
+        "form": "Questions No. 4(a)-(c)",
+        "quote": "Has Qorvo proven by a preponderance of the evidence its Unfair and Deceptive Trade Practices Act claim against Akoustis?",
+        "why": "D.I. 590 (14 May 2024): “The jury has no reasonable basis to find compensable damages under the UDTPA”. Liability alone carries no money."
+      },
+      {
+        "form": "Question No. 5(b) and 5(c)",
+        "quote": "Did Qorvo prove by a preponderance of the evidence that Akoustis’ infringement of the ’018 or ‘755 patent was willful?",
+        "why": "5(b) is an amount (inside the lower branch's bounded amount); willfulness only lets the court enhance patent damages later (35 U.S.C. §284), inside the same bound. Neither changes a verdict branch."
+      }
+    ]
+  },
+  "assumption_variants": {
+    "note": "Economic sensitivities precomputed for the page (spec §16.6). Each changes one declared setting from the central case: a common-model scenario (run_inputs.json common_model.scenarios) or a parameter's declared sensitivity (above). Its basis is that setting's own. A question whose facts the change moves is asked again.",
+    "central_label": "Central setting",
+    "variants": [
+      {
+        "id": "cost_plan",
+        "label": "Operating burn 30% lower from 15 May 2024, instead of the recent run rate",
+        "common_model": "cost_plan",
+        "note": "Changes the company's operating outflows. Central: the bank feed's recent flows continue. Alternative: the cut the company announced on its 13 May 2024 earnings call, a 30% lower operating burn in the June quarter, taken off every operating outflow except legal costs and debt service."
+      },
+      {
+        "id": "equity_injection",
+        "label": "Equity: $5.0M received on 14 Jun 2024, instead of none booked",
+        "common_model": "equity_injection",
+        "note": "Changes the company's cash. Central: no financing is booked; any raise is the company's own decision at its cash floor. Alternative: $5.0M of new equity one month after the review. A scenario, not a fact of the record: the company was restarting its at-the-market share sales, which fix no amount or date."
+      },
+      {
+        "id": "raise_capacity_no_judgment_low",
+        "label": "Equity raised at the cash floor with no adverse judgment: $5.0M instead of $9.7M",
+        "parameters": [
+          "raise_capacity"
+        ],
+        "note": "Changes what a raise at the cash floor brings in when the jury has not adopted {claimant}'s theory. Central: $9.7M, an estimate of what the company's at-the-market share sales can raise under the small-company limit (about one third of its public float per 12 months, less the January raise). Alternative: $5.0M."
+      },
+      {
+        "id": "raise_after_judgment_available",
+        "label": "Equity raised at the cash floor after an adverse judgment: $5.0M instead of none",
+        "parameters": [
+          "raise_capacity_after_adverse_judgment"
+        ],
+        "note": "Changes what a raise at the cash floor brings in after a judgment on {claimant}'s theory. Central: nothing, because the share-sale limit falls with the share price and the company's quarterly report says such a judgment creates an urgent need for liquidity. Alternative: a distressed raise of $5.0M."
+      },
+      {
+        "id": "settlement_lump_sum",
+        "label": "Settlement paid at once, instead of in 12 monthly installments",
+        "parameters": [
+          "settlement_payment"
+        ],
+        "note": "Changes when a settlement's money leaves the company. Central: the settlement amount (the company's cash above its 30-day operating need, capped at the amount claimed) paid in 12 equal monthly installments, since a distressed company does not pay out its runway at once. Alternative: the same amount in one payment on the settlement date."
+      },
+      {
+        "id": "collection_protect_need",
+        "label": "Collection: only from cash above 30 days of operating need, instead of each installment in full when cash covers it",
+        "common_model": "protect_need",
+        "note": "Changes how Slope collects. Central: Slope's automatic debit takes each installment in full on its due date when the company's cash covers it. Alternative: the company holds back its next 30 days of operating need, and Slope collects only from cash above that."
+      },
+      {
+        "id": "cash_floor_60_days",
+        "label": "Cash floor: 60 days of operating outflows, instead of 30",
+        "common_model": "cash_floor_60_days",
+        "note": "Changes the cash level at which the company decides whether to raise equity, keep going or file, and the cash it counts as available for a settlement or security. Slope's debit does not read it, so collections change only through those decisions."
+      },
+      {
+        "id": "lower_award_high",
+        "label": "Jury: lower award at $9,999,999, instead of $1.4M",
+        "parameters": [
+          "lower_award_amount"
+        ],
+        "note": "Changes the judgment on the lower-award outcome. Central: $1.4M, {claimant}'s own figures for the smaller claims that stand if the jury rejects the head-start measure (patent and corrective advertising). Alternative: $9,999,999, the largest award that stays below the notes' $10.0M judgment-default threshold."
+      },
+      {
+        "id": "coupon_cash",
+        "label": "June notes coupon paid in cash, instead of in shares",
+        "parameters": [
+          "coupon_cash_share"
+        ],
+        "note": "Changes how the company pays the $1.32M notes coupon due 15 Jun 2024. Central: in shares, which the notes allow unless the company elects cash, and which its registered shares cover. Alternative: all in cash."
+      }
+    ],
+    "central_note": "Settings every outcome shares: the bank feed's recent flows continue, no financing is booked, the cash floor is 30 days of operating outflows, and Slope collects each installment by automatic debit."
+  }
+}

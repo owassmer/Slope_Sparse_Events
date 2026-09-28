@@ -59,16 +59,21 @@ WORKING_METHOD = """Working method
   reviewer can see why it does not change cash.
 - If you connect a name, label or table row to an obligation by matching amounts or dates, mark that finding is_inference and
   describe the link as an inference in your conclusion.
-- Group every dispute that is still live on the review date (a money judgment not yet paid, or a liability ruling
-  whose amount is still open), whichever side the borrower is on: an amount owed to the borrower matters as much as
-  one it owes. Group each with instantiate_dispute: the accepted findings about one obligation (cite the passages that
+- Group every dispute that is still live on the review date (a money judgment not yet paid, a liability ruling
+  whose amount is still open, or a money claim at or awaiting trial whose liability is undecided), whichever side the
+  borrower is on: an amount owed to the borrower matters as much as one it owes. Group each with instantiate_dispute: the accepted findings about one obligation (cite the passages that
   show what the court has decided, the amount, any party's stated position, and the parties' resources), the docket
   reference only, the obligation's nature, the counterparty, the amount figure and any judgment date, and (where the
   record gives them) the judgment's components, the pending motions with their briefing close, and the commencement
-  date. Compile each financing instrument the judgment can trigger (e.g. convertible notes) with instantiate_financing,
+  date; for a claim not yet decided, the claims, the amounts each party's filings put forward (as requested
+  components with their claim, theory and any duplication) and the date the trial started. Compile each financing instrument the judgment can trigger (e.g. convertible notes) with instantiate_financing,
   quoting the terms. Jev reads who
   pays, the amount's status and the procedural position from the passages; after your run the host asks Jev for the
   probabilities of each future development and builds the financial analysis of the supplied loan.
+- Each of those questions names record items: named slots that evidence fills. Once you know a live dispute's stage,
+  get_record_items for it, search for each item, and attach_record_item the accepted findings whose passages supply
+  it, or record not_in_record with how you searched. Each dispute component cites (finding_ids) the findings whose
+  passages state it.
 - Finish with a concise summary of what the research established and why it matters to the borrower's cash and the
   loan's collections. Do not recommend, size or condition the financing.
 - run_sensitivity on validated settlement effects (fixed-installment cases) to see which unknown changes the cash

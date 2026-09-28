@@ -27,7 +27,6 @@ import numpy as np
 
 from app.analysis import operating
 from app.analysis.engine import (
-    NEED_DAYS,
     NO_DUE,
     PREFERENCE_DAYS,
     Trajectories,
@@ -37,7 +36,7 @@ from app.analysis.engine import (
     run_many,
 )
 from app.analysis.events import BANK, Basis, Draws, EventCash, bank_trace, event_trace
-from app.analysis.setup import DRAWS, SEED, Setup
+from app.analysis.setup import DRAWS, Setup
 from app.analysis.stats import expectation, weighted_quantiles
 from app.disputes.forecast import DisputePath, Judgment, distributions, joint_paths
 from app.disputes.rules import load_model
@@ -223,8 +222,11 @@ class Reduction:
     metrics and daily series read from it."""
 
     def __init__(self, n: int, draws: int, days: int, setup: Setup, line_limit: np.ndarray, bins: dict[str, Bins],
-                 month_of_day: np.ndarray) -> None:
+                 month_of_day: np.ndarray, need: np.ndarray | None = None) -> None:
         self.n, self.draws, self.days, self.setup, self.limit = n, draws, days, setup, line_limit
+        self.need = need  # per draw and day, the cash floor (the operating need)
+        # per draw, the first day available cash is below the floor (-1: never in the period)
+        self.floor_day = np.full((n, draws), -1, dtype=np.int16)
         self.bins, self.month_of_day = bins, month_of_day
         self.means: dict[str, np.ndarray] = {}
         self.min_cash = np.empty((n, draws), dtype=np.int64)
@@ -241,6 +243,9 @@ class Reduction:
         for k, v in _scalars(t).items():
             self.means.setdefault(k, np.zeros(self.n))[i] = float(v.mean())
         self.min_cash[i], self.min_headroom[i], self.collected[i] = t.min_cash, t.min_headroom, t.collected
+        if self.need is not None:
+            below = t.cash < self.need
+            self.floor_day[i] = np.where(below.any(axis=1), below.argmax(axis=1), -1)
         idx, pet = np.arange(self.days), t.petition[:, None]
         by_day = (pet >= 0) & (pet <= idx)
         window = (pet >= 0) & (idx >= pet - PREFERENCE_DAYS) & (idx < pet)
@@ -275,7 +280,7 @@ class Reduction:
         counts, which only the analysis's own metrics read, are left out of the saved page state."""
         new = Reduction.__new__(Reduction)
         new.__dict__.update({k: v for k, v in self.__dict__.items()
-                             if k not in ("min_cash", "min_headroom", "collected", "counts")})
+                             if k not in ("min_cash", "min_headroom", "collected", "counts", "need", "floor_day")})
         new.counts = {k: c for k, c in self.counts.items() if k != "collected"}
         return new
 
@@ -300,7 +305,14 @@ class Reduction:
         has = mins != NO_DUE
         low = weighted_quantiles(mins[has].astype(np.float64), w[has] / w[has].sum(), QS) if has.any() else None
         kq = self.collected_quantiles(probs)
+        # due by the horizon (the page's Due tile): installments whose due date falls inside the period; contractual
+        # adds those due after it and the stayed claim's later installments. Due = collected + past due + frozen due.
+        due = float(probs @ (self.per_day["due_cum"][:, -1] / self.draws))
+        past = float(probs @ (self.per_day["past_due"][:, -1] / self.draws))
         return {
+            "due_horizon_cents": due, "past_due_horizon_cents": past,
+            "frozen_due_cents": due - e["collected"] - past,
+            "collection_rate": e["collected"] / due if due else None,
             "drawn_cents": e["drawn"], "fees_cents": e["fees"], "contractual_cents": e["contractual"],
             "collected_cents": e["collected"], "stayed_claim_cents": e["stayed"],
             "collected_p5_cents": float(kq[0]), "collected_p50_cents": float(kq[1]), "collected_p95_cents": float(kq[2]),
@@ -321,6 +333,20 @@ class Reduction:
             "full_collection_by_maturity_p": min(1.0, e["recovered_all"]),
             "uncollected_maturity_cents": e["unrecovered"],
         }
+
+    def first_floor(self, probs: np.ndarray) -> dict:
+        """When available cash first falls below the operating need, over the probability-weighted draws: the share
+        that reaches it in the period and the median day (None where under half do)."""
+        probs = np.asarray(probs, dtype=np.float64)
+        w = np.repeat(probs / probs.sum(), self.draws) / self.draws
+        day = self.floor_day.ravel()
+        reached = day >= 0
+        share = float(w[reached].sum())
+        order = np.argsort(np.where(reached, day, self.days), kind="stable")
+        cum = np.cumsum(w[order])
+        k = int(np.searchsorted(cum, 0.5))
+        median = int(day[order][k]) if share >= 0.5 else None
+        return {"share": share, "median_day": median}
 
     def collected_quantiles(self, probs: np.ndarray) -> np.ndarray:
         """P5 / P50 / P95 of collected at the horizon, exact from each trajectory's total."""
@@ -424,7 +450,8 @@ class Analysis:
             bins = self._bins()
 
             def make(n: int) -> Reduction:
-                return Reduction(n, DRAWS, self.days, setup, self.line.limit, bins, self.month_of_day)
+                return Reduction(n, DRAWS, self.days, setup, self.line.limit, bins, self.month_of_day,
+                                 need=self.line.need[:, :self.days])
 
             self.bank_r = make(len(model.bank_combos))
             for i, c in enumerate(model.bank_combos):
@@ -450,10 +477,11 @@ class Analysis:
         self.feed, self.setup, self.model, self.m = feed, setup, model, dispute_model or load_model()
         self.sens, self._progress = sens or {}, progress or (lambda *_: None)
         self.days = (setup.horizon - setup.review).days
-        self.ops = operating.simulate(feed, self.days + NEED_DAYS, DRAWS, SEED, setup.variability)
+        self.ops = operating.simulate_for(feed, setup)
         self.line = prepare(setup, self.ops)
         self.opening = feed.available_cents
-        self._draws = Draws(DRAWS, stress=stress, basis=Basis.of(self.ops, self.line.need, self.opening))
+        self._draws = Draws(DRAWS, stress=stress, basis=Basis.of(
+            self.ops, self.line.need, self.opening + setup.exposure.cash_cents, line=self.line))  # cash incl. the line's history
         self._draws.prefixes = {}  # the combos run depth-first: each walks only the steps after the shared prefix
         self._cache: dict = {}
         self._packed: dict = {}  # (kind, index) -> the bin pass's event cash, sparse, for the main pass
@@ -635,11 +663,12 @@ class Analysis:
                                            -round(r["range"]["dollar_days"], 2), -r["range"]["min_cash"]))
 
 
-def stress(feed: BankFeed, setup: Setup, model: EventModel, overrides: dict | None = None) -> list[dict]:
+def stress(feed: BankFeed, setup: Setup, model: EventModel, overrides: dict | None = None,
+           dispute_model: dict | None = None) -> list[dict]:
     """Every feasible joint path under adverse placement, whatever its probability. Never weighted, never decisive.
     Each path is also run with a petition placed on the day of its highest expected outstanding balance: the stayed
     claim and preference exposure a petition would leave at the worst point for the lender."""
-    a = Analysis(feed, setup, model, stress=True)
+    a = Analysis(feed, setup, model, stress=True, dispute_model=dispute_model)
     probs = model.probs(overrides)
     rows = [{"index": i, "probability": float(probs[i]),
              "paths": [{"dispute": p.instance_id, "outcome": p.outcome, "label": path_label(p)} for p in combo], **r}

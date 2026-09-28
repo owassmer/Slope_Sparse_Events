@@ -1,19 +1,14 @@
 # Slope Sparse Events
 
-A proof-of-concept for external-event credit review. An agent, with Jev making focused judgments, researches an unusual borrower event such as a lawsuit. Deterministic code turns the sourced economic effects into a financing decision and the loan's dated collections.
+A proof of concept for sparse-event credit analysis. An agent researches a rare external event affecting a borrower, such as a lawsuit. Jev, a forecasting model, answers focused conditional questions about what each party does next. Deterministic code composes those probabilities into event paths, simulates the borrower's cash, and carries the result into the dated cash flows of a supplied Slope line. The output is scenario and sensitivity analysis of the loan's cash flows; it does not make the lending decision.
 
-- Lead case: **Synergy CHC**, decision date 13 Aug 2024 (supplier-settlement obligations and an actual merchant loan)
-- Transfer case: **Barfresh**, decision date 25 Oct 2024 (production disruption and a receivables facility)
-
-Start with `Slope_Coding_Agent_Context_and_Alignment.md`, then `Slope_Credit_Scenario_Build_Specification.md`. Evidence and design contracts are in `Slope_Credit_Scenario_Research_and_Design_Kit/`.
+- Lead case: **Akoustis Technologies**, reviewed 14 May 2024, with Qorvo's trade-secret and patent claims at jury trial.
+- Governing documents: `CLAUDE.md`, then `Slope_Coding_Agent_Context_and_Alignment.md` and `Slope_Model_Extensions_Spec.md` (§16 governs the current build).
 
 ```sh
 uv sync
 uv run slope --help
-uv run slope evidence build                     # dated evidence DBs in var/evidence/
-uv run slope evidence search synergy_20240813 "future payments settlement"
-uv run slope finance check                      # reproduce the kit's reference arithmetic
-uv run slope jev check-cases                    # live labelled Jev boundary cases (separately billed)
-uv run slope investigate                        # recorded Synergy investigation (Claude subscription + Jev)
-uv run slope viewer                             # read-only viewer at http://127.0.0.1:8000
+uv run slope analyze --run <run_id>     # the analysis and its page for a recorded run
+uv run slope viewer                     # read-only viewer at http://127.0.0.1:8000
+uv run pytest
 ```

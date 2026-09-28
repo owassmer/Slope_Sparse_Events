@@ -2,6 +2,8 @@
 future and other-case source IDs are inaccessible, and original table context is retrievable."""
 
 import json
+import re
+import sqlite3
 from datetime import datetime
 
 import pytest
@@ -84,23 +86,34 @@ def test_2025_only_facts_are_absent_but_the_admissible_label_is_kept(built):
     assert row[1] == "2,920,824"
 
 
-def test_akoustis_outcome_facts_are_absent(built):
-    # Facts public only after 20 Jun 2024 (the probes in cases/akoustis_20240620/snapshot.json): the 26 Jun customer
+@pytest.mark.parametrize("snap", ["akoustis_20240620", "akoustis_20240514"])
+def test_akoustis_outcome_facts_are_absent(built, snap):
+    # Facts public only after the review date (the probes in cases/<snap>/snapshot.json). 20 Jun: the 26 Jun customer
     # note, the fee award and pre-judgment interest fixed in D.I. 717, the injunction order D.I. 709, the 10-K date and
-    # the 2025 asset sale. None may appear anywhere in the snapshot database.
+    # the 2025 asset sale. 14 May adds the verdict and judgment amounts and dates, and the 24 May offering. None may
+    # appear anywhere in the snapshot database.
     out, _, stores = built
-    probes = snapshot.snapshot_config("akoustis_20240620")["isolation_probes"]["probes"]
+    probes = snapshot.snapshot_config(snap)["isolation_probes"]["probes"]
     outcome = [s for s in json.loads(snapshot.SOURCES_JSON.read_text())["sources"]
-               if s["mission_membership"].get("akoustis_20240620") == "outcome"]
+               if s["mission_membership"].get(snap) == "outcome"]
     later = " ".join(" ".join(b.text for b in blocks_for(snapshot.KIT / s["package_relative_path"])) for s in outcome)
     later = " ".join(later.split()).lower()
-    raw = (out / "akoustis_20240620.sqlite").read_bytes().lower()
+    raw = (out / f"{snap}.sqlite").read_bytes().lower()
+    # Named by later sources not in the kit (D.I. 601's scanned verdict form, the 10-K's XBRL offering proceeds);
+    # absence is still checked.
+    unkitted = ("SpaceX", "D.I. 709", "139,904", "9,208")
     for fact in probes:
-        if fact not in ("SpaceX", "D.I. 709"):  # named by later sources not in the kit; absence is still checked
+        if fact not in unkitted:
             assert fact.lower() in later, f"probe {fact!r} is not in an outcome source"
         assert fact.lower().encode() not in raw
-    # The decision-date judgment itself is admissible: USD 38,595,023 against Akoustis.
-    assert "$38,595,023" in stores["akoustis_20240620"].read("ded_21cv1417_d602_judgment#s0000")["text"]
+    if snap == "akoustis_20240620":  # the decision-date judgment itself is admissible: USD 38,595,023
+        assert "$38,595,023" in stores[snap].read("ded_21cv1417_d602_judgment#s0000")["text"]
+    else:  # the docket view stops at the review date; the full capture is not admitted
+        ids = {r[0] for r in sqlite3.connect(out / f"{snap}.sqlite").execute("SELECT source_id FROM sources")}
+        assert "ded_21cv1417_docket_20240514" in ids and "ded_21cv1417_docket_20240620" not in ids
+        filed = re.findall(r"Filed (\d{4}-\d\d-\d\d)\.", " ".join(
+            b.text for b in blocks_for(snapshot.KIT / "research/recent_cases/akoustis/ded_21cv1417_docket_20240514.html")))
+        assert filed and max(filed) == "2024-05-14"
 
 
 def test_settlement_schedule_table_keeps_its_original_context(built):
@@ -188,3 +201,17 @@ def test_outcome_file_is_unreachable_from_the_snapshot_and_the_tools(built):
     root = Path(snapshot.__file__).resolve().parents[1]
     for mod in [*(root / "agent").glob("*.py"), *(root / "evidence").glob("*.py"), *(root / "disputes").glob("*.py")]:
         assert not re.search(r"OUTCOMES|[\"'/]outcomes\b", mod.read_text()), mod.name
+
+
+def test_the_blank_verdict_form_and_the_juror_order_are_14_may_sources_only(built):
+    # D.I. 580 (the final verdict form given to the jury, blank, filed 9 May) and D.I. 550 (26 Apr) are public before
+    # the 14 May review; the 20 Jun mission leaves them out of case.
+    out, _, _ = built
+    new = {"ded_21cv1417_d580_verdict_form", "ded_21cv1417_d550_order"}
+    cat = {s["source_id"]: s for s in json.loads(snapshot.SOURCES_JSON.read_text())["sources"]}
+    for sid in new:
+        assert cat[sid]["availability"]["date"] <= "2024-05-14"
+        assert cat[sid]["mission_membership"]["akoustis_20240620"] == "out_of_case"
+    ids = {snap: {r[0] for r in sqlite3.connect(out / f"{snap}.sqlite").execute("SELECT source_id FROM sources")}
+           for snap in ("akoustis_20240514", "akoustis_20240620")}
+    assert new <= ids["akoustis_20240514"] and not new & ids["akoustis_20240620"]

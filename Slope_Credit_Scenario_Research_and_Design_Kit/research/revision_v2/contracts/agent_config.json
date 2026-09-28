@@ -105,6 +105,8 @@
           "mcp__credit__propose_effect",
           "mcp__credit__run_sensitivity",
           "mcp__credit__instantiate_dispute",
+          "mcp__credit__get_record_items",
+          "mcp__credit__attach_record_item",
           "mcp__credit__instantiate_financing",
           "mcp__credit__request_missing_fact",
           "mcp__credit__read_inventory",
@@ -146,7 +148,7 @@
       "max_state_plus_longest_question_tokens": 32000,
       "max_entire_request_tokens": 64000,
       "provider_price_usd_per_million_input_tokens_at_design": "0.042",
-      "spend_cap_usd_per_run": "0.10",
+      "spend_cap_usd_per_run": "0.30",
       "spend_cap_policy": "Host reserves a conservative estimated input-token charge before dispatch and reconciles actual usage. This caps Jev service spend only, not Claude/Codex subscription usage.",
       "primitives": [
         "choice",
@@ -334,7 +336,9 @@
       "read_inventory": "The reading list: paragraphs and table rows the host sweep flagged as describing a specific matter, and whether an accepted finding cites each.",
       "escalate_effect": "Escalate an effect the category guard rejected: it becomes disputed, creates no cash stream and is left for the reviewer; a disputed cash-moving effect makes the run INCOMPLETE_REVIEW.",
       "resolve_reconciliation": "Resolve an open reconciliation task with a note on how the statements relate.",
-      "instantiate_financing": "Compile a financing instrument the dispute can trigger (e.g. convertible notes): quote the principal, the default, acceleration, repurchase, interest and listing terms the chains cite, with their figures and dates (each checked against the quotes). Code applies the terms; Jev never decides what a contract means."
+      "instantiate_financing": "Compile a financing instrument the dispute can trigger (e.g. convertible notes): quote the principal, the default, acceleration, repurchase, interest and listing terms the chains cite, with their figures and dates (each checked against the quotes). Code applies the terms; Jev never decides what a contract means.",
+      "get_record_items": "Return the record items (named slots) the forecast questions of a dispute's chain name, for the dispute's stage: each item's text and the decisions that name it, as the dispute model states them, with the agent's record of it. No sources, conclusions or expected findings.",
+      "attach_record_item": "Record the accepted findings whose passages fill one record item, or that the record has nothing for it with how the agent searched. submit_packet refuses while an item of a live dispute's template is open."
     },
     "disallowed_capabilities": [
       "unscoped shell or code execution by the agent",
@@ -348,19 +352,19 @@
     ]
   },
   "budgets": {
-    "main_agent_max_turns": 120,
-    "main_investigation_wall_clock_seconds": 900,
+    "main_agent_max_turns": 220,
+    "main_investigation_wall_clock_seconds": 1800,
     "review_wall_clock_seconds": 300,
-    "total_wall_clock_seconds_including_one_repair": 1500,
+    "total_wall_clock_seconds_including_one_repair": 2400,
     "consecutive_no_progress_actions": 3,
     "no_progress_definition": "An action produces no new eligible evidence, no corrected finding, no resolved/narrowed gap, no new valid patch and no changed sensitivity result. Repeating the same query alone is not progress.",
     "budget_policy": "Ceilings, not targets. Record actual elapsed time, token usage, requests and spend. Finish early when further accessible evidence cannot change the action across the stated sensitivity range.",
-    "jev_max_physical_attempts_including_retries": 1200,
+    "jev_max_physical_attempts_including_retries": 2000,
     "turn_counting": "A turn is one distinct model response (message_id), counted by the host and enforced by interrupting the session. The SDK's num_turns counts differently and is recorded only for reference.",
-    "sweep_max_physical_attempts_per_snapshot": 1500,
-    "sweep_spend_cap_usd_per_snapshot": "0.10",
+    "sweep_max_physical_attempts_per_snapshot": 9000,
+    "sweep_spend_cap_usd_per_snapshot": "0.60",
     "search_default_results": 8,
-    "jev_budget_note": "Raised from 400 in 4.0.0: a chain run asks the interpretation readings plus one request per residual node and context key (a few hundred requests)."
+    "jev_budget_note": "Raised from 400 in 4.0.0: a chain run asks the interpretation readings plus one request per residual node and context key (a few hundred requests). Raised for the 14 May run (Owen: caps are settings, never blockers): per-run cap USD 0.30 and 2,000 attempts (the analysis asks ~221 questions); the sweep 9,000 attempts and USD 0.60 for 1,176 sections. Turns and wall clock raised for the slot-filling run (28 Sep 2026): 220 turns, 1,800 s (the agent now fills about 31 record items with attach_record_item)."
   },
   "completion_and_decisions": {
     "execution_states": [
@@ -583,6 +587,24 @@
     "mission_type": "supplier_invoice_line",
     "loan_terms_basis": "reconstructed_slope_terms",
     "relationship_claim": "Reconstructed as if Akoustis applied to Slope on this date for a line that pays supplier invoices. No claim that Akoustis is or was a Slope customer.",
+    "product_selection": "Slope reusable line: Slope pays supplier invoices up to a limit set from connected-bank receipts; each draw is repaid with a 3.7% fee in three monthly installments.",
+    "financing_basis": "Existing debt reported in the 13 May 2024 10-Q: 6.0% convertible senior notes due 2027 and a secured seller promissory note from the GDSI acquisition."
+  },
+  "akoustis_20240514_mission": {
+    "case_id": "akoustis_qorvo_2024",
+    "mission_id": "akoustis_2024_supplier_line",
+    "borrower": "Akoustis Technologies, Inc.",
+    "counterparty": "Qorvo, Inc.",
+    "snapshot_id": "akoustis_20240514",
+    "decision_date": "2024-05-14",
+    "as_of": "2024-05-14T23:59:59-04:00",
+    "decision_timezone": "America/New_York",
+    "cutoff_precision": "Conservative end of the decision date in New York; court filings count from the end of their filing day.",
+    "financial_measurement_date": "2024-03-31",
+    "financial_filing_publication_date": "2024-05-13",
+    "mission_type": "existing_line_review",
+    "loan_terms_basis": "reconstructed_slope_terms",
+    "relationship_claim": "Reconstructed as if Slope opened a reusable line for Akoustis on 1 April 2024 that pays its supplier invoices. This is Slope's review of that existing line on 14 May 2024, the day after the 10-Q for the quarter ended 31 March 2024, while the jury trial in Qorvo's action against Akoustis is under way. The line's drawn balance and installment schedule on the review date are case inputs. No claim that Akoustis is or was a Slope customer.",
     "product_selection": "Slope reusable line: Slope pays supplier invoices up to a limit set from connected-bank receipts; each draw is repaid with a 3.7% fee in three monthly installments.",
     "financing_basis": "Existing debt reported in the 13 May 2024 10-Q: 6.0% convertible senior notes due 2027 and a secured seller promissory note from the GDSI acquisition."
   }

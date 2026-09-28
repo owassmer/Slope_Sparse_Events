@@ -1,0 +1,510 @@
+{
+ "run_id": "akoustis_20240514-agent_plus_jev-20260928T052641Z",
+ "note": "Each economic assumption changes one declared setting from the central case (spec \u00a716.6). Amounts in cents; shares 0-1. due_horizon is every installment falling due by the horizon (the page's Due tile) = collected + past due + frozen due (due and unpaid at a filing); collection_rate = collected / due_horizon. contractual adds installments due after the horizon; the uncollected part of it is split into past due, stayed at a filing and not yet due.",
+ "variants": [
+  {
+   "id": "central",
+   "label": "Central setting",
+   "central": true,
+   "change": {
+    "scenario": "central",
+    "sens": {}
+   },
+   "paths": 2962,
+   "jev": {
+    "questions": 207,
+    "cached": 207,
+    "re_asked": 0,
+    "spent_usd": "0"
+   },
+   "headline": {
+    "due_horizon_cents": 91568172.44172089,
+    "collected_cents": 82788491.8536724,
+    "collection_rate": 0.904118643476953,
+    "past_due_horizon_cents": 1138429.8870922928,
+    "frozen_due_cents": 7641250.700956196,
+    "contractual_cents": 118448848.50321758,
+    "uncollected_horizon_cents": 1138429.8870922928,
+    "stayed_claim_cents": 9818816.906079065,
+    "not_yet_due_cents": 24703109.856373854,
+    "petition_p": 0.2710550037203709,
+    "preference_exposed_cents": 10893371.8425434,
+    "drawn_cents": 75254945.25978656,
+    "raise_share": 0.8064453370143694,
+    "survival_share": 0.728944996279629,
+    "floor_share": 0.8760432296388441,
+    "first_floor_median": "2024-08-27"
+   },
+   "vs_central": null
+  },
+  {
+   "id": "cost_plan",
+   "label": "Operating burn 30% lower from 15 May 2024, instead of the recent run rate",
+   "central": false,
+   "change": {
+    "scenario": "cost_plan",
+    "sens": {}
+   },
+   "paths": 4300,
+   "jev": {
+    "questions": 232,
+    "cached": 229,
+    "re_asked": 3,
+    "spent_usd": "0.000426930"
+   },
+   "headline": {
+    "due_horizon_cents": 92081353.29802543,
+    "collected_cents": 85375658.92310184,
+    "collection_rate": 0.9271764137390519,
+    "past_due_horizon_cents": 238821.86493988897,
+    "frozen_due_cents": 6466872.509983698,
+    "contractual_cents": 121992826.69687486,
+    "uncollected_horizon_cents": 238821.86493988897,
+    "stayed_claim_cents": 9444842.598602379,
+    "not_yet_due_cents": 26933503.310230747,
+    "petition_p": 0.2544066815622873,
+    "preference_exposed_cents": 8567736.15823624,
+    "drawn_cents": 78672476.33491918,
+    "raise_share": 0.561700186229617,
+    "survival_share": 0.7455933184377127,
+    "floor_share": 0.47611447741361274,
+    "first_floor_median": null
+   },
+   "vs_central": {
+    "due_horizon_cents": 513180.85630454123,
+    "collected_cents": 2587167.0694294423,
+    "collection_rate": 0.023057770262098876,
+    "past_due_horizon_cents": -899608.0221524038,
+    "frozen_due_cents": -1174378.1909724977,
+    "contractual_cents": 3543978.193657279,
+    "uncollected_horizon_cents": -899608.0221524038,
+    "stayed_claim_cents": -373974.3074766863,
+    "not_yet_due_cents": 2230393.453856893,
+    "petition_p": -0.016648322158083595,
+    "preference_exposed_cents": -2325635.6843071617,
+    "drawn_cents": 3417531.0751326233,
+    "raise_share": -0.24474515078475234,
+    "survival_share": 0.01664832215808365,
+    "floor_share": -0.39992875222523133
+   }
+  },
+  {
+   "id": "equity_injection",
+   "label": "Equity: $5.0M received on 14 Jun 2024, instead of none booked",
+   "central": false,
+   "change": {
+    "scenario": "equity_injection",
+    "sens": {}
+   },
+   "paths": 4204,
+   "jev": {
+    "questions": 251,
+    "cached": 248,
+    "re_asked": 3,
+    "spent_usd": "0.000426930"
+   },
+   "headline": {
+    "due_horizon_cents": 91989975.85275795,
+    "collected_cents": 86348394.96389148,
+    "collection_rate": 0.9386717863922852,
+    "past_due_horizon_cents": 247271.98100895825,
+    "frozen_due_cents": 5394308.907857511,
+    "contractual_cents": 121974983.1808904,
+    "uncollected_horizon_cents": 247271.98100895825,
+    "stayed_claim_cents": 8361010.622763813,
+    "not_yet_due_cents": 27018305.613226164,
+    "petition_p": 0.23000198331510924,
+    "preference_exposed_cents": 8471991.729164742,
+    "drawn_cents": 78655267.98399995,
+    "raise_share": 0.7859342928626825,
+    "survival_share": 0.7699980166848908,
+    "floor_share": 0.701343473780218,
+    "first_floor_median": "2024-10-26"
+   },
+   "vs_central": {
+    "due_horizon_cents": 421803.41103705764,
+    "collected_cents": 3559903.1102190763,
+    "collection_rate": 0.03455314291533218,
+    "past_due_horizon_cents": -891157.9060833345,
+    "frozen_due_cents": -2246941.7930986844,
+    "contractual_cents": 3526134.6776728183,
+    "uncollected_horizon_cents": -891157.9060833345,
+    "stayed_claim_cents": -1457806.2833152525,
+    "not_yet_due_cents": 2315195.75685231,
+    "petition_p": -0.04105302040526165,
+    "preference_exposed_cents": -2421380.113378659,
+    "drawn_cents": 3400322.7242133915,
+    "raise_share": -0.02051104415168692,
+    "survival_share": 0.04105302040526171,
+    "floor_share": -0.17469975585862607
+   }
+  },
+  {
+   "id": "raise_capacity_no_judgment_low",
+   "label": "Equity raised at the cash floor with no adverse judgment: $5.0M instead of $9.7M",
+   "central": false,
+   "change": {
+    "scenario": "central",
+    "sens": {
+     "raise_capacity": true
+    }
+   },
+   "paths": 3293,
+   "jev": {
+    "questions": 238,
+    "cached": 238,
+    "re_asked": 0,
+    "spent_usd": "0"
+   },
+   "headline": {
+    "due_horizon_cents": 91313670.48580033,
+    "collected_cents": 81273317.9554196,
+    "collection_rate": 0.8900454611345182,
+    "past_due_horizon_cents": 1409350.2844700862,
+    "frozen_due_cents": 8631002.245910639,
+    "contractual_cents": 116936919.00705713,
+    "uncollected_horizon_cents": 1409350.2844700862,
+    "stayed_claim_cents": 11421842.644296799,
+    "not_yet_due_cents": 22832408.12287067,
+    "petition_p": 0.31637205942631,
+    "preference_exposed_cents": 13279403.25530675,
+    "drawn_cents": 73796961.17897154,
+    "raise_share": 0.7432923921778368,
+    "survival_share": 0.68362794057369,
+    "floor_share": 0.9880108013528516,
+    "first_floor_median": "2024-08-25"
+   },
+   "vs_central": {
+    "due_horizon_cents": -254501.95592056215,
+    "collected_cents": -1515173.8982528,
+    "collection_rate": -0.01407318234243482,
+    "past_due_horizon_cents": 270920.39737779344,
+    "frozen_due_cents": 989751.5449544434,
+    "contractual_cents": -1511929.4961604476,
+    "uncollected_horizon_cents": 270920.39737779344,
+    "stayed_claim_cents": 1603025.7382177338,
+    "not_yet_due_cents": -1870701.7335031852,
+    "petition_p": 0.045317055705939135,
+    "preference_exposed_cents": 2386031.4127633497,
+    "drawn_cents": -1457984.0808150172,
+    "raise_share": -0.06315294483653255,
+    "survival_share": -0.045317055705939024,
+    "floor_share": 0.11196757171400751
+   }
+  },
+  {
+   "id": "raise_after_judgment_available",
+   "label": "Equity raised at the cash floor after an adverse judgment: $5.0M instead of none",
+   "central": false,
+   "change": {
+    "scenario": "central",
+    "sens": {
+     "raise_capacity_after_adverse_judgment": true
+    }
+   },
+   "paths": 3701,
+   "jev": {
+    "questions": 230,
+    "cached": 230,
+    "re_asked": 0,
+    "spent_usd": "0"
+   },
+   "headline": {
+    "due_horizon_cents": 91583588.89487141,
+    "collected_cents": 83804995.62406814,
+    "collection_rate": 0.9150656426040227,
+    "past_due_horizon_cents": 674852.3000853262,
+    "frozen_due_cents": 7103740.970717946,
+    "contractual_cents": 119422444.77778414,
+    "uncollected_horizon_cents": 674852.3000853262,
+    "stayed_claim_cents": 9397901.284235433,
+    "not_yet_due_cents": 25544695.56939523,
+    "petition_p": 0.2599255497561997,
+    "preference_exposed_cents": 10130123.264109489,
+    "drawn_cents": 76193803.76641066,
+    "raise_share": 0.815385385861177,
+    "survival_share": 0.7400744502438004,
+    "floor_share": 0.8836739671550291,
+    "first_floor_median": "2024-08-27"
+   },
+   "vs_central": {
+    "due_horizon_cents": 15416.45315052569,
+    "collected_cents": 1016503.7703957409,
+    "collection_rate": 0.010946999127069645,
+    "past_due_horizon_cents": -463577.5870069666,
+    "frozen_due_cents": -537509.7302382495,
+    "contractual_cents": 973596.274566561,
+    "uncollected_horizon_cents": -463577.5870069666,
+    "stayed_claim_cents": -420915.6218436323,
+    "not_yet_due_cents": 841585.7130213752,
+    "petition_p": -0.011129453964171199,
+    "preference_exposed_cents": -763248.5784339122,
+    "drawn_cents": 938858.5066241026,
+    "raise_share": 0.008940048846807658,
+    "survival_share": 0.01112945396417131,
+    "floor_share": 0.007630737516185038
+   }
+  },
+  {
+   "id": "settlement_lump_sum",
+   "label": "Settlement paid at once, instead of in 12 monthly installments",
+   "central": false,
+   "change": {
+    "scenario": "central",
+    "sens": {
+     "settlement_payment": "lump_sum"
+    }
+   },
+   "paths": 2962,
+   "jev": {
+    "questions": 207,
+    "cached": 207,
+    "re_asked": 0,
+    "spent_usd": "0"
+   },
+   "headline": {
+    "due_horizon_cents": 90495152.70443113,
+    "collected_cents": 80425626.28441334,
+    "collection_rate": 0.8887285548552399,
+    "past_due_horizon_cents": 1549177.4394747892,
+    "frozen_due_cents": 8520348.980543004,
+    "contractual_cents": 116128726.1835741,
+    "uncollected_horizon_cents": 1549177.4394747892,
+    "stayed_claim_cents": 10782872.286271514,
+    "not_yet_due_cents": 23371050.17341442,
+    "petition_p": 0.29726027410146916,
+    "preference_exposed_cents": 11592450.530565774,
+    "drawn_cents": 73017604.55687699,
+    "raise_share": 0.7821296328412479,
+    "survival_share": 0.7027397258985308,
+    "floor_share": 0.8583267436754124,
+    "first_floor_median": "2024-08-27"
+   },
+   "vs_central": {
+    "due_horizon_cents": -1073019.7372897565,
+    "collected_cents": -2362865.5692590624,
+    "collection_rate": -0.015390088621713094,
+    "past_due_horizon_cents": 410747.5523824964,
+    "frozen_due_cents": 879098.2795868088,
+    "contractual_cents": -2320122.3196434826,
+    "uncollected_horizon_cents": 410747.5523824964,
+    "stayed_claim_cents": 964055.3801924493,
+    "not_yet_due_cents": -1332059.6829594336,
+    "petition_p": 0.026205270381098267,
+    "preference_exposed_cents": 699078.6880223732,
+    "drawn_cents": -2237340.702909574,
+    "raise_share": -0.024315704173121455,
+    "survival_share": -0.02620527038109821,
+    "floor_share": -0.017716485963431672
+   }
+  },
+  {
+   "id": "collection_protect_need",
+   "label": "Collection: only from cash above 30 days of operating need, instead of each installment in full when cash covers it",
+   "central": false,
+   "change": {
+    "scenario": "protect_need",
+    "sens": {}
+   },
+   "paths": 2962,
+   "jev": {
+    "questions": 207,
+    "cached": 204,
+    "re_asked": 3,
+    "spent_usd": "0.000426384"
+   },
+   "headline": {
+    "due_horizon_cents": 90847200.95313914,
+    "collected_cents": 80874869.08959964,
+    "collection_rate": 0.8902296189765556,
+    "past_due_horizon_cents": 1765560.8752046763,
+    "frozen_due_cents": 8206770.988334825,
+    "contractual_cents": 116646293.12605987,
+    "uncollected_horizon_cents": 1765560.8752046763,
+    "stayed_claim_cents": 9781810.471452635,
+    "not_yet_due_cents": 24224052.68980294,
+    "petition_p": 0.26779883551142253,
+    "preference_exposed_cents": 9630765.52839781,
+    "drawn_cents": 73516704.8083148,
+    "raise_share": 0.8066705382213257,
+    "survival_share": 0.7322011644885775,
+    "floor_share": 0.8756341002327107,
+    "first_floor_median": "2024-08-27"
+   },
+   "vs_central": {
+    "due_horizon_cents": -720971.4885817468,
+    "collected_cents": -1913622.764072761,
+    "collection_rate": -0.013889024500397418,
+    "past_due_horizon_cents": 627130.9881123835,
+    "frozen_due_cents": 565520.2873786297,
+    "contractual_cents": -1802555.377157703,
+    "uncollected_horizon_cents": 627130.9881123835,
+    "stayed_claim_cents": -37006.43462643027,
+    "not_yet_due_cents": -479057.16657091305,
+    "petition_p": -0.0032561682089483623,
+    "preference_exposed_cents": -1262606.314145591,
+    "drawn_cents": -1738240.4514717609,
+    "raise_share": 0.00022520120695634915,
+    "survival_share": 0.0032561682089484734,
+    "floor_share": -0.00040912940613335724
+   }
+  },
+  {
+   "id": "cash_floor_60_days",
+   "label": "Cash floor: 60 days of operating outflows, instead of 30",
+   "central": false,
+   "change": {
+    "scenario": "cash_floor_60_days",
+    "sens": {}
+   },
+   "paths": 2737,
+   "jev": {
+    "questions": 203,
+    "cached": 203,
+    "re_asked": 0,
+    "spent_usd": "0"
+   },
+   "headline": {
+    "due_horizon_cents": 91644925.06302169,
+    "collected_cents": 83562614.54653025,
+    "collection_rate": 0.9118084224420123,
+    "past_due_horizon_cents": 1068380.3013632318,
+    "frozen_due_cents": 7013930.215128211,
+    "contractual_cents": 119260743.64770153,
+    "uncollected_horizon_cents": 1068380.3013632318,
+    "stayed_claim_cents": 9294752.863263965,
+    "not_yet_due_cents": 25334995.93654409,
+    "petition_p": 0.25497421828775363,
+    "preference_exposed_cents": 9458277.68988624,
+    "drawn_cents": 76037872.1070854,
+    "raise_share": 0.8413134630601916,
+    "survival_share": 0.7450257817122463,
+    "floor_share": 0.7207603656815712,
+    "first_floor_median": "2024-07-28"
+   },
+   "vs_central": {
+    "due_horizon_cents": 76752.62130080163,
+    "collected_cents": 774122.6928578466,
+    "collection_rate": 0.007689778965059291,
+    "past_due_horizon_cents": -70049.58572906093,
+    "frozen_due_cents": -627320.4858279843,
+    "contractual_cents": 811895.1444839537,
+    "uncollected_horizon_cents": -70049.58572906093,
+    "stayed_claim_cents": -524064.0428151004,
+    "not_yet_due_cents": 631886.0801702365,
+    "petition_p": -0.01608078543261726,
+    "preference_exposed_cents": -1435094.1526571605,
+    "drawn_cents": 782926.8472988456,
+    "raise_share": 0.034868126045822234,
+    "survival_share": 0.01608078543261726,
+    "floor_share": -0.15528286395727287
+   }
+  },
+  {
+   "id": "lower_award_high",
+   "label": "Jury: lower award at $9,999,999, instead of $1.4M",
+   "central": false,
+   "change": {
+    "scenario": "central",
+    "sens": {
+     "lower_award_amount": true
+    }
+   },
+   "paths": 3160,
+   "jev": {
+    "questions": 217,
+    "cached": 217,
+    "re_asked": 0,
+    "spent_usd": "0"
+   },
+   "headline": {
+    "due_horizon_cents": 90009338.55564241,
+    "collected_cents": 79498728.94210619,
+    "collection_rate": 0.8832275652482579,
+    "past_due_horizon_cents": 1581056.4614765032,
+    "frozen_due_cents": 8929553.15205972,
+    "contractual_cents": 115245674.08115026,
+    "uncollected_horizon_cents": 1581056.4614765032,
+    "stayed_claim_cents": 12653175.460777957,
+    "not_yet_due_cents": 21512713.216789626,
+    "petition_p": 0.34947091993486323,
+    "preference_exposed_cents": 13996730.931497019,
+    "drawn_cents": 72166059.61844909,
+    "raise_share": 0.8052217476035008,
+    "survival_share": 0.6505290800651368,
+    "floor_share": 0.9049191769516772,
+    "first_floor_median": "2024-08-25"
+   },
+   "vs_central": {
+    "due_horizon_cents": -1558833.886078477,
+    "collected_cents": -3289762.911566213,
+    "collection_rate": -0.02089107822869518,
+    "past_due_horizon_cents": 442626.5743842104,
+    "frozen_due_cents": 1288302.4511035252,
+    "contractual_cents": -3203174.4220673144,
+    "uncollected_horizon_cents": 442626.5743842104,
+    "stayed_claim_cents": 2834358.554698892,
+    "not_yet_due_cents": -3190396.6395842284,
+    "petition_p": 0.07841591621449234,
+    "preference_exposed_cents": 3103359.088953618,
+    "drawn_cents": -3088885.641337469,
+    "raise_share": -0.0012235894108685308,
+    "survival_share": -0.07841591621449229,
+    "floor_share": 0.02887594731283316
+   }
+  },
+  {
+   "id": "coupon_cash",
+   "label": "June notes coupon paid in cash, instead of in shares",
+   "central": false,
+   "change": {
+    "scenario": "central",
+    "sens": {
+     "coupon_cash_share": "all_cash"
+    }
+   },
+   "paths": 2623,
+   "jev": {
+    "questions": 207,
+    "cached": 204,
+    "re_asked": 3,
+    "spent_usd": "0.000426930"
+   },
+   "headline": {
+    "due_horizon_cents": 91394142.35849418,
+    "collected_cents": 82493547.27738261,
+    "collection_rate": 0.902613068502805,
+    "past_due_horizon_cents": 1560613.4173831264,
+    "frozen_due_cents": 7339981.663728438,
+    "contractual_cents": 118048237.11772205,
+    "uncollected_horizon_cents": 1560613.4173831264,
+    "stayed_claim_cents": 9316146.101743696,
+    "not_yet_due_cents": 24677930.32121262,
+    "petition_p": 0.25889542373657487,
+    "preference_exposed_cents": 9741534.518918121,
+    "drawn_cents": 74868627.62761465,
+    "raise_share": 0.8355450551748571,
+    "survival_share": 0.7411045762634252,
+    "floor_share": 0.7412611726505006,
+    "first_floor_median": "2024-08-14"
+   },
+   "vs_central": {
+    "due_horizon_cents": -174030.08322671056,
+    "collected_cents": -294944.5762897879,
+    "collection_rate": -0.0015055749741480495,
+    "past_due_horizon_cents": 422183.5302908337,
+    "frozen_due_cents": -301269.0372277573,
+    "contractual_cents": -400611.3854955286,
+    "uncollected_horizon_cents": 422183.5302908337,
+    "stayed_claim_cents": -502670.8043353688,
+    "not_yet_due_cents": -25179.53516123444,
+    "petition_p": -0.01215957998379602,
+    "preference_exposed_cents": -1151837.3236252796,
+    "drawn_cents": -386317.632171914,
+    "raise_share": 0.02909971816048773,
+    "survival_share": 0.012159579983796132,
+    "floor_share": -0.13478205698834345
+   }
+  }
+ ]
+}

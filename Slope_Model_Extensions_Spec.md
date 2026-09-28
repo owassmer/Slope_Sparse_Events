@@ -1,6 +1,6 @@
 # Model extensions for the Akoustis and Charles & Colvard cases (spec, revision 2)
 
-**Status:** revision 2, 25 Sep 2026: forecasts rebuilt as chains that start from the lender's question; round 2 acquisition corrections applied. Scope for the proof of concept and the corrections that bind Stage 1 are in §15, which governs where it differs from §1–14.
+**Status:** revision 2, 25 Sep 2026: forecasts rebuilt as chains that start from the lender's question; round 2 acquisition corrections applied. Scope for the proof of concept and the corrections that bind Stage 1 are in §15. **The 14 May 2024 rebuild is in §16, which governs where it differs from §1–15.**
 
 **Scope:** every change to the model, contracts, engine, agent and page needed to move the demo from ChromaDex to:
 - **Akoustis Technologies**, decision date (D) 20 Jun 2024, lead case (Owen's choice);
@@ -654,3 +654,131 @@ Owen's decisions, 25 Sep 2026.
 6. **Indenture conditions restored:** §7.01(i) excludes amounts covered by insurance; §7.01(h) cross-default at $2.5M; §7.02 acceleration and rescission.
 7. **Anchored at the decision date.** The case for 20 June and for the reusable line rests on the filing record and Slope's published product, never on where the petition falls. Before the Akoustis feed is built, check whether proration by business days moves post-D cash before D (the 31 Mar balance plus the May proceeds is about the reported 30 Jun balance, implying almost no April–June burn).
 8. **The round 2 acquisition notes are evidence only.** Their kit copies carry no direction marks and no outcome check.
+
+---
+
+## 16. The 14 May 2024 rebuild
+
+Owen's decisions, 27 Sep 2026. This section governs where it differs from §1–15. §1.1, §4 and the 20 Jun date in §15 describe the recorded 20 Jun run, which stays as it is.
+
+### 16.1 The problem and the deliverable
+
+- **The problem is sparse events.** They affect too few borrowers to work as ordinary features in a population credit model, yet for the affected borrower the evidence is rich and the effect can be large. The agent and Jev turn that evidence into modeling inputs.
+- **The deliverable is one forecast** of the supplied line's dated cash flows, built from everything public on the review date:
+  - funded, installments due, collected, and outstanding exposure, each as a distribution;
+  - three kinds of exposure kept apart: past due, owed at a filing (stayed), and not yet due.
+- **The question it answers:** given this borrower's operations and this line, how does the pending event change the distribution and timing of collections, exposure and capital available to lend again?
+- **There is no parallel bank-data projection.** A lender lends once. The event's contribution is an attribution inside the one forecast:
+  - *ordinary operating risk* is the same forecast with the event, including its legal costs, given no cash effect;
+  - *the event* accounts for the rest.
+- **Financing terms are inputs.** The analysis does not recommend, size or condition the line.
+
+### 16.2 Case, date and cutoff
+
+- **Case and date.** Akoustis Technologies, reviewed on **14 May 2024**, the day after its 10-Q and earnings call.
+  - Qorvo's trade-secret and patent claims are at jury trial; liability and damages are undecided.
+  - The line is a manual-review line (limit above Slope's $250k automatic approval), so a reviewer on that date would see the trial.
+- **Horizon.** 180 days, to **10 Nov 2024**.
+- **Line terms.** Slope's reusable line under §2: three monthly installments per invoice, and the limit from Slope's published rule, recomputed on the 14 May feed.
+- **Cutoff.** Nothing made public after 14 May enters the snapshot, the feed, the model or any question. Excluded in particular:
+  - the verdict and the judgment;
+  - the post-trial motions and their briefing dates;
+  - the remittitur figure;
+  - the 24 May offering;
+  - later share-capacity constraints.
+  - Later events appear only in the historical follow-through, which never sets the forecast horizon.
+- **Where the inputs live.** Case inputs are in `cases/akoustis_20240514/` and the kit mission `akoustis_20240514`. The 20 Jun case files and recorded run stay as they are.
+
+### 16.3 The common financial model
+
+Every path shares these. They decide much of the result, so each is stated.
+
+| Item | Rule |
+|---|---|
+| **Opening cash and history** | Reconstruct through 14 May from anchors public by then (31 Mar balance sheet, 10-Q cash flows, the 13 May call). Do not truncate the 20 Jun feed: its April–June calibration uses later quarterly totals. |
+| **Operating outlook** | Central case: historical continuation. Scenario: the cost cut management announced on 13 May, where its cash effect can be specified. Never tune burn toward a result. |
+| **Financing** | An explicit amount-and-date scenario, shared by every path. Proceeds are booked on the completion date. "Seeks financing" alone books no cash. The central case adds no financing the record does not fix. The equity sensitivity is a plain cash injection; a debt alternative also books its service. The actual later raise is never imported. |
+| **Collection** | Slope debits each installment automatically on its due date, and the debit succeeds when available cash covers it (central). Sensitivity: the borrower protects its next 30 days of operating need before paying Slope. That is an assumption about the borrower, not Slope's mechanism. |
+| **Cash floor** | The point where the company must act: available cash below its next 30 days of operating need, with one alternative setting. It triggers the company's cash-floor decision (raise equity, file, continue) and sets the facts given to Jev. It is not an automatic filing and does not limit collections. |
+| **Settlement and security** | Explicit amounts and calendars. Available cash above the reserve bounds what can be paid; it is not the amount every negotiation produces. |
+| **Legal spend** | Only spend attributable to this dispute stops when the dispute ends. The professional-fee proxy is labeled as a proxy. |
+| **Ordinary obligations** | The same existing debt and background risks on every path. An event-triggered acceleration or restriction applies only when its conditions occur on the path. |
+| **Loan accounting** | As §2: revolving usage, fees, installments, stops on arrears and filing. Stayed claims, overdue amounts and amounts not yet due stay separate; later recovery stays a typed unknown. |
+
+### 16.4 The pending-claim event model
+
+- **The template is generic.** It is chosen by the event's state and mechanism, never by the borrower: a pending money claim at trial → verdict → judgment → enforcement and post-trial steps → contractual triggers → the borrower's response.
+  - A missing judgment never activates enforcement.
+  - Liability is forecast per claim only where the claims' financial consequences differ.
+- **Legal meaning comes first**, in `DECOMPOSITION_20240514.md`, in the stage order of §15.2(1): the law map, then clocks and parameters, then arithmetic. Evidence fills named slots afterwards.
+- **Depth goes where money moves.** A distinction survives only if it changes payment timing, cash availability, operating receipts, financing access, or another actor's material decision. Financially equivalent paths are merged. The number of questions is not a measure of completeness.
+- **Amounts stay code-owned.**
+  - The record fixes the claimed amounts. Qorvo itemised its claim before the review date: at least $66.1M of trade-secret unjust enrichment, plus $2.2M on other claims (D.I. 543-1, 22 Apr 2024).
+  - Which damages theory the jury adopts is the jury's decision, so it is a Jev question. Code sets each branch's amount from the record:
+    - Qorvo's theory: the claimed amount;
+    - the defense's theory: a bounded amount, because the defense figure was not public.
+  - Branch amounts are cut only at the thresholds that change a mechanism. Examples: the notes' $10.0M default threshold, and cash above the reserve.
+  - Differences in amount that change no mechanism are one bounded term with a sensitivity, not more branches.
+  - Where no figure is public, the amount is a declared scenario class, and there are no probabilities across classes.
+- **Jev answers one actor's decision per question.**
+  - Material factors are established first; aggregation receives the factor results and the structured facts, not the whole record again.
+  - A reading of the evidence is never a forecast's probability.
+  - Each question's cash facts must match the engine's state on its decision date. Where Slope's own funding and collections move that state across a material threshold, the loan calculation is run up to the decision date. There is no general feedback solver.
+- **Settlement is its own decision** on specified terms. An acceptance probability is never reused for a different offer.
+
+### 16.5 The reusable boundary
+
+| Layer | Contains |
+|---|---|
+| Case inputs | Parties, claims, evidence, procedural state, contract terms, financial observations, scenario parameters |
+| Event model | Reusable focused questions, conditional relationships, and rules turning outcomes into dated economic effects |
+| Financial engine | Operating paths, dated cash effects, restricted funds, invoice funding, collections, outstanding exposure |
+
+- Question text and decision labels are generated from the event model and the case inputs.
+- The page's vocabulary is generic.
+- No code, contract or page names a party except through case inputs.
+- A second company, a universal litigation lifecycle, a new ontology and a framework rewrite are outside this pass.
+
+### 16.6 Sensitivities
+
+- **Judgment sensitivity:** override a conditional probability and reweight the saved paths. No Jev call.
+- **Economic sensitivity:** change financing, burn, reserve, the damages class, or payment timing, and recompute the cash consequences.
+  - The central setting and a few material alternatives are precomputed before recording; the controls select saved variants.
+  - Where a change alters the facts an actor's question used, that question is asked again in the variant and cached.
+- **Operating effects hit the receipt and spending streams**, including the receipts that size the line; they are not a detached cash debit.
+- **Neutral (uniform) judgments** are a diagnostic only. They are not an evidence-only forecast or a measure of Jev's accuracy.
+
+### 16.7 The page
+
+The page's main flow:
+
+1. The borrower, the review date, the supplied line and the pending event.
+2. The line's dated funding, installments due, collections and remaining exposure, with distributions. The common assumptions are one click away.
+3. How the event resolves (its scenarios, each with probability and cash outcome), and the attribution between ordinary operating risk and the event.
+4. The most consequential judgment, traced: source → factors → Jev's forecast → economic effect → the loan's cash.
+5. One consequential economic assumption beside it, such as financing completion or payment timing.
+6. What actually happened.
+
+- Filing probability explains some collection paths; it does not organize the page.
+- Discounted cash within the horizon is not a lifetime return.
+
+### 16.8 Jev spend
+
+Caps are settings, not limits on the work. Raise a cap to fit the run, report the spend, and never stop at a cap. Spend stays proportionate.
+
+### 16.9 Delivery and completion
+
+**Steps:**
+1. Freeze the 14 May snapshot, the financial inputs, the scenarios and the event template.
+2. Rebase the common financial model while the pending-claim model and its evidence mapping are built in parallel.
+3. Run the agent and Jev on the new snapshot, and save every provider response and the analysis.
+4. Refresh the page from that run.
+5. One focused review covering:
+   - cutoff integrity;
+   - the conditional probabilities;
+   - event-to-cash transmission;
+   - that funding, collections and exposure reconcile.
+
+   Fix demonstrated defects, verify the walkthrough, and record.
+
+**Completion test:** Russell can follow a researched finding into a focused probabilistic judgment, see its effect on the loan's dated cash flows, and tell that effect apart from the assumptions underneath it. The result may concern timing, downside exposure or capital recycling; it does not need a dramatic reversal.

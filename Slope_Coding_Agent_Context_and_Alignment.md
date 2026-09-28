@@ -86,15 +86,15 @@ Timing deserves as much attention as amount. A loan that ultimately repays in fu
 
 Keep contractual payments, path-conditioned collections and probability-weighted collections distinct. The weights are Jev's conditional probabilities of specific future events, composed along each path by code, labelled once as model judgment. Jev's confidence statistic is separate and never used as a probability.
 
-## 5. The before-and-after comparison
+## 5. One forecast, and what the event contributes
 
-Owen wants the effect of the research to be directly observable.
+Owen wants the effect of the research to be directly observable, inside the forecast a lender would actually use.
 
-The baseline and event-adjusted views use the same decision date, common financial assumptions, supplied financing and operating draws. The enriched view applies the specific information obtained through the investigation. The reviewer can see which inputs changed and which loan outcomes changed as a result.
+A lender lends once, so the analysis produces one forecast of the line's dated cash flows from everything public on the review date. The event's contribution is an attribution inside it: ordinary operating risk is the same forecast with the event given no cash effect, and the event accounts for the rest. Both share the review date, the common financial assumptions, the supplied financing and the operating draws. The reviewer can see how the event can resolve, how likely each resolution is, and what each does to the loan.
 
 Sometimes the valuable adjustment is the timing of an obligation already recorded in the accounts. Sometimes it is recognizing that a historical accounting item has a different cash implication. Sometimes it is establishing that a potential future charge has already been satisfied. The financial treatment should reflect the actual mechanism.
 
-The measured impact is the change in the distribution: expected and downside cash, collection timing, uncollected balance, discounted lender cash flows and capital tied up. Both views use identical operating draws, so the difference is the research's effect. If the loan's collections do not change, that is a legitimate result, shown plainly.
+The measured impact is the event's contribution to the distribution: expected and downside cash, collection timing, uncollected balance, discounted lender cash flows and capital tied up. The forecast and its no-event attribution use identical operating draws, so the difference is the event's effect. If the loan's collections do not change, that is a legitimate result, shown plainly.
 
 Later events belong in a separate outcome view. First establish what the system could conclude from the evidence available at the decision date. Then reveal what happened and evaluate which mechanisms the analysis captured.
 
@@ -102,13 +102,13 @@ Later events belong in a separate outcome view. First establish what the system 
 
 Owen wants the demonstration grounded in actual businesses, actual legal events, public evidence and observable financing outcomes. The research package supplies that foundation.
 
-### ChromaDex: lead demonstration
+### Akoustis Technologies: lead demonstration
 
-The lead decision date is **19 August 2024**. ChromaDex is a consumer supplement brand that buys finished goods from contract manufacturers. On that date its disputes with Elysium Health, a former customer, are live and move money both ways: a Delaware fee award whose amount awaits a ruling (about $9.8 million sought, and ChromaDex intends to appeal, which needs a bond), and a California judgment ordering Elysium to pay ChromaDex $2.5 million with no payment date. These are the forward-looking, branching questions that bank data cannot answer. The financing is reconstructed as Slope bill-pay financing of a contract-manufacturer invoice ($2.0M, three monthly installments, 3.7% fee), analysed over a 180-day horizon in which most resolution events fall.
+The review date is **14 May 2024**, the day after Akoustis's 10-Q and earnings call. Qorvo's trade-secret and patent claims against it are at jury trial, its $44M convertible notes can come due early if a large judgment goes unpaid, and its Nasdaq listing is at risk. The loan is Slope's reusable line, sized by Slope's published rule on the reconstructed bank data, analysed over 180 days. `Slope_Model_Extensions_Spec.md` §16 governs. Charles & Colvard (18 Nov 2024) is the second case.
 
-### Synergy CHC: secondary demonstration
+### Synergy CHC: earlier candidate
 
-The secondary decision date is **13 August 2024**. Synergy is a consumer-products business with an actual merchant-financing agreement and disclosed supplier-settlement obligations.
+Synergy is no longer a demonstration case; it keeps its financial tests. The original rationale follows. The decision date was **13 August 2024**. Synergy is a consumer-products business with an actual merchant-financing agreement and disclosed supplier-settlement obligations.
 
 Its strength is the connection between the evidence and the cash model. The research links a supplier lawsuit to settlement debt, establishes payment requirements, supplies actual merchant-loan mechanics and provides later evidence of financing directed toward the settlement obligations.
 
@@ -179,11 +179,11 @@ The research and design phase has produced the specification, acquired sources, 
 
 One analysis page carries the causal chain **evidence → Jev judgment → financial mechanism → financial impact**:
 
-1. The business, the supplied financing and what the research learned.
-2. The future developments that could move cash, and how likely Jev judges each, given the evidence.
-3. What those developments do to the borrower's cash, against ordinary operating variability.
-4. What that does to the loan: dated collections, timing, exposure, discounted cash flows and capital tied up.
-5. Which judgments matter most, at 0%, Jev's value and 100%, with a drill-down from each to its source passage.
+1. The business, the supplied line and the pending event.
+2. The line's forecast: dated funding, installments due, collections and remaining exposure, with distributions and the common assumptions accessible.
+3. How the event can resolve, how likely Jev judges each resolution, and what each does to the loan, separated from ordinary operating risk.
+4. The most consequential judgment, traced from its source passage through Jev's forecast to the loan's cash, at 0%, Jev's value and 100%.
+5. One consequential economic assumption beside it, such as financing completion.
 
 The most compelling moment is when Russell follows a real passage into Jev's probabilistic judgment, sees it move the loan's cash-flow distribution, and changes it himself. There are no approval recommendations, provenance banners or verification displays on the page; the investigation record is a secondary link.
 
