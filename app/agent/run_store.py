@@ -28,8 +28,8 @@ from app.domain.investigation import (
     InventoryItem,
     InvestigationEvent,
     JevCallRecord,
-    RecordItemSlot,
     ReconciliationTask,
+    RecordItemSlot,
     SemanticObservation,
 )
 

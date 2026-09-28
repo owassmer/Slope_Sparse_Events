@@ -20,8 +20,15 @@ from pathlib import Path
 
 from app.analysis.core import Analysis, EventModel, dates, stress
 from app.analysis.events import BANK, Basis, coupon_terms
-from app.analysis.setup import (Exposure, Setup, controls_from_json, controls_json, exposure_from_json, exposure_json,
-                                setup_from_inputs)
+from app.analysis.setup import (
+    Exposure,
+    Setup,
+    controls_from_json,
+    controls_json,
+    exposure_from_json,
+    exposure_json,
+    setup_from_inputs,
+)
 from app.config import VAR, question_registry
 from app.disputes.forecast import DisputePath, Forecaster, Judgment, neutral_map
 from app.disputes.hydrate import evidence_state

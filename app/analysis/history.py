@@ -19,7 +19,7 @@ import numpy as np
 
 from app.analysis.engine import installment_amounts, prepare, run
 from app.analysis.events import EventCash
-from app.analysis.operating import EXCLUDED, INVOICE, SPLIT, LIMIT_CATEGORIES, Operating
+from app.analysis.operating import EXCLUDED, INVOICE, LIMIT_CATEGORIES, SPLIT, Operating
 from app.analysis.setup import Exposure, Setup
 from app.finance.bank import BankFeed
 

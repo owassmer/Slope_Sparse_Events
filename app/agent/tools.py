@@ -46,8 +46,8 @@ from app.domain.investigation import (
     FinancingInstrument,
     ParameterRequirement,
     PendingMotion,
-    RecordItemSlot,
     ReconciliationTask,
+    RecordItemSlot,
     SemanticObservation,
     validate_effect,
 )

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import akoustis_20240514_fixture as fx
 import numpy as np
 import pytest
 
-import akoustis_20240514_fixture as fx
 from app.analysis.events import Chain, Draws
 
 
@@ -270,9 +270,9 @@ def test_the_claimants_sums_exclude_the_defense_theory():
 def test_the_page_states_the_collection_rule_of_the_setup(collection):
     """The page's cash sentence follows Setup.collection: an automatic debit (14 May central), or collections only from
     cash above the cash floor (the sensitivity); never the other mode's rule."""
-    from app.analysis.page import mechanism
-
     from dataclasses import replace
+
+    from app.analysis.page import mechanism
 
     s = replace(fx.setup(), collection=collection)
     spec = next(t["nodes"]["settlement_offer"] for t in fx.model()["templates"].values()
@@ -291,7 +291,7 @@ def test_5_claimant_branch_is_cash_and_date_identical_under_its_enhancements(tre
     """The claimant's branch is beyond cash under both claimant_enhancements settings: same cash, lock, petition, days."""
     _, _, paths, _ = tree
     for p in _sample(paths, lambda p: ("verdict", "I0", "claimant_theory") in p.steps):
-        (a, ta), (b, tb) = run(p.steps), run(p.steps, {"claimant_enhancements": True})
+        (_, ta), (_, tb) = run(p.steps), run(p.steps, {"claimant_enhancements": True})
         assert (ta.events.cash == tb.events.cash).all() and (ta.events.lock == tb.events.lock).all()
         assert (ta.events.petition == tb.events.petition).all()
         assert all((x == y).all() for x, y in zip(ta.day, tb.day, strict=True))
@@ -574,9 +574,9 @@ def test_7i_the_ordinary_view_asks_the_forecasts_questions_on_the_same_record(tr
             assert ours["case"] == theirs["case"] and ours["case"]["company"] == "B", (n.key, m.key)
             extra = [a for a in ours["assumptions"] if a not in theirs["assumptions"]]
             assert len(extra) == 1 and "given no cash effect" in extra[0], (n.key, extra)
-            strip = lambda st: {**{k: v for k, v in st.items() if k != "path_facts"},  # noqa: E731
-                                "question": {k: v for k, v in st["question"].items() if k != "context"},
-                                "assumptions": [a for a in st["assumptions"] if a not in extra]}
+            strip = lambda st, extra=extra: {**{k: v for k, v in st.items() if k != "path_facts"},  # noqa: E731
+                                            "question": {k: v for k, v in st["question"].items() if k != "context"},
+                                            "assumptions": [a for a in st["assumptions"] if a not in extra]}
             assert strip(ours) == strip(theirs), (n.key, m.key)
         assert not {"claimed", "settled", "seeking", "motions_pending"} & tags  # no dispute-branch condition
         checked.add(n.node)
@@ -633,7 +633,7 @@ def test_8_settlement_is_bounded_and_ends_the_claim(tree):
     paid, it resolves the dispute (claim, lock and legal spend end)."""
     _, _, paths, _ = tree
     for iv in ("I0", "I1"):
-        for p in _sample(paths, lambda p: ("settle", iv, "yes") in p.steps, 6):
+        for p in _sample(paths, lambda p, iv=iv: ("settle", iv, "yes") in p.steps, 6):
             i = p.steps.index(("settle", iv, "yes"))
             ch0 = chain()
             ch0.run(p.steps[:i])
