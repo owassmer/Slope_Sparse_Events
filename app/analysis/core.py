@@ -27,7 +27,6 @@ import numpy as np
 
 from app.analysis import operating
 from app.analysis.engine import (
-    NEED_DAYS,
     NO_DUE,
     PREFERENCE_DAYS,
     Trajectories,
@@ -37,7 +36,7 @@ from app.analysis.engine import (
     run_many,
 )
 from app.analysis.events import BANK, Basis, Draws, EventCash, bank_trace, event_trace
-from app.analysis.setup import DRAWS, SEED, Setup
+from app.analysis.setup import DRAWS, Setup
 from app.analysis.stats import expectation, weighted_quantiles
 from app.disputes.forecast import DisputePath, Judgment, distributions, joint_paths
 from app.disputes.rules import load_model
@@ -450,7 +449,7 @@ class Analysis:
         self.feed, self.setup, self.model, self.m = feed, setup, model, dispute_model or load_model()
         self.sens, self._progress = sens or {}, progress or (lambda *_: None)
         self.days = (setup.horizon - setup.review).days
-        self.ops = operating.simulate(feed, self.days + NEED_DAYS, DRAWS, SEED, setup.variability)
+        self.ops = operating.simulate_for(feed, setup)
         self.line = prepare(setup, self.ops)
         self.opening = feed.available_cents
         self._draws = Draws(DRAWS, stress=stress, basis=Basis.of(self.ops, self.line.need, self.opening))

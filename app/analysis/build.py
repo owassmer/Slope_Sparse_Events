@@ -20,7 +20,7 @@ from pathlib import Path
 
 from app.analysis.core import Analysis, EventModel, dates, stress
 from app.analysis.events import BANK, Basis, coupon_terms
-from app.analysis.setup import Setup, setup_from_inputs
+from app.analysis.setup import Setup, controls_from_json, controls_json, setup_from_inputs
 from app.config import VAR, question_registry
 from app.disputes.forecast import DisputePath, Forecaster, Judgment, neutral_map
 from app.disputes.hydrate import evidence_state
@@ -194,11 +194,9 @@ def meta_for(model: EventModel, borrower: str, not_modelled: list[dict]) -> dict
 def basis_for(feed: BankFeed, setup: Setup) -> Basis:
     """The operating draws' cash, need and legal spend: the same simulation the analysis runs."""
     from app.analysis import operating
-    from app.analysis.engine import NEED_DAYS, prepare
-    from app.analysis.setup import DRAWS, SEED
+    from app.analysis.engine import prepare
 
-    days = (setup.horizon - setup.review).days
-    ops = operating.simulate(feed, days + NEED_DAYS, DRAWS, SEED, setup.variability)
+    ops = operating.simulate_for(feed, setup)
     return Basis.of(ops, prepare(setup, ops).need, feed.available_cents)
 
 
@@ -389,12 +387,15 @@ def write_csv(data: dict, out: Path) -> None:
 
 
 def setup_json(setup: Setup) -> dict:
-    return {k: (v.isoformat() if isinstance(v, date) else v) for k, v in asdict(setup).items()}
+    controls = controls_json(setup)
+    return {k: (controls[k] if k in controls else v.isoformat() if isinstance(v, date) else v)
+            for k, v in asdict(setup).items()}
 
 
 def setup_from_json(d: dict) -> Setup:
     return Setup(**{k: (date.fromisoformat(v) if k in ("review", "horizon", "funding", "invoice_due") else
-                        tuple(v) if k == "collateral_share" and v is not None else v) for k, v in d.items()})
+                        tuple(v) if k == "collateral_share" and v is not None else v) for k, v in d.items()
+                    if k not in ("need_days", "financing", "cost_plan")}, **controls_from_json(d))
 
 
 @lru_cache(maxsize=4)

@@ -32,10 +32,11 @@ from numpy.lib.stride_tricks import sliding_window_view
 
 from app.analysis.events import EventCash
 from app.analysis.operating import Operating
+from app.analysis.setup import NEED_DAYS as SETUP_NEED_DAYS
 from app.analysis.setup import SEED, Setup
 from app.finance.calendar import add_months, next_business_day
 
-NEED_DAYS = 30
+NEED_DAYS = SETUP_NEED_DAYS  # the central reserve; a setup's own `need_days` is what the analysis reads
 PREFERENCE_DAYS = 90  # 11 U.S.C. §547(b)(4)(A)
 TRAILING_MONTHS = 3
 
@@ -136,17 +137,19 @@ def limits(setup: Setup, ops: Operating, days: int) -> np.ndarray:
 
 def needs(ops: Operating, days: int, need_days: int = NEED_DAYS) -> np.ndarray:
     """[draws, days] how far the trajectory's cumulative operating flows fall below today's level over the next
-    `need_days` days (0 if they never do). Flows past the simulated span count as zero."""
+    `need_days` days (0 if they never do). Flows past the simulated span count as zero. Financing proceeds are not
+    operating flows: they leave the need alone."""
     if need_days <= 0:
         return np.zeros((ops.draws, days), dtype=np.int64)
-    cum = np.cumsum(ops.total, axis=1)
+    cum = np.cumsum(ops.total if ops.financing is None else ops.total - ops.financing[None, :], axis=1)
     pad = np.concatenate([cum, np.repeat(cum[:, -1:], need_days, axis=1)], axis=1)
     low = sliding_window_view(pad[:, 1:], need_days, axis=1)[:, :days].min(axis=2)
     return np.maximum(cum[:, :days] - low, 0)
 
 
-def prepare(setup: Setup, ops: Operating, need_days: int = NEED_DAYS) -> Line:
+def prepare(setup: Setup, ops: Operating, need_days: int | None = None) -> Line:
     days = (setup.horizon - setup.review).days
+    need_days = setup.need_days if need_days is None else need_days
     first = setup.review + timedelta(days=1)
     due_idx = np.array([[(next_business_day(add_months(first + timedelta(days=t), k)) - setup.review).days - 1
                          for k in range(1, setup.installments + 1)] for t in range(days)], dtype=np.int64)

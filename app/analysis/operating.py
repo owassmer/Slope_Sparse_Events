@@ -10,6 +10,11 @@ bank-only and event-adjusted views.
 The engine needs some categories apart: each `supplier_invoice` outflow on its own (Slope's line routes invoices one
 by one), customer receipts and debt service (the line's limit rule) and legal fees. `total` holds every operating
 flow, invoices included: `total` = the streams not split out + the split-out categories + the invoices, exactly.
+
+The common financial model's controls (spec §16.3, `Setup`) act here, on the streams, so every path shares them:
+- a cost plan scales every operating outflow except legal fees and debt service (the invoices too) from its start;
+- financing proceeds are booked on their completion day in `total` and in `financing`, which the operating need
+  leaves out; a debt booking's service is booked in `debt_service` (so the line's limit rule sees it).
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ from datetime import date, timedelta
 
 import numpy as np
 
+from app.analysis.setup import DRAWS, SEED, CostPlan, Financing, Setup
 from app.finance.bank import BankFeed
 from app.finance.calendar import is_business_day
 
@@ -30,6 +36,7 @@ MAX_BDAYS = 23
 INVOICE = "supplier_invoice"
 SPLIT = ("customer_receipts", "debt_service", "legal_fees")  # kept apart as daily arrays (all also inside `total`)
 LIMIT_CATEGORIES = ("customer_receipts", "debt_service")  # Slope's rule: receipts net of debt service
+UNCUT = ("legal_fees", "debt_service")  # outflows a cost plan leaves alone (dispute spend stops on its own)
 
 
 @dataclass
@@ -43,6 +50,7 @@ class Operating:
     invoices: np.ndarray
     by_category: dict[str, np.ndarray]
     history: dict[tuple[int, int], int]
+    financing: np.ndarray | None = None  # [days] financing proceeds, inside `total`, outside the operating need
 
     @property
     def draws(self) -> int:
@@ -102,7 +110,8 @@ def blocks(feed: BankFeed) -> tuple[dict[str, np.ndarray], np.ndarray, dict[str,
         six = sum(by.get(m, 0) for m in months) / len(months)
         three = sum(by.get(m, 0) for m in months[-RECENT_MONTHS:]) / RECENT_MONTHS
         scales[cat] = three / six if six else 1.0
-    streams = {k: np.zeros((len(months), MAX_BDAYS)) for k in ("other", *SPLIT)}
+    # "cut" repeats the non-invoice outflows a cost plan scales (already inside "other"); it is not a flow of its own
+    streams = {k: np.zeros((len(months), MAX_BDAYS)) for k in ("other", *SPLIT, "cut")}
     bdays = {m: _business_days(*m) for m in months}
     slots: dict[tuple[int, int], list[float]] = defaultdict(list)
     for d, cat, cents in txns:
@@ -113,14 +122,25 @@ def blocks(feed: BankFeed) -> tuple[dict[str, np.ndarray], np.ndarray, dict[str,
             slots[(k, pos)].append(cents * scales[cat])
         else:
             streams[cat if cat in SPLIT else "other"][k, pos] += cents * scales[cat]
+            if cents < 0 and cat not in SPLIT and cat not in UNCUT:
+                streams["cut"][k, pos] += cents * scales[cat]
     invoices = np.zeros((len(months), MAX_BDAYS, max((len(v) for v in slots.values()), default=1)))
     for (k, pos), v in slots.items():
         invoices[k, pos, :len(v)] = v
     return streams, invoices, scales, months
 
 
-def simulate(feed: BankFeed, horizon_days: int, draws: int, seed: int, variability: float = 1.0) -> Operating:
-    """Daily operating flows for `horizon_days` days after the review date (one block month per calendar month)."""
+def _day(review: date, d: date, what: str) -> int:
+    """Day index of a dated booking (day 0 = the day after the review date). History cannot be rebooked."""
+    if d <= review:
+        raise ValueError(f"{what} on {d} is not after the review date {review}")
+    return (d - review).days - 1
+
+
+def simulate(feed: BankFeed, horizon_days: int, draws: int, seed: int, variability: float = 1.0,
+             cost_plan: CostPlan | None = None, financing: tuple[Financing, ...] = ()) -> Operating:
+    """Daily operating flows for `horizon_days` days after the review date (one block month per calendar month),
+    with the cost plan and the financing bookings of the common financial model (none: the feed's continuation)."""
     review = feed.period_end
     streams, inv_block, _, months = blocks(feed)
     rng = np.random.default_rng(seed)
@@ -148,7 +168,26 @@ def simulate(feed: BankFeed, horizon_days: int, draws: int, seed: int, variabili
         flows = {k: v.mean(axis=0, keepdims=True) + variability * (v - v.mean(axis=0, keepdims=True))
                  for k, v in flows.items()}
         inv = inv.mean(axis=0, keepdims=True) + variability * (inv - inv.mean(axis=0, keepdims=True))
+    if cost_plan is not None:  # outflows other than legal fees and debt service fall by the share from its start
+        t0, share = max(_day(review, max(cost_plan.start, first), "the cost plan"), 0), cost_plan.share_bps / 10_000
+        flows["other"][:, t0:] -= share * flows["cut"][:, t0:]  # "cut" is negative: this adds the saving back
+        inv[:, t0:] *= 1 - share
+    flows.pop("cut")
     ints = {k: np.rint(v).astype(np.int64) for k, v in flows.items()}
     invoices = np.rint(inv).astype(np.int64)
-    total = sum(ints.values()) + invoices.sum(axis=2)
-    return Operating(total=total, invoices=invoices, by_category={k: ints[k] for k in SPLIT}, history=history(feed))
+    fin = np.zeros(horizon_days, dtype=np.int64)
+    for f in financing:  # proceeds on the completion day; a debt booking's service as debt-service outflows
+        if (t := _day(review, f.on, "financing")) < horizon_days:
+            fin[t] += f.amount_cents
+        for d, cents in f.service:
+            if (t := _day(review, d, "debt service")) < horizon_days:
+                ints["debt_service"][:, t] -= cents
+    total = sum(ints.values()) + invoices.sum(axis=2) + fin[None, :]
+    return Operating(total=total, invoices=invoices, by_category={k: ints[k] for k in SPLIT}, history=history(feed),
+                     financing=fin if financing else None)
+
+
+def simulate_for(feed: BankFeed, setup: Setup) -> Operating:
+    """The analysis's operating draws for a setup: the horizon plus the reserve's look-ahead, with its controls."""
+    days = (setup.horizon - setup.review).days
+    return simulate(feed, days + setup.need_days, DRAWS, SEED, setup.variability, setup.cost_plan, setup.financing)

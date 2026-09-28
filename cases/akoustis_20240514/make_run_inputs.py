@@ -117,6 +117,53 @@ draw = max(invoices)
 draw_txn = next(t for t in feed.transactions if t["category"] == "supplier_invoice" and -t["amount_cents"] == draw
                 and start <= date.fromisoformat(t["date"]) <= end)
 
+# The common financial model's scenario settings (spec §16.3), shared by every path.
+q3 = [t for t in feed.transactions if "2024-01-01" <= t["date"] <= "2024-03-31"]
+burn = -sum(t["amount_cents"] for t in q3 if t["category"] in ("customer_receipts", "payroll", "legal_fees",
+                                                                  "supplier_invoice"))
+cut_base = -sum(t["amount_cents"] for t in q3 if t["amount_cents"] < 0 and t["category"] not in (
+    "customer_receipts", "debt_service", "legal_fees", "equity_proceeds"))
+assert burn == 779_100_000, burn  # the 10-Q's March-quarter operating cash burn (the call: "$7.8 million")
+CUT_BPS = int((Decimal(3) * burn * 1000 / cut_base).to_integral_value())  # 30% of the burn, over the outflows cut
+common_model = {
+    "note": ("Settings every path shares (spec §16.3). Central: the feed's historical continuation, no financing, a "
+             "30-day operating reserve. Each scenario changes one setting and states its basis."),
+    "central": {"need_days": 30, "financing": [], "cost_plan": None},
+    "scenarios": {
+        "equity_injection": {
+            "financing": [{"date": "2024-06-14", "amount_cents": 500_000_000, "kind": "equity", "service": []}],
+            "basis": ("A declared scenario, not the record: a plain equity injection of USD 5.0M booked on 14 Jun 2024, "
+                      "one month after the review. On 14 May the company was re-activating its at-the-market program "
+                      "(ATM Sales Agreement of 2 May 2022, USD 48.0M remaining, 10-Q of 13 May 2024); the agents have "
+                      "no obligation to sell, so the program fixes no amount or date. Usable capacity is probably "
+                      "limited by the baby-shelf cap (about one third of public float per 12 months, net of the "
+                      "January raise: roughly USD 9.7M, an inference, not stated before the cutoff); USD 5.0M sits "
+                      "inside it. The central case books no financing."),
+        },
+        "cost_plan": {
+            "cost_plan": {"start": "2024-05-15", "share_bps": CUT_BPS},
+            "basis": ("Earnings call of 13 May 2024 (CFO): aggressive expense reduction and cost-saving measures, as "
+                      "well as pursuing the investment tax credits, 'all of which we estimate will reduce our operating "
+                      "cash flow burn rate by an additional 30% sequentially in the June quarter'. The March quarter's "
+                      f"operating burn was USD {burn / 100:,.0f}; 30% of it is taken off every operating outflow except "
+                      f"the litigation-spend proxy and debt service ({cut_base / 100:,.0f} in the March quarter), a "
+                      f"{CUT_BPS / 100:.2f}% cut, from the day after the review to the horizon, so the June quarter's "
+                      "operating burn at the March run rate is about 30% below the March quarter's (USD 7.8M, itself "
+                      "31% below December). Opex guided to USD 10-11M a quarter is an accrual figure and is not used. The call does not split "
+                      "the tax-credit refund from the cost cuts, so the whole 30% is read as lower outflows; revenue "
+                      "stays on its own path (guided flat to down 5%)."),
+        },
+        "reserve_60_days": {
+            "need_days": 60,
+            "basis": "The operating reserve at 60 days of operating need instead of 30 (the one alternative setting).",
+        },
+    },
+    "legal_spend": ("The legal_fees category is a professional-fee PROXY (the March quarter's year-on-year rise in "
+                    "professional fees and property tax, 10-Q of 13 May 2024). It is the spend attributed to the "
+                    "dispute: it stops from the day the dispute ends (payment, settlement or vacatur); other spend "
+                    "continues."),
+}
+
 line = {
     "label": LABEL,
     "rule": "limit = 15% x (mean monthly customer_receipts - mean monthly debt_service), trailing three complete months",
@@ -177,6 +224,7 @@ inputs = {
     "permitted_offers": {"permitted_offer_set_id": "slope_supplied_terms_v1"},
     "policy": {"policy_config_id": "analysis_only"},
     "bank_feed": f"cases/{SNAP}/bank_feed.json",
+    "common_model": common_model,
     "baseline_profile": {
         "baseline_profile_id": "akoustis_ordinary_baseline_20240514",
         "borrower": "Akoustis Technologies, Inc.",
