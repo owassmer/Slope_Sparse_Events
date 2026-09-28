@@ -1974,7 +1974,11 @@
         "post": "after the post-trial ruling, or once the time for post-trial motions has run",
         "ripe": "on the date the notes' judgment default ripens",
         "claimant_theory": "the jury adopted {claimant}'s damages theory: judgment of {range}",
-        "without_principal_measure": "the jury found liability but rejected {principal_measure}: judgment of {amount}"
+        "without_principal_measure": "the jury found liability but rejected {principal_measure}: judgment of {amount}",
+        "claimed": "the claims are with the jury; no judgment exists and nothing is owed until one is entered",
+        "no_award": "the jury returned no money verdict: no judgment is entered",
+        "set_aside": "the court set the money judgment aside after trial: no money judgment remains",
+        "first": "the company's first response to the entered judgment"
       },
       "cash_facts": "engine_forward_run where the case's scenario sets parameter cash_facts (spec §16.4)",
       "verdict_form": "The case's verdict form (cases/<snapshot>/scenario.json verdict_form) lists, in the form's order, each question that can change which verdict branch a path takes: its node (verdict_finding or verdict_measure), the question quoted, and for each answer the next question or a verdict branch. Each is one jury decision and none asks for an amount. Code enumerates the answer sequences and gives each verdict branch the composite edge of its conjunctions (disjoint by construction, exhaustive over the answers); a question is asked once per sequence of earlier answers that reaches it. Questions that change only an amount inside a branch are collapsed there, with the reason recorded in the case's verdict_form.",

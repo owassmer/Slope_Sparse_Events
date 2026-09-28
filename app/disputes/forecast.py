@@ -239,11 +239,14 @@ STATE_PHRASES = {"entered": "the judgment as entered", "first": "the company's f
                  "raised": "the company raised equity when its cash fell below its 30-day operating need"}
 
 
-def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]]) -> list[str]:
-    """The situation a decision is asked in, in plain terms (the node's context tags rendered for Jev)."""
+def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]], labels: dict | None = None) -> list[str]:
+    """The situation a decision is asked in, in plain terms (the node's context tags rendered for Jev). `labels`: the
+    template's label templates filled from case inputs (4.1.0), read before the 4.0.0 phrases."""
     out = []
     for t in tags:
-        if t in INTERVAL_PHRASES:
+        if labels and t in labels:
+            out.append(labels[t])
+        elif t in INTERVAL_PHRASES:
             out.append(INTERVAL_PHRASES[t])
         elif t in STATE_PHRASES:
             out.append(STATE_PHRASES[t])
@@ -274,15 +277,17 @@ def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]]) -> list
     return out
 
 
+PENDING = "liability_pending"  # a claim at trial (template pending_money_claim, 4.1.0)
+NO_JUDGMENT = ("claimed", "no_award", "set_aside")  # a pending claim's amount classes with no money judgment
 VERDICT_NODES = ("verdict_finding", "verdict_measure")  # the jury's verdict-form questions (4.1.0 verdict_form)
 MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "patent_jmol", "trebling", "fees_awarded",
           "prejudgment_interest", "injunction")
 # questions about an unpaid judgment: their facts pool only trajectories where an amount is still owed
-OWED = {"execute_pre_ruling", "stay_motion", "stay_approved", "registration_early", "debtor_response",
+OWED = {"execute_pre_ruling", "stay_motion", "stay_approved", "registration_early", "debtor_response", "judgment_response",
         "enforce_after_final", "settlement_offer", "settlement_accept", "holders_act_judgment"}
 # questions whose actor weighs the contract dates ahead: settlement, the cash floor, cash running out, the notes
 DATED = {"settlement_offer", "settlement_accept", "petition_cash_floor", "financing_at_floor", "petition_cash_out",
-         "holders_act_judgment",
+         "holders_act_judgment", "judgment_response", "listing_kept",
          "holders_act_delisting", "holders_involuntary", "petition_on_notes"}
 TRIGGER_PHRASES = {
     "judgment_default_entered": "the notes' judgment default (§7.01(i)) on the judgment as entered: 60 days after "
@@ -547,6 +552,19 @@ class Forecaster:
         walk(form["start"], (), [])
         return {b: parts for b, parts in out.items() if parts}
 
+    def labels(self, d: DisputeInstance) -> dict[str, str]:
+        """A pending claim's label templates filled from case inputs (never a party name in the contract); {} for 4.0.0
+        disputes. The claimant's branch is told its range over the enhancement settings, never one figure."""
+        if d.stage != PENDING:
+            return {}
+        from app.analysis.events import verdict_amount
+
+        lo, hi = (verdict_amount(d, self.m, "claimant_theory", {"claimant_enhancements": x}) for x in (False, True))
+        fill = {"claimant": d.counterparty, "range": f"{usd(min(lo, hi))} to {usd(max(lo, hi))}",
+                "amount": usd(verdict_amount(d, self.m, "without_principal_measure", self.sens)),
+                **self.m.get("case_labels", {})}
+        return {k: v.format_map(fill) for k, v in self.m["templates"]["pending_money_claim"]["label_templates"].items()}
+
     def verdict_context(self, n: Node) -> dict:
         """A verdict-form question as the jury meets it: the question quoted, what is asked of it, and its earlier
         answers on the form."""
@@ -564,7 +582,7 @@ class Forecaster:
     def paths(self, d: DisputeInstance) -> list[DisputePath]:
         """Every structurally feasible path through the dispute's chains (see the module docstring)."""
         if d.borrower_role != "debtor" or d.stage not in ("post_trial", "judgment_entered", "enforcement",
-                                                           "appeal_filed", "appeal_pending"):
+                                                           "appeal_filed", "appeal_pending", PENDING):
             return [DisputePath(instance_id=d.instance_id, steps=(), outcome="outside_chains", edges=())]
         W = _Walk(self, d)
         return W.run()
@@ -852,7 +870,8 @@ class Forecaster:
         readings, read_from = self._readings(d, n.question_id)
         evidence, fids, record = self._evidence(d, n.node, read_from)
         verdict = n.node in VERDICT_NODES
-        ctx = [] if verdict else context_phrases([c for c in n.context.split("|") if c], self.class_range)
+        ctx = [] if verdict else context_phrases([c for c in n.context.split("|") if c], self.class_range,
+                                                 self.labels(d))
         state = {"case": {"as_of": fmt(self.review), "analysis_period_ends": fmt(self.horizon),
                           "company": self.borrower, "counterparty": d.counterparty,
                           "obligation": f"{self.m['natures'].get(d.nature, d.nature)}, {d.order_reference}"},
@@ -906,6 +925,10 @@ class _Walk:
         self.fc, self.d, self.out = fc, d, []
         self.fin = next((f for f in d.financing if f.status != "superseded"), None)
         self.N = fc.days
+        self.pend = d.stage == PENDING
+        self.resp = "judgment_response" if self.pend else "debtor_response"  # the template's response node
+        self.quiet = "continue" if self.pend else "neither"  # the branch that books nothing
+        self.seek = "continue" if self.pend else "seek_sale_or_financing"  # the branch re-asked at the next milestone
         if self.fin is not None and fc.reach is not None and self.fin.principal_cents <= fc.reach:
             raise NotImplementedError("Paying the notes is arithmetically possible on some trajectory; the chains remove "
                                       "that branch only when the principal exceeds cash on every trajectory")
@@ -925,7 +948,10 @@ class _Walk:
         held, never = self.fc.situation(self.d, s.steps + at, conds)
         out = []
         for c in conds:
-            if c == "ruled":
+            if c == "ruled" and self.pend and s.cls in NO_JUDGMENT:
+                if s.cls not in ctx:  # no money judgment on the path: that is the situation
+                    out.append(s.cls)
+            elif c == "ruled":
                 if held & {"settled", "paid"}:  # the judgment is no longer owed: its amount is not the situation
                     continue
                 if c in held and s.cls not in ctx:
@@ -980,8 +1006,15 @@ class _Walk:
         self.binary(s, "settle", interval, [[(a3, "yes"), (q4, "yes")]], (a3, q4),
                     lambda y: self.tail(y, "settled"), then_no)
 
+    def cx(self, s: _S) -> tuple[str, ...]:
+        """A pending claim's nodes that 4.0.0 keys without an amount class carry the verdict branch."""
+        return (s.cls,) if self.pend else ()
+
     def run(self) -> list[DisputePath]:
         d, s = self.d, _S()
+        if self.pend:  # template pending_money_claim: settlement before the verdict, then the verdict
+            self.settle(_S(cls="claimed"), "I0", self.verdict)
+            return self.out
         if d.stage == "post_trial" and any(m.kind in ("rule_50b", "rule_52b", "rule_59a", "rule_59e")
                                            for m in d.motions):
             self.settle(s, "I1", self.q1)
@@ -998,9 +1031,34 @@ class _Walk:
         lower = self.fc.m["parameters"]["bond_collateral_share_bps"]["lower"] / 10_000
         return f"beyond:{total}:0" if self.fc.reach is not None and total * lower > self.fc.reach else f"amt:{total}:0"
 
+    # a pending claim: the verdict (J1 composites over the verdict form), entry, post-trial motions
+    def verdict(self, s: _S) -> None:
+        branches = self.fc.m["templates"]["pending_money_claim"]["verdict_branches"]
+        for b, parts in self.fc.verdict_classes(self.d).items():
+            y = s.add(("verdict", "I0", b), (composite(parts), "yes"), cls=b)
+            if branches[b]["judgment"]:
+                self.entry(y)
+            else:  # no money judgment: no enforcement, stay, registration or judgment-default node on the path
+                self.tail(y, "no_judgment")
+
+    def entry(self, s: _S) -> None:
+        """The company's response on the day the judgment is entered (D2), then its post-trial motions (D1)."""
+        if not self.arises(s, (self.resp, "entry", self.quiet)):
+            return self.motions(s)
+        self.a4(s, "entry", self.motions, lambda y: self.emit(y, "petition"))
+
+    def motions(self, s: _S) -> None:
+        probe = ("post_trial_motions", "", "no")
+        if not self.arises(s, probe):
+            return self.post(s)
+        k = self.node("post_trial_motions", s.cls, s=s, probe=probe,
+                      assumptions=("a money judgment is entered on the verdict",))
+        self.settle(self.take(s, ("post_trial_motions", "", "yes"), (k, "yes"), (k,)), "I1", self.q1)
+        self.post(self.take(s, probe, (k, "no"), (k,)))
+
     # I1: before the post-trial ruling
     def q1(self, s: _S) -> None:
-        k = self.node("execute_pre_ruling", "I1", assumptions=("post-trial motions are pending",))
+        k = self.node("execute_pre_ruling", "I1", *self.cx(s), assumptions=("post-trial motions are pending",))
         self.stay_i1(self.take(s, ("execute_pre_ruling", "I1", "yes"), (k, "yes"), (k,)))
         self.ripe_i1(self.take(s, ("execute_pre_ruling", "I1", "no"), (k, "no"), (k,)))
 
@@ -1024,7 +1082,7 @@ class _Walk:
     def j9_i1(self, s: _S) -> None:
         """Cash is reachable before the ruling only through early registration. Its levy is the act that confronts
         the debtor; without the order nothing reaches cash before the ruling, and the debtor's response waits for it."""
-        k = self.node("registration_early", "I1", s=s, probe=("registration_early", "I1", "no"),
+        k = self.node("registration_early", "I1", *self.cx(s), s=s, probe=("registration_early", "I1", "no"),
                       assumptions=("the creditor executes before finality",))
         self.court(s, k, "registration_I1")
         self.a4_i1(self.take(s, ("registration_early", "I1", "yes"), (k, "yes"), early=True))
@@ -1033,27 +1091,30 @@ class _Walk:
     def a4_i1(self, s: _S) -> None:
         """The debtor's response on the levy day (order + levy_lag_days), where it falls inside the horizon, before stay approval and
         before the ruling on some trajectory (events.py debtor_response)."""
-        if not self.arises(s, ("debtor_response", "I1", "neither")):
+        if not self.arises(s, (self.resp, "I1", self.quiet)):
             return self.ripe_i1(s)
         self.a4(s, "I1", self.ripe_i1, lambda y: self.emit(y, "petition"))
 
     def a4(self, s: _S, phase: str, then, on_file) -> None:
         """The company's response: on the levy day before the levy (I1, post), or at the post-ruling judgment
         default's ripe date after it sought a sale or financing (ripe)."""
-        probe = ("debtor_response", phase, "seek_sale_or_financing")
+        probe = (self.resp, phase, self.seek)
         pay = self.fc.pay_possible(self.d, s.steps, probe)
-        branches = (("pay",) if pay else ()) + ("seek_sale_or_financing", "file", "neither")
+        rest = ("file", "continue") if self.pend else ("seek_sale_or_financing", "file", "neither")
+        branches = (("pay",) if pay else ()) + rest
         pending = s.stayed and phase in ("I1", "post")  # moved for a stay, not yet approved
         when = {"post": ("the creditor levies on the company's cash that day",),
-                "ripe": ("the judgment default under the notes has ripened that day",)}.get(phase, ())
-        k = self.node("debtor_response", phase, s.cls, "pay" if pay else "nopay",
+                "ripe": ("the judgment default under the notes has ripened that day",),
+                "entry": ("the money judgment was entered that day, unpaid; execution is stayed automatically for "
+                          "its first 30 days (Fed. R. Civ. P. 62(a))",)}.get(phase, ())
+        k = self.node(self.resp, phase, s.cls, "pay" if pay else "nopay",
                       "after_seek" if s.a4 == "seek" else "first", *(("stay_pending",) if pending else ()),
-                      s=s, probe=("debtor_response", phase, "neither"),
-                      assumptions=("the judgment is enforceable, unstayed and unpaid",) + when
+                      s=s, probe=(self.resp, phase, self.quiet),
+                      assumptions=(() if phase == "entry" else ("the judgment is enforceable, unstayed and unpaid",))
+                      + when
                       + (("the company has moved for a stay, not yet approved",) if pending else ()), branches=branches)
         for b in branches:
-            y = self.take(s, ("debtor_response", phase, b), (k, b), (k,),
-                          a4="seek" if b.startswith("seek") else "closed")
+            y = self.take(s, (self.resp, phase, b), (k, b), (k,), a4="seek" if b == self.seek else "closed")
             if b == "pay":
                 self.tail(y, "paid")
             elif b == "file":
@@ -1111,6 +1172,8 @@ class _Walk:
 
     # the ruling and after
     def ruling(self, s: _S) -> None:
+        if self.pend:
+            return self.ruling_pending(s)
         for c, parts in self.fc.ruling_classes(self.d).items():
             y = s.add(("ruling", "", c), (composite(parts), "yes"), cls=_label(c))
             if c == "none":
@@ -1119,6 +1182,17 @@ class _Walk:
                 self.tail(y, "new_trial")
             else:
                 self.post(y)
+
+    def ruling_pending(self, s: _S) -> None:
+        """J2, one binary node per verdict branch: the money judgment stands, or is set aside (no money judgment on
+        the path; any stay security released). A ruling after the period on every trajectory is not asked."""
+        probe = ("post_trial_ruling", "", "stands")
+        if not self.arises(s, probe):
+            return self.tail(s, "motions_pending")
+        k = self.node("post_trial_ruling", s.cls, s=s, probe=probe, assumptions=("post-trial motions are pending",))
+        self.post(self.take(s, probe, (k, "stands"), (k,)))
+        self.tail(self.take(s, ("post_trial_ruling", "", "set_aside"), (k, "set_aside"), (k,), cls="set_aside"),
+                  "set_aside")
 
     def post(self, s: _S) -> None:
         self.settle(s, "I2", self.appeal)
@@ -1152,7 +1226,7 @@ class _Walk:
 
     def a4_post(self, s: _S, then) -> None:
         """The company's response on the day the creditor's levy falls, before the levy."""
-        if s.a4 == "closed" or not self.arises(s, ("debtor_response", "post", "neither")):
+        if s.a4 == "closed" or not self.arises(s, (self.resp, "post", self.quiet)):
             return then(s)
         self.a4(s, "post", then, lambda y: self.tail(y, "petition"))
 
@@ -1180,7 +1254,7 @@ class _Walk:
     def ripe_post(self, s: _S) -> None:
         """After 'seek a sale or financing', the company responds again at the ripe default date."""
         after = lambda y: self.notes_petition(y, "post", lambda z: self.tail(z, "unresolved"))  # noqa: E731
-        if s.a4 == "seek" and self.arises(s, ("debtor_response", "ripe", "neither")):
+        if s.a4 == "seek" and self.arises(s, (self.resp, "ripe", self.quiet)):
             return self.a4(s, "ripe", after, lambda y: self.tail(y, "petition"))
         after(s)
 
@@ -1195,6 +1269,8 @@ class _Walk:
         dates = _listing_dates(self.fc, self.d)
         if min(dates["delisted_panel"], dates["delisted_suspension"]) >= self.N:
             return self.floor(s, outcome)  # delisting falls after the horizon
+        if "listing_kept" in self.fc.spec and dates["panel_decision"] >= self.N:
+            return self.kept(s, dates, outcome)  # listing_route: the company's hearing request alone decides
         own = {"reverse_split_board": "vote_call", "split_approved": "effective_by", "nasdaq_hearing": "hearing_request",
                "panel_exception": "panel_decision"}  # each question at its own decision date
 
@@ -1221,6 +1297,18 @@ class _Walk:
                 self.floor(y, outcome)
             else:
                 self.delisting_notes(y, c, dates[c], outcome)
+
+    def kept(self, s: _S, dates: dict, outcome: str) -> None:
+        """listing_route (4.1.0): the Panel decides after the period on every trajectory, so the stock stops being
+        listed inside it only by suspension without a timely hearing request: one company decision (D6)."""
+        if dates["delisted_suspension"] >= self.N:
+            return self.floor(s, outcome)
+        at = ("listing_date", "kept", "")
+        k = self.node("listing_kept", s=s, probe=at, assumptions=("the stock is not compliant on the deadline",))
+        self.fc.record((k,), self.fc.trace(self.d, s.steps + (at,)))
+        self.floor(self.take(s, ("listing", "kept", "listed"), (k, "yes")), outcome)
+        y = self.take(s, ("listing", "kept", "delisted_suspension"), (k, "no"))
+        self.delisting_notes(y, "delisted_suspension", dates["delisted_suspension"], outcome)
 
     def delisting_notes(self, s: _S, dc: str, delist: int, outcome: str) -> None:
         """Delisting is an Event of Default and a Fundamental Change, where the notes are not already due. The holders

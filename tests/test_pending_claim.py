@@ -103,3 +103,152 @@ def test_verdict_questions_ask_no_amount_and_no_cash():
         st, _, _ = fc.state(n)
         assert st["question"]["actor"] == "jury" and st["question"]["form_question"].startswith("Question No.")
         assert not {"projected_available_cash_at_decision_date", "amount_owed_at_decision"} & set(st["path_facts"])
+
+
+# --- §7.9 tests 1-9 on the 14 May tree (no Jev) --------------------------------------------------------------------
+
+ENFORCEMENT = {"execute_pre_ruling", "stay", "registration_early", "judgment_response", "enforce", "judgment_default",
+               "post_trial_motions", "post_trial_ruling"}
+
+
+@pytest.fixture(scope="module")
+def tree():
+    fc, d = forecaster()
+    return fc, d, fc.paths(d), fc.bank_paths()
+
+
+def test_1_every_path_family_sums_to_one(tree):
+    """Composition: under random Dirichlet answers for every node, the dispute's and the bank view's path
+    probabilities each sum to 1 (every composite is disjoint and exhaustive)."""
+    from app.disputes.forecast import Dist, path_probability
+
+    fc, _, paths, bank = tree
+    rng = np.random.default_rng(11)
+    for _ in range(5):
+        dist = Dist({k: dict(zip(n.branches, rng.dirichlet(np.ones(len(n.branches))), strict=True))
+                     for k, n in {**fc.nodes, **fc.bank_nodes}.items()})
+        for family in (paths, bank):
+            assert abs(sum(path_probability(p.edges, dist) for p in family) - 1) < 1e-9
+
+
+def test_2_a_missing_judgment_never_activates_enforcement(tree):
+    """After no_award or set_aside no enforcement, stay, registration, judgment-default or response step exists, and
+    the engine books no levy or lock from then on."""
+    fc, d, paths, _ = tree
+    seen = 0
+    for p in paths:
+        cut = next((i for i, s in enumerate(p.steps) if s in (("verdict", "I0", "no_award"),
+                                                                ("post_trial_ruling", "", "set_aside"))), None)
+        if cut is None:
+            continue
+        assert not {s[0] for s in p.steps[cut + 1:]} & ENFORCEMENT, p.steps
+        if seen < 25:
+            ch = chain()
+            ch.run(p.steps)
+            day = ch.V if p.steps[cut][0] == "verdict" else ch.F
+            after = np.arange(ch.N)[None, :] >= day[:, None]
+            held = np.cumsum(ch.ev.lock, axis=1)  # cash locked as stay security at each day's end
+            assert not (held * after).any()  # nothing locked from the day the path has no money judgment
+            if p.steps[cut][0] == "verdict":
+                assert (ch.taken == 0).all() and (ch.owed_at(np.full(ch.n, ch.N - 1)) == 0).all()
+        seen += 1
+    assert seen > 0
+
+
+def test_3_clocks_move_with_the_modeled_verdict():
+    from app.analysis.events import business_days_after
+
+    ch, tr = run((("verdict", "I0", "claimant_theory"), ("judgment_response", "entry", "continue"),
+                  ("post_trial_motions", "", "yes")))
+    window = {ch.ix(__import__("datetime").date.fromisoformat(x)) for x in fx.model()["parameters"]["verdict_window"]["days"]}
+    assert set(np.unique(ch.V)) <= window and len(set(np.unique(ch.V))) > 1
+    for v, e in zip(ch.V, ch.E_ix, strict=True):
+        assert e == ch.ix(business_days_after(fx.REVIEW + __import__("datetime").timedelta(days=int(v) + 1), 1))
+    assert (ch.e_ix == ch.E_ix + 31).all() and (tr.day[-1] == ch.E_ix + 28).all()
+    assert (ch.F >= ch.E_ix + 28 + 21).all()
+
+
+def test_4_branch_amounts():
+    from app.analysis.events import verdict_amount
+
+    m, d = fx.model(), fx.pending()
+    assert verdict_amount(d, m, "claimant_theory") == 6_752_641_200  # duplicates and the barred UDTPA claim out
+    assert verdict_amount(d, m, "without_principal_measure") == 142_641_200
+    assert verdict_amount(d, m, "without_principal_measure", {"lower_award_amount": True}) == 999_999_900
+    for sens in (None, {"lower_award_amount": True}):  # the lower branch never ripens §7.01(i)
+        ch, tr = run((("verdict", "I0", "without_principal_measure"), ("judgment_response", "entry", "continue"),
+                      ("post_trial_motions", "", "no")), sens)
+        for ctx in ("I1", "post"):
+            assert not ch.judgment_default(ctx)[1].any()
+
+
+def _sample(paths, pred, k=20):
+    got = [p for p in paths if pred(p)]
+    return got[:: max(1, len(got) // k)][:k]
+
+
+def test_5_claimant_branch_is_cash_and_date_identical_under_its_enhancements(tree):
+    """The claimant's branch is beyond cash under both claimant_enhancements settings: same cash, lock, petition, days."""
+    _, _, paths, _ = tree
+    for p in _sample(paths, lambda p: ("verdict", "I0", "claimant_theory") in p.steps):
+        (a, ta), (b, tb) = run(p.steps), run(p.steps, {"claimant_enhancements": True})
+        assert (ta.events.cash == tb.events.cash).all() and (ta.events.lock == tb.events.lock).all()
+        assert (ta.events.petition == tb.events.petition).all()
+        assert all((x == y).all() for x, y in zip(ta.day, tb.day, strict=True))
+
+
+def test_6_coupon_base_shares_sensitivity_cash():
+    from datetime import date
+
+    base, _ = run(())
+    cash, _ = run((), {"coupon_cash_share": True})
+    day = base.ix(date(2024, 6, 17))
+    assert (base.ev.cash[:, day] == 0).all()
+    assert (cash.ev.cash[:, day] == -132_000_000).all() and (cash.ev.cash.sum(axis=1) == -132_000_000).all()
+    filed, tr = run((("verdict", "I0", "claimant_theory"), ("judgment_response", "entry", "file")),
+                    {"coupon_cash_share": True})
+    early = (tr.events.petition >= 0) & (tr.events.petition <= day)
+    assert early.all() and (tr.events.cash[:, day] == 0).all()  # a petition before it: no coupon
+
+
+def test_7_cash_facts_equal_the_engine_on_every_trajectory(tree):
+    """§16.4: the cash every question's facts read (Chain.cum, whence tr.cash, pay feasibility and tau) equals the loan
+    engine's available cash, run forward from the line's opening state on the prefix's event cash, at every step."""
+    from app.analysis.engine import run as engine_run
+    from app.analysis.events import EventCash, Trace
+
+    _, _, paths, _ = tree
+    b, s = fx.basis(), fx.setup()
+    assert s.exposure.principal_cents > 0  # the line starts with an outstanding balance
+    for p in _sample(paths, lambda p: True, 8):
+        ch = chain()
+        ch.instrument_cash()
+        tr = Trace(ch.ev)
+        for step in p.steps:
+            ch.advance(tr, *step)
+            ev = ch.ev
+            eng = engine_run(b.line, b.opening - s.exposure.cash_cents,
+                             EventCash(ev.cash.copy(), ev.lock.copy(), ev.capacity.copy(), ev.petition.copy()))
+            assert (ch.cum() == eng.cash[:, :ch.N]).all(), step
+
+
+def test_8_settlement_is_bounded_and_ends_the_claim(tree):
+    """A settlement never exceeds cash above the 30-day need on its payment date, nor the amount claimed (I0) or owed;
+    paid, it resolves the dispute (claim, lock and legal spend end)."""
+    _, _, paths, _ = tree
+    for iv in ("I0", "I1"):
+        for p in _sample(paths, lambda p: ("settle", iv, "yes") in p.steps, 6):
+            i = p.steps.index(("settle", iv, "yes"))
+            ch0 = chain()
+            ch0.run(p.steps[:i])
+            ch = chain()
+            ch.run(p.steps[: i + 1])
+            pd = np.full(ch.n, 29) if iv == "I0" else ch.E_ix + 30
+            inside = pd < ch.N
+            above = np.maximum(ch0.cum()[ch.rows, np.clip(pd, 0, ch.N - 1)] - fx.basis().need[ch.rows, np.clip(pd, 0, ch.N - 1)], 0)
+            cap = np.full(ch.n, ch.claimed()) if iv == "I0" else ch0.owed_at(pd)
+            so = ch.settle_offer
+            assert (so[inside] <= np.minimum(above, cap)[inside]).all() and (so[~inside] == 0).all()
+            paid = so > 0
+            assert paid.any() and (ch.resolved[paid] == pd[paid]).all()
+            assert (np.cumsum(ch.ev.lock, axis=1)[paid, -1] == 0).all()
