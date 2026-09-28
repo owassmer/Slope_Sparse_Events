@@ -28,7 +28,7 @@
   };
   const pct = (p) => (p === null || p === undefined ? "–" : `${Math.round(100 * p)}%`);
   const pct1 = (p) => `${(100 * p).toFixed(1)}%`;
-  const pts = (d) => { const r = Math.round(100 * d); return `${r > 0 ? "+" : r < 0 ? "−" : ""}${Math.abs(r)} pts`; };
+  const pts = (d) => { const r = Math.round(100 * d); return `${r > 0 ? "+" : r < 0 ? "−" : ""}${Math.abs(r)} ${Math.abs(r) === 1 ? "pt" : "pts"}`; };
   const dmoney = (d) => (Math.abs(d) < 50 ? "$0" : `${d > 0 ? "+" : "−"}${money(Math.abs(d))}`);
   const usdText = (t) => String(t ?? "").replace(/\bUSD\s?(?=\d)/g, "$");  // case-input text: "USD 5.0M" -> "$5.0M"
   const cents = (t) => Math.round(100 * parseFloat(String(t).replace(/[$,]/g, "")));
@@ -135,22 +135,24 @@
   function ladder(host) {
     const rows = S.event.monthly, Wd = host.clientWidth || 1000, H = 300, m = { l: 56, r: 16, t: 16, b: 30 }, w = Wd - m.l - m.r, h = H - m.t - m.b;
     const out = rows.map((r) => S.event.daily.outstanding_mean[monthEnd(r.month)]);
-    const top = Math.max(...rows.map((r) => Math.max(r.drawn, r.due, r.collected)), ...out, (D.line || {}).principal_cents || 0) * 1.08 || 1;
+    const raw = Math.max(...rows.map((r) => Math.max(r.drawn, r.due, r.collected)), ...out, (D.line || {}).principal_cents || 0) || 1;
+    const mag = 10 ** Math.floor(Math.log10(raw / 4)), step = [1, 2, 2.5, 5, 10].map((s) => s * mag).find((s) => s * 4 >= raw), top = step * 4;
     const Y = (v) => m.t + h - (h * v) / top, gw = w / rows.length, bw = Math.min(26, gw / 4.5);
     const COL = { drawn: "#b8c2cf", due: "#8a9199", collected: "var(--teal)" };
     let g = "";
-    for (let k = 0; k <= 4; k++) { const v = (top / 4) * k; g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="${k ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${money(v)}</text>`; }
+    for (let k = 0; k <= 4; k++) { const v = step * k; g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="${k ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${money(v)}</text>`; }
+    const hz = D.meta.horizon, partial = (ym) => hz.startsWith(ym) && last(D.dates) === hz && +hz.slice(8) < 28;
     const range = S.assumption === "central" && !Object.keys(S.overrides).length ? D.collected_range || [] : [];
     rows.forEach((r, j) => {
       const x0 = m.l + gw * j + gw / 2 - 1.5 * bw;
       ["drawn", "due", "collected"].forEach((k, q) => { g += `<rect x="${x0 + q * bw}" y="${Y(r[k])}" width="${bw - 2}" height="${Y(0) - Y(r[k])}" fill="${COL[k]}"/>`; });
-      g += `<text x="${m.l + gw * j + gw / 2}" y="${H - 8}" text-anchor="middle">${MON[+r.month.slice(5) - 1]}</text>`;
+      g += `<text x="${m.l + gw * j + gw / 2}" y="${H - 8}" text-anchor="middle">${partial(r.month) ? fill(W.forecast.to, { date: fdate(hz) }) : MON[+r.month.slice(5) - 1]}</text>`;
       g += `<rect class="hov" data-j="${j}" x="${m.l + gw * j}" y="${m.t}" width="${gw}" height="${h}" fill="transparent"/>`;
     });
     const px = (j) => m.l + gw * j + gw / 2;
     g += `<path d="${out.map((v, j) => `${j ? "L" : "M"}${px(j)},${Y(v)}`).join("")}" fill="none" stroke="#c0842b" stroke-width="2"/>` + out.map((v, j) => `<circle cx="${px(j)}" cy="${Y(v)}" r="3.5" fill="#c0842b"/>`).join("");
     host.innerHTML = `<svg class="ladder" viewBox="0 0 ${Wd} ${H}" style="height:${H}px">${g}</svg>
-      <div class="lg"><span><i style="background:#b8c2cf"></i>${esc(T("funded"))}</span><span><i style="background:#8a9199"></i>${esc(W.terms.due.replace(" by {horizon}", ""))}</span><span><i style="background:var(--teal)"></i>${esc(T("collected"))}</span><span><i style="background:#c0842b"></i>${esc(T("outstanding"))}</span></div>`;
+      <div class="lg"><span><i style="background:#b8c2cf"></i>${esc(T("funded"))}</span><span><i style="background:#8a9199"></i>${esc(W.terms.due.replace(" by {horizon}", ""))}</span><span><i style="background:var(--teal)"></i>${esc(T("collected"))}</span><span><i style="background:#c0842b;height:3px;vertical-align:3px"></i>${esc(T("outstanding"))}</span></div>`;
     host.querySelectorAll(".hov").forEach((el) => {
       el.onmousemove = (ev) => {
         const j = +el.dataset.j, r = rows[j], cum = S.event.daily.collected_mean[monthEnd(r.month)];
@@ -202,11 +204,11 @@
       return `<div>${esc(pct(m / g.p))} · ${esc(txt)}</div>`;
     }).join("");
   }
-  const amountText = (g) => (g.lo === null ? "" : g.hi === 0 ? W.resolve.none : g.lo === g.hi ? money(g.lo) : `${money(g.lo)} – ${money(g.hi)}`);
+  const amountText = (g) => (g.lo === null ? "–" : g.hi === 0 ? W.resolve.none : g.lo === g.hi ? money(g.lo) : `${money(g.lo)} – ${money(g.hi)}`);
   function attributionRows(f) {
     const R = W.resolve, rows = [["filing", "petition_p", pct, -1], ["collected", "collected", money, 1], ["rate", "rate", pct, 1], ["past_due", "past_due", money, -1], ["stayed", "stayed", money, -1]];
     return rows.map(([t, k, fmt, good]) => {
-      const a = f.ordinary[k], b = f.full[k], d = a === null || b === null ? null : b - a;
+      const rd = (v) => (fmt === pct ? Math.round(100 * v) / 100 : Math.round(v / 1e5) * 1e5), a = f.ordinary[k], b = f.full[k], d = a === null || b === null ? null : rd(b) - rd(a);
       const cls = !d ? "" : (d > 0) === (good > 0) ? "good" : "bad";
       return `<tr><td>${esc(T(t))}</td><td>${fmt(a)}</td><td>${fmt(b)}</td><td class="${cls}">${d === null ? "–" : fmt === money ? dmoney(d) : pts(d)}</td></tr>`;
     }).join("") + `<tr><td colspan="4" class="mute small" style="text-align:left">${esc(R.attribution_note)}</td></tr>`;
@@ -270,8 +272,8 @@
       <h4 class="sub">${esc(R.attribution)}</h4><table class="at" style="max-width:760px"></table><h4 class="sub">${esc(R.when)}</h4><div class="wh"></div>
       <h4 class="sub">${esc(fill(R.grid))}</h4><p class="mute small">${esc(R.grid_note)}</p><div class="gd"></div>`;
     sec.querySelector(".cn").hidden = S.assumption === "central";
-    sec.querySelector(".vt").innerHTML = `<tr><th></th><th>${esc(R.p)}</th><th>${esc(R.judgment)}</th><th>${esc(R.collected)}</th><th>${esc(R.filing)}</th><th style="text-align:left">${esc(R.follows)}</th></tr>`
-      + verdictGroups().map((g) => `<tr${g.k < 0 ? ' class="sub"' : ""}><td${g.text ? ` class="hastip" data-tip="${esc(cap(g.text))}"` : ""}><b>${esc(g.label)}</b></td><td><b>${pct(g.p)}</b></td><td>${esc(amountText(g))}</td><td>${money(g.c / g.p)}</td><td>${pct(g.f / g.p)}</td><td class="fl">${follows(g)}</td></tr>`).join("");
+    sec.querySelector(".vt").innerHTML = `<tr><th></th><th>${esc(R.p)}</th><th>${esc(R.judgment)}</th><th>${esc(R.collected)}</th><th>${esc(fill(R.filing))}</th><th style="text-align:left">${esc(R.follows)}</th></tr>`
+      + verdictGroups().map((g) => `<tr${g.k === -2 ? ' class="sub"' : ""}><td${g.text ? ` class="hastip" data-tip="${esc(cap(g.text))}"` : ""}><b>${esc(g.label)}</b></td><td><b>${pct(g.p)}</b></td><td>${esc(amountText(g))}</td><td>${money(g.c / g.p)}</td><td>${pct(g.f / g.p)}</td><td class="fl">${follows(g)}</td></tr>`).join("");
     sec.querySelector(".at").innerHTML = `<tr><th></th><th>${esc(R.without)}</th><th>${esc(R.with)}</th><th>${esc(R.difference)}</th></tr>${attributionRows(f)}`;
     renderWhen(sec.querySelector(".wh"));
     sec.querySelector(".gd").innerHTML = gridHtml();
@@ -280,6 +282,7 @@
   // --- 4. the judgment that matters most ------------------------------------------------------------------------------
   const dec = (i) => (W.decisions || {})[D.nodes[i].node] || {};
   const decShort = (i) => { const n = D.nodes[i], s = dec(i).short; return s ? fill(s) + (n.form ? ` (${n.form.form_question.split(":")[0]})` : "") : n.label; };
+  const situ = (i) => { const n = D.nodes[i]; return n.form ? ((n.form.earlier_answers || []).join("; ") || W.judgment.first) : n.sub; };
   const blabel = (i, b) => (dec(i).branches || {})[b] || b.replace(/_/g, " ");
   const PNODES = D.paths.edges.map((e) => {  // every node a path passes through, including inside its composites
     const s = new Set(); for (let j = 0; j < e.length; j += 2) { if (e[j] >= 0) s.add(e[j]); else for (const c of D.composites[-e[j] - 1]) for (const [n] of c) s.add(n); }
@@ -324,7 +327,7 @@
       <div class="jbar" id="${id}-bar"></div><div class="slabs" id="${id}-slabs"></div>
       <div class="sw"><input type="range" id="${id}-slider" min="0" max="100" step="1" value="${Math.round(100 * dist(i)[b])}"><span class="jm" style="left:${100 * jevDist(i)[b]}%" title="Jev"></span></div>
       <p class="mute small">${esc(J.drag)} <a href="#" id="${id}-reset"${n.key in S.overrides ? "" : " hidden"}>${esc(J.reset)}</a></p>
-      <h3>${esc(J.effect)}</h3><table class="eff"><tr><th></th><th id="${id}-h0"></th><th class="j" id="${id}-hj"></th><th id="${id}-h1"></th></tr>
+      <h3>${esc(J.effect)}</h3><p class="mute small" id="${id}-of"></p><table class="eff"><tr><th></th><th id="${id}-h0"></th><th class="j" id="${id}-hj"></th><th id="${id}-h1"></th></tr>
         <tr><td>${esc(T("collected"))}</td><td id="${id}-lo"></td><td class="j" id="${id}-at"></td><td id="${id}-hi"></td></tr>
         <tr><td>${esc(T("filing"))}</td><td id="${id}-flo"></td><td class="j" id="${id}-fat"></td><td id="${id}-fhi"></td></tr></table>
       ${ins.length ? `<h3>${esc(J.inputs)}</h3><dl class="inputs">${ins.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}
@@ -340,7 +343,7 @@
     $(`${id}-bar`).innerHTML = d.map((p, k) => `<i style="width:${100 * p}%;background:${BCOL[k % 3]}"></i>`).join("");
     $(`${id}-slabs`).innerHTML = `<span>${esc(n.branches.map((x, k) => `${blabel(i, x)} ${pct(d[k])}`).join(" · "))}</span>`;
     $(`${id}-reach`).textContent = fill(J.reach, { p: pct(nodeReach(i)) });
-    $(`${id}-h0`).textContent = fill(J.zero, { branch: bn }); $(`${id}-h1`).textContent = fill(J.hundred, { branch: bn }); $(`${id}-hj`).textContent = fill(J.at, { p: pct(d[b]) });
+    $(`${id}-h0`).textContent = "0%"; $(`${id}-h1`).textContent = "100%"; $(`${id}-of`).textContent = fill(J.of, { branch: bn }); $(`${id}-hj`).textContent = fill(J.at, { p: pct(d[b]) });
     $(`${id}-lo`).textContent = money(e.lo); $(`${id}-at`).textContent = money(e.at); $(`${id}-hi`).textContent = money(e.hi);
     $(`${id}-flo`).textContent = pct(e.flo); $(`${id}-fat`).textContent = pct(e.fat); $(`${id}-fhi`).textContent = pct(e.fhi);
     $(`${id}-reset`).hidden = !(n.key in S.overrides);
@@ -427,7 +430,7 @@
     host.innerHTML = `<p class="mute small">${esc(J.tornado_note)}</p><div class="levers">${L.map((l, r) => {
       const n = D.nodes[l.i], bn = blabel(l.i, n.branches[selB(l.i)]), a0 = fill(J.zero, { branch: bn }), a1 = fill(J.hundred, { branch: bn });
       const left = l.lo <= l.hi ? [a0, l.lo] : [a1, l.hi], right = l.lo <= l.hi ? [a1, l.hi] : [a0, l.lo];
-      return `<button class="lever" data-i="${l.i}"><span class="ll"><b>${esc(decShort(l.i))}</b><span class="lm">${esc(`${fill(J.at, { p: pct(dist(l.i)[selB(l.i)]) })} ${bn}`)} · ${esc(n.sub)}</span></span>
+      return `<button class="lever" data-i="${l.i}"><span class="ll"><b>${esc(decShort(l.i))}</b><span class="lm">${esc(`${fill(J.at, { p: pct(dist(l.i)[selB(l.i)]) })} ${bn}`)} · ${esc(situ(l.i))}</span></span>
         <span class="lt"><span class="rng" style="left:${pos(left[1])}%;width:${pos(right[1]) - pos(left[1])}%"></span><span class="mk" style="left:${pos(l.at)}%"></span>${r === 0 ? `<span class="mkl" style="left:${pos(l.at)}%">${esc(fill(J.at, { p: "" }).trim())} ${money(l.at)}</span>` : ""}
         <span class="endl" style="right:${100 - pos(left[1])}%">${esc(left[0])} · <b>${money(left[1])}</b></span><span class="endr" style="left:${pos(right[1])}%"><b>${money(right[1])}</b> · ${esc(right[0])}</span></span></button>`; }).join("")}</div>`;
     host.querySelectorAll(".lever").forEach((x) => (x.onclick = () => openNode(+x.dataset.i)));
@@ -454,12 +457,13 @@
     const sec = $("s-assumption"), A = W.assumption; if (!CEN) { sec.hidden = true; return; }
     const cmp = variant(S.compare), cf = vFigures(CEN), vf = cmp ? vFigures(cmp) : null;
     const rows = [["due", "due", money], ["collected", "collected", money], ["rate", "rate", pct], ["past_due", "past_due", money], ["not_yet_due", "not_yet_due", money], ["filing", "petition_p", pct], ["preference", "clawback", money], ["funded", "funded", money]];
-    const diff = (k, fmt) => { const a = cf[k], b = vf && vf[k]; return a === undefined || b === undefined || a === null || b === null ? "–" : fmt === money ? dmoney(b - a) : pts(b - a); };
+    const rd = (v, fmt) => (fmt === pct ? Math.round(100 * v) / 100 : Math.round(v / 1e5) * 1e5);
+    const diff = (k, fmt) => { const a = cf[k], b = vf && vf[k]; return a === undefined || b === undefined || a === null || b === null ? "–" : fmt === money ? dmoney(rd(b, fmt) - rd(a, fmt)) : pts(rd(b, fmt) - rd(a, fmt)); };
     sec.innerHTML = `<h2>${esc(W.sections.assumption)}</h2><p class="mute small">${esc(A.shown)}</p>
-      <div class="apick">${AS.map((a) => { const d = aDiff(a);
+      <div class="apick"><div class="ah"><span></span><span></span><span class="d">${esc(T("filing_short"))}</span><span class="d">${esc(T("collected"))}</span></div>${AS.map((a) => { const d = aDiff(a);
         const used = a.central ? S.assumption === "central" : a.id === S.assumption;
         return `<label class="${used ? "on" : ""}${!a.central && a.id === S.compare ? " cmp" : ""}"><input type="radio" name="asm" value="${esc(a.id)}"${used ? " checked" : ""}><span>${esc(a.central ? A.central : usdText(a.label))}${!a.central && a.id === S.compare ? ` <em class="tag">${esc(A.compared)}</em>` : ""}</span>
-          <span class="d">${a.central ? esc(T("filing_short")) + " " + pct(a.metrics.petition_p) : pts(d.f)}</span><span class="d">${a.central ? esc(T("collected")) + " " + money(a.metrics.collected) : dmoney(d.c)}</span></label>`; }).join("")}</div>
+          <span class="d">${a.central ? pct(a.metrics.petition_p) : pts(d.f)}</span><span class="d">${a.central ? money(a.metrics.collected) : dmoney(d.c)}</span></label>`; }).join("")}</div>
       ${cmp ? `<table class="at" style="max-width:720px"><tr><th></th><th>${esc(A.col_central)}</th><th>${esc(A.col_variant)}</th><th>${esc(A.col_diff)}</th></tr>
         ${rows.map(([t, k, fmt]) => `<tr><td>${esc(T(t))}</td><td>${fmt(cf[k])}</td><td>${fmt(vf[k])}</td><td>${diff(k, fmt)}</td></tr>`).join("")}</table>
         <p class="basis"><b>${esc(usdText(cmp.label))}.</b> ${esc(A.basis)}: ${esc(usdText(cmp.basis))}</p>` : ""}`;

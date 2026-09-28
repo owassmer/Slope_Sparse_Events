@@ -57,7 +57,8 @@
     "range": "Collected to date, P5–P95",
     "assumptions": "Assumptions",
     "assumptions_note": "Settings every outcome shares. Section 5 switches one of them.",
-    "months_hover": "{month}: funded {funded}, due {due}, collected {collected}; outstanding at month end {outstanding}"
+    "months_hover": "{month}: funded {funded}, due {due}, collected {collected}; outstanding at month end {outstanding}",
+    "to": "to {date}"
   },
   "resolve": {
     "verdict": "The verdict",
@@ -65,7 +66,7 @@
     "p": "Probability",
     "judgment": "Judgment",
     "collected": "Collected",
-    "filing": "Filing probability",
+    "filing": "Filing probability by {horizon}",
     "follows": "Most likely next",
     "attribution": "What the lawsuit adds",
     "attribution_note": "One forecast, read twice: with the lawsuit's cash effects, and with the lawsuit given no cash effect (the company's ordinary operating risk).",
@@ -110,27 +111,29 @@
     "tornado_note": "Expected collections with each judgment set to 0% and 100% of the named answer. Jev's own answer is shown beside each swing.",
     "earlier": "Earlier answers on the form",
     "none": "None",
-    "amount_unknown": "amount not stated"
+    "amount_unknown": "amount not stated",
+    "of": "0% and 100% of the answer: {branch}",
+    "first": "the form's first question"
   },
   "assumption": {
     "pick": "Assumption",
     "central": "Central",
-    "shown": "Shown: the assumption that moves the filing probability and collections most.",
+    "shown": "Compared below: the assumption with the largest combined move in filing probability and collection rate, in points.",
     "basis": "Basis",
-    "switched": "Figures on this page use: {label}.",
+    "switched": "This page uses: {label}.",
     "back": "Back to central",
     "col_central": "Central",
     "col_variant": "This assumption",
     "col_diff": "Difference",
-    "path_note": "Sections 3 and 4 break down the central forecast.",
+    "path_note": "The verdict table, the outcome grid and section 4 break down the central forecast; the other figures use the selected assumption.",
     "compared": "compared below"
   },
   "actual": {
     "button": "Show what actually happened",
     "hide": "Hide",
     "intro": "Everything below happened after the review date; none of it was available to the forecast.",
-    "filed": "{company} filed on {date}. The forecast gave a filing by that date {p}.",
-    "filed_after": "{company} filed on {date}, after the period ended on {horizon}. The forecast gave a filing by {horizon} {p}.",
+    "filed": "{company} filed for bankruptcy on {date}. The forecast put a filing by that date at {p}.",
+    "filed_after": "{company} filed for bankruptcy on {date}, after the period ended on {horizon}. The forecast put a filing by {horizon} at {p}.",
     "source": "source"
   },
   "ui": {
@@ -174,7 +177,7 @@
     "verdict_measure": {
       "short": "Jury: damages measure",
       "branches": {
-        "yes": "the claimant's principal measure",
+        "yes": "principal measure",
         "no": "another measure"
       }
     },

@@ -125,7 +125,7 @@ SHORT_TAG = {"levied": "after a levy", "unlevied": "no levy", "appealed": "on ap
              "notes_due": "notes due, unpaid", "delisted": "delisted", "motions_pending": "before ruling",
              "executing": "{claimant} executing", "cash_exhausted": "cash run out", "ripe": "notes' default date",
              "entered_not_acted": "entered judgment not acted on", "bank": "bank data alone",
-             "claimed": "before the verdict", "claimant_theory": "{claimant}'s theory", "no_award": "no award",
+             "claimed": "", "claimant_theory": "{claimant}'s theory", "no_award": "no award",
              "without_principal_measure": "lower award", "set_aside": "judgment set aside", "raise": "can raise equity",
              "noraise": "can't raise equity"}
 

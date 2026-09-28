@@ -249,3 +249,24 @@ def test_the_dev_page_has_no_reveal(small_page, monkeypatch):
     monkeypatch.setattr(web, "_DEV", page)
     r = TestClient(app).get("/dev/akoustis")
     assert r.status_code == 200 and 'id="actual"' not in r.text
+
+
+def test_the_page_code_and_vocabulary_name_no_party():
+    """page.js, page.html, words.json and page.py carry no party name: names come from the payload (spec §16.5)."""
+    import re
+
+    from app.analysis.build import short_name
+    from app.config import CASES_DIR, ROOT
+
+    names = set()
+    for f in CASES_DIR.glob("*/run_inputs.json"):
+        b = json.loads(f.read_text()).get("baseline_profile", {}).get("borrower")
+        names |= {short_name(b)} if b else set()
+    for f in (ROOT / "runs" / "recorded").glob("*/page.json"):  # the parties each recorded page names
+        names |= set((json.loads(f.read_text()).get("parties") or {}).values())
+    assert names
+    for rel in ("app/web/static/page.js", "app/web/templates/page.html", "app/web/static/words.json"):
+        text = (ROOT / rel).read_text()
+        assert not [n for n in names if re.search(rf"\b{re.escape(n)}\b", text)], rel
+    code = (ROOT / "app/analysis/page.py").read_text().split("# Settings.")[0]  # the dev page's settings and fixture follow
+    assert not [n for n in names if re.search(rf"\b{re.escape(n)}\b", code)]
