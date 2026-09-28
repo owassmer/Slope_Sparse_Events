@@ -108,4 +108,36 @@ SETTLED becomes Law. OPEN becomes evidence for the deciding actor's question, wi
 | L17 Post-trial motion deadlines and effect | New | SETTLED: Rules 50(b), 52(b), 59(b) and 59(e) motions are due 28 days after entry; timely ones toll the appeal clock (FRAP 4(a)(4)(A)); they do not stay execution (Rule 62, 2018 Advisory Committee Note; R2h). A fee motion (Rule 54(d)(2), 14 days) tolls only on a Rule 58(e) order |
 | L18 After a verdict with no money award | New | SETTLED in effect for the horizon: a claimant's Rule 59 new trial or Rule 50(b) motion after a defense verdict can yield money only after a retrial or a separate damages determination, which cannot fall by 10 Nov: the motion is ruled on no earlier than entry + 28 + 21 days plus the court's measured lag (§3), and this court last set a trial twelve months out (D.I. 198, 10 May 2023, setting 6 May 2024). No money judgment on any trajectory: the claimant's post-trial questions are not asked |
 
+---
+
+## 3. Clocks and parameters
+
+Every clock after the verdict runs from the **modeled** verdict and entry dates on the path, never from what later happened. Dates below are the base values with the modeled verdict of 17 May 2024 and entry of 20 May 2024; code computes them per trajectory. Review date 14 May 2024; horizon 180 days, to 10 Nov 2024 (spec §16.2). Draws, collections and the line follow spec §2.
+
+| Item | Rule and base value | Disposition |
+|---|---|---|
+| Verdict date V | The last scheduled trial day: jurors are provided for "from Monday, May 6, 2024 through Friday, May 17, 2024" (D.I. 550, 26 Apr); trial under way on day 7 on 14 May (minute entry). Base **17 May 2024** | Code timing (Record). Every later clock moves with it; no sensitivity is needed because a shift of days moves every clock together |
+| Judgment entry E | FRCP 58(b)(2), "promptly" (L14). Base **V + 1 business day = 20 May**. Sensitivity: entry deferred to the court's ruling on the post-verdict equitable remedies, dated like the post-trial ruling below | Bounded (`judgment_entry`) |
+| Execution available | FRCP 62(a): 30 days after entry. Base **20 Jun** | Law |
+| Post-trial motions filed | L17: within 28 days of entry. Base: on the deadline, **17 Jun** | Code timing (Law deadline) |
+| Briefing closes | D. Del. LR 7.1.2(b): answering brief 14 days after the opening brief, reply 7 days later. Base **8 Jul** (filing + 21). No stipulated schedule exists before the verdict | Code timing (Law); the existing `briefing_days_new_motion` (21) |
+| Post-trial ruling | Briefing close + one lag drawn from the judge's 10 fully briefed rulings on this docket (R4: 17, 39, 52, 57, 58, 65, 91, 104, 146, 159 days; all ruled by 2 May 2024, so the sample is pre-14-May). One common lag for all the post-trial motions, because which motions will be filed is unknown before the verdict. Ruling 25 Jul to 14 Dec; **8 of 10 draws inside the horizon** | Code timing (Data). Sensitivity: the later of two independent draws (several motions decided separately) |
+| Appeal deadline | FRAP 4(a)(4)(A): ruling + 30 | Code timing (Law) |
+| Stay approval | Motion + 21 days (LR 7.1.2) + a lag draw (R4). The motion may come "at any time after judgment is entered" (Rule 62(b)), so its day is the debtor's decision day (§4.1), at the earliest E | Code timing (Data) |
+| Early registration order (§1963) | The creditor's motion + 21 days + a lag draw (R4) | Code timing (Data) |
+| Levy | Registration order (or appeal deadline + 1 day, when final and unappealed) + `levy_lag_days` (base 0, sensitivity 30) | Code timing; lag Bounded (reused) |
+| §7.01(i) ripe dates (L11) | Entered reading: execution available + 60 days = **19 Aug**. Post-ruling reading: ruling + 60 (23 Sep to 10 Nov on 6 of 10 draws; otherwise after the horizon). Each only if the class is above $10.0M and the judgment is unpaid and not effectively stayed that day | Code timing; reading Bounded (`judgment_default_reading` = both, reused) |
+| Holders' notice and acceleration | Ripe date + `holder_notice_lag_days` (base 0, sensitivity 30) | Bounded (reused) |
+| Holders' own petition | §7.06: acceleration + 60 days (base); sensitivity at acceleration (§7.07). Entered reading: about **18 Oct**, inside. Post-ruling reading and delisting: after 10 Nov on every trajectory | Bounded (`holder_petition_route`, reused) |
+| Listing | Deadline 21 Oct; Determination 22 Oct; hearing request by 29 Oct; suspension without a hearing **1 Nov**; Panel decision ≥ 21 Nov (after the horizon) | Code timing (Law, §2.3); "not listed" Bounded (L12, reused) |
+| Notes coupon | 15 Jun 2024 (a Saturday; paid 17 Jun), inside; 15 Dec after the horizon | §16.3 common input (B8). Not an event-model parameter |
+| Settlement payment date | Interval start + 30 days (base); sensitivity the interval's end | Bounded (`settlement_date_in_interval`, reused) |
+| Petition after a decision to file | `petition_lag_days` base 0, sensitivity 30 | Bounded (reused) |
+| Bond and collateral | Bond = class amount + accrued §1961 interest + one year's forward interest (L7); collateral 100% of the bond, lower bound 80% (R2i) | Sourced (reused) |
+| §1961 rate | Latest weekly 1-year CMT published by 14 May (week ending 10 May 2024) (L8) | Bounded; the value is fetched from H.15 by the implementer |
+| Damages classes | §5 | Declared scenarios (code) |
+| **Operating reserve** | 30 days of operating need, one alternative (spec §16.3). The event model reads it in four places: the settlement amount, the reduced-security offer, whether a class is payable (§5), and the cash floor | §16.3 setting, owned by the common-model worker |
+| **Financing** | An explicit amount-and-date scenario shared by every path; central case adds none the record does not fix (spec §16.3). The 13 May re-activation of the at-the-market program ($48.0M remaining, 10-Q) fixes no amount or date, so it books nothing centrally | §16.3 setting, owned by the common-model worker |
+| Legal spend | Attributable spend stops when the dispute ends on the path (spec §16.3). The event model supplies the end date: payment or a paid settlement. A verdict of either kind, or a ruling that sets a judgment aside, does not end the dispute inside the horizon (post-trial motions, an appeal or a retrial follow, L18), so spend continues. Whether spend after the trial runs at the trial-period level is the §16.3 worker's proxy question, flagged to it | §16.3 rule; end dates from the event model |
+
 <!-- next -->
