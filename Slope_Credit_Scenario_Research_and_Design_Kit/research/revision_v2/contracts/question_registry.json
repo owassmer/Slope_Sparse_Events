@@ -1891,6 +1891,26 @@
       "application": "Code places the stage from the most advanced established event."
     },
     {
+      "version": "4.1.0",
+      "profile": "dispute_interpretation",
+      "state_fields": [
+        "obligation",
+        "evidence"
+      ],
+      "id": "event_trial_pending",
+      "primitive": "noul",
+      "question": "Does the cited text establish that the claims are being tried, or are set for trial, and no verdict has been returned?",
+      "applies_when": "Every accepted finding the agent cites for a live dispute.",
+      "prompt": {
+        "instructions": "Does the cited text establish that the claims are being tried, or are set for trial, and no verdict has been returned? Answer only about state.obligation, from state.evidence (judge the passage in state.evidence.passage; use its surrounding text and the related passages to understand it). This is a reading of the present state: do not predict what will happen. Do not judge amounts or dates; code sets them.",
+        "criteria": {
+          "true": "The text establishes that the claims are being tried, or are set for trial, and no verdict has been returned.",
+          "false": "The text does not establish it (it may be silent, or describe a request, a plan or a different obligation)."
+        }
+      },
+      "application": "Code places the stage from the most advanced established event."
+    },
+    {
       "id": "record_item_supplied",
       "version": "4.2.0",
       "profile": "evidence_routing",

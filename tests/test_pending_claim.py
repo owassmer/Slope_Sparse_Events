@@ -269,3 +269,14 @@ def test_questions_marked_cash_receive_cash_facts(tree):
         probs = [[path_probability(p.edges, Dist({**base, k: {b: float(b == x) for b in n.branches}})) for p in paths]
                  for x in n.branches]
         assert np.allclose(probs[0], probs[1]), k
+
+
+def test_every_reading_event_has_its_question():
+    """DisputeProfile.read asks event_<ev> for every event in readings.events; a missing question fails every
+    instantiate_dispute (4.1.0's trial_pending had none)."""
+    from app.agent.jev import registry_question
+    from app.disputes.rules import load_model
+
+    for ev in load_model()["readings"]["events"]:
+        q = registry_question(f"event_{ev}")
+        assert q["profile"] == "dispute_interpretation" and q["primitive"] == "noul"
