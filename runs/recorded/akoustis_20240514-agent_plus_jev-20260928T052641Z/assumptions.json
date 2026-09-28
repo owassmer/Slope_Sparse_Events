@@ -50,7 +50,7 @@
     "questions": 232,
     "cached": 229,
     "re_asked": 3,
-    "spent_usd": "0.000431718"
+    "spent_usd": "0.000426930"
    },
    "headline": {
     "due_horizon_cents": 92081353.29802543,
@@ -101,7 +101,7 @@
     "questions": 251,
     "cached": 248,
     "re_asked": 3,
-    "spent_usd": "0.000431718"
+    "spent_usd": "0.000426930"
    },
    "headline": {
     "due_horizon_cents": 91989975.85275795,
@@ -152,9 +152,9 @@
    "paths": 3293,
    "jev": {
     "questions": 238,
-    "cached": 237,
-    "re_asked": 1,
-    "spent_usd": "0.000135072"
+    "cached": 238,
+    "re_asked": 0,
+    "spent_usd": "0"
    },
    "headline": {
     "due_horizon_cents": 91313670.48580033,
@@ -309,9 +309,9 @@
    "paths": 2962,
    "jev": {
     "questions": 207,
-    "cached": 202,
-    "re_asked": 5,
-    "spent_usd": "0.000662088"
+    "cached": 204,
+    "re_asked": 3,
+    "spent_usd": "0.000426384"
    },
    "headline": {
     "due_horizon_cents": 90847200.95313914,
@@ -360,9 +360,9 @@
    "paths": 2737,
    "jev": {
     "questions": 203,
-    "cached": 198,
-    "re_asked": 5,
-    "spent_usd": "0.000662046"
+    "cached": 203,
+    "re_asked": 0,
+    "spent_usd": "0"
    },
    "headline": {
     "due_horizon_cents": 91644925.06302169,
@@ -466,9 +466,9 @@
    "paths": 2623,
    "jev": {
     "questions": 207,
-    "cached": 202,
-    "re_asked": 5,
-    "spent_usd": "0.000664062"
+    "cached": 204,
+    "re_asked": 3,
+    "spent_usd": "0.000426930"
    },
    "headline": {
     "due_horizon_cents": 91394142.35849418,

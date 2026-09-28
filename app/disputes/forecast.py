@@ -286,6 +286,8 @@ MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "pate
 # questions about an unpaid judgment: their facts pool only trajectories where an amount is still owed
 OWED = {"execute_pre_ruling", "stay_motion", "stay_approved", "registration_early", "debtor_response", "judgment_response",
         "enforce_after_final", "settlement_offer", "settlement_accept", "holders_act_judgment"}
+# questions whose actor weighs the 30-day operating need: the cash floor and cash running out
+NEED_NODES = ("petition_cash_floor", "financing_at_floor", "petition_cash_out")
 # questions whose actor weighs the contract dates ahead: settlement, the cash floor, cash running out, the notes
 DATED = {"settlement_offer", "settlement_accept", "petition_cash_floor", "financing_at_floor", "petition_cash_out",
          "holders_act_judgment", "judgment_response", "listing_kept",
@@ -749,22 +751,12 @@ class Forecaster:
             return own, common
         day, cash, owed = (np.concatenate([r[f][m] for r, m in zip(rows, masks, strict=True)])
                            for f in ("day", "cash", "owed"))
-        common["decision_date"] = {"p5": self._date(np.quantile(day, 0.05)), "p50": self._date(np.quantile(day, 0.5)),
-                                   "p95": self._date(np.quantile(day, 0.95))}
-        common["projected_available_cash_at_decision_date"] = {"p5": usd(int(np.quantile(cash, 0.05))),
-                                                               "p50": usd(int(np.quantile(cash, 0.5)))}
         own["amount_owed_at_decision"] = {"p50": usd(int(np.quantile(owed, 0.5))), "max": usd(int(owed.max()))}
-        if n.node in ("petition_cash_floor", "financing_at_floor", "petition_cash_out") and self.draws is not None:
-            need = np.concatenate([self.draws.basis.need[np.arange(len(r["day"])), np.clip(r["day"], 0, self.days - 1)][m]
-                                   for r, m in zip(rows, masks, strict=True)])
-            common["operating_need_30_days_at_decision"] = {"p50": usd(int(np.quantile(need, 0.5)))}
         merged = next((self.class_range[c] for c in n.context.split("|") if c in self.class_range), None)
         if merged is not None:  # a merged class: the range of its judgment amounts, beside the amount owed
             own["judgment_after_ruling"] = f"{usd(merged[0])} to {usd(merged[1])}"
             own["amount_owed_at_decision"]["basis"] = ("the lowest judgment in that range, with post-judgment "
                                                        "interest, less any amount collected")
-        if n.node == "financing_at_floor" and (eq := self._pooled(rows, masks, "raise_offer")) is not None:
-            common["equity_raise_available"] = self.raise_facts(eq)
         if reg.get("node") in ("stay_motion", "stay_approved"):
             own["bond_collateral_required"] = usd(int(np.quantile(self._collateral(d, owed, rows, masks), 0.5)))
         if n.node == "stay_approved" and (offer := self._pooled(rows, masks, "stay_offer")) is not None:
@@ -772,15 +764,36 @@ class Forecaster:
                                                "p50": usd(int(np.quantile(offer, 0.5)))}
         if n.node in ("settlement_offer", "settlement_accept"):
             own["settlement_offer"] = self._settlement(rows, masks)
-        if n.node in DATED:
-            for part, keep in ((own, True), (common, False)):
-                split = [{**r, "triggers": {k: v for k, v in (r.get("triggers") or {}).items()
-                                            if (k in DISPUTE_TRIGGERS) == keep}} for r in rows]
-                if dates := self._contract_dates(split, masks):
-                    part["contract_dates"] = dates
+        split = {keep: [{**r, "triggers": {k: v for k, v in (r.get("triggers") or {}).items()
+                                           if (k in DISPUTE_TRIGGERS) == keep}} for r in rows] for keep in (True, False)}
+        if n.node in DATED and (dates := self._contract_dates(split[True], masks)):
+            own["contract_dates"] = dates
+        need = (lambda: np.concatenate([self.draws.basis.need[np.arange(len(r["day"])), np.clip(r["day"], 0, self.days - 1)][m]
+                                        for r, m in zip(rows, masks, strict=True)])) if self.draws is not None else None
         fin = next((f for f in d.financing if f.status != "superseded"), None)
-        common.update(self.obligation_facts(fin))
+        common.update(self.ordinary_facts(n, day, cash, need, self._pooled(rows, masks, "raise_offer"),
+                                          (split[False], masks), fin))
         return own, common
+
+    def ordinary_facts(self, n: Node, day, cash, need, eq, dated: tuple, fin) -> dict:
+        """The path's facts under the ordinary obligations for a node's type: ONE builder for the forecast
+        (`facts_by_source`) and the ordinary view (`bank_facts`), so a question of a given node type gets the same
+        fact keys in both views, the dispute-only facts apart (design 14 May §7.12, orchestrator 28 Sep 2026: one fact
+        contract per node type). day, cash: the pooled decision days and available cash; need: a callable giving the
+        pooled 30-day operating need (None: no draws); eq: the pooled raise offer or None; dated: (rows, masks) whose
+        triggers are the instrument's only; fin: the borrower's existing obligation."""
+        out = {"decision_date": {"p5": self._date(np.quantile(day, 0.05)), "p50": self._date(np.quantile(day, 0.5)),
+                                 "p95": self._date(np.quantile(day, 0.95))},
+               "projected_available_cash_at_decision_date": {"p5": usd(int(np.quantile(cash, 0.05))),
+                                                             "p50": usd(int(np.quantile(cash, 0.5)))}}
+        if n.node in NEED_NODES and need is not None:
+            out["operating_need_30_days_at_decision"] = {"p50": usd(int(np.quantile(need(), 0.5)))}
+        if n.node == "financing_at_floor" and eq is not None:
+            out["equity_raise_available"] = self.raise_facts(eq)
+        if n.node in DATED and (dates := self._contract_dates(*dated)):
+            out["contract_dates"] = dates
+        out.update(self.obligation_facts(fin))
+        return out
 
     def obligation_facts(self, fin) -> dict:
         """The terms of the borrower's existing obligation that the path facts carry (spec §16.3: the same existing
@@ -1909,7 +1922,14 @@ def bank_facts(fc: Forecaster, n: Node) -> dict:
         eq = np.concatenate([r[3] for r in rows if len(r) > 3 and r[3] is not None]) \
             if any(len(r) > 3 and r[3] is not None for r in rows) else None
         inside = day < fc.days
-        if inside.any():
+        if fc.ordinary:  # spec §16.1's ordinary view: the forecast's own builder of the ordinary facts, per node type
+            if n.question_id in fc.no_cash or not inside.any():
+                return facts
+            trig = [{"day": r[0], "triggers": r[4] or {}} for r in rows]
+            return fc.ordinary_facts(n, day[inside], cash[inside], lambda: need[inside],
+                                     None if eq is None else eq[inside],
+                                     (trig, [r["day"] < fc.days for r in trig]), fc.instrument())
+        if inside.any():  # the 20 Jun bank view (retired role-only state), as recorded
             q = lambda x, p: usd(int(np.quantile(x[inside], p)))  # noqa: E731
             facts = {"decision_date": {k: fc._date(np.quantile(day[inside], p))
                                        for k, p in (("p5", 0.05), ("p50", 0.5), ("p95", 0.95))},
@@ -1918,15 +1938,8 @@ def bank_facts(fc: Forecaster, n: Node) -> dict:
             if n.node == "financing_at_floor" and eq is not None:
                 facts["equity_raise_available"] = fc.raise_facts(eq[inside])
             coupon = {"day": day, "triggers": {"coupon": fc.bank_trace(()).triggers["coupon"]}}
-            if all(len(r) > 4 for r in rows):  # spec §16.1's ordinary view: each row's own dated triggers (the
-                trig = [{"day": r[0], "triggers": r[4] or {}} for r in rows]  # coupon, the notes' status)
-                dates = fc._contract_dates(trig, [r["day"] < fc.days for r in trig])
-            else:
-                dates = fc._contract_dates([coupon], [inside])  # the coupon: a common borrower input
-            if dates:
+            if dates := fc._contract_dates([coupon], [inside]):  # the coupon: a common borrower input
                 facts["contract_dates"] = dates
-            if fc.ordinary and n.question_id not in fc.no_cash:  # spec §16.3: the same existing debt on every path;
-                facts.update(fc.obligation_facts(fc.instrument()))  # its terms come from the instrument, as in the forecast
     return facts
 
 
