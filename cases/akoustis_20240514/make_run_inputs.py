@@ -13,7 +13,7 @@ observation and loan cover term is checked verbatim against the stored section t
 import json
 import sqlite3
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_DOWN, Decimal
 from pathlib import Path
 
@@ -125,6 +125,20 @@ cut_base = -sum(t["amount_cents"] for t in q3 if t["amount_cents"] < 0 and t["ca
     "customer_receipts", "debt_service", "legal_fees", "equity_proceeds"))
 assert burn == 779_100_000, burn  # the 10-Q's March-quarter operating cash burn (the call: "$7.8 million")
 CUT_BPS = int((Decimal(3) * burn * 1000 / cut_base).to_integral_value())  # 30% of the burn, over the outflows cut
+# CHIPS investment tax credit, low end prorated over the horizon (15 May to 10 Nov 2024): USD 2.8M over 12 months,
+# booked at each calendar month's last day inside the horizon (the horizon's last day for November).
+REVIEW, HORIZON = date(2024, 5, 14), date(2024, 11, 10)
+ITC_LOW = 280_000_000
+itc, d, acc = [], REVIEW + timedelta(days=1), 0
+while d <= HORIZON:
+    end = min(date(d.year + (d.month == 12), d.month % 12 + 1, 1) - timedelta(days=1), HORIZON)
+    days_so_far = (end - REVIEW).days
+    amt = ITC_LOW * days_so_far // 365 - acc
+    acc += amt
+    itc.append({"date": end.isoformat(), "amount_cents": amt, "kind": "receipt", "service": []})
+    d = end + timedelta(days=1)
+assert acc == ITC_LOW * 180 // 365 == 138_082_191, acc
+
 common_model = {
     "note": ("Settings every path shares (spec §16.3). Central: the feed's historical continuation, no financing, a "
              "30-day operating reserve. Each scenario changes one setting and states its basis."),
@@ -153,11 +167,37 @@ common_model = {
                       "the tax-credit refund from the cost cuts, so the whole 30% is read as lower outflows; revenue "
                       "stays on its own path (guided flat to down 5%)."),
         },
+        "chips_itc_low": {
+            "financing": itc,
+            "basis": ("A labelled sensitivity. Earnings call of 13 May 2024 (CEO): 'We currently estimate the amount of "
+                      "the refundable tax credit applicable to [Akoustis] to be between $2.8 and $4 million over the next "
+                      "nine to 12 months.' No date is given, so the central case books none inside the horizon. Here the "
+                      "low end is prorated evenly over 12 months and the part falling inside the horizon (USD "
+                      f"{acc / 100:,.0f}) is booked month by month, as a one-off receipt outside the operating need."),
+        },
         "reserve_60_days": {
             "need_days": 60,
             "basis": "The operating reserve at 60 days of operating need instead of 30 (the one alternative setting).",
         },
     },
+    "ordinary_obligations": {
+        "note": ("Existing debt on every path (spec §16.3), carried as case inputs; the dispute model owns what triggers "
+                 "a change. Nothing here is booked by the operating simulation."),
+        "items": [
+            {"instrument": "6.0% convertible senior notes due 2027", "due": "2024-06-15", "amount_cents": 132_000_000,
+             "form": "in cash and/or shares at the company's option",
+             "basis": ("USD 44.0M x 6% / 2 (10-Q Note 10; notes 8-K of June 2022: payable 15 Jun and 15 Dec). The "
+                       "13 May S-3 registers 5,000,000 more note-interest shares for resale. 15 Jun 2024 is a Saturday. "
+                       "The next coupon, 15 Dec 2024, is after the horizon.")},
+            {"instrument": "GDSI secured promissory note (USD 4.0M, no interest)", "due": "2025-01-01",
+             "amount_cents": 270_000_000, "form": "cash",
+             "basis": ("Step-down to USD 1.3M on the second anniversary of the 1 Jan 2023 closing (10-Q Note 10; FY2023 "
+                       "10-K Note 7): no GDSI cash falls due inside the horizon unless accelerated.")},
+        ],
+    },
+    "runway_statement": ("10-Q of 13 May 2024, Note 2 and MD&A overview: cash 'is sufficient to fund its operations into "
+                         "the third quarter of fiscal 2025', with substantial doubt about going concern. The MD&A's "
+                         "'at least the next twelve months' sentence contradicts both and is not used."),
     "legal_spend": ("The legal_fees category is a professional-fee PROXY (the March quarter's year-on-year rise in "
                     "professional fees and property tax, 10-Q of 13 May 2024). It is the spend attributed to the "
                     "dispute: it stops from the day the dispute ends (payment, settlement or vacatur); other spend "

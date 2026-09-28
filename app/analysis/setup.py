@@ -17,15 +17,16 @@ NEED_DAYS = 30  # the operating reserve's central setting (spec §16.3): days of
 
 @dataclass(frozen=True)
 class Financing:
-    """A financing completion booked on every path (spec §16.3): proceeds on `on`; a debt booking also carries its
-    service, dated payments in positive cents booked as debt-service outflows. Never inferred from an intention."""
+    """A dated cash booking shared by every path (spec §16.3): a financing completion (equity, or debt with its
+    service: dated payments in positive cents booked as debt-service outflows), or a one-off non-operating receipt
+    such as a tax refund. Proceeds on `on`, outside the operating need. Never inferred from an intention."""
     on: date
     amount_cents: int
-    kind: str  # "equity" | "debt"
+    kind: str  # "equity" | "debt" | "receipt"
     service: tuple[tuple[date, int], ...] = ()
 
     def __post_init__(self) -> None:
-        if self.kind not in ("equity", "debt") or (self.kind == "equity" and self.service):
+        if self.kind not in ("equity", "debt", "receipt") or (self.kind != "debt" and self.service):
             raise ValueError(f"financing kind {self.kind!r} with {len(self.service)} service payments")
 
 

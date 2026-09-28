@@ -75,6 +75,21 @@ def test_debt_books_its_proceeds_and_its_service_on_their_dates(central):
         Financing(on=date(2024, 6, 3), amount_cents=1, kind="equity", service=((date(2024, 7, 1), 1),))
 
 
+def test_the_tax_credit_receipts_land_on_their_dates_outside_the_need(central):
+    ops0, b0 = central
+    setup = setup_from_inputs(INPUTS, REVIEW, "chips_itc_low")
+    assert {f.kind for f in setup.financing} == {"receipt"}
+    assert sum(f.amount_cents for f in setup.financing) == 280_000_000 * 180 // 365  # the low end, over the horizon
+    ops, b = _sim(setup)
+    expect = np.zeros(ops.total.shape[1], dtype=np.int64)
+    for f in setup.financing:
+        expect[(f.on - REVIEW).days - 1] += f.amount_cents
+    assert (ops.total - ops0.total == expect[None, :]).all()
+    assert (b.need == b0.need).all()
+    with pytest.raises(ValueError):
+        Financing(on=date(2024, 6, 3), amount_cents=1, kind="receipt", service=((date(2024, 7, 1), 1),))
+
+
 def test_the_cost_plan_cuts_outflows_from_its_start_and_nothing_else(central):
     ops0, _ = central
     setup = setup_from_inputs(INPUTS, REVIEW, "cost_plan")
@@ -106,6 +121,6 @@ def test_the_reserve_is_one_setting_everything_reads(central):
 
 
 def test_the_controls_survive_the_recorded_setup():
-    for name in ("central", "equity_injection", "cost_plan", "reserve_60_days"):
+    for name in ("central", "equity_injection", "cost_plan", "chips_itc_low", "reserve_60_days"):
         setup = setup_from_inputs(INPUTS, REVIEW, name)
         assert setup_from_json(json.loads(json.dumps(setup_json(setup)))) == setup

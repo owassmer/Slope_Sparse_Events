@@ -52,7 +52,7 @@
       "limit_share_bps": 1500,
       "window": {
         "start": "2024-02-01",
-        "end": "2024-04-30"
+        "end": "2024-11-10"
       },
       "monthly_customer_receipts_cents": {
         "2024-02": 255161290,
@@ -115,11 +115,78 @@
         },
         "basis": "Earnings call of 13 May 2024 (CFO): aggressive expense reduction and cost-saving measures, as well as pursuing the investment tax credits, 'all of which we estimate will reduce our operating cash flow burn rate by an additional 30% sequentially in the June quarter'. The March quarter's operating burn was USD 7,791,000; 30% of it is taken off every operating outflow except the litigation-spend proxy and debt service (14,092,000 in the March quarter), a 16.59% cut, from the day after the review to the horizon, so the June quarter's operating burn at the March run rate is about 30% below the March quarter's (USD 7.8M, itself 31% below December). Opex guided to USD 10-11M a quarter is an accrual figure and is not used. The call does not split the tax-credit refund from the cost cuts, so the whole 30% is read as lower outflows; revenue stays on its own path (guided flat to down 5%)."
       },
+      "chips_itc_low": {
+        "financing": [
+          {
+            "date": "2024-05-31",
+            "amount_cents": 13041095,
+            "kind": "receipt",
+            "service": []
+          },
+          {
+            "date": "2024-06-30",
+            "amount_cents": 23013699,
+            "kind": "receipt",
+            "service": []
+          },
+          {
+            "date": "2024-07-31",
+            "amount_cents": 23780822,
+            "kind": "receipt",
+            "service": []
+          },
+          {
+            "date": "2024-08-31",
+            "amount_cents": 23780822,
+            "kind": "receipt",
+            "service": []
+          },
+          {
+            "date": "2024-09-30",
+            "amount_cents": 23013698,
+            "kind": "receipt",
+            "service": []
+          },
+          {
+            "date": "2024-10-31",
+            "amount_cents": 23780822,
+            "kind": "receipt",
+            "service": []
+          },
+          {
+            "date": "2024-11-10",
+            "amount_cents": 7671233,
+            "kind": "receipt",
+            "service": []
+          }
+        ],
+        "basis": "A labelled sensitivity. Earnings call of 13 May 2024 (CEO): 'We currently estimate the amount of the refundable tax credit applicable to [Akoustis] to be between $2.8 and $4 million over the next nine to 12 months.' No date is given, so the central case books none inside the horizon. Here the low end is prorated evenly over 12 months and the part falling inside the horizon (USD 1,380,822) is booked month by month, as a one-off receipt outside the operating need."
+      },
       "reserve_60_days": {
         "need_days": 60,
         "basis": "The operating reserve at 60 days of operating need instead of 30 (the one alternative setting)."
       }
     },
+    "ordinary_obligations": {
+      "note": "Existing debt on every path (spec §16.3), carried as case inputs; the dispute model owns what triggers a change. Nothing here is booked by the operating simulation.",
+      "items": [
+        {
+          "instrument": "6.0% convertible senior notes due 2027",
+          "due": "2024-06-15",
+          "amount_cents": 132000000,
+          "form": "in cash and/or shares at the company's option",
+          "basis": "USD 44.0M x 6% / 2 (10-Q Note 10; notes 8-K of June 2022: payable 15 Jun and 15 Dec). The 13 May S-3 registers 5,000,000 more note-interest shares for resale. 15 Jun 2024 is a Saturday. The next coupon, 15 Dec 2024, is after the horizon."
+        },
+        {
+          "instrument": "GDSI secured promissory note (USD 4.0M, no interest)",
+          "due": "2025-01-01",
+          "amount_cents": 270000000,
+          "form": "cash",
+          "basis": "Step-down to USD 1.3M on the second anniversary of the 1 Jan 2023 closing (10-Q Note 10; FY2023 10-K Note 7): no GDSI cash falls due inside the horizon unless accelerated."
+        }
+      ]
+    },
+    "runway_statement": "10-Q of 13 May 2024, Note 2 and MD&A overview: cash 'is sufficient to fund its operations into the third quarter of fiscal 2025', with substantial doubt about going concern. The MD&A's 'at least the next twelve months' sentence contradicts both and is not used.",
     "legal_spend": "The legal_fees category is a professional-fee PROXY (the March quarter's year-on-year rise in professional fees and property tax, 10-Q of 13 May 2024). It is the spend attributed to the dispute: it stops from the day the dispute ends (payment, settlement or vacatur); other spend continues."
   },
   "baseline_profile": {
