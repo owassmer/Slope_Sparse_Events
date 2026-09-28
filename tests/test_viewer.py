@@ -215,7 +215,6 @@ def test_a_run_page_reveals_the_actual_outcome_only_where_its_case_has_one(small
     reveal is served from the viewer only; the page reweights from the run's state."""
     import re
 
-    from app.analysis.page import CLASSES
     from app.config import OUTCOMES
 
     _, _, state = small_page
