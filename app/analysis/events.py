@@ -316,8 +316,12 @@ PENDING = "liability_pending"  # the stage of a claim at trial (template pending
 RESPONSES = ("debtor_response", "judgment_response")  # the debtor's response steps (4.0.0; 4.1.0)
 FLOOR_NODES = {"cash_floor": "petition_cash_floor", "cash_out": "petition_cash_out"}  # step -> its question node
 BANK = "bank"  # the bank view's chain: the common borrower inputs and the company's distress decisions, no dispute
-TRIGGERS = ("judgment_default_entered", "judgment_default_ruling", "appeal_deadline", "coupon", "listing_deadline",
-            "repurchase_due", "holders_petition_earliest")  # dated contract and rule triggers given to the questions (day index; BIG: none)
+# the dated contract and rule triggers given to the questions (day index; BIG: none), by source: those the dispute
+# sets (`trigger_days` under `self.d`: the appeal deadline and the judgment default's ripe dates, which exist only
+# because of a modeled judgment) and those of the borrower's instrument (under `self.fin`: the ordinary obligation)
+DISPUTE_TRIGGERS = ("judgment_default_entered", "judgment_default_ruling", "appeal_deadline")
+INSTRUMENT_TRIGGERS = ("coupon", "listing_deadline", "repurchase_due", "holders_petition_earliest")
+TRIGGERS = DISPUTE_TRIGGERS + INSTRUMENT_TRIGGERS
 
 
 PETITION_CAUSES = ("none", "enforcement", "notes", "cash_floor")

@@ -583,6 +583,46 @@ def test_7i_the_ordinary_view_asks_the_forecasts_questions_on_the_same_record(tr
     assert checked == {n.node for n in fc.bank_nodes.values()}
 
 
+def test_7j_the_ordinary_view_carries_the_ordinary_obligations_facts_and_no_dispute_fact(tree):
+    """Spec §16.3 (orchestrator, 28 Sep 2026): for each node type asked in both views, where the situation holds in
+    both, the ordinary view's path facts carry every fact the forecast's state takes from the ordinary obligations
+    (the instrument's terms, the raise available, the operating figures; the instrument's dated triggers, dated on
+    the ordinary view's own path) and none that exists only because of the dispute (the builder's `facts_by_source`
+    names each fact's source)."""
+    from app.analysis.events import INSTRUMENT_TRIGGERS
+    from app.disputes.forecast import TRIGGER_PHRASES, bank_state
+
+    fc, d, _, _ = tree
+    instrument = {TRIGGER_PHRASES[t].split("{")[0] for t in INSTRUMENT_TRIGGERS}
+    terms = fc.obligation_facts(fc.instrument())
+    assert terms, "the case's notes are an ordinary obligation"
+    checked = set()
+    for n in fc.bank_nodes.values():
+        ours = bank_state(fc, n)["path_facts"]
+        if "decision_date" not in ours:
+            continue
+        tags = set(c for c in n.context.split("|")[1:] if c)
+        for m in (m for m in fc.nodes.values() if m.node == n.node and m.branches == n.branches
+                  and tags <= set(m.context.split("|"))):
+            own, common = fc.facts_by_source(m, d)
+            if "decision_date" not in common:
+                continue
+            for k, v in common.items():
+                if k == "contract_dates":
+                    continue
+                assert k in ours, (n.key, m.key, k)
+                if k in terms:
+                    assert ours[k] == v, (n.key, m.key, k)
+            for k in own:
+                if k == "contract_dates":
+                    assert not set(own[k]) & set(ours.get(k, {})), (n.key, m.key)
+                else:
+                    assert k not in ours, (n.key, m.key, k)
+            assert all(any(lab.startswith(p) for p in instrument) for lab in ours.get("contract_dates", {})), n.key
+            checked.add(n.node)
+    assert {"financing_at_floor", "listing_kept"} <= checked, checked
+
+
 def test_8_settlement_is_bounded_and_ends_the_claim(tree):
     """A settlement never exceeds cash above the 30-day need on its payment date, nor the amount claimed (I0) or owed;
     paid, it resolves the dispute (claim, lock and legal spend end)."""
