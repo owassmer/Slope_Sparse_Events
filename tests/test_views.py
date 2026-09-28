@@ -346,3 +346,23 @@ def test_the_trace_carries_the_dated_triggers_the_engine_computes(base):
     fc = forecaster(base, [judgment()])
     assert set(fc.bank_trace(()).triggers) == set(g) and (fc.bank_trace(()).triggers["coupon"] == g["coupon"]).all()
     assert (fc.bank_trace(()).triggers["appeal_deadline"] >= 10**6).all()  # bank facts only
+
+
+def test_due_by_the_horizon_is_the_pages_due_tile_not_contractual(base):
+    """Fix 6: metrics report due by the horizon (installments due inside the period, the page's Due tile and
+    collections.csv's last cumulative due), split exactly into collected, past due and frozen due; the collection
+    rate is collected / due by the horizon. Contractual adds installments due after the horizon."""
+    from app.analysis.page import chart_view, path_scalars
+
+    _, m = bank_model(base, np.random.default_rng(3))
+    a = Analysis(load_feed(SNAP), SETUP, m)
+    probs = m.probs()
+    mt = a.r.metrics(probs)
+    tile = path_scalars(a.r)
+    assert mt["due_horizon_cents"] == pytest.approx(float(probs @ tile["due"]), abs=len(probs))
+    assert mt["due_horizon_cents"] == pytest.approx(chart_view(a.r, probs, a.months)["daily"]["contractual"][-1], abs=1)
+    assert mt["due_horizon_cents"] == pytest.approx(mt["collected_cents"] + mt["past_due_horizon_cents"]
+                                                    + mt["frozen_due_cents"])
+    assert mt["collection_rate"] == pytest.approx(mt["collected_cents"] / mt["due_horizon_cents"])
+    assert mt["contractual_cents"] >= mt["due_horizon_cents"]
+

@@ -21,7 +21,8 @@ import numpy as np
 
 from app.config import CASES_DIR, ROOT, VAR
 
-HEADLINE = ("contractual_cents", "collected_cents", "uncollected_horizon_cents", "stayed_claim_cents",
+HEADLINE = ("due_horizon_cents", "collected_cents", "collection_rate", "past_due_horizon_cents", "frozen_due_cents",
+            "contractual_cents", "uncollected_horizon_cents", "stayed_claim_cents",
             "not_yet_due_cents", "petition_p", "preference_exposed_cents", "drawn_cents")
 
 
@@ -149,8 +150,10 @@ def assemble(run_id: str, root: Path | None = None) -> dict:
     diff = lambda h: {k: (h[k] - c[k] if isinstance(h[k], (int, float)) and isinstance(c[k], (int, float))  # noqa: E731
                           else None) for k in h if k != "first_floor_median"}
     compact = {"run_id": run_id, "note": "Each economic assumption changes one declared setting from the central "
-               "case (spec §16.6). Amounts in cents; shares 0-1. 'due' is every installment contracted in the period; "
-               "the uncollected part is split into past due, stayed at a filing and not yet due.",
+               "case (spec §16.6). Amounts in cents; shares 0-1. due_horizon is every installment falling due by the "
+               "horizon (the page's Due tile) = collected + past due + frozen due (due and unpaid at a filing); "
+               "collection_rate = collected / due_horizon. contractual adds installments due after the horizon; the "
+               "uncollected part of it is split into past due, stayed at a filing and not yet due.",
                "variants": [{"id": e["id"], "label": e["label"], "central": e["central"], "change": e["change"],
                              "paths": e["paths"], "jev": e["jev"], "headline": e["headline"],
                              "vs_central": None if e["central"] else diff(e["headline"])} for e in entries]}
