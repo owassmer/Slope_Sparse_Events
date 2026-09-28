@@ -472,6 +472,59 @@ def test_7e_owed_facts_count_only_what_is_taken_before_the_decision(tree):
             assert not ((tr.day[j] < BIG) & (tr.day[j] >= ch.F)).any()  # no default ripens after the set-aside
 
 
+def test_7f_one_dispute_end_a_satisfying_levy_ends_it_and_legal_spend_never_returns(tree):
+    """Fix 4: a levy or payment that satisfies the judgment ends the dispute (`resolve`, as a payment does): legal spend
+    stops that day, nothing is owed and no later step arises on it; and after a petition an ended dispute's legal
+    spend stays stopped (the petition zeroes the estate's other event cash only)."""
+    from app.analysis.events import BIG
+
+    _, _, paths, _ = tree
+    b = fx.basis()
+    levy = _sample(paths, lambda p: ("verdict", "I0", "without_principal_measure") in p.steps
+                   and ("enforce", "post", "levy") in p.steps, 6)
+    assert levy
+    hit = 0
+    for p in levy:
+        ch, tr = run(p.steps)
+        for day, take in ch.writs:
+            day = np.broadcast_to(day, (ch.n,))
+            full = (take > 0) & (ch.owed_at(day + 1) == 0) & (day < ch.N)
+            assert (ch.resolved[full] <= day[full]).all(), p.steps
+            hit += int(full.sum())
+        t = np.arange(ch.N)[None, :]
+        ended = (t >= ch.resolved[:, None]) & (b.legal[:, :ch.N] != 0)
+        pet = np.where(ch.ev.petition < 0, BIG, ch.ev.petition)[:, None]
+        assert (tr.events.cash[ended & (t >= pet)] == -b.legal[:, :ch.N][ended & (t >= pet)]).all()
+    assert hit
+    after = _sample(paths, lambda p: ("settle", "I0", "yes") in p.steps and any(
+        x[0] in ("cash_floor", "cash_out") and x[2] in ("file", "yes") for x in p.steps), 4)
+    assert after
+    for p in after:
+        ch, tr = run(p.steps)
+        pet = ch.ev.petition
+        rows = (pet >= 0) & (ch.resolved < pet)
+        assert rows.any()
+        for r in np.flatnonzero(rows)[:20]:
+            tail = slice(int(pet[r]), ch.N)
+            assert (tr.events.cash[r, tail] == -b.legal[r, tail]).all()  # the add-back, and nothing else
+
+
+def test_7g_delisting_defaults_the_notes_whether_or_not_the_dispute_ended(tree):
+    """The notes' Event of Default and repurchase on delisting do not depend on the lawsuit: after a settlement (the
+    dispute ended) the delisting route still arises and can accelerate the notes, before any petition."""
+    _, _, paths, _ = tree
+    settled = [p for p in paths if ("settle", "I0", "yes") in p.steps
+               and ("listing", "kept", "delisted_suspension") in p.steps]
+    assert settled
+    assert any(x[0] == "delisting_notes" for p in settled for x in p.steps)
+    p = next(p for p in settled if any(x[0] == "delisting_notes" and x[2] == "accelerated" for x in p.steps))
+    ch, tr = run(p.steps)
+    j = next(i for i, x in enumerate(p.steps) if x[0] == "delisting_notes")
+    inside = tr.day[j] < ch.N
+    assert inside.any() and (ch.resolved[inside] < tr.day[j][inside]).all()  # ended before it, yet it arises
+    assert (ch.marks["notes_due"][inside] < 10**6).all()
+
+
 def test_8_settlement_is_bounded_and_ends_the_claim(tree):
     """A settlement never exceeds cash above the 30-day need on its payment date, nor the amount claimed (I0) or owed;
     paid, it resolves the dispute (claim, lock and legal spend end)."""

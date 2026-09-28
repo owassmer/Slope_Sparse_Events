@@ -577,11 +577,15 @@ class Chain:
         v = self.seen_at(day)  # a floor decision dated before the levy is in the cash it reaches
         ok = v.live(day) & (day < self.stayed_from) & (day < self.N)
         take = np.where(ok, np.minimum(self.owed_at(day, enforceable=True), np.maximum(v.cash_at(day), 0)), 0)
+        satisfied = (take > 0) & (take >= self.owed_at(day)) & (not self.retrial)  # the whole judgment, that day
         self.book(self.ev.cash, day, -take)
         self.mark("levied", day, take > 0)
         self.taken += take
         self.takes.append((np.asarray(day).copy(), take))
         self.levied |= take > 0
+        if self.pending:  # the dispute ends as a payment ends it (`resolve`): one rule for every booking that reads it
+            self.resolve(np.asarray(day), satisfied)
+            self.mark("paid", day, satisfied)
         self.writs.append((day, take))
 
     def flush_levy(self, rows: np.ndarray | None = None) -> None:
@@ -1008,7 +1012,11 @@ class Chain:
             return np.where(on, gate, BIG)
         if node == "delisting_notes":
             # delisting is an Event of Default and a Fundamental Change, except where the notes are already due
-            open_ = self.live(self.delisted) & (self.marks["notes_due"] > self.delisted) & (self.delisted < N)
+            # the notes' default and repurchase do not depend on the dispute: a pending claim's (4.1.0) opens wherever no
+            # petition precedes the delisting, the dispute ended or not; 4.0.0 as recorded (only while it is live)
+            pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
+            alive = self.delisted < pet if self.pending else self.live(self.delisted)
+            open_ = alive & (self.marks["notes_due"] > self.delisted) & (self.delisted < N)
             accel = self.delisted + int(self.p("holder_notice_lag_days"))
             rep = full(BIG)
             rep[self.delisted < N] = self.repurchase_day(self.delisted[self.delisted < N])
@@ -1258,6 +1266,9 @@ class Chain:
         pet = self.ev.petition
         after = (pet[:, None] >= 0) & (np.arange(self.N)[None, :] >= pet[:, None])
         self.ev.cash[after] = 0  # §362: nothing is collected from or paid by the estate after the petition
+        if self.pending:  # a dispute that ended (`resolve`) never re-adds its legal spend
+            ended = np.arange(self.N)[None, :] >= self.resolved[:, None]
+            self.ev.cash -= np.where(after & ended, self.basis.legal, 0)
         tr.events = self.ev
         tr.cause = np.where(self.ev.petition >= 0, self.pet_cause, 0).astype(np.int8)
         tr.marks = {k: v.astype(np.int32) for k, v in self.marks.items()}
