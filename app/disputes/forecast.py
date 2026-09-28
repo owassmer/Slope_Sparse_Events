@@ -1775,8 +1775,9 @@ class _BankWalk:
                                                                               ).digest == self.fc.bank_trace(
                     steps + (("delisting_notes", dc, nobody),)).digest:
                 classes[nobody] = classes.pop(filed) + classes[nobody]  # a holders' petition after the period
-        for c, parts in classes.items():
-            self.emit_dated(steps + (("delisting_notes", dc, c),), edges + ((composite(parts), "yes"),), outcome)
+        for c, parts in classes.items():  # one path per conjunction, with plain node edges (the page reweights the
+            for conj in parts:  # ordinary view edge by edge): the same probabilities as the class's composite
+                self.emit_dated(steps + (("delisting_notes", dc, c),), edges + tuple(conj), outcome)
 
     def emit_dated(self, steps: tuple, edges: tuple, outcome: str) -> None:
         """A whole path: the floor decisions' facts on their own day on it (kept once per distinct record)."""
