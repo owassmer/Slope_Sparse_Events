@@ -167,8 +167,9 @@ assert acc == ITC_LOW * 180 // 365 == 138_082_191, acc
 
 common_model = {
     "note": ("Settings every path shares (spec §16.3). Central: the feed's historical continuation, no financing, a "
-             "30-day operating reserve. Each scenario changes one setting and states its basis."),
-    "central": {"need_days": 30, "financing": [], "cost_plan": None},
+             "30-day cash floor, and Slope's automatic debit (collected in full when cash covers the installment). "
+             "Each scenario changes one setting and states its basis."),
+    "central": {"need_days": 30, "collection": "debit", "financing": [], "cost_plan": None},
     "scenarios": {
         "equity_injection": {
             "financing": [{"date": "2024-06-14", "amount_cents": 500_000_000, "kind": "equity", "service": []}],
@@ -201,9 +202,18 @@ common_model = {
                       "low end is prorated evenly over 12 months and the part falling inside the horizon (USD "
                       f"{acc / 100:,.0f}) is booked month by month, as a one-off receipt outside the operating need."),
         },
-        "reserve_60_days": {
+        "protect_need": {
+            "collection": "protect_need",
+            "basis": ("A borrower-behaviour sensitivity (spec §16.3 Collection): the borrower keeps its next 30 days of "
+                      "operating need back from Slope, so Slope collects min(owed, max(0, available - need)). Slope's "
+                      "mechanism is the automatic debit on each due date (the central case); this is an assumption "
+                      "about the borrower, not the product."),
+        },
+        "cash_floor_60_days": {
             "need_days": 60,
-            "basis": "The operating reserve at 60 days of operating need instead of 30 (the one alternative setting).",
+            "basis": ("The cash floor at 60 days of operating need instead of 30 (the one alternative setting): the "
+                      "company's cash-floor decision, Jev's cash facts and settlement and stay capacity read it. "
+                      "Collections are unchanged (Slope's debit does not read the floor)."),
         },
     },
     "ordinary_obligations": {
@@ -301,7 +311,7 @@ inputs = {
     },
 }
 # The line's history: the engine on the feed's own flows from the opening date to 14 May (one deterministic trajectory,
-# the central reserve); its state on 14 May is every forecast trajectory's starting exposure (Setup.exposure).
+# the central collection mode); its state on 14 May is every forecast trajectory's starting exposure (Setup.exposure).
 exposure, history = replay(feed, setup_from_inputs(inputs, feed.period_end), OPENED)
 assert history["limit_by_day_cents"][OPENED.isoformat()] == open_limit
 line["opening_state"] = {"note": ("The line's state on the review date, from app.analysis.history.replay: the engine's "

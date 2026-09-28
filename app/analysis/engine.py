@@ -10,9 +10,16 @@ Per trajectory (one joint event path x one operating draw), day by day from the 
   when outstanding principal + the invoice <= the day's limit, nothing is overdue and no petition has been filed. A
   routed invoice leaves the borrower's outflows that day and creates `installments` monthly installments of
   invoice x (1 + fee), in whole cents, the remainder on the last (the reference arithmetic of `SlopeOffer`).
-- **Collections** (§2.2). On each due date, and at each month-end while anything is overdue, Slope collects
-  min(owed, max(0, available - need)); `need` is the lowest point of the trajectory's cumulative operating flows over
-  the next 30 days relative to today (0 if they never fall below today's level). With need 0 this is the previous rule.
+- **Collections** (§2.2, §16.3 Collection). Slope attempts collection on each due date, and at each month-end while
+  anything is overdue, under the setup's `collection` mode:
+  - `debit` (the central case): Slope debits the installments owed in due-date order (draw order within a date).
+    Each is collected in full when available cash covers it at that point; otherwise the debit fails (no partial
+    debits) and the installment stays overdue until the next attempt. `need_days` never affects collections.
+  - `protect_need` (a sensitivity: the borrower keeps its operating need back): Slope collects
+    min(owed, max(0, available - need)).
+  `need` is the lowest point of the trajectory's cumulative operating flows over the next `need_days` days relative
+  to today (0 if they never fall below today's level). It is also the cash floor that the company's decisions, Jev's
+  facts and settlement and stay capacity read (through `Basis`), and the headroom metric subtracts it in both modes.
 - **Opening exposure** (`Setup.exposure`, a line opened before the review date). Its installments sit in the due
   schedule on their dates and its past-due amount falls due on day 0, so they are collected, block draws while
   overdue, and are stayed on a petition exactly as a new draw's; its principal counts against the limit; the cash its
@@ -29,7 +36,7 @@ so this is exact whenever the contract is fully collected).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 
 import numpy as np
@@ -41,7 +48,7 @@ from app.analysis.setup import NEED_DAYS as SETUP_NEED_DAYS
 from app.analysis.setup import SEED, Setup
 from app.finance.calendar import add_months, next_business_day
 
-NEED_DAYS = SETUP_NEED_DAYS  # the central reserve; a setup's own `need_days` is what the analysis reads
+NEED_DAYS = SETUP_NEED_DAYS  # the central cash floor; a setup's own `need_days` is what the analysis reads
 PREFERENCE_DAYS = 90  # 11 U.S.C. §547(b)(4)(A)
 TRAILING_MONTHS = 3
 
@@ -64,7 +71,7 @@ class Line:
     ops: Operating
     days: int
     limit: np.ndarray  # [draws, days] the line's limit on each day
-    need: np.ndarray  # [draws, days] operating need over the next 30 days
+    need: np.ndarray  # [draws, days] operating need over the next `need_days` days (the cash floor)
     due_idx: np.ndarray  # [days, installments] day index of each installment of a draw made on day t
     tail: int  # length of the contractual schedule (past the horizon)
     month_end: np.ndarray  # [days]
@@ -104,6 +111,9 @@ class Trajectories:
     draw_days: np.ndarray
     draw_amounts: np.ndarray
     opening_principal: int = 0  # the opening exposure's principal (inside `contractual`, not in `drawn`)
+    # [draws] failed collection attempts: under `debit`, installment debits that failed; under `protect_need`,
+    # attempts that left an amount owed
+    failed_debits: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.int64))
 
     @property
     def fees(self) -> np.ndarray:
@@ -214,6 +224,7 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Tr
     values are contiguous (every operation in the loop is per trajectory and in integers, so each path's rows are
     exactly what it computes alone), then each path is finished on its own rows."""
     s, n, days, b = line.setup, line.ops.draws, line.days, len(events)
+    debit = s.collection == "debit"
     base = np.ascontiguousarray(np.concatenate([line.ops.total[:, :days] + e.cash - e.lock for e in events]).T)
     pet = np.concatenate([np.where((e.petition >= 0) & (e.petition < days), e.petition, days) for e in events])
     need, limit, slots = _tiled(line, b)
@@ -223,12 +234,22 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Tr
     for d, cents in ex.installments:  # the opening installments, on their own due dates, on every trajectory
         due[(d - s.review).days - 1] += cents
     due[0] += ex.past_due_cents  # already overdue: owed from day 0, collection attempted that day
+    # `debit` keeps every installment: book[d] lists (rows, amounts) falling due on day d in draw order; `pend` holds
+    # the installments due and unpaid, oldest first per row
+    book: list[list] = [[] for _ in range(line.tail)] if debit else []
+    if debit:
+        every = np.arange(n * b)
+        if ex.past_due_cents:
+            book[0].append((every, np.full(n * b, ex.past_due_cents, dtype=np.int64)))
+        for d, cents in ex.installments:
+            book[(d - s.review).days - 1].append((every, np.full(n * b, cents, dtype=np.int64)))
+    pend_r, pend_a = np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64)
     collections = np.zeros((days, rn), dtype=np.int64)
     fundings = np.zeros((days, rn), dtype=np.int64)
     cash = np.empty((days, rn), dtype=np.int64)
     outstanding = np.empty((days, rn), dtype=np.int64)
     avail = np.full(rn, opening_cents + ex.cash_cents, dtype=np.int64)
-    owed, funded, contract, collected = (np.zeros(rn, dtype=np.int64) for _ in range(4))
+    owed, funded, contract, collected, failed = (np.zeros(rn, dtype=np.int64) for _ in range(5))
     funded += ex.principal_cents  # the principal formula below then reads the opening principal exactly
     contract += ex.owed_cents
     hr_rows, hr_vals, hr_days, d_rows, d_days, d_amts = [], [], [], [], [], []
@@ -249,10 +270,21 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Tr
             hr_vals.append((avail - need[t] - owed)[falls_due])
             hr_days.append(np.full(int(falls_due.sum()), t, dtype=np.int64))
         attempt = live & (falls_due | line.month_end[t]) & (owed > 0)
+        if debit and book[t]:
+            pend_r = np.concatenate([pend_r, *(r for r, _ in book[t])])
+            pend_a = np.concatenate([pend_a, *(a for _, a in book[t])])
         if attempt.any():
-            take = np.where(attempt, np.minimum(owed, np.maximum(avail - need[t], 0)), 0)
+            if debit:
+                take, paid, tried = _debit(avail, pend_r, pend_a, attempt, rn)
+                keep = np.ones(len(pend_r), dtype=bool)
+                keep[paid] = False
+                failed += np.bincount(pend_r[tried], minlength=rn)
+                pend_r, pend_a = pend_r[keep], pend_a[keep]
+            else:
+                take = np.where(attempt, np.minimum(owed, np.maximum(avail - need[t], 0)), 0)
+                avail -= take
+                failed += attempt & (owed > take)
             owed -= take
-            avail -= take
             collected += take
             collections[t] = take
             changed = True
@@ -268,6 +300,9 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Tr
             rows, amt = rows[ok], amts[ok]
             parts = installment_amounts(amt, s.fee_bps, s.installments)
             due[np.ix_(line.due_idx[t], rows)] += parts.T
+            if debit:
+                for k, d in enumerate(line.due_idx[t]):
+                    book[d].append((rows, parts[:, k]))
             funded[rows] += amt
             contract[rows] += parts.sum(axis=1)
             avail[rows] += amt  # Slope pays the supplier: the invoice leaves the borrower's outflows today
@@ -289,18 +324,42 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Tr
     hr = (cat(hr_rows), cat(hr_vals), cat(hr_days))
     dr = (cat(d_rows), cat(d_days), cat(d_amts))
     out = []
+    failed = failed.reshape(b, n)
     for j, ev in enumerate(events):
         lo, hi = j * n, (j + 1) * n
         sl = slice(lo, hi)
         mh, md = (hr[0] >= lo) & (hr[0] < hi), (dr[0] >= lo) & (dr[0] < hi)  # this path's entries, in order
         out.append(_finish(line, ev, pet[sl], due[sl], collections[sl], fundings[sl], cash[sl], outstanding[sl],
                            funded[sl], contract[sl], collected[sl], (hr[0][mh] - lo, hr[1][mh], hr[2][mh]),
-                           (dr[0][md] - lo, dr[1][md], dr[2][md])))
+                           (dr[0][md] - lo, dr[1][md], dr[2][md]), failed[j]))
     return out
 
 
+def _debit(avail: np.ndarray, pend_r: np.ndarray, pend_a: np.ndarray, attempt: np.ndarray, rn: int) -> tuple:
+    """Slope's automatic debits on the attempting rows: each pending installment in order (oldest first per row) is
+    collected in full when the row's available cash covers it, else it fails. Debits `avail` in place. Returns the
+    amount collected per row, the indices into `pend` that were paid, and those that failed."""
+    take = np.zeros(rn, dtype=np.int64)
+    idx = np.flatnonzero(attempt[pend_r])
+    if not idx.size:
+        return take, idx, idx
+    idx = idx[np.argsort(pend_r[idx], kind="stable")]  # by row, due-date order kept within each row
+    r, a = pend_r[idx], pend_a[idx]
+    start = np.flatnonzero(np.r_[True, r[1:] != r[:-1]])
+    rank = np.arange(len(r)) - np.repeat(start, np.diff(np.r_[start, len(r)]))
+    ok = np.zeros(len(r), dtype=bool)
+    for k in range(int(rank.max()) + 1):  # each row's k-th installment: one per row, so the rows are distinct
+        m = np.flatnonzero(rank == k)
+        rows, amts = r[m], a[m]
+        hit = avail[rows] >= amts
+        avail[rows[hit]] -= amts[hit]
+        take[rows[hit]] += amts[hit]
+        ok[m[hit]] = True
+    return take, idx[ok], idx[~ok]
+
+
 def _finish(line: Line, events: EventCash, pet, due, collections, fundings, cash, outstanding, funded, contract,
-            collected, hr, dr) -> Trajectories:
+            collected, hr, dr, failed) -> Trajectories:
     n, days = line.ops.draws, line.days
     petitioned = pet < days
     stayed = np.where(petitioned, contract - collected, 0)
@@ -321,4 +380,4 @@ def _finish(line: Line, events: EventCash, pet, due, collections, fundings, cash
         uncollected=contract - collected - stayed - not_yet_due, lender_pv=pv_c - pv_f, pv_fundings=pv_f,
         pv_collections=pv_c, dollar_days=outstanding.sum(axis=1) / 100.0, min_cash=cash.min(axis=1),
         min_headroom=min_headroom, headroom_rows=headroom_rows, headroom=headroom, headroom_days=hr[2],
-        draw_rows=dr[0], draw_days=dr[1], draw_amounts=dr[2])
+        draw_rows=dr[0], draw_days=dr[1], draw_amounts=dr[2], failed_debits=failed)

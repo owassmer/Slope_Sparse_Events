@@ -110,9 +110,9 @@ def test_the_cost_plan_cuts_outflows_from_its_start_and_nothing_else(central):
     assert (np.abs(ops.invoices) <= np.abs(ops0.invoices)).all()
 
 
-def test_the_reserve_is_one_setting_everything_reads(central):
+def test_the_cash_floor_is_one_setting_everything_reads(central):
     ops0, b0 = central
-    setup = setup_from_inputs(INPUTS, REVIEW, "reserve_60_days")
+    setup = setup_from_inputs(INPUTS, REVIEW, "cash_floor_60_days")
     assert setup.need_days == 60
     ops, b = _sim(setup)
     assert (ops.total[:, :DAYS + 30] == ops0.total).all()  # the same operating flows, looked at further ahead
@@ -121,6 +121,6 @@ def test_the_reserve_is_one_setting_everything_reads(central):
 
 
 def test_the_controls_survive_the_recorded_setup():
-    for name in ("central", "equity_injection", "cost_plan", "chips_itc_low", "reserve_60_days"):
+    for name in ("central", "equity_injection", "cost_plan", "chips_itc_low", "cash_floor_60_days"):
         setup = setup_from_inputs(INPUTS, REVIEW, name)
         assert setup_from_json(json.loads(json.dumps(setup_json(setup)))) == setup

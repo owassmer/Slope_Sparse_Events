@@ -280,9 +280,10 @@
   },
   "bank_feed": "cases/akoustis_20240514/bank_feed.json",
   "common_model": {
-    "note": "Settings every path shares (spec §16.3). Central: the feed's historical continuation, no financing, a 30-day operating reserve. Each scenario changes one setting and states its basis.",
+    "note": "Settings every path shares (spec §16.3). Central: the feed's historical continuation, no financing, a 30-day cash floor, and Slope's automatic debit (collected in full when cash covers the installment). Each scenario changes one setting and states its basis.",
     "central": {
       "need_days": 30,
+      "collection": "debit",
       "financing": [],
       "cost_plan": null
     },
@@ -352,9 +353,13 @@
         ],
         "basis": "A labelled sensitivity. Earnings call of 13 May 2024 (CEO): 'We currently estimate the amount of the refundable tax credit applicable to [Akoustis] to be between $2.8 and $4 million over the next nine to 12 months.' No date is given, so the central case books none inside the horizon. Here the low end is prorated evenly over 12 months and the part falling inside the horizon (USD 1,380,822) is booked month by month, as a one-off receipt outside the operating need."
       },
-      "reserve_60_days": {
+      "protect_need": {
+        "collection": "protect_need",
+        "basis": "A borrower-behaviour sensitivity (spec §16.3 Collection): the borrower keeps its next 30 days of operating need back from Slope, so Slope collects min(owed, max(0, available - need)). Slope's mechanism is the automatic debit on each due date (the central case); this is an assumption about the borrower, not the product."
+      },
+      "cash_floor_60_days": {
         "need_days": 60,
-        "basis": "The operating reserve at 60 days of operating need instead of 30 (the one alternative setting)."
+        "basis": "The cash floor at 60 days of operating need instead of 30 (the one alternative setting): the company's cash-floor decision, Jev's cash facts and settlement and stay capacity read it. Collections are unchanged (Slope's debit does not read the floor)."
       }
     },
     "ordinary_obligations": {

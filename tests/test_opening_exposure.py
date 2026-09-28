@@ -24,7 +24,7 @@ DAYS = 180
 def digest(tr) -> str:
     h = hashlib.sha256()
     for f in fields(tr):
-        if f.name != "opening_principal":
+        if f.name not in ("opening_principal", "failed_debits"):  # failed_debits: added later, not a trajectory
             h.update(f.name.encode())
             h.update(np.ascontiguousarray(getattr(tr, f.name)).tobytes())
     return h.hexdigest()[:16]
@@ -42,7 +42,7 @@ def test_an_empty_exposure_reproduces_the_new_line_bit_for_bit():
     ev.petition[::2] = 120
     got = [digest(run(line, feed.available_cents, e)) for e in (EventCash.zeros(DRAWS, line.days), ev)]
     assert got == ["103f1f167955cfd7", "a8e6d31591d7b759"]
-    s14 = replace(SETUP, exposure=Exposure())
+    s14 = replace(SETUP, exposure=Exposure(), collection="protect_need")  # the rule the pin was made under
     feed14 = load_feed("akoustis_20240514")
     assert digest(run(prepare(s14, simulate_for(feed14, s14)), feed14.available_cents,
                       EventCash.zeros(DRAWS, DAYS))) == "e3c1f39aa2c40b38"
