@@ -12,6 +12,29 @@ HORIZON_DAYS = 180
 DRAWS = 512
 SEED = 20240819
 MAX_LIMIT_MULTIPLIER = 33 / 15
+NEED_DAYS = 30  # the operating reserve's central setting (spec §16.3): days of operating need
+
+
+@dataclass(frozen=True)
+class Financing:
+    """A dated cash booking shared by every path (spec §16.3): a financing completion (equity, or debt with its
+    service: dated payments in positive cents booked as debt-service outflows), or a one-off non-operating receipt
+    such as a tax refund. Proceeds on `on`, outside the operating need. Never inferred from an intention."""
+    on: date
+    amount_cents: int
+    kind: str  # "equity" | "debt" | "receipt"
+    service: tuple[tuple[date, int], ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.kind not in ("equity", "debt", "receipt") or (self.kind != "debt" and self.service):
+            raise ValueError(f"financing kind {self.kind!r} with {len(self.service)} service payments")
+
+
+@dataclass(frozen=True)
+class CostPlan:
+    """From `start`, every operating outflow except legal fees and debt service falls by `share_bps`."""
+    start: date
+    share_bps: int
 
 
 def is_slope_case(inputs: dict) -> bool:
@@ -40,6 +63,11 @@ class Setup:
     limit_multiplier: float = 1.0  # 1.0 to 33/15: the low to the high end of Slope's published 15-33% range
     line_usage: float = 1.0  # share of eligible supplier invoices the borrower routes through Slope
     facility_cents: int = 0  # other committed facilities (backup liquidity); Akoustis has none
+    # The common financial model's scenario controls (spec §16.3), shared by every path. `need_days` is the one
+    # operating-reserve setting: collections capacity, the company-response triggers and Jev's facts all read it.
+    need_days: int = NEED_DAYS
+    financing: tuple[Financing, ...] = ()
+    cost_plan: CostPlan | None = None
 
     @property
     def share_bps(self) -> int:
@@ -70,10 +98,52 @@ class Setup:
             upd["line_usage"] = max(0.0, min(float(controls["line_usage"]), 1.0))
         if controls.get("limit_multiplier") is not None:
             upd["limit_multiplier"] = max(1.0, min(float(controls["limit_multiplier"]), MAX_LIMIT_MULTIPLIER))
+        if controls.get("need_days") is not None:
+            upd["need_days"] = max(0, min(int(controls["need_days"]), 90))
         return replace(self, **upd)
 
 
-def setup_from_inputs(inputs: dict, review: date) -> Setup:
+def financing_from_json(items: list[dict]) -> tuple[Financing, ...]:
+    return tuple(Financing(on=date.fromisoformat(f["date"]), amount_cents=int(f["amount_cents"]), kind=f["kind"],
+                           service=tuple((date.fromisoformat(p["date"]), int(p["amount_cents"]))
+                                         for p in f.get("service", ())))
+                 for f in items)
+
+
+def cost_plan_from_json(c: dict | None) -> CostPlan | None:
+    return None if c is None else CostPlan(start=date.fromisoformat(c["start"]), share_bps=int(c["share_bps"]))
+
+
+def controls_json(setup: Setup) -> dict:
+    """The scenario controls as JSON (the inverse of `controls_from_json`)."""
+    return {"need_days": setup.need_days,
+            "financing": [{"date": f.on.isoformat(), "amount_cents": f.amount_cents, "kind": f.kind,
+                           "service": [{"date": d.isoformat(), "amount_cents": c} for d, c in f.service]}
+                          for f in setup.financing],
+            "cost_plan": None if setup.cost_plan is None else {"start": setup.cost_plan.start.isoformat(),
+                                                               "share_bps": setup.cost_plan.share_bps}}
+
+
+def controls_from_json(d: dict) -> dict:
+    """Setup fields from a case's scenario settings (any subset of need_days, financing, cost_plan)."""
+    out: dict = {}
+    if "need_days" in d:
+        out["need_days"] = int(d["need_days"])
+    if "financing" in d:
+        out["financing"] = financing_from_json(d["financing"] or [])
+    if "cost_plan" in d:
+        out["cost_plan"] = cost_plan_from_json(d["cost_plan"])
+    return out
+
+
+def scenarios(inputs: dict) -> dict[str, dict]:
+    """The case's named scenario settings over the central one (`common_model.scenarios`); central is {}."""
+    return {"central": {}, **{k: {f: v for f, v in s.items() if f != "basis"}
+                              for k, s in ((inputs.get("common_model") or {}).get("scenarios") or {}).items()}}
+
+
+def setup_from_inputs(inputs: dict, review: date, scenario: str = "central") -> Setup:
+    """The supplied terms and the common financial model's central settings, or a named scenario over them."""
     plan = inputs["financing_plan"]
     t = plan["supplied_terms"]
     line = plan.get("line") or {}
@@ -84,4 +154,6 @@ def setup_from_inputs(inputs: dict, review: date) -> Setup:
                  fee_bps=line.get("fee_bps", t["fee_bps"]), installments=line.get("installments", t["installments"]),
                  days=t["days"], discount_rate_bps=t["discount_rate_bps"],
                  limit_share_bps=line.get("limit_share_bps", 1500),
-                 line_usage=line.get("line_usage_bps", 10_000) / 10_000)
+                 line_usage=line.get("line_usage_bps", 10_000) / 10_000,
+                 **{**controls_from_json((inputs.get("common_model") or {}).get("central") or {}),
+                    **controls_from_json(scenarios(inputs)[scenario])})
