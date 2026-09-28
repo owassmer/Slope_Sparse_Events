@@ -306,7 +306,8 @@
   const dec = (i) => (W.decisions || {})[D.nodes[i].node] || {};
   const decShort = (i) => { const n = D.nodes[i], s = dec(i).short; return s ? fill(s) + (n.form ? ` (${n.form.form_question.split(":")[0]})` : "") : n.label; };
   const earlier = (f) => f.earlier_plain || f.earlier_answers || [];
-  const situ = (i) => { const n = D.nodes[i]; return n.form ? (earlier(n.form).join("; ") || W.judgment.first) : n.sub; };
+  const noCash = (n, x) => n.ordinary ? [W.resolve.without, x].filter(Boolean).join("; ") : x;  // the ordinary view's situation
+  const situ = (i) => { const n = D.nodes[i]; return n.form ? (earlier(n.form).join("; ") || W.judgment.first) : noCash(n, n.sub); };
   const blabel = (i, b) => { const f = D.nodes[i].form; return (f && f.answers && f.answers[b]) || fill((dec(i).branches || {})[b]) || b.replace(/_/g, " "); };
   const PNODES = D.paths.edges.map((e) => {  // every node a path passes through, including inside its composites
     const s = new Set(); for (let j = 0; j < e.length; j += 2) { if (e[j] >= 0) s.add(e[j]); else for (const c of D.composites[-e[j] - 1]) for (const [n] of c) s.add(n); }
@@ -348,7 +349,7 @@
     const q = n.form ? n.form.form_question : fill(dec(i).question || n.question);
     const ask = n.form && (n.form.plain_asks || n.form.asked);
     const asked = n.form ? `${ask ? `<p class="mute small">${esc(cap(ask))}</p>` : ""}<dl class="meta"><dt>${esc(J.earlier)}</dt><dd>${esc(earlier(n.form).join("; ") || J.none)}</dd></dl>`
-      : `<dl class="meta"><dt>${esc(J.asked)}</dt><dd>${esc(cap(n.context) || "–")}</dd></dl>`;
+      : `<dl class="meta"><dt>${esc(J.asked)}</dt><dd>${esc(cap(noCash(n, n.context)) || "–")}</dd></dl>`;
     const quotes = (det.quotes || []).slice(0, 3).map((x) => `<blockquote><p>“${esc(x.quote)}”</p><cite>${esc(x.source)}${x.link ? ` · <a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(W.ui.source)}</a>` : ""}</cite></blockquote>`).join("");
     const ins = inputs(det.facts || {});
     return `<h3>${esc(J.question)} · <span class="nt">${esc(decShort(i))}</span></h3><p class="q">${esc(q)}</p>${asked}<p class="mute small" id="${id}-reach"></p>

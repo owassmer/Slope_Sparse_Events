@@ -290,6 +290,13 @@ OWED = {"execute_pre_ruling", "stay_motion", "stay_approved", "registration_earl
 DATED = {"settlement_offer", "settlement_accept", "petition_cash_floor", "financing_at_floor", "petition_cash_out",
          "holders_act_judgment", "judgment_response", "listing_kept",
          "holders_act_delisting", "holders_involuntary", "petition_on_notes"}
+# the conditions the listing and notes questions are asked under, in both the forecast's walk and the ordinary view
+ASSUMED = {"listing_kept": ("the stock is not compliant on the deadline",),
+           "holders_act_delisting": ("the stock is not listed on an Eligible Market",),
+           "petition_on_notes:delisting": ("the holders accelerate the notes",),
+           "holders_involuntary:delisting": ("the notes are accelerated and unpaid", "the issuer does not file"),
+           "petition_on_notes:repurchase": ("the repurchase falls due unpaid",),
+           "holders_involuntary:repurchase": ("the repurchase is unpaid", "the issuer does not file")}
 TRIGGER_PHRASES = {
     "judgment_default_entered": "the notes' judgment default (§7.01(i)) on the judgment as entered: 60 days after "
                                 "execution became available{since}",
@@ -424,12 +431,41 @@ class Forecaster:
                                                       self.sens))
         return self._traces[key]
 
+    @property
+    def ordinary(self) -> bool:
+        """Spec §16.1 (case input ordinary_view): the ordinary view is the same forecast with the event given no cash
+        effect, so its questions are the forecast's own questions (`ordinary_state`)."""
+        return self.m["parameters"].get("ordinary_view", {}).get("value") == "same_forecast"
+
+    def ordinary_dispute(self) -> DisputeInstance:
+        """The event the ordinary view gives no cash effect: its record, parties and standard frame the questions."""
+        live = [d for d, _ in self.ordered()]
+        if len(live) != 1:
+            raise NotImplementedError("the ordinary view gives one event no cash effect; this case has "
+                                      f"{len(live)} disputes")
+        return live[0]
+
+    def no_cash_effect(self) -> str:
+        """The ordinary view's situation, from the model's label template filled from case inputs."""
+        text = self.labels(self.ordinary_dispute()).get("no_cash_effect")
+        if not text:
+            raise ValueError("the dispute model has no no_cash_effect label template for the ordinary view")
+        return text
+
     def bank_paths(self) -> list[DisputePath]:
         """The bank view's paths (none without the operating draws)."""
         return _BankWalk(self).run() if self.draws is not None else []
 
     async def judge_bank(self, judge: ForecastJudge) -> dict[str, Judgment]:
         async def one(n: Node) -> Judgment:
+            if self.ordinary:  # the forecast's own question, on the ordinary view's facts
+                st, fids, readings = ordinary_state(self, n)
+                o = await judge.forecast(n.question_id, st, (n.instance_id, *fids), n.branches)
+                return Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
+                                event=n.event, assumptions=n.assumptions, window=n.window,
+                                distribution=answer_distribution(n.key, n.branches, o), confidence=o.confidence,
+                                finding_ids=fids, readings=readings, evidence=st["evidence"],
+                                observation_id=o.observation_id, path_facts=st["path_facts"])
             st = bank_state(self, n)
             o = await judge.forecast(n.question_id, st, (n.instance_id,), n.branches)
             return Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
@@ -944,19 +980,24 @@ class Forecaster:
 
     def state(self, n: Node) -> tuple[dict, tuple[str, ...], dict]:
         d = next(x for x in self.disputes if x.instance_id == n.instance_id)
+        return self.built(n, d, [c for c in n.context.split("|") if c], lambda: self.path_facts(n, d))
+
+    def built(self, n: Node, d: DisputeInstance, tags: list[str], facts) -> tuple[dict, tuple[str, ...], dict]:
+        """A question's state: the case, the decision in its situation (`tags`), the standard, the record items and
+        evidence routed to it, the path facts (`facts()`), and the conditions that hold. The forecast and the
+        ordinary view (`ordinary_state`) both build their questions here."""
         s = self.spec[n.node]
         readings, read_from = self._readings(d, n.question_id)
         evidence, fids, record = self._evidence(d, n.node, read_from)
         verdict = n.node in VERDICT_NODES
-        ctx = [] if verdict else context_phrases([c for c in n.context.split("|") if c], self.class_range,
-                                                 self.labels(d))
+        ctx = [] if verdict else context_phrases(tags, self.class_range, self.labels(d))
         state = {"case": {"as_of": fmt(self.review), "analysis_period_ends": fmt(self.horizon),
                           "company": self.borrower, "counterparty": d.counterparty,
                           "obligation": f"{self.m['natures'].get(d.nature, d.nature)}, {d.order_reference}"},
                  "question": {"actor": s["actor"], "decision": s["decision"], "branches": list(n.branches),
                               "timing": s["timing"], "context": ctx},
                  "standard": self.standard(n.node),
-                 "record_items": record, "path_facts": self.path_facts(n, d),
+                 "record_items": record, "path_facts": facts(),
                  "assumptions": list(n.assumptions), "evidence": evidence, "readings": readings}
         if verdict:
             state["question"].update(self.verdict_context(n))
@@ -1444,7 +1485,7 @@ class _Walk:
             return self.floor(s, outcome)
         if self.first(s, at, lambda y: self.kept(y, dates, outcome)):
             return
-        k = self.node("listing_kept", s=s, probe=at, assumptions=("the stock is not compliant on the deadline",))
+        k = self.node("listing_kept", s=s, probe=at, assumptions=ASSUMED["listing_kept"])
         self.fc.record((k,), self.fc.trace(self.d, s.steps + (at,)))
         self.floor(self.take(s, ("listing", "kept", "listed"), (k, "yes")), outcome)
         y = self.take(s, ("listing", "kept", "delisted_suspension"), (k, "no"))
@@ -1459,14 +1500,13 @@ class _Walk:
             return self.floor(s, outcome)
         if self.first(s, probe, lambda y: self.delisting_notes(y, dc, delist, outcome)):
             return
-        h2 = self.node("holders_act_delisting", dc, s=s, probe=probe,
-                       assumptions=("the stock is not listed on an Eligible Market",))
+        h2 = self.node("holders_act_delisting", dc, s=s, probe=probe, assumptions=ASSUMED["holders_act_delisting"])
         acc = ("delisting_notes", dc, "accelerated")
         issuer, holders = (acc, ("notes_due_date", "issuer", "")), (acc, ("notes_due_date", "holders", ""))
         a5 = self.node("petition_on_notes", f"delisting_{dc}", s=s, probe=issuer,
-                       assumptions=("the holders accelerate the notes",))
+                       assumptions=ASSUMED["petition_on_notes:delisting"])
         h3 = self.node("holders_involuntary", f"delisting_{dc}", s=s, probe=holders,
-                       assumptions=("the notes are accelerated and unpaid", "the issuer does not file"))
+                       assumptions=ASSUMED["holders_involuntary:delisting"])
         facts = [(a5, issuer), (h3, holders)]
         classes = {"petition_delist": [[(h2, "accelerate"), (a5, "yes")]],
                    "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
@@ -1476,9 +1516,9 @@ class _Walk:
             rep = ("delisting_notes", dc, "repurchase_unpaid")
             r_issuer, r_holders = (rep, ("notes_due_date", "issuer", "")), (rep, ("notes_due_date", "holders", ""))
             a5r = self.node("petition_on_notes", f"repurchase_{dc}", s=s, probe=r_issuer,
-                            assumptions=("the repurchase falls due unpaid",))
+                            assumptions=ASSUMED["petition_on_notes:repurchase"])
             h3r = self.node("holders_involuntary", f"repurchase_{dc}", s=s, probe=r_holders,
-                            assumptions=("the repurchase is unpaid", "the issuer does not file"))
+                            assumptions=ASSUMED["holders_involuntary:repurchase"])
             classes["petition_repurchase"] = [[(h2, "repurchase_only"), (a5r, "yes")]]
             classes["petition_repurchase_holders"] = [[(h2, "repurchase_only"), (a5r, "no"), (h3r, "yes")]]
             classes["repurchase_unpaid"] = [[(h2, "repurchase_only"), (a5r, "no"), (h3r, "no")]]
@@ -1667,14 +1707,16 @@ class _BankWalk:
         pet = np.where(tr.petition < 0, np.iinfo(np.int64).max, tr.petition)
         return bool(((tr.day[-1] < self.fc.days) & (tr.day[-1] < pet)).any())
 
-    def dated_node(self, name: str, *ctx: str, branches: tuple[str, ...] | None = None, at: tuple | None = None) -> str:
-        """A bank-view node; its facts are recorded from the prefix `at` (None: from each whole path, `emit_dated`)."""
+    def dated_node(self, name: str, *ctx: str, branches: tuple[str, ...] | None = None, at: tuple | None = None,
+                   assumptions: tuple[str, ...] = ()) -> str:
+        """An ordinary-view node; its facts are recorded from the prefix `at` (None: from each whole path,
+        `emit_dated`). It holds the forecast's conditions for the question plus the ordinary view's situation."""
         k = f"{self.bank}:{name}|" + "|".join((self.bank, *ctx))
         if k not in self.fc.bank_nodes:
             s = self.fc.spec[name]
             self.fc.bank_nodes[k] = Node(key=k, instance_id=self.bank, node=name, context="|".join((self.bank, *ctx)),
                                          cls="", question_id=s["residual_question"], event=s["decision"],
-                                         assumptions=(), window=s["timing"],
+                                         assumptions=(*assumptions, self.fc.no_cash_effect()), window=s["timing"],
                                          branches=tuple(branches or s["branches"]))
         if at is not None and (k, at) not in self.seen:
             self.seen.add((k, at))
@@ -1734,7 +1776,7 @@ class _BankWalk:
         at = ("listing_date", "kept", "")
         if not self.before_petition(steps + (at,)):
             return self.emit_dated(steps, edges, outcome)
-        k = self.dated_node("listing_kept", at=steps + (at,))
+        k = self.dated_node("listing_kept", at=steps + (at,), assumptions=ASSUMED["listing_kept"])
         self.emit_dated(steps + (("listing", "kept", "listed"),), edges + ((k, "yes"),), outcome)
         self.delisting(steps + (("listing", "kept", "delisted_suspension"),), edges + ((k, "no"),), outcome)
 
@@ -1750,9 +1792,12 @@ class _BankWalk:
             return self.emit_dated(steps, edges, outcome)
         acc = ("delisting_notes", dc, "accelerated")
         issuer, holders = steps + (acc, ("notes_due_date", "issuer", "")), steps + (acc, ("notes_due_date", "holders", ""))
-        h2 = self.dated_node("holders_act_delisting", dc, at=steps + (probe,))
-        a5 = self.dated_node("petition_on_notes", f"delisting_{dc}", at=issuer)
-        h3 = self.dated_node("holders_involuntary", f"delisting_{dc}", at=holders)
+        h2 = self.dated_node("holders_act_delisting", dc, at=steps + (probe,),
+                             assumptions=ASSUMED["holders_act_delisting"])
+        a5 = self.dated_node("petition_on_notes", f"delisting_{dc}", at=issuer,
+                             assumptions=ASSUMED["petition_on_notes:delisting"])
+        h3 = self.dated_node("holders_involuntary", f"delisting_{dc}", at=holders,
+                             assumptions=ASSUMED["holders_involuntary:delisting"])
         classes = {"petition_delist": [[(h2, "accelerate"), (a5, "yes")]],
                    "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
                    "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]]}
@@ -1763,9 +1808,11 @@ class _BankWalk:
                 np.array([delist]))[0] < self.fc.days:
             rep = ("delisting_notes", dc, "repurchase_unpaid")
             a5r = self.dated_node("petition_on_notes", f"repurchase_{dc}",
-                                  at=steps + (rep, ("notes_due_date", "issuer", "")))
+                                  at=steps + (rep, ("notes_due_date", "issuer", "")),
+                                  assumptions=ASSUMED["petition_on_notes:repurchase"])
             h3r = self.dated_node("holders_involuntary", f"repurchase_{dc}",
-                                  at=steps + (rep, ("notes_due_date", "holders", "")))
+                                  at=steps + (rep, ("notes_due_date", "holders", "")),
+                                  assumptions=ASSUMED["holders_involuntary:repurchase"])
             classes["petition_repurchase"] = [[(h2, "repurchase_only"), (a5r, "yes")]]
             classes["petition_repurchase_holders"] = [[(h2, "repurchase_only"), (a5r, "no"), (h3r, "yes")]]
             classes["repurchase_unpaid"] = [[(h2, "repurchase_only"), (a5r, "no"), (h3r, "no")]]
@@ -1802,10 +1849,31 @@ class _BankWalk:
         self.emit(steps, edges, outcome)
 
 def bank_state(fc: Forecaster, n: Node) -> dict:
-    """The bank view's question: the company, its decision, the decision dates, its projected available cash and
-    30-day operating need at the decision, the law that governs it and the notes' coupon (a common borrower input).
-    It differs from the research view's question only in the research facts."""
+    """The bank view's question (the 20 Jun two-view design): the company, its decision, the decision dates, its
+    projected available cash and 30-day operating need at the decision, the law that governs it and the notes' coupon
+    (a common borrower input). It differs from the research view's question only in the research facts. Under spec
+    §16.1's ordinary view it is the forecast's own question (`ordinary_state`)."""
+    if fc.ordinary:
+        return ordinary_state(fc, n)[0]
     s = fc.spec[n.node]
+    ctx = context_phrases([c for c in n.context.split("|")[1:] if c], {})
+    return {"case": {"as_of": fmt(fc.review), "analysis_period_ends": fmt(fc.horizon), "company": "the company"},
+            "question": {"actor": s["actor"], "decision": s["decision"], "branches": list(n.branches),
+                         "timing": s["timing"], "context": ctx},
+            "standard": fc.standard(n.node), "record_items": [], "path_facts": bank_facts(fc, n), "assumptions": [],
+            "evidence": [], "readings": {}}
+
+
+def ordinary_state(fc: Forecaster, n: Node) -> tuple[dict, tuple[str, ...], dict]:
+    """Spec §16.1: an ordinary-view question is the forecast's question of that node type, built by the same state
+    builder (the case, the record items and evidence routed to it, the standard), with the ordinary view's own path
+    facts, a context without the dispute's branch conditions, and the situation (the event given no cash effect)
+    among the conditions that hold (the node's assumptions)."""
+    return fc.built(n, fc.ordinary_dispute(), [c for c in n.context.split("|")[1:] if c], lambda: bank_facts(fc, n))
+
+
+def bank_facts(fc: Forecaster, n: Node) -> dict:
+    """The facts the bank (or ordinary) view's engine run computed for the question, pooled over its rows."""
     facts: dict = {}
     rows = fc.bank_facts.get(n.key, [])
     if rows:
@@ -1829,12 +1897,7 @@ def bank_state(fc: Forecaster, n: Node) -> dict:
                 dates = fc._contract_dates([coupon], [inside])  # the coupon: a common borrower input
             if dates:
                 facts["contract_dates"] = dates
-    ctx = context_phrases([c for c in n.context.split("|")[1:] if c], {})
-    return {"case": {"as_of": fmt(fc.review), "analysis_period_ends": fmt(fc.horizon), "company": "the company"},
-            "question": {"actor": s["actor"], "decision": s["decision"], "branches": list(n.branches),
-                         "timing": s["timing"], "context": ctx},
-            "standard": fc.standard(n.node), "record_items": [], "path_facts": facts, "assumptions": [],
-            "evidence": [], "readings": {}}
+    return facts
 
 
 def Chain_(fc: Forecaster, d: DisputeInstance):

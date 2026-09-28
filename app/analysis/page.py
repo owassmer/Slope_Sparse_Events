@@ -958,16 +958,27 @@ def bank_rows(model, fc, m: dict, spec: dict, questions: dict, links: dict, neut
 
     enc = encode_paths(model.bank_combos, model.bank_judgments)
     assert not enc["composites"]  # the bank view's chain has none
+    ordinary = getattr(fc, "ordinary", False)  # spec §16.1: the forecast's own questions, the event given no cash effect
     rows = []
     for k, branches in zip(enc["keys"], enc["branches"], strict=True):
         j = model.bank_judgments[k]
-        sp, q = {**spec[j.node], "record_items": []}, questions.get(j.question_id, j.event)
+        q = questions.get(j.question_id, j.event)
         facts = j.path_facts or (bank_state(fc, fc.bank_nodes[k])["path_facts"] if k in fc.bank_nodes else {})
-        rows.append({"key": k, "node": j.node, "view": "bank", "question": q, "context": "asked on bank data alone",
-                     "label": BANK_LABELS.get(j.question_id, q), "sub": "Asked on bank data alone",
-                     "actor": sp["actor"], "decider": "Bank data", "branches": branches,
-                     "jev": [j.distribution[b] for b in branches],
-                     "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node, setup=fc.setup)})
+        if ordinary:  # asked on the same record as the forecast: its record items, and its situation without the
+            sp, ctx = spec[j.node], "|".join(k.split("|")[2:])  # dispute (page.js adds the no-cash-effect words)
+            rows.append({"key": k, "node": j.node, "view": "bank", "ordinary": True, "question": q,
+                         "context": context_text(ctx, fc.class_range), "label": SHORT_LABELS.get(j.question_id, q),
+                         "sub": short_context(ctx, fc.class_range), "actor": sp["actor"],
+                         "decider": decider(sp["actor"]), "branches": branches,
+                         "jev": [j.distribution[b] for b in branches],
+                         "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node, setup=fc.setup)})
+        else:
+            sp = {**spec[j.node], "record_items": []}
+            rows.append({"key": k, "node": j.node, "view": "bank", "question": q, "context": "asked on bank data alone",
+                         "label": BANK_LABELS.get(j.question_id, q), "sub": "Asked on bank data alone",
+                         "actor": sp["actor"], "decider": "Bank data", "branches": branches,
+                         "jev": [j.distribution[b] for b in branches],
+                         "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node, setup=fc.setup)})
         for s in rows[-1]["detail"]["steps"]:  # the bank view's cash has no dispute: its event cash is the coupon
             s["text"] = s["text"].replace(" + the dispute's cash to that date", " + the notes' coupon to that date"
                                           if fc.instrument() is not None else " to that date")
@@ -1012,7 +1023,7 @@ def dev_settings() -> list[dict]:
     return json.loads(f.read_text()) if f.exists() else []
 
 
-PAGE_FORMAT = 7  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
+PAGE_FORMAT = 8  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
 def build_dev(settings: dict | None = None, progress=None) -> dict:

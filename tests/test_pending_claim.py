@@ -553,6 +553,36 @@ def test_7h_the_ordinary_view_is_the_forecast_whose_dispute_ends_on_the_review_d
                                                                          bt.events.petition)[:, None])] != 0).all()
 
 
+def test_7i_the_ordinary_view_asks_the_forecasts_questions_on_the_same_record(tree):
+    """Spec §16.1: each ordinary-view question is the forecast's question of that node type in the matching situation,
+    built on the same case, record items, evidence and standard; only the path facts, the context (no dispute-branch
+    conditions) and the one condition that the event has no cash effect differ."""
+    from app.disputes.forecast import bank_state
+
+    fc, _, _, _ = tree
+    both = {n.node for n in fc.bank_nodes.values()} & {n.node for n in fc.nodes.values()}
+    assert {"financing_at_floor", "petition_cash_out", "listing_kept", "holders_act_delisting"} <= both
+    checked = set()
+    for n in fc.bank_nodes.values():
+        tags = set(c for c in n.context.split("|")[1:] if c)
+        matches = [m for m in fc.nodes.values() if m.node == n.node and m.branches == n.branches
+                   and tags <= set(m.context.split("|"))]
+        assert matches, n.key
+        ours = bank_state(fc, n)
+        for m in matches:
+            theirs, _, _ = fc.state(m)
+            assert ours["case"] == theirs["case"] and ours["case"]["company"] == "B", (n.key, m.key)
+            extra = [a for a in ours["assumptions"] if a not in theirs["assumptions"]]
+            assert len(extra) == 1 and "given no cash effect" in extra[0], (n.key, extra)
+            strip = lambda st: {**{k: v for k, v in st.items() if k != "path_facts"},  # noqa: E731
+                                "question": {k: v for k, v in st["question"].items() if k != "context"},
+                                "assumptions": [a for a in st["assumptions"] if a not in extra]}
+            assert strip(ours) == strip(theirs), (n.key, m.key)
+        assert not {"claimed", "settled", "seeking", "motions_pending"} & tags  # no dispute-branch condition
+        checked.add(n.node)
+    assert checked == {n.node for n in fc.bank_nodes.values()}
+
+
 def test_8_settlement_is_bounded_and_ends_the_claim(tree):
     """A settlement never exceeds cash above the 30-day need on its payment date, nor the amount claimed (I0) or owed;
     paid, it resolves the dispute (claim, lock and legal spend end)."""
