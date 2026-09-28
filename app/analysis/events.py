@@ -352,6 +352,7 @@ class Chain:
         # the case sets raise_capacity: the floor decision is financing_at_floor (4.1.0), else petition_cash_floor
         self.raising = "value" in model["parameters"].get("raise_capacity", {})
         self.adverse_from = np.full(self.n, BIG, dtype=np.int64)  # entry of a judgment on an adverse verdict branch
+        self.adverse_until = np.full(self.n, BIG, dtype=np.int64)  # the ruling that set that judgment aside
         if self.engine and (self.basis is None or self.basis.line is None):
             raise ValueError("cash_facts = engine_forward_run needs the loan engine's line on the basis (Basis.of line=)")
         if self.pending:
@@ -592,16 +593,24 @@ class Chain:
         elif booking != "none":
             raise ValueError(f"No Chain booking {booking!r} (contract branch_bookings)")
 
+    def adverse_standing(self, day: np.ndarray) -> np.ndarray:
+        """Whether a money judgment on an adverse verdict branch stands on the day: entered, not set aside after
+        trial, and not satisfied or released (payment or settlement resolves the dispute). A settled claim is not
+        an adverse judgment."""
+        day = np.asarray(day)
+        return (day >= self.adverse_from) & (day < self.adverse_until) & (day < self.resolved)
+
     def raise_available(self, day: np.ndarray) -> np.ndarray:
-        """The equity the company can raise on the day (case inputs): raise_capacity, or
-        raise_capacity_after_adverse_judgment once a judgment on an adverse verdict branch is entered; 0 where the
-        case sets none, after a petition or outside the period."""
+        """The equity the company can raise on the day (case inputs): raise_capacity_after_adverse_judgment while
+        an adverse money judgment stands on the path (adverse_standing), raise_capacity everywhere else; 0 where the
+        case sets none, after a petition or outside the period. The dispute's own resolution does not matter."""
         if not self.raising:
             return np.zeros(self.n, dtype=np.int64)
         day = np.asarray(day)
-        amt = np.where(day >= self.adverse_from, int(self.p("raise_capacity_after_adverse_judgment")),
+        amt = np.where(self.adverse_standing(day), int(self.p("raise_capacity_after_adverse_judgment")),
                        int(self.p("raise_capacity")))
-        return np.where(self.live(day) & (day >= 0) & (day < self.N), amt, 0).astype(np.int64)
+        pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
+        return np.where((day < pet) & (day >= 0) & (day < self.N), amt, 0).astype(np.int64)
 
     def raise_equity(self, day: np.ndarray) -> None:
         """The raise booking: the amount available, in equal daily amounts over raise_days from the decision day (the
@@ -1003,6 +1012,7 @@ class Chain:
         if node == "post_trial_ruling":
             if branch == "set_aside":  # no money judgment on the path; the dispute goes on (legal spend too)
                 self.cls_amount, self.retrial = 0, True
+                self.adverse_until = np.minimum(self.adverse_until, self.F)  # no adverse judgment stands after it
                 self.release_lock(np.maximum(self.F, 0), self.live(self.F))
             self.mark("ruled", self.F)
             self.increase = 0

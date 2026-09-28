@@ -56,6 +56,36 @@ def test_raise_is_offered_only_where_available():
     assert inside.any() and (tr.raise_offer[inside] > 0).all()
 
 
+CT = ("verdict", "I0", "claimant_theory")
+ENTRY = (("judgment_response", "entry", "continue"), ("post_trial_motions", "", "yes"))
+FLOOR = ("cash_floor", "", "continue")
+
+
+@pytest.mark.parametrize("name,steps,standing_until", [
+    ("settled before the verdict", (("settle", "I0", "yes"), FLOOR), None),
+    ("no award", (("verdict", "I0", "no_award"), FLOOR), None),
+    ("claimant's theory, standing", (CT, *ENTRY, ("post_trial_ruling", "", "stands"), FLOOR), "never"),
+    ("claimant's theory, set aside", (CT, *ENTRY, ("post_trial_ruling", "", "set_aside"), FLOOR), "F"),
+    ("claimant's theory, settled", (CT, *ENTRY, ("settle", "I1", "yes"), FLOOR), "resolved")])
+def test_the_raise_is_available_exactly_where_no_adverse_money_judgment_stands(name, steps, standing_until):
+    """raise_capacity wherever no adverse money judgment stands on the day of the floor decision (no judgment, a
+    settled claim, a judgment set aside after trial); raise_capacity_after_adverse_judgment only while one stands."""
+    ch, tr = run(steps)
+    t = tr.day[-1]
+    inside = (t >= 0) & (t < ch.N) & ((tr.events.petition < 0) | (t < tr.events.petition))
+    assert inside.any(), name
+    if standing_until is None:
+        free = inside
+    elif standing_until == "never":
+        free = np.zeros_like(inside)
+    else:
+        end = ch.F if standing_until == "F" else ch.resolved
+        free = inside & (t >= end)
+        assert free.any(), name
+    assert (tr.raise_offer[free] == 970_000_000).all(), name
+    assert (tr.raise_offer[inside & ~free] == 0).all(), name
+
+
 def test_the_20_jun_case_keeps_its_floor_question():
     """Without a case raise_capacity the floor decision is 4.0.0's petition_cash_floor (yes / no)."""
     from app.disputes.rules import load_model
