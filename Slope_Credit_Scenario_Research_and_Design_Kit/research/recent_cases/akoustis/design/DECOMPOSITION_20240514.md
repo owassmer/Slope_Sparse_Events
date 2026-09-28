@@ -140,4 +140,55 @@ Every clock after the verdict runs from the **modeled** verdict and entry dates 
 | **Financing** | An explicit amount-and-date scenario shared by every path; central case adds none the record does not fix (spec §16.3). The 13 May re-activation of the at-the-market program ($48.0M remaining, 10-Q) fixes no amount or date, so it books nothing centrally | §16.3 setting, owned by the common-model worker |
 | Legal spend | Attributable spend stops when the dispute ends on the path (spec §16.3). The event model supplies the end date: payment or a paid settlement. A verdict of either kind, or a ruling that sets a judgment aside, does not end the dispute inside the horizon (post-trial motions, an appeal or a retrial follow, L18), so spend continues. Whether spend after the trial runs at the trial-period level is the §16.3 worker's proxy question, flagged to it | §16.3 rule; end dates from the event model |
 
+---
+
+## 4. Chains from the lender's question
+
+Slope's collections stop at a petition (Law: §362) or fall short when cash above the 30-day need is too low on a due date (Arithmetic: spec §2.2). The chains are walked once per damages class (§5); each class is its own run.
+
+### 4.0 What can stop or shrink collections between 14 May and 10 Nov 2024
+
+| # | Threat | Basis |
+|---|---|---|
+| T1 | A money verdict, the judgment on it, and its enforcement: a levy on cash, cash locked as stay security, or a petition in response | Record: trial under way (10-Q Note 14; D.I. 550, 580). Law: FRCP 58, 62, 69; §1963. Record: the company says an adverse judgment could lead it to seek "protection by filing a voluntary petition" (10-Q Note 2) |
+| T2 | The notes: acceleration of $44.0M on the judgment default (above $10.0M only), then a petition by the issuer or the holders | Record: indenture §§7.01(i), 7.02, 7.06 |
+| T3 | Delisting on 1 Nov without a hearing request, an immediate Event of Default | Record: 10-Q Note 12; indenture §7.01(b). Law: Nasdaq Rule 5815 |
+| T4 | Operating cash reaching the 30-day need, then zero | Data: the 14 May feed (§16.3). Record: going-concern doubt; cash "into the third quarter of fiscal 2025" absent a judgment (10-Q Note 2) |
+| T5 | Settlement: a payment that removes the claim but draws cash | Law: a paid settlement releases the claim. Arithmetic: the amount is bounded by cash above the reserve |
+
+### 4.1 T1. The verdict and its enforcement
+
+Intervals: **I0** review date to verdict; **I1** entry to the post-trial ruling; **I2** after the ruling, unstayed; **I3** stayed on approved security. Each step names its basis.
+
+**I0. Before the verdict (14–17 May).**
+1. Settlement before the verdict: **D3 × C2** on the stated terms of §4.5. Paid on 13 Jun (interval start + 30).
+2. The verdict: **J1**, money verdict or no money verdict. Its date is Code timing (17 May).
+3. No money verdict → no judgment, so no enforcement, stay, registration or judgment default exists on the path (the template's rule). The claimant's post-trial motions cannot produce money in the horizon (L18). The path goes to T3 and T4 with the dispute's legal spend continuing (§3).
+4. Money verdict → the judgment in the run's class, entered at E (Code timing, L14).
+
+**At entry E (20 May).**
+5. **Arithmetic** first (spec §0: only impossibility removes a branch): "pay" exists only where the amount owed is within available cash on some trajectory at the decision; a "full bond" exists only where cash above the reserve covers the collateral on some trajectory (the approved 20 Jun stay rule, `DECOMPOSITION.md` decision 3). In class C3 neither exists (§5).
+6. **D2**, the debtor's response to the entered judgment (Choice over the options arithmetic leaves): pay before execution is available; secure a stay (a full bond where it exists, Law L16, locked on posting; otherwise a motion on reduced security, its cash above the reserve on the approval day, decided by **J3** and locked if approved); seek a sale or new financing (no cash is booked, because §16.3 books no financing the record does not fix; D2 is asked again at the next milestone); file (petition at E + `petition_lag_days`); neither. This is the stay motion and the first response of the 20 Jun model (A1, A4) in one decision, because at entry the debtor weighs both together and the motion may be made "at any time after judgment is entered" (Rule 62(b)).
+7. **D1**, the debtor contests by timely post-trial motions (asked where D2 left the judgment unpaid and no petition was filed). Yes → I1 and a ruling date (§3). No → the judgment is final and appealable at entry; the appeal deadline is E + 30 and the path goes to I2 at once, with no ruling.
+
+**I1. Entry to the post-trial ruling.**
+8. Settlement in I1: **D3 × C2**, paid at E + 30.
+9. The creditor decides whether to execute before the ruling, from 20 Jun: **C1** (situation: motions pending; stay moved or not). Asked only where the judgment is unpaid and a levy could move cash before any stay approval (`Forecaster.moves_cash`).
+10. **Law (L9):** cash is reachable before finality only after registration where it sits; that needs **J4** (good cause).
+11. On the levy day, before the levy is booked: **D4**, the debtor's response (pay where arithmetic allows; seek; file; neither). Then the levy takes min(owed, reachable cash) (Arithmetic).
+12. The notes' judgment default on the entered reading ripens on 19 Aug in classes above $10.0M (T2).
+
+**The post-trial ruling.**
+13. **J2**, the court's ruling (Choice): the judgment **stands** (in its class, whatever reduction or increase leaves it there) or is **set aside** (JMOL on liability or a new trial; no money judgment on the path inside the horizon; exemplary damages fall with it, L4). A stay's security is released on "set aside" (`release_lock`).
+
+**I2. After the ruling (or at once where D1 = no), unstayed.**
+14. Settlement in I2: **D3 × C2**, paid at ruling + 30, which is also the appeal deadline.
+15. **D5**, the debtor appeals within 30 days (asked where the judgment stands and the levy after the appeal deadline can fall inside the horizon). Its cash effect is only through registration: unappealed, registration follows the appeal deadline (Law, §1963); appealed, it needs **J4**.
+16. **D2** again, where no stay is in place and no petition has been filed: the response to the final judgment (a stay pending appeal on the path amount, pay, seek, file, neither).
+17. The creditor decides whether to enforce the final judgment: **C1** (situation: after the ruling; appealed or final). Then J4 where appealed, then **D4** on the levy day, then the levy.
+18. The notes' judgment default on the post-ruling reading ripens at ruling + 60 where the holders did not act on the entered reading (T2).
+
+**I3. Stayed on approved security.**
+19. Settlement in I3: **D3 × C2**. The locked security stays out of available cash until the dispute ends. A stay in effect before a ripe date means no judgment default on that date (§7.01(i), "effectively stayed").
+
 <!-- next -->
