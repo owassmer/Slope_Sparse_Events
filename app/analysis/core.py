@@ -452,7 +452,8 @@ class Analysis:
         self.ops = operating.simulate_for(feed, setup)
         self.line = prepare(setup, self.ops)
         self.opening = feed.available_cents
-        self._draws = Draws(DRAWS, stress=stress, basis=Basis.of(self.ops, self.line.need, self.opening, line=self.line))
+        self._draws = Draws(DRAWS, stress=stress, basis=Basis.of(
+            self.ops, self.line.need, self.opening + setup.exposure.cash_cents, line=self.line))  # cash incl. the line's history
         self._draws.prefixes = {}  # the combos run depth-first: each walks only the steps after the shared prefix
         self._cache: dict = {}
         self._packed: dict = {}  # (kind, index) -> the bin pass's event cash, sparse, for the main pass

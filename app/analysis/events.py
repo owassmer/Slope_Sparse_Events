@@ -397,7 +397,9 @@ class Chain:
         h.update(np.ascontiguousarray(ev.petition).tobytes())
         runs, key = self.basis.runs, h.digest()
         if key not in runs:
-            tr = run(self.basis.line, self.basis.opening, EventCash(ev.cash, ev.lock, ev.capacity, ev.petition))
+            # the engine adds the existing line's history cash (Setup.exposure) to its opening itself
+            opening = self.basis.opening - self.s.exposure.cash_cents
+            tr = run(self.basis.line, opening, EventCash(ev.cash, ev.lock, ev.capacity, ev.petition))
             if len(runs) >= 64:  # the tree is walked depth-first: recent prefixes are the ones reused
                 runs.pop(next(iter(runs)))
             runs[key] = np.cumsum(tr.fundings - tr.collections, axis=1)

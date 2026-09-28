@@ -201,3 +201,17 @@ def test_outcome_file_is_unreachable_from_the_snapshot_and_the_tools(built):
     root = Path(snapshot.__file__).resolve().parents[1]
     for mod in [*(root / "agent").glob("*.py"), *(root / "evidence").glob("*.py"), *(root / "disputes").glob("*.py")]:
         assert not re.search(r"OUTCOMES|[\"'/]outcomes\b", mod.read_text()), mod.name
+
+
+def test_the_blank_verdict_form_and_the_juror_order_are_14_may_sources_only(built):
+    # D.I. 580 (the final verdict form given to the jury, blank, filed 9 May) and D.I. 550 (26 Apr) are public before
+    # the 14 May review; the 20 Jun mission leaves them out of case.
+    out, _, _ = built
+    new = {"ded_21cv1417_d580_verdict_form", "ded_21cv1417_d550_order"}
+    cat = {s["source_id"]: s for s in json.loads(snapshot.SOURCES_JSON.read_text())["sources"]}
+    for sid in new:
+        assert cat[sid]["availability"]["date"] <= "2024-05-14"
+        assert cat[sid]["mission_membership"]["akoustis_20240620"] == "out_of_case"
+    ids = {snap: {r[0] for r in sqlite3.connect(out / f"{snap}.sqlite").execute("SELECT source_id FROM sources")}
+           for snap in ("akoustis_20240514", "akoustis_20240620")}
+    assert new <= ids["akoustis_20240514"] and not new & ids["akoustis_20240620"]

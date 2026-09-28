@@ -73,12 +73,202 @@
       "reassessment": "same rule at every draw date, on each trajectory's trailing receipts (next engine step)",
       "draw_rule": "each supplier_invoice outflow is routed while outstanding + invoice <= the day's limit, no installment is overdue and no petition has been filed",
       "line_usage_bps": 10000,
+      "opened": {
+        "date": "2024-04-01",
+        "limit_cents": 39550000,
+        "basis": "The earliest date with three complete months of connected-bank history in the feed (January to March 2024): Slope's rule gives 15% of mean monthly receipts net of debt service, USD 395,500.00, above the USD 250k automatic approval, so a manually reviewed line. It opens five weeks before the jury trial began on 6 May (docket as of 14 May); the trial and the 13 May 10-Q then trigger this review. Eligibility (Slope's published criteria): in business since May 2014 (FY2023 10-K: 'since its inception in May 2014'), so more than 3 years for a line above USD 100k; banking history of more than 1 year (the company's own accounts; the feed reconstructs only the months the rule reads); no bankruptcy in the last 5 years."
+      },
       "supplied_draw": {
         "transaction_id": "txn_00077",
         "date": "2024-03-22",
         "counterparty": "Tai-Saw Technology (contract manufacturing)",
         "amount_cents": 38178392,
         "basis": "largest supplier invoice in the trailing window that fits under the limit"
+      },
+      "opening_state": {
+        "note": "The line's state on the review date, from app.analysis.history.replay: the engine's draw, limit and collection rules on the feed's own flows from the opening date.",
+        "exposure": {
+          "installments": [
+            {
+              "due": "2024-06-03",
+              "amount_cents": 13557532
+            },
+            {
+              "due": "2024-06-10",
+              "amount_cents": 2108209
+            },
+            {
+              "due": "2024-06-14",
+              "amount_cents": 2323259
+            },
+            {
+              "due": "2024-07-03",
+              "amount_cents": 13557533
+            },
+            {
+              "due": "2024-07-08",
+              "amount_cents": 2108209
+            },
+            {
+              "due": "2024-07-15",
+              "amount_cents": 2323259
+            },
+            {
+              "due": "2024-08-08",
+              "amount_cents": 2108209
+            },
+            {
+              "due": "2024-08-14",
+              "amount_cents": 2323260
+            }
+          ],
+          "principal_cents": 38967666,
+          "past_due_cents": 0,
+          "cash_cents": 38483935
+        },
+        "history": {
+          "opened": "2024-04-01",
+          "review": "2024-05-14",
+          "limit_by_day_cents": {
+            "2024-04-01": 39550000,
+            "2024-05-01": 39337365
+          },
+          "funded_cents": 52041467,
+          "contractual_cents": 53967002,
+          "collected_cents": 13557532,
+          "draws": [
+            {
+              "date": "2024-04-03",
+              "transaction_id": "txn_00087",
+              "counterparty": "Other vendors (facilities, utilities, services)",
+              "amount_cents": 6973779,
+              "installments": [
+                {
+                  "due": "2024-05-03",
+                  "amount_cents": 2410603,
+                  "collected_cents": 2410603,
+                  "status": "collected"
+                },
+                {
+                  "due": "2024-06-03",
+                  "amount_cents": 2410603,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                },
+                {
+                  "due": "2024-07-03",
+                  "amount_cents": 2410603,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                }
+              ]
+            },
+            {
+              "date": "2024-04-03",
+              "transaction_id": "txn_00088",
+              "counterparty": "Process gas and metals suppliers (fab materials)",
+              "amount_cents": 9453842,
+              "installments": [
+                {
+                  "due": "2024-05-03",
+                  "amount_cents": 3267878,
+                  "collected_cents": 3267878,
+                  "status": "collected"
+                },
+                {
+                  "due": "2024-06-03",
+                  "amount_cents": 3267878,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                },
+                {
+                  "due": "2024-07-03",
+                  "amount_cents": 3267878,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                }
+              ]
+            },
+            {
+              "date": "2024-04-03",
+              "transaction_id": "txn_00089",
+              "counterparty": "Wafer and substrate suppliers (fab materials)",
+              "amount_cents": 22793784,
+              "installments": [
+                {
+                  "due": "2024-05-03",
+                  "amount_cents": 7879051,
+                  "collected_cents": 7879051,
+                  "status": "collected"
+                },
+                {
+                  "due": "2024-06-03",
+                  "amount_cents": 7879051,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                },
+                {
+                  "due": "2024-07-03",
+                  "amount_cents": 7879052,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                }
+              ]
+            },
+            {
+              "date": "2024-05-08",
+              "transaction_id": "txn_00126",
+              "counterparty": "Other vendors (facilities, utilities, services)",
+              "amount_cents": 6098965,
+              "installments": [
+                {
+                  "due": "2024-06-10",
+                  "amount_cents": 2108209,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                },
+                {
+                  "due": "2024-07-08",
+                  "amount_cents": 2108209,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                },
+                {
+                  "due": "2024-08-08",
+                  "amount_cents": 2108209,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                }
+              ]
+            },
+            {
+              "date": "2024-05-14",
+              "transaction_id": "txn_00131",
+              "counterparty": "Other vendors (facilities, utilities, services)",
+              "amount_cents": 6721097,
+              "installments": [
+                {
+                  "due": "2024-06-14",
+                  "amount_cents": 2323259,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                },
+                {
+                  "due": "2024-07-15",
+                  "amount_cents": 2323259,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                },
+                {
+                  "due": "2024-08-14",
+                  "amount_cents": 2323260,
+                  "collected_cents": 0,
+                  "status": "not_yet_due"
+                }
+              ]
+            }
+          ]
+        }
       }
     }
   },

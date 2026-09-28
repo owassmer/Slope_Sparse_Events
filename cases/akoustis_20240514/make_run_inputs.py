@@ -17,6 +17,8 @@ from datetime import date, timedelta
 from decimal import ROUND_DOWN, Decimal
 from pathlib import Path
 
+from app.analysis.history import replay
+from app.analysis.setup import exposure_json, setup_from_inputs
 from app.evidence.snapshot import EVIDENCE_DIR
 from app.finance.bank import load_feed, window
 
@@ -116,6 +118,30 @@ invoices = [-t["amount_cents"] for t in feed.transactions if t["category"] == "s
 draw = max(invoices)
 draw_txn = next(t for t in feed.transactions if t["category"] == "supplier_invoice" and -t["amount_cents"] == draw
                 and start <= date.fromisoformat(t["date"]) <= end)
+
+# The line was opened before the review (spec §16.2): the trial and the 13 May 10-Q trigger a review of an existing
+# line. Slope sizes a line on three complete months of connected-bank history; the feed reconstructs the account from
+# 1 Jan 2024, so 1 Apr 2024 (a Monday) is the first day the published rule can be applied to it.
+OPENED = date(2024, 4, 1)
+open_months = ["2024-01", "2024-02", "2024-03"]
+open_receipts = Decimal(sum(t["amount_cents"] for t in feed.transactions if t["category"] == "customer_receipts"
+                            and t["date"][:7] in open_months)) / 3
+open_debt = Decimal(-sum(t["amount_cents"] for t in feed.transactions if t["category"] == "debt_service"
+                         and t["date"][:7] in open_months)) / 3
+open_limit = int((LIMIT_SHARE * (open_receipts - open_debt)).to_integral_value(ROUND_DOWN))
+assert open_limit > 25_000_000  # above Slope's USD 250k automatic approval: a manually reviewed line
+opened = {
+    "date": OPENED.isoformat(),
+    "limit_cents": open_limit,
+    "basis": ("The earliest date with three complete months of connected-bank history in the feed (January to March "
+              "2024): Slope's rule gives 15% of mean monthly receipts net of debt service, USD "
+              f"{open_limit / 100:,.2f}, above the USD 250k automatic approval, so a manually reviewed line. It opens "
+              "five weeks before the jury trial began on 6 May (docket as of 14 May); the trial and the 13 May 10-Q "
+              "then trigger this review. Eligibility (Slope's published criteria): in business since May 2014 (FY2023 "
+              "10-K: 'since its inception in May 2014'), so more than 3 years for a line above USD 100k; banking "
+              "history of more than 1 year (the company's own accounts; the feed reconstructs only the months the "
+              "rule reads); no bankruptcy in the last 5 years."),
+}
 
 # The common financial model's scenario settings (spec §16.3), shared by every path.
 q3 = [t for t in feed.transactions if "2024-01-01" <= t["date"] <= "2024-03-31"]
@@ -219,6 +245,7 @@ line = {
     "draw_rule": "each supplier_invoice outflow is routed while outstanding + invoice <= the day's limit, no installment "
                  "is overdue and no petition has been filed",
     "line_usage_bps": 10_000,
+    "opened": opened,
     "supplied_draw": {"transaction_id": draw_txn["transaction_id"], "date": draw_txn["date"],
                       "counterparty": draw_txn["counterparty"], "amount_cents": draw,
                       "basis": "largest supplier invoice in the trailing window that fits under the limit"},
@@ -273,9 +300,17 @@ inputs = {
         "existing_loans": existing,
     },
 }
+# The line's history: the engine on the feed's own flows from the opening date to 14 May (one deterministic trajectory,
+# the central reserve); its state on 14 May is every forecast trajectory's starting exposure (Setup.exposure).
+exposure, history = replay(feed, setup_from_inputs(inputs, feed.period_end), OPENED)
+assert history["limit_by_day_cents"][OPENED.isoformat()] == open_limit
+line["opening_state"] = {"note": ("The line's state on the review date, from app.analysis.history.replay: the engine's "
+                                  "draw, limit and collection rules on the feed's own flows from the opening date."),
+                         "exposure": exposure_json(exposure), "history": history}
 out = Path(__file__).resolve().parent / "run_inputs.json"
 out.write_text(json.dumps(inputs, indent=2, ensure_ascii=False) + "\n")
 print("wrote", out, len(observations), "observations")
+print("opening exposure", exposure)
 print("cash at", feed.period_end, feed.closing_cents / 100, "| mean receipts", line["mean_monthly_customer_receipts_cents"] / 100,
       "| mean debt service", line["mean_monthly_debt_service_cents"] / 100, "| limit", limit / 100, "| draw", draw / 100,
       draw_txn["date"], draw_txn["counterparty"])

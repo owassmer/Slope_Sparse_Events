@@ -13,6 +13,11 @@ Per trajectory (one joint event path x one operating draw), day by day from the 
 - **Collections** (§2.2). On each due date, and at each month-end while anything is overdue, Slope collects
   min(owed, max(0, available - need)); `need` is the lowest point of the trajectory's cumulative operating flows over
   the next 30 days relative to today (0 if they never fall below today's level). With need 0 this is the previous rule.
+- **Opening exposure** (`Setup.exposure`, a line opened before the review date). Its installments sit in the due
+  schedule on their dates and its past-due amount falls due on day 0, so they are collected, block draws while
+  overdue, and are stayed on a petition exactly as a new draw's; its principal counts against the limit; the cash its
+  history moved (funded - collected) is added to the opening cash. `drawn` and `fundings` are new draws only;
+  `contractual` includes the opening installments, so the contract identity below still holds. Empty: a new line.
 - **Petition** (§2.3). From the petition day p: no collections and no draws; operating flows continue. The balance
   owed at p is a stayed claim (recovery unknown and outside the horizon, never a zero loss); collections dated in
   [p - 90, p) are preference-exposed (reported, not deducted).
@@ -98,10 +103,12 @@ class Trajectories:
     draw_rows: np.ndarray  # one entry per routed invoice: the draw, the day and the amount
     draw_days: np.ndarray
     draw_amounts: np.ndarray
+    opening_principal: int = 0  # the opening exposure's principal (inside `contractual`, not in `drawn`)
 
     @property
     def fees(self) -> np.ndarray:
-        return self.contractual - self.drawn
+        """Fees on everything owed from the review date: new draws' fees plus the opening installments' fee share."""
+        return self.contractual - self.drawn - self.opening_principal
 
 
 NO_DUE = np.iinfo(np.int64).max
@@ -157,8 +164,13 @@ def prepare(setup: Setup, ops: Operating, need_days: int | None = None) -> Line:
     if setup.line_usage < 1.0:  # the invoices the borrower routes, drawn once per slot (identical across views)
         routes = np.where(np.random.default_rng([SEED, 6]).random(routes.shape) < setup.line_usage, routes, 0)
     t = np.arange(1, days + 1)
+    ex = setup.exposure
+    idx = [(d - setup.review).days - 1 for d, _ in ex.installments]
+    if min(idx, default=0) < 0:
+        raise ValueError("an opening installment is due on or before the review date: carry it as past due")
+    due_idx_max = max([int(due_idx.max()), *idx])
     return Line(setup=setup, ops=ops, days=days, limit=limits(setup, ops, days), need=needs(ops, days, need_days),
-                due_idx=due_idx, tail=int(due_idx.max()) + 1, month_end=month_end_mask(setup, days), routes=routes,
+                due_idx=due_idx, tail=due_idx_max + 1, month_end=month_end_mask(setup, days), routes=routes,
                 df=(1 + setup.discount_rate_bps / 10_000) ** (-t / 365))
 
 
@@ -207,12 +219,18 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Tr
     need, limit, slots = _tiled(line, b)
     rn = n * b
     due = np.zeros((line.tail, rn), dtype=np.int64)
+    ex = s.exposure
+    for d, cents in ex.installments:  # the opening installments, on their own due dates, on every trajectory
+        due[(d - s.review).days - 1] += cents
+    due[0] += ex.past_due_cents  # already overdue: owed from day 0, collection attempted that day
     collections = np.zeros((days, rn), dtype=np.int64)
     fundings = np.zeros((days, rn), dtype=np.int64)
     cash = np.empty((days, rn), dtype=np.int64)
     outstanding = np.empty((days, rn), dtype=np.int64)
-    avail = np.full(rn, opening_cents, dtype=np.int64)
+    avail = np.full(rn, opening_cents + ex.cash_cents, dtype=np.int64)
     owed, funded, contract, collected = (np.zeros(rn, dtype=np.int64) for _ in range(4))
+    funded += ex.principal_cents  # the principal formula below then reads the opening principal exactly
+    contract += ex.owed_cents
     hr_rows, hr_vals, hr_days, d_rows, d_days, d_amts = [], [], [], [], [], []
 
     def principal_out(r=slice(None)) -> np.ndarray:  # per trajectory; r: only these rows
@@ -293,10 +311,11 @@ def _finish(line: Line, events: EventCash, pet, due, collections, fundings, cash
     min_headroom = np.full(n, NO_DUE, dtype=np.int64)
     np.minimum.at(min_headroom, headroom_rows, headroom)
     pv_f, pv_c = fundings @ line.df, collections @ line.df
+    p0 = line.setup.exposure.principal_cents
     return Trajectories(
-        cash=cash, collections=collections, fundings=fundings, outstanding=outstanding, due=due[:, :days],
+        opening_principal=p0, cash=cash, collections=collections, fundings=fundings, outstanding=outstanding, due=due[:, :days],
         locked=np.cumsum(events.lock, axis=1), capacity=np.cumsum(events.capacity, axis=1),
-        petition=np.where(petitioned, pet, -1), drawn=funded, contractual=contract, collected=collected,
+        petition=np.where(petitioned, pet, -1), drawn=funded - p0, contractual=contract, collected=collected,
         stayed=stayed, stayed_principal=np.where(petitioned, outstanding[:, -1], 0),
         preference=(collections * window).sum(axis=1), not_yet_due=not_yet_due,
         uncollected=contract - collected - stayed - not_yet_due, lender_pv=pv_c - pv_f, pv_fundings=pv_f,

@@ -20,7 +20,8 @@ from pathlib import Path
 
 from app.analysis.core import Analysis, EventModel, dates, stress
 from app.analysis.events import BANK, Basis, coupon_terms
-from app.analysis.setup import Setup, controls_from_json, controls_json, setup_from_inputs
+from app.analysis.setup import (Exposure, Setup, controls_from_json, controls_json, exposure_from_json, exposure_json,
+                                setup_from_inputs)
 from app.config import VAR, question_registry
 from app.disputes.forecast import DisputePath, Forecaster, Judgment, neutral_map
 from app.disputes.hydrate import evidence_state
@@ -168,7 +169,9 @@ def payload(feed: BankFeed, setup: Setup, model: EventModel, meta: dict, overrid
                   "line": {"limit_share_bps": setup.limit_share_bps, "limit_multiplier": setup.limit_multiplier,
                            "effective_share_bps": setup.share_bps, "line_usage": setup.line_usage,
                            "limit_at_review_cents": int(a.line.limit[0, 0]), "fee_bps": setup.fee_bps,
-                           "installments": setup.installments, "facility_cents": setup.facility_cents},
+                           "installments": setup.installments, "facility_cents": setup.facility_cents,
+                           **({"opening_exposure": exposure_json(setup.exposure)}
+                              if setup.exposure != Exposure() else {})},
                   "schedule": [{"due": p.due.isoformat(), "amount_cents": p.amount_cents, "principal_cents": p.principal_cents,
                                 "fee_cents": p.fee_cents} for p in setup.offer.schedule(setup.funding)] if setup.amount_cents else []},
         "dates": dates(setup), "views": views, "delta": {k: e[k] - b[k] for k in b if isinstance(b[k], float) and isinstance(e[k], float)},
@@ -198,7 +201,8 @@ def basis_for(feed: BankFeed, setup: Setup) -> Basis:
 
     ops = operating.simulate_for(feed, setup)
     line = prepare(setup, ops)
-    return Basis.of(ops, line.need, feed.available_cents, line=line)
+    # the borrower's cash on the review date includes what an existing line's history moved (Setup.exposure)
+    return Basis.of(ops, line.need, feed.available_cents + setup.exposure.cash_cents, line=line)
 
 
 def _load_run(run_id: str, root: Path):
@@ -391,15 +395,16 @@ def write_csv(data: dict, out: Path) -> None:
 
 
 def setup_json(setup: Setup) -> dict:
-    controls = controls_json(setup)
+    controls = {**controls_json(setup), "exposure": exposure_json(setup.exposure)}
     return {k: (controls[k] if k in controls else v.isoformat() if isinstance(v, date) else v)
-            for k, v in asdict(setup).items()}
+            for k, v in asdict(setup).items() if k != "exposure" or setup.exposure != Exposure()}
 
 
 def setup_from_json(d: dict) -> Setup:
     return Setup(**{k: (date.fromisoformat(v) if k in ("review", "horizon", "funding", "invoice_due") else
                         tuple(v) if k == "collateral_share" and v is not None else v) for k, v in d.items()
-                    if k not in ("need_days", "financing", "cost_plan")}, **controls_from_json(d))
+                    if k not in ("need_days", "financing", "cost_plan", "exposure")}, **controls_from_json(d),
+                 exposure=exposure_from_json(d.get("exposure")))
 
 
 @lru_cache(maxsize=4)
