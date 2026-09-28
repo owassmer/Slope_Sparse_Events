@@ -33,3 +33,13 @@ def test_unknown_run_inputs_stay_typed_unknown_and_extras_rejected():
         project_mission("synergy_chc_2024", {"expected_findings_and_error_checks": ["x"]})
     with pytest.raises(ConfigurationError):
         project_mission("synergy_chc_2024", {"mission_id": "barfresh_2024_inventory_advance"})
+
+
+def test_14_may_review_reads_its_own_mission():
+    """The 14 May snapshot's mission is the review of the existing line on 14 May, not the 20 Jun case template."""
+    mission = project_mission("akoustis_qorvo_2024", None, "akoustis_20240514")
+    assert mission["as_of"].startswith("2024-05-14")
+    assert "existing line" in mission["relationship_claim"] and "applied" not in mission["relationship_claim"]
+    assert project_mission("akoustis_qorvo_2024", None, "akoustis_20240620")["as_of"].startswith("2024-06-20")
+    with pytest.raises(ConfigurationError):
+        project_mission("synergy_chc_2024", None, "akoustis_20240514")

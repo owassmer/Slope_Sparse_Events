@@ -153,7 +153,7 @@ def _baseline_item(ctx: RunContext, key: str) -> dict | None:
 # --- handlers (plain async functions; testable without the SDK) ------------------------------------
 
 async def get_mission(ctx: RunContext, _args: dict) -> dict:
-    mission = project_mission(ctx.case_id, ctx.inputs["run_inputs"])
+    mission = project_mission(ctx.case_id, ctx.inputs["run_inputs"], ctx.evidence.snapshot_info()["snapshot_id"])
     sources = [{"source_id": s["source_id"], "title": s["title"], "document_kind": s["document_kind"],
                 "publicly_available_at": s["available_at"], "access": s["access"]} for s in ctx.evidence.list_sources()]
     return {"mission": mission, "snapshot_cutoff": ctx.evidence.snapshot_info()["cutoff"],
@@ -1305,7 +1305,9 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
      "how much was paid since the measurement date. Optionally state an assumed unavailable share of reported cash.",
      obj({"effect_ids": {"type": "array", "items": S}, "paid_fractions": {"type": "array", "items": S},
           "unavailable_opening_cash_cents": {"type": "integer"}}, ["effect_ids"]), run_sensitivity),
-    ("instantiate_dispute", "Group one live dispute (a money judgment, or a liability ruling whose amount is still open) "
+    ("instantiate_dispute", "Group one live dispute (a money judgment, a liability ruling whose amount is still open, or "
+     "a money claim at or awaiting trial whose liability is undecided: give its claims, the requested components and "
+     "trial_started) "
      "for the host's dispute model. Cite the accepted findings about one obligation, including the passages that show "
      "what the court has decided, the amount and any party's stated position; give a short title, the docket reference "
      "only (for example 'D. Del. 1:18-cv-01434, Dkt. 399': no party names, amounts, direction or status words), the "

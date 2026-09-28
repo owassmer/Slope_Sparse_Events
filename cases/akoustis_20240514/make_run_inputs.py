@@ -266,24 +266,27 @@ inputs = {
     "case_id": "akoustis_qorvo_2024",
     "snapshot_id": SNAP,
     "status": "locked_operator_inputs",
-    "note": ("Operator request and ordinary baseline for the 14 May 2024 review, reconstructed as if Akoustis applied "
-             "to Slope for a reusable line that pays supplier invoices. " + LABEL + " The baseline holds only ordinary "
-             "underwriting facts; the litigation is for the investigation to establish."),
+    "note": ("Operator inputs and ordinary baseline for Slope's 14 May 2024 review of an existing line, reconstructed as "
+             "if Slope opened a reusable line that pays Akoustis's supplier invoices on 1 Apr 2024. " + LABEL + " The "
+             "baseline holds only ordinary underwriting facts; the litigation is for the investigation to establish."),
     "run_inputs": {
         "mission_id": "akoustis_2024_supplier_line",
-        "requested_use": {"value": "Draws on a Slope reusable line to pay supplier invoices (fab materials and contract "
-                                   "manufacturing)", "basis": "operator_request"},
-        "requested_amount": {"value": draw, "unit": "USD_cents", "basis": "operator_request"},
-        "requested_term": {"value": "Reusable line; each draw repaid in three monthly installments",
-                           "basis": "operator_request"},
+        "requested_use": {"value": "Continued draws on the existing Slope reusable line, opened on 1 Apr 2024, to pay "
+                                   "supplier invoices (fab materials and contract manufacturing)",
+                          "basis": "operator_request"},
+        "requested_amount": {"value": draw, "unit": "USD_cents", "basis": "operator_request",
+                             "label": "The next supplier invoice routed through the line after the review"},
+        "requested_term": {"value": "Reusable line; each draw repaid in three monthly installments. The line's balance "
+                                    "and installment schedule on the review date are in the financing plan's opening "
+                                    "state", "basis": "operator_request"},
         "requested_pricing": {"value": "3.7% fee on each amount financed", "basis": "operator_request"},
         "baseline_profile_id": "akoustis_ordinary_baseline_20240514",
         "existing_loan_record_ids": [x["loan_id"] for x in existing],
         "permitted_offer_set_id": "slope_supplied_terms_v1",
         "policy_config_id": "analysis_only",
-        "initial_event_seed": ("As of 14 May 2024, analyse how external events could affect a Slope reusable line "
-                               "that pays supplier invoices for Akoustis Technologies, Inc., each draw repaid in three "
-                               "monthly installments. Akoustis's public filings describe trade-secret and patent "
+        "initial_event_seed": ("As of 14 May 2024, review how external events could affect Slope's existing reusable "
+                               "line for Akoustis Technologies, Inc., opened on 1 Apr 2024, which pays its supplier "
+                               "invoices, each draw repaid in three monthly installments. Akoustis's public filings describe trade-secret and patent "
                                "litigation with Qorvo, Inc., a competitor, in the U.S. District Court for the District "
                                "of Delaware."),
     },

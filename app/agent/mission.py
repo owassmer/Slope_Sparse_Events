@@ -12,14 +12,19 @@ from app.config import ConfigurationError, agent_config
 
 MISSION_KEYS = {"akoustis_qorvo_2024": "lead_mission", "synergy_chc_2024": "default_mission",
                 "barfresh_schreiber_2024": "transfer_mission"}
+# A snapshot with its own kit mission (another review date of the same case) reads that mission instead of the case's.
+SNAPSHOT_MISSION_KEYS = {"akoustis_20240514": "akoustis_20240514_mission"}
 
 
-def project_mission(case_id: str, run_inputs: dict[str, Any] | None = None) -> dict[str, Any]:
+def project_mission(case_id: str, run_inputs: dict[str, Any] | None = None,
+                    snapshot_id: str | None = None) -> dict[str, Any]:
     cfg = agent_config()
     projection = cfg["mission_projection"]
     if case_id not in MISSION_KEYS:
         raise ConfigurationError(f"Unknown case {case_id!r}")
-    template = cfg[MISSION_KEYS[case_id]]
+    template = cfg[SNAPSHOT_MISSION_KEYS.get(snapshot_id or "", MISSION_KEYS[case_id])]
+    if template["case_id"] != case_id:
+        raise ConfigurationError(f"Snapshot {snapshot_id!r} belongs to case {template['case_id']!r}, not {case_id!r}")
 
     mission = {k: template[k] for k in projection["allowed_case_fields"] if k in template}
     run_inputs = run_inputs or {}
