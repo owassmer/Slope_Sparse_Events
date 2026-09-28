@@ -252,3 +252,20 @@ def test_8_settlement_is_bounded_and_ends_the_claim(tree):
             paid = so > 0
             assert paid.any() and (ch.resolved[paid] == pd[paid]).all()
             assert (np.cumsum(ch.ev.lock, axis=1)[paid, -1] == 0).all()
+
+
+def test_questions_marked_cash_receive_cash_facts(tree):
+    """Every question outside no_cash, the I0 settlement questions included (nothing is owed before the verdict),
+    receives the cash at its decision date, unless its answer cancels on every path (a holders' petition after the
+    period, merged into the class where nobody files: its reach is zero)."""
+    from app.disputes.forecast import Dist, path_probability
+
+    fc, _, paths, _ = tree
+    rng = np.random.default_rng(3)
+    base = {k: dict(zip(n.branches, rng.dirichlet(np.ones(len(n.branches))), strict=True)) for k, n in fc.nodes.items()}
+    for k, n in fc.nodes.items():
+        if n.question_id in fc.no_cash or "projected_available_cash_at_decision_date" in fc.state(n)[0]["path_facts"]:
+            continue
+        probs = [[path_probability(p.edges, Dist({**base, k: {b: float(b == x) for b in n.branches}})) for p in paths]
+                 for x in n.branches]
+        assert np.allclose(probs[0], probs[1]), k

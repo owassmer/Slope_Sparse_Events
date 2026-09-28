@@ -607,7 +607,8 @@ class Forecaster:
         day = row["day"]
         pet = np.where(row["petition"] < 0, np.iinfo(np.int64).max, row["petition"])
         ok = (day < self.days) & (day < pet)
-        return ok & (row["owed"] > 0) if n.node in OWED else ok
+        # before a pending claim's verdict (I0) nothing is owed by design: the claim, not a judgment, is the situation
+        return ok & (row["owed"] > 0) if n.node in OWED and not n.context.startswith("I0") else ok
 
 
     # --- the residual questions' state and Jev --------------------------------------------------------------------
