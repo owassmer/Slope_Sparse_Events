@@ -436,7 +436,7 @@ def test_dispute_components_and_motions_are_checked(make_ctx):
             "finding_ids": [fid], "counterparty": "Creditor Inc.", "amount": {"value_cents": 3_131_521_500},
             "judgment_date": "2024-05-20"}
     ue = {"component_id": "ue", "kind": "compensatory", "status": "awarded", "amount_cents": 3_131_521_500,
-          "remittitur_cents": 2_310_000_000, "motion": "D.I. 613"}
+          "remittitur_cents": 2_310_000_000, "motion": "D.I. 613", "finding_ids": [fid]}
     motion = {"motion_id": "D.I. 613", "kind": "rule_59a", "briefing_close": "2024-08-08", "decides": ["ue"]}
     for extra, match in (({"components": [{**ue, "amount_cents": 3_200_000_000}]}, "not in the cited quotes"),
                          ({"components": [{**ue, "statutory": "nc_24_5_b"}]}, "exactly one of"),
@@ -451,8 +451,68 @@ def test_dispute_components_and_motions_are_checked(make_ctx):
         with pytest.raises(T.ToolError, match=match):
             call(T.instantiate_dispute, ctx, {**base, **extra})
     comps = T._components([ue, {"component_id": "pji", "kind": "prejudgment_interest", "status": "requested",
-                                "statutory": "nc_24_5_b"}], JUDGMENT_QUOTE, __import__("app.disputes.rules",
+                                "statutory": "nc_24_5_b"}], {fid: JUDGMENT_QUOTE}, __import__("app.disputes.rules",
                           fromlist=["load_model"]).load_model())
     motions = T._motions([motion], JUDGMENT_QUOTE, None, comps)
     assert comps[0].remittitur_cents == 2_310_000_000 and comps[1].statutory == "nc_24_5_b"
     assert motions[0].briefing_close.isoformat() == "2024-08-08"  # a scheduled date may follow the review date
+
+
+def test_a_component_amount_comes_from_the_passage_it_cites(make_ctx):
+    """Each component cites the findings whose passages state it; its amount must be in those findings' own quotes,
+    not merely somewhere among the dispute's findings (the first 14 May run cited every amount to an order that
+    states none)."""
+    from app.disputes.rules import load_model
+
+    quotes = {"f_claim": "Qorvo seeks $279,808 in patent damages.", "f_order": "The motion is granted in part."}
+    comp = {"component_id": "patent", "kind": "patent", "status": "requested", "amount_cents": 27_980_800}
+    with pytest.raises(T.ToolError, match="finding_ids"):
+        T._components([comp], quotes, load_model())  # an amount with no cited passage
+    with pytest.raises(T.ToolError, match="not in the cited quotes"):
+        T._components([{**comp, "finding_ids": ["f_order"]}], quotes, load_model())  # cited to a passage without it
+    with pytest.raises(T.ToolError, match="not given for the dispute"):
+        T._components([{**comp, "finding_ids": ["f_other"]}], quotes, load_model())
+    [c] = T._components([{**comp, "finding_ids": ["f_claim"]}], quotes, load_model())
+    assert c.amount_cents == 27_980_800 and c.finding_ids == ("f_claim",)
+
+
+def test_the_agent_fills_the_record_item_slots(make_ctx):
+    """The agent reads the record items of its dispute's chain (the dispute model's text, nothing more), attaches the
+    accepted findings that supply each or records that the record has nothing, and cannot submit while one is open;
+    the analysis builds its slots from those records."""
+    from app.disputes.rules import load_model
+    from app.disputes.slots import from_agent, record_items, template_items
+    from app.domain.investigation import DisputeInstance
+    from app.domain.values import Basis, EvidenceValue, Provenance, Status, Unit
+
+    ctx = make_ctx(name="slots")
+    dep, fid = _accepted_settlement_finding(ctx)
+    out = call(T.get_record_items, ctx, {"stage": "liability_pending"})
+    items = template_items(load_model(), "pending_money_claim")
+    assert out["template"] == "pending_money_claim" and [x["item"] for x in out["record_items"]] == list(items)
+    assert all(set(x) == {"item", "named_by", "status"} and x["status"] == "open" for x in out["record_items"])
+    first, second = list(items)[:2]
+    args = {"template": "pending_money_claim", "item": first}
+    for bad, match in (({}, "not both"), ({"finding_ids": [fid], "not_in_record": True}, "not both"),
+                       ({"finding_ids": ["fnd_999"]}, "not accepted"), ({"not_in_record": True}, "searched"),
+                       ({"item": "an item no question names", "finding_ids": [fid]}, "record items")):
+        with pytest.raises(T.ToolError, match=match):
+            call(T.attach_record_item, ctx, {**args, **bad})
+    call(T.attach_record_item, ctx, {**args, "not_in_record": True, "searched": "searched the docket"})
+    call(T.attach_record_item, ctx, {**args, "finding_ids": [fid]})  # replaces the earlier record
+    call(T.attach_record_item, ctx, {"template": "pending_money_claim", "item": second, "not_in_record": True,
+                                     "searched": "read the 10-Q"})
+    recs = list(ctx.run.graph["record_items"].values())
+    assert len(recs) == 2 and next(r for r in recs if r.item == first).finding_ids == (fid,)
+    amount = EvidenceValue(status=Status.EXACT, unit=Unit.CENTS, value=200_000_000,
+                           provenance=Provenance(basis=Basis.DOCUMENTED))
+    ctx.run.put("dispute_instantiated", DisputeInstance(
+        instance_id="dispute_001", dependency_id=dep, model_id="m", model_version="4.1.0", title="t",
+        order_reference="D. Del. 1:21-cv-01417", nature="damages_award", counterparty="c", finding_ids=(fid,),
+        amount=amount, stage="liability_pending"))
+    with pytest.raises(T.ToolError, match="Record items still open"):
+        call(T.submit_packet, ctx, {"summary": "s", "conclusion": "c"})
+    slots = from_agent(recs, record_items(load_model(), "4.1.0"), {fid})
+    named = [n for n, s in slots.items() if first in s]
+    assert named and all(slots[n][first] == [fid] for n in named)
+    assert all(slots[n][second] == [] for n, s in slots.items() if second in s)

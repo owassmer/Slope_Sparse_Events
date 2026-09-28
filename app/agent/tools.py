@@ -46,6 +46,7 @@ from app.domain.investigation import (
     FinancingInstrument,
     ParameterRequirement,
     PendingMotion,
+    RecordItemSlot,
     ReconciliationTask,
     SemanticObservation,
     validate_effect,
@@ -616,9 +617,10 @@ def _quoted_int(n, field: str, quotes: str) -> int:
     return int(n)
 
 
-def _components(items: list[dict], quotes: str, model: dict) -> tuple[Component, ...]:
+def _components(items: list[dict], quotes: dict[str, str], model: dict) -> tuple[Component, ...]:
     """Each component is exactly one of: a quoted amount, a statutory computation named in the model's rules, or a
-    typed unknown. A remittitur figure is quoted too."""
+    typed unknown. It cites the findings whose passages state it (`finding_ids`, from the dispute's), and an amount
+    (and a remittitur figure) must appear in those findings' own quotes; `quotes` is finding id -> its quotes."""
     out, seen = [], set()
     for c in items or []:
         cid = (c.get("component_id") or "").strip()
@@ -630,8 +632,15 @@ def _components(items: list[dict], quotes: str, model: dict) -> tuple[Component,
             raise ToolError(f"Component {cid} is exactly one of amount_cents, statutory or unknown")
         if c.get("statutory") and c["statutory"] not in model["rules"]:
             raise ToolError(f"Component {cid}: statutory names a rule in the dispute model ({sorted(model['rules'])})")
-        amount = _quoted_cents(c["amount_cents"], f"component {cid}", quotes) if kinds[0] else None
-        remit = (_quoted_cents(c["remittitur_cents"], f"component {cid} remittitur", quotes)
+        fids = tuple(dict.fromkeys(c.get("finding_ids") or ()))
+        if bad := [f for f in fids if f not in quotes]:
+            raise ToolError(f"Component {cid} cites findings not given for the dispute: {bad}")
+        if not fids and (kinds[0] or c.get("remittitur_cents") is not None):
+            raise ToolError(f"Component {cid}: finding_ids names the accepted findings whose passages state its amount")
+        own = " ".join(quotes[f] for f in fids)
+        amount = _quoted_cents(c["amount_cents"], f"component {cid} (in its findings {list(fids)})", own) \
+            if kinds[0] else None
+        remit = (_quoted_cents(c["remittitur_cents"], f"component {cid} remittitur (in its findings {list(fids)})", own)
                  if c.get("remittitur_cents") is not None else None)
         try:
             out.append(Component(component_id=cid, label=c.get("label") or cid, kind=c.get("kind"),
@@ -639,7 +648,8 @@ def _components(items: list[dict], quotes: str, model: dict) -> tuple[Component,
                                  unknown=bool(c.get("unknown")), remittitur_cents=remit,
                                  motion=c.get("motion") or "", basis=c.get("basis") or "",
                                  claim=c.get("claim") or "", theory=c.get("theory") or "",
-                                 duplicates=c.get("duplicates") or "", principal=bool(c.get("principal"))))
+                                 duplicates=c.get("duplicates") or "", principal=bool(c.get("principal")),
+                                 finding_ids=fids))
         except ValueError as e:
             raise ToolError(f"Component {cid}: {e}") from e
     dup = [c.component_id for c in out if c.duplicates and c.duplicates not in seen]
@@ -737,7 +747,8 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
     if forum != "court":
         raise ToolError(model["forum"]["note"])
     commenced = _quoted_date(args["commenced"], "commenced", quotes, review) if args.get("commenced") else None
-    components = _components(args.get("components") or [], quotes, model)
+    components = _components(args.get("components") or [], {f.finding_id: " ".join(s.quote for s in f.spans)
+                                                              for f in findings}, model)
     motions = _motions(args.get("motions") or [], quotes, review, components)
     claims = _claims(args.get("claims") or [], quotes, fids)
     unknown = sorted({c.claim for c in components if c.claim} - {c.claim_id for c in claims})
@@ -782,6 +793,7 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
             "evidence_requests": [r.action for r in instance.evidence_requests],
             **({"proposed_extension": "recorded and flagged; the model is unchanged"} if instance.proposed_extension else {}),
             "template": _template_for(model, instance.stage),
+            "record_items_open": {t: len(v) for t, v in _open_items(ctx).items()},
             "note": ("Jev read the present state from the passages. After your run the host asks Jev for the conditional "
                      "probabilities of each future development and builds the financial analysis.")}
 
@@ -790,6 +802,79 @@ def _template_for(model: dict, stage: str | None) -> str:
     """The event template the dispute's stage selects (its findings feed that chain)."""
     t = next((k for k, v in model["templates"].items() if v.get("stage") == stage), None)
     return t or ("federal_post_judgment" if stage in model["stages"]["court"] else "none")
+
+
+def _slots(ctx: RunContext, template: str) -> tuple[dict[str, list[str]], dict[str, RecordItemSlot]]:
+    """The template's record items (item -> the decisions that name it) and the agent's latest record of each."""
+    from app.disputes.rules import load_model
+    from app.disputes.slots import template_items
+
+    model = load_model()
+    if template not in model["templates"] or "stage" not in model["templates"][template] \
+            and template != "federal_post_judgment":
+        raise ToolError(f"template is a dispute template: {sorted(k for k, v in model['templates'].items() if 'stage' in v)}"
+                        " or federal_post_judgment (instantiate_dispute and get_record_items name it)")
+    items = template_items(model, template)
+    done = {x.item: x for x in ctx.run.graph["record_items"].values() if x.template == template and x.item in items}
+    return items, done
+
+
+async def get_record_items(ctx: RunContext, args: dict) -> dict:
+    """The record items the forecast questions of a dispute's chain name (spec §3.5): named slots that evidence fills.
+    The stage selects the chain's template."""
+    from app.disputes.rules import load_model
+
+    template = _template_for(load_model(), args.get("stage"))
+    if template == "none":
+        raise ToolError("stage is the dispute's procedural stage, as instantiate_dispute reads it (e.g. "
+                        "liability_pending, post_trial_pending)")
+    items, done = _slots(ctx, template)
+    return {"template": template, "record_items": [
+        {"item": item, "named_by": decisions, **({"status": done[item].status, "finding_ids": list(done[item].finding_ids)}
+                                                 if item in done else {"status": "open"})}
+        for item, decisions in items.items()]}
+
+
+async def attach_record_item(ctx: RunContext, args: dict) -> dict:
+    """Record which accepted findings fill one record item, or that the record has nothing for it after searching.
+    A later record for the same item replaces the earlier one."""
+    template, item = (args.get("template") or "").strip(), (args.get("item") or "").strip()
+    items, done = _slots(ctx, template)
+    if item not in items:
+        raise ToolError("item is one of the template's record items, exactly as get_record_items gives it")
+    fids = tuple(dict.fromkeys(args.get("finding_ids") or []))
+    absent = bool(args.get("not_in_record"))
+    if absent == bool(fids):
+        raise ToolError("Give finding_ids (accepted findings whose passages supply the item) or not_in_record, not both")
+    bad = [f for f in fids if (x := ctx.run.graph["findings"].get(f)) is None or x.status != "accepted"]
+    if bad:
+        raise ToolError(f"Only accepted findings fill a record item (not accepted: {bad})")
+    searched = (args.get("searched") or "").strip()
+    if absent and not searched:
+        raise ToolError("State in `searched` how you looked for it (the searches and sources read)")
+    slot = RecordItemSlot(slot_id="slot_" + hashlib.sha256(f"{template}|{item}".encode()).hexdigest()[:12],
+                          template=template, item=item, finding_ids=fids,
+                          status="not_in_record" if absent else "filled", searched=searched)
+    ctx.run.put("record_item_recorded", slot)
+    left = [x for x in items if x != item and x not in done]
+    return {"recorded": slot.status, "item": item, "open_items": len(left)}
+
+
+def _open_items(ctx: RunContext) -> dict[str, list[str]]:
+    """Per live dispute's template, the record items the agent has neither filled nor recorded as not in the record."""
+    from app.disputes.rules import load_model
+
+    model, out = load_model(), {}
+    for d in ctx.run.graph["disputes"].values():
+        if d.status == "superseded" or not d.stage:
+            continue
+        template = _template_for(model, d.stage)
+        if template == "none":
+            continue
+        items, done = _slots(ctx, template)
+        if missing := [x for x in items if x not in done]:
+            out[template] = missing
+    return out
 
 
 async def instantiate_financing(ctx: RunContext, args: dict) -> dict:
@@ -914,6 +999,9 @@ async def submit_packet(ctx: RunContext, args: dict) -> dict:
         eff = ctx.run.graph["effects"].get(eid)
         if eff is None or eff.status != "validated":
             raise ToolError(f"{eid} is {'unknown' if eff is None else eff.status}; list only validated effects as supported")
+    if open_items := _open_items(ctx):
+        raise ToolError("Record items still open (fill each with attach_record_item, or record not_in_record with how "
+                        f"you searched): {open_items}")
     escalated: list[dict] = []
     if ctx.semantics is not None:
         open_tasks = [t.task_id for t in ctx.run.graph["reconciliations"].values() if t.status == "open"]
@@ -1252,6 +1340,7 @@ def obj(props: dict, required: list[str]) -> dict:
     return {"type": "object", "properties": props, "required": required}
 
 
+STAGES = ["liability_pending", "amount_pending", "post_trial", "judgment_entered", "appeal_pending", "enforcement"]
 TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
     ("get_mission", "The financing question, borrower, review date, locked operator request and the admissible evidence sources.",
      obj({}, []), get_mission),
@@ -1314,8 +1403,9 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
      "obligation's nature, the counterparty, the amount figure (value_cents, or lower_cents/upper_cents; state `basis` if "
      "it is not quoted in the findings) and the judgment's entry date if one has been entered (it must appear in the "
      "cited quotes). Jev reads who pays, the amount's status and the procedural position from the passages. A dispute is "
-     "grouped once; to correct one, pass `supersedes` with its instance ID. borrower_role and stage are used only when "
-     "no Jev is available.",
+     "grouped once; to correct one, pass `supersedes` with its instance ID. Each component cites in finding_ids the "
+     "accepted findings whose passages state it; its amount must appear in those findings' own quotes. borrower_role "
+     "and stage are used only when no Jev is available.",
      obj({"dependency_id": S, "title": S, "order_reference": S,
           "nature": {"type": "string", "enum": ["fee_and_cost_award", "money_judgment", "damages_award",
                                                 "settlement_payment"]},
@@ -1332,7 +1422,8 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
               "amount_cents": {"type": "integer"}, "statutory": S, "unknown": {"type": "boolean"},
               "remittitur_cents": {"type": "integer"}, "claim": S,
               "theory": {"type": "string", "enum": ["claimant", "defense"]}, "duplicates": S,
-              "principal": {"type": "boolean"}}, ["component_id", "kind", "status"])},
+              "principal": {"type": "boolean"}, "finding_ids": {"type": "array", "items": S}},
+              ["component_id", "kind", "status"])},
           "trial_started": S,
           "claims": {"type": "array", "items": obj({"claim_id": S, "label": S, "damages_barred": S,
                                                     "finding_ids": {"type": "array", "items": S}},
@@ -1346,6 +1437,15 @@ TOOL_SPECS: list[tuple[str, str, dict, Any]] = [
                                                   "appeal_pending", "enforcement"]}},
          ["dependency_id", "title", "order_reference", "nature", "finding_ids", "counterparty", "amount"]),
      instantiate_dispute),
+    ("get_record_items", "The record items the forecast questions of a dispute's chain name, for the dispute's "
+     "procedural stage: named slots that evidence fills (spec §3.5). Each item comes with the decisions that name it and "
+     "your record of it so far. Fill each with attach_record_item.",
+     obj({"stage": {"type": "string", "enum": STAGES}}, ["stage"]), get_record_items),
+    ("attach_record_item", "Record which accepted findings fill one record item of a template (the item exactly as "
+     "get_record_items gives it; each finding's passage supplies the item), or not_in_record with `searched`: the "
+     "searches and sources you read. A later record for the same item replaces the earlier one.",
+     obj({"template": S, "item": S, "finding_ids": {"type": "array", "items": S},
+          "not_in_record": {"type": "boolean"}, "searched": S}, ["template", "item"]), attach_record_item),
     ("instantiate_financing", "Compile one financing instrument a dispute can trigger (convertible notes): cite the "
      "accepted findings quoting its terms; give the principal, the coupon and interest dates, the judgment-default "
      "threshold and days, the listing deadline, the repurchase notice and window, any insured amount, and the disputes "

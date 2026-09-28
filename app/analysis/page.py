@@ -503,16 +503,19 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
         c = next((c for lab, c in comps.items() if lab.startswith(f["component"]) or f["component"].startswith(lab)),
                  None)
         row = component_row(c, d, model) if c is not None else {}
+        cited = [t for t in (f.get("source") or "").split("; ") if t]  # the passages the component cites
         refs = ([d.order_reference] + ([c.motion] if c.motion else []) if c is not None and c.status == "awarded"
-                else [row["source"]] if row.get("source") else [])
-        text = f"{f['component']}: {_whole(f['amount'])}, {f['status']}" + (f" ({refs[0]})" if refs else "")
+                and not cited else [row["source"]] if row.get("source") and not cited else [])
+        text = f"{f['component']}: {_whole(f['amount'])}, {f['status']}" + (
+            f" ({'; '.join(cited)})" if cited else f" ({refs[0]})" if refs else "")
         if len(refs) > 1:
             text += f"; the pending motion {refs[1]} decides it"
         if f.get("remittitur_scenario") and row.get("remittitur"):
             text += f"; {row['remittitur'][0].lower()}{row['remittitur'][1:]}"
             refs.append(row["remittitur"])
         steps.append({"tag": "Record", "text": text,
-                      "links": [{"text": _ref_label(r), "url": u} for r in refs if (u := docket_url(r, links))]})
+                      "links": [{"text": t, "url": links[t]} for t in cited if links.get(t)]
+                      + [{"text": _ref_label(r), "url": u} for r in refs if (u := docket_url(r, links))]})
     for mo in facts.get("pending_motions", []):
         steps.append({"tag": "Record", "text": f"Pending: {mo['motion']}, {mo['kind']}; briefing closes "
                                                f"{mo['briefing_closes']}",
@@ -563,7 +566,7 @@ def component_row(c, d, model: dict) -> dict:
 
     row = {"label": label_head(c.label), "amount": usd(c.amount_cents) if c.amount_cents is not None
            else "computed by statute" if c.statutory else "unknown", "status": c.status,
-           "source": d.order_reference if c.status == "awarded" else c.motion or d.order_reference}
+           "source": d.order_reference if c.status == "awarded" else c.motion}  # a request cites its own passage
     if c.kind == "compensatory":
         sc = model.get("remittitur_scenarios", {})
         rem = sc.get("scenarios", {}).get("remitted", {})
@@ -586,12 +589,21 @@ def component_row(c, d, model: dict) -> dict:
     return row
 
 
-def case_terms(d, review: date, horizon: date, model: dict, links: dict[str, str] | None = None) -> dict:
-    """Judgment components with status and source (linked to the filing); the notes' default terms; the dated
-    deadlines."""
-    comps = [component_row(c, d, model) for c in d.components]
+def case_terms(d, review: date, horizon: date, model: dict, links: dict[str, str] | None = None,
+               cited: dict[str, str] | None = None) -> dict:
+    """Judgment components with status and source (linked to the filing): the passage a component cites
+    (`cited`: component id -> its findings' source titles), else the order or motion; the notes' default terms;
+    the dated deadlines."""
+    comps = []
+    for c in d.components:
+        r = component_row(c, d, model)
+        if (cited or {}).get(c.component_id):
+            r["source"] = cited[c.component_id]
+            r["link"] = (links or {}).get(r["source"].split("; ")[0], "")
+        else:
+            r["link"] = docket_url(r["source"], links or {})
+        comps.append(r)
     for r in comps:
-        r["link"] = docket_url(r["source"], links or {})
         if r.get("remittitur"):
             r["remittitur_link"] = docket_url(r["remittitur"], links or {})
     notes = []
@@ -755,7 +767,10 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                  **chart_view(a.bank_r, model.bank_probs(), a.months)},
         "event": chart_view(a.r, probs, a.months),
         "worst": _worst(stress_rows, classes, seqs, list(seq_ix)) if stress_rows else [],
-        "case_terms": case_terms(d0, setup.review, setup.horizon, m, links) if d0 is not None else {},
+        "case_terms": case_terms(d0, setup.review, setup.horizon, m, links, {
+            c.component_id: "; ".join(dict.fromkeys(fc.hydrate(fc.findings[f])["source"] for f in c.finding_ids
+                                                    if f in fc.findings)) for c in d0.components}
+        ) if d0 is not None else {},
         "settings": SETTINGS,
     }
 

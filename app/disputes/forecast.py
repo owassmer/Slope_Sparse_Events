@@ -777,14 +777,17 @@ class Forecaster:
         return [self.m["rules"][r]["citation"] if r in self.m["rules"] else terms.get(r, r)
                 for r in self.spec[node]["standard"]]
 
-    @staticmethod
-    def _component(c, remit: dict) -> dict:
-        """One judgment component as the record states it; the declared remittitur scenario beside the compensatory
-        award where a remittitur is the question's premise or its outcome."""
+    def _component(self, c, remit: dict) -> dict:
+        """One judgment component as the record states it, with the source of the passage it cites; the declared
+        remittitur scenario beside the compensatory award where a remittitur is the question's premise or its
+        outcome."""
         sealed = c.unknown and "sealed" in c.label.lower()
         out = {"component": c.label.split(";")[0].strip() if c.unknown else c.label, "status": c.status,
                "amount": usd(c.amount_cents) if c.amount_cents is not None else
                ("sealed; amount not public" if sealed else "computed by statute" if c.statutory else "unknown")}
+        cited = [self.hydrate(self.findings[f])["source"] for f in c.finding_ids if f in self.findings]
+        if cited:
+            out["source"] = "; ".join(dict.fromkeys(cited))
         if remit.get("amount_cents") and c.kind == "compensatory":
             out["remittitur_scenario"] = f"{usd(remit['amount_cents'])} ({remit['label']}; basis: {remit['basis']})"
         return out

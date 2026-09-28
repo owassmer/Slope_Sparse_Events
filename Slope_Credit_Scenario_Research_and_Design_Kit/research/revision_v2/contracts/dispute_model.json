@@ -1694,6 +1694,28 @@
         "settlement_offer",
         "settlement_accept"
       ],
+      "asks": [
+        "verdict_finding",
+        "verdict_measure",
+        "post_trial_ruling",
+        "stay_approved",
+        "registration_early",
+        "execute_pre_ruling",
+        "enforce_after_final",
+        "settlement_accept",
+        "post_trial_motions",
+        "judgment_response",
+        "settlement_offer",
+        "stay_motion",
+        "appeal",
+        "listing_kept",
+        "financing_at_floor",
+        "petition_cash_out",
+        "petition_on_notes",
+        "holders_act_judgment",
+        "holders_act_delisting",
+        "holders_involuntary"
+      ],
       "response_node": "judgment_response",
       "nodes": {
         "verdict_theory": {

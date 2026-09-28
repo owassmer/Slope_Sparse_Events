@@ -283,16 +283,29 @@ class Component(Frozen):
     theory: Literal["claimant", "defense", ""] = ""  # whose damages theory the figure is
     duplicates: str = ""  # the component id it restates under another theory (not additive)
     principal: bool = False  # the claimant's principal damages measure (the one the lower verdict branch rejects)
+    finding_ids: tuple[str, ...] = ()  # the accepted findings whose quoted passage states it (and its amount)
 
     @model_serializer(mode="wrap")
     def _without_new_defaults(self, handler):
         """The 4.1.0 fields are left out at their defaults, so a recorded run's packet (nested components) still
         matches its replayed log."""
         out = handler(self)
-        for k, v in (("claim", ""), ("theory", ""), ("duplicates", ""), ("principal", False)):
-            if isinstance(out, dict) and out.get(k) == v:
+        for k, v in (("claim", ""), ("theory", ""), ("duplicates", ""), ("principal", False), ("finding_ids", ())):
+            if isinstance(out, dict) and k in out and out[k] in ((v, list(v)) if isinstance(v, tuple) else (v,)):
                 out.pop(k)
         return out
+
+
+class RecordItemSlot(Frozen):
+    """One record item a forecast question names (spec §3.5): a named slot the agent fills with the accepted findings
+    whose passages supply it, or records as not in the record after searching. The latest record per item stands."""
+
+    slot_id: str
+    template: str  # the event template whose questions name the item
+    item: str  # the record item, as the dispute model states it
+    finding_ids: tuple[str, ...] = ()
+    status: Literal["filled", "not_in_record"]
+    searched: str = ""  # how the agent looked for it, where the record has nothing
 
 
 class Claim(Frozen):
@@ -384,7 +397,7 @@ EventKind = Literal[
     "reconciliation_opened", "reconciliation_resolved", "effect_proposed", "effect_validated",
     "sensitivity_run", "missing_fact_requested", "packet_submitted", "run_failed",
     "inventory_loaded", "inventory_accounted", "conclusion_checked", "effect_disputed", "cited_units_checked",
-    "dispute_instantiated", "financing_instantiated",
+    "dispute_instantiated", "financing_instantiated", "record_item_recorded",
 ]
 
 

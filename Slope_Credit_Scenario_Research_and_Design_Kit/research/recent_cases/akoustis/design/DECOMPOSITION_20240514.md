@@ -404,7 +404,7 @@ The plan adds one template and one stage and reuses the walker (`forecast._Walk`
 
 - `instantiate_dispute` accepts, for a pending claim: `trial_started` (quoted date), `claims` (labels, each resting on accepted findings), and requested `components` with `claim`, `theory` and `duplicates` (the same quote checks as today: every `amount_cents` appears in a cited quote). `judgment_date` stays absent; `_motions` is not required.
 - The tool's `note` names the template the stage selects, so the agent sees which chain its findings feed.
-- The agent's mission text (agent_config, mission `akoustis_20240514`) lists the pending-claim record items of §8 as the slots to fill. The agent attaches findings to slots; neither Jev nor code does (spec §3.5).
+- **As built (28 Sep 2026).** The agent reads the slots with `get_record_items(stage)`. That returns the record items of the questions the stage's chain asks: the contract's `asks` for `pending_money_claim`, the §6.1 list. Each item comes with the decisions that name it, in the dispute model's text and no more. For each item the agent records, with `attach_record_item`, the accepted findings that supply it, or that the record has nothing, with how it searched. `submit_packet` refuses while an item of a live dispute's template is open. The analysis builds `slots.json` from these records (spec §3.5). Jev's slot screen runs only for runs recorded before the tool existed. Each component cites in `finding_ids` the findings whose passages state it, and its amount must be in those findings' own quotes. The first 14 May run pooled all the dispute's quotes, and the page named the order (D.I. 590) as every requested component's source.
 
 ### 7.5 `app/disputes/forecast.py`: reuse the walker
 

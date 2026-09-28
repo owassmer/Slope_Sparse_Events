@@ -70,6 +70,10 @@ WORKING_METHOD = """Working method
   quoting the terms. Jev reads who
   pays, the amount's status and the procedural position from the passages; after your run the host asks Jev for the
   probabilities of each future development and builds the financial analysis of the supplied loan.
+- Each of those questions names record items: named slots that evidence fills. Once you know a live dispute's stage,
+  get_record_items for it, search for each item, and attach_record_item the accepted findings whose passages supply
+  it, or record not_in_record with how you searched. Each dispute component cites (finding_ids) the findings whose
+  passages state it.
 - Finish with a concise summary of what the research established and why it matters to the borrower's cash and the
   loan's collections. Do not recommend, size or condition the financing.
 - run_sensitivity on validated settlement effects (fixed-installment cases) to see which unknown changes the cash

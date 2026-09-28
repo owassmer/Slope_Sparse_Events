@@ -218,15 +218,20 @@ def _load_run(run_id: str, root: Path):
 
 
 def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh: bool,
-                      version: str | None = None) -> dict:
-    """Which accepted findings supply each record item (app/disputes/slots.py), read once per run and kept beside
-    it in slots.json; its own Jev adapter and budget."""
+                      version: str | None = None, recorded: list | None = None) -> dict:
+    """Which accepted findings supply each record item (app/disputes/slots.py), kept beside the run in slots.json.
+    The agent's own records (RecordItemSlot) decide it where the run has them (spec §3.5); a run recorded before the
+    agent was given the record items is read once by Jev, on its own adapter and budget."""
     from app.agent.jev import JevAdapter
     from app.disputes.rules import load_model
-    from app.disputes.slots import load, match, record_items
+    from app.disputes.slots import from_agent, load, match, record_items
 
     path = root / run_id / "slots.json"
     nodes = record_items(load_model(), version)  # the nodes the disputes' interpretation version has
+    if recorded:
+        out = from_agent(recorded, nodes, set(findings))
+        path.write_text(json.dumps(out, indent=1) + "\n")
+        return out
     kept = load(path)
     if kept is not None and {n: list(v) for n, v in kept.items()} == {n: s["items"] for n, s in nodes.items()} \
             and not refresh:
@@ -275,7 +280,8 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dic
             for d in live]  # the instruments each judgment's terms reach (dispute model 4.0.0)
     hydrate = lambda f: evidence_state(evidence, f, [], sources)["passage"]  # noqa: E731
     version = max((d.model_version for d in live), key=lambda v: tuple(map(int, v.split("."))), default=current)
-    slots = record_item_slots(run_id, root, findings, hydrate, refresh, version)
+    slots = record_item_slots(run_id, root, findings, hydrate, refresh, version,
+                              list(store.graph.get("record_items", {}).values()))
     fc = Forecaster(live, findings, borrower=borrower, review=review, horizon=setup.horizon, hydrate=hydrate,
                     setup=setup, basis=basis_for(feed, setup),  # path facts are simulated before Jev is asked
                     slots=slots, model=m)

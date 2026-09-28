@@ -105,6 +105,8 @@
           "mcp__credit__propose_effect",
           "mcp__credit__run_sensitivity",
           "mcp__credit__instantiate_dispute",
+          "mcp__credit__get_record_items",
+          "mcp__credit__attach_record_item",
           "mcp__credit__instantiate_financing",
           "mcp__credit__request_missing_fact",
           "mcp__credit__read_inventory",
@@ -334,7 +336,9 @@
       "read_inventory": "The reading list: paragraphs and table rows the host sweep flagged as describing a specific matter, and whether an accepted finding cites each.",
       "escalate_effect": "Escalate an effect the category guard rejected: it becomes disputed, creates no cash stream and is left for the reviewer; a disputed cash-moving effect makes the run INCOMPLETE_REVIEW.",
       "resolve_reconciliation": "Resolve an open reconciliation task with a note on how the statements relate.",
-      "instantiate_financing": "Compile a financing instrument the dispute can trigger (e.g. convertible notes): quote the principal, the default, acceleration, repurchase, interest and listing terms the chains cite, with their figures and dates (each checked against the quotes). Code applies the terms; Jev never decides what a contract means."
+      "instantiate_financing": "Compile a financing instrument the dispute can trigger (e.g. convertible notes): quote the principal, the default, acceleration, repurchase, interest and listing terms the chains cite, with their figures and dates (each checked against the quotes). Code applies the terms; Jev never decides what a contract means.",
+      "get_record_items": "Return the record items (named slots) the forecast questions of a dispute's chain name, for the dispute's stage: each item's text and the decisions that name it, as the dispute model states them, with the agent's record of it. No sources, conclusions or expected findings.",
+      "attach_record_item": "Record the accepted findings whose passages fill one record item, or that the record has nothing for it with how the agent searched. submit_packet refuses while an item of a live dispute's template is open."
     },
     "disallowed_capabilities": [
       "unscoped shell or code execution by the agent",
