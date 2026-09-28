@@ -17,6 +17,8 @@ from datetime import date, timedelta
 from decimal import ROUND_DOWN, Decimal
 from pathlib import Path
 
+from app.analysis.history import replay
+from app.analysis.setup import exposure_json, setup_from_inputs
 from app.evidence.snapshot import EVIDENCE_DIR
 from app.finance.bank import load_feed, window
 
@@ -298,9 +300,17 @@ inputs = {
         "existing_loans": existing,
     },
 }
+# The line's history: the engine on the feed's own flows from the opening date to 14 May (one deterministic trajectory,
+# the central reserve); its state on 14 May is every forecast trajectory's starting exposure (Setup.exposure).
+exposure, history = replay(feed, setup_from_inputs(inputs, feed.period_end), OPENED)
+assert history["limit_by_day_cents"][OPENED.isoformat()] == open_limit
+line["opening_state"] = {"note": ("The line's state on the review date, from app.analysis.history.replay: the engine's "
+                                  "draw, limit and collection rules on the feed's own flows from the opening date."),
+                         "exposure": exposure_json(exposure), "history": history}
 out = Path(__file__).resolve().parent / "run_inputs.json"
 out.write_text(json.dumps(inputs, indent=2, ensure_ascii=False) + "\n")
 print("wrote", out, len(observations), "observations")
+print("opening exposure", exposure)
 print("cash at", feed.period_end, feed.closing_cents / 100, "| mean receipts", line["mean_monthly_customer_receipts_cents"] / 100,
       "| mean debt service", line["mean_monthly_debt_service_cents"] / 100, "| limit", limit / 100, "| draw", draw / 100,
       draw_txn["date"], draw_txn["counterparty"])

@@ -56,3 +56,33 @@ def test_the_line_opens_on_the_first_day_with_three_complete_months_of_feed_hist
     receipts = sum(_month(feed, f"2024-0{m}", "customer_receipts") for m in (1, 2, 3))
     assert opened["limit_cents"] == int((Decimal("0.15") * Decimal(receipts) / 3).to_integral_value(ROUND_DOWN))
     assert opened["limit_cents"] > 25_000_000  # Slope's manual-review band
+
+
+def test_the_lines_history_is_the_engine_on_the_feed_and_reconciles_to_the_opening_exposure():
+    from app.analysis.history import replay
+    from app.analysis.setup import exposure_from_json, exposure_json
+
+    feed, line = load_feed(SNAP), INPUTS["financing_plan"]["line"]
+    state = line["opening_state"]
+    ex, hist = replay(feed, setup_from_inputs(INPUTS, REVIEW), date.fromisoformat(line["opened"]["date"]))
+    assert exposure_json(ex) == state["exposure"] and hist == state["history"]  # recorded = recomputed, exactly
+    assert setup_from_inputs(INPUTS, REVIEW).exposure == ex
+    assert exposure_from_json(exposure_json(ex)) == ex
+    parts = [i for d in hist["draws"] for i in d["installments"]]
+    assert sum(i["amount_cents"] for i in parts) == hist["contractual_cents"]
+    assert sum(i["collected_cents"] for i in parts) == hist["collected_cents"]
+    assert hist["contractual_cents"] == hist["collected_cents"] + ex.owed_cents
+    assert hist["funded_cents"] - hist["collected_cents"] == ex.cash_cents
+    remaining = sorted((i["due"], i["amount_cents"]) for i in parts if i["status"] == "not_yet_due")
+    by_due: dict = {}
+    for d, c in remaining:
+        by_due[d] = by_due.get(d, 0) + c
+    assert [(d.isoformat(), c) for d, c in ex.installments] == sorted(by_due.items())
+    assert all(i["due"] > REVIEW.isoformat() for i in parts if i["status"] == "not_yet_due")
+    assert ex.past_due_cents == 0 and all(i["status"] != "past_due" for i in parts)
+    for d in hist["draws"]:  # 3.7% fee, three installments, each draw a real invoice on its own date
+        assert sum(i["amount_cents"] for i in d["installments"]) == d["amount_cents"] + round(d["amount_cents"] * 0.037)
+        txn = next(t for t in feed.transactions if t["transaction_id"] == d["transaction_id"])
+        assert (txn["date"], -txn["amount_cents"]) == (d["date"], d["amount_cents"])
+    limit_now = hist["limit_by_day_cents"][max(k for k in hist["limit_by_day_cents"] if k <= REVIEW.isoformat())]
+    assert limit_now == line["limit_cents"] and ex.principal_cents <= limit_now

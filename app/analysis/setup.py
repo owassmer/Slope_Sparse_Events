@@ -37,6 +37,40 @@ class CostPlan:
     share_bps: int
 
 
+@dataclass(frozen=True)
+class Exposure:
+    """The line's state on the review date when it was opened earlier: what every forecast trajectory starts from.
+    Installments still to fall due (due date after the review date, whole cents), the amount already past due, the
+    outstanding principal, and the net cash the line's history moved into the borrower's account (funded - collected;
+    the connected feed shows the supplier payments Slope made and none of its collections). Empty: a new line."""
+    installments: tuple[tuple[date, int], ...] = ()
+    principal_cents: int = 0
+    past_due_cents: int = 0
+    cash_cents: int = 0
+
+    @property
+    def owed_cents(self) -> int:
+        return self.past_due_cents + sum(c for _, c in self.installments)
+
+    def __post_init__(self) -> None:
+        if min((c for _, c in self.installments), default=1) <= 0 or self.past_due_cents < 0 or \
+                not 0 <= self.principal_cents <= self.owed_cents or (self.principal_cents == 0) != (self.owed_cents == 0):
+            raise ValueError(f"inconsistent opening exposure {self}")
+
+
+def exposure_json(e: Exposure) -> dict:
+    return {"installments": [{"due": d.isoformat(), "amount_cents": c} for d, c in e.installments],
+            "principal_cents": e.principal_cents, "past_due_cents": e.past_due_cents, "cash_cents": e.cash_cents}
+
+
+def exposure_from_json(d: dict | None) -> Exposure:
+    if not d:
+        return Exposure()
+    return Exposure(installments=tuple((date.fromisoformat(i["due"]), int(i["amount_cents"])) for i in d["installments"]),
+                    principal_cents=int(d["principal_cents"]), past_due_cents=int(d.get("past_due_cents", 0)),
+                    cash_cents=int(d.get("cash_cents", 0)))
+
+
 def is_slope_case(inputs: dict) -> bool:
     return "supplied_terms" in (inputs.get("financing_plan") or {})
 
@@ -68,6 +102,9 @@ class Setup:
     need_days: int = NEED_DAYS
     financing: tuple[Financing, ...] = ()
     cost_plan: CostPlan | None = None
+    # A line opened before the review date (its state on that date; spec §16.2): installments in flight fall due and
+    # are collected under §2.2, stayed on a petition under §2.3, and their principal counts against the limit.
+    exposure: Exposure = Exposure()
 
     @property
     def share_bps(self) -> int:
@@ -155,5 +192,6 @@ def setup_from_inputs(inputs: dict, review: date, scenario: str = "central") -> 
                  days=t["days"], discount_rate_bps=t["discount_rate_bps"],
                  limit_share_bps=line.get("limit_share_bps", 1500),
                  line_usage=line.get("line_usage_bps", 10_000) / 10_000,
+                 exposure=exposure_from_json((line.get("opening_state") or {}).get("exposure")),
                  **{**controls_from_json((inputs.get("common_model") or {}).get("central") or {}),
                     **controls_from_json(scenarios(inputs)[scenario])})
