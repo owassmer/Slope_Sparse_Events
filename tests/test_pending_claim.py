@@ -588,7 +588,8 @@ def test_7j_the_ordinary_view_carries_the_ordinary_obligations_facts_and_no_disp
     both, the ordinary view's path facts carry every fact the forecast's state takes from the ordinary obligations
     (the instrument's terms, the raise available, the operating figures; the instrument's dated triggers, dated on
     the ordinary view's own path) and none that exists only because of the dispute (the builder's `facts_by_source`
-    names each fact's source)."""
+    names each fact's source). One fact contract per node type (design 14 May §7.12): the ordinary view's keys are
+    exactly the forecast's ordinary keys for that node type (`Forecaster.ordinary_facts` builds both)."""
     from app.analysis.events import INSTRUMENT_TRIGGERS
     from app.disputes.forecast import TRIGGER_PHRASES, bank_state
 
@@ -619,8 +620,12 @@ def test_7j_the_ordinary_view_carries_the_ordinary_obligations_facts_and_no_disp
                 else:
                     assert k not in ours, (n.key, m.key, k)
             assert all(any(lab.startswith(p) for p in instrument) for lab in ours.get("contract_dates", {})), n.key
+            # one fact contract per node type: the same keys as the forecast's ordinary half, no more and no fewer
+            # (the dated triggers vary by path: a date before the decision or after the period is not stated)
+            assert set(ours) - {"contract_dates"} == set(common) - {"contract_dates"}, (
+                n.key, m.key, sorted(set(ours) ^ set(common)))
             checked.add(n.node)
-    assert {"financing_at_floor", "listing_kept"} <= checked, checked
+    assert {"financing_at_floor", "listing_kept", "holders_act_delisting", "petition_on_notes"} <= checked, checked
 
 
 def test_8_settlement_is_bounded_and_ends_the_claim(tree):
