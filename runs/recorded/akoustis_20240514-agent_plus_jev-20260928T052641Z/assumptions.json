@@ -48,9 +48,9 @@
    "paths": 4300,
    "jev": {
     "questions": 232,
-    "cached": 50,
-    "re_asked": 182,
-    "spent_usd": "0.034623792"
+    "cached": 229,
+    "re_asked": 3,
+    "spent_usd": "0.000417606"
    },
    "headline": {
     "due_horizon_cents": 92081353.29802543,
@@ -99,9 +99,9 @@
    "paths": 4204,
    "jev": {
     "questions": 251,
-    "cached": 56,
-    "re_asked": 195,
-    "spent_usd": "0.035856156"
+    "cached": 248,
+    "re_asked": 3,
+    "spent_usd": "0.000417606"
    },
    "headline": {
     "due_horizon_cents": 91989975.85275795,
@@ -152,9 +152,9 @@
    "paths": 3293,
    "jev": {
     "questions": 238,
-    "cached": 139,
-    "re_asked": 99,
-    "spent_usd": "0.018448710"
+    "cached": 237,
+    "re_asked": 1,
+    "spent_usd": "0.000130368"
    },
    "headline": {
     "due_horizon_cents": 91313670.48580033,
@@ -205,9 +205,9 @@
    "paths": 3701,
    "jev": {
     "questions": 230,
-    "cached": 123,
-    "re_asked": 107,
-    "spent_usd": "0.020296794"
+    "cached": 230,
+    "re_asked": 0,
+    "spent_usd": "0"
    },
    "headline": {
     "due_horizon_cents": 91583588.89487141,
@@ -258,9 +258,9 @@
    "paths": 2962,
    "jev": {
     "questions": 207,
-    "cached": 168,
-    "re_asked": 39,
-    "spent_usd": "0.006966540"
+    "cached": 207,
+    "re_asked": 0,
+    "spent_usd": "0"
    },
    "headline": {
     "due_horizon_cents": 90495152.70443113,
@@ -309,9 +309,9 @@
    "paths": 2962,
    "jev": {
     "questions": 207,
-    "cached": 75,
-    "re_asked": 132,
-    "spent_usd": "0.024832332"
+    "cached": 202,
+    "re_asked": 5,
+    "spent_usd": "0.000638568"
    },
    "headline": {
     "due_horizon_cents": 90847200.95313914,
@@ -360,9 +360,9 @@
    "paths": 2737,
    "jev": {
     "questions": 203,
-    "cached": 75,
-    "re_asked": 128,
-    "spent_usd": "0.024145926"
+    "cached": 198,
+    "re_asked": 5,
+    "spent_usd": "0.000638526"
    },
    "headline": {
     "due_horizon_cents": 91644925.06302169,
@@ -413,9 +413,9 @@
    "paths": 3160,
    "jev": {
     "questions": 217,
-    "cached": 133,
-    "re_asked": 84,
-    "spent_usd": "0.016390374"
+    "cached": 217,
+    "re_asked": 0,
+    "spent_usd": "0"
    },
    "headline": {
     "due_horizon_cents": 90009338.55564241,
@@ -466,9 +466,9 @@
    "paths": 2623,
    "jev": {
     "questions": 207,
-    "cached": 54,
-    "re_asked": 153,
-    "spent_usd": "0.029885940"
+    "cached": 202,
+    "re_asked": 5,
+    "spent_usd": "0.000640542"
    },
    "headline": {
     "due_horizon_cents": 91394142.35849418,
