@@ -26,6 +26,8 @@ This document owns the Jev questions of the pending-claim model for the 14 May 2
 
 **Legal meaning is not a Jev question.** Where research settles a legal question, it is Law. Where it does not, the interpretation is a declared legal scenario (§3), held the same way along the whole path, with the alternative as a sensitivity.
 
+**The no-lawsuit view.** The ordinary view asks the same questions on the same record. The dispute's resolution on the review date, at no cost to the company, is a stated event on its paths.
+
 **Depth.** A question is asked only where its answer can change cash, timing, an obligation, or a later decision inside the horizon (to 10 Nov 2024) on some trajectory.
 
 **Shared instruction** (both profiles, `dispute_forecast` and `financing_forecast`):
@@ -46,7 +48,13 @@ The claim components in the state are Qorvo's itemised claims. Akoustis's positi
 
 ### 2.2 The company's cash
 
-Available cash on the decision date, and the operating need for the next month. From the first day available cash is exhausted without a petition, the state is: available cash nil, and the obligations fallen due and unpaid, by class and amount, in the order the non-filing rule declares. Slope's debits that fail are among them. Code tests the notes' general-nonpayment default (§3.3) on this state.
+Available cash on the decision date, and the operating need for the next month. Cash is never negative.
+
+**Processing (Scenario).** Each day, the day's receipts post first. Obligations due that day are then processed against the available balance at that moment: the balance left after every earlier payment, less restricted cash (locked stay security). A levy served that day is processed first: it attaches the reachable balance. Scheduled obligations with a fixed due date are processed next, in the order they were incurred. These are Slope's installments by automatic debit, agreed settlement installments, and interest payable in cash. The day's operating outflows are processed next. A scheduled obligation is paid in full or not at all. Operating outflows are paid up to the balance. Whatever is unpaid becomes an arrear in its class: Slope, settlement, notes interest, operating. This same-day order is a convention; its effect is measured once against operating outflows first (§5).
+
+**Arrears.** A failed Slope debit is retried on the line's retry dates. An unpaid settlement installment stays owed to the claimant; the settlement terms carry no acceleration. Unpaid operating outflows are carried as vendor credit: receipts and spending continue as the operating forecast has them. When receipts exceed the day's obligations, the surplus pays arrears, oldest first.
+
+**State given to Jev.** Available cash, the operating need, and from the first unpaid obligation: the arrears by class and amount, and the days since the first obligation went unpaid.
 
 ### 2.3 The notes
 
@@ -59,6 +67,14 @@ The bid-price deficiency, the 21 Oct 2024 compliance deadline, and on the decisi
 ### 2.5 Stay security
 
 One of four types, each with its terms: full bond collateral (the amount); reduced cash security (the amount of cash above the month's operating need on the approval day); non-cash security or waiver (the non-cash scenario only); none available. A reduced-security amount of zero is never used to mean that full collateral is available.
+
+### 2.6 Equity: channels and share capacity
+
+**Share capacity (Record, Arithmetic).** One ledger of authorized shares that are neither issued nor reserved: 175,000,000 authorized, less 98,669,282 outstanding (8 May 2024), 9,341,825 reserved for conversion, 3,031,625 for options, and the 5,000,000 registered for interest paid in shares. That leaves 58,957,268, an upper bound because the equity-plan reserves are not stated. At-the-market sales and underwritten offerings draw on this ledger at their declared prices, and a channel stops when it cannot cover the issuance. Interest paid in shares draws on its own 5,000,000.
+
+**At-the-market sales (Scenario).** The program the company re-activated on 13 May sells from 14 May on each trading day while the stock is listed and no petition has been filed. Volume: 20% of the average daily dollar volume from 15 Mar to 14 May 2024 (about $337k), with 10% and 25% as sensitivities. Price: the 14 May close. Proceeds are net of the agents' commission (up to 3%) and settle two business days after the sale. No Jev question: the company's decision to sell is on the record; the pace is the declared assumption.
+
+**Underwritten offerings (N1).** An offering is available while the stock is listed, no petition has been filed, no other offering is pending, and capacity covers it. Its proposed size is the January 2024 offering's net proceeds, or less where capacity binds: the shares available times the offering price. The offering price is the 14 May close less the January offering's discount to the prior close. There is no fixed count of offerings per path.
 
 ---
 
@@ -76,7 +92,7 @@ One of four types, each with its terms: full bond collateral (the amount); reduc
 
 ### 3.3 General nonpayment, §7.01(j)(v)
 
-"Generally is not paying its debts as they become due" is tested by code on the typed unpaid obligations (§2.2), with a declared threshold as a bounded term and its sensitivity. Where it is met: an Event of Default under (j); the notes become due immediately under §7.02 without any declaration; §7.06 does not bar a holders' petition. No Jev question decides whether it is met.
+"Generally is not paying its debts as they become due" is met once arrears (§2.2) have been outstanding continuously for 30 days; 15 and 60 days are the sensitivities. Code tests it daily. Where it is met: an Event of Default under (j); the notes become due immediately under §7.02 without any declaration; §7.06 does not bar a holders' petition. No Jev question decides whether it is met.
 
 ### 3.4 Which rules apply
 
@@ -93,7 +109,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 #### J1 · The jury's liability answers · `forecast_verdict_finding`
 
 - **Event:** the jury's answer to one liability item of the final verdict form (D.I. 580), conditional on its earlier answers on the path. Items: 1(a) trade secrets (a "yes" in both columns for at least one trade secret, as the form defines it); 2(a) and 2(b) conspiracy; 3(a) false advertising; 5(a) patent infringement. Question 4 (UDTPA) is not asked: D.I. 590 bars its damages.
-- **Order:** the form's order. 3(a) and 5(a) are asked on every path where the trade-secret and conspiracy amounts leave the total award within Akoustis's reach (J1b bands at or below the reach line, or no award). Above the reach line their amounts change no cash.
+- **Order:** the form's order. 3(a) and 5(a) are asked on every path where the trade-secret and conspiracy amounts leave the total award below the J1b top line, or no award. Above the top line their amounts change no cash.
 - **Answers:** yes, the jury answers the item "yes"; no, the jury answers "no". A "no" to 1(a) is stated as the form's answer ("Question 1(a): No"), not as a finding of no trade-secret liability.
 - **Situation:** the form's question quoted, the earlier answers as the form records them. No cash.
 - **Record:** the form (D.I. 580); the summary-judgment ruling and its reasons (D.I. 545); validity (D.I. 557); the exclusion of defense technical opinions (D.I. 546); claim construction (D.I. 152); each side's statement of intended proof (D.I. 543-1), attributed; D.I. 590.
@@ -103,12 +119,12 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 #### J1b · The jury's amounts · replaces `forecast_verdict_measure`
 
 - **Event:** the amount the jury enters on the item exceeds $X, asked for 1(b) (trade secrets) and separately for 2(c) (conspiracy, actual loss). Each threshold is asked conditional on the band already established.
-- **Cut points:** the lines where cash behaves differently. The reach line is the most Akoustis can pay from cash on the entry day. The funded-reach line is the most it can pay with a funded offering. Both are measured on the built trajectories. Inside each band Akoustis can pay, there is one further cut. The thresholds reach Jev as figures only.
+- **Cut points:** the lines where cash behaves differently. The reach line is the most Akoustis can pay from cash on the entry day. The top line is the lowest amount above which every award books the same cash on every trajectory through 10 Nov 2024, with every raise and levy included. Both are measured on the built trajectories. Between the reach line and the top line, and below the reach line, there is one further cut in each band. The thresholds reach Jev as figures only.
 - **Exemplary damages:** 1(c) (willful and malicious) and 1(d) (the exemplary amount, at most twice 1(b) under the DTSA) are their own questions, asked in the form's order, only where the 1(b) band leaves the total within a band that exemplary damages could move across a line.
 - **Answers:** yes, the amount exceeds $X; no, it is $X or less, including nothing.
 - **Situation:** the form's words, the earlier answers. No cash.
 - **Record:** Qorvo's damages method and figures (D.I. 543-1; the admitted opinion, D.I. 553); the revenue base left to the jury; the defense's avoided-cost opinion as admitted; the court's limiting rulings; the form. For 2(c), the record on actual loss; it does not take 1(b)'s reasoning because Qorvo claims the same figure.
-- **Consequences:** a band within reach books its midpoint, with its ends as the sensitivity. The band above the funded-reach line books Qorvo's claimed amount; every amount in it books the same cash on every trajectory, which the build verifies.
+- **Consequences:** a band below the top line books its midpoint, with its ends as the sensitivity. The band above the top line books Qorvo's claimed amount; by the line's definition every amount in it books the same cash, which the build verifies.
 - **Build:** new. The measure questions retire.
 
 #### D1 · Akoustis files post-trial motions · `forecast_post_trial_motions`
@@ -160,7 +176,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Eligibility:** only trajectories where the offer amount is positive. Groups split where offers differ materially in size relative to the amount owed.
 - **Situation:** before the verdict, Akoustis is the defendant, no judgment exists, and the cap is the claimed amount.
 - **Record:** the company's statements on settlement; its own claims against Qorvo; the parties' competitive relationship.
-- **Consequences:** the settlement books through the existing rule: installments from the settlement date, release on that date, only where the amount is positive.
+- **Consequences:** the settlement books through the existing rule: installments from the settlement date, release on that date, only where the amount is positive. Its installments are scheduled obligations under §2.2.
 - **Build:** keep `settle()` and its positive-amount guard. Change the eligible population and the stated terms (the cap is described as the claimed amount before judgment).
 
 #### C2 · Qorvo accepts the proposed settlement · `forecast_settlement_accept`
@@ -216,10 +232,10 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Event:** what Akoustis does on the decision day: the entry day; each levy day, before the levy; the day the judgment default becomes available.
 - **Answers:**
   - pay the judgment balance in full;
-  - initiate an equity offering (N1 follows);
+  - initiate an underwritten offering (N1 follows);
   - file a voluntary petition;
   - none of these on that day.
-- **Grouping:** "pay" is offered only to a group whose cash covers the balance on every trajectory; groups split on that. "Initiate an offering" is offered where an offering is available (§N1).
+- **Grouping:** "pay" is offered only to a group whose available cash covers the balance on every trajectory; groups split on that. "Initiate an offering" is offered where an offering is available (§2.6).
 - **After "none":** later questions state that Akoustis did not pay, raise or file on that day. No state of seeking a sale or financing exists. A sale of the company is not modelled.
 - **Record:** the company's going-concern and bankruptcy statements; its financing routes and their status; its statements on the trial.
 - **Consequences:** pay, the balance is paid and the dispute ends (under a new trial it continues); initiate, N1; file, a petition on the day; none, nothing booked.
@@ -227,37 +243,37 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 #### D7 · Akoustis at its cash floor · `forecast_financing_at_floor`
 
-- **Event:** on the day available cash first falls below the month's operating need, Akoustis initiates an equity offering, files a voluntary petition, or does neither.
-- **Answers:** neither, nothing booked; the path goes on to cash exhaustion (D8).
-- **Situation:** available cash, the month's operating need, the judgment's standing, the notes' status, the listing status. Where an offering is unavailable, the state says why (delisted, a petition filed, an offering already completed on the path).
+- **Event:** on a day available cash falls below the month's operating need, Akoustis initiates an underwritten offering, files a voluntary petition, or does neither.
+- **Asked:** at the first such day, and again at each later day cash falls below the need after having recovered above it.
+- **Answers:** neither, nothing booked. At-the-market sales continue, and the next decision is at the first unpaid obligation (D8).
+- **Situation:** available cash, the month's operating need, at-the-market proceeds to date, the judgment's standing, the notes' status, the listing status, and the share capacity left. Where an offering is unavailable, the state says why: delisted, a petition filed, an offering pending, or no capacity.
 - **Record:** as D2.
 - **Build:** change. The raise becomes an initiation followed by N1; the fixed raise amount and its 30-day inflow retire.
 
 #### N1 · The offering raises its proceeds · new
 
-- **Event:** the proposed offering raises at least $X net by its close date.
-- **Proposed terms, stated as facts:** an underwritten public offering of common stock on the company's shelf; about $10.4M net, the size and structure of its January 2024 offering; the close date, in days after initiation as the January offering took. It is not described as committed.
-- **Answers:** yes, at least $X net received by the close date; no, not received by that date.
-- **Available:** while the stock is listed, no petition has been filed, and no offering has completed on the path.
-- **Situation:** the judgment and its standing, available cash, the listing status and deadline, the notes' status and any default continuing.
-- **Record:** the January 2024 offering (the 8-K of 29 Jan 2024 and its prospectus supplement: $0.50 a share, 23.0M shares, underwritten by Roth), as evidence of what the market did then, not a guarantee; the 10-Q's liquidity and going-concern text; counsel's statement on the ability to raise money; the shelf's capacity.
-- **Consequences:** yes, the net amount on the close date; no, nothing, and the next decision point on the path follows.
-- **Open terms:** the at-the-market program; whether one completed offering per path is the limit; a retry after a failed offering.
+- **Event:** the proposed offering raises at least its proposed net amount by its close date.
+- **Proposed terms, stated as facts:** an underwritten public offering of common stock on the company's shelf; the size and price under §2.6; the close date, as many days after initiation as the January 2024 offering took from launch to close. It is not described as committed.
+- **Answers:** yes, the proposed net amount is received by the close date; no, it is not received by that date.
+- **Asked:** after every initiation (D2, D7), including after an earlier offering on the path did not close. The situation states any earlier attempt and its outcome.
+- **Situation:** the judgment and its standing; available cash and any arrears; at-the-market proceeds to date; the listing status and deadline; the notes' status and any default continuing; the share capacity left.
+- **Record:** the January 2024 offering (the 8-K of 29 Jan 2024 and its prospectus supplement: 23.0M shares at $0.50, 29% below the prior close, underwritten by Roth), as evidence of what the market did then, not a guarantee; the at-the-market program and its re-activation on 13 May; the 10-Q's liquidity and going-concern text; counsel's statement on the ability to raise money; the shelf's capacity.
+- **Consequences:** yes, the net amount on the close date, and its shares drawn from capacity. No, nothing; the next decision point on the path follows, where an offering can be initiated again.
 - **Build:** new.
 
-#### D8 · Akoustis files when its cash is exhausted · `forecast_petition_cash_out`
+#### D8 · Akoustis files when it cannot pay an obligation · `forecast_petition_cash_out`
 
-- **Event:** Akoustis files a voluntary petition during the stated interval from the day its available cash is exhausted, given the shortfall stated.
-- **Answers:** no, no petition in that interval; nothing more.
-- **Situation:** it did not file at the cash floor; available cash nil; the obligations unpaid by class (§2.2); the notes' status, including any §7.01(j)(v) default and automatic acceleration (§3.3); the judgment's standing.
-- **Consequences:** yes, a petition on the day. No: the non-filing rule carries the unpaid obligations in its declared order, Slope's debits fail as they fall due, and code applies §3.3. No payment deferral, financing, curtailment or continued operation on credit is booked unless an explicit event or declared assumption supplies it.
-- **Build:** change the state after "no". Keep the floor-then-exhaustion sequence and its conditioning. No monthly re-ask.
+- **Event:** on the first day an obligation goes unpaid (§2.2), Akoustis files a voluntary petition, rather than carry arrears.
+- **Answers:** no, no petition that day; nothing more.
+- **Situation:** it did not file at the cash floor; available cash nil; the obligation unpaid that day and its class; the notes' status; the judgment's standing.
+- **Consequences:** yes, a petition on the day. No: processing under §2.2 continues. Slope's debits clear only when the balance covers them, arrears accrue, and after 30 days of continuous arrears §3.3 makes the notes due, with D9 and H3 following.
+- **Build:** change. The trigger becomes the first unpaid obligation, and the state after "no" follows §2.2. Keep the conditioning on the floor decision. There is no monthly re-ask.
 
 #### D9 · Akoustis files on the notes · `forecast_petition_on_notes`
 
-- **Event:** Akoustis files a voluntary petition during the stated interval after the notes' principal and interest become due (by declaration, automatic acceleration, or an unpaid repurchase).
-- **Answers:** no, no petition in that interval. The notes stay due and unpaid, in default. No forbearance or restructuring is booked.
-- **Situation:** the notes' balance due, stated apart from the judgment; the cash state as D8.
+- **Event:** Akoustis files a voluntary petition when the notes' principal and interest become due: by declaration, by automatic acceleration under §3.3, or on an unpaid repurchase.
+- **Answers:** no, no petition then. The notes stay due and unpaid, in default. No forbearance or restructuring is booked, and the holders' petition (H3) remains open.
+- **Situation:** the notes' balance due, stated apart from the judgment; the cash state and arrears as D8; for a §3.3 acceleration, the days of continuous arrears.
 - **Grouping:** where D8 and D9 fall on the same day on a path, one question asks the filing.
 - **Build:** change the state and the answer's meaning; keep the petition booking.
 
@@ -283,9 +299,9 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 #### H3 · Noteholders file an involuntary petition · `forecast_holders_involuntary`
 
-- **Event:** qualifying creditors (§303(b)), identified as noteholders with claims for the notes due, file an involuntary petition against Akoustis during the stated interval.
+- **Event:** qualifying creditors (§303(b)), identified as noteholders with claims for the notes due, file an involuntary petition against Akoustis on the day the §7.06 route (§3.2) first allows it.
 - **Eligibility:** the notes are due and unpaid; Akoustis has not filed; the §7.06 route under §3.2 (at once where a (j) default is continuing).
-- **Answers:** no, no petition in the interval.
+- **Answers:** no, no petition on that day.
 - **Situation:** the timing text follows the route under which it is asked.
 - **Asked:** only where the petition can fall inside the horizon.
 - **Consequences:** the petition stops Slope's collections from its date (§362). An order for relief and the company's operations are separate from the filing; nothing else is booked from the petition.
@@ -296,7 +312,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 #### D6 · Akoustis requests a hearing · `forecast_listing_kept` (retires)
 
 - **Event:** Akoustis requests a hearing before a Nasdaq Hearings Panel by the request deadline after the staff's delisting determination. The deadline is 7 days after the determination that follows the missed 21 Oct 2024 deadline.
-- **Why the deadline is missed:** the bid price regains $1 only by a reverse split effective in time, which needs a stockholder vote; code dates the latest effective day and the vote it requires from the record. Where no such vote can fall in time, missing the deadline is Arithmetic, not a condition assumed.
+- **Compliance:** the bid price regains $1 only by a reverse split effective in time, which needs a stockholder vote; code dates the latest effective day and the vote it requires from the record. Where no such vote can fall in time, missing the deadline is Arithmetic, not a condition assumed.
 - **Answers:** no, no timely request; suspension follows on the rule's date.
 - **Consequences:** a timely request stays suspension until the panel's decision, dated by code under the 2024 Rule 5815. Suspension, delisting and the indenture's Eligible Market condition are dated separately; the delisting default passes to H2 only when the Eligible Market condition fails.
 - **Record:** the deficiency notice and deadline; the company's stated cure; the latest stockholder vote on a charter amendment.
@@ -310,9 +326,12 @@ Each check takes its expected value from outside the code:
 
 - The §7.01(i) availability day under §3.1 equals the hand computation from the entry day (entry + 30 + 60 days).
 - A reduced judgment's surviving amount equals the record computation for its class.
-- Every amount in the band above the funded-reach line books the same cash on every trajectory.
+- Every amount in the band above the J1b top line books the same cash on every trajectory.
 - The composed probabilities of every node sum to 1.
 - The cash facts each question states equal the engine's state on its decision date.
 - Date order: every step's cash equals the full run's cash on its day.
+- For one trajectory that exhausts its cash without filing, the arrears by class, the day §3.3 is met and the notes' due date equal a hand computation from its receipts, outflows and schedule.
+- For one month, at-the-market proceeds and the shares drawn equal a hand computation from §2.6; the share ledger never goes below zero.
+- The same-day order's effect on Slope's collections, measured once against operating outflows first, is reported before the page is built.
 
 After the build, the questions are frozen. Stability is measured with the evidence held constant: equivalent paraphrases, option order, and a group's answer re-asked at two other representative trajectories. It measures stability, not calibration.
