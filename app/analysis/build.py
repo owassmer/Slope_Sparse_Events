@@ -403,7 +403,7 @@ def setup_json(setup: Setup) -> dict:
 def setup_from_json(d: dict) -> Setup:
     return Setup(**{k: (date.fromisoformat(v) if k in ("review", "horizon", "funding", "invoice_due") else
                         tuple(v) if k == "collateral_share" and v is not None else v) for k, v in d.items()
-                    if k not in ("need_days", "financing", "cost_plan", "exposure")}, **controls_from_json(d),
+                    if k not in ("need_days", "collection", "financing", "cost_plan", "exposure")}, **controls_from_json(d),
                  exposure=exposure_from_json(d.get("exposure")))
 
 

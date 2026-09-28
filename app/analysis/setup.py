@@ -12,7 +12,12 @@ HORIZON_DAYS = 180
 DRAWS = 512
 SEED = 20240819
 MAX_LIMIT_MULTIPLIER = 33 / 15
-NEED_DAYS = 30  # the operating reserve's central setting (spec §16.3): days of operating need
+NEED_DAYS = 30  # the cash floor's central setting (spec §16.3): days of operating need
+# How Slope collects (spec §16.3 Collection). "debit": each installment is debited in full, in due-date order, when
+# available cash covers it; a failed debit stays overdue and is retried (the central case). "protect_need": the
+# borrower keeps its next `need_days` of operating need back, so Slope collects min(owed, max(0, available - need))
+# (the sensitivity; the previous §2.2 rule, and the default so earlier recorded setups read unchanged).
+COLLECTION_MODES = ("debit", "protect_need")
 
 
 @dataclass(frozen=True)
@@ -77,6 +82,7 @@ def is_slope_case(inputs: dict) -> bool:
 
 @dataclass(frozen=True)
 class Setup:
+    """The loan and the common financial model's settings for one analysis."""
     review: date
     horizon: date
     funding: date
@@ -97,14 +103,21 @@ class Setup:
     limit_multiplier: float = 1.0  # 1.0 to 33/15: the low to the high end of Slope's published 15-33% range
     line_usage: float = 1.0  # share of eligible supplier invoices the borrower routes through Slope
     facility_cents: int = 0  # other committed facilities (backup liquidity); Akoustis has none
-    # The common financial model's scenario controls (spec §16.3), shared by every path. `need_days` is the one
-    # operating-reserve setting: collections capacity, the company-response triggers and Jev's facts all read it.
+    # The common financial model's scenario controls (spec §16.3), shared by every path. `need_days` sets the cash
+    # floor (next `need_days` days of operating need): the company's cash-floor decision, Jev's cash facts, and
+    # settlement and stay capacity read it. `collection` says how Slope collects; `need_days` limits collections
+    # only under "protect_need".
     need_days: int = NEED_DAYS
+    collection: str = "protect_need"
     financing: tuple[Financing, ...] = ()
     cost_plan: CostPlan | None = None
     # A line opened before the review date (its state on that date; spec §16.2): installments in flight fall due and
     # are collected under §2.2, stayed on a petition under §2.3, and their principal counts against the limit.
     exposure: Exposure = Exposure()
+
+    def __post_init__(self) -> None:
+        if self.collection not in COLLECTION_MODES:
+            raise ValueError(f"collection mode {self.collection!r}; expected one of {COLLECTION_MODES}")
 
     @property
     def share_bps(self) -> int:
@@ -137,6 +150,8 @@ class Setup:
             upd["limit_multiplier"] = max(1.0, min(float(controls["limit_multiplier"]), MAX_LIMIT_MULTIPLIER))
         if controls.get("need_days") is not None:
             upd["need_days"] = max(0, min(int(controls["need_days"]), 90))
+        if controls.get("collection") in COLLECTION_MODES:
+            upd["collection"] = controls["collection"]
         return replace(self, **upd)
 
 
@@ -153,7 +168,7 @@ def cost_plan_from_json(c: dict | None) -> CostPlan | None:
 
 def controls_json(setup: Setup) -> dict:
     """The scenario controls as JSON (the inverse of `controls_from_json`)."""
-    return {"need_days": setup.need_days,
+    return {"need_days": setup.need_days, "collection": setup.collection,
             "financing": [{"date": f.on.isoformat(), "amount_cents": f.amount_cents, "kind": f.kind,
                            "service": [{"date": d.isoformat(), "amount_cents": c} for d, c in f.service]}
                           for f in setup.financing],
@@ -162,10 +177,12 @@ def controls_json(setup: Setup) -> dict:
 
 
 def controls_from_json(d: dict) -> dict:
-    """Setup fields from a case's scenario settings (any subset of need_days, financing, cost_plan)."""
+    """Setup fields from a case's scenario settings (any subset of need_days, collection, financing, cost_plan)."""
     out: dict = {}
     if "need_days" in d:
         out["need_days"] = int(d["need_days"])
+    if "collection" in d:
+        out["collection"] = str(d["collection"])
     if "financing" in d:
         out["financing"] = financing_from_json(d["financing"] or [])
     if "cost_plan" in d:

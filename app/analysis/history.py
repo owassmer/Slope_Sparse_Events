@@ -57,7 +57,7 @@ def _operating(feed: BankFeed, opened: date) -> tuple[Operating, list[list[dict]
 
 
 def replay(feed: BankFeed, setup: Setup, opened: date) -> tuple[Exposure, dict]:
-    """Run the line from `opened` to the feed's end (the review date) under `setup`'s line terms and reserve.
+    """Run the line from `opened` to the feed's end (the review date) under `setup`'s line terms and collection mode.
     Returns the opening exposure for the forecast and a record of every draw, its installments and collections."""
     review = feed.period_end
     if not opened <= review:
