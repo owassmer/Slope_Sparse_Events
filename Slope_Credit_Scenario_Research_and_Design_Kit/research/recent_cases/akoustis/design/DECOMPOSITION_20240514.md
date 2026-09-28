@@ -6,8 +6,10 @@
 
 **Amounts come from the record (§5).** The claimant itemised its claim before trial (D.I. 543-1, 22 Apr 2024): at least $66.1M of trade-secret unjust enrichment on a 55-month head start, plus $2,236,184 on the patent, advertising and poaching claims. The conspiracy and UDTPA $66.1M figures restate the same money. D.I. 590 (14 May) leaves no UDTPA damages, so there is no trebling. The jury's choice of damages theory is the Jev question; code sets each branch's amount:
 - **no award**: no judgment;
-- **defense theory**: a bounded amount below the notes' $10.0M threshold (no defense figure was public);
-- **claimant's theory**: $68,336,184, beyond cash on every trajectory. Exemplary damages, interest and fees are one bounded term that moves no date or cash.
+- **liability without the head-start measure** (O1): $1,426,412, the claimant's own patent ($279,808) and corrective-advertising ($1,146,604) figures; sensitivity $9,999,999;
+- **claimant's theory**: $67,526,412 (the UDTPA poaching $809,772 is out: D.I. 590), beyond cash on every trajectory. Exemplary damages, interest and fees are one bounded term that moves no date or cash.
+
+The jury is asked its own verdict form's questions (D.I. 580), not "which theory"; the three branches are composites of its answers (§7.12).
 
 **Clocks (§3).** The verdict falls in a window of 16–22 May, drawn per trajectory from the 13 May call ("to the jury before the end of the week ... verdict in the next several days") and D.I. 550. Every later clock runs from the modeled verdict: entry the next business day; execution 30 days later; post-trial motions, briefing, and a ruling lag drawn from the judge's pace on this docket (8 of 10 draws fall inside the horizon). The judgment default ripens 16–22 Aug on the entered-judgment reading, or at ruling + 60 on the post-ruling reading. Both readings are carried (L11, open). The listing can fail inside the horizon only by suspension about 1 Nov without a hearing request. The June coupon ($1.32M) is paid in shares by base (the 13 May S-3 registers 5.0M Note Shares), with all cash as the sensitivity.
 
@@ -30,11 +32,14 @@ Questions marked ⚑ receive cash facts that must match the engine on their deci
 
 **Implementation (§7).** Contract and registry 4.1.0, both additive: a new template, stage, five new registry entries, and label templates filled from case inputs. There are small changes to the domain, interpretation and tool, plus new walker methods and Chain steps that reuse the 4.0.0 flow. The 4.0.0 template and the recorded 20 Jun run are unchanged. Estimates: about 3,000–7,000 paths and 100–150 Jev asks per variant.
 
-**Open decisions for Owen.**
-- **O1.** The defense-theory base. Recommended: $9,999,999, the record's upper bound (approved D4(a)). The sensitivity is $2,236,184, the claimant's non-head-start items. The two sit either side of the payable threshold.
-- **O2.** Whether to add a declared class for a compromise award between $10.0M and cash above the reserve. Needed only if the built feed has trajectories whose cash above the reserve exceeds $10.0M (§5.3).
-- **O3,** for the §16.3 worker: the level of attributable legal spend after trial, since neither verdict ends the dispute inside the horizon (§3).
-- **O4.** Judgment entry the next business day after the verdict (base, L14). The sensitivity is entry with the post-trial ruling.
+**Decisions (Owen, 27 Sep 2026; §7.12 records how each is built).**
+- **O1.** The lower award branch is liability without the head-start measure: base $1,426,412 (patent plus corrective advertising, D.I. 543-1); the poaching $809,772 is out because D.I. 590 leaves no compensable UDTPA damages, which also makes the claimant's-theory sum $67,526,412. Sensitivity $9,999,999.
+- **O2.** A compromise-award class is added only if some trajectory holds more than $10.0M above the reserve. Measured on the 14 May feed with the existing line: none (0.0% at entry and on every day), so the band is empty and has no class (§5.3).
+- **O3.** The attributable legal-spend proxy continues at its level until the dispute ends on the path; no source supports a post-trial reduction.
+- **O4.** Entry the next business day after the verdict (base); entry with the post-trial ruling is the sensitivity.
+- **Item 1, financing access is a decision.** At the cash floor the company raises equity, files or continues (`financing_at_floor`); D8 stays the fallback at zero cash. The raise is code-owned by situation: $9.7M with no adverse money judgment on the path (inference: the ATM's baby-shelf capacity), $0 after the claimant's-theory judgment, each with a $5.0M sensitivity, received in equal daily amounts over 30 days. The common model's shared equity scenario is a sensitivity only.
+- **Item 2, J1 follows the verdict form.** One jury node per money-bearing question of D.I. 580, in the form's order and conditioned on the earlier answers; J1's three branches are composites of them (§7.12).
+- **Item 3, the existing line.** The ⚑ cash facts' forward runs start from the line's opening state (`Setup.exposure`), so Jev's cash equals the engine's.
 
 ---
 
@@ -169,7 +174,7 @@ Every clock after the verdict runs from the **modeled** verdict and entry dates 
 | §1961 rate | Latest weekly 1-year CMT published by 14 May (week ending 10 May 2024) (L8) | Bounded; the value is fetched from H.15 by the implementer |
 | Branch amounts | §5: the claimant's theory at the claimed amount; the defense's theory a bounded amount below $10.0M; enhancements one bounded term | Record and Arithmetic; bounded terms with sensitivities |
 | **Operating reserve** | 30 days of operating need, one alternative (spec §16.3). The event model reads it in four places: the settlement amount, the reduced-security offer, whether a class is payable (§5), and the cash floor | §16.3 setting, owned by the common-model worker |
-| **Financing** | An explicit amount-and-date scenario shared by every path; central case adds none the record does not fix (spec §16.3). The 13 May re-activation of the at-the-market program ($48.0M remaining; "the sales agents are under no obligation to make any sales", 10-Q) is a known channel that fixes no amount or date, so it books nothing centrally. Completion is worker A's shared scenario input, not a question in this tree: the debtor's "seek a sale or financing" branch books no cash of its own and inherits whatever A's scenario books | §16.3 setting, owned by the common-model worker (A) |
+| **Financing** | An explicit amount-and-date scenario shared by every path; central case adds none the record does not fix (spec §16.3). The 13 May re-activation of the at-the-market program ($48.0M remaining; "the sales agents are under no obligation to make any sales", 10-Q) is a known channel that fixes no amount or date, so it books nothing centrally. Decided (item 1): the company's raise is its own decision at the cash floor (D7, `financing_at_floor`), in a code-owned amount by situation (§7.12); the central case books no exogenous financing, and the common model's equity scenario is a sensitivity only. "Continue" in D2 books no cash of its own | Case input (raise amounts) and §16.3 sensitivity |
 | Legal spend | Attributable spend stops when the dispute ends on the path (spec §16.3). The event model supplies the end date: payment or a paid settlement. A verdict of either kind, or a ruling that sets a judgment aside, does not end the dispute inside the horizon (post-trial motions, an appeal or a retrial follow, L18), so spend continues. Whether spend after the trial runs at the trial-period level is the §16.3 worker's proxy question, flagged to it | §16.3 rule; end dates from the event model |
 
 ---
@@ -196,14 +201,15 @@ Intervals: **I0** review date to verdict; **I1** entry to the post-trial ruling;
 1. Settlement before the verdict: **D3 × C2** on the terms of §4.5, paid at 13 Jun (interval start + 30; sensitivity V).
 2. The verdict on V (Code timing, §3): **J1**, the damages theory the jury adopts. Three branches, cut at the mechanism thresholds (§5):
    - **no award**: no money judgment on any claim;
-   - **defense theory**: an award below $10.0M (bounded amount, §5.2);
-   - **claimant's theory**: the claimed $68,336,184, beyond cash on every trajectory (enhancements one bounded term, §5.2).
+   - **liability without the head-start measure**: $1,426,412, below $10.0M (O1, §5.2);
+   - **claimant's theory**: the claimed $67,526,412, beyond cash on every trajectory (enhancements one bounded term, §5.2).
+   J1 is not one question: each branch is a composite of the jury's answers to its verdict form's money-bearing questions (§7.12).
 3. **No award** → no judgment exists, so no enforcement, stay, registration or judgment-default node exists on the path (the template's rule, §2.1). The claimant's own post-trial motions cannot yield money by 10 Nov (L18). The path goes to T3 and T4; legal spend continues (§3).
 4. A money award → judgment entered at E = V + 1 business day (L14), in the branch amount.
 
 **At entry E.**
 5. **Arithmetic** (spec §0: only impossibility removes a branch): "pay" exists where the amount owed is within available cash on some trajectory of the path at the decision; a full bond exists where cash above the reserve covers its collateral on some trajectory (the approved 20 Jun stay rule, `DECOMPOSITION.md` decision 3). On the claimant's-theory branch neither exists.
-6. **D2** at entry: pay, file, or continue (operate and contest). "Continue" includes seeking a sale or new financing, which books no cash of its own; any financing is worker A's shared scenario (§3). Pay ends the dispute on the payment day (`resolve`); file books a petition at E + `petition_lag_days`.
+6. **D2** at entry: pay, file, or continue (operate and contest). "Continue" includes seeking a sale or new financing, which books no cash of its own; equity is raised only at the cash-floor decision (D7, item 1). Pay ends the dispute on the payment day (`resolve`); file books a petition at E + `petition_lag_days`.
 7. **D1**, on "continue": the debtor files timely post-trial motions (by E + 28). Yes → I1 and a ruling date (§3). No → the judgment is final at entry, the appeal deadline is E + 30, and the path goes to I2 without a ruling.
 
 **I1. Entry to the post-trial ruling.**
@@ -242,12 +248,12 @@ At 14 May every Panel decision and every Form 25 falls after 10 Nov (§2.3). Ins
 
 ### 4.4 T4. Operating cash
 
-Operating flows come from the common model (§16.3): the 14 May feed, the operating outlook, the financing scenario, the coupon (B8). Event cash comes from T1 and T5. **τ** is the first day available cash falls below the 30-day need; **D7**: the company files at τ. If it keeps operating, **D8**: it files when cash first falls below zero. Both reuse `petition_cash_floor` and `petition_cash_out`. They are also the only questions in the ordinary-operating-risk attribution run (the event given no cash effect, spec §16.1), asked there with that run's facts (`bank_state`).
+Operating flows come from the common model (§16.3): the 14 May feed, the operating outlook, the coupon (B8). Event cash comes from T1 and T5. **τ** is the first day available cash falls below the 30-day need; **D7**: the company raises equity, files or continues at τ (`financing_at_floor`, item 1; 'raise equity' only where the amount available in its situation is positive). After a raise or 'continue', **D8**: it files when cash first falls below zero (`petition_cash_out`, reused). They are also the only questions in the ordinary-operating-risk attribution run (the event given no cash effect, spec §16.1), asked there with that run's facts (`bank_state`).
 
 ### 4.5 Settlement terms
 
 Settlement is its own decision on stated terms (spec §16.4), asked once per interval where the terms exist:
-- **Offer (D3):** the debtor offers a lump sum equal to its available cash above the 30-day reserve on the payment date, capped at the amount owed; in I0, where nothing is owed yet, capped at the claimed $68,336,184. It exists only where that amount is positive on some trajectory (the approved 20 Jun rule, `DECOMPOSITION.md` §5.4). Sensitivity: the same amount in monthly payments to the horizon.
+- **Offer (D3):** the debtor offers a lump sum equal to its available cash above the 30-day reserve on the payment date, capped at the amount owed; in I0, where nothing is owed yet, capped at the claimed $67,526,412. It exists only where that amount is positive on some trajectory (the approved 20 Jun rule, `DECOMPOSITION.md` §5.4). Sensitivity: the same amount in monthly payments to the horizon.
 - **Acceptance (C2):** the claimant accepts those terms. The offered amount (P5/P50 on the payment date) is a path fact, and each interval and branch is its own node, so an acceptance probability is never reused for a different offer.
 - A paid settlement releases the claim and the stay security, removes the §7.01(i) trigger, and ends attributable legal spend.
 
@@ -257,12 +263,12 @@ Each distinction below changes no payment timing, cash, receipts, financing acce
 
 | Collapsed | Into | Basis |
 |---|---|---|
-| Liability per claim (trade secrets, conspiracy, Lanham Act, UDTPA, patent) | J1's three theories | Only the trade-secret head-start measure can reach $10.0M or exceed cash; the other claims total $2,236,184 at most (D.I. 543-1) and sit inside the defense-theory amount. Conspiracy and UDTPA restate the same $66.1M (¶¶50, 56) |
+| Liability per claim (trade secrets, conspiracy, Lanham Act, UDTPA, patent) | J1's three theories | Only the trade-secret head-start measure can reach $10.0M or exceed cash; the other claims total $2,236,184 at most (D.I. 543-1) and sit inside the lower award amount (O1). Conspiracy and UDTPA restate the same $66.1M (¶¶50, 56) |
 | Any award of $10.0M or more | The claimant's-theory branch | Beyond cash on every trajectory: pay, a full bond, the levy (all reachable cash) and the notes default are identical. The merged-class test (§7) checks it |
 | Exemplary, enhanced, trebled damages; fees; pre-judgment interest | One bounded term on that branch (§5.2) | They only raise an award already beyond cash. Trebling cannot arise (D.I. 590, L2) |
 | Remittitur; the claimant's election after it | J2's two branches | Accepted above $10.0M: cash-identical to "stands". Refused: a new trial, inside "set aside". Accepted below $10.0M: inside "stands" (lender-adverse). In the 20 Jun run the whole damages ruling moved collections by about $2.2k |
 | The separate merits motions (JMOL, new trial, patent JMOL, fees, interest, injunction) | One ruling date and J2 | One common lag (§3); only "any money judgment survives" moves cash |
-| Seek a sale or financing vs neither | "Continue" in D2 | Neither books cash (financing completion is worker A's scenario); D2 is re-asked at every consequential milestone anyway |
+| Seek a sale or financing vs neither | "Continue" in D2 | Neither books cash (equity is raised only at the cash-floor decision, D7); D2 is re-asked at every consequential milestone anyway |
 | Board vote call, stockholder approval, hearing request, Panel exception | D6 | The Panel decision falls after 10 Nov; the hearing request alone decides in-horizon listing |
 | Repurchase after delisting | H2 binary | Repurchase date after 10 Nov (§2.2 B7) |
 | The appeal's outcome | Removed | Cannot be decided by 10 Nov (window closed) |
@@ -283,9 +289,9 @@ Amounts are code-owned: record figures, arithmetic on them, and bounded terms wi
 | UDTPA unjust enrichment; civil conspiracy | $66.1 million each (¶¶50, 56) | The same money under other theories: not additive. UDTPA damages are out in any case (D.I. 590) |
 | Patent ('018, '755) | $279,808 (¶19) | Added |
 | Lanham Act corrective advertising | $1,146,604 (¶42) | Added |
-| UDTPA poaching | $809,772 (¶49) | Added. D.I. 590 removed compensable UDTPA damages from the jury; kept here, lender-adverse, because it moves no mechanism (it sits inside a branch already beyond cash, or inside the defense-theory bound) |
+| UDTPA poaching | $809,772 (¶49) | Excluded (O1): D.I. 590 held "the jury has no reasonable basis to find compensable damages under the UDTPA" |
 | Exemplary, punitive, enhanced, treble damages; fees; interest | Requested, never quantified (¶¶32, 57, 61–62; D.I. 535 Q4 proposes exemplary up to 3× the trade-secret damages) | The bounded term below |
-| The defense's figure | Not public by 14 May (D.I. 543-1 Ex. A.4 gives none) | The defense-theory bound below |
+| The defense's figure | Not public by 14 May (D.I. 543-1 Ex. A.4 gives none) | Not used: the lower branch rests on the claimant's own non-head-start figures (O1) |
 | Defense counsel, 13 May call | "if the jury adopts the theories of [the claimant]'s experts, it is possible the jury will issue an eight-figure verdict" | Read as: the claimant's theories give $10M or more; the defense's give less. **Inference**, labelled |
 
 ### 5.2 The branch amounts
@@ -293,16 +299,16 @@ Amounts are code-owned: record figures, arithmetic on them, and bounded terms wi
 | J1 branch | Amount | Disposition |
 |---|---|---|
 | No award | $0; no judgment | Record (the branch's definition) |
-| Defense theory | Bounded `defense_theory_amount`. **Base $9,999,999**, the most an award can be and stay below eight figures (the record's upper bound, as approved Decision D4(a)). **Sensitivity $2,236,184**, the claimant's own itemised claims outside the head-start measure (patent, corrective advertising, poaching), the only record figures on this branch. The two sit either side of the one mechanism threshold on this branch, whether the judgment is payable from cash above the reserve | Bounded. **Open decision O1** (§1): which setting is the base |
-| Claimant's theory | **$68,336,184** = $66,100,000 + $279,808 + $1,146,604 + $809,772 (Arithmetic on the record). Plus the bounded `claimant_enhancements` term: base $0 added; sensitivity DTSA exemplary at the 2× cap ($132,200,000) and §24-5(b) interest at 8% from 4 Oct 2021 to entry (about $13.9M), about $214.4M in all. Fees have no public figure and are left out; they would only raise the same amount | Record and Arithmetic; enhancements Bounded. Beyond cash on every trajectory under both settings, so the setting changes no date and no cash (checked, §7.5). Jev is told the range, never one figure |
+| Liability without the head-start measure | Bounded `lower_award_amount`. **Base $1,426,412** = patent $279,808 + corrective advertising $1,146,604 (D.I. 543-1 Ex. A.2 ¶¶19, 42), the record's own figures for a verdict that rejects the head-start measure. **Sensitivity $9,999,999**, the most an award can be and stay below the notes' threshold | Bounded (O1, decided) |
+| Claimant's theory | **$67,526,412** = $66,100,000 + $279,808 + $1,146,604 (Arithmetic on the record; the conspiracy and UDTPA $66.1M restate the same money, and the UDTPA poaching $809,772 is barred by D.I. 590). Plus the bounded `claimant_enhancements` term: base $0 added; sensitivity DTSA exemplary at the 2× cap ($132,200,000) and §24-5(b) interest at 8% from 4 Oct 2021 to entry (about $13.9M), $146.1M in all. Fees have no public figure and are left out | Record and Arithmetic; enhancements Bounded. Beyond cash on every trajectory under both settings (test 5). Jev is told the range, never one figure |
 
 Post-judgment interest (§1961) accrues on the branch amount from E at the L8 rate. The bond is the branch amount plus accrued and one year's forward interest; collateral 100% (80% lower bound) (L7).
 
 ### 5.3 Where the mechanism thresholds fall (Arithmetic, checked on the built feed)
 
-- **$10.0M (§7.01(i)).** Crossed only by the claimant's theory. The defense-theory base is set one dollar below it, so no reading of the bound triggers the notes.
-- **Cash above the reserve.** At 31 Mar cash was $15.2M (10-Q); the June-quarter operating burn is guided at about $5.5M (13 May call, `STAGE3.md` E16). So at entry cash above the reserve is of the order of $8–11M: the defense-theory base ($9,999,999) is payable on few or no trajectories and the sensitivity ($2,236,184) on all. The implementer reports both shares from the §16.3 feed; if both settings fall on the same side on every trajectory, one of them needs no run.
-- **A compromise award between $10.0M and cash above the reserve** has no record figure. It is payable only where cash above the reserve exceeds $10.0M. The implementer reports the share of trajectories where it does; if none, the band is empty and nothing is lost. If some, it is **open decision O2**: add a declared scenario class for it (spec §16.4, "where no figure is public"), run on its own.
+- **$10.0M (§7.01(i)).** Crossed only by the claimant's theory. The lower branch's base and its sensitivity are below it, so no setting triggers the notes (test 4).
+- **Cash above the reserve** (Arithmetic on the 14 May feed with the existing line, engine-matched cash, 512 draws). Entry falls 17–23 May. Cash at entry P5/P50/P95 $10.37M / $11.65M / $11.81M; cash above the 30-day reserve $8.70M / $8.86M / $8.96M. The lower branch's base ($1,426,412) is payable from cash above the reserve on 100% of trajectories; its sensitivity ($9,999,999) on 0%, though cash covers it on 100%, so 'pay' is offered under both settings (the rule is cash ≥ owed) and the sensitivity's payment breaches the reserve. The cash floor falls inside the period on every trajectory, median day 102 (25 Aug) on the lower branch.
+- **A compromise award between $10.0M and cash above the reserve** has no record figure. Cash above the reserve exceeds $10.0M on 0.0% of trajectories at entry and on 0.0% on any day of the period (maximum $8.97M), so the band is empty and needs no class (O2, decided).
 
 ### 5.4 Settlement and stay security
 
@@ -320,7 +326,7 @@ Eighteen questions, each one actor's decision. None asks about timing, an amount
 
 | Id | Registry id | Actor | Decision (branches) | Asked where | Facts |
 |---|---|---|---|---|---|
-| J1 | `forecast_verdict_theory` (new) | Jury | Which damages theory it adopts (no award / defense theory / claimant's theory) | Once, before the verdict, where no settlement was paid | The claims, the claimed amounts, the verdict form; no cash |
+| J1 | `forecast_verdict_finding`, `forecast_verdict_measure` (new) | Jury | Its answers to the money-bearing questions of its verdict form (D.I. 580), each yes / no, in the form's order; J1's three branches (no award / liability without the head-start measure / claimant's theory) are composites of them (§7.12). Never an amount | Before the verdict, where no settlement was paid; each question once per sequence of earlier answers that reaches it | The form question quoted, the earlier answers, the claims and requested amounts; no cash |
 | J2 | `forecast_post_trial_ruling` (new) | Court | The money judgment stands or is set aside (JMOL or new trial) | Each money branch where D1 = yes and the ruling falls inside the horizon on some trajectory | The branch amount and the preserved grounds; no cash |
 | J3 | `forecast_stay_approved` (reused) | Court | Approves reduced security and stays execution (yes / no) | D4 = yes and no trajectory funds a full bond | ⚑ the offered security on the approval day, the bond, the collateral |
 | J4 | `forecast_1963_good_cause` (reused) | Court | Orders registration before finality (yes / no) | C1 = yes before finality | ⚑ stay status, the amount owed |
@@ -332,7 +338,7 @@ Eighteen questions, each one actor's decision. None asks about timing, an amount
 | D4 | `forecast_stay_motion` (reused) | Debtor | Moves for a stay (yes / no) | C1 = yes (I1); after the ruling (I2) | ⚑ the bond, the collateral, cash above the reserve |
 | D5 | `forecast_appeal` (reused) | Debtor | Appeals within 30 days (yes / no) | J2 = stands, or D1 = no, where a later levy falls inside the horizon | The branch amount; stay status |
 | D6 | `forecast_listing_kept` (new) | Company | Keeps the stock listed through the horizon: a reverse split in time, or a timely hearing request (yes / no) | 29 Oct, where no earlier petition or acceleration | ⚑ cash, the notes' status, the deadline, the $0.60 price and authorized shares (Record) |
-| D7 | `forecast_petition_cash_floor` (reused) | Company | Files when available cash first falls below the 30-day need | τ inside the horizon, before any petition | ⚑⚑ cash, need, dated triggers |
+| D7 | `forecast_financing_at_floor` (new; item 1) | Company | At the cash floor: raise equity, file, or continue ('raise equity' only where the amount available is positive) | τ inside the horizon, before any petition | ⚑⚑ cash, need, dated triggers, the equity available in the situation |
 | D8 | `forecast_petition_cash_out` (reused) | Company | Files when cash first falls below zero | D7 = no, and cash below zero inside the horizon | ⚑⚑ as D7 |
 | D9 | `forecast_petition_on_notes` (reused) | Issuer | Files on acceleration (yes / no) | H1 or H2 = accelerate | ⚑ cash, the $44.0M due, the judgment owed |
 | H1 | `forecast_holders_act_judgment` (reused) | Holders of 25% or the trustee | Give §7.01(i) notice and accelerate (yes / no) | Each ripe date on the claimant's branch | ⚑ the judgment, its stay status, the issuer's cash |
@@ -371,7 +377,7 @@ The plan adds one template and one stage and reuses the walker (`forecast._Walk`
   - `intervals`: I0 (review date to verdict), I1, I2, I3 as 4.0.0.
   - `nodes`, each with `actor`, `decision`, `standard`, `record_items`, `path_facts`, `timing`, `asked_when`, `branches`, `residual_question`, `situation`, as 4.0.0 nodes: `verdict_theory` (J1), `post_trial_motions` (D1), `post_trial_ruling` (J2), `judgment_response` (D2); and by reference to the 4.0.0 nodes, reused unchanged: `execute_pre_ruling`, `enforce_after_final` (C1), `stay_motion` (D4), `stay_approved` (J3), `registration_early` (J4), `appeal` (D5), `settlement_offer` (D3), `settlement_accept` (C2). A `reuses` list names them, so `_q` keeps one spec per node name.
   - `edges`: the §4.1 order as data: `I0: settle → verdict_theory`; `verdict_theory.no_award → tail`; money branches `→ entry: judgment_response → post_trial_motions`; `post_trial_motions.yes → I1 (settle, execute, stay, registration, response) → post_trial_ruling`; `.no → I2`; `post_trial_ruling.stands → I2`, `.set_aside → tail`. The walker reads this list to choose its next method; it does not fork.
-  - `verdict_branches`: for each J1 branch, its amount rule, in the case's terms: `no_award` → none; `defense_theory` → scenario parameter `defense_theory_amount`; `claimant_theory` → the sum of the claimant's requested components, excluding any component marked `duplicates`, plus `claimant_enhancements`.
+  - `verdict_branches`: for each J1 branch, its amount rule, in the case's terms: `no_award` → none; `defense_theory` → scenario parameter `defense_theory_amount` (as built: `without_principal_measure` → `lower_award_amount`, O1; §7.12); `claimant_theory` → the sum of the claimant's requested components, excluding any component marked `duplicates`, plus `claimant_enhancements`.
   - `label_templates`: every phrase the question text and the page need for this template, with placeholders filled from case inputs only (`{claimant}`, `{debtor}`, `{amount}`, `{range}`, `{date}`): e.g. `"I0": "before the jury's verdict"`, `"verdict_claimant": "the jury adopted {claimant}'s damages theory: judgment of {range}"`, `"verdict_defense": "the jury adopted {debtor}'s damages theory: an award below {threshold}"`, `"entry": "on the day the judgment is entered"`. No party name appears in the contract or in code.
 - **`templates.indenture_convertible`**: add node `listing_kept` (D6) and a rule, `listing_route`: where the Panel decision falls after the horizon on every trajectory, the listing chain is `listing_kept` alone; otherwise the four 4.0.0 nodes. The choice is by dates, never by case.
 - **`stages.court`**: prepend `liability_pending`. **`readings.events`**: add `trial_pending` ("the claims are being tried, or are set for trial, and no verdict has been returned"). **`readings.stage_rules`**: append `{event: trial_pending, stage: liability_pending}` last (lowest precedence), so a returned verdict or an entered judgment always wins.
@@ -422,7 +428,7 @@ The plan adds one template and one stage and reuses the walker (`forecast._Walk`
 ### 7.7 Registry, case inputs and scenario parameters
 
 - **`question_registry.json` → 4.1.0 (additive).** New entries, each with `actor`, `template`, `node`, `asked_when`, prompt instructions as the 4.0.0 forecasts, and criteria from the host's label templates: `forecast_verdict_theory` (Choice: `no_award`, `defense_theory`, `claimant_theory`), `forecast_post_trial_ruling` (Choice: `stands`, `set_aside`), `forecast_post_trial_motions` (Noul), `forecast_judgment_response` (Choice: `pay`, `file`, `continue`; "pay" offered only where arithmetic allows), `forecast_listing_kept` (Noul). Profiles: the first four join `dispute_forecast`, the last `financing_forecast`. `evidence_routing`: `debtor_resistance` → `forecast_judgment_response`; `appeal_intent` → `forecast_post_trial_motions`; `amount_finality` → `forecast_post_trial_ruling`; `no_cash` gains `forecast_verdict_theory` and `forecast_post_trial_ruling`. Nothing is retired.
-- **`cases/akoustis_20240514/scenario.json`** (case inputs; the only place Akoustis figures live): `verdict_window` (16–22 May 2024, with the quoted basis); `judgment_entry` (base `next_business_day`); `defense_theory_amount` (base 999,999,900 cents; sensitivity 223,618,400 cents; O1); `claimant_enhancements` (base 0; sensitivity 14,610,000,000 cents, the DTSA 2× exemplary and §24-5(b) interest to entry); `coupon_cash_share` (base `all_shares`; sensitivity `all_cash`; `share_capacity` 5,000,000 from the 13 May S-3; price 60 cents at 1 May; limit 11,403,332); `rate_1961_bps` (the H.15 weekly 1-year CMT for the week ending 10 May 2024, fetched and cited by the implementer). The reserve and financing are §16.3's (worker A) and are read, not restated.
+- **`cases/akoustis_20240514/scenario.json`** (case inputs; the only place Akoustis figures live): `verdict_window` (16–22 May 2024, with the quoted basis); `judgment_entry` (base `next_business_day`); `lower_award_amount` (base `components_without_principal`, 142,641,200 cents; sensitivity 999,999,900 cents; O1 as decided); `claimant_enhancements` (base 0; sensitivity 14,610,000,000 cents, the DTSA 2× exemplary and §24-5(b) interest to entry); `coupon_cash_share` (base `all_shares`; sensitivity `all_cash`; `share_capacity` 5,000,000 from the 13 May S-3; price 60 cents at 1 May; limit 11,403,332); `rate_1961_bps` (the H.15 weekly 1-year CMT for the week ending 10 May 2024, fetched and cited by the implementer). The reserve and financing are §16.3's (worker A) and are read, not restated.
 - **Test fixture** `tests/akoustis_20240514_fixture.py`: the pending dispute as the agent would instantiate it from the pre-14-May record (the claims, the requested components from D.I. 543-1 with `duplicates` marked, `trial_started` 6 May 2024, the notes), with fixed readings (no Jev), like `tests/akoustis_fixture.py`.
 
 ### 7.8 Keeping 4.0.0 and the recorded 20 Jun run working
@@ -435,7 +441,7 @@ The plan adds one template and one stage and reuses the walker (`forecast._Walk`
 1. **Composition:** under random Dirichlet answers for every node, `model.probs` sums to 1 over the paths of each dispute, including J1's three branches and every composite (the skill's fast check).
 2. **A missing judgment never activates enforcement:** on every `no_award` path, and after every `set_aside`, no enforce, stay, registration, judgment-default or `judgment_response` step exists, and the engine books no levy or lock.
 3. **Clocks move with the modeled verdict:** V lies in the window on every trajectory; E = V + 1 business day; execution E + 31; motions E + 28; no ruling before E + 49 + 17.
-4. **Branch amounts:** the claimant's theory is $68,336,184 (the duplicates excluded); the defense-theory base never ripens §7.01(i).
+4. **Branch amounts:** the claimant's theory is $67,526,412 (duplicates and the barred UDTPA claim excluded); the lower branch never ripens §7.01(i) under either setting.
 5. **Merged class:** the claimant's branch is cash- and date-identical under `claimant_enhancements` base and sensitivity (the existing swap test).
 6. **Coupon:** base books $0 cash; sensitivity books $1.32M on 17 Jun, none after an earlier petition.
 7. **§16.4:** for every ⚑ node, the path facts' cash equals the engine's available cash on the decision day on each trajectory; for ⚑⚑ nodes, `pay_possible` and τ are computed on the same cash.
@@ -456,6 +462,62 @@ The plan adds one template and one stage and reuses the walker (`forecast._Walk`
 5. The engine-matched cash facts.
 6. Registry 4.1.0.
 7. Tests 1–9; measure paths and asks; report both.
+
+### 7.12 As built: Owen's decisions and what they changed (27–28 Sep 2026)
+
+**O1–O4** are recorded in §1 and applied in §5.2, §5.3 and the case inputs (`cases/akoustis_20240514/scenario.json`: `lower_award_amount`, `claimant_enhancements`, `judgment_entry`). The lower J1 branch is named `without_principal_measure`; its amount is the claimant's requested components less the principal measure and any claim whose damages the court barred (`amount_rules`). O3 needs no model change: the legal-spend proxy stops only where the dispute resolves (payment, settlement), and `set_aside` does not resolve it.
+
+**Item 1: financing access is a decision.**
+- Contract: node `financing_at_floor` (template `bankruptcy_effects`, branches `raise_equity` / `file` / `continue`), booking `raise` in `branch_bookings`, parameters `raise_capacity`, `raise_capacity_after_adverse_judgment` and `raise_days`, and `adverse: true` on the `claimant_theory` verdict branch. The node replaces `petition_cash_floor` only where the case sets `raise_capacity`, so the 20 Jun run keeps its floor question.
+- Case inputs: $9.7M (sensitivity $5.0M) with no adverse money judgment on the path; $0 (sensitivity $5.0M) from the entry of a claimant's-theory judgment; 30 days. The $9.7M is an **inference** (one third of public float per 12 months, net of January's $10M). Its record basis is the ATM re-activated on 13 May with $48.0M remaining, where the agents are not obliged to sell.
+- Chain: the raise books the amount available on the floor day in equal daily amounts over 30 days (the remainder on the first day), and none after a petition. `raise_equity` is offered only where the amount is positive on some trajectory. Jev is told the amount (`equity_raise_available`, P5/P50/max). D8 (`petition_cash_out`) stays the zero-cash fallback after `raise_equity` or `continue`. The bank view asks the same decision.
+- The common model's `equity_injection` scenario is a sensitivity only; the central case books no exogenous financing.
+
+**Item 2: J1 from the jury's verdict form.** The source is D.I. 580 (the blank final special verdict form, filed 9 May 2024, RECAP), read with the claimant's proposed form D.I. 535 (12 Apr 2024). D.I. 535 asks one liability question for all trade secrets (Q1), then unjust enrichment (Q2), willfulness and exemplary damages up to 3× (Q3–4), UDTPA (Q5–6), false advertising (Q7–8), conspiracy (Q9–10) and patent infringement, validity, willfulness and royalty (Q11–14). The final form asks per alleged trade secret in two columns and puts conspiracy second. It drops validity, which the court decided (D.I. 557). The model follows D.I. 580. Each money-bearing question is one jury node (`verdict_finding`: liability; `verdict_measure`: whether the award rests on the head-start measure), asked once per sequence of earlier answers that reaches it. None asks for an amount. The case's `verdict_form` holds the questions and their routing; the quotes are verbatim (checked against the fetched text).
+
+| Form question | Quoted (D.I. 580) | Yes → | No → |
+|---|---|---|---|
+| 1(a) (`verdict_finding`) | "Has Qorvo established by the greater weight or preponderance of the evidence that (a) this alleged trade secret qualifies as a trade secret and (b) Akoustis is liable for trade secret misappropriation for this trade secret?" and "Has Qorvo established by a greater weight or preponderance of the evidence that Akoustis was unjustly enriched by misappropriating this trade secret?" Asked as: "YES" in both columns for at least one alleged trade secret (the form's gate to 1(b)) | 1(b) | 2(a) |
+| 1(b) (`verdict_measure`) | "State the amount Akoustis was unjustly enriched by misappropriating Qorvo’s trade secrets as to which you have answered “Yes” and “Yes” in Question 1(a) above." Asked as: the award adopts the head-start measure (not the amount) | claimant's theory | without the head-start measure |
+| 2(a) | "Has Qorvo proven by a preponderance of the evidence its Civil Conspiracy claim against Akoustis?" | 2(b) | 3(a) |
+| 2(b) | "Do you find that Qorvo has proven by a preponderance of the evidence that actual damage to Qorvo was caused by the conspiracy?" | 2(c) | 3(a) |
+| 2(c) (`verdict_measure`) | "What amount of damages for actual loss, if any, were caused by Akoustis’ action and thus you award to Qorvo against Akoustis?" Asked as: the award adopts the head-start measure, which the conspiracy claim restates (D.I. 543-1 ¶56) | claimant's theory | without the head-start measure |
+| 3(a) | "Has Qorvo proven by a preponderance of the evidence each of the elements of its False Advertising claim against Akoustis?" | without the head-start measure | 5(a) |
+| 5(a) | "Do you find that Qorvo has proven by a preponderance of the evidence that the claims of the ’018 or the ’755 Patents have been infringed?" Asked as: "YES" for at least one patent claim | without the head-start measure | no award |
+
+Collapsed, each with its reason in the case input:
+- **1(c)–1(d)**, willful and malicious and exemplary damages. They only raise an award already beyond cash (the bounded enhancements).
+- **4(a)–(c)**, UDTPA. D.I. 590 says "The jury has no reasonable basis to find compensable damages under the UDTPA".
+- **5(b)–(c)**, patent amount and willfulness. Both sit inside the lower bound.
+
+Routing inferences, labelled:
+- Once 1(b) rejects the head-start measure, 2(c) is not asked. The model assumes a jury that rejects the measure for the trade-secret award does not adopt it for the same money under conspiracy.
+- Once any lesser claim succeeds, the later questions are not asked. A verdict on fewer lesser claims is carried at the O1 amount, which is lender-adverse.
+
+The three branches' composites are disjoint and exhaustive over the answers (tested), so J1's probability is the chain rule over 9 jury nodes. The cash tree is unchanged: the same three verdict steps.
+
+**Item 3: the existing line.** The line opened on 1 Apr 2024. Its state on 14 May is $389,677 principal and 8 installments of $404,095 due 3 Jun–14 Aug (`Setup.exposure`, case worker). The Basis cash of both the tree and the analysis includes the line's history cash (+$384,839). The forward runs behind every ⚑ fact pass the engine its own opening, which adds that cash itself. Chain cash equals the engine's available cash on every trajectory and day (test 7).
+
+**Registry.** Seven entries tagged `version: 4.1.0`: `forecast_verdict_finding`, `forecast_verdict_measure`, `forecast_post_trial_motions`, `forecast_post_trial_ruling`, `forecast_judgment_response`, `forecast_listing_kept` and `forecast_financing_at_floor`, plus routes and `no_cash`. `forecast_verdict_theory` is not created: J1 is never asked as one question. `registry_version` stays 4.2.0, because the snapshot-sweep cache is keyed on it. The Jev cache is keyed on each built question's text, which is unchanged for every 4.0.0 question.
+
+**Measured on the 14 May tree** (the design's fixture of the pending dispute and notes, `tests/akoustis_20240514_fixture.py`; no Jev):
+- **Paths:** 3,570 (central). Sensitivities: lower award $9,999,999, 3,298; both raises $5.0M, 5,159; coupon in cash, 3,259; the window's last day, 3,550. Bank view: 4 paths.
+- **Jev asks:** 221 = 219 dispute + 2 bank view. By node:
+
+| Node | Asks | Node | Asks | Node | Asks |
+|---|---|---|---|---|---|
+| verdict_finding | 7 | verdict_measure | 2 | judgment_response | 21 |
+| post_trial_motions | 2 | post_trial_ruling | 2 | settlement_offer | 13 |
+| settlement_accept | 13 | execute_pre_ruling | 2 | enforce_after_final | 16 |
+| stay_motion | 6 | stay_approved | 6 | registration_early | 8 |
+| appeal | 2 | holders_act_judgment | 10 | holders_act_delisting | 8 |
+| petition_on_notes | 17 | holders_involuntary | 8 | listing_kept | 19 |
+| financing_at_floor | 28 | petition_cash_out | 29 | | |
+
+- **Cost:** fixture states are 1.9k–4.4k chars. With the 20 Jun run's mean evidence, readings and record items (4,283 chars) and each built question, the estimate is 7.1k–9.1k chars per ask and about 1.78M chars in all. That is about $0.025 a pass, with $0.075 reserved at 3 attempts ($0.042 per million input tokens, 3 chars per token). Caps are settings, raised to fit.
+- **Above the §7.10 estimate** (100–150): the counts are keyed by situation. `financing_at_floor` and `petition_cash_out` split by situation tags (28 and 29), and `listing_kept` by amount class and notes status (19). Three `holders_involuntary` asks fall after the period on every trajectory and cancel inside the merged unfiled class (the 4.0.0 rule; their reach is zero, tested). They are left as in 4.0.0, because pruning them would change the 20 Jun tree.
+- **Fix found while measuring:** the I0 settlement questions read no cash facts, because nothing is owed before a verdict. The owed filter no longer applies in I0.
+- **4.0.0 unchanged:** the 20 Jun tree was rebuilt after every step. Each rebuild gave 13,821 paths and 337 node keys, with every question and bank-view state hash identical.
 
 ---
 
@@ -499,3 +561,4 @@ The record items of §6.2 are named slots. The agent fills each one with accepte
 - **Seen and not used:** one search of the 20 Jun docket capture printed captions of entries dated 15 May to 7 Jun, the verdict entry among them. Every later reading of the capture was filtered to entries dated on or before 14 May.
 - **The verdict date** is a window drawn per trajectory from pre-14-May statements (§3), not the actual date.
 - **The acquisition note** is copied verbatim; its [POST] items are marked reveal-only there and enter no slot, parameter or question here.
+- **Implementation (27–28 Sep 2026).** D.I. 580 was fetched from RECAP (filed 9 May 2024) and quoted verbatim in §7.12. The figures in §5.3 and §7.12 are code's arithmetic on the 14 May feed and the case inputs. No source dated after 14 May was read for them.
