@@ -52,7 +52,7 @@ Available cash on the decision date, and the operating need for the next month. 
 
 **Processing (Scenario).** Each day, the day's receipts post first. Obligations due that day are then processed against the available balance at that moment: the balance left after every earlier payment, less restricted cash (locked stay security). A levy served that day is processed first: it attaches the reachable balance. Scheduled obligations with a fixed due date are processed next, in the order they were incurred. These are Slope's installments by automatic debit, agreed settlement installments, and interest payable in cash. The day's operating outflows are processed next. A scheduled obligation is paid in full or not at all. Operating outflows are paid up to the balance. Whatever is unpaid becomes an arrear in its class: Slope, settlement, notes interest, operating. This same-day order is a convention; its effect is measured once against operating outflows first (§5).
 
-**Arrears.** A failed Slope debit is retried on the line's retry dates. An unpaid settlement installment stays owed to the claimant; the settlement terms carry no acceleration. Unpaid operating outflows are carried as vendor credit: receipts and spending continue as the operating forecast has them. When receipts exceed the day's obligations, the surplus pays arrears, oldest first.
+**Arrears.** A failed Slope debit is retried on the line's retry dates. An unpaid settlement installment stays owed to the claimant; the settlement terms carry no acceleration. Unpaid operating outflows are carried as vendor credit: receipts and spending continue as the operating forecast has them. When receipts exceed the day's obligations, the surplus pays the other classes' arrears, oldest first. Slope's arrears are collected only by its debit, on the line's retry dates.
 
 **State given to Jev.** Available cash, the operating need, and from the first unpaid obligation: the arrears by class and amount, and the days since the first obligation went unpaid.
 
@@ -72,7 +72,7 @@ One of four types, each with its terms: full bond collateral (the amount); reduc
 
 **Share capacity (Record, Arithmetic).** One ledger of authorized shares that are neither issued nor reserved: 175,000,000 authorized, less 98,669,282 outstanding (8 May 2024), 9,341,825 reserved for conversion, 3,031,625 for options, and the 5,000,000 registered for interest paid in shares. That leaves 58,957,268, an upper bound because the equity-plan reserves are not stated. At-the-market sales and underwritten offerings draw on this ledger at their declared prices, and a channel stops when it cannot cover the issuance. Interest paid in shares draws on its own 5,000,000.
 
-**At-the-market sales (Scenario).** The program the company re-activated on 13 May sells from 14 May on each trading day while the stock is listed and no petition has been filed. Volume: 20% of the average daily dollar volume from 15 Mar to 14 May 2024 (about $337k), with 10% and 25% as sensitivities. Price: the 14 May close. Proceeds are net of the agents' commission (up to 3%) and settle two business days after the sale. No Jev question: the company's decision to sell is on the record; the pace is the declared assumption.
+**At-the-market sales (Scenario).** The program the company re-activated on 13 May sells from 14 May on each trading day while the stock is listed and no petition has been filed. Volume: 20% of the average daily dollar volume from 15 Mar to 14 May 2024 (about $337k), with 10% and 25% as sensitivities. Price: the 14 May close. Proceeds are net of the agents' commission (up to 3%). They settle two business days after the sale for sales before 28 May 2024, and one business day after it from that date. No Jev question: the company's decision to sell is on the record; the pace is the declared assumption.
 
 **Underwritten offerings (N1).** An offering is available while the stock is listed, no petition has been filed, no other offering is pending, and capacity covers it. Its proposed size is the January 2024 offering's net proceeds, or less where capacity binds: the shares available times the offering price. The offering price is the 14 May close less the January offering's discount to the prior close. There is no fixed count of offerings per path.
 
@@ -92,7 +92,7 @@ One of four types, each with its terms: full bond collateral (the amount); reduc
 
 ### 3.3 General nonpayment, §7.01(j)(v)
 
-"Generally is not paying its debts as they become due" is met once arrears (§2.2) have been outstanding continuously for 30 days; 15 and 60 days are the sensitivities. Code tests it daily. Where it is met: an Event of Default under (j); the notes become due immediately under §7.02 without any declaration; §7.06 does not bar a holders' petition. No Jev question decides whether it is met.
+"Generally is not paying its debts as they become due" asks whether nonpayment is the company's general practice, by extent and over time; one late payment is not. It is met on a day when, over the preceding 30 days, arrears (§2.2) have been outstanding throughout and the obligations left unpaid amount to at least a quarter of all obligations that fell due in those days. Sensitivities: a 15- or 60-day window; half of the obligations due. Code tests it daily. Where it is met: an Event of Default under (j); the notes become due immediately under §7.02 without any declaration; §7.06 does not bar a holders' petition. No Jev question decides whether it is met.
 
 ### 3.4 Which rules apply
 
@@ -119,12 +119,12 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 #### J1b · The jury's amounts · replaces `forecast_verdict_measure`
 
 - **Event:** the amount the jury enters on the item exceeds $X, asked for 1(b) (trade secrets) and separately for 2(c) (conspiracy, actual loss). Each threshold is asked conditional on the band already established.
-- **Cut points:** the lines where cash behaves differently. The reach line is the most Akoustis can pay from cash on the entry day. The top line is the lowest amount above which every award books the same cash on every trajectory through 10 Nov 2024, with every raise and levy included. Both are measured on the built trajectories. Between the reach line and the top line, and below the reach line, there is one further cut in each band. The thresholds reach Jev as figures only.
+- **Cut points:** the lines where cash behaves differently. The reach line is the most Akoustis can pay from cash on the entry day. The top line is the lowest amount above which every award books the same cash on every trajectory through 10 Nov 2024, with every raise and levy included. Both are measured on the built trajectories. Between the reach line and the top line, and below the reach line, there is one further cut in each band. The first cut is at nothing ("is any amount entered?"), so no award is its own outcome. No band of the total judgment straddles the notes' $10,000,000 judgment-default threshold; where one would, the threshold is a cut. The thresholds reach Jev as figures only.
 - **Exemplary damages:** 1(c) (willful and malicious) and 1(d) (the exemplary amount, at most twice 1(b) under the DTSA) are their own questions, asked in the form's order, only where the 1(b) band leaves the total within a band that exemplary damages could move across a line.
-- **Answers:** yes, the amount exceeds $X; no, it is $X or less, including nothing.
+- **Answers:** yes, the amount exceeds $X; no, it is $X or less. At the first cut, no means nothing is entered.
 - **Situation:** the form's words, the earlier answers. No cash.
 - **Record:** Qorvo's damages method and figures (D.I. 543-1; the admitted opinion, D.I. 553); the revenue base left to the jury; the defense's avoided-cost opinion as admitted; the court's limiting rulings; the form. For 2(c), the record on actual loss; it does not take 1(b)'s reasoning because Qorvo claims the same figure.
-- **Consequences:** a band below the top line books its midpoint, with its ends as the sensitivity. The band above the top line books Qorvo's claimed amount; by the line's definition every amount in it books the same cash, which the build verifies.
+- **Consequences:** no award books nothing. A positive band below the top line books its midpoint, with its ends as the sensitivity. The band above the top line books Qorvo's claimed amount; by the line's definition every amount in it books the same cash, which the build verifies.
 - **Build:** new. The measure questions retire.
 
 #### D1 · Akoustis files post-trial motions · `forecast_post_trial_motions`
@@ -309,14 +309,22 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 ### 4.6 The listing
 
-#### D6 · Akoustis requests a hearing · `forecast_listing_kept` (retires)
+#### D6a · Akoustis regains bid-price compliance · replaces `forecast_listing_kept`
 
-- **Event:** Akoustis requests a hearing before a Nasdaq Hearings Panel by the request deadline after the staff's delisting determination. The deadline is 7 days after the determination that follows the missed 21 Oct 2024 deadline.
-- **Compliance:** the bid price regains $1 only by a reverse split effective in time, which needs a stockholder vote; code dates the latest effective day and the vote it requires from the record. Where no such vote can fall in time, missing the deadline is Arithmetic, not a condition assumed.
+- **Event:** by 21 Oct 2024, the end of its second compliance period, Akoustis regains compliance with the $1.00 minimum bid price (a closing bid of at least $1.00 for 10 consecutive business days), by any route: a reverse stock split or a rise in the price.
+- **Answers:** no, compliance is not regained by 21 Oct; the staff's delisting determination follows.
+- **Situation:** the bid price on the review date; the judgment's standing; the company's cash and the notes' status; the time a reverse split takes: stockholder approval of a charter amendment under DGCL §242, called and noticed under the bylaws and the proxy rules.
+- **Record:** the deficiency notices and the compliance periods; the company's stated options to regain compliance; the latest stockholder vote on a charter amendment; the authorized and outstanding shares.
+- **Consequences:** yes, the stock stays listed and the listing chain ends. No cash is booked; the share ledger keeps its dollar capacity. No, D6b.
+- **Build:** new.
+
+#### D6b · Akoustis requests a hearing · new
+
+- **Event:** where compliance is not regained, Akoustis requests a hearing before a Nasdaq Hearings Panel within 7 days of the staff's delisting determination.
 - **Answers:** no, no timely request; suspension follows on the rule's date.
 - **Consequences:** a timely request stays suspension until the panel's decision, dated by code under the 2024 Rule 5815. Suspension, delisting and the indenture's Eligible Market condition are dated separately; the delisting default passes to H2 only when the Eligible Market condition fails.
-- **Record:** the deficiency notice and deadline; the company's stated cure; the latest stockholder vote on a charter amendment.
-- **Build:** change. It replaces the bundled listing question.
+- **Record:** the deficiency notices; the company's statements on its listing.
+- **Build:** new. D6a and D6b replace the bundled listing question.
 
 ---
 
