@@ -1,0 +1,295 @@
+{
+  "_about": "Every word the analysis page shows about the case, the law and the loan, in plain operator language. Each entry restates the legal meaning in DECOMPOSITION.md (§1 map, §3 chains, §4 questions); it never changes what the model does. Figures in braces are filled from the run's data.",
+
+  "situation": {
+    "title": "Akoustis Technologies on 20 Jun 2024",
+    "lines": [
+      "Akoustis makes radio-frequency filter chips. It asks Slope to pay its supplier invoices and repays each one in three monthly installments.",
+      "On 20 May a federal jury verdict became a $38.6M judgment against Akoustis in favour of Qorvo, a competitor, for taking trade secrets and infringing patents. Akoustis says that is more than its liquid assets. It has about {cash} of cash.",
+      "The judge has not yet ruled on Akoustis's challenges to the verdict. Meanwhile Qorvo can start collecting, $44M of Akoustis's notes can come due early if the judgment stays unpaid, and Nasdaq may delist the stock."
+    ],
+    "question": "What does this do to Slope's line over the next six months, to {horizon}?",
+    "line": "Slope's line: limit {limit} (15% of monthly receipts, Slope's published rule), a 3.7% fee per invoice, each invoice repaid in 3 monthly installments. Slope pays a new invoice only while the balance fits under the limit, nothing is overdue and Akoustis has not filed for bankruptcy.",
+    "bank_note": "Akoustis's bank data is built from its reported figures, because the real account data is private."
+  },
+
+  "views": {
+    "bank": {
+      "name": "Bank data alone",
+      "says": "What Slope sees from the account: cash going out faster than it comes in. By late November cash falls below what Akoustis needs to run for a month, and the model asks whether it files for bankruptcy then."
+    },
+    "research": {
+      "name": "Bank data + the court and SEC record",
+      "says": "The same account, the same line and the same operating ups and downs, plus what the record says can happen next: the judge's ruling, Qorvo collecting, the noteholders, Nasdaq."
+    },
+    "difference": "What the research adds"
+  },
+
+  "futures": {
+    "title": "100 ways the next six months could go",
+    "dot": "Each dot is 1 in 100 of the futures the model weighs.",
+    "filed_group": "Akoustis files for bankruptcy by {horizon}",
+    "not_filed_group": "No bankruptcy filing by {horizon}"
+  },
+
+  "outcomes": {
+    "Filed: notes": { "label": "Files after noteholders demand their $44M", "filed": true },
+    "Filed: short of cash": { "label": "Files when it runs short of cash", "filed": true },
+    "Filed: Qorvo enforcement": { "label": "Files when Qorvo seizes cash", "filed": true },
+    "Settled": { "label": "Settles with Qorvo", "filed": false },
+    "Paid": { "label": "Pays what the judge leaves owed", "filed": false },
+    "Stayed on appeal": { "label": "Collection paused during appeal", "filed": false },
+    "Vacated or new trial": { "label": "Judge throws out the verdict or orders a new trial", "filed": false },
+    "Unresolved": { "label": "Still open on {horizon}", "filed": false },
+    "bank_filed": { "label": "Files when it runs short of cash", "filed": true },
+    "bank_not_filed": { "label": "Keeps operating", "filed": false }
+  },
+
+  "measures": {
+    "funded": { "label": "Invoices Slope pays", "note": "Slope pays new invoices until something is overdue or Akoustis files." },
+    "due": { "label": "Installments due by {horizon}" },
+    "collected": { "label": "Collected by {horizon}" },
+    "rate": { "label": "Collected, out of what came due" },
+    "unpaid": { "label": "Due but not collected", "note": "Overdue, or caught in a bankruptcy filing." },
+    "petition_p": { "label": "Chance Akoustis files for bankruptcy by {horizon}" },
+    "stuck": { "label": "Balance stuck in a bankruptcy", "note": "What Akoustis still owes Slope on the day it files. Recovery happens, if at all, in the bankruptcy." },
+    "clawback": { "label": "Payments Slope may have to give back", "note": "Collections in the 90 days before a filing. A bankruptcy trustee can sue to recover them. Shown before any defence Slope could raise." },
+    "turnover": { "label": "Times the line's money was lent out", "note": "Invoices paid ÷ average balance. The same capital does less work when the line stops early." },
+    "avg_outstanding": { "label": "Average balance outstanding" }
+  },
+
+  "why_lower": "With the research, trouble can arrive from August instead of late November. Slope's line stops paying new invoices once a payment is overdue or Akoustis files, so it pays fewer invoices, and more of what it has lent is caught in a filing.",
+
+  "jev": {
+    "name": "Jev",
+    "intro": "Jev is a forecasting model. It reads the court and SEC record and answers one question about one party's next move, with a probability. The model combines those answers along each path; code sets every date and dollar amount.",
+    "read": "What Jev read",
+    "answer": "Jev's answer",
+    "effect": "What this answer does to Slope",
+    "not_in_record": "Nothing in the public record on 20 Jun 2024",
+    "sources": "Law and sources",
+    "drag": "Drag to disagree with Jev. Every number on the page updates."
+  },
+
+  "deciders": {
+    "Court": "The judge",
+    "Akoustis": "Akoustis",
+    "Qorvo": "Qorvo",
+    "Noteholders and Nasdaq": "The noteholders",
+    "board": "Akoustis's board",
+    "stockholders": "Akoustis's shareholders",
+    "Nasdaq Hearings Panel": "Nasdaq's hearing panel"
+  },
+
+  "lanes": {
+    "court": "The judge's ruling",
+    "qorvo": "Qorvo collecting",
+    "notes": "The noteholders",
+    "nasdaq": "The Nasdaq listing",
+    "cash": "Akoustis's cash"
+  },
+
+  "decisions": {
+    "ts_liability_jmol": {
+      "lane": "court", "who": "Court", "short": "Judge throws out the trade-secret verdict",
+      "question": "Does the judge throw out the trade-secret verdict?",
+      "why": "If yes, the $31.3M award, the $7.0M punitive award, the fees and the interest all fall away.",
+      "branches": { "granted": "Yes", "denied": "No" }
+    },
+    "ts_damages_ruling": {
+      "lane": "court", "who": "Court", "short": "Judge keeps, cuts or retries the $31.3M",
+      "question": "Does the judge keep the $31.3M trade-secret award, cut it, or order a new trial on damages?",
+      "why": "A cut leaves about $23.1M, if Qorvo accepts it. A new trial means no trade-secret money is owed before 17 Dec.",
+      "branches": { "stands": "Keeps it", "remit": "Cuts it", "new_trial": "New trial" }
+    },
+    "remittitur_accepted": {
+      "lane": "court", "who": "Qorvo", "short": "Qorvo accepts the cut award",
+      "question": "If the judge cuts the award, does Qorvo accept the lower amount instead of a new trial?",
+      "why": "Accepting fixes the award at about $23.1M. Refusing means a new trial, with no trade-secret money owed before 17 Dec.",
+      "branches": { "accept": "Accepts", "new_trial": "New trial" }
+    },
+    "patent_jmol": {
+      "lane": "court", "who": "Court", "short": "Judge throws out the patent verdict",
+      "question": "Does the judge throw out the $280k patent verdict?",
+      "why": "Small next to the trade-secret award.",
+      "branches": { "granted": "Yes", "denied": "No" }
+    },
+    "trebling": {
+      "lane": "court", "who": "Court", "short": "Judge triples the trade-secret damages",
+      "question": "Does the judge triple the trade-secret damages, as Qorvo asks, under North Carolina's unfair-trade-practices law?",
+      "why": "Tripling would raise the amount owed to about $94M; the $7.0M punitive award then drops out. The jury answered no on that question, which weighs against it.",
+      "branches": { "granted": "Yes", "denied": "No" }
+    },
+    "fees_awarded": {
+      "lane": "court", "who": "Court", "short": "Judge orders Akoustis to pay Qorvo's legal fees",
+      "question": "Does the judge order Akoustis to pay Qorvo's $12.1M of legal fees?",
+      "why": "Adds $12.1M to what Akoustis owes.",
+      "branches": { "granted": "Yes", "denied": "No" }
+    },
+    "appeal": {
+      "lane": "court", "who": "Akoustis", "short": "Akoustis appeals",
+      "question": "Does Akoustis appeal within 30 days of the final judgment?",
+      "why": "An appeal alone does not stop Qorvo collecting; only a court-approved pause does. It does delay when Qorvo can reach cash in other states.",
+      "branches": { "yes": "Appeals", "no": "Doesn't" }
+    },
+
+    "execute_pre_ruling": {
+      "lane": "qorvo", "who": "Qorvo", "short": "Qorvo starts collecting now",
+      "question": "Does Qorvo start collecting the judgment now, before the judge rules on Akoustis's challenges?",
+      "why": "The judgment has been collectable since 20 Jun. Akoustis's operating cash sits outside Delaware, so Qorvo reaches it only once the judgment is final, or earlier if the judge allows it.",
+      "branches": { "yes": "Starts", "no": "Waits" }
+    },
+    "registration_early": {
+      "lane": "qorvo", "who": "Court", "short": "Judge lets Qorvo reach Akoustis's cash early",
+      "question": "Does the judge let Qorvo collect from Akoustis's accounts in other states before the judgment is final?",
+      "why": "If yes, Qorvo can seize Akoustis's cash without waiting for the appeal deadline.",
+      "branches": { "yes": "Allows it", "no": "Doesn't" }
+    },
+    "enforce_after_final": {
+      "lane": "qorvo", "who": "Qorvo", "short": "Qorvo moves to collect after the ruling",
+      "question": "After the ruling, does Qorvo move to collect what's owed?",
+      "why": "A seizure takes whatever cash Qorvo can reach, whatever Akoustis needs to operate.",
+      "branches": { "yes": "Collects", "no": "Waits" }
+    },
+    "stay_motion": {
+      "lane": "qorvo", "who": "Akoustis", "short": "Akoustis asks the judge to pause collection",
+      "question": "Does Akoustis ask the judge to pause Qorvo's collection?",
+      "why": "A pause normally needs a bond for the full judgment plus interest. Akoustis cannot fund that, so it offers the cash it has beyond a month of operating costs.",
+      "branches": { "yes": "Asks", "no": "Doesn't" }
+    },
+    "stay_approved": {
+      "lane": "qorvo", "who": "Court", "short": "Judge pauses collection on less than a full bond",
+      "question": "Does the judge pause Qorvo's collection on the smaller security Akoustis can offer?",
+      "why": "Judges can accept less than a full bond for good cause. If yes, Qorvo cannot seize cash, but the security Akoustis posts is locked up.",
+      "branches": { "yes": "Pauses", "no": "Doesn't" }
+    },
+    "debtor_response": {
+      "lane": "qorvo", "who": "Akoustis", "short": "Akoustis's response to a seizure",
+      "question": "When Qorvo moves to seize cash, what does Akoustis do: look for a buyer or new money, file for bankruptcy, or neither?",
+      "why": "Looking for a buyer or new money delays the decision to the next point of pressure. The record gives no terms, so no new cash is counted.",
+      "branches": { "seek_sale_or_financing": "Looks for a buyer or money", "file": "Files for bankruptcy", "neither": "Neither", "pay": "Pays" }
+    },
+    "settlement_offer": {
+      "lane": "qorvo", "who": "Akoustis", "short": "Akoustis offers to settle",
+      "question": "Does Akoustis offer Qorvo a settlement?",
+      "why": "The offer is what Akoustis could actually pay: its cash beyond a month of operating costs ({offer} before the ruling). A settlement ends Qorvo's collection and the noteholders' judgment default.",
+      "branches": { "yes": "Offers", "no": "Doesn't" }
+    },
+    "settlement_accept": {
+      "lane": "qorvo", "who": "Qorvo", "short": "Qorvo accepts the settlement",
+      "question": "Does Qorvo accept that offer?",
+      "why": "Paying the settlement takes cash out of Akoustis at once, but removes the judgment's threat.",
+      "branches": { "yes": "Accepts", "no": "Refuses" }
+    },
+
+    "holders_act_judgment": {
+      "lane": "notes", "who": "Noteholders and Nasdaq", "short": "Noteholders demand their $44M back now",
+      "question": "Do the noteholders declare a default on the unpaid judgment and demand their $44M now?",
+      "why": "The notes let holders of a quarter of them do this once a judgment over $10M has gone unpaid and unpaused for 60 days. When that clock starts is open under the notes' wording: 19 Aug counting from the judgment as entered, or 60 days after the judge's ruling. The model carries both.",
+      "branches": { "yes": "Demand it", "no": "Don't" }
+    },
+    "holders_act_delisting": {
+      "lane": "notes", "who": "Noteholders and Nasdaq", "short": "Noteholders act on the delisting",
+      "question": "If Nasdaq delists the stock, do the noteholders demand all $44M now, make Akoustis buy back their notes, or neither?",
+      "why": "Delisting is a default under the notes and gives holders the right to be bought out in cash.",
+      "branches": { "accelerate": "Demand it all", "repurchase_only": "Buy-back only", "neither": "Neither" }
+    },
+    "petition_on_notes": {
+      "lane": "notes", "who": "Akoustis", "short": "Akoustis files once the notes are due",
+      "question": "Once the noteholders demand repayment it cannot make, does Akoustis file for bankruptcy?",
+      "why": "Akoustis cannot pay $44M.",
+      "branches": { "yes": "Files", "no": "Doesn't" }
+    },
+    "holders_involuntary": {
+      "lane": "notes", "who": "Noteholders and Nasdaq", "short": "Noteholders force a bankruptcy",
+      "question": "If Akoustis doesn't file, do three or more noteholders force it into bankruptcy?",
+      "why": "Under the notes' terms, no earlier than 60 days after they demand repayment. Qorvo cannot do this alone.",
+      "branches": { "yes": "Force it", "no": "Don't" }
+    },
+
+    "reverse_split_board": {
+      "lane": "nasdaq", "who": "board", "short": "Board calls a reverse-split vote",
+      "question": "Does Akoustis's board call a shareholder vote on a reverse stock split in time to lift the share price above $1 by Nasdaq's 21 Oct deadline?",
+      "why": "Without it, the stock stays under Nasdaq's $1 minimum and faces delisting.",
+      "branches": { "yes": "Calls it", "no": "Doesn't" }
+    },
+    "split_approved": {
+      "lane": "nasdaq", "who": "stockholders", "short": "Shareholders approve the split",
+      "question": "Do shareholders approve the reverse split?",
+      "why": "Approval keeps the listing; delisting is a default under the notes.",
+      "branches": { "yes": "Approve", "no": "Reject" }
+    },
+    "nasdaq_hearing": {
+      "lane": "nasdaq", "who": "Akoustis", "short": "Akoustis asks Nasdaq for a hearing",
+      "question": "If Akoustis misses the 21 Oct deadline, does it ask Nasdaq for a hearing?",
+      "why": "A hearing request holds off the suspension while the panel decides.",
+      "branches": { "yes": "Asks", "no": "Doesn't" }
+    },
+    "panel_exception": {
+      "lane": "nasdaq", "who": "Nasdaq Hearings Panel", "short": "Nasdaq gives Akoustis more time",
+      "question": "Does Nasdaq's hearing panel give Akoustis more time, keeping the stock listed through 17 Dec?",
+      "why": "If no, the stock is delisted.",
+      "branches": { "yes": "More time", "no": "Delists" }
+    },
+
+    "petition_cash_floor": {
+      "lane": "cash", "who": "Akoustis", "short": "Akoustis files when cash gets tight",
+      "question": "When Akoustis's cash first falls below what it needs to run for the next month, does it file for bankruptcy?",
+      "why": "The same question is asked on bank data alone and with the research, at the day and cash level each path reaches.",
+      "branches": { "yes": "Files", "no": "Keeps going" }
+    },
+    "petition_cash_out": {
+      "lane": "cash", "who": "Akoustis", "short": "Akoustis files when cash runs out",
+      "question": "If it keeps going, does Akoustis file for bankruptcy when its cash runs out?",
+      "why": "Asked only where it did not file when cash first got tight.",
+      "branches": { "yes": "Files", "no": "Keeps going" }
+    }
+  },
+
+  "steps": {
+    "Qorvo executes before the ruling": "Qorvo starts collecting",
+    "Ruling leaves": "Judge's ruling leaves {amount} owed",
+    "Ruling leaves $280k": "Judge's ruling leaves only the $280k patent award",
+    "Ruling leaves $280k, new trial on damages": "Judge orders a new trial on the trade-secret damages",
+    "Ruling vacates the judgment": "Judge throws out the verdict",
+    "Ruling orders a new trial": "Judge orders a new trial",
+    "Stay approved": "Judge pauses collection",
+    "Early registration allowed": "Judge lets Qorvo reach Akoustis's cash early",
+    "Qorvo levies": "Qorvo seizes cash",
+    "Akoustis appeals": "Akoustis appeals",
+    "Akoustis seeks a sale or financing": "Akoustis looks for a buyer or new money",
+    "Akoustis pays": "Akoustis pays what's owed",
+    "Settles before the ruling": "Settles with Qorvo before the ruling",
+    "Settles after the ruling": "Settles with Qorvo after the ruling",
+    "Settles during the appeal": "Settles with Qorvo during the appeal",
+    "Settles after the appeal deadline": "Settles with Qorvo after the appeal deadline",
+    "Noteholders accelerate; filing": "Noteholders demand their $44M; Akoustis files",
+    "Noteholders accelerate; no filing": "Noteholders demand their $44M; no filing yet",
+    "Noteholders accelerate on the delisting; no filing": "Noteholders demand their $44M after the delisting; no filing yet",
+    "Nasdaq suspends": "Nasdaq suspends the stock",
+    "Nasdaq delists": "Nasdaq delists the stock",
+    "Akoustis files, short of cash": "Akoustis files for bankruptcy, short of cash",
+    "Akoustis files": "Akoustis files for bankruptcy",
+    "quiet": "Nothing forces a filing"
+  },
+
+  "dates": {
+    "briefing_close": "Challenges to the verdict fully argued",
+    "ruling_window": "Judge's ruling expected",
+    "judgment_default": "Noteholders' 60-day clock ends (one reading)",
+    "nasdaq": "Nasdaq $1 deadline",
+    "coupon": "Interest due on the notes"
+  },
+
+  "levers": {
+    "title": "Which judgments matter most",
+    "sub": "How much collections move if a judgment goes fully one way or the other.",
+    "at0": "If no",
+    "at100": "If yes"
+  },
+
+  "reveal": {
+    "button": "What actually happened",
+    "intro": "Everything above uses only what was public on 20 Jun 2024. Here is what happened next."
+  }
+}
