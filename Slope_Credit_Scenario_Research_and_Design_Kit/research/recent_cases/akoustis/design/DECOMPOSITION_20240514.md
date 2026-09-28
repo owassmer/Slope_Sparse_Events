@@ -2,7 +2,39 @@
 
 ## 1. Summary for approval
 
-<!-- summary: written last, after §2–§8 -->
+**What the model does.** It forecasts the dated cash flows of the supplied Slope line from 14 May to 10 Nov 2024 while the claimant's trade-secret, patent and related claims are with the jury. The event model is a generic template, `pending_money_claim` (a civil money claim at jury trial in US district court), chosen by the dispute's state, `liability_pending`, and never by the borrower. Akoustis fills it as case inputs. It feeds the existing post-judgment steps (settlement, execution, stay, registration, levy), the indenture template and the bankruptcy effects. **A missing judgment never activates enforcement.**
+
+**Amounts come from the record (§5).** The claimant itemised its claim before trial (D.I. 543-1, 22 Apr 2024): at least $66.1M of trade-secret unjust enrichment on a 55-month head start, plus $2,236,184 on the patent, advertising and poaching claims. The conspiracy and UDTPA $66.1M figures restate the same money. D.I. 590 (14 May) leaves no UDTPA damages, so there is no trebling. The jury's choice of damages theory is the Jev question; code sets each branch's amount:
+- **no award**: no judgment;
+- **defense theory**: a bounded amount below the notes' $10.0M threshold (no defense figure was public);
+- **claimant's theory**: $68,336,184, beyond cash on every trajectory. Exemplary damages, interest and fees are one bounded term that moves no date or cash.
+
+**Clocks (§3).** The verdict falls in a window of 16–22 May, drawn per trajectory from the 13 May call ("to the jury before the end of the week ... verdict in the next several days") and D.I. 550. Every later clock runs from the modeled verdict: entry the next business day; execution 30 days later; post-trial motions, briefing, and a ruling lag drawn from the judge's pace on this docket (8 of 10 draws fall inside the horizon). The judgment default ripens 16–22 Aug on the entered-judgment reading, or at ruling + 60 on the post-ruling reading. Both readings are carried (L11, open). The listing can fail inside the horizon only by suspension about 1 Nov without a hearing request. The June coupon ($1.32M) is paid in shares by base (the 13 May S-3 registers 5.0M Note Shares), with all cash as the sensitivity.
+
+**Chains (§4).**
+- **T1, the verdict and its enforcement:** settlement before the verdict; the verdict; the debtor's response at entry; post-trial motions; execution before the ruling, a stay, early registration, and the response on the levy day; the ruling (stands or set aside); an appeal, a stay pending appeal, and enforcement after the ruling.
+- **T2, the notes** (claimant's branch only): notice and acceleration, then the issuer's or the holders' petition.
+- **T3, the listing:** one company decision.
+- **T4, operating cash:** the cash floor, then cash exhaustion.
+- **T5, settlement:** on stated terms in each interval.
+
+§4.6 lists what is collapsed and why: liability per claim; awards of $10.0M or more; enhancements; remittitur; the separate merits motions; the listing sub-steps; the repurchase.
+
+**Jev questions (18; §6).**
+- **Jury or court:** J1 damages theory; J2 the ruling; J3 stay on reduced security; J4 early registration.
+- **Claimant:** C1 enforces; C2 accepts the settlement terms.
+- **Debtor:** D1 post-trial motions; D2 pay, file or continue (at entry, on a levy, at a ripe default); D3 offers settlement; D4 moves for a stay; D5 appeals; D6 keeps the listing; D7 and D8 file at the cash floor or at zero cash; D9 files on acceleration.
+- **Holders:** H1 act on the judgment default; H2 act on delisting; H3 file an involuntary petition.
+
+Questions marked ⚑ receive cash facts that must match the engine on their decision date, including the line's own flows (§7.6).
+
+**Implementation (§7).** Contract and registry 4.1.0, both additive: a new template, stage, five new registry entries, and label templates filled from case inputs. There are small changes to the domain, interpretation and tool, plus new walker methods and Chain steps that reuse the 4.0.0 flow. The 4.0.0 template and the recorded 20 Jun run are unchanged. Estimates: about 3,000–7,000 paths and 100–150 Jev asks per variant.
+
+**Open decisions for Owen.**
+- **O1.** The defense-theory base. Recommended: $9,999,999, the record's upper bound (approved D4(a)). The sensitivity is $2,236,184, the claimant's non-head-start items. The two sit either side of the payable threshold.
+- **O2.** Whether to add a declared class for a compromise award between $10.0M and cash above the reserve. Needed only if the built feed has trajectories whose cash above the reserve exceeds $10.0M (§5.3).
+- **O3,** for the §16.3 worker: the level of attributable legal spend after trial, since neither verdict ends the dispute inside the horizon (§3).
+- **O4.** Judgment entry the next business day after the verdict (base, L14). The sensitivity is entry with the post-trial ruling.
 
 ---
 
