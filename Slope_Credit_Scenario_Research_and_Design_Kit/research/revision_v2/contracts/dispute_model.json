@@ -2015,7 +2015,8 @@
         "no_award": "the jury returned no money verdict: no judgment is entered",
         "set_aside": "the court set the money judgment aside after trial: no money judgment remains",
         "first": "the company's first response to the entered judgment",
-        "settled_installments": "the company has agreed to settle with {claimant}, paying the agreed amount in {installments} equal monthly installments from the settlement date"
+        "settled_installments": "the company has agreed to settle with {claimant}, paying the agreed amount in {installments} equal monthly installments from the settlement date",
+        "no_cash_effect": "the dispute with {claimant}, including its legal costs, is given no cash effect: it ends on the review date at no cost"
       },
       "cash_facts": "engine_forward_run where the case's scenario sets parameter cash_facts (spec §16.4)",
       "verdict_form": "The case's verdict form (cases/<snapshot>/scenario.json verdict_form) lists, in the form's order, each question that can change which verdict branch a path takes: its node (verdict_finding or verdict_measure), the question quoted, and for each answer the next question or a verdict branch. Each is one jury decision and none asks for an amount. Code enumerates the answer sequences and gives each verdict branch the composite edge of its conjunctions (disjoint by construction, exhaustive over the answers); a question is asked once per sequence of earlier answers that reaches it. Questions that change only an amount inside a branch are collapsed there, with the reason recorded in the case's verdict_form.",

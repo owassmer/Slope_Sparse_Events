@@ -467,8 +467,8 @@
     },
     {
       "path": "research/recent_cases/akoustis/design/DECOMPOSITION_20240514.md",
-      "bytes": 96325,
-      "sha256": "682a09ea31075d08e5cda7cac054b08e73da64137463508452107a1c5460771f"
+      "bytes": 97589,
+      "sha256": "c9da3576a57be9d16b9bcaa41485a96d1dda0d6028510aad6b4865ea70bef2d7"
     },
     {
       "path": "research/recent_cases/akoustis/design/acquisition_akoustis_20240514.md",
@@ -572,8 +572,8 @@
     },
     {
       "path": "research/revision_v2/contracts/dispute_model.json",
-      "bytes": 111254,
-      "sha256": "fb2f626098673c30ecd5127c867ca6d8cad92a4a87295467a234b2b9ea2a62ec"
+      "bytes": 111402,
+      "sha256": "946162300d2562d3ef479f7df7cbf55451f7acd389f3def9f4bf7916a0bc9674"
     },
     {
       "path": "research/revision_v2/contracts/economic-effects.json",
