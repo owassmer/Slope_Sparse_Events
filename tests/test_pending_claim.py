@@ -399,6 +399,79 @@ def test_7c_the_raise_is_offered_wherever_the_whole_path_makes_it_available(tree
     assert seen
 
 
+def test_7d_the_stay_questions_state_the_collateral_the_engine_locks(tree):
+    """⚑ bond collateral: the stay questions are told the engine's own figure on the approval day (the amount owed plus
+    §1961 interest at the pending rate over bond_forward_interest_years, times the collateral share), the amount a
+    covered stay locks, not the amount owed alone."""
+    from app.disputes.forecast import usd
+
+    fc, d, paths, _ = tree
+    nodes = [n for n in fc.nodes.values() if n.node in ("stay_motion", "stay_approved")]
+    assert nodes
+    for n in nodes:
+        rows = fc.facts[n.key]
+        masks = [fc.live(n, r) for r in rows]
+        if not any(m.any() for m in masks):
+            continue
+        coll = np.concatenate([r["collateral"][m] for r, m in zip(rows, masks, strict=True)])
+        owed = np.concatenate([r["owed"][m] for r, m in zip(rows, masks, strict=True)])
+        assert fc.path_facts(n, d)["bond_collateral_required"] == usd(int(np.quantile(coll, 0.5))), n.key
+        assert np.quantile(coll, 0.5) > np.quantile(owed, 0.5), n.key  # the bond carries the interest
+    covered = next(p for p in paths if ("stay", "I1", "yes") in p.steps)
+    i = covered.steps.index(("stay", "I1", "yes"))
+    ch, tr = run(covered.steps[: i + 1])
+    locked = np.cumsum(ch.ev.lock, axis=1).max(axis=1)
+    full = locked == tr.collateral[i]
+    assert full.any() and (tr.collateral[i][full] > 0).all()  # where cash covers it, the lock is that figure
+
+
+def test_7e_owed_facts_count_only_what_is_taken_before_the_decision(tree):
+    """⚑ amount owed, in date order: each step's owed fact equals the amount owed on its day on the whole path,
+    counting only levies and payments dated before that day (a levy dated after a decision, walked before it, is not
+    in it); and a pre-ruling judgment default does not ripen on a judgment set aside before its ripe date."""
+    from app.analysis.events import BIG
+
+    class Rec(Chain):
+        def _take(self, day):
+            t0 = self.taken.copy()
+            super()._take(day)
+            self.log.append((np.asarray(day).copy(), self.taken - t0))
+
+        def respond(self, booking, day, cause="enforcement"):
+            t0 = self.taken.copy()
+            super().respond(booking, day, cause)
+            self.log.append((np.asarray(day).copy(), self.taken - t0))
+
+    _, _, paths, _ = tree
+    b = fx.basis()
+    levied = _sample(paths, lambda p: ("registration_early", "I1", "yes") in p.steps and any(
+        x[0] == "post_trial_ruling" for x in p.steps), 8)
+    aside = _sample(paths, lambda p: ("post_trial_ruling", "", "set_aside") in p.steps and any(
+        x[0] == "judgment_default" and x[1] == "I1" for x in p.steps), 8)
+    assert levied and aside
+    for p in levied + aside:
+        ch = Rec(fx.pending(), fx.setup(), fx.model(), Draws(b.cash.shape[0], basis=b), None)
+        ch.log = []
+        tr = ch.run(p.steps)
+        pet = np.where(tr.events.petition < 0, BIG, tr.events.petition)
+        takes = ch.takes
+        for j, x in enumerate(p.steps):
+            day = tr.day[j]
+            m = (day >= 0) & (day < ch.N) & (day < pet)
+            before = sum((np.where(t < day, a, 0) for t, a in ch.log), np.zeros(ch.n, dtype=np.int64))
+            same = np.zeros(ch.n, dtype=bool)
+            for t, a in ch.log:
+                same |= (t == day) & (a != 0)
+            ch.takes = [(np.full(ch.n, -1), before)]
+            ref = ch.owed_at(day)
+            ch.takes = takes
+            ok = m & ~same
+            assert (tr.owed[j][ok] == ref[ok]).all(), x
+        if ("post_trial_ruling", "", "set_aside") in p.steps:
+            j = next(i for i, x in enumerate(p.steps) if x[0] == "judgment_default" and x[1] == "I1")
+            assert not ((tr.day[j] < BIG) & (tr.day[j] >= ch.F)).any()  # no default ripens after the set-aside
+
+
 def test_8_settlement_is_bounded_and_ends_the_claim(tree):
     """A settlement never exceeds cash above the 30-day need on its payment date, nor the amount claimed (I0) or owed;
     paid, it resolves the dispute (claim, lock and legal spend end)."""

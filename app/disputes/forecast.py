@@ -704,7 +704,7 @@ class Forecaster:
         if n.node == "financing_at_floor" and (eq := self._pooled(rows, masks, "raise_offer")) is not None:
             facts["equity_raise_available"] = self.raise_facts(eq)
         if reg.get("node") in ("stay_motion", "stay_approved"):
-            facts["bond_collateral_required"] = usd(int(np.quantile(self._collateral(d, owed), 0.5)))
+            facts["bond_collateral_required"] = usd(int(np.quantile(self._collateral(d, owed, rows, masks), 0.5)))
         if n.node == "stay_approved" and (offer := self._pooled(rows, masks, "stay_offer")) is not None:
             facts["reduced_security_offered"] = {"p5": usd(int(np.quantile(offer, 0.05))),
                                                  "p50": usd(int(np.quantile(offer, 0.5)))}
@@ -847,10 +847,15 @@ class Forecaster:
                 if set(mo.decides) & ids or (node == "ts_liability_jmol" and mo.kind == "rule_50b")
                 or (node == "injunction" and mo.kind == "injunction")]
 
-    def _collateral(self, d: DisputeInstance, owed: np.ndarray) -> np.ndarray:
+    def _collateral(self, d: DisputeInstance, owed: np.ndarray, rows: list, masks: list) -> np.ndarray:
         """The cash collateral the law and surety practice require for a stay on each trajectory: the bond (the amount
-        owed plus §1961 interest over the appeal) times the collateral share."""
+        owed plus §1961 interest over the appeal) times the collateral share. A pending claim's is the engine's own
+        figure on the approval day (events.py `bond_collateral`: the pending §1961 rate, the scenario's share), the
+        amount the stay locks; 4.0.0 recomputes it from the amount owed, as recorded."""
         from app.analysis.events import rate_1961_bps
+
+        if d.stage == PENDING:
+            return np.concatenate([r["collateral"][m] for r, m in zip(rows, masks, strict=True)])
 
         p = self.m["parameters"]
         bps = rate_1961_bps(self.m, d.judgment_date) if d.judgment_date else 0
@@ -1243,14 +1248,17 @@ class _Walk:
         classes = {"yes": [[(h1, "yes"), (a5, "yes")]],  # the issuer files on acceleration
                    "holders_file": [[(h1, "yes"), (a5, "no"), (h3, "yes")]],  # the holders file, per §7.06
                    "accelerated": [[(h1, "yes"), (a5, "no"), (h3, "no")]]}
+        # a pending claim's default books on its own day (events.py `waits`): its facts come from each whole path
+        take = ((lambda st, e, **kw: s.add(st, e, late=s.late + ((h1, len(s.steps)),), **kw)) if self.pend
+                else (lambda st, e, **kw: self.take(s, st, e, (h1,), **kw)))
         for branch, parts in self.unfiled(s, "judgment_default", phase, classes,
                                           (("holders_file", "accelerated"),)).items():
-            y = self.take(s, ("judgment_default", phase, branch), (composite(parts), "yes"), (h1,), notes_due=True)
+            y = take(("judgment_default", phase, branch), (composite(parts), "yes"), notes_due=True)
             if branch != "accelerated" and (self.fc.trace(self.d, y.steps).petition >= 0).all():
                 self.floor(y, "petition")  # a petition on every trajectory
             else:
                 then(y)
-        then(self.take(s, probe, (composite([[(h1, "no")]]), "yes"), (h1,)))
+        then(take(probe, (composite([[(h1, "no")]]), "yes")))
 
     def notes_facts(self, s: _S, at) -> None:
         """The petition questions on notes due and unpaid get the facts of the day each actor may file, on the
