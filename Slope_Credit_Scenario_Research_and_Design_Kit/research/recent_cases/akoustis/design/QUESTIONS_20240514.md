@@ -74,7 +74,7 @@ One of four types, each with its terms: full bond collateral (the amount); reduc
 
 **At-the-market sales (Scenario).** The program the company re-activated on 13 May sells from 14 May on each trading day while the stock is listed and no petition has been filed. Volume: 20% of the average daily dollar volume from 15 Mar to 14 May 2024 (about $337k), with 10% and 25% as sensitivities. Price: the 14 May close. Proceeds are net of the agents' commission (up to 3%). They settle two business days after the sale for sales before 28 May 2024, and one business day after it from that date. No Jev question: the company's decision to sell is on the record; the pace is the declared assumption.
 
-**Underwritten offerings (N1).** An offering is available while the stock is listed, no petition has been filed, no other offering is pending, and capacity covers it. Its proposed size is the January 2024 offering's net proceeds, or less where capacity binds: the shares available times the offering price. The offering price is the 14 May close less the January offering's discount to the prior close. There is no fixed count of offerings per path.
+**Underwritten offerings (N1).** An offering is available while the stock is listed, no petition has been filed, no other offering is pending, and capacity covers it. Its proposed size is the January 2024 offering's net proceeds, or less where capacity binds: the shares available times the offering price. For the ledger, an offering's shares are counted at the 14 May close less the January offering's discount to the prior close, and at-the-market shares at the 14 May close. These prices serve only the share count: the market sets the actual price, and no question states one. There is no fixed count of offerings per path.
 
 ---
 
@@ -253,9 +253,9 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 #### N1 · The offering raises its proceeds · new
 
 - **Event:** the proposed offering raises at least its proposed net amount by its close date.
-- **Proposed terms, stated as facts:** an underwritten public offering of common stock on the company's shelf; the size and price under §2.6; the close date, as many days after initiation as the January 2024 offering took from launch to close. It is not described as committed.
+- **Proposed terms, stated as facts:** an underwritten public offering of common stock on the company's shelf, at the price the market sets; the size under §2.6; the close date, as many days after initiation as the January 2024 offering took from launch to close. It is not described as committed.
 - **Answers:** yes, the proposed net amount is received by the close date; no, it is not received by that date.
-- **Asked:** after every initiation (D2, D7), including after an earlier offering on the path did not close. The situation states any earlier attempt and its outcome.
+- **Asked:** after every initiation (D2, D7, D8), including after an earlier offering on the path did not close. The situation states any earlier attempt and its outcome.
 - **Situation:** the judgment and its standing; available cash and any arrears; at-the-market proceeds to date; the listing status and deadline; the notes' status and any default continuing; the share capacity left.
 - **Record:** the January 2024 offering (the 8-K of 29 Jan 2024 and its prospectus supplement: 23.0M shares at $0.50, 29% below the prior close, underwritten by Roth), as evidence of what the market did then, not a guarantee; the at-the-market program and its re-activation on 13 May; the 10-Q's liquidity and going-concern text; counsel's statement on the ability to raise money; the shelf's capacity.
 - **Consequences:** yes, the net amount on the close date, and its shares drawn from capacity. No, nothing; the next decision point on the path follows, where an offering can be initiated again.
@@ -263,11 +263,11 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 #### D8 · Akoustis files when it cannot pay an obligation · `forecast_petition_cash_out`
 
-- **Event:** on the first day an obligation goes unpaid (§2.2), Akoustis files a voluntary petition, rather than carry arrears.
-- **Answers:** no, no petition that day; nothing more.
+- **Event:** on the first day an obligation goes unpaid (§2.2), Akoustis files a voluntary petition, initiates an underwritten offering where one is available (§2.6; N1 follows), or does neither.
+- **Answers:** neither, no petition and no offering that day; nothing more.
 - **Situation:** it did not file at the cash floor; available cash nil; the obligation unpaid that day and its class; the notes' status; the judgment's standing.
-- **Consequences:** yes, a petition on the day. No: processing under §2.2 continues. Slope's debits clear only when the balance covers them, arrears accrue, and after 30 days of continuous arrears §3.3 makes the notes due, with D9 and H3 following.
-- **Build:** change. The trigger becomes the first unpaid obligation, and the state after "no" follows §2.2. Keep the conditioning on the floor decision. There is no monthly re-ask.
+- **Consequences:** file, a petition on the day; initiate, N1, with processing under §2.2 continuing until the close date; neither: processing under §2.2 continues. Slope's debits clear only when the balance covers them, arrears accrue, and after 30 days of continuous arrears §3.3 makes the notes due, with D9 and H3 following.
+- **Build:** change. The trigger becomes the first unpaid obligation, the offering is added where available, and the state after "neither" follows §2.2. Keep the conditioning on the floor decision. There is no monthly re-ask.
 
 #### D9 · Akoustis files on the notes · `forecast_petition_on_notes`
 
