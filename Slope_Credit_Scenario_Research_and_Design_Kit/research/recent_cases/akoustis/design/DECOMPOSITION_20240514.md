@@ -489,34 +489,54 @@ The three branches' composites are disjoint and exhaustive over the answers (tes
 
 ## 8. Evidence requirements
 
-The record each question reads (`QUESTIONS_20240514.md` §4) is a set of named slots. The agent fills each one with accepted findings from the 14 May snapshot; a slot no finding fills is stated to Jev as not in the record (spec §3.5). All sources below are dated on or before 14 May 2024. "Kit" means already in `research/recent_cases/akoustis/`; "add" means the snapshot needs it (URLs in ACQ).
+The record each question reads (`QUESTIONS_20240514.md` §4, each entry's **Record** field) is a set of named slots. The agent fills each one with accepted findings from the 14 May snapshot; a slot no finding fills is stated to Jev as not in the record (spec §3.5). Each item is routed whoever wrote it, with its author, date and status (court ruling, statement of intended proof, party argument, company disclosure, third-party record); a missing statement by one party is not a gap. Every source below is public on or before 14 May 2024. Status: **kit** (in the `akoustis_20240514` snapshot before step 9), **added** (acquired for this table, step 9), **not public by the cutoff** (existed but was sealed, oral or unfiled; stated to Jev as not in the record). Record items that could not exist by 14 May are not listed.
 
-| Record item | Questions | Sources | Status |
+| Record item | Questions | Sources (document, D.I. or section, date) | Status |
 |---|---|---|---|
-| the claimant's itemised damages claim | J1, D2, D3, C2 | D.I. 543-1 Ex. A.2 (22 Apr 2024), ¶¶19, 31–32, 42, 49–50, 56–57, 61–62 | add |
-| the defense's statement of intended proof on damages | J1 | D.I. 543-1 Ex. A.4 | add |
-| the court's rulings admitting or limiting the damages evidence | J1, J2 | D.I. 553 (30 Apr); D.I. 566 (3 May, poaching opinions); D.I. 590 (14 May) | 553, 590 kit; 566 add |
-| the final verdict form | J1 | D.I. 580 (9 May) | add (fetched for this document) |
-| the summary-judgment and validity rulings | J1 | D.I. 545 (25 Apr), D.I. 557 (2 May); 10-Q Note 14 | kit |
-| the defendant's public statements on the trial and its likely damages | J1, D1, D2, D5 | 13 May earnings call (Insider Monkey copy published 14 May; ACQ §1(g)); 10-Q Note 14 | call add; 10-Q kit |
-| the challenges to the damages method | J1, J2 | D.I. 476 (23 Feb, redacted brief against the head-start measure); D.I. 535 (12 Apr, proposed verdict form) | add |
-| the motions for judgment as a matter of law made at trial | J2, D1, D5 | D.I. 587 (13 May), D.I. 590 (14 May) | kit |
-| the company's statements on its liquidity and ability to post security | J3, D2, D4, D7, D8, D9 | 10-Q Note 2 and risk factors; 13 May release | kit |
-| the locations of the company's operating assets | J4 | 10-Q Note 13 (leases); FY2023 10-K (properties) | kit |
-| the claimant's public statements on the litigation and its remedies | C1, C2 | D.I. 543 §6 (relief sought); D.I. 133 (second amended complaint, prayer) | add |
-| the parties' competitive relationship | C1, C2, D3 | FY2023 10-K (competition); D.I. 590 ("testimony that the Parties are competitors") | kit |
-| the company's statements on settlement | D3, C2 | 10-Q Note 14 (none disclosed) | kit; stated as not in the record if no finding |
-| the company's own claims against the claimant | D3, C2 | 10-Q Note 14 (E.D. Tex. suit; the two IPR petitions) | kit |
-| the company's going-concern and bankruptcy statements | D2, D7, D8, D9 | 10-Q Note 2, MD&A overview, risk factors | kit |
-| the company's financing routes and their status | D2, D7, D8, D9, D6 | 10-Q Note 2 and Part II Item 5 (ATM re-activated, $48.0M remaining, no sales obligation); 8-K 29 Jan 2024 (the January offering); resale S-3 of 13 May; 424B5s of 2 May 2022 and 29 Jan 2024 (the shelf) | 10-Q and 8-K kit; S-3 and 424B5s add |
-| the listing deficiency notice and compliance deadline; the company's stated cure | D6, H2 | 10-Q Note 12 and risk factor; 8-K 27 Oct 2023 | kit |
-| the latest stockholder vote on a charter amendment | D6 | DEF 14A of 19 Sep 2023 and 8-K of 2 Nov 2023 (`STAGE3.md` E19) | add |
-| the indenture's default, acceleration and suit terms | H1, H2, H3, D9 | indenture §§7.01, 7.02, 7.06, 7.07, 10.01 | kit |
-| the notes' interest terms and payment record | H1, D2, D9 | 2022 notes 8-K; FY2023 10-K; resale S-3 of 13 May (5,000,000 Note Shares) | 8-K, 10-K kit; S-3 add |
+| the final verdict form | J1, J1b | D.I. 580, final special verdict form, blank (9 May 2024; court) | kit |
+| the summary-judgment ruling and its reasons | J1 | D.I. 545 (25 Apr 2024; court) | kit |
+| validity | J1 | D.I. 557 ('018 claims 1, 12 and '755 claims 9, 10 not invalid; 2 May 2024; court) | kit |
+| the exclusion of defense technical opinions | J1, J1b, J2 | D.I. 546 (Lebby ¶¶3, 4, 6, 72–78, 81–116, 125–151, 154 excluded; 25 Apr 2024; court) | kit |
+| claim construction | J1 | D.I. 152 (15 Mar 2023; court) | kit |
+| each side's statement of intended proof | J1, D5 | D.I. 543-1 (22 Apr 2024): Ex. A.2, Qorvo, pp. 13–25; Ex. A.4, Akoustis ("intends to refute that Qorvo is entitled to any damages"), pp. 35–42 (statements of intended proof) | kit |
+| Qorvo's damages method and figures | J1b | D.I. 543-1 Ex. A.2 ¶¶19, 31–32, 42, 56–57, 61–62 (statement of intended proof); the admitted head-start opinion, D.I. 553 (30 Apr 2024; court); the method as argued, D.I. 476 (23 Feb 2024, redacted; party argument) | kit |
+| the revenue base left to the jury | J1b | D.I. 553 pp. 6–7 ("more appropriately examined in cross-examination") | kit |
+| the defense's avoided-cost opinion as admitted | J1b | D.I. 553 pp. 10–11 and n. 2 (Irwin admitted; opinions resting on excluded Lebby opinions excluded); D.I. 471 (23 Feb 2024, redacted; party argument). The avoided-cost figure itself is redacted | kit; the figure not public by the cutoff |
+| the court's limiting rulings | J1b | D.I. 546; D.I. 553 n. 2; D.I. 590 (UDTPA damages barred; 14 May 2024); D.I. 565, stipulated limiting instructions on Akoustis's motions in limine nos. 1 and 4 (2 May 2024; stipulation under the court's order). The motions-in-limine order itself, D.I. 548, is sealed | 546, 553, 590 kit; 565 added; 548 not public by the cutoff |
+| the record on actual loss (2(c)) | J1b | D.I. 543-1 Ex. A.2 ¶¶52–57 (conspiracy: the same $66.1M); D.I. 476 (the head-start measure is a benefit to Akoustis; no actual-loss figure) | kit |
+| the Rule 50(a) motions made at trial and their disposition | J1, D1, J2 | D.I. 587, Qorvo's bench memorandum opposing Akoustis's Rule 50(a) motion on UDTPA remedies (13 May 2024; party argument); D.I. 590, the order (14 May 2024; court: granted in part and denied in part, and records the denial of the first 50(a) motion); trial days 6–7 in the 14 May docket view. The motions were made orally; the trial transcript is not public | kit; the motions' text not public by the cutoff |
+| the court's pre-verdict rulings on the damages evidence | J2 | D.I. 553 (30 Apr 2024); D.I. 546 (25 Apr 2024) | kit |
+| the company's statements on contesting the claims and on the trial | D1, D2, D5, D7 | 13 May 2024 earnings call (Wright: "vigorously defend", "an eight-figure verdict", "ability to raise money"; company statement); 10-Q of 13 May 2024 Note 14 and Part II Item 1 (company disclosure) | kit |
+| Qorvo's claims and the relief it seeks | C1, C2, C3 | D.I. 543-1 Ex. A.2 ¶41 (injunction against false promotion) and ¶62 (permanent injunctive relief, costs, interest, fees, disgorgement); D.I. 543 §6, "Alleged Damages" (22 Apr 2024); D.I. 133 prayer (17 Feb 2023) (statements of intended proof and pleading) | kit |
+| the parties' competitive relationship | D3, C1, C2 | FY2023 10-K Item 1, "Competition" (6 Sep 2023; company disclosure); D.I. 590 ("testimony that the Parties are competitors"; court) | kit |
+| the company's statements on settlement | D3 | 10-Q of 13 May 2024 Note 14 (none disclosed) | kit; stated as not in the record if no finding |
+| the company's own claims against Qorvo | D3 | 10-Q of 13 May 2024 Note 14 (E.D. Tex. 2:23-cv-00180, filed 20 Apr 2023; the inter partes review petitions) | kit |
+| the company's disclosures bearing on collectability | C1, C2 | 10-Q of 13 May 2024 Note 2 (cash $15.2M at 31 Mar 2024; going-concern doubt; an adverse judgment would "create an urgent need for additional liquidity") | kit |
+| the company's properties | J4 | FY2023 10-K Item 2, "Properties" (Huntersville, NC headquarters; the Canandaigua, NY fab) and cover (Delaware incorporation); 10-Q Note 13 (leases). Nothing states where cash is held | kit |
+| the company's statements on its liquidity and ability to post security | D4 | 10-Q of 13 May 2024 Note 2 and Part II Item 1A; 13 May 2024 release (8-K Ex. 99.1) and call | kit |
+| the company's going-concern and bankruptcy statements | D2, D7, N1 | 10-Q of 13 May 2024 Note 2, MD&A overview, Part II Item 1A | kit |
+| the company's financing routes and their status | D2, D7 | 10-Q of 13 May 2024 Note 2 and Part II Item 5 (at-the-market program re-activated with the 10-Q, $48.0M remaining, agents under no obligation to sell); ATM Sales Agreement of 2 May 2022 (Ex. 1.1 to the 10-Q filed 2 May 2022); ATM prospectus supplement, 424B5 of 2 May 2022; shelf S-3 333-262540 (4 Feb 2022); the January 2024 offering (below); resale S-3 of 13 May 2024 | agreement and S-3 333-262540 added; the rest kit |
+| the January 2024 offering | N1 | 8-K of 29 Jan 2024 Item 1.01 (underwriting agreement with Roth, 25 Jan; preliminary supplement filed 24 Jan; over-allotment exercised; closed 29 Jan); 424B5 dated 25 Jan, filed 29 Jan 2024 (20,000,000 shares plus 3,000,000 over-allotment at $0.50; last sale $0.70 on 24 Jan) | kit |
+| the at-the-market program and its re-activation | N1 | ATM Sales Agreement of 2 May 2022 (up to $50.0M through Oppenheimer, Craig-Hallum and Roth; commission up to 3.0%); 424B5 of 2 May 2022; 10-Q of 13 May 2024 Part II Item 5 and Note 2 (re-activated 13 May 2024) | agreement added; the rest kit |
+| the 10-Q's liquidity and going-concern text | N1 | as the going-concern row | kit |
+| counsel's statement on the ability to raise money | N1 | 13 May 2024 call (Wright: the litigation "may have a significant impact on the company, including its value, operations, and ability to raise money") | kit |
+| the shelf's capacity | N1 | S-3 333-262540 ($150,000,000 of securities; filed 4 Feb 2022; base prospectus dated 15 Feb 2022, as the 424B5s state); takedowns on it: 424B5 of 2 May 2022 (ATM, up to $50.0M), 424B5 of 19 Jan 2023, filed 23 Jan 2023 (the January 2023 offering; closing stated in the FY2023 10-K), 424B5 of 29 Jan 2024. The shelf's unused amount and any baby-shelf (I.B.6) limit are not stated in any pre-cutoff filing | S-3 and 2023 424B5 added; the rest kit |
+| the authorized and outstanding shares | D6a (and the share capacity, §2.6, for D7 and N1) | 10-Q of 13 May 2024 cover (98,669,282 shares at 8 May 2024) and balance sheet (175,000,000 authorized); common stock equivalents table (9,341,825 for note conversion, 3,031,625 options); resale S-3 of 13 May 2024 (5,000,000 Note Shares) | kit |
+| the indenture's default, acceleration and suit terms | H1 | indenture of 9 June 2022 §§7.01, 7.02, 7.06, 7.07, 10.01 (Ex. 4.1 to the 8-K of 10 June 2022) | kit |
+| the notes' interest terms and payment record | H1 | 8-K of 10 June 2022; FY2023 10-K (6.0%, payable semi-annually from 15 Dec 2022, in cash or shares; "Common stock issued in payment of interest" $2,684K in FY2023); 10-Q of 13 May 2024 (nine months: $1,320K of interest paid in shares); resale S-3 of 13 May 2024 (5,000,000 more shares registered for interest) | kit |
+| the holders of the notes where filings show them | H1 | resale S-3 of 13 May 2024, "Selling Stockholders" table (company disclosure) | kit |
+| the deficiency notices and the compliance periods | D6a, D6b | 8-K of 27 Oct 2023 Item 3.01 (notice of 24 Oct 2023; first period to 22 Apr 2024); 10-Q of 13 May 2024 Note 12 (second period granted, to 21 Oct 2024). Nasdaq's letter granting the second period was not filed: EDGAR shows no 8-K between 14 Feb and 13 May 2024 | kit; the April 2024 letter not public by the cutoff |
+| the company's stated options to regain compliance | D6a | 10-Q of 13 May 2024 Note 12 and Part II Item 1A ("could include seeking to effect a reverse stock split"; close $0.60 on 1 May 2024) | kit |
+| the latest stockholder vote on a charter amendment | D6a | DEF 14A of 19 Sep 2023 (excerpt: record date 5 Sep 2023, meeting 2 Nov 2023, Proposal 3 raising authorized shares from 125,000,000 to 175,000,000; approval "votes cast for ... must exceed the votes cast against"); 8-K of 2 Nov 2023 Items 5.03 and 5.07 (approved 37,388,404 for, 8,919,309 against; amendment effective 2 Nov 2023). No reverse-split vote was called by 14 May 2024 | added |
+| the company's statements on its listing | D6b | 10-Q of 13 May 2024 Note 12 and Part II Item 1A | kit |
+
+**Case data (§2.6, not a snapshot source).** The daily AKTS open, high, low, close and volume, 1 Jun 2023 – 14 May 2024 (`cases/akoustis_20240514/akts_daily_px.csv`, with its source and retrieval date in `akts_daily_px.source.json`), for the at-the-market pace (average daily dollar volume 15 Mar – 14 May 2024: $337,069) and the offering price (the 14 May close, $0.44). Added.
 
 **Common-model inputs (§16.3, worker A)** are not event-model slots: the 31 Mar balance sheet, the 10-Q cash flows, the 13 May guidance on revenue, burn and CHIPS credits.
 
-**Not obtainable by 14 May, and so not slots:** the defense's damages figure; the entered pretrial order's time allocations (D.I. 549, sealed); any trial transcript; the claimant's post-verdict filings.
+**Considered and not listed.** D.I. 566 (3 May 2024, the poaching opinion admitted) bears only on UDTPA damages, which D.I. 590 bars, and verdict question 4 is not asked. D.I. 535 and 536 (the parties' proposed verdict forms) are superseded by D.I. 580. D.I. 537 (the joint proposed jury instructions), D.I. 522, 525, 568, 573 (letters and supplemental briefs on Bennis's methods) and D.I. 588–589 (bench memoranda on the conspiracy instruction, filed 14 May) repeat party argument already in the record or are named by no question's Record field.
+
+**Not public by 14 May, and so stated as not in the record:** the defense's damages figure (Irwin's avoided costs, redacted in D.I. 471); the entered final pretrial order (D.I. 549) and the motions-in-limine order (D.I. 548), both sealed; the trial transcript, including the oral Rule 50(a) motions; the final jury instructions as given; Nasdaq's April 2024 letter granting the second compliance period.
 
 ---
 
@@ -528,3 +548,4 @@ The record each question reads (`QUESTIONS_20240514.md` §4) is a set of named s
 - **The verdict date** is a window drawn per trajectory from pre-14-May statements (§3), not the actual date.
 - **The acquisition note** is copied verbatim; its [POST] items are marked reveal-only there and enter no slot, parameter or question here.
 - **Implementation (27–28 Sep 2026).** D.I. 580 was fetched from RECAP (filed 9 May 2024) and quoted verbatim in §7.12. The figures in §5.3 and §7.12 are code's arithmetic on the 14 May feed and the case inputs. No source dated after 14 May was read for them.
+- **Record acquisition (step 9, 28 Sep 2026).** §8 was rebuilt from the Record fields of `QUESTIONS_20240514.md` §4. Added sources, all filed or published on or before 14 May 2024 (dates from EDGAR's submissions JSON and the RECAP filing stamps): the shelf S-3 333-262540 (4 Feb 2022), the ATM Sales Agreement (2 May 2022), the 424B5 of 23 Jan 2023, the 2023 proxy (19 Sep 2023, excerpt) and the 8-K of 2 Nov 2023, D.I. 565 (2 May 2024), and the daily price series filtered to 14 May 2024. The proxy's future-proposals section names a 22 May 2024 deadline (an isolation probe string) and is cut from the kit copy. No source dated after 14 May 2024 was read for this table.
