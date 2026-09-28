@@ -1,0 +1,303 @@
+{
+ "ts_liability_jmol": {
+  "the public grounds of the renewed motion for judgment as a matter of law on trade-secret liability": [],
+  "the verdict form's answers on trade-secret misappropriation": [],
+  "public trial exhibits on trade-secret liability": []
+ },
+ "ts_damages_ruling": {
+  "the public grounds of the motion for a new trial or remittitur of the trade-secret damages": [],
+  "the trial evidence on the amount of trade-secret damages that the motion cites": [
+   "fnd_004"
+  ]
+ },
+ "remittitur_accepted": {
+  "the judgment creditor's public statements on the damages award": []
+ },
+ "patent_jmol": {
+  "the public grounds on which the post-trial motions ask the court to set aside the patent verdict or its damages": []
+ },
+ "trebling": {
+  "the judgment creditor's motion to treble the trade-secret damages under the unfair-trade-practices statute": [],
+  "the jury's answer on the unfair-trade-practices claim, as the verdict form or a motion to amend the verdict states it": [],
+  "the court's earlier orders on unfair-trade-practices damages": [
+   "fnd_006"
+  ]
+ },
+ "fees_awarded": {
+  "the judgment creditor's motion for attorneys' fees and its stated grounds": [],
+  "the statement of the jury's finding that the trade-secret misappropriation was willful and malicious": []
+ },
+ "prejudgment_interest": {
+  "the docket entry for the judgment creditor's motion for pre-judgment and post-judgment interest": [],
+  "the verdict form's designation of the trade-secret award as compensatory damages or unjust enrichment": [],
+  "the parties' public positions on whether unjust-enrichment damages are compensatory": []
+ },
+ "execute_pre_ruling": {
+  "the judgment creditor's public statements on collecting or enforcing the judgment": [],
+  "the company's statements on contesting, paying or settling the judgment": []
+ },
+ "stay_motion": {
+  "the company's statements on the judgment, its cash and its ability to pay the judgment": [
+   "fnd_012",
+   "fnd_013",
+   "fnd_014"
+  ]
+ },
+ "stay_approved": {
+  "the company's stay motion and the security it offers": [],
+  "the company's statements on its cash, its going-concern status and its ability to pay the judgment": [
+   "fnd_010",
+   "fnd_012",
+   "fnd_013",
+   "fnd_014",
+   "fnd_015"
+  ]
+ },
+ "registration_early": {
+  "where the company's operating assets, facilities and cash are located": []
+ },
+ "debtor_response": {
+  "the company's statements of the options it has to fund its operations and obligations: equity, debt, asset financing, collaborations or licensing, a sale or strategic transaction, restructuring or insolvency": [
+   "fnd_015"
+  ]
+ },
+ "appeal": {
+  "the company's statements on whether it will appeal the judgment": [],
+  "any waiver of the right to appeal the judgment": []
+ },
+ "enforce_after_final": {
+  "the judgment creditor's public statements on collecting or enforcing the judgment": []
+ },
+ "settlement_offer": {
+  "the company's statements on reaching a settlement with the judgment creditor": [],
+  "court orders referring the case to mediation": []
+ },
+ "settlement_accept": {
+  "the company's statements on reaching a settlement with the judgment creditor": [],
+  "the judgment creditor's public statements on the judgment and the verdict": []
+ },
+ "holders_act_judgment": {
+  "the indenture's judgment default, notice and acceleration terms": [
+   "fnd_019"
+  ],
+  "public statements by holders of the notes": []
+ },
+ "holders_act_delisting": {
+  "the indenture's listing default, acceleration and repurchase terms": [
+   "fnd_020",
+   "fnd_021"
+  ]
+ },
+ "petition_on_notes": {
+  "the issuer's statements on its financing options and on seeking bankruptcy protection": [
+   "fnd_010",
+   "fnd_012",
+   "fnd_013"
+  ]
+ },
+ "holders_involuntary": {
+  "public statements by holders of the notes": []
+ },
+ "reverse_split_board": {
+  "Nasdaq's minimum bid price deficiency notices and the compliance deadline they set": [
+   "fnd_022"
+  ],
+  "the results of earlier stockholder votes on reverse splits or share authorizations": []
+ },
+ "split_approved": {
+  "the results of earlier stockholder votes and the vote required to approve a reverse split": []
+ },
+ "nasdaq_hearing": {
+  "Nasdaq's minimum bid price deficiency notices and the compliance deadline they set": [
+   "fnd_022"
+  ]
+ },
+ "panel_exception": {
+  "the issuer's stated plan to regain compliance with Nasdaq's listing rules": [
+   "fnd_022"
+  ]
+ },
+ "listing_kept": {
+  "the listing deficiency notice and compliance deadline": [
+   "fnd_022"
+  ],
+  "the company's stated cure": [
+   "fnd_022"
+  ],
+  "the latest stockholder vote on a charter amendment": [],
+  "the company's financing routes and their status": [
+   "fnd_013",
+   "fnd_015",
+   "fnd_018"
+  ]
+ },
+ "petition_cash_floor": {
+  "the company's statements on its cash, its going-concern status and its plans if its cash runs short": [
+   "fnd_012",
+   "fnd_013",
+   "fnd_015"
+  ]
+ },
+ "petition_cash_out": {
+  "the company's statements on its cash, its going-concern status and its plans if its cash runs short": [
+   "fnd_012",
+   "fnd_013",
+   "fnd_014",
+   "fnd_015"
+  ]
+ },
+ "financing_at_floor": {
+  "the company's statements on its cash, its going-concern status and its plans if its cash runs short": [
+   "fnd_012",
+   "fnd_013",
+   "fnd_014",
+   "fnd_015"
+  ],
+  "the company's financing routes and their status": [
+   "fnd_013",
+   "fnd_015"
+  ]
+ },
+ "verdict_theory": {
+  "the claimant's itemised damages claim": [
+   "fnd_004"
+  ],
+  "the defense's statement of intended proof on damages": [],
+  "the court's rulings admitting or limiting the damages evidence": [
+   "fnd_001",
+   "fnd_006",
+   "fnd_008"
+  ],
+  "the final verdict form": [],
+  "the summary-judgment and validity rulings": [
+   "fnd_001",
+   "fnd_008",
+   "fnd_011"
+  ],
+  "the defendant's public statements on the trial and its likely damages": [
+   "fnd_001",
+   "fnd_007",
+   "fnd_009",
+   "fnd_013"
+  ],
+  "the challenges to the damages method": [
+   "fnd_004"
+  ]
+ },
+ "judgment_response": {
+  "the company's going-concern and bankruptcy statements": [
+   "fnd_010",
+   "fnd_012",
+   "fnd_013",
+   "fnd_014",
+   "fnd_015"
+  ],
+  "the company's financing routes and their status": [
+   "fnd_013",
+   "fnd_014",
+   "fnd_015",
+   "fnd_018",
+   "fnd_023"
+  ],
+  "the company's statements on its liquidity and ability to post security": [
+   "fnd_010",
+   "fnd_012",
+   "fnd_013",
+   "fnd_014",
+   "fnd_015",
+   "fnd_017"
+  ],
+  "the defendant's public statements on the trial and its likely damages": [
+   "fnd_001",
+   "fnd_007",
+   "fnd_008",
+   "fnd_009",
+   "fnd_010",
+   "fnd_013",
+   "fnd_014"
+  ]
+ },
+ "post_trial_motions": {
+  "the company's statements on contesting the claims": [
+   "fnd_007",
+   "fnd_010",
+   "fnd_025"
+  ],
+  "the motions for judgment as a matter of law made at trial": [
+   "fnd_006"
+  ],
+  "the defendant's public statements on the trial and its likely damages": [
+   "fnd_007",
+   "fnd_009",
+   "fnd_013"
+  ]
+ },
+ "post_trial_ruling": {
+  "the motions for judgment as a matter of law made at trial": [
+   "fnd_006"
+  ],
+  "the court's rulings admitting or limiting the damages evidence": [
+   "fnd_006",
+   "fnd_008"
+  ],
+  "the challenges to the damages method": [
+   "fnd_004",
+   "fnd_006"
+  ]
+ },
+ "verdict_finding": {
+  "the claimant's itemised damages claim": [
+   "fnd_004"
+  ],
+  "the defense's statement of intended proof on damages": [],
+  "the court's rulings admitting or limiting the damages evidence": [
+   "fnd_001",
+   "fnd_006",
+   "fnd_008"
+  ],
+  "the final verdict form": [],
+  "the summary-judgment and validity rulings": [
+   "fnd_001",
+   "fnd_008",
+   "fnd_011"
+  ],
+  "the defendant's public statements on the trial and its likely damages": [
+   "fnd_007",
+   "fnd_009",
+   "fnd_013"
+  ],
+  "the challenges to the damages method": [
+   "fnd_004",
+   "fnd_006",
+   "fnd_007"
+  ]
+ },
+ "verdict_measure": {
+  "the claimant's itemised damages claim": [
+   "fnd_004"
+  ],
+  "the defense's statement of intended proof on damages": [
+   "fnd_004"
+  ],
+  "the court's rulings admitting or limiting the damages evidence": [
+   "fnd_001",
+   "fnd_006",
+   "fnd_008"
+  ],
+  "the final verdict form": [],
+  "the summary-judgment and validity rulings": [
+   "fnd_001",
+   "fnd_008",
+   "fnd_011"
+  ],
+  "the defendant's public statements on the trial and its likely damages": [
+   "fnd_007",
+   "fnd_009",
+   "fnd_013"
+  ],
+  "the challenges to the damages method": [
+   "fnd_004",
+   "fnd_006"
+  ]
+ }
+}
