@@ -387,8 +387,13 @@
     },
     {
       "path": "research/recent_cases/akoustis/design/DECOMPOSITION_20240514.md",
-      "bytes": 25535,
-      "sha256": "62bba45b4b8135b4062cce0eb65e75d074b3ad5cb8818d936663156822a4dd16"
+      "bytes": 31618,
+      "sha256": "587e4b8eb3ab07837066a5ffd4ed38e94f335d3de60047871c067a9c221fc302"
+    },
+    {
+      "path": "research/recent_cases/akoustis/design/acquisition_akoustis_20240514.md",
+      "bytes": 45535,
+      "sha256": "71e3c274fed2dc913c2055b09e51c028f48a65528e09bdd35c6af4241681fc74"
     },
     {
       "path": "research/recent_cases/akoustis/display.json",
