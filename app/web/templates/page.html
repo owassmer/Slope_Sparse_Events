@@ -63,6 +63,28 @@
   .tt { display:flex; align-items:center; gap:6px; } .tt i { width:9px; height:9px; border-radius:50%; display:inline-block; }
   table.pl { border-collapse:collapse; margin-top:6px; } table.pl td { padding:2px 0; vertical-align:top; }
   table.pl td:first-child { color:var(--mute); padding-right:10px; white-space:nowrap; }
+  /* 4. the tree and the decision map */
+  .thead { display:flex; justify-content:space-between; align-items:baseline; }
+  .seg { display:inline-flex; border:1px solid #cfd3d8; border-radius:4px; overflow:hidden; }
+  .seg button { border:0; background:#fff; padding:5px 14px; font-size:14px; color:var(--mute); }
+  .seg button.on { background:var(--ink); color:#fff; }
+  svg.tree { width:100%; display:block; }
+  svg.tree .lk { fill:#dcdfe3; opacity:.8; } svg.tree .lk.f { fill:#efc9c0; } svg.tree .lk.q { fill:#cfe0d3; } svg.tree .nd.click { cursor:pointer; }
+  svg.tree text.tn { font-size:12px; fill:var(--ink); } svg.tree text.tn.b { font-weight:600; } svg.tree text.tn.m { fill:var(--mute); }
+  svg.tree.hl .lk { opacity:.3; } svg.tree.hl .nd { opacity:.45; }
+  svg.tree.hl .lk.on { fill:#9cc3c5; opacity:1; } svg.tree.hl .nd.on { opacity:1; }
+  svg.tree .nd.click:hover rect:first-child { stroke:var(--teal); stroke-width:1.5; }
+  .lanes { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:14px; border-top:1px solid var(--rule); padding-top:12px; }
+  .lane h3 { font-family:var(--serif); text-transform:none; letter-spacing:0; font-size:16px; color:var(--ink); margin:0 0 8px; }
+  .forks { display:flex; flex-direction:column; gap:6px; }
+  .fork { text-align:left; background:#fff; border:1px solid var(--rule); border-radius:4px; padding:6px 9px 7px; display:flex; flex-direction:column; gap:2px; font-size:12.5px; line-height:1.3; }
+  .fork:hover { border-color:var(--teal); }
+  .fork .fs { font-weight:600; font-size:13px; } .fork .fw, .fork .fa { color:var(--mute); font-size:11.5px; }
+  .fork .sb { display:flex; height:5px; border-radius:3px; overflow:hidden; margin:3px 0 1px; } .fork .sb i { display:block; height:100%; }
+  .fork .fb { font-size:12px; display:flex; flex-wrap:wrap; gap:0 8px; } .fork .fb span { white-space:nowrap; } .fork .fb i { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:4px; }
+  .tleg { display:flex; gap:20px; font-size:12.5px; color:var(--mute); margin:0 0 10px; }
+  .tleg i { display:inline-block; width:12px; height:10px; margin-right:6px; vertical-align:-1px; border-radius:2px; }
+  .tleg i.bar { width:4px; background:linear-gradient(#c2412d 50%, #dde0e4 50%); }
 </style>
 </head>
 <body data-api="{{ api }}">

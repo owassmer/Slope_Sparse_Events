@@ -172,7 +172,7 @@
   }
 
   // --- the path tree: a prefix tree over each path's first steps ----------------------------------------------------
-  const DEPTH = 4, MERGE = 0.02;
+  const DEPTH = 3, MERGE = 0.02;
   const month = (when) => when.split(" ").pop();
   const TRIE = { kids: new Map(), paths: [], depth: 0 };
   for (let i = 0; i < P; i++) {
@@ -195,7 +195,8 @@
       const node = { key: t.key, base: t.base, when: t.when, depth: t.depth, mass: m, filed: f, paths: t.paths, kids: [] };
       const kids = [...t.kids.values()].map(weigh).sort((a, b) => b.mass - a.mass), other = { key: "other", base: "other", when: "", depth: t.depth + 1, mass: 0, filed: 0, paths: [], kids: [] };
       for (const k of kids) { if (k.mass >= MERGE) node.kids.push(k); else { other.mass += k.mass; other.filed += k.filed; other.paths = other.paths.concat(k.paths); } }
-      if (other.mass > 1e-9) node.kids.push(other);
+      if (other.mass > 1e-9 && node.kids.length) node.kids.push(other);  // no lone 'other ways': the node ends there
+      if (node.kids.length === 1 && node.kids[0].base === "quiet") node.kids = [];  // a lone 'nothing forces a filing' adds nothing
       return node;
     };
     return weigh(TRIE);
@@ -386,6 +387,99 @@
     }, 250);
   }
 
+  // --- 4. how it could unfold: the path tree (variant A) and the decision map (variant B) ---------------------------
+  const nodeLabel = (t) => (t.base === "quiet" ? W.steps.quiet : t.base === "other" ? W.ui.tree_other : phrase(t.base));
+  const shortLabel = (t) => {  // the tree's short step names (words.steps_short); the full phrase shows on hover
+    const S2 = W.steps_short || {};
+    if (t.base in S2) return S2[t.base];
+    if (t.base.startsWith("Ruling leaves ") && S2["Ruling leaves"]) return fill(S2["Ruling leaves"], { amount: t.base.slice(14).replace(/\.\d(?=M)/g, "") });
+    return nodeLabel(t);
+  };
+  function wrap(text, max) {  // up to two lines of at most `max` characters
+    const words = text.split(" "), out = [""];
+    for (const w of words) { const cur = out[out.length - 1]; if ((cur + " " + w).trim().length > max && cur) { if (out.length === 2) { out[1] += "…"; break; } out.push(w); } else out[out.length - 1] = (cur + " " + w).trim(); }
+    return out;
+  }
+  function renderPaths(host) {
+    const T = tree(), Wd = host.clientWidth, root = 64, colW = 290, gap = (Wd - root - DEPTH * colW - 4) / DEPTH, pad = 4, H = 560, MINH = 15;
+    const cols = Array.from({ length: DEPTH + 1 }, () => []), all = [];
+    const walk = (t, parent) => { t.parent = parent; cols[t.depth].push(t); all.push(t); t.kids.forEach((k) => walk(k, t)); };
+    walk(T, null);
+    const scale = Math.min(...cols.map((c) => (c.length ? (H - pad * (c.length - 1)) / c.reduce((a, t) => a + t.mass, 0) : Infinity)));
+    const X = (d) => (d === 0 ? 0 : root + gap + (d - 1) * (colW + gap)), wOf = (d) => (d === 0 ? root - 8 : colW);
+    T.y = 0; T.h = T.mass * scale;
+    for (let d = 1; d <= DEPTH; d++) {
+      let end = -pad;
+      for (const t of cols[d]) {  // children stay beside their parent's slice where there is room
+        const p = t.parent; p.off = p.off ?? p.y; t.slice = p.off; p.off += t.mass * scale;
+        t.h = Math.max(t.mass * scale, MINH); t.y = Math.max(end + pad, t.slice); end = t.y + t.h;
+      }
+    }
+    const Hmax = Math.max(...all.map((t) => t.y + t.h)) + 4;
+    const fillOf = (t) => (t.base === "quiet" ? "#e3ece5" : FILING.has(t.base) ? "#f3d9d3" : t.base === "other" ? "#f5f6f7" : "#eceef1");
+    let links = "", nodes = "";
+    all.forEach((t, id) => {
+      t.id = id;
+      if (t.parent) {
+        const x0 = X(t.depth - 1) + wOf(t.depth - 1), x1 = X(t.depth), y0 = t.slice, y1 = t.y, h = Math.max(t.mass * scale, 1), mx = (x0 + x1) / 2;
+        links += `<path class="lk${t.base === "quiet" ? " q" : FILING.has(t.base) ? " f" : ""}" data-id="${id}" d="M${x0},${y0}C${mx},${y0} ${mx},${y1} ${x1},${y1}L${x1},${y1 + h}C${mx},${y1 + h} ${mx},${y0 + h} ${x0},${y0 + h}Z"/>`;
+      }
+      const leaf = !t.kids.length, x = X(t.depth), w = wOf(t.depth), share = n100(t.mass), fshare = t.mass > 0 ? t.filed / t.mass : 0;
+      let txt = "";
+      const fit = (str, px) => { const n = Math.floor(px / 6.3); return str.length > n ? str.slice(0, n - 1).trimEnd() + "…" : str; };
+      if (t.depth === 0) txt = `<text x="${x + 6}" y="${t.y + t.h / 2 - 4}" class="tn m">${esc(W.ui.tree_root_sub)}</text><text x="${x + 6}" y="${t.y + t.h / 2 + 12}" class="tn b">${esc(W.ui.tree_root)}</text>`;
+      else if (t.h >= 13) {
+        const label = (t.when ? `${t.when} · ` : "") + shortLabel(t), two = t.h >= 36 ? wrap(label, Math.floor((w - 84) / 6.4)) : [fit(label, w - 84)];
+        const y0 = t.y + t.h / 2 - (two.length - 1) * 7.5 + 4;
+        txt = two.map((l, k) => `<text x="${x + 8}" y="${y0 + 15 * k}" class="tn">${esc(l)}</text>`).join("")
+          + `<text x="${x + w - 12}" y="${t.y + t.h / 2 + 4}" class="tn m" text-anchor="end">${esc(fill(W.ui.leaf, { n: share }))}</text>`;
+      }
+      const bar = leaf && t.depth ? `<rect x="${x + w - 5}" y="${t.y}" width="5" height="${t.h}" fill="#dde0e4"/><rect x="${x + w - 5}" y="${t.y}" width="5" height="${t.h * fshare}" fill="#c2412d"/>` : "";
+      nodes += `<g class="nd${t.depth && t.base !== "other" && t.base !== "quiet" ? " click" : ""}" data-id="${id}"><rect x="${x}" y="${t.y}" width="${w}" height="${Math.max(t.h, 1)}" rx="2" fill="${t.depth ? fillOf(t) : "#dfe2e6"}"/>${bar}${txt}</g>`;
+    });
+    const LG = W.ui.tree_legend;
+    host.innerHTML = `<p class="mute small">${esc(W.ui.tree_note)}</p><div class="tleg"><span><i style="background:#f3d9d3"></i>${esc(LG.filed)}</span><span><i style="background:#e3ece5"></i>${esc(fill(LG.quiet, WH))}</span><span><i class="bar"></i>${esc(fill(LG.bar, WH))}</span></div><svg class="tree" viewBox="0 0 ${Wd} ${Hmax}" style="height:${Hmax}px">${links}${nodes}</svg>`;
+    const svg = host.querySelector("svg"), chain = (t) => { const s = new Set(); for (let u = t; u; u = u.parent) s.add(u.id); return s; };
+    svg.querySelectorAll(".nd").forEach((g) => {
+      const t = all[+g.dataset.id];
+      g.onmouseenter = (ev) => {
+        const on = chain(t); svg.classList.add("hl");
+        svg.querySelectorAll(".nd, .lk").forEach((e) => e.classList.toggle("on", on.has(+e.dataset.id)));
+        const steps = []; for (let u = t; u && u.depth; u = u.parent) steps.unshift([u.when, nodeLabel(u)]);
+        showTip(ev, `${linesHtml(steps)}<div class="mute" style="margin-top:6px">${esc(fill(W.ui.tree_hover, { n: n100(t.mass), f: n100(t.filed), horizon: HOR }))}</div>`);
+      };
+      g.onmousemove = (ev) => showTip(ev, $("tip").innerHTML);
+      g.onmouseleave = () => { svg.classList.remove("hl"); hideTip(); };
+      if (g.classList.contains("click")) g.onclick = () => { const i = pickNode(stepTypes(t.base), t.paths); if (i >= 0) openNode(i); };
+    });
+  }
+  const LANES = Object.keys(W.lanes);
+  function renderMap(host) {
+    const mass = nodeMass(), U = W.ui;
+    const cell = (type) => {
+      const dec = W.decisions[type], ids = TYPE_NODES[type] || []; if (!ids.length) return "";
+      const i = ids.reduce((a, b) => (mass[b] > mass[a] ? b : a)), d = dist(i), br = D.nodes[i].branches, bl = (b) => (dec.branches || {})[b] || b;
+      const COLS = br.length > 2 ? ["var(--teal)", "#7fb0b3", "#c9ced4"] : ["var(--teal)", "#bfc5cc"];
+      return `<button class="fork" data-i="${i}"><span class="fs">${esc(dec.short)}</span><span class="fw">${esc(W.deciders[dec.who] || dec.who)}</span>
+        <span class="sb">${d.map((p, k) => `<i style="width:${100 * p}%;background:${COLS[k]}"></i>`).join("")}</span>
+        <span class="fb">${br.map((b, k) => `<span><i style="background:${COLS[k]}"></i>${esc(bl(b))}&nbsp;${n100(d[k])}</span>`).join(" ")}</span>
+        ${ids.length > 1 ? `<span class="fa">${esc(fill(U.asked_in, { n: ids.length }))}</span>` : ""}</button>`;
+    };
+    host.innerHTML = `<p class="mute small">${esc(U.map_note)}</p><div class="lanes">` + LANES.map((l) => `<div class="lane"><h3>${esc(W.lanes[l])}</h3><div class="forks">
+      ${Object.entries(W.decisions).filter(([, v]) => v.lane === l).map(([k]) => cell(k)).join("")}</div></div>`).join("") + "</div>";
+    host.querySelectorAll(".fork").forEach((b) => (b.onclick = () => openNode(+b.dataset.i)));
+  }
+  function renderTree() {
+    const sec = $("s-tree"), U = W.ui;
+    if (!sec.querySelector(".tv")) {
+      sec.innerHTML = `<div class="thead"><h2>${esc(U.tree_title)}</h2><div class="seg" id="tv">${Object.entries(U.tree_toggle).map(([k, v]) => `<button data-v="${k}">${esc(v)}</button>`).join("")}</div></div>
+        <p>${esc(W.jev.intro)}</p><div class="tv"></div>`;
+      sec.querySelectorAll("#tv button").forEach((b) => (b.onclick = () => { S.variant = b.dataset.v; renderTree(); }));
+    }
+    sec.querySelectorAll("#tv button").forEach((b) => b.classList.toggle("on", b.dataset.v === S.variant));
+    (S.variant === "paths" ? renderPaths : renderMap)(sec.querySelector(".tv"));
+  }
+
   function openNode(i) { S.open = i; }  // @@DRAWER (replaced in step 4)
   // @@PART3B
   // --- init -------------------------------------------------------------------------------------------------------
@@ -403,9 +497,9 @@
     return out;
   }
   window.__summary = summary();
-  renderSituation(); renderFutures(); renderWhen();
+  renderSituation(); renderFutures(); renderWhen(); renderTree();
   // @@RENDER
-  let rz = null; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(renderWhen, 150); });
+  let rz = null; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { renderWhen(); renderTree(); }, 150); });
   refreshSeries();  // warms the server's reweight, so the first slider move is as quick as the rest
   // @@PART3
 })();
