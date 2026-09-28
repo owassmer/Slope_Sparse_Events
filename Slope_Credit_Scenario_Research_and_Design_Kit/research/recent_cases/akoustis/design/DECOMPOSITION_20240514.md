@@ -22,13 +22,7 @@ The jury is asked its own verdict form's questions (D.I. 580), not "which theory
 
 §4.6 lists what is collapsed and why: liability per claim; awards of $10.0M or more; enhancements; remittitur; the separate merits motions; the listing sub-steps; the repurchase.
 
-**Jev questions (18; §6).**
-- **Jury or court:** J1 damages theory; J2 the ruling; J3 stay on reduced security; J4 early registration.
-- **Claimant:** C1 enforces; C2 accepts the settlement terms.
-- **Debtor:** D1 post-trial motions; D2 pay, file or continue (at entry, on a levy, at a ripe default); D3 offers settlement; D4 moves for a stay; D5 appeals; D6 keeps the listing; D7 and D8 file at the cash floor or at zero cash; D9 files on acceleration.
-- **Holders:** H1 act on the judgment default; H2 act on delisting; H3 file an involuntary petition.
-
-Questions marked ⚑ receive cash facts that must match the engine on their decision date, including the line's own flows (§7.6).
+**Jev questions.** `QUESTIONS_20240514.md` owns them: each question's event, answers, situation, record and consequences, and the rules every question follows.
 
 **Implementation (§7).** Contract and registry 4.1.0, both additive: a new template, stage, five new registry entries, and label templates filled from case inputs. There are small changes to the domain, interpretation and tool, plus new walker methods and Chain steps that reuse the 4.0.0 flow. The 4.0.0 template and the recorded 20 Jun run are unchanged. Estimates: about 3,000–7,000 paths and 100–150 Jev asks per variant.
 
@@ -320,52 +314,7 @@ Both are the approved 20 Jun rules (`DECOMPOSITION.md` decisions 3 and §5.4), r
 
 ## 6. The Jev questions
 
-Eighteen questions, each one actor's decision. None asks about timing, an amount, affordability, enforceability or legal meaning. Every question receives the standard state (spec §3.4; registry `state_contract`): the case, the question with its branches and situation, the governing standard, its record items (§8), the path facts code computed, the assumptions that hold, the evidence, and the readings routed to it. Material factors are established first, and aggregation receives the factor results and the structured facts, not the whole record again (spec §16.4).
-
-**Cash facts and the engine (spec §16.4).** A question marked **⚑** receives cash facts: available cash, the 30-day need, the amount owed, collateral, the offered amount, and the dated triggers, at its decision date. Those facts must equal the engine's state on that date, including the line's draws and collections to that date (§7.2). **⚑⚑** marks the questions where the line's own flows can move a structural threshold, not just a figure: whether "pay" is feasible, and the day τ at which the cash-floor questions arise. Questions without a mark are court or jury decisions on the merits or the law and receive no cash, because solvency is not their standard (as `DECOMPOSITION.md` §4).
-
-### 6.1 The list
-
-| Id | Registry id | Actor | Decision (branches) | Asked where | Facts |
-|---|---|---|---|---|---|
-| J1 | `forecast_verdict_finding`, `forecast_verdict_measure` (new) | Jury | Its answers to the money-bearing questions of its verdict form (D.I. 580), each yes / no, in the form's order; J1's three branches (no award / liability without the head-start measure / claimant's theory) are composites of them (§7.12). Never an amount | Before the verdict, where no settlement was paid; each question once per sequence of earlier answers that reaches it | The form question quoted, the earlier answers, the claims and requested amounts; no cash |
-| J2 | `forecast_post_trial_ruling` (new) | Court | The money judgment stands or is set aside (JMOL or new trial) | Each money branch where D1 = yes and the ruling falls inside the horizon on some trajectory | The branch amount and the preserved grounds; no cash |
-| J3 | `forecast_stay_approved` (reused) | Court | Approves reduced security and stays execution (yes / no) | D4 = yes and no trajectory funds a full bond | ⚑ the offered security on the approval day, the bond, the collateral |
-| J4 | `forecast_1963_good_cause` (reused) | Court | Orders registration before finality (yes / no) | C1 = yes before finality | ⚑ stay status, the amount owed |
-| C1 | `forecast_execution_pending_motions` in I1; `forecast_enforcement_after_final` in I2 (both reused) | Claimant | Enforces the unpaid, unstayed judgment (yes / no) | Where a levy can move cash before any stay approval | ⚑ owed, reachable cash, the petition's effect on its position (Law) |
-| C2 | `forecast_settlement_accept` (reused) | Claimant | Accepts the offered terms (yes / no) | D3 = yes, per interval and branch | ⚑ the offered amount (P5/P50 on the payment date), owed |
-| D1 | `forecast_post_trial_motions` (new) | Debtor | Files timely post-trial motions (yes / no) | Each money branch, after D2 at entry = continue | The branch amount, the preserved grounds |
-| D2 | `forecast_judgment_response` (new; the 4.0.0 `forecast_debtor_response` stays for the recorded run) | Debtor | Pays, files, or continues | At entry; on each levy day before the levy; on a ripe judgment default | ⚑⚑ owed, cash, the reserve, dated triggers (the ripe dates, the coupon) |
-| D3 | `forecast_settlement_offer` (reused; new context I0) | Debtor | Offers the §4.5 terms (yes / no) | Each interval where the offered amount is positive on some trajectory | ⚑ the offered amount, owed, cash, dated triggers |
-| D4 | `forecast_stay_motion` (reused) | Debtor | Moves for a stay (yes / no) | C1 = yes (I1); after the ruling (I2) | ⚑ the bond, the collateral, cash above the reserve |
-| D5 | `forecast_appeal` (reused) | Debtor | Appeals within 30 days (yes / no) | J2 = stands, or D1 = no, where a later levy falls inside the horizon | The branch amount; stay status |
-| D6 | `forecast_listing_kept` (new) | Company | Keeps the stock listed through the horizon: a reverse split in time, or a timely hearing request (yes / no) | 29 Oct, where no earlier petition or acceleration | ⚑ cash, the notes' status, the deadline, the $0.60 price and authorized shares (Record) |
-| D7 | `forecast_financing_at_floor` (new; item 1) | Company | At the cash floor: raise equity, file, or continue ('raise equity' only where the amount available is positive) | τ inside the horizon, before any petition | ⚑⚑ cash, need, dated triggers, the equity available in the situation |
-| D8 | `forecast_petition_cash_out` (reused) | Company | Files when cash first falls below zero | D7 = no, and cash below zero inside the horizon | ⚑⚑ as D7 |
-| D9 | `forecast_petition_on_notes` (reused) | Issuer | Files on acceleration (yes / no) | H1 or H2 = accelerate | ⚑ cash, the $44.0M due, the judgment owed |
-| H1 | `forecast_holders_act_judgment` (reused) | Holders of 25% or the trustee | Give §7.01(i) notice and accelerate (yes / no) | Each ripe date on the claimant's branch | ⚑ the judgment, its stay status, the issuer's cash |
-| H2 | `forecast_holders_act_delisting` (reused; "repurchase only" merges with "neither") | Holders | Accelerate on the delisting default | D6 = no and suspended inside the horizon | ⚑ as H1 |
-| H3 | `forecast_holders_involuntary` (reused) | Three or more noteholders | File an involuntary petition (yes / no) | Accelerated on the entered reading, unpaid, the issuer has not filed; §7.06 date inside | ⚑ as H1 |
-
-**Situation.** Each question is asked in the conditions its actor weighs that hold at the decision on every trajectory of the path (the 4.0.0 `situation` rule, reused): the verdict branch and its amount, whether motions are pending or the ruling has issued, a stay moved or in force, an appeal, a levy, a settlement or payment, the notes due and unpaid, a delisting. A condition that holds on only some trajectories is left unstated.
-
-### 6.2 Material factors and the record items that evidence them
-
-| Id | Material factors (established first) | Record items (named slots; §8 lists the sources) |
-|---|---|---|
-| J1 | The weight of the head-start measure after the court admitted it; what the jury may award on each claim; the liability findings still open | the claimant's itemised damages claim; the defense's statement of intended proof on damages; the court's rulings admitting or limiting the damages evidence; the final verdict form; the summary-judgment and validity rulings; the defendant's public statements on the trial and its likely damages |
-| J2 | The grounds preserved at trial; the court's own rulings on those grounds before the verdict | the motions for judgment as a matter of law made at trial; the court's rulings on the damages evidence |
-| J3 | Whether the offered security protects the claimant; the debtor's showing of hardship | the company's statements on its liquidity and ability to post security |
-| J4 | Where the debtor's assets sit; the risk of an unsatisfied judgment | the locations of the company's operating assets |
-| C1 | What execution recovers now against what a petition would do to the claimant's position; the claimant's stated aims | the claimant's public statements on the litigation and its remedies; the parties' competitive relationship |
-| C2, D3 | Signals of willingness to settle; each side's leverage | the company's statements on settlement; the company's own claims against the claimant; the parties' competitive relationship |
-| D1, D5 | The debtor's stated intent to contest; the grounds preserved | the company's statements on contesting the claims; the motions for judgment as a matter of law made at trial |
-| D2, D7, D8, D9 | The company's stated responses to an adverse judgment or a cash shortfall; its access to financing | the company's going-concern and bankruptcy statements; the company's financing routes and their status |
-| D4 | The company's ability and stated intent to secure the judgment | the company's statements on its liquidity and ability to post security |
-| D6 | The company's plan to regain compliance; the stockholders' past votes on share amendments | the listing deficiency notice and compliance deadline; the company's stated cure; the latest stockholder vote on a charter amendment |
-| H1, H2, H3 | The holders' recovery if they act now against waiting; the notes' terms | the indenture's default, acceleration and suit terms; the notes' interest terms and payment record |
-
-Readings (`dispute_interpretation`) are routed as in 4.0.0 (`evidence_routing`): settlement signals to D3 and C2, appeal intent to D1 and D5, debtor resistance to D2, D4 and C1, amount finality to J2. A reading is evidence handed to a question, never its probability.
+`QUESTIONS_20240514.md` owns the Jev questions: the rules every question follows, the shared state, the legal scenarios held along a path, and for each question its event, answers, situation and grouping, record, and consequences.
 
 ---
 
@@ -540,7 +489,7 @@ The three branches' composites are disjoint and exhaustive over the answers (tes
 
 ## 8. Evidence requirements
 
-The record items of §6.2 are named slots. The agent fills each one with accepted findings from the 14 May snapshot; a slot no finding fills is stated to Jev as not in the record (spec §3.5). All sources below are dated on or before 14 May 2024. "Kit" means already in `research/recent_cases/akoustis/`; "add" means the snapshot needs it (URLs in ACQ).
+The record each question reads (`QUESTIONS_20240514.md` §4) is a set of named slots. The agent fills each one with accepted findings from the 14 May snapshot; a slot no finding fills is stated to Jev as not in the record (spec §3.5). All sources below are dated on or before 14 May 2024. "Kit" means already in `research/recent_cases/akoustis/`; "add" means the snapshot needs it (URLs in ACQ).
 
 | Record item | Questions | Sources | Status |
 |---|---|---|---|
