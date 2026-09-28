@@ -366,4 +366,63 @@ The plan adds one template and one stage and reuses the walker (`forecast._Walk`
 - The tool's `note` names the template the stage selects, so the agent sees which chain its findings feed.
 - The agent's mission text (agent_config, mission `akoustis_20240514`) lists the pending-claim record items of §8 as the slots to fill. The agent attaches findings to slots; neither Jev nor code does (spec §3.5).
 
+### 7.5 `app/disputes/forecast.py`: reuse the walker
+
+- `Forecaster.paths`: accept `liability_pending` (with `borrower_role == "debtor"`); `_Walk.run` dispatches on the stage's template to a new entry method, `pre_verdict`, and otherwise runs as today.
+- New `_Walk` methods, each a few lines calling what exists:
+  - `pre_verdict(s)`: `self.settle(s, "I0", self.verdict)`;
+  - `verdict(s)`: J1 as one real Choice node (`self.node("verdict_theory", "I0", ...)`), one `take` per branch; `no_award` → `self.tail(y, "no_judgment")`; money branches → `entry(y)` with `cls` from the branch amount (the existing `_entered_class` arithmetic: `beyond:` where collateral at its lower bound exceeds `reach`, else `amt:`);
+  - `entry(s)`: D2 through the existing `a4(s, "entry", then=self.motions, on_file=...)`, with branches `pay` (only where `pay_possible`), `file`, `continue`;
+  - `motions(s)`: D1; yes → `self.settle(s, "I1", self.q1)` (the existing I1 flow: `q1 → stay_i1 → j9_i1 → a4_i1 → ripe_i1`); no → `self.post(s)`;
+  - `ruling(s)`: for this template, J2 as one binary node; `stands` → `self.post(y)`, `set_aside` → `self.tail(y, "set_aside")`. The 4.0.0 `ruling_classes` stays for the 4.0.0 template.
+- `tail`: where the template's `listing_route` selects `listing_kept`, ask D6 alone (`listing_date` probe at the hearing-request date) with classes `listed` / `delisted_suspension`; else the 4.0.0 four-node chain.
+- `a4` gains the `continue` branch (it behaves as `seek_sale_or_financing` does now: marks `seeking`, re-asked at the next milestone) and the `entry` phase. Its node and registry id come from the template (`judgment_response` here, `debtor_response` in 4.0.0).
+- `context_phrases` reads the template's `label_templates` first, filled from case inputs; the 4.0.0 dictionaries stay as the fallback, byte-identical, so the recorded run's questions and Jev cache are unchanged.
+- `MERITS`, `MERITS_KINDS` and `TRIGGER_PHRASES` are 4.0.0-only; the new template's nodes carry their own `record_items` and triggers in the contract.
+
+### 7.6 `app/analysis/events.py`: the Chain books the new steps
+
+- `_timeline` for `liability_pending`: V drawn per trajectory from the case's `verdict_window` (key `(instance, "verdict", "date")`); E = V + 1 business day (or, under `judgment_entry = with_ruling`, the ruling day); `E0` and `e_ix` become per-trajectory arrays. Every scalar use of `d.judgment_date` (`owed_at`'s `since_entry`, `judgment_default`, `rate_1961_bps`) reads the array E, and the rate comes from the case (§7.7).
+- New steps: `verdict` (sets `entered` to the branch amount; `no_award` books nothing); `post_trial_motions` (yes: F = E + 28 + 21 + one common lag; no: F = A = E, AD = E + 30); `ruling` with `stands` / `set_aside` (`set_aside`: `cls_amount = 0`, `release_lock`, the dispute not resolved, so legal spend continues); `debtor_response` with ctx `entry` (milestone E); `settle` with ctx `I0` (start −1, end V); `listing` with the `listing_kept` route.
+- **Cash facts that match the engine (spec §16.4).** `Chain.cash_at` leaves the line's draws and collections out today. For every ⚑ question the path facts, and for every ⚑⚑ question also `pay_possible`, `tau` and `cash_out`, read the borrower's available cash from `engine.run(line, opening, prefix events)` up to the decision day: a forward run of the loan on the prefix's event cash, cached by the prefix digest. It is causal (the prefix books nothing after the decision it feeds), so no feedback solver is needed. The difference is at most the line's net position (about one limit) and matters where it moves a threshold: pay feasibility on the defense-theory branch and the day τ.
+- The coupon (B8) uses `coupon_cash_share` with the case's values: base `all_shares`, cash $0; sensitivity `all_cash`, $1.32M on 17 Jun, none after a petition.
+
+### 7.7 Registry, case inputs and scenario parameters
+
+- **`question_registry.json` → 4.1.0 (additive).** New entries, each with `actor`, `template`, `node`, `asked_when`, prompt instructions as the 4.0.0 forecasts, and criteria from the host's label templates: `forecast_verdict_theory` (Choice: `no_award`, `defense_theory`, `claimant_theory`), `forecast_post_trial_ruling` (Choice: `stands`, `set_aside`), `forecast_post_trial_motions` (Noul), `forecast_judgment_response` (Choice: `pay`, `file`, `continue`; "pay" offered only where arithmetic allows), `forecast_listing_kept` (Noul). Profiles: the first four join `dispute_forecast`, the last `financing_forecast`. `evidence_routing`: `debtor_resistance` → `forecast_judgment_response`; `appeal_intent` → `forecast_post_trial_motions`; `amount_finality` → `forecast_post_trial_ruling`; `no_cash` gains `forecast_verdict_theory` and `forecast_post_trial_ruling`. Nothing is retired.
+- **`cases/akoustis_20240514/scenario.json`** (case inputs; the only place Akoustis figures live): `verdict_window` (16–22 May 2024, with the quoted basis); `judgment_entry` (base `next_business_day`); `defense_theory_amount` (base 999,999,900 cents; sensitivity 223,618,400 cents; O1); `claimant_enhancements` (base 0; sensitivity 14,610,000,000 cents, the DTSA 2× exemplary and §24-5(b) interest to entry); `coupon_cash_share` (base `all_shares`; sensitivity `all_cash`; `share_capacity` 5,000,000 from the 13 May S-3; price 60 cents at 1 May; limit 11,403,332); `rate_1961_bps` (the H.15 weekly 1-year CMT for the week ending 10 May 2024, fetched and cited by the implementer). The reserve and financing are §16.3's (worker A) and are read, not restated.
+- **Test fixture** `tests/akoustis_20240514_fixture.py`: the pending dispute as the agent would instantiate it from the pre-14-May record (the claims, the requested components from D.I. 543-1 with `duplicates` marked, `trial_started` 6 May 2024, the notes), with fixed readings (no Jev), like `tests/akoustis_fixture.py`.
+
+### 7.8 Keeping 4.0.0 and the recorded 20 Jun run working
+
+- Both contracts change additively. `build.py` refuses disputes interpreted under another model version; the contract gains `compatible_versions: ["4.0.0"]`, and the check accepts them, so the recorded run builds without `refresh`.
+- The 4.0.0 template, node names, registry ids, phrases and parameter values are untouched, so its questions' states are byte-identical and the Jev cache still hits. The existing suite (`tests/test_chains.py`, `test_jev_states.py`) runs unchanged, and `load_page_state` on the recorded `analysis.json.gz` still loads.
+
+### 7.9 Tests (composition and cash only)
+
+1. **Composition:** under random Dirichlet answers for every node, `model.probs` sums to 1 over the paths of each dispute, including J1's three branches and every composite (the skill's fast check).
+2. **A missing judgment never activates enforcement:** on every `no_award` path, and after every `set_aside`, no enforce, stay, registration, judgment-default or `judgment_response` step exists, and the engine books no levy or lock.
+3. **Clocks move with the modeled verdict:** V lies in the window on every trajectory; E = V + 1 business day; execution E + 31; motions E + 28; no ruling before E + 49 + 17.
+4. **Branch amounts:** the claimant's theory is $68,336,184 (the duplicates excluded); the defense-theory base never ripens §7.01(i).
+5. **Merged class:** the claimant's branch is cash- and date-identical under `claimant_enhancements` base and sensitivity (the existing swap test).
+6. **Coupon:** base books $0 cash; sensitivity books $1.32M on 17 Jun, none after an earlier petition.
+7. **§16.4:** for every ⚑ node, the path facts' cash equals the engine's available cash on the decision day on each trajectory; for ⚑⚑ nodes, `pay_possible` and τ are computed on the same cash.
+8. **Settlement:** a paid settlement releases the claim and the lock and stops legal spend; its amount never exceeds cash above the need or the amount owed (the claimed amount in I0).
+9. **4.0.0 unchanged:** the existing chain tests pass without edits.
+
+### 7.10 Size estimates
+
+- **Paths** (per run variant; each bounded setting is its own variant): `no_award` gives a handful (listing and cash floor only). The defense branch has no notes default, so its tail is the listing and the cash floor: about 500–1,500 paths. The claimant's branch carries both notes readings, one ruling binary instead of the 4.0.0 amount classes, and the one-node listing chain: about 2,000–5,000. **Total about 3,000–7,000**, below the 20 Jun tree's 12,650. If it runs above ~8,000, merge D2 `continue` re-asks whose prefixes are digest-identical (the existing `unfiled` rule). The implementer measures and reports.
+- **Jev asks:** 18 questions, keyed by situation: J1 once; J2 twice; D2 about 10–14; D3 and C2 about 14; C1 about 7; D4 and J3 about 8; J4 about 4; D1 and D5 about 4; the notes (H1, H2, H3, D9) about 8; D6 about 3; D7 and D8 about 30–60 by situation tags, plus 2 in the ordinary-risk attribution run. **About 100–150 asks** per central variant. Economic variants re-ask only the ⚑ questions whose facts changed (spec §16.6). Caps are raised to fit (spec §16.8).
+
+### 7.11 Order of work (each step: tests, commit, push)
+
+1. Contract 4.1.0: the template, stage, rules, parameters, `compatible_versions` (small per-section scripts).
+2. Domain, interpretation and tool changes, with the fixture.
+3. Chain steps and the per-trajectory timeline.
+4. Walker methods and label templates.
+5. The engine-matched cash facts.
+6. Registry 4.1.0.
+7. Tests 1–9; measure paths and asks; report both.
+
 <!-- next -->
