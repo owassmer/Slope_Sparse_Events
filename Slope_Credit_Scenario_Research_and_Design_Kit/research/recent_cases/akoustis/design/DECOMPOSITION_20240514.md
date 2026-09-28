@@ -34,7 +34,7 @@ The template starts where the 4.0.0 template (`federal_post_judgment`) assumed a
 | P6 Automatic stay | FRCP 62(a): execution stayed 30 days after entry (shall) | Entry | — | Law |
 | P7 Post-trial motions | FRCP 50(b), 52(b), 59(b), 59(e): within 28 days of entry (may); FRAP 4(a)(4)(A) tolls the appeal clock to the order disposing of the last of them; they do not stay execution (2018 Advisory Committee Note to Rule 62) | A money judgment the debtor contests | The debtor made two Rule 50(a) motions at the close of the claimant's case (D.I. 590), which preserves a Rule 50(b) motion | Filing: **D1**. Ruling date: Code timing (Data, R4). Content: **J2**, compacted (§4.6) |
 | P8 Execution | FRCP 69(a)(1), state procedure (may) | Entered, past the Rule 62(a) stay, unstayed, unpaid | Delaware forum; operating assets in NC and NY (L9) | **C1** |
-| P9 Stay by security | FRCP 62(b): "a party may obtain a stay by providing a bond or other security", effective on approval (may) | Any time after entry | — | Full bond: Law, a stay as of right (L16). Lesser security: **J3** (L6). Motion: part of **D2** |
+| P9 Stay by security | FRCP 62(b): "a party may obtain a stay by providing a bond or other security", effective on approval (may) | Any time after entry | — | Full bond: Law, a stay as of right (L16). Lesser security: **J3** (L6). Motion: **D4** |
 | P10 Registration elsewhere | 28 U.S.C. §1963: after finality, or earlier "for good cause shown" (may) | The creditor acts before finality | — | Law (L9); **J4** |
 | P11 Appeal | FRAP 4(a)(1)(A): 30 days after the order disposing of the last tolling motion (shall) | A money award survives the ruling | — | **D5**. Decided in the horizon: removed (window closed, as `DECOMPOSITION.md` A7) |
 | P12 Post-judgment interest | 28 U.S.C. §1961 from entry (shall) | Entry | — | Law; rate Bounded (L8) |
@@ -52,7 +52,7 @@ The 4.0.0 template and its node set (`DECOMPOSITION.md` §1.2, B1–B9) stand. T
 | B1 Judgment default | §7.01(i): final money judgments "undischarged, unpaid or unstayed" for 60 days "during which execution shall not be effectively stayed"; aggregate above $10.0M "excluding amounts covered by insurance"; only "after notice to the Company by the Trustee or the Holders of at least 25%" (shall, on notice) | An entered money judgment above the threshold on the path, not paid, not effectively stayed at the ripe date | The judgment does not exist yet. Its amount is set by the verdict branch (§5): the defense's theory stays below $10.0M and never triggers B1; the claimant's theory exceeds it. Insurance: $0 (R7 applies at 14 May: the 10-Q and FY2023 10-K disclose none) | Threshold and notice: Law. Which judgment starts the 60 days: **OPEN, both readings carried as the recorded model has them (L11)**. Clock: Code timing from the modeled dates. Notice: **H1** |
 | B2 Delisting default | §7.01(b): "the Common Stock is not listed on any Eligible Market"; no notice, no grace (shall) | "Not listed" (L12) inside the horizon | Only one route falls inside the horizon (§2.3) | Law; date Code timing |
 | B3 Cross-default | §7.01(h): other debt of $2.5M or more accelerated or in payment default | The GDSI seller note's partial prepayment falls in Jan 2025 (10-Q) | After the horizon on every trajectory | Removed (window closed) |
-| B4 Interest default | §7.01(c): 30 days late | The 15 Jun 2024 coupon is inside the horizon; a default could come no earlier than 15 Jul | The coupon is §16.3's (below). Whether the company pays it is not a dispute decision | Not a separate node: nonpayment is inside the company's distress decisions (D2, D4, D8, D9) |
+| B4 Interest default | §7.01(c): 30 days late | The 15 Jun 2024 coupon is inside the horizon; a default could come no earlier than 15 Jul | The coupon is §16.3's (below). Whether the company pays it is not a dispute decision | Not a separate node: nonpayment is inside the company's distress decisions (D2, D7, D8, D9) |
 | B5 Acceleration | §7.02: the Trustee or 25% "may" declare; automatic on a bankruptcy petition | An Event of Default | — | **H1**, **H2** |
 | B6 Rescission | §7.02: majority, once every default is cured or waived; a judgment default is cured by payment, discharge or a stay | After acceleration | — | Law |
 | B7 Repurchase | §10.01: holders' put at 100% plus interest on a Fundamental Change (delisting); repurchase 20–35 business days after the company's notice, itself due within 20 business days | Delisting | The only in-horizon delisting falls on 1 Nov (§2.3); the repurchase date falls after 10 Nov on every trajectory | Removed (window closed). H2 becomes binary |
@@ -139,5 +139,102 @@ Every clock after the verdict runs from the **modeled** verdict and entry dates 
 | **Operating reserve** | 30 days of operating need, one alternative (spec §16.3). The event model reads it in four places: the settlement amount, the reduced-security offer, whether a class is payable (§5), and the cash floor | §16.3 setting, owned by the common-model worker |
 | **Financing** | An explicit amount-and-date scenario shared by every path; central case adds none the record does not fix (spec §16.3). The 13 May re-activation of the at-the-market program ($48.0M remaining; "the sales agents are under no obligation to make any sales", 10-Q) is a known channel that fixes no amount or date, so it books nothing centrally. Completion is worker A's shared scenario input, not a question in this tree: the debtor's "seek a sale or financing" branch books no cash of its own and inherits whatever A's scenario books | §16.3 setting, owned by the common-model worker (A) |
 | Legal spend | Attributable spend stops when the dispute ends on the path (spec §16.3). The event model supplies the end date: payment or a paid settlement. A verdict of either kind, or a ruling that sets a judgment aside, does not end the dispute inside the horizon (post-trial motions, an appeal or a retrial follow, L18), so spend continues. Whether spend after the trial runs at the trial-period level is the §16.3 worker's proxy question, flagged to it | §16.3 rule; end dates from the event model |
+
+---
+
+## 4. Chains from the lender's question
+
+Slope's collections stop at a petition (Law: §362) or fall short when cash above the 30-day need is too low on a due date (Arithmetic: spec §2.2). Only chains that reach one of the two are walked.
+
+### 4.0 What can stop or shrink collections between 14 May and 10 Nov 2024
+
+| # | Threat | Basis |
+|---|---|---|
+| T1 | A money verdict, the judgment on it, and its enforcement: a levy on cash, cash locked as stay security, or a petition in response | Record: trial under way (10-Q Note 14); the claimed amounts (D.I. 543-1); an adverse judgment could lead the company to seek "protection by filing a voluntary petition" (10-Q Note 2). Law: FRCP 58, 62, 69; §1963 |
+| T2 | The notes: acceleration of $44.0M on a judgment default above $10.0M, then a petition by the issuer or the holders | Record: indenture §§7.01(i), 7.02, 7.06 |
+| T3 | Delisting on suspension (about 1 Nov), an Event of Default without notice | Record: 10-Q Note 12; indenture §7.01(b). Law: Nasdaq Rule 5815 |
+| T4 | Operating cash reaching the 30-day need, then zero, including the June coupon if paid in cash | Data: the 14 May feed (§16.3). Record: going-concern doubt; cash "into the third quarter of fiscal 2025" absent a judgment (10-Q Note 2) |
+| T5 | Settlement: a payment that ends the claim but draws cash | Law: a paid settlement releases the claim. Arithmetic: bounded by cash above the reserve |
+
+### 4.1 T1. The verdict and its enforcement
+
+Intervals: **I0** review date to verdict; **I1** entry to the post-trial ruling; **I2** after the ruling, unstayed; **I3** stayed on approved security. The debtor's response `D2` is asked at each consequential milestone (entry, a levy, a ripe judgment default) in the situation of that day.
+
+**I0. Before the verdict (14 May to V).**
+1. Settlement before the verdict: **D3 × C2** on the terms of §4.5, paid at 13 Jun (interval start + 30; sensitivity V).
+2. The verdict on V (Code timing, §3): **J1**, the damages theory the jury adopts. Three branches, cut at the mechanism thresholds (§5):
+   - **no award**: no money judgment on any claim;
+   - **defense theory**: an award below $10.0M (bounded amount, §5.2);
+   - **claimant's theory**: the claimed $68,336,184, beyond cash on every trajectory (enhancements one bounded term, §5.2).
+3. **No award** → no judgment exists, so no enforcement, stay, registration or judgment-default node exists on the path (the template's rule, §2.1). The claimant's own post-trial motions cannot yield money by 10 Nov (L18). The path goes to T3 and T4; legal spend continues (§3).
+4. A money award → judgment entered at E = V + 1 business day (L14), in the branch amount.
+
+**At entry E.**
+5. **Arithmetic** (spec §0: only impossibility removes a branch): "pay" exists where the amount owed is within available cash on some trajectory of the path at the decision; a full bond exists where cash above the reserve covers its collateral on some trajectory (the approved 20 Jun stay rule, `DECOMPOSITION.md` decision 3). On the claimant's-theory branch neither exists.
+6. **D2** at entry: pay, file, or continue (operate and contest). "Continue" includes seeking a sale or new financing, which books no cash of its own; any financing is worker A's shared scenario (§3). Pay ends the dispute on the payment day (`resolve`); file books a petition at E + `petition_lag_days`.
+7. **D1**, on "continue": the debtor files timely post-trial motions (by E + 28). Yes → I1 and a ruling date (§3). No → the judgment is final at entry, the appeal deadline is E + 30, and the path goes to I2 without a ruling.
+
+**I1. Entry to the post-trial ruling.**
+8. Settlement in I1: **D3 × C2**, paid at E + 30.
+9. **C1**, the creditor executes before the ruling, from E + 31 (situation: motions pending). Asked only where a levy can move cash before any stay approval (`Forecaster.moves_cash`).
+10. **D4 × J3**, on execution: the debtor moves for a stay; where no trajectory funds a full bond, the court decides a stay on reduced security, the debtor's cash above the reserve on the approval day, locked if approved (**J3**, L6). Where a full bond is fundable, posting it stays execution as of right (L16) and J3 is not asked.
+11. **J4**: cash is reachable before finality only after registration where it sits (L9), which needs good cause.
+12. On the levy day, before the levy: **D2** (levy). Then the levy takes min(owed, reachable cash) (Arithmetic).
+13. On the claimant's-theory branch only, the notes' judgment default on the entered reading ripens 16–22 Aug (T2).
+
+**The post-trial ruling.**
+14. **J2** (binary): the judgment **stands**, or is **set aside** (JMOL on liability, or a new trial; no money judgment on the path by 10 Nov). A remittitur the claimant accepts is inside "stands"; one it refuses is a new trial (*Hetzel*), inside "set aside" (§4.6). "Set aside" releases any stay security (`release_lock`) and ends enforcement.
+
+**I2. After the ruling (or from entry where D1 = no), unstayed.**
+15. Settlement in I2: **D3 × C2**, paid at ruling + 30.
+16. **D5**, the debtor appeals within 30 days, asked where a levy after the appeal deadline can fall inside the horizon. Unappealed, registration follows the appeal deadline (Law, §1963); appealed, it needs **J4**.
+17. **D4 × J3** again where no stay is in place: a stay pending appeal on the path amount.
+18. **C1** (situation: after the ruling; appealed or final), then J4 where appealed, then **D2** on the levy day, then the levy.
+19. On the claimant's-theory branch, the post-ruling judgment default ripens at ruling + 60 where the holders did not act on the entered reading (T2).
+
+**I3. Stayed on approved security.** Settlement in I3: **D3 × C2**. The locked security stays out of available cash until the dispute ends. A stay in effect before a ripe date means no judgment default that day (§7.01(i), "effectively stayed").
+
+### 4.2 T2. The notes
+
+Only the claimant's-theory branch crosses $10.0M, so the judgment default exists only there (Arithmetic on §5). Which judgment starts the 60 days is open, and both readings are carried as the recorded model has them (L11).
+1. **Entered reading:** ripe 16–22 Aug where the judgment is unpaid and not effectively stayed. **H1**: the holders give notice and accelerate. Then **D9**: the issuer files on acceleration; if not, **H3**: the holders file once §7.06 allows (acceleration + 60 days, 15–21 Oct, inside); if not, the notes stay due and unpaid.
+2. **Post-ruling reading:** ripe at ruling + 60 where J2 = stands and the holders did not act at the entered date; H1 is asked there in that situation, then D9. H3 falls after 10 Nov on every trajectory, so it is not asked (window closed).
+3. **D2** (ripe) is asked where the default ripens and the debtor has so far continued: the day tells it the notes may be accelerated.
+4. Paying $44.0M is impossible on every trajectory (Arithmetic), so no "pay the notes" branch exists. An acceleration before the listing decision ends the listing chain (the notes are already due).
+
+### 4.3 T3. The listing
+
+At 14 May every Panel decision and every Form 25 falls after 10 Nov (§2.3). Inside the horizon the stock stops being listed only if it is not compliant on 21 Oct and no hearing is requested by 29 Oct. The hearing request is the company's own act, and a timely one stays suspension whatever the stockholders did (Law, Rule 5815). So the chain is one decision:
+1. **D6**, asked on 29 Oct where no earlier petition or acceleration exists: the company keeps the stock listed through 10 Nov (a reverse split effective by 7 Oct, or a timely hearing request).
+2. No → suspended 1 Nov, an Event of Default (§7.01(b)). **H2**: the holders accelerate or not (the repurchase date falls after 10 Nov, so "repurchase only" is cash-identical to "neither" and merges with it). On acceleration, **D9**; H3 falls after the horizon (1 Nov + 60).
+
+### 4.4 T4. Operating cash
+
+Operating flows come from the common model (§16.3): the 14 May feed, the operating outlook, the financing scenario, the coupon (B8). Event cash comes from T1 and T5. **τ** is the first day available cash falls below the 30-day need; **D7**: the company files at τ. If it keeps operating, **D8**: it files when cash first falls below zero. Both reuse `petition_cash_floor` and `petition_cash_out`. They are also the only questions in the ordinary-operating-risk attribution run (the event given no cash effect, spec §16.1), asked there with that run's facts (`bank_state`).
+
+### 4.5 Settlement terms
+
+Settlement is its own decision on stated terms (spec §16.4), asked once per interval where the terms exist:
+- **Offer (D3):** the debtor offers a lump sum equal to its available cash above the 30-day reserve on the payment date, capped at the amount owed; in I0, where nothing is owed yet, capped at the claimed $68,336,184. It exists only where that amount is positive on some trajectory (the approved 20 Jun rule, `DECOMPOSITION.md` §5.4). Sensitivity: the same amount in monthly payments to the horizon.
+- **Acceptance (C2):** the claimant accepts those terms. The offered amount (P5/P50 on the payment date) is a path fact, and each interval and branch is its own node, so an acceptance probability is never reused for a different offer.
+- A paid settlement releases the claim and the stay security, removes the §7.01(i) trigger, and ends attributable legal spend.
+
+### 4.6 What is collapsed, and why
+
+Each distinction below changes no payment timing, cash, receipts, financing access or another actor's material decision inside the horizon, or it changes them only inside a branch that is already beyond cash.
+
+| Collapsed | Into | Basis |
+|---|---|---|
+| Liability per claim (trade secrets, conspiracy, Lanham Act, UDTPA, patent) | J1's three theories | Only the trade-secret head-start measure can reach $10.0M or exceed cash; the other claims total $2,236,184 at most (D.I. 543-1) and sit inside the defense-theory amount. Conspiracy and UDTPA restate the same $66.1M (¶¶50, 56) |
+| Any award of $10.0M or more | The claimant's-theory branch | Beyond cash on every trajectory: pay, a full bond, the levy (all reachable cash) and the notes default are identical. The merged-class test (§7) checks it |
+| Exemplary, enhanced, trebled damages; fees; pre-judgment interest | One bounded term on that branch (§5.2) | They only raise an award already beyond cash. Trebling cannot arise (D.I. 590, L2) |
+| Remittitur; the claimant's election after it | J2's two branches | Accepted above $10.0M: cash-identical to "stands". Refused: a new trial, inside "set aside". Accepted below $10.0M: inside "stands" (lender-adverse). In the 20 Jun run the whole damages ruling moved collections by about $2.2k |
+| The separate merits motions (JMOL, new trial, patent JMOL, fees, interest, injunction) | One ruling date and J2 | One common lag (§3); only "any money judgment survives" moves cash |
+| Seek a sale or financing vs neither | "Continue" in D2 | Neither books cash (financing completion is worker A's scenario); D2 is re-asked at every consequential milestone anyway |
+| Board vote call, stockholder approval, hearing request, Panel exception | D6 | The Panel decision falls after 10 Nov; the hearing request alone decides in-horizon listing |
+| Repurchase after delisting | H2 binary | Repurchase date after 10 Nov (§2.2 B7) |
+| The appeal's outcome | Removed | Cannot be decided by 10 Nov (window closed) |
+| Injunction | Excluded from cash | Its revenue effect cannot be obtained (R8); no proposed order by 14 May |
+| Surety willingness | J3 | No trajectory funds a bond on the claimant's branch; J3 gates the reduced-security route |
 
 <!-- next -->
