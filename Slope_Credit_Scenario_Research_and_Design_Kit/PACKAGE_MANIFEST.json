@@ -386,6 +386,11 @@
       "sha256": "9d5b42ada2cbd3f00cc681e6d76d3a8c8e019dd28d498a330bc13d051ce41b00"
     },
     {
+      "path": "research/recent_cases/akoustis/design/DECOMPOSITION_20240514.md",
+      "bytes": 20034,
+      "sha256": "c067493686a68458c3d0c39e479503d46cea27d17b3edd61c6232fa7dbabd7eb"
+    },
+    {
       "path": "research/recent_cases/akoustis/display.json",
       "bytes": 12106,
       "sha256": "909fbd5bc4c9ce0a6a89923c91ec976e0b45b222655982e692d6973931a92af3"
