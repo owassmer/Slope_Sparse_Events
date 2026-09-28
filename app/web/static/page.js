@@ -73,7 +73,7 @@
   function recompute() { probs = pathProbs((k) => dist(k)); bprobs = bankProbs((k) => dist(k)); }
 
   // --- the figures: central from the paths here; a variant's from the server (/reweight) ----------------------------
-  const KEYS = ["funded", "due", "collected", "past_due", "frozen_due", "not_yet_due", "petition_p", "clawback"];
+  const KEYS = ["funded", "due", "collected", "past_due", "frozen_due", "not_yet_due", "petition_p", "clawback", "stayed"];
   const variant = (id = S.assumption) => (D.assumptions || []).find((a) => a.id === id);
   function figures() {
     const r = {}, b = {}, v = S.assumption !== "central" ? variant() : null;
@@ -81,11 +81,14 @@
       r[k] = v ? (S.vm || v.metrics)[k] ?? null : expect(probs, k);
       b[k] = v ? (v.ordinary.metrics || {})[k] ?? null : bexpect(bprobs, k);
     }
-    r.stayed = last(S.event.daily.frozen_mean); b.stayed = last(S.bank.daily.frozen_mean);
-    r.rate = r.due ? r.collected / r.due : null; b.rate = b.due ? b.collected / b.due : null;
-    return { full: r, ordinary: b };
+    r.stayed = r.stayed ?? last(S.event.daily.frozen_mean); b.stayed = b.stayed ?? last(S.bank.daily.frozen_mean);
+    return { full: given(r), ordinary: given(b) };
   }
-  const vFigures = (a) => ({ ...a.metrics, rate: a.metrics.due ? a.metrics.collected / a.metrics.due : null });
+  // the rate on due; the balance at filing and preference exposure given a filing (a lender's exposure at default),
+  // from the weighted figures (zero where no filing) and the filing probability
+  const given = (f) => ({ ...f, rate: f.due ? f.collected / f.due : null, stayed_if: f.petition_p > 0 && f.stayed != null ? f.stayed / f.petition_p : null,
+    clawback_if: f.petition_p > 0 && f.clawback != null ? f.clawback / f.petition_p : null });
+  const vFigures = (a) => given(a.metrics);
 
   // --- hover tips -------------------------------------------------------------------------------------------------
   function showTip(ev, html, above) {
@@ -127,9 +130,10 @@
   function tileHtml(f) {
     const nyd = f.not_yet_due === null || f.not_yet_due === undefined;
     const t = [["due", money(f.due)], ["collected", money(f.collected), `${T("rate")} ${pct(f.rate)}`], ["past_due", money(f.past_due)],
-      ["stayed", money(f.stayed)], ["not_yet_due", nyd ? "–" : money(f.not_yet_due), nyd ? W.notes.unavailable : ""], ["filing", pct(f.petition_p)],
-      ["preference", money(f.clawback)], ["funded", money(f.funded)]];
-    return `<div class="tiles">${t.map(([k, v, s]) => `<div><span class="mute small${W.notes[k] ? " hastip" : ""}"${W.notes[k] ? ` data-tip="${esc(fill(W.notes[k]))}"` : ""}>${esc(T(k))}</span><b>${esc(v)}</b>${s ? `<span class="sub">${esc(s)}</span>` : ""}</div>`).join("")}</div>`;
+      ["frozen_due", money(f.frozen_due)], ["not_yet_due", nyd ? "–" : money(f.not_yet_due), nyd ? W.notes.unavailable : ""],
+      ["funded", money(f.funded)], ["filing", pct(f.petition_p)], ["stayed", money(f.stayed_if), "", money(f.stayed)],
+      ["preference", money(f.clawback_if), "", money(f.clawback)]];
+    return `<div class="tiles">${t.map(([k, v, s, wt]) => `<div><span class="mute small${W.notes[k] ? " hastip" : ""}"${W.notes[k] ? ` data-tip="${esc(fill(W.notes[k], { weighted: wt ?? "" }))}"` : ""}>${esc(T(k))}</span><b>${esc(v)}</b>${s ? `<span class="sub">${esc(s)}</span>` : ""}</div>`).join("")}</div>`;
   }
   const monthEnd = (ym) => { let t = -1; D.dates.forEach((d, k) => { if (d.startsWith(ym)) t = k; }); return t; };
   function ladder(host) {
@@ -162,15 +166,33 @@
       el.onmouseleave = hideTip;
     });
   }
+  function cumChart(host) {  // collected to date: the mean, and the P5–P95 range at each month end where the data has it
+    const Wd = host.clientWidth || 1000, H = 220, m = { l: 56, r: 16, t: 12, b: 28 }, w = Wd - m.l - m.r, h = H - m.t - m.b, days = D.dates.length;
+    const mean = S.event.daily.collected_mean, rows = S.event.monthly, ends = rows.map((r) => monthEnd(r.month));
+    const range = S.assumption === "central" && !Object.keys(S.overrides).length ? D.collected_range || [] : [];
+    const raw = Math.max(...mean, ...range.map((x) => x[1])) || 1, mag = 10 ** Math.floor(Math.log10(raw / 4));
+    const step = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((s) => s * mag).find((s) => s * 4 >= raw), top = step * 4;
+    const X = (t) => m.l + (w * t) / (days - 1), Y = (v) => m.t + h - (h * v) / top;
+    let g = "";
+    for (let k = 0; k <= 4; k++) { const v = step * k; g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="${k ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${money(v)}</text>`; }
+    D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 8}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text>`; });
+    const pts = ends.map((t, j) => [t, range[j]]).filter(([t, r]) => t >= 0 && r);
+    g += pts.map(([t, r]) => { const x = X(t); return `<rect x="${x - 5}" y="${Y(r[1])}" width="10" height="${Math.max(Y(r[0]) - Y(r[1]), 1)}" fill="#cfe6e3"/>`
+      + `<line x1="${x - 7}" x2="${x + 7}" y1="${Y(r[1])}" y2="${Y(r[1])}" stroke="#5fa69d" stroke-width="1.5"/><line x1="${x - 7}" x2="${x + 7}" y1="${Y(r[0])}" y2="${Y(r[0])}" stroke="#5fa69d" stroke-width="1.5"/>`
+      + (x > m.l + w - 60 ? `<text x="${x - 9}" y="${Y(r[1]) + 4}" class="rl" text-anchor="end">${money(r[1])}</text>` : `<text x="${x + 9}" y="${Y(r[1]) + 4}" class="rl">${money(r[1])}</text>`); }).join("");
+    g += `<path d="${mean.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join("")}" fill="none" stroke="var(--teal)" stroke-width="2.2"/>`;
+    host.innerHTML = `<svg class="ladder" viewBox="0 0 ${Wd} ${H}" style="height:${H}px">${g}</svg>
+      <div class="lg"><span><i style="background:var(--teal);height:3px;vertical-align:3px"></i>${esc(W.forecast.cum_mean)}</span>${pts.length ? `<span><i style="background:#cfe6e3"></i>${esc(W.forecast.cum_range)}</span>` : ""}</div>`;
+  }
   function renderForecast() {
     const sec = $("s-forecast"), f = figures().full;
     if (!sec.querySelector(".lad")) {
-      sec.innerHTML = `<h2>${esc(fill(W.sections.forecast))}</h2><div class="tl"></div><h4 class="sub">${esc(W.forecast.chart)}</h4><div class="lad"></div>
+      sec.innerHTML = `<h2>${esc(fill(W.sections.forecast))}</h2><div class="tl"></div><h4 class="sub">${esc(W.forecast.chart)}</h4><div class="lad"></div><h4 class="sub">${esc(W.forecast.cum_chart)}</h4><div class="cum"></div>
         <details class="assume"><summary>${esc(W.forecast.assumptions)}</summary><p class="mute small">${esc(W.forecast.assumptions_note)}</p>
         <dl class="common">${(D.common || []).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></details>`;
     }
     sec.querySelector(".tl").innerHTML = tileHtml(f);
-    ladder(sec.querySelector(".lad"));
+    ladder(sec.querySelector(".lad")); cumChart(sec.querySelector(".cum"));
   }
 
   // --- steps of a path ------------------------------------------------------------------------------------------------
@@ -201,12 +223,12 @@
     return top.map(([q, m]) => {
       const st = stepsOf(q).steps.filter((s) => s.base !== g.label && s.base !== V.before);
       const txt = st.length ? st.map((s) => `${s.base}${s.when ? ` (${s.when})` : ""}`).join(" → ") : W.resolve.nothing;
-      return `<div>${esc(pct(m / g.p))} · ${esc(txt)}</div>`;
+      return `<div>${esc(fill(W.resolve.of_outcome, { p: pct(m / g.p) }))} · ${esc(txt)}</div>`;
     }).join("");
   }
   const amountText = (g) => (g.lo === null ? "–" : g.hi === 0 ? W.resolve.none : g.lo === g.hi ? money(g.lo) : `${money(g.lo)} – ${money(g.hi)}`);
   function attributionRows(f) {
-    const R = W.resolve, rows = [["filing", "petition_p", pct, -1], ["collected", "collected", money, 1], ["rate", "rate", pct, 1], ["past_due", "past_due", money, -1], ["stayed", "stayed", money, -1]];
+    const R = W.resolve, rows = [["filing", "petition_p", pct, -1], ["collected", "collected", money, 1], ["rate", "rate", pct, 1], ["past_due", "past_due", money, -1], ["frozen_due", "frozen_due", money, -1], ["stayed", "stayed_if", money, -1]];
     return rows.map(([t, k, fmt, good]) => {
       const rd = (v) => (fmt === pct ? Math.round(100 * v) / 100 : Math.round(v / 1e5) * 1e5), a = f.ordinary[k], b = f.full[k], d = a === null || b === null ? null : rd(b) - rd(a);
       const cls = !d ? "" : (d > 0) === (good > 0) ? "good" : "bad";
@@ -249,7 +271,7 @@
     const rw = D.pins.ruling_window; if (rw && ix(rw[0]) >= 0) g += `<rect x="${X(ix(rw[0]))}" y="${m.t}" width="${X(ix(rw[1]) >= 0 ? ix(rw[1]) : days - 1) - X(ix(rw[0]))}" height="${h}" fill="#f4f5f6"/>`;
     for (let k = 0; k <= 4; k++) { const v = (top * k) / 4; g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="${k ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${pct(v)}</text>`; }
     D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 8}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text>`; });
-    const pins = [["ruling_window", rw && rw[0]], ["listing", D.pins.nasdaq], ["coupon", D.pins.coupon]].filter(([, d]) => d && ix(d) >= 0).sort((a, b) => (a[1] < b[1] ? -1 : 1));
+    const pins = [["ruling_window", rw && rw[0]], ["listing", D.pins.listing], ["coupon", D.pins.coupon]].filter(([, d]) => d && ix(d) >= 0).sort((a, b) => (a[1] < b[1] ? -1 : 1));
     let pt = ""; pins.forEach(([k, d], row) => { const x = X(ix(d)), y = 14 + (row % 3) * 17; g += `<line x1="${x}" x2="${x}" y1="${y + 4}" y2="${m.t + h}" stroke="#b9bec5" stroke-dasharray="2 3"/>`; pt += box(x + 5, y, "start", 12, `${fdate(d)} · ${W.dates[k]}`, "pin"); });
     const line = (ys, off = 0) => ys.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${(Y(v) - off).toFixed(1)}`).join("");
     g += `<path d="${line(B, 1.5)}" fill="none" stroke="#6b7178" stroke-width="2.2" stroke-dasharray="6 4"/><path d="${line(R)}" fill="none" stroke="var(--teal)" stroke-width="2.8"/>`;
@@ -282,8 +304,9 @@
   // --- 4. the judgment that matters most ------------------------------------------------------------------------------
   const dec = (i) => (W.decisions || {})[D.nodes[i].node] || {};
   const decShort = (i) => { const n = D.nodes[i], s = dec(i).short; return s ? fill(s) + (n.form ? ` (${n.form.form_question.split(":")[0]})` : "") : n.label; };
-  const situ = (i) => { const n = D.nodes[i]; return n.form ? ((n.form.earlier_answers || []).join("; ") || W.judgment.first) : n.sub; };
-  const blabel = (i, b) => (dec(i).branches || {})[b] || b.replace(/_/g, " ");
+  const earlier = (f) => f.earlier_plain || f.earlier_answers || [];
+  const situ = (i) => { const n = D.nodes[i]; return n.form ? (earlier(n.form).join("; ") || W.judgment.first) : n.sub; };
+  const blabel = (i, b) => { const f = D.nodes[i].form; return (f && f.answers && f.answers[b]) || fill((dec(i).branches || {})[b]) || b.replace(/_/g, " "); };
   const PNODES = D.paths.edges.map((e) => {  // every node a path passes through, including inside its composites
     const s = new Set(); for (let j = 0; j < e.length; j += 2) { if (e[j] >= 0) s.add(e[j]); else for (const c of D.composites[-e[j] - 1]) for (const [n] of c) s.add(n); }
     return Int32Array.from(s);
@@ -294,8 +317,10 @@
     let r = 0; for (let p = 0; p < P; p++) { let lo = Infinity, hi = -Infinity; for (const q of qs) { if (q[p] < lo) lo = q[p]; if (q[p] > hi) hi = q[p]; } r += hi - lo; }
     return Math.min(1, r / qs.length);
   }
-  function effOf(i) {  // collections and the filing probability at 0%, the current answer and 100% of the selected branch
+  function effOf(i, at = null) {  // collections and the filing probability at 0%, the current answer (or `at`) and 100% of the selected branch
     const b = selB(i), get = (x) => (k) => (k === i ? withBranch(i, b, x) : dist(k));
+    if (at) { const g = (k) => (k === i ? at : dist(k)); if (isBank(i)) { const bp = bankProbs(g); return { at: bexpect(bp, "collected"), fat: bexpect(bp, "petition_p") }; }
+      const pp = pathProbs(g); return { at: expect(pp, "collected"), fat: expect(pp, "petition_p") }; }
     const v = (x) => { if (isBank(i)) { const bp = bankProbs(get(x)); return [bexpect(bp, "collected"), bexpect(bp, "petition_p")]; }
       const pp = pathProbs(get(x)); return [expect(pp, "collected"), expect(pp, "petition_p")]; };
     const [c0, f0] = v(0), [c1, f1] = v(1);
@@ -310,26 +335,29 @@
       const v = f[k]; if (!v) continue;
       out.push([lab, k === "decision_date" ? rng(v, (t) => t) : k === "settlement_offer" ? (v.amount ? rng(v.amount, m) : "–") : typeof v === "object" ? rng(v, m) : m(v)]);
     }
-    for (const c of f.components || []) out.push([c.component, `${c.amount === "unknown" ? W.judgment.amount_unknown : money(cents(c.amount))}, ${(W.status || {})[c.status] || c.status}`]);
+    for (const c of f.components || []) out.push([c.component, `${c.amount === "unknown" ? W.judgment.amount_unknown : money(cents(c.amount))}, ${statusText(c.component, c.status)}`]);
     return out;
   }
+  const THEORY = new Map(((D.case_terms || {}).components || []).map((c) => [c.label, c.theory]));
+  const statusText = (label, status) => fill((W.status || {})[THEORY.get(label) === "defense" ? "defense" : status] || status);
   const link = (l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.text)}</a>`;
   const dragBase = {};
   function closeupHtml(i, id) {
     const n = D.nodes[i], det = n.detail || {}, J = W.judgment, b = selB(i);
     const q = n.form ? n.form.form_question : fill(dec(i).question || n.question);
-    const asked = n.form ? `${n.form.asked ? `<p class="mute small">${esc(n.form.asked)}</p>` : ""}<dl class="meta"><dt>${esc(J.earlier)}</dt><dd>${esc((n.form.earlier_answers || []).join("; ") || J.none)}</dd></dl>`
+    const ask = n.form && (n.form.plain_asks || n.form.asked);
+    const asked = n.form ? `${ask ? `<p class="mute small">${esc(cap(ask))}</p>` : ""}<dl class="meta"><dt>${esc(J.earlier)}</dt><dd>${esc(earlier(n.form).join("; ") || J.none)}</dd></dl>`
       : `<dl class="meta"><dt>${esc(J.asked)}</dt><dd>${esc(cap(n.context) || "–")}</dd></dl>`;
     const quotes = (det.quotes || []).slice(0, 3).map((x) => `<blockquote><p>“${esc(x.quote)}”</p><cite>${esc(x.source)}${x.link ? ` · <a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(W.ui.source)}</a>` : ""}</cite></blockquote>`).join("");
     const ins = inputs(det.facts || {});
-    return `<h3>${esc(J.question)} · ${esc(decShort(i))}</h3><p class="q">${esc(q)}</p>${asked}<p class="mute small" id="${id}-reach"></p>
+    return `<h3>${esc(J.question)} · <span class="nt">${esc(decShort(i))}</span></h3><p class="q">${esc(q)}</p>${asked}<p class="mute small" id="${id}-reach"></p>
       <h3>${esc(J.forecast)}</h3><div class="ans"><span id="${id}-blab"></span><span class="big" id="${id}-big"></span><span class="mute small" id="${id}-jev"></span></div>
       <div class="jbar" id="${id}-bar"></div><div class="slabs" id="${id}-slabs"></div>
       <div class="sw"><input type="range" id="${id}-slider" min="0" max="100" step="1" value="${Math.round(100 * dist(i)[b])}"><span class="jm" style="left:${100 * jevDist(i)[b]}%" title="Jev"></span></div>
       <p class="mute small">${esc(J.drag)} <a href="#" id="${id}-reset"${n.key in S.overrides ? "" : " hidden"}>${esc(J.reset)}</a></p>
-      <h3>${esc(J.effect)}</h3><p class="mute small" id="${id}-of"></p><table class="eff"><tr><th></th><th id="${id}-h0"></th><th class="j" id="${id}-hj"></th><th id="${id}-h1"></th></tr>
-        <tr><td>${esc(T("collected"))}</td><td id="${id}-lo"></td><td class="j" id="${id}-at"></td><td id="${id}-hi"></td></tr>
-        <tr><td>${esc(T("filing"))}</td><td id="${id}-flo"></td><td class="j" id="${id}-fat"></td><td id="${id}-fhi"></td></tr></table>
+      <h3>${esc(J.effect)}</h3><p class="mute small" id="${id}-of"></p><table class="eff"><tr><th></th><th id="${id}-h0"></th><th class="j" id="${id}-hj"></th><th class="y" id="${id}-hy"></th><th id="${id}-h1"></th></tr>
+        <tr><td>${esc(T("collected"))}</td><td id="${id}-lo"></td><td class="j" id="${id}-at"></td><td class="y" id="${id}-yat"></td><td id="${id}-hi"></td></tr>
+        <tr><td>${esc(T("filing"))}</td><td id="${id}-flo"></td><td class="j" id="${id}-fat"></td><td class="y" id="${id}-yfat"></td><td id="${id}-fhi"></td></tr></table>
       ${ins.length ? `<h3>${esc(J.inputs)}</h3><dl class="inputs">${ins.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}
       <h3>${esc(J.evidence)}</h3>${quotes || `<p class="mute">${esc(J.none)}</p>`}
       <details class="law"><summary>${esc(J.sources)}</summary>${(det.steps || []).map((x) => `<div class="step"><span class="tag">${esc(x.tag)}</span><span>${esc(x.text)}${(x.links || []).length ? ` · ${x.links.map(link).join(" · ")}` : ""}</span></div>`).join("")}</details>`;
@@ -343,9 +371,12 @@
     $(`${id}-bar`).innerHTML = d.map((p, k) => `<i style="width:${100 * p}%;background:${BCOL[k % 3]}"></i>`).join("");
     $(`${id}-slabs`).innerHTML = `<span>${esc(n.branches.map((x, k) => `${blabel(i, x)} ${pct(d[k])}`).join(" · "))}</span>`;
     $(`${id}-reach`).textContent = fill(J.reach, { p: pct(nodeReach(i)) });
-    $(`${id}-h0`).textContent = "0%"; $(`${id}-h1`).textContent = "100%"; $(`${id}-of`).textContent = fill(J.of, { branch: bn }); $(`${id}-hj`).textContent = fill(J.at, { p: pct(d[b]) });
-    $(`${id}-lo`).textContent = money(e.lo); $(`${id}-at`).textContent = money(e.at); $(`${id}-hi`).textContent = money(e.hi);
-    $(`${id}-flo`).textContent = pct(e.flo); $(`${id}-fat`).textContent = pct(e.fat); $(`${id}-fhi`).textContent = pct(e.fhi);
+    const ov = n.key in S.overrides, jv = ov ? effOf(i, jevDist(i)) : e;  // Jev's column at Jev's answer; the reader's beside it
+    $(`${id}-h0`).textContent = "0%"; $(`${id}-h1`).textContent = "100%"; $(`${id}-of`).textContent = fill(J.of, { branch: bn }); $(`${id}-hj`).textContent = fill(J.at, { p: pct(jevDist(i)[b]) });
+    $(`${id}-lo`).textContent = money(e.lo); $(`${id}-at`).textContent = money(jv.at); $(`${id}-hi`).textContent = money(e.hi);
+    $(`${id}-flo`).textContent = pct(e.flo); $(`${id}-fat`).textContent = pct(jv.fat); $(`${id}-fhi`).textContent = pct(e.fhi);
+    document.querySelectorAll(`#${id}-hy, #${id}-yat, #${id}-yfat`).forEach((el) => { el.hidden = !ov; });
+    $(`${id}-hy`).textContent = fill(J.yours, { p: pct(d[b]) }); $(`${id}-yat`).textContent = money(e.at); $(`${id}-yfat`).textContent = pct(e.fat);
     $(`${id}-reset`).hidden = !(n.key in S.overrides);
   }
   function bindCloseup(i, id) {
@@ -421,7 +452,7 @@
     const svg = host.querySelector("svg"), chain = (t) => { const s = new Set(); for (let u = t; u; u = u.parent) s.add(u.id); return s; };
     svg.querySelectorAll(".nd").forEach((g) => { const t = all[+g.dataset.id];
       g.onmouseenter = (ev) => { const on = chain(t); svg.classList.add("hl"); svg.querySelectorAll(".nd, .lk").forEach((e) => e.classList.toggle("on", on.has(+e.dataset.id)));
-        const steps = []; for (let u = t; u && u.depth; u = u.parent) steps.unshift([u.when, nodeLabel(u)]); showTip(ev, `${linesHtml(steps)}<div class="mute" style="margin-top:6px">${t.pct}% · ${esc(T("filing"))} ${pct(t.mass > 0 ? t.filed / t.mass : 0)}</div>`); };
+        const steps = []; for (let u = t; u && u.depth; u = u.parent) steps.unshift([u.when, nodeLabel(u)]); showTip(ev, `${linesHtml(steps)}<div class="mute" style="margin-top:6px">${t.pct}% · ${esc(fill(W.judgment.paths_filing))} ${pct(t.mass > 0 ? t.filed / t.mass : 0)}</div>`); };
       g.onmousemove = (ev) => showTip(ev, $("tip").innerHTML); g.onmouseleave = () => { svg.classList.remove("hl"); hideTip(); }; });
   }
   function renderTornado(host) {
@@ -430,8 +461,8 @@
     host.innerHTML = `<p class="mute small">${esc(J.tornado_note)}</p><div class="levers">${L.map((l, r) => {
       const n = D.nodes[l.i], bn = blabel(l.i, n.branches[selB(l.i)]), a0 = fill(J.zero, { branch: bn }), a1 = fill(J.hundred, { branch: bn });
       const left = l.lo <= l.hi ? [a0, l.lo] : [a1, l.hi], right = l.lo <= l.hi ? [a1, l.hi] : [a0, l.lo];
-      return `<button class="lever" data-i="${l.i}"><span class="ll"><b>${esc(decShort(l.i))}</b><span class="lm">${esc(`${fill(J.at, { p: pct(dist(l.i)[selB(l.i)]) })} ${bn}`)} · ${esc(situ(l.i))}</span></span>
-        <span class="lt"><span class="rng" style="left:${pos(left[1])}%;width:${pos(right[1]) - pos(left[1])}%"></span><span class="mk" style="left:${pos(l.at)}%"></span>${r === 0 ? `<span class="mkl" style="left:${pos(l.at)}%">${esc(fill(J.at, { p: "" }).trim())} ${money(l.at)}</span>` : ""}
+      return `<button class="lever" data-i="${l.i}"><span class="ll"><b>${esc(decShort(l.i))}</b><span class="lm">${esc(`${fill(n.key in S.overrides ? J.yours : J.at, { p: pct(dist(l.i)[selB(l.i)]) })} ${bn}`)} · ${esc(situ(l.i))}</span></span>
+        <span class="lt"><span class="rng" style="left:${pos(left[1])}%;width:${pos(right[1]) - pos(left[1])}%"></span><span class="mk" style="left:${pos(l.at)}%"></span>${r === 0 ? `<span class="mkl" style="left:${pos(l.at)}%">${esc(fill(n.key in S.overrides ? J.yours : J.at, { p: "" }).trim())} ${money(l.at)}</span>` : ""}
         <span class="endl" style="right:${100 - pos(left[1])}%">${esc(left[0])} · <b>${money(left[1])}</b></span><span class="endr" style="left:${pos(right[1])}%"><b>${money(right[1])}</b> · ${esc(right[0])}</span></span></button>`; }).join("")}</div>`;
     host.querySelectorAll(".lever").forEach((x) => (x.onclick = () => openNode(+x.dataset.i)));
   }
@@ -449,24 +480,25 @@
   }
 
   // --- 5. one economic assumption -----------------------------------------------------------------------------------
-  const AS = D.assumptions || [], CEN = AS.find((a) => a.central);
+  const AS = D.assumptions || [], CEN = AS.find((a) => a.central), AT = D.assumption_text || {};
+  const aLabel = (a) => usdText((AT[a.central ? "central" : a.id] || {}).label || a.label), aNote = (a) => usdText((AT[a.central ? "central" : a.id] || {}).note || "");
   const aDiff = (a) => ({ f: a.metrics.petition_p - CEN.metrics.petition_p, c: a.metrics.collected - CEN.metrics.collected });
   const aScore = (a) => { const d = aDiff(a); return Math.abs(d.f) + Math.abs(d.c) / (CEN.metrics.due || 1); };  // points of filing + points of collection rate
   S.compare = AS.filter((a) => !a.central).sort((a, b) => aScore(b) - aScore(a)).map((a) => a.id)[0] || null;
   function renderAssumption() {
     const sec = $("s-assumption"), A = W.assumption; if (!CEN) { sec.hidden = true; return; }
     const cmp = variant(S.compare), cf = vFigures(CEN), vf = cmp ? vFigures(cmp) : null;
-    const rows = [["due", "due", money], ["collected", "collected", money], ["rate", "rate", pct], ["past_due", "past_due", money], ["not_yet_due", "not_yet_due", money], ["filing", "petition_p", pct], ["preference", "clawback", money], ["funded", "funded", money]];
+    const rows = [["due", "due", money], ["collected", "collected", money], ["rate", "rate", pct], ["past_due", "past_due", money], ["frozen_due", "frozen_due", money], ["not_yet_due", "not_yet_due", money], ["funded", "funded", money], ["filing", "petition_p", pct], ["stayed", "stayed_if", money], ["preference", "clawback_if", money]];
     const rd = (v, fmt) => (fmt === pct ? Math.round(100 * v) / 100 : Math.round(v / 1e5) * 1e5);
     const diff = (k, fmt) => { const a = cf[k], b = vf && vf[k]; return a === undefined || b === undefined || a === null || b === null ? "–" : fmt === money ? dmoney(rd(b, fmt) - rd(a, fmt)) : pts(rd(b, fmt) - rd(a, fmt)); };
     sec.innerHTML = `<h2>${esc(W.sections.assumption)}</h2><p class="mute small">${esc(A.shown)}</p>
       <div class="apick"><div class="ah"><span></span><span></span><span class="d">${esc(T("filing_short"))}</span><span class="d">${esc(T("collected"))}</span></div>${AS.map((a) => { const d = aDiff(a);
         const used = a.central ? S.assumption === "central" : a.id === S.assumption;
-        return `<label class="${used ? "on" : ""}${!a.central && a.id === S.compare ? " cmp" : ""}"><input type="radio" name="asm" value="${esc(a.id)}"${used ? " checked" : ""}><span>${esc(a.central ? A.central : usdText(a.label))}${!a.central && a.id === S.compare ? ` <em class="tag">${esc(A.compared)}</em>` : ""}</span>
+        return `<label class="${used ? "on" : ""}${!a.central && a.id === S.compare ? " cmp" : ""}"><input type="radio" name="asm" value="${esc(a.id)}"${used ? " checked" : ""}><span>${esc(a.central ? A.central : aLabel(a))}${!a.central && a.id === S.compare ? ` <em class="tag">${esc(A.compared)}</em>` : ""}</span>
           <span class="d">${a.central ? pct(a.metrics.petition_p) : pts(d.f)}</span><span class="d">${a.central ? money(a.metrics.collected) : dmoney(d.c)}</span></label>`; }).join("")}</div>
       ${cmp ? `<table class="at" style="max-width:720px"><tr><th></th><th>${esc(A.col_central)}</th><th>${esc(A.col_variant)}</th><th>${esc(A.col_diff)}</th></tr>
         ${rows.map(([t, k, fmt]) => `<tr><td>${esc(T(t))}</td><td>${fmt(cf[k])}</td><td>${fmt(vf[k])}</td><td>${diff(k, fmt)}</td></tr>`).join("")}</table>
-        <p class="basis"><b>${esc(usdText(cmp.label))}.</b> ${esc(A.basis)}: ${esc(usdText(cmp.basis))}</p>` : ""}`;
+        ${aNote(cmp) ? `<p class="basis"><b>${esc(aLabel(cmp))}.</b> ${esc(aNote(cmp))}</p>` : ""}` : ""}`;
     sec.querySelectorAll('input[name="asm"]').forEach((r) => (r.onchange = () => { if (r.value !== CEN.id) S.compare = r.value; setAssumption(r.value === CEN.id ? "central" : r.value); }));
   }
   function setAssumption(id) {
@@ -475,7 +507,7 @@
   }
   function renderSwitched() {
     const el = $("switched"), v = S.assumption !== "central" ? variant() : null; el.hidden = !v; if (!v) return;
-    el.innerHTML = `${esc(fill(W.assumption.switched, { label: usdText(v.label) }))} <a href="#" id="sw-back">${esc(W.assumption.back)}</a>`;
+    el.innerHTML = `${esc(fill(W.assumption.switched, { label: aLabel(v) }))} <a href="#" id="sw-back">${esc(W.assumption.back)}</a>`;
     $("sw-back").onclick = (ev) => { ev.preventDefault(); setAssumption("central"); };
   }
 
@@ -494,7 +526,7 @@
   function renderFoot() {
     if ($("record")) $("record").textContent = W.ui.record;
     const t = D.case_terms || {}, U = W.ui;
-    $("terms").innerHTML = `<details><summary>${esc(U.terms)}</summary><h3>${esc(U.components)}</h3><table class="terms">${(t.components || []).map((c) => `<tr><td>${esc(c.label)}</td><td>${esc(c.amount)}</td><td>${esc(c.status)}</td><td>${c.link ? `<a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.source)}</a>` : esc(c.source)}</td></tr>`).join("")}</table>
+    $("terms").innerHTML = `<details><summary>${esc(U.terms)}</summary><h3>${esc(U.components)}</h3><table class="terms">${(t.components || []).map((c) => `<tr><td>${esc(c.label)}</td><td>${esc(c.amount)}</td><td>${esc(statusText(c.label, c.status))}</td><td>${c.link ? `<a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.source)}</a>` : esc(c.source)}</td></tr>`).join("")}</table>
       ${(t.notes || []).map((x) => `<h3>${esc(x.title)}</h3><table class="terms">${x.terms.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table>`).join("")}
       <h3>${esc(U.deadlines)}</h3><table class="terms">${(t.deadlines || []).map((x) => `<tr><td>${esc(fyear(x.date))}</td><td>${esc(x.what)}</td></tr>`).join("")}</table></details>`;
   }

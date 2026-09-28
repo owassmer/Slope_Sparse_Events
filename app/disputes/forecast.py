@@ -310,6 +310,15 @@ MERITS_KINDS = {"ts_liability_jmol": (), "ts_damages_ruling": ("compensatory",),
                 "fees_awarded": ("fees",), "prejudgment_interest": ("prejudgment_interest",), "injunction": ()}
 
 
+def notes_default_text(m: dict, f) -> str:
+    """The notes' judgment default in the indenture's own words (contract template quotes), filled from the
+    instrument's threshold and days; '' where the instrument states no period."""
+    if not f.judgment_default_days:
+        return ""
+    q = next(t["quotes"]["judgment_default"] for t in m["templates"].values() if "judgment_default" in t.get("quotes", {}))
+    return q.format(threshold=usd(f.judgment_default_threshold_cents), days=f.judgment_default_days)
+
+
 class Forecaster:
     def __init__(self, disputes: list[DisputeInstance], findings: dict[str, AtomicFinding], *, borrower: str,
                  review: date, horizon: date, hydrate: Callable[[AtomicFinding], dict], model: dict | None = None,
@@ -669,13 +678,7 @@ class Forecaster:
         if any(f.status != "superseded" for f in d.financing):
             f = next(f for f in d.financing if f.status != "superseded")
             facts["notes"] = {"principal": usd(f.principal_cents),
-                              "judgment_default": (f"final judgments for the payment of money above "
-                                                   f"{usd(f.judgment_default_threshold_cents)} that \"remain "
-                                                   f"undischarged, unpaid or unstayed for a period (during which "
-                                                   f"execution shall not be effectively stayed) of "
-                                                   f"{f.judgment_default_days} days\" (§7.01(i)), after notice by the "
-                                                   f"trustee or holders of 25% of the notes"
-                                                   if f.judgment_default_days else "none")}
+                              "judgment_default": notes_default_text(self.m, f) or "none"}
         return facts
 
     def raise_facts(self, eq: np.ndarray) -> dict:

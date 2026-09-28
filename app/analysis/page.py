@@ -23,16 +23,16 @@ ACTOR_GROUP = {"court": "Court and jury", "jury": "Court and jury", "judgment cr
                "borrower": "{company}", "the company": "{company}",
                "holders of 25% (or the trustee)": "Noteholders and the exchange",
                "holders": "Noteholders and the exchange", "noteholders (three or more)": "Noteholders and the exchange",
-               "Nasdaq hearings panel": "Noteholders and the exchange"}  # keys: the contract's actor names
+               "hearings panel": "Noteholders and the exchange"}  # keys: the contract's actor names
 INTERVALS = {"I0": "before the verdict", "entry": "on the day the judgment is entered", "I1": "before the ruling", "I2": "after the ruling, before the appeal deadline",
              "I3": "after the appeal deadline", "I4": "during a stayed appeal", "post": "after the ruling"}
 CONTEXT = {"claimed": "before the verdict", "claimant_theory": "after a verdict on the claimant's theory",
            "without_principal_measure": "after a lower award", "no_award": "after no award",
-           "raise": "equity can be raised", "noraise": "no equity can be raised", "levied": "after a levy", "unlevied": "no levy", "appealed": "on appeal", "final": "no appeal",
-           "stay_pending": "stay motion pending", "pay": "", "nopay": "paying in full is out of reach",
+           "raise": "equity can be raised", "noraise": "no equity can be raised", "levied": "after a seizure of cash", "unlevied": "no seizure of cash", "appealed": "on appeal", "final": "no appeal",
+           "stay_pending": "request to pause collection pending", "pay": "", "nopay": "paying in full is out of reach",
            "first": "", "after_seek": "after seeking a sale or financing", "entered": "",
            "delisted_panel": "delisted after the panel", "delisted_suspension": "suspended without a hearing",
-           "ripe": "on the notes' judgment-default date", "entered_not_acted": "no acceleration on the entered judgment",
+           "ripe": "on the notes' judgment-default date", "entered_not_acted": "no repayment demand on the entered judgment",
            "bank": "on bank data alone", "cash_exhausted": "cash has run out", "motions_pending": "before the ruling"}
 # Outcome by the end of the period, in the order the bar shows them.
 CLASSES = (("filed_enforcement", "Filed: {claimant} enforcement"), ("filed_notes", "Filed: notes"),
@@ -40,6 +40,12 @@ CLASSES = (("filed_enforcement", "Filed: {claimant} enforcement"), ("filed_notes
            ("stayed", "Stayed on appeal"), ("unresolved", "Unresolved"), ("vacated", "Vacated or new trial"))
 OUTCOME_CLASS = {"settled": "settled", "paid": "paid", "stayed": "stayed", "unresolved": "unresolved",
                  "vacated": "vacated", "new_trial": "vacated"}
+
+
+def decider(actor: str) -> str:
+    """The group a contract actor decides for; an actor named with its body's own name ('<exchange> hearings panel')
+    matches by the role that ends it."""
+    return next((g for k, g in ACTOR_GROUP.items() if actor == k or actor.endswith(" " + k)), "{company}")
 
 
 def parties(borrower: str, d) -> dict[str, str]:
@@ -84,9 +90,9 @@ def context_text(context: str, ranges: dict[str, tuple[int, int]]) -> str:
             parts.append(CONTEXT[c])
         elif c.startswith(("judgment_", "delisting_", "repurchase_")):
             head, _, rest = c.partition("_")
-            parts.append({"judgment": "after acceleration on the judgment default" + (
+            parts.append({"judgment": "after noteholders demand repayment on the judgment default" + (
                               " on the entered judgment" if rest == "I1" else ""),
-                          "delisting": "after acceleration on the delisting",
+                          "delisting": "after noteholders demand repayment on the delisting",
                           "repurchase": "after an unpaid repurchase"}[head]
                          + (f" ({INTERVALS.get(rest, CONTEXT.get(rest, rest))})"
                             if rest and not (head == "judgment" and rest == "I1") else ""))
@@ -97,33 +103,33 @@ def context_text(context: str, ranges: dict[str, tuple[int, int]]) -> str:
 
 # Short row labels for the question list, by question id (the full question text is in the drill-down).
 SHORT_LABELS = {
-    "forecast_stay_approved": "Stay approved", "forecast_1963_good_cause": "Early registration (other districts)",
+    "forecast_stay_approved": "Court pauses collection", "forecast_1963_good_cause": "Early collection in other states",
     "forecast_ts_liability_jmol": "Trade-secret liability set aside", "forecast_patent_jmol": "Patent verdict set aside",
     "forecast_ts_damages_ruling": "Damages: stands / remit / new trial", "forecast_trebling": "Trebling",
     "forecast_fees_awarded": "Fees awarded", "forecast_prejudgment_interest": "Pre-judgment interest",
-    "forecast_injunction_ts": "Injunction", "forecast_execution_pending_motions": "{claimant} executes before ruling",
+    "forecast_injunction_ts": "Injunction", "forecast_execution_pending_motions": "{claimant} enforces before the ruling",
     "forecast_remittitur_accepted": "{claimant} accepts remittitur",
     "forecast_enforcement_after_final": "{claimant} enforces after ruling",
-    "forecast_settlement_accept": "{claimant} accepts settlement", "forecast_stay_motion": "{company} moves for stay",
+    "forecast_settlement_accept": "{claimant} accepts settlement", "forecast_stay_motion": "{company} asks to pause collection",
     "forecast_appeal": "{company} appeals", "forecast_settlement_offer": "{company} offers settlement",
     "forecast_debtor_response": "{company} response to enforcement",
-    "forecast_petition_on_notes": "{company} files (notes accelerated)",
+    "forecast_petition_on_notes": "{company} files (noteholders demand repayment)",
     "forecast_petition_cash_floor": "{company} files (cash floor)",
     "forecast_petition_cash_out": "{company} files (cash runs out)", "forecast_reverse_split_board": "Board calls reverse split",
     "forecast_nasdaq_hearing": "Exchange hearing requested", "forecast_split_approved": "Stockholders approve split",
     "forecast_panel_exception": "Panel grants exception",
-    "forecast_holders_act_judgment": "Holders accelerate (judgment default)",
+    "forecast_holders_act_judgment": "Noteholders demand repayment (judgment default)",
     "forecast_holders_act_delisting": "Holders act on delisting",
     "forecast_holders_involuntary": "Holders file after no-action period"}
 SHORT_WHEN = {"I0": "Before verdict", "entry": "At entry", "I1": "Before ruling", "I2": "After ruling", "I3": "After appeal deadline", "I4": "During appeal",
               "post": "After ruling", "entered": "Before ruling"}
-SHORT_TAG = {"levied": "after a levy", "unlevied": "no levy", "appealed": "on appeal", "final": "no appeal",
-             "stay_pending": "stay motion pending", "nopay": "can't pay in full", "after_seek": "after seeking a sale",
+SHORT_TAG = {"levied": "after a seizure of cash", "unlevied": "no seizure of cash", "appealed": "on appeal", "final": "no appeal",
+             "stay_pending": "pause requested", "nopay": "can't pay in full", "after_seek": "after seeking a sale",
              "delisted_panel": "delisted after the panel", "delisted_suspension": "suspended, no hearing",
-             "none": "judgment set aside", "retrial": "new trial on damages", "stay_moved": "stay motion filed",
-             "stayed": "stayed", "settled": "after a settlement", "paid": "after payment", "seeking": "seeking a sale",
+             "none": "judgment set aside", "retrial": "new trial on damages", "stay_moved": "pause of collection requested",
+             "stayed": "collection paused", "settled": "after a settlement", "paid": "after payment", "seeking": "seeking a sale",
              "notes_due": "notes due, unpaid", "delisted": "delisted", "motions_pending": "before ruling",
-             "executing": "{claimant} executing", "cash_exhausted": "cash run out", "ripe": "notes' default date",
+             "executing": "{claimant} enforcing", "cash_exhausted": "cash run out", "ripe": "notes' default date",
              "entered_not_acted": "entered judgment not acted on", "bank": "bank data alone",
              "claimed": "", "claimant_theory": "{claimant}'s theory", "no_award": "no award",
              "without_principal_measure": "lower award", "set_aside": "judgment set aside", "raise": "can raise equity",
@@ -242,12 +248,12 @@ VERDICT = {"no_award": "Jury: no award", "without_principal_measure": "Jury: low
 SETTLE = {"I0": "Settles before the verdict", "I1": "Settles before the ruling", "I2": "Settles after the ruling", "I3": "Settles after the appeal deadline",
           "I4": "Settles during the appeal"}
 FILING = {("debtor_response", "file"): "{company} files", ("judgment_response", "file"): "{company} files",
-          ("judgment_default", "yes"): "Noteholders accelerate; filing",
-          ("judgment_default", "holders_file"): "Noteholders accelerate; noteholders file",
-          ("delisting_notes", "petition_delist"): "Noteholders accelerate on the delisting; filing",
-          ("delisting_notes", "petition_delist_holders"): "Noteholders accelerate on the delisting; noteholders file",
-          ("delisting_notes", "petition_repurchase"): "Repurchase unpaid; filing",
-          ("delisting_notes", "petition_repurchase_holders"): "Repurchase unpaid; noteholders file",
+          ("judgment_default", "yes"): "Noteholders demand repayment; filing",
+          ("judgment_default", "holders_file"): "Noteholders demand repayment and file",
+          ("delisting_notes", "petition_delist"): "Noteholders demand repayment after the delisting; filing",
+          ("delisting_notes", "petition_delist_holders"): "Noteholders demand repayment after the delisting and file",
+          ("delisting_notes", "petition_repurchase"): "Notes not bought back as required; filing",
+          ("delisting_notes", "petition_repurchase_holders"): "Notes not bought back as required; noteholders file",
           ("cash_floor", "yes"): "{company} files at the cash floor", ("cash_floor", "file"): "{company} files at the cash floor",
           ("cash_out", "yes"): "{company} files when its cash runs out"}
 
@@ -259,25 +265,25 @@ def step_phrase(node: str, ctx: str, branch: str, ranges: dict[str, tuple[int, i
         return FILING[(node, branch)]
     if node == "ruling":
         if branch == "none":
-            return "Ruling vacates the judgment"
+            return "Court sets the judgment aside"
         if branch == "retrial":
-            return "Ruling orders a new trial"
-        return "Ruling " + class_text(_label(branch), ranges).removeprefix("ruling ")
+            return "Court orders a new trial on damages"
+        return "Court's ruling " + class_text(_label(branch), ranges).removeprefix("ruling ")
     if node == "verdict":  # the verdict's outcome class (contract pending_money_claim verdict_branches)
         return VERDICT.get(branch)
     return {("settle", "yes"): SETTLE.get(ctx, "Settles"),
-            ("execute_pre_ruling", "yes"): "{claimant} executes before the ruling",
-            ("stay", "yes"): "Stay approved", ("registration_early", "yes"): "Early registration allowed",
+            ("execute_pre_ruling", "yes"): "{claimant} enforces the judgment before the ruling",
+            ("stay", "yes"): "Court pauses collection", ("registration_early", "yes"): "Court lets {claimant} collect in other states early",
             ("debtor_response", "pay"): "{company} pays", ("judgment_response", "pay"): "{company} pays the judgment",
             ("debtor_response", "seek_sale_or_financing"): "{company} seeks a sale or financing",
             ("post_trial_ruling", "set_aside"): "Court sets the judgment aside",
             ("cash_floor", "raise_equity"): "{company} raises equity at its cash floor",
-            ("appeal", "yes"): "{company} appeals", ("enforce", "levy"): "{claimant} levies",
+            ("appeal", "yes"): "{company} appeals", ("enforce", "levy"): "{claimant} seizes cash to collect",
             ("listing", "delisted_panel"): "The exchange delists",
             ("listing", "delisted_suspension"): "The exchange suspends trading",
-            ("judgment_default", "accelerated"): "Noteholders accelerate; no filing",
-            ("delisting_notes", "accelerated"): "Noteholders accelerate on the delisting; no filing",
-            ("delisting_notes", "repurchase_unpaid"): "Repurchase unpaid; no filing"
+            ("judgment_default", "accelerated"): "Noteholders demand repayment; no filing",
+            ("delisting_notes", "accelerated"): "Noteholders demand repayment after the delisting; no filing",
+            ("delisting_notes", "repurchase_unpaid"): "Notes not bought back as required; no filing"
             }.get((node, branch))
 
 
@@ -463,8 +469,8 @@ def loan_rule(setup) -> str:
         how = f"Slope collects each installment only from cash above the {setup.need_days}-day operating need"
     else:
         raise ValueError(f"No collection rule {setup.collection!r}")
-    return (f"On the loan: through the company's cash. {how}. Slope funds a draw only while nothing is overdue and no "
-            "petition is filed")
+    return (f"On the loan: through the company's cash. {how}. Slope funds a draw only while nothing is overdue and "
+            "there is no bankruptcy filing")
 
 
 def mechanism(node: str, spec: dict, model: dict, setup) -> list[str]:
@@ -599,7 +605,8 @@ def component_row(c, d, model: dict) -> dict:
 
     row = {"label": label_head(c.label), "amount": usd(c.amount_cents) if c.amount_cents is not None
            else "computed by statute" if c.statutory else "unknown", "status": c.status,
-           "source": d.order_reference if c.status == "awarded" else c.motion}  # a request cites its own passage
+           "source": d.order_reference if c.status == "awarded" else c.motion,  # a request cites its own passage
+           "theory": getattr(c, "theory", "")}
     if c.kind == "compensatory" and c.status == "awarded":  # a remittitur can only reduce an award already made
         sc = model.get("remittitur_scenarios", {})
         rem = sc.get("scenarios", {}).get("remitted", {})
@@ -627,6 +634,8 @@ def case_terms(d, review: date, horizon: date, model: dict, links: dict[str, str
     """Judgment components with status and source (linked to the filing): the passage a component cites
     (`cited`: component id -> its findings' source titles), else the order or motion; the notes' default terms;
     the dated deadlines."""
+    from app.disputes.forecast import notes_default_text
+
     comps = []
     for c in d.components:
         r = component_row(c, d, model)
@@ -645,10 +654,7 @@ def case_terms(d, review: date, horizon: date, model: dict, links: dict[str, str
         money = (lambda c: usd(c) if c is not None else missing)  # noqa: E731
         dates = ", ".join(x.strftime("%-d %b %Y") for x in f.interest_dates)
         coupon = missing if f.coupon_cents is None else f"{usd(f.coupon_cents)}" + (f" due {dates}" if dates else "")
-        default = (f"final judgments above {money(f.judgment_default_threshold_cents)} that \"remain undischarged, "
-                   f"unpaid or unstayed for a period (during which execution shall not be effectively stayed) of "
-                   f"{f.judgment_default_days} days\" (§7.01(i)), after notice by the trustee or holders of 25%"
-                   ) if f.judgment_default_days else missing  # the indenture template's words, as Jev's facts quote them
+        default = notes_default_text(model, f) or missing  # the indenture's words, as Jev's facts quote them
         rep = f.repurchase_business_days
         listing = (f"delisting is a fundamental change: repurchase within {rep[0]}–{rep[1]} business days of notice"
                    if rep and len(rep) == 2 else missing)
@@ -678,7 +684,7 @@ def case_terms(d, review: date, horizon: date, model: dict, links: dict[str, str
 # unpaid split into past due and frozen by a filing, the chance of a filing and clawback exposure) and the Exposure
 # tab's peak outstanding and capital tied up (time-weighted outstanding).
 TILES = ("funded", "due", "collected", "unpaid", "past_due", "frozen_due", "not_yet_due", "petition_p", "clawback",
-         "peak_outstanding", "avg_outstanding")
+         "stayed", "peak_outstanding", "avg_outstanding")
 
 
 def path_scalars(r) -> dict[str, np.ndarray]:
@@ -695,6 +701,7 @@ def path_scalars(r) -> dict[str, np.ndarray]:
             "past_due": last["past_due"], "frozen_due": unpaid - last["past_due"],
             "not_yet_due": np.rint(r.means["not_yet_due"]),  # installments due after the horizon, on no-filing draws
             "petition_p": np.round(r.means["petition_p"], 4), "clawback": np.rint(r.means["preference"]),
+            "stayed": np.rint(r.means["stayed"]),  # owed on the filing day (balance at filing); zero with no filing
             "peak_outstanding": np.rint(r.means["peak_outstanding"]),
             "avg_outstanding": np.rint(r.means["avg_outstanding"])}
 
@@ -774,11 +781,11 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         sp, ctx = spec[j.node], (k.split("|", 1)[1] if "|" in k else "")
         facts = j.path_facts or (fc.path_facts(fc.nodes[k], model.disputes[j.instance_id]) if k in fc.nodes else {})
         q = questions.get(j.question_id, j.event)
-        form = fc.verdict_context(fc.nodes[k]) if j.node.startswith("verdict_") and k in fc.nodes \
+        form = form_words(fc, fc.nodes[k]) if j.node.startswith("verdict_") and k in fc.nodes \
             and hasattr(fc, "verdict_context") else None  # a verdict-form question: the form's own words
         nodes.append({"key": k, "node": j.node, "question": q, "context": context_text(ctx, ranges), "form": form,
                       "label": SHORT_LABELS.get(j.question_id, q), "sub": short_context(ctx, ranges),
-                      "actor": sp["actor"], "decider": ACTOR_GROUP.get(sp["actor"], "{company}"),
+                      "actor": sp["actor"], "decider": decider(sp["actor"]),
                       "branches": branches, "jev": [j.distribution[b] for b in branches],
                       "detail": drill_down(sp, m, q, facts, j, neutral, links, j.node,
                                            model.disputes.get(j.instance_id), setup=setup)})
@@ -802,6 +809,10 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
     names = parties(borrower, d0)
     for n in nodes:
         n.update({k: named(n[k], names) for k in ("label", "sub", "context", "decider")})
+        if n.get("form"):
+            f = n["form"]
+            f.update(answers={a: named(t, names) for a, t in f["answers"].items()}, plain_asks=named(f["plain_asks"], names),
+                     earlier_plain=[named(t, names) for t in f["earlier_plain"]])
     seq_ix = {named(s, names): i for s, i in seq_ix.items()}
     probs = model.probs() if probs is None else probs
     months = [f"{y}-{mo:02d}" for y, mo in a.months]
@@ -834,7 +845,7 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
             c.component_id: "; ".join(dict.fromkeys(fc.hydrate(fc.findings[f])["source"] for f in c.finding_ids
                                                     if f in fc.findings)) for c in d0.components}
         ) if d0 is not None else {},
-        "settings": SETTINGS,
+        "settings": [],
         "line": line_block(setup, inputs), "common": common_block(setup),
         "opening_cash_cents": int(getattr(getattr(getattr(fc, "draws", None), "basis", None), "opening", 0) or 0),
         "verdict": {**vb, "branches": [{**r, "label": named(r["label"], names)} for r in vb["branches"]]} if vb else {},
@@ -845,7 +856,18 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                                "listing_deadline": f.listing_deadline.isoformat() if f.listing_deadline else None}
                               for f in (d0.financing if d0 is not None else ()) if f.status != "superseded"]},
         "narrative": [named(x, names) for x in scenario.get("narrative", [])],
+        "assumption_text": assumption_text(scenario, names),
     }
+
+
+def assumption_text(scenario: dict, names: dict[str, str]) -> dict[str, dict[str, str]]:
+    """Each economic-assumption variant's label and note for the reader (case inputs: scenario.json
+    assumption_variants), by id; 'central' for the central setting."""
+    av = scenario.get("assumption_variants", {})
+    out = {"central": {"label": av.get("central_label", ""), "note": named(av.get("central_note", ""), names)}}
+    for v in av.get("variants", []):
+        out[v["id"]] = {"label": named(v.get("label", ""), names), "note": named(v.get("note", ""), names)}
+    return out
 
 
 def case_inputs(snapshot_id: str) -> tuple[dict, dict]:
@@ -868,7 +890,7 @@ def line_block(setup, inputs: dict) -> dict:
     return {"opened": opened.get("date"), "opened_limit_cents": opened.get("limit_cents"),
             "principal_cents": e.principal_cents, "past_due_cents": e.past_due_cents,
             "installments": [[d.isoformat(), c] for d, c in e.installments],
-            "draw_rule": "Slope funds a draw only while nothing is overdue and no petition is filed"}
+            "draw_rule": "Slope funds a draw only while nothing is overdue and there is no bankruptcy filing"}
 
 
 def common_block(setup) -> list[list[str]]:
@@ -881,6 +903,25 @@ def common_block(setup) -> list[list[str]]:
             "the bank feed's own flows continued (receipts and outflows at their recent run rate)")
     return [["Collection", how], ["Cash floor", f"{setup.need_days} days of operating outflows; below it the company "
              "decides whether to raise equity, keep going or file"], ["Financing", fin], ["Costs", cost]]
+
+
+def form_words(fc, n) -> dict:
+    """A verdict-form question for the page: the form's own words (as Jev reads them) and, from the case inputs'
+    verdict form, the reader's: each answer named by where it leads (a verdict branch by section 3's name, else the
+    question's plain gloss of that answer), what is asked in plain words, and each earlier answer glossed."""
+    out = dict(fc.verdict_context(n))
+    qs = fc.m["case_verdict_form"]["questions"]
+    tags = [c for c in n.context.split("|") if c]
+    q = qs[tags[0]]
+    plain = q.get("plain", {})
+    out["answers"] = {a: VERDICT.get(q[a]) or plain.get(a, a) for a in ("yes", "no")}
+    out["plain_asks"] = plain.get("asks", "")
+    out["earlier_plain"] = []
+    for x in tags[1:]:
+        e, ans = x.split("=")
+        gloss = qs[e].get("plain", {}).get(ans, "")
+        out["earlier_plain"].append(f"{qs[e]['form']}: {ans.capitalize()}" + (f" ({gloss})" if gloss else ""))
+    return out
 
 
 def verdict_block(fc, d, lead: list) -> dict:
@@ -941,7 +982,7 @@ def _pins(d, m: dict) -> dict:
     return {"briefing_close": close.isoformat() if close else None,
             "ruling_window": [(close + timedelta(days=min(lags))).isoformat(),
                               (close + timedelta(days=max(lags))).isoformat()] if close else None,
-            "nasdaq": fin.listing_deadline.isoformat() if fin and fin.listing_deadline else None,
+            "listing": fin.listing_deadline.isoformat() if fin and fin.listing_deadline else None,
             "coupon": fin.interest_dates[0].isoformat() if fin and fin.interest_dates else None}
 
 
@@ -960,23 +1001,17 @@ def _worst(rows: list[dict], classes: list[str], seqs: list[int], texts: list[st
 # Settings. "line": the line's terms, re-simulated on the same tree; "tree": a sensitivity the chains read, so the
 # tree is rebuilt too. Neither kind is precomputed (each full Akoustis run takes minutes and about 1 GB): the page
 # runs one on request and shows its progress.
-SETTINGS = [
-    {"key": "line_usage", "label": "Line usage", "kind": "line", "value": 1.0, "options": [[1.0, "100%"], [0.5, "50%"]]},
-    {"key": "limit_multiplier", "label": "Limit", "kind": "line", "value": 1.0,
-     "options": [[1.0, "1x"], [1.5, "1.5x"], [2.2, "2.2x"]]},
-    {"key": "fee_bps", "label": "Fee", "kind": "line", "value": 370, "options": [[250, "2.5%"], [370, "3.7%"], [500, "5.0%"]]},
-    {"key": "remittitur", "label": "Remitted damages", "kind": "tree", "value": "remitted",
-     "options": [["remitted", "Remitted amount (D.I. 616-1)"], ["verdict_stands", "Verdict amount"]]},
-    {"key": "bond_collateral_share_bps", "label": "Bond collateral", "kind": "tree", "value": False,
-     "options": [[False, "100%"], [True, "80%"]]},
-    {"key": "coupon_cash_share", "label": "15 Dec coupon", "kind": "tree", "value": "shares",
-     "options": [["shares", "Shares to capacity, rest cash"], ["all_cash", "Cash"], ["all_shares", "Shares"]]},
-    {"key": "chips_credit_cents", "label": "CHIPS credit", "kind": "tree", "value": False,
-     "options": [[False, "Off"], [True, "On"]]},
-    {"key": "stay_restart_on_increase_days", "label": "Amended judgment: new stay clock on", "kind": "tree",
-     "value": False, "options": [[False, "The increase"], [True, "The whole amount"]]},
-]
-LINE_KEYS = {s["key"] for s in SETTINGS if s["kind"] == "line"}
+def dev_settings() -> list[dict]:
+    """The dev page's settings, from its case inputs (cases/<dev snapshot>/dev_settings.json)."""
+    import json
+
+    from app.config import CASES_DIR
+    from app.disputes.akoustis_pre_d import SNAP
+
+    f = CASES_DIR / SNAP / "dev_settings.json"
+    return json.loads(f.read_text()) if f.exists() else []
+
+
 PAGE_FORMAT = 7  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
@@ -996,16 +1031,17 @@ def build_dev(settings: dict | None = None, progress=None) -> dict:
     from app.disputes.rules import load_model
     from app.finance.bank import load_feed
 
-    settings = {s["key"]: (settings or {}).get(s["key"], s["value"]) for s in SETTINGS}
+    specs = dev_settings()
+    settings = {s["key"]: (settings or {}).get(s["key"], s["value"]) for s in specs}
+    line_keys = {s["key"] for s in specs if s["kind"] == "line"}
     step = progress or (lambda *_: None)
     inputs = json.loads((CASES_DIR / SNAP / "run_inputs.json").read_text())
-    setup = setup_from_inputs(inputs, REVIEW).with_controls({k: settings[k] for k in LINE_KEYS})
+    setup = setup_from_inputs(inputs, REVIEW).with_controls({k: settings[k] for k in line_keys})
     feed, m = load_feed(SNAP), load_model()
     if settings["remittitur"] != m["remittitur_scenarios"]["base"]:
         m = copy.deepcopy(m)
         m["remittitur_scenarios"]["base"] = settings["remittitur"]
-    sens = {k: settings[k] for k in ("bond_collateral_share_bps", "coupon_cash_share", "chips_credit_cents",
-                                     "stay_restart_on_increase_days") if settings[k] not in (False, "shares")}
+    sens = {k: v for k, v in settings.items() if k not in line_keys and k != "remittitur" and v not in (False, "shares")}
     borrower = inputs["baseline_profile"]["borrower"]
     step("tree", 0, 1)
     fc = Forecaster([judgment()], {}, borrower=borrower, review=REVIEW, horizon=setup.horizon, hydrate=lambda f: {},
@@ -1022,6 +1058,7 @@ def build_dev(settings: dict | None = None, progress=None) -> dict:
     rows = [{"index": i, **r} for i, r in enumerate(rows)]
     payload = page_payload(a, model, fc, borrower=borrower, snapshot_id=SNAP, neutral=True, stress_rows=rows)
     payload["meta"]["dev"] = True
+    payload["settings"] = specs
     payload["settings_value"] = settings
     return {"payload": payload, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months}
 
@@ -1062,7 +1099,7 @@ class DevPage:
 
         from app.config import VAR
 
-        full = {s["key"]: (settings or {}).get(s["key"], s["value"]) for s in SETTINGS}
+        full = {s["key"]: (settings or {}).get(s["key"], s["value"]) for s in dev_settings()}
         tag = hashlib.sha1(json.dumps({**full, "_format": PAGE_FORMAT}, sort_keys=True).encode()).hexdigest()[:10]
         return VAR / "dev" / f"akoustis_page_{tag}.pkl"
 

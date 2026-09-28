@@ -83,7 +83,7 @@
   .sw { position:relative; } .sw input[type=range] { width:100%; accent-color:var(--teal); margin:10px 0 4px; } .sw .jm { position:absolute; top:22px; width:2px; height:9px; background:var(--ink); transform:translateX(-1px); pointer-events:none; }
   table.eff { border-collapse:collapse; width:100%; font-size:13.5px; } table.eff th { font-weight:500; color:var(--mute); text-align:right; padding:4px 6px; border-bottom:1px solid var(--rule); white-space:nowrap; }
   table.eff td { text-align:right; padding:5px 6px; border-bottom:1px solid var(--rule); font-weight:600; } table.eff td:first-child, table.eff th:first-child { text-align:left; padding-left:0; font-weight:400; color:var(--mute); }
-  table.eff .j { color:var(--teal); }
+  table.eff .j { color:var(--teal); } table.eff .y { color:#b4540a; } h3 .nt { text-transform:none; letter-spacing:0; }
   #drawer .x { position:absolute; top:12px; right:14px; border:0; background:none; font-size:24px; color:var(--mute); line-height:1; }
   #drawer .who { font-size:13px; color:var(--mute); } #drawer .who b { color:var(--ink); }
   blockquote { margin:0 0 12px; padding:0 0 0 12px; border-left:2px solid #d5d8dc; font-family:var(--serif); font-size:13.5px; line-height:1.45; }
@@ -123,11 +123,11 @@
   #changed a { color:#b9c8dc; margin-left:8px; }
 
   /* 2. the forecast */
-  .tiles { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); border-top:1px solid var(--rule); margin:18px 0 8px; }
+  .tiles { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); border-top:1px solid var(--rule); margin:18px 0 8px; }
   .tiles div { padding:12px 14px 12px 0; border-bottom:1px solid var(--rule); display:flex; flex-direction:column; gap:2px; min-width:0; }
-  .tiles div:not(:nth-child(4n+1)) { padding-left:14px; border-left:1px solid var(--rule); }
+  .tiles div:not(:nth-child(5n+1)) { padding-left:14px; border-left:1px solid var(--rule); }
   .tiles b { font-size:22px; font-weight:600; } .tiles .sub { font-size:12.5px; color:var(--mute); }
-  svg.ladder { width:100%; display:block; }
+  svg.ladder { width:100%; display:block; } svg.ladder text.rl { font-size:11px; fill:#5b6168; }
   details.assume { margin-top:14px; font-size:14px; } details.assume summary { cursor:pointer; font-weight:600; color:var(--teal); }
   dl.common { display:grid; grid-template-columns:120px minmax(0, 1fr); gap:6px 14px; margin:10px 0 4px; max-width:900px; } dl.common dt { color:var(--mute); } dl.common dd { margin:0; }
   .lg { display:flex; gap:18px; font-size:12.5px; color:var(--mute); margin:4px 0 0; flex-wrap:wrap; } .lg i { display:inline-block; width:11px; height:9px; margin-right:5px; border-radius:2px; }

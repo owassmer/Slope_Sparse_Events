@@ -35,22 +35,24 @@
     "collected": "Collected",
     "rate": "Collection rate",
     "past_due": "Past due",
-    "stayed": "Balance at filing",
+    "stayed": "Balance at filing, if filed",
     "not_yet_due": "Not yet due",
     "filing": "Filing probability by {horizon}",
-    "preference": "Preference exposure",
+    "preference": "Preference exposure, if filed",
     "outstanding": "Outstanding",
-    "filing_short": "Filing probability"
+    "filing_short": "Filing probability",
+    "frozen_due": "Due, frozen by a filing"
   },
   "notes": {
     "due": "Installments falling due by {horizon}, including the line's installments outstanding on the review date.",
     "rate": "Collected ÷ due by {horizon}.",
-    "past_due": "Due, not collected and not stayed by a filing, at {horizon}.",
-    "stayed": "Owed to Slope on the day of a bankruptcy filing; collection stops. Averaged over all outcomes; includes installments not yet due at the filing.",
+    "past_due": "Due by {horizon}, not collected and not frozen by a filing.",
+    "stayed": "Owed to Slope on the day of a bankruptcy filing, on outcomes with a filing by {horizon}; collection stops. It includes installments not yet due at the filing. Weighted over all outcomes (zero where no filing): {weighted}.",
     "not_yet_due": "Installments falling due after {horizon}, on outcomes with no filing.",
     "filing": "Share of outcomes in which {company} files, or is put into, bankruptcy by {horizon}.",
-    "preference": "Collections in the 90 days before a filing, which a trustee can seek to recover. Averaged over all outcomes.",
-    "unavailable": "Not in this run's data yet."
+    "preference": "Collections in the 90 days before a filing, which a trustee can seek to recover, on outcomes with a filing by {horizon}. Weighted over all outcomes (zero where no filing): {weighted}.",
+    "unavailable": "Not in this run's data yet.",
+    "frozen_due": "Due by {horizon} and not collected because a bankruptcy filing froze collection. Due = collected + past due + due, frozen by a filing."
   },
   "forecast": {
     "chart": "By month: funded, due and collected; outstanding at month end",
@@ -58,16 +60,20 @@
     "assumptions": "Assumptions",
     "assumptions_note": "Settings every outcome shares. Section 5 switches one of them.",
     "months_hover": "{month}: funded {funded}, due {due}, collected {collected}; outstanding at month end {outstanding}",
-    "to": "to {date}"
+    "to": "to {date}",
+    "cum_chart": "Collected to date",
+    "cum_mean": "Collected to date (mean)",
+    "cum_range": "P5–P95 at month end",
+    "cum_hover": "{month}: collected to date {mean}"
   },
   "resolve": {
     "verdict": "The verdict",
     "before": "Before the verdict",
     "p": "Probability",
     "judgment": "Judgment",
-    "collected": "Collected",
-    "filing": "Filing probability by {horizon}",
-    "follows": "Most likely next",
+    "collected": "Collected, given this outcome",
+    "filing": "Filing probability by {horizon}, given this outcome",
+    "follows": "Most likely next (share of this outcome)",
     "attribution": "What the lawsuit adds",
     "attribution_note": "One forecast, read twice: with the lawsuit's cash effects, and with the lawsuit given no cash effect (the company's ordinary operating risk).",
     "without": "Lawsuit given no cash effect",
@@ -80,7 +86,8 @@
     "not_filed": "Not filed by {horizon}",
     "none": "none",
     "nothing": "No further event in the period",
-    "other": "Other paths"
+    "other": "Other paths",
+    "of_outcome": "{p} of this outcome"
   },
   "dates": {
     "ruling_window": "Post-trial ruling window",
@@ -104,7 +111,7 @@
     "drag": "Drag to override Jev's answer; every figure on the page follows.",
     "reset": "Reset",
     "jev_said": "Jev: {p}",
-    "why": "Chosen because settling it moves expected collections most: the swing between 0% and 100% times Jev's own uncertainty.",
+    "why": "Why this judgment: its answer moves expected collections most for how uncertain Jev is about it (the swing between 0% and 100%, weighted by Jev's uncertainty).",
     "paths": "Paths",
     "paths_note": "The paths' first three events, sized by probability. Red: share of the path that ends in a filing by {horizon}.",
     "tornado": "Collections by judgment",
@@ -113,13 +120,15 @@
     "none": "None",
     "amount_unknown": "amount not stated",
     "of": "0% and 100% of the answer: {branch}",
-    "first": "the form's first question"
+    "first": "the form's first question",
+    "yours": "Your value {p}",
+    "paths_filing": "Filing probability by {horizon} on this branch"
   },
   "assumption": {
     "pick": "Assumption",
     "central": "Central",
     "shown": "Compared below: the assumption with the largest combined move in filing probability and collection rate, in points.",
-    "basis": "Basis",
+    "basis": "Note",
     "switched": "This page uses: {label}.",
     "back": "Back to central",
     "col_central": "Central",
@@ -177,8 +186,8 @@
     "verdict_measure": {
       "short": "Jury: damages measure",
       "branches": {
-        "yes": "principal measure",
-        "no": "another measure"
+        "yes": "{claimant}'s measure",
+        "no": "a lower measure"
       }
     },
     "judgment_response": {
@@ -318,8 +327,9 @@
     "reduced_security_offered": "Security offered"
   },
   "status": {
-    "requested": "claimed",
+    "requested": "asserted at trial",
     "awarded": "awarded",
-    "pending": "pending"
+    "pending": "pending",
+    "defense": "{company}'s position"
   }
 }
