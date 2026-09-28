@@ -1,37 +1,36 @@
-// The one-screen analysis page. Path probabilities, tiles, outcomes and each question's 0% / Jev / 100% bar are
-// recomputed here from the payload's edges and per-path means; the daily series come from the server's reweight.
-(() => {
+// The analysis page: a guided explanation that becomes an explorer. Every number is recomputed here from the
+// payload (path probabilities from the edges, expectations from per-path means); the daily series come from the
+// server's /reweight. Every word about the case, the law or the loan comes from /static/words.json.
+(async () => {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  let D = JSON.parse($("page-data").textContent);
-  const API = document.querySelector(".app").dataset.api;
-  const S = { view: "lit", mtab: "exposure", rtab: "probs", tile: null, overrides: {}, sel: {},
-              omode: "weighted", detail: null, event: D.event, bank: D.bank, settings: {}, lat: [],
-              reveal: false, outcome: null };
+  const D = JSON.parse($("page-data").textContent);
+  const API = document.body.dataset.api;
+  const W = await (await fetch("/static/words.json")).json();
+  const S = { overrides: {}, sel: {}, event: D.event, bank: D.bank, variant: "paths", open: null, reveal: false, outcome: null, lat: [] };
   window.__page = S;
-  const CLS_COL = ["#b91c1c", "#dc2626", "#f87171", "#15803d", "#22c55e", "#2563eb", "#9ca3af", "#a16207"];
-  const NEUTRAL = D.meta.judgments === "neutral";
 
-  // --- formatting ---------------------------------------------------------------------------------------------
+  // --- formatting -----------------------------------------------------------------------------------------------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const money = (c, dp) => {
+  const fill = (t, o = {}) => String(t).replace(/\{(\w+)\}/g, (m, k) => (k in o ? o[k] : m));
+  // money: $339k, $1.2M; whole units unless a value is under 10 of its unit
+  const money = (c) => {
     const v = c / 100, a = Math.abs(v), s = v < 0 ? "−" : "";
-    if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(dp ?? 2)}M`;
-    if (a >= 1e3) return `${s}$${(a / 1e3).toFixed(dp ?? 0)}k`;
-    return `${s}$${a.toFixed(0)}`;
+    if (a >= 1e6) { const m = a / 1e6; return `${s}$${m < 10 ? m.toFixed(1) : m >= 100 ? Math.round(m) : m.toFixed(1)}M`; }
+    if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}k`;
+    return `${s}$${Math.round(a)}`;
   };
+  const freq = (p) => `${Math.round(100 * p)} in 100`;
+  const n100 = (p) => Math.round(100 * p);
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const pct = (p, dp = 1) => `${(100 * p).toFixed(dp)}%`;
-  const pts = (x) => `${(100 * x).toFixed(1)} pts`;
-  const ACT = "#047857";  // the actual-outcome reveal's colour
-  const fdate = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  const fdateY = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const fdate = (iso) => `${+iso.slice(8, 10)} ${MON[+iso.slice(5, 7) - 1]}`;
+  const HOR = fdate(D.meta.horizon);
+  const WH = { horizon: HOR };
 
-  // --- probability arithmetic ---------------------------------------------------------------------------------
+  // --- probability arithmetic (as the one-screen page computed it) ----------------------------------------------
   const N = D.nodes.length, P = D.paths.edges.length;
   const jevDist = (i) => D.nodes[i].jev;
   const dist = (i, ov = S.overrides) => ov[D.nodes[i].key] || jevDist(i);
-  const neutralDist = (i) => D.nodes[i].branches.map(() => 1 / D.nodes[i].branches.length);
   function pathProbs(get) {
     const node = []; for (let i = 0; i < N; i++) node.push(get(i));
     const comp = D.composites.map((conj) => {
@@ -48,452 +47,186 @@
     return out;
   }
   const expect = (probs, key) => { const x = D.paths.scalars[key]; let s = 0; for (let i = 0; i < P; i++) s += probs[i] * x[i]; return s; };
-  // The bank view: its own paths over the bank rows (asked on bank data alone), reweighted the same way.
   const BE = D.bank.edges || [];
   const bankProbs = (get) => BE.map((e) => { let p = 1; for (let j = 0; j < e.length; j += 2) p *= get(e[j])[e[j + 1]]; return p; });
   const bexpect = (bp, key) => {
     const x = (D.bank.path_scalars || {})[key]; if (!x) return D.bank.scalars[key];
     let s = 0; for (let i = 0; i < bp.length; i++) s += bp[i] * x[i]; return s;
   };
-  // A slider sets the selected branch; the other branches keep their proportions in `base`, the distribution when
-  // the drag started (uniform if they were all zero), so the result depends only on where the slider ends up.
+  // A slider sets the selected branch; the other branches keep their proportions in `base`.
   function withBranch(i, b, x, base = dist(i)) {
     const rest = base.reduce((s, v, k) => s + (k === b ? 0 : v), 0), n = base.length;
     return base.map((v, k) => (k === b ? x : rest > 0 ? (1 - x) * v / rest : (1 - x) / (n - 1)));
   }
-
-  // --- tiles: the lender bridge, funded -> payments due -> collected -----------------------------------------------
-  const END = fdate(D.meta.horizon);
-  // good: +1 if more helps the lender, -1 if more hurts it, 0 for volume (coloured neither way)
-  const TILES = [
-    { key: "funded", label: "Funded", fmt: money, good: 0, tab: "collections", hl: ["drawn"] },
-    { key: "due", label: `Payments due by ${END}`, fmt: money, good: 0, tab: "collections", hl: ["due"] },
-    { key: "collected", label: "Collected", fmt: money, good: +1, tab: "collections", hl: ["collected"] },
-    { key: "unpaid", label: "Due and unpaid", fmt: money, good: -1, tab: "collections", hl: ["past_due", "frozen_due"] },
-    { key: "petition_p", label: `Chance of a filing by ${END}`, fmt: (p) => pct(p), good: -1, tab: "exposure", hl: ["petition"] },
-    { key: "clawback", label: "Clawback exposure (gross, before new value)", fmt: money, good: -1, tab: "collections", hl: ["clawback"],
-      tip: "Collections in the 90 days before a filing" },
-  ];
-  let probs = pathProbs((i) => dist(i));
-  let steps = null;  // [bank, + research at even odds, + Jev] per scalar key
-  function attribution() {
-    const neu = pathProbs(neutralDist), bp = bankProbs((i) => dist(i));
-    steps = {};
-    for (const k of Object.keys(D.paths.scalars)) steps[k] = [bexpect(bp, k), expect(neu, k), expect(probs, k)];
-  }
-  // What research adds, signed and coloured by whether it helps (green) or hurts (red) the lender.
-  function adds(d, good, fmt) {
-    const cls = Math.abs(d) < 1e-9 || !good ? "" : (d > 0) === (good > 0) ? "down" : "up";
-    return `<span class="d ${cls}">${d >= 0 ? "+" : "−"}${fmt(Math.abs(d))}</span>`;
-  }
-  const dollars = (c) => `$${Math.round(Math.abs(c) / 100).toLocaleString("en-US")}`;
-  // The change in collections in its two parts: payments due (Slope funds more or less, so more or fewer
-  // installments fall due) and due and unpaid. In whole dollars, the second part taken as the rest, so the line adds up.
-  function bridgeLine() {
-    const [cb, , ce] = steps.collected, [db, , de] = steps.due;
-    const dC = Math.round(ce / 100) - Math.round(cb / 100), dDue = Math.round(de / 100) - Math.round(db / 100), dUn = dC - dDue;
-    const amt = (v, id) => `<span id="${id}" class="d ${Math.abs(v) < 0.5 ? "" : v > 0 ? "down" : "up"}" data-dollars="${v}">${v >= 0 ? "+" : "−"}${dollars(100 * v)}</span>`;
-    $("bridge").innerHTML = `Research adds ${amt(dC, "br-collected")} to collections: `
-      + `${amt(dDue, "br-due")} from ${dDue <= 0 ? "fewer installments due, because Slope funds less" : "more installments due, because Slope funds more"}, and `
-      + `${amt(dUn, "br-unpaid")} from ${dUn <= 0 ? "more due but unpaid" : "less due but unpaid"}.`;
-  }
-  function renderTiles() {
-    attribution();
-    $("tiles").innerHTML = TILES.map((t) => {
-      const [b, , e] = steps[t.key], main = S.view === "bank" ? b : e;
-      return `<div class="tile${S.tile === t.key ? " sel" : ""}" data-k="${t.key}"><div class="l">${t.label}</div>
-        <div class="v">${t.fmt(main)}</div>
-        <div class="s"><span>Bank data</span><span>${t.fmt(b)}</span></div><div class="s"><span>Bank data + research</span><span>${t.fmt(e)}</span></div>
-        <div class="s"><span>Research adds</span>${adds(e - b, t.good, t.fmt)}</div></div>`;
-    }).join("");
-    bridgeLine();
-    document.querySelectorAll(".tile").forEach((el) => {
-      el.onclick = () => { const t = TILES.find((x) => x.key === el.dataset.k); S.tile = t.key; S.mtab = t.tab; renderTabs(); renderTiles(); renderMain(); };
-      el.onmousemove = (ev) => {
-        const t = TILES.find((x) => x.key === el.dataset.k), [b, r, e] = steps[t.key];
-        if (t.key === "unpaid") {  // due and unpaid = past due + frozen by a filing (installments already due)
-          const row = (k, l) => `<tr><td>${l}</td><td>${money(steps[k][0])}</td><td>${money(steps[k][2])}</td></tr>`;
-          return showTip(ev, `<table><tr><td></td><td>Bank data</td><td>+ research</td></tr>${row("past_due", "Past due")}${row("frozen_due", "Frozen by a filing")}${row("unpaid", "Due and unpaid")}</table>`);
-        }
-        showTip(ev, `${t.tip ? `<div>${t.tip}</div>` : ""}<table><tr><td>Bank data</td><td>${t.fmt(b)}</td></tr><tr><td>+ research, questions at even odds</td><td>${t.fmt(r)}</td></tr>
-          <tr><td>+ Jev's answers${NEUTRAL ? " (none yet)" : ""}</td><td>${t.fmt(e)}</td></tr></table>`);
-      };
-      el.onmouseleave = hideTip;
-    });
-  }
-  function showTip(ev, html) {
-    const tip = $("tip"); tip.innerHTML = html; tip.style.display = "block";
-    const w = tip.offsetWidth, h = tip.offsetHeight;
-    tip.style.left = `${Math.min(ev.clientX + 14, innerWidth - w - 8)}px`;
-    tip.style.top = `${Math.min(ev.clientY + 14, innerHeight - h - 8)}px`;
-  }
-  const hideTip = () => { $("tip").style.display = "none"; };
-
-  // --- charts -----------------------------------------------------------------------------------------------------
-  const days = D.dates.length, ix = (iso) => D.dates.indexOf(iso);
-  function niceMax(v) { if (v <= 0) return 1; const e = 10 ** Math.floor(Math.log10(v)), m = v / e; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * e; }
-  const HALO = ' stroke="#fff" stroke-width="3" paint-order="stroke"';
-  // Axis money: whole thousands ($500k), millions to one decimal only when needed ($1.5M, $2M).
-  const axisMoney = (c) => { const v = c / 100, a = Math.abs(v), s = v < 0 ? "−" : "";
-    if (a >= 1e6) return `${s}$${+(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}k`; return `${s}$${Math.round(a)}`; };
-  function chart(host, o) {
-    // the chart fills what is left of the pane below its legend (and the Exposure tab's figures)
-    const svg = host.querySelector("svg"), W = Math.max(host.clientWidth, 300), H = Math.max(host.clientHeight - (svg.getBoundingClientRect().top - host.getBoundingClientRect().top) - 10, 160);
-    svg.style.height = `${H}px`;
-    const m = { l: 62, r: o.right ? 46 : 12, t: 10, b: 22 }, w = W - m.l - m.r, h = H - m.t - m.b;
-    const all = [...o.series.filter((s) => !s.right).flatMap((s) => s.y), ...(o.bands || []).flatMap((b) => [...b.lo, ...b.hi])];
-    let lo = Math.min(0, ...all), hi = niceMax(Math.max(...all, 1));
-    if (lo < 0) lo = -niceMax(-lo);
-    const X = (t) => m.l + (w * t) / (days - 1), Y = (v) => m.t + h - (h * (v - lo)) / (hi - lo), Y2 = (p) => m.t + h - h * p;
-    const path = (ys, f) => ys.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${f(v).toFixed(1)}`).join("");
-    let g = "", labels = "";  // labels are drawn after every line, on a white halo
-    for (let k = 0; k <= 4; k++) {
-      const v = lo + ((hi - lo) * k) / 4;
-      g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="#f1f5f9"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${axisMoney(v)}</text>`;
-    }
-    // The probability axis has its own ticks (20% steps, never on the money gridlines) and no gridlines of its own.
-    if (o.right) for (let p = 0; p <= 1.001; p += 0.2) g += `<line x1="${m.l + w}" x2="${m.l + w + 4}" y1="${Y2(p)}" y2="${Y2(p)}" stroke="#b91c1c"/><text x="${m.l + w + 7}" y="${Y2(p) + 4}" fill="#b91c1c">${Math.round(100 * p)}%</text>`;
-    let yearShown = null;  // the year once, on the first month label (and again only if the year changes)
-    D.dates.forEach((d, t) => {
-      if (!d.endsWith("-01")) return;
-      const yr = d.slice(0, 4), lab = MON[+d.slice(5, 7) - 1] + (yr !== yearShown ? ` ${yr}` : "");
-      yearShown = yr;
-      g += `<text x="${X(t)}" y="${H - 6}" text-anchor="middle">${lab}</text><line x1="${X(t)}" x2="${X(t)}" y1="${m.t + h}" y2="${m.t + h + 4}" stroke="#d1d5db"/>`;
-    });
-    for (const b of o.windows || []) {
-      const a = Math.max(0, ix(b.from) < 0 ? 0 : ix(b.from)), z = ix(b.to) < 0 ? days - 1 : ix(b.to);
-      // the band's label sits at its foot, clear of the pin labels along the top
-      g += `<rect x="${X(a)}" y="${m.t}" width="${Math.max(X(z) - X(a), 1)}" height="${h}" fill="#fef3c7" opacity=".55"/>`;
-      labels += `<text x="${X(a) + 4}" y="${m.t + h - 6}" fill="#92400e"${HALO}>${esc(b.label)}</text>`;
-    }
-    for (const b of o.bands || []) g += `<path d="${path(b.hi, Y)}L${[...b.lo].reverse().map((v, k) => `${X(days - 1 - k).toFixed(1)},${Y(v).toFixed(1)}`).join("L")}Z" fill="${b.color}" opacity=".18"/>`;
-    for (const s of o.series) g += `<path d="${path(s.y, s.right ? Y2 : Y)}" fill="none" stroke="${s.color}" stroke-width="${s.width || 1.8}"${s.dash ? ' stroke-dasharray="5 4"' : ""}/>`;
-    for (const s of o.series.filter((x) => x.right && x.tag)) {  // the probability line labelled at its end
-      const v = s.y[days - 1];
-      const y = s.below === false ? Math.max(Y2(v) - 6, m.t + 10) : Math.min(Y2(v) + 16, m.t + h - 22);
-      labels += `<text x="${m.l + w - 10}" y="${y}" text-anchor="end" fill="${s.color}" font-weight="600"${HALO}>${esc(s.tag(v))}</text>`;
-    }
-    for (const p of o.pins || []) {
-      const t = ix(p.date); if (t < 0) continue;
-      // a label runs right of its pin unless it would cross the plot's right edge; each pin keeps its own row
-      const flip = X(t) + 3 + 6.2 * p.label.length > m.l + w;
-      g += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + h}" stroke="${p.color || "var(--pin)"}" stroke-dasharray="3 3"/>`;
-      if (p.label) labels += `<text x="${flip ? X(t) - 4 : X(t) + 4}" y="${m.t + 12 + 13 * (p.row || 0)}" fill="${p.color || "#92400e"}"${flip ? ' text-anchor="end"' : ""}${HALO}>${esc(p.label)}</text>`;
-    }
-    g += labels;
-    g += `<line id="hx" x1="0" x2="0" y1="${m.t}" y2="${m.t + h}" stroke="#9ca3af" visibility="hidden"/><rect x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent" id="hov"/>`;
-    host.querySelector("svg").setAttribute("viewBox", `0 0 ${W} ${H}`);
-    host.querySelector("svg").innerHTML = g;
-    const hov = host.querySelector("#hov"), hx = host.querySelector("#hx");
-    hov.onmousemove = (ev) => {
-      const r = hov.getBoundingClientRect(), t = Math.round(((ev.clientX - r.left) / r.width) * (days - 1));
-      hx.setAttribute("x1", X(t)); hx.setAttribute("x2", X(t)); hx.setAttribute("visibility", "visible");
-      showTip(ev, `<b>${fdateY(D.dates[t])}</b><table>${o.hover(t).map(([k, ...v]) => `<tr><td>${k}</td>${v.map((x) => `<td>${x}</td>`).join("")}</tr>`).join("")}</table>`);
-    };
-    hov.onmouseleave = () => { hx.setAttribute("visibility", "hidden"); hideTip(); };
-  }
-  const cur = () => (S.view === "bank" ? S.bank : S.event);
-  const legend = (items) => `<div class="legend">${items.map(([label, c, k]) => `<span><i class="${k || ""}" style="--c:${c}"></i>${label}</span>`).join("")}</div>`;
-  // Exposure: both views on one chart (outstanding and frozen by a filing on the left axis, the cumulative chance of
-  // a filing on the right; dashed = bank data), with peak outstanding and capital tied up above it.
-  function exposure(host) {
-    const B = S.bank.daily, R = S.event.daily, hl = (TILES.find((t) => t.key === S.tile) || { hl: [] }).hl;
-    const pins = [];
-    if (D.pins.briefing_close) pins.push({ date: D.pins.briefing_close, label: "Briefing closes", row: 0 });
-    if (D.pins.nasdaq) pins.push({ date: D.pins.nasdaq, label: "Nasdaq deadline", row: 1 });
-    if (D.pins.coupon) pins.push({ date: D.pins.coupon, label: "Notes coupon", row: 2 });
-    const actual = revealed();  // the dated events that happened, pinned only while the reveal is on
-    let k = 0;  // key events carry a label (rows 3-6); the others are a line, with their text on hover
-    for (const [d, evs] of actual) {
-      const named = evs.filter((e) => e.label).map((e) => e.short);
-      pins.push({ date: d, label: named.length ? `${fdate(d)} ${named.join(", ")}` : "", row: 3 + (k % 4), color: ACT });
-      if (named.length) k++;
-    }
-    const windows = D.pins.ruling_window ? [{ from: D.pins.ruling_window[0], to: D.pins.ruling_window[1], label: "Ruling window" }] : [];
-    const pw = hl.includes("petition") ? 3 : 1.6;
-    const bankEnd = B.petition_cum_p[days - 1], resEnd = R.petition_cum_p[days - 1];
-    const series = [{ y: B.limit_mean, color: "#94a3b8", dash: true, width: 1.2 },
-                    { y: B.outstanding_mean, color: "var(--bank)", width: 2 },
-                    { y: R.outstanding_mean, color: "var(--lit)", width: 2 },
-                    { y: B.frozen_mean, color: "#ea580c", dash: true, width: 1.3 },
-                    { y: R.frozen_mean, color: "#ea580c", width: 1.5 },
-                    { y: B.petition_cum_p, color: "#b91c1c", right: true, dash: true, width: pw,
-                      tag: (p) => `Bank data ${pct(p)}`, below: bankEnd <= resEnd },
-                    { y: R.petition_cum_p, color: "#b91c1c", right: true, width: pw,
-                      tag: (p) => `Bank data + research ${pct(p)}`, below: resEnd < bankEnd }];
-    const fig = (key, label) => { const [b, , e] = steps[key];
-      return `<div class="xrow"><span>${label}</span><span>Bank data <b>${money(b)}</b></span><span>Bank data + research <b>${money(e)}</b></span><span>Research adds ${adds(e - b, 0, money)}</span></div>`; };
-    host.innerHTML = `<div class="xstats">${fig("peak_outstanding", "Peak outstanding")}${fig("avg_outstanding", "Capital tied up (average outstanding)")}</div>`
-      + legend([["Outstanding, bank data", "var(--bank)"], ["Outstanding, bank data + research", "var(--lit)"], ["Frozen by a filing", "#ea580c"],
-        ["Chance of a filing by date (right axis)", "#b91c1c"], ["Limit", "#94a3b8", "dash"], ["dashed: bank data", "#6b7280", "dash"],
-        ...(actual.length ? [["What actually happened", ACT, "dash"]] : [])]) + `<svg class="chart"></svg>`;
-    const onDay = new Map(actual);
-    chart(host, { series, pins, windows, right: true, hover: (t) => [["", "Bank data", "+ research"],
-      ["Outstanding", money(B.outstanding_mean[t]), money(R.outstanding_mean[t])],
-      ["Frozen by a filing", money(B.frozen_mean[t]), money(R.frozen_mean[t])],
-      ["Chance of a filing", pct(B.petition_cum_p[t]), pct(R.petition_cum_p[t])], ["Limit", money(B.limit_mean[t])],
-      ...(onDay.get(D.dates[t]) || []).map((e) => ["Actual", esc(e.description)])] });
-  }
-  function cash(host) {
-    const v = cur().daily, col = S.view === "bank" ? "#64748b" : "#7c3aed";
-    host.innerHTML = legend([["Available cash P5–P95", col, "band"], ["Median", col], ["30-day operating need", "#111827", "dash"]]) + `<svg class="chart"></svg>`;
-    chart(host, { bands: [{ lo: v.cash_p5, hi: v.cash_p95, color: col }],
-      series: [{ y: v.cash_p50, color: col }, { y: D.need_mean, color: "#111827", dash: true, width: 1.3 }],
-      hover: (t) => [["P95", money(v.cash_p95[t])], ["Median", money(v.cash_p50[t])], ["P5", money(v.cash_p5[t])], ["30-day need", money(D.need_mean[t])]] });
-  }
-  const COLS = [["drawn", "Drawn"], ["due", "Due"], ["collected", "Collected"], ["past_due", "Past due"], ["frozen_due", "Frozen, due"], ["frozen_not_due", "Frozen, not yet due"],
-                ["clawback", "Clawback exposure"], ["above_need_p5", "Cash above 30-day need after the amount due, P5"]];
-  function collections(host) {
-    const rows = cur().monthly, hl = (TILES.find((t) => t.key === S.tile) || { hl: [] }).hl;
-    const mname = (m) => `${MON[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
-    host.innerHTML = `<table class="t"><tr><th>Month</th>${COLS.map(([k, l]) => `<th class="${hl.includes(k) ? "hl" : ""}">${l}</th>`).join("")}</tr>
-      ${rows.map((r) => `<tr><td>${mname(r.month)}</td>${COLS.map(([k]) => `<td class="${hl.includes(k) ? "hl" : ""}">${r[k] === null ? "–" : money(r[k])}</td>`).join("")}</tr>`).join("")}</table>
-      <p><button id="csv">Export CSV</button></p>`;
-    $("csv").onclick = () => {
-      const lines = [["month", ...COLS.map(([k]) => `${k}_cents`)].join(","), ...rows.map((r) => [r.month, ...COLS.map(([k]) => r[k] ?? "")].join(","))];
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
-      a.download = `collections_${S.view === "bank" ? "bank_data" : "bank_data_plus_research"}.csv`; a.click();
-    };
-  }
-  function renderMain() {
-    const host = $("mview");
-    ({ exposure, cash, collections })[S.mtab](host);
-  }
-  function renderTabs() {
-    document.querySelectorAll("#mtabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === S.mtab));
-    document.querySelectorAll("#rtabs button[data-t]").forEach((b) => b.classList.toggle("on", b.dataset.t === S.rtab));
-    document.querySelectorAll("#viewsw button").forEach((b) => b.classList.toggle("on", b.dataset.v === S.view));
-  }
-
-  // --- outcomes ---------------------------------------------------------------------------------------------------
-  // Each path carries its share of draws in each class ([class, share] pairs): a path's draws whose petition falls
-  // inside the horizon are Filed, the rest keep the path's other outcome. So the Filed shares sum to the tile.
-  function classProbs() { const c = new Float64Array(D.classes.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
-  function topSequences(n = 3) {
-    const m = new Map();
-    for (let i = 0; i < P; i++) { const w = probs[i]; if (w > 0) m.set(D.paths.seq[i], (m.get(D.paths.seq[i]) || 0) + w); }
-    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
-  }
-  // --- the actual outcome (a recorded run whose case has an outcome file; off until the button is pressed) ------
-  function revealed() {  // [date, events] inside the chart's period, in date order
-    if (!S.reveal || !S.outcome) return [];
-    const by = new Map();
-    for (const e of S.outcome.events) if (ix(e.date) >= 0) by.set(e.date, [...(by.get(e.date) || []), e]);
-    return [...by.entries()].sort();
-  }
-  function actualHtml() {
-    if (!S.reveal || !S.outcome) return "";
-    const a = S.outcome.petition, t = ix(a.date), cum = S.event.daily.petition_cum_p;
-    const by = t >= 0 ? ` The model gave ${pct(cum[t])} to a filing by then (${pct(cum[days - 1])} by ${fdateY(D.meta.horizon)}).` : "";
-    return `<div class="actual"><b>Actual: ${esc(a.label)}, petition ${fdateY(a.date)}.</b>${by}</div>
-      <div class="actual">${esc(a.cause)}</div>`;
-  }
-  $("actual") && ($("actual").onclick = async () => {
-    if (!S.outcome) S.outcome = await (await fetch(`${API}/outcome`)).json();
-    S.reveal = !S.reveal;
-    $("actual").textContent = S.reveal ? "Hide actual outcome" : "Show actual outcome";
-    $("actual").classList.toggle("on", S.reveal);
-    renderOutcomes(); renderMain();
-  });
-
-  function renderOutcomes() {
-    const cp = classProbs(), el = $("outcomes");
-    const act = S.reveal && S.outcome ? D.classes.indexOf(S.outcome.petition.label) : -1;
-    let html = `<div class="ohead"><b>Outcomes by ${fdateY(D.meta.horizon)}</b><div class="seg" id="osw"><button data-m="weighted" class="${S.omode === "weighted" ? "on" : ""}">Weighted</button><button data-m="worst" class="${S.omode === "worst" ? "on" : ""}">Worst paths</button></div></div>`;
-    if (S.omode === "weighted") {
-      html += `<div class="sbar">${[...cp].map((p, c) => p > 0 ? `<div class="${act === c ? "act" : ""}" style="width:${100 * p}%;background:${CLS_COL[c]}" title="${esc(D.classes[c])} ${pct(p)}"></div>` : "").join("")}</div>${actualHtml()}
-        <div class="skeys">${[...cp].map((p, c) => p > 0 ? `<span${act === c ? ` style="color:${ACT};font-weight:600"` : ""}><i style="background:${CLS_COL[c]}"></i>${esc(D.classes[c])} ${pct(p)}${act === c ? " ← actual" : ""}</span>` : "").join("")}</div>
-        <div class="seqs">${topSequences().map(([s, p]) => `<div><b>${pct(p)}</b>${esc(D.sequences[s])}</div>`).join("")}</div>`;
-    } else {
-      html += `<table class="t"><tr><th>Path</th><th>Unrecovered</th><th>Frozen if a filing lands at peak outstanding</th><th>Peak day</th></tr>
-        ${D.worst.slice(0, 12).map((w) => `<tr><td>${esc(w.sequence)}</td><td>${money(w.unrecovered)}</td><td>${money(w.frozen_at_peak)}</td><td>${fdate(w.peak_day)}</td></tr>`).join("")}</table>`;
-    }
-    el.innerHTML = html;
-    el.querySelectorAll("#osw button").forEach((b) => (b.onclick = () => { S.omode = b.dataset.m; renderOutcomes(); }));
-  }
-
-  // --- server reweight of the daily series ----------------------------------------------------------------------
-  let ctrl = null;
-  async function refreshCharts(t0) {
-    if (ctrl) ctrl.abort();
-    ctrl = new AbortController();
-    try {
-      const r = await fetch(`${API}/reweight`, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal,
-        body: JSON.stringify({ overrides: S.overrides }) });
-      const v = await r.json();
-      if (v) { S.event = v; if (v.bank) S.bank = { ...D.bank, ...v.bank }; }
-      renderMain();
-      if (t0) S.lat.push(performance.now() - t0);
-    } catch (e) { if (e.name !== "AbortError") console.error(e); }
-  }
-
-  // --- probabilities --------------------------------------------------------------------------------------------
-  const DECIDERS = ["Bank data", "Court", "Qorvo", "Akoustis", "Noteholders and Nasdaq"];
-  const GROUP = { "Bank data": "Bank data: asked on bank data alone" };
+  const isBank = (i) => D.nodes[i].view === "bank";
   const selB = (i) => S.sel[D.nodes[i].key] ?? 0;
-  let sens = [];
-  const dragBase = {};  // node index -> its distribution when the current drag started (cleared on change)
-  function computeSens() {
-    const at = expect(probs, "collected"), bat = bexpect(bankProbs((k) => dist(k)), "collected");
-    sens = D.nodes.map((n, i) => {  // a bank row moves the bank view's Collected, a research row the research view's
-      const b = selB(i), get = (x) => (k) => (k === i ? withBranch(i, b, x) : dist(k));
-      const var_ = n.view === "bank" ? (x) => bexpect(bankProbs(get(x)), "collected") : (x) => expect(pathProbs(get(x)), "collected");
-      const lo = var_(0), hi = var_(1);
-      return { lo, hi, at: n.view === "bank" ? bat : at, range: Math.abs(hi - lo) };
-    });
-  }
-  // The effect row: Collected is linear in the question's probability, so a track from its value at 0% (left) to
-  // its value at 100% (right, arrowhead) carries the current value at the current probability. Green if 'yes' raises
-  // it, red if it lowers it. Values to $0.1k when the move is small, so the numbers agree with the stated change.
-  function effRow(s, p, yesName) {
-    const dv = s.hi - s.lo, fine = Math.abs(dv) < 2e6, fm = (v) => money(v, fine && Math.abs(v) >= 1e5 && Math.abs(v) < 1e8 ? 1 : undefined);
-    const flat = Math.abs(dv) < 100, col = flat ? "#9ca3af" : dv < 0 ? "var(--warn)" : "var(--ok)";
-    const say = flat ? "No effect on Collected" : `${esc(yesName)} ${dv > 0 ? "raises" : "lowers"} Collected by ${fm(Math.abs(dv))}`;
-    // same columns as the slider row, so the marker sits under the slider's thumb and each end value at its end
-    return `<div class="effw" style="--c:${col}"><div class="effg"><span class="v0">0%: <b>${fm(s.lo)}</b></span>
-      <div class="eff"><div class="trk"></div><div class="ah"></div><div class="mk j" style="left:calc(8px + ${p} * (100% - 16px))"></div></div>
-      <span class="v1">100%: <b>${fm(s.hi)}</b></span></div>
-      <div class="dir">Now <b>${fm(s.at)}</b> · ${say}</div></div>`;
-  }
-  function rowHtml(i, scale) {
-    const n = D.nodes[i], b = selB(i), d = dist(i), ch = n.key in S.overrides, s = sens[i];
-    const pos = (v) => `${(100 * (v - scale[0])) / (scale[1] - scale[0] || 1)}%`;
-    const yesName = n.branches.length > 2 ? `More “${n.branches[b].replace(/_/g, " ")}”` : "Yes";
-    const sel = n.branches.length > 2 ? `<select data-i="${i}">${n.branches.map((x, k) => `<option value="${k}"${k === b ? " selected" : ""}>${esc(x.replace(/_/g, " "))}</option>`).join("")}</select>` : `<span class="ctx">yes</span>`;
-    return `<div class="row${ch ? " changed" : ""}" data-i="${i}"><div class="q" data-i="${i}" title="${esc(n.question)}">${esc(n.label || n.question)}${ch ? '<span class="dot"></span>' : ""}</div>
-      ${n.sub ? `<div class="ctx">${esc(n.sub)}</div>` : ""}
-      <div class="ctl">${sel}<input type="range" min="0" max="1000" value="${Math.round(1000 * d[b])}" data-i="${i}"><span class="p" id="p${i}">${pct(d[b], 0)}</span>${ch ? `<button class="rs" data-i="${i}">Reset</button>` : "<span></span>"}</div>
-      ${effRow(s, d[b], yesName)}</div>`;
-  }
-  function renderProbs() {
-    if (S.detail !== null) return renderDetail();
-    const lo = Math.min(...sens.map((s) => Math.min(s.lo, s.hi))), hi = Math.max(...sens.map((s) => Math.max(s.lo, s.hi)));
-    const label = NEUTRAL ? D.meta.judgments_note : D.meta.probability_label || "";  // says 'Model judgment' once
-    let html = `<div class="ohead"><span class="ctx">${esc(label)}</span><div class="sp" style="flex:1"></div>${Object.keys(S.overrides).length ? '<button id="rsall">Reset all</button>' : ""}</div>`;
-    for (const g of DECIDERS) {
-      const rows = D.nodes.map((n, i) => i).filter((i) => D.nodes[i].decider === g).sort((a, b) => sens[b].range - sens[a].range);
-      if (rows.length) html += `<div class="ghead">${esc(GROUP[g] || g)}</div>` + rows.map((i) => rowHtml(i, [lo, hi])).join("");
-    }
-    const panel = $("rpanel"), top = panel.scrollTop;
-    panel.innerHTML = html;
-    panel.scrollTop = top;
-    panel.querySelectorAll("input[type=range]").forEach((r) => {
-      const start = () => { const i = +r.dataset.i; if (!(i in dragBase)) dragBase[i] = dist(i).slice(); };
-      r.onpointerdown = start;
-      r.oninput = () => {
-        start();
-        const t0 = performance.now(), i = +r.dataset.i, b = selB(i);
-        S.overrides[D.nodes[i].key] = withBranch(i, b, r.value / 1000, dragBase[i]);
-        probs = pathProbs((k) => dist(k));
-        $(`p${i}`).textContent = pct(r.value / 1000, 0);
-        const row = r.closest(".row"), x = r.value / 1000;  // the effect row follows the slider (linear in x)
-        row.querySelector(".mk.j").style.left = `calc(8px + ${x} * (100% - 16px))`;
-        renderTiles(); renderOutcomes(); refreshCharts(t0);
-      };
-      r.onchange = () => { delete dragBase[+r.dataset.i]; computeSens(); renderProbs(); };
-    });
-    panel.querySelectorAll("select").forEach((s) => (s.onchange = () => { S.sel[D.nodes[+s.dataset.i].key] = +s.value; computeSens(); renderProbs(); }));
-    panel.querySelectorAll(".rs").forEach((b) => (b.onclick = () => { delete S.overrides[D.nodes[+b.dataset.i].key]; recompute(); }));
-    panel.querySelectorAll(".q").forEach((q) => (q.onclick = () => { S.detail = +q.dataset.i; renderProbs(); }));
-    if ($("rsall")) $("rsall").onclick = () => { S.overrides = {}; recompute(); };
-    atEnd();
-  }
-  function recompute() { probs = pathProbs((k) => dist(k)); computeSens(); renderTiles(); renderOutcomes(); renderRight(); refreshCharts(); }
 
-  // Jev's readings of the record (evidence for the forecast, not its probability): each reading's likeliest levels,
-  // with the passage it was taken from (its source, date and link).
-  function readings(r) {
-    const items = Array.isArray(r) ? r.map((x, k) => [String(k + 1), x]) : Object.entries(r || {});
-    if (!items.length) return "";
-    return `<div class="ctx">Readings of the record</div><ul class="ctx">${items.map(([name, v]) => {
-      const o = v && typeof v === "object" ? v : {}, dd = o.distribution || {};
-      const top = Object.entries(dd).sort((x, y) => y[1] - x[1]).slice(0, 2).filter(([, p]) => p > 0);
-      const src = o.source || (o.passage_dated ? "passage" : "");
-      const from = src ? ` (${o.link ? `<a href="${esc(o.link)}" target="_blank" rel="noopener">${esc(src)}</a>` : esc(src)}${o.passage_dated ? `, ${fdateY(o.passage_dated)}` : ""})` : "";
-      const what = top.map(([k, p]) => `${esc(k)} ${pct(p, 0)}`).join("; ") || esc(o.fact || (typeof v === "string" ? v : ""))
-        || (o.probability_present != null ? `present ${pct(o.probability_present, 0)}` : "");
-      return `<li>${esc(name)}${from}: ${what}${o.note ? ` (${esc(o.note)})` : ""}</li>`;
-    }).join("")}</ul>`;
+  // --- the two views' figures -----------------------------------------------------------------------------------
+  let probs = null, bprobs = null;
+  const KEYS = ["funded", "due", "collected", "unpaid", "petition_p", "clawback"];
+  function figures() {
+    const r = {}, b = {};
+    for (const k of KEYS) { r[k] = expect(probs, k); b[k] = bexpect(bprobs, k); }
+    const last = (d) => d.frozen_mean[d.frozen_mean.length - 1];
+    r.stuck = last(S.event.daily); b.stuck = last(S.bank.daily);
+    r.rate = r.due ? r.collected / r.due : 0; b.rate = b.due ? b.collected / b.due : 0;
+    return { research: r, bank: b };
   }
-  function renderDetail() {
-    const i = S.detail, n = D.nodes[i], det = n.detail, d = dist(i);
-    const bname = (b) => b.replace(/_/g, " ");
-    const dl = n.branches.map((b, k) => `${esc(bname(b))} ${pct(d[k])}`).join(" · ");
-    const link = (l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.text)}</a>`;
-    const given = (det.assumptions || []).map((a) => `<li>${esc(a)}</li>`).join("");
-    const quotes = (det.quotes || []).map((q) => `<blockquote>“${esc(q.quote)}”<br><span class="ctx">${esc(q.source)}${q.date ? `, ${esc(q.date)}` : ""}${q.link ? ` · ${link({ url: q.link, text: "source" })}` : ""}</span></blockquote>`).join("");
-    const a = det.answer;  // Jev's answer in words: its distribution, confidence and readings of the record
-    const ans = a ? `<p>${n.branches.map((b) => `${esc(bname(b))} <b>${pct(a.distribution[b] ?? 0)}</b>`).join(" · ")}${a.confidence != null ? ` <span class="ctx">· confidence ${esc(typeof a.confidence === "number" ? pct(a.confidence, 0) : a.confidence)}</span>` : ""}</p>
-      ${readings(a.readings)}`
-      : `<p class="ctx">No Jev answer yet.</p>`;
-    $("rpanel").innerHTML = `<div class="detail"><button class="back" id="back">← Probabilities</button>
-      <div style="font-weight:600">${esc(n.question)}</div><div class="ctx">${esc(n.context)} · decided by ${esc(n.actor)}</div>
-      <p><b>${dl}</b>${n.key in S.overrides ? " (changed)" : ""}</p>
-      ${det.steps.map((s) => `<div class="step"><span class="tag ${s.tag}">${s.tag}</span><span>${esc(s.text)}${(s.links || []).length ? ` · ${s.links.map(link).join(" · ")}` : ""}</span></div>`).join("")}
-      ${given ? `<div class="ghead">Given</div><ul class="ctx">${given}</ul>` : ""}
-      <div class="ghead">Sources</div>${quotes || '<p class="ctx">No quoted passages for this question.</p>'}
-      <div class="ghead">Jev's answer</div>${ans}</div>`;
-    $("back").onclick = () => { S.detail = null; renderProbs(); };
-    atEnd();
+
+  // --- outcomes and the 100 dots --------------------------------------------------------------------------------
+  const OUT = W.outcomes;
+  const CLS = D.classes;
+  const COLOR = { "Filed: notes": "#8f1d1d", "Filed: short of cash": "#c2412d", "Filed: Qorvo enforcement": "#e0826b",
+    "bank_filed": "#c2412d", "Settled": "#5f8f6c", "Paid": "#8a9199", "Stayed on appeal": "#a9aeb5",
+    "Vacated or new trial": "#c3c8ce", "Unresolved": "#dde0e4", "bank_not_filed": "#dde0e4" };
+  const outLabel = (c) => fill((OUT[c] || { label: c }).label, WH);
+  const isFiled = (c) => !!(OUT[c] || {}).filed;
+  function classProbs() { const c = new Float64Array(CLS.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
+  // largest-remainder rounding of shares to 100 dots
+  function allocate(shares) {
+    const tot = shares.reduce((a, b) => a + b, 0) || 1, raw = shares.map((s) => (100 * s) / tot);
+    const n = raw.map(Math.floor); let left = 100 - n.reduce((a, b) => a + b, 0);
+    raw.map((r, k) => [r - n[k], k]).sort((a, b) => b[0] - a[0]).forEach(([, k]) => { if (left > 0) { n[k]++; left--; } });
+    return n;
   }
-  function renderTerms() {
-    const t = D.case_terms;
-    $("rpanel").innerHTML = `<div class="ghead">Judgment components</div><table class="t"><tr><th>Component</th><th>Amount</th><th>Status</th><th>Source</th></tr>
-      ${(t.components || []).map((c) => `<tr><td>${esc(c.label)}${c.remittitur ? `<div class="ctx">${esc(c.remittitur)}${c.remittitur_link ? ` · <a href="${esc(c.remittitur_link)}" target="_blank" rel="noopener">source</a>` : ""}</div>` : ""}${c.model ? `<div class="ctx">${esc(c.model)}</div>` : ""}</td><td>${esc(c.amount)}</td><td>${esc(c.status)}</td><td>${c.link ? `<a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.source)}</a>` : esc(c.source)}</td></tr>`).join("")}</table>
-      ${(t.notes || []).map((n) => `<div class="ghead">${esc(n.title)}</div><table class="t">${n.terms.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:left">${esc(v)}</td></tr>`).join("")}</table>`).join("")}
-      <div class="ghead">Deadlines</div><table class="t">${(t.deadlines || []).map((d) => `<tr><td>${fdateY(d.date)}</td><td style="text-align:left">${esc(d.what)}</td></tr>`).join("")}</table>`;
+  // dot groups in display order: filed first (largest cause first), then not filed
+  function dotGroups(names, shares) {
+    const n = allocate(shares), g = names.map((c, k) => ({ c, share: shares[k], n: n[k], k, filed: isFiled(c) }));
+    return g.sort((a, b) => (b.filed - a.filed) || (b.share - a.share));
   }
-  let polling = null;
-  function renderSettings(prog) {
-    const cur = D.settings_value || {};
-    const want = { ...cur, ...S.settings };
-    const changed = D.settings.some((s) => JSON.stringify(want[s.key] ?? s.value) !== JSON.stringify(s.value));
-    $("rpanel").innerHTML = D.settings.map((s) => {
-      const v = want[s.key] ?? s.value, dot = JSON.stringify(v) !== JSON.stringify(s.value) ? '<span class="dot"></span>' : "";
-      return `<div class="setting"><span>${esc(s.label)}${dot}</span><div class="seg">${s.options.map(([o, l]) => `<button data-k="${s.key}" data-o='${JSON.stringify(o)}' class="${JSON.stringify(o) === JSON.stringify(v) ? "on" : ""}">${esc(l)}</button>`).join("")}</div></div>`;
-    }).join("") + `<p>${changed ? '<button id="sreset">Reset</button>' : ""}</p>`
-      + (prog && prog.running ? `<div class="prog"><i style="width:${(100 * prog.done) / Math.max(prog.total, 1)}%"></i></div><div class="ctx">${esc({ tree: "Building the event tree", bins: "Event cash", simulate: "Simulating", stress: "Worst paths" }[prog.phase] || prog.phase)} ${prog.done} / ${prog.total}</div>` : "")
-      + (prog && prog.error ? `<p class="ctx">${esc(prog.error)}</p>` : "");
-    $("rpanel").querySelectorAll(".seg button").forEach((b) => (b.onclick = () => { S.settings[b.dataset.k] = JSON.parse(b.dataset.o); applySettings(); }));
-    if ($("sreset")) $("sreset").onclick = () => { S.settings = Object.fromEntries(D.settings.map((s) => [s.key, s.value])); applySettings(); };
+  const researchDots = () => dotGroups(CLS, [...classProbs()]);
+  const bankDots = () => { const p = bexpect(bprobs, "petition_p"); return dotGroups(["bank_filed", "bank_not_filed"], [p, 1 - p]); };
+
+  // --- steps of a path, in plain words ----------------------------------------------------------------------------
+  const FILING = new Set(["Akoustis files, short of cash", "Akoustis files", "Noteholders accelerate; filing"]);
+  const parseStep = (s) => { const m = /^(.*) \(([^)]*)\)$/.exec(s); return m ? { base: m[1], when: m[2] } : { base: s, when: "" }; };
+  function phrase(base) {
+    if (base in W.steps) return W.steps[base];
+    if (base.startsWith("Ruling leaves ")) return fill(W.steps["Ruling leaves"], { amount: base.slice(14) });
+    return base;
   }
-  async function applySettings() {
-    const want = { ...(D.settings_value || {}), ...S.settings };
-    const r = await (await fetch(`${API}/settings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: want }) })).json();
-    if (!r.progress.running) return reload();
-    renderSettings(r.progress);
-    clearInterval(polling);
-    polling = setInterval(async () => {
-      const p = await (await fetch(`${API}/progress`)).json();
-      if (S.rtab === "settings") renderSettings(p);
-      if (!p.running) { clearInterval(polling); if (!p.error) reload(); }
-    }, 1000);
+  const SEQ = D.sequences.map((s) => (s ? s.split(" → ").map(parseStep) : []));
+  // A path's steps up to and including its first filing (after a filing the line has stopped); `cut` drops the filing.
+  function stepsOf(q, cut) {
+    const out = [];
+    for (const st of SEQ[q]) { if (FILING.has(st.base)) { if (!cut) out.push(st); return { steps: out, filed: true }; } out.push(st); }
+    return { steps: out, filed: false };
   }
-  async function reload() {
-    D = await (await fetch(`${API}/payload`)).json();
-    S.event = D.event; S.bank = D.bank; S.overrides = {}; S.settings = {};
-    recompute();
+  function sentence(q, filed) {
+    const { steps, filed: hasFiling } = stepsOf(q, !filed);
+    const parts = steps.map((st) => `${st.when ? `${st.when}: ` : ""}${phrase(st.base)}`);
+    if (!filed || !hasFiling) parts.push(`${HOR}: ${W.steps.quiet}`);
+    return parts.join("; ") + ".";
   }
-  function renderRight() { ({ probs: renderProbs, terms: renderTerms, settings: () => renderSettings() })[S.rtab](); atEnd(); }
-  // The bottom fade shows while more of the list lies below.
-  function atEnd() { const p = $("rpanel"); $("right").classList.toggle("atend", p.scrollTop + p.clientHeight >= p.scrollHeight - 2); }
+  // Representative paths for each outcome's dots: its most probable sequences, in proportion to their mass.
+  function dotPaths(groups, bank) {
+    if (bank) return groups.map(() => []);
+    const by = CLS.map(() => new Map());
+    for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) {
+      const m = by[k], q = D.paths.seq[i]; m.set(q, (m.get(q) || 0) + probs[i] * s);
+    }
+    return groups.map((g) => {
+      if (!g.n) return [];
+      const top = [...by[g.k].entries()].sort((a, b) => b[1] - a[1]).slice(0, g.n), n = allocate(top.map((t) => t[1]));
+      const out = []; top.forEach(([q], j) => { for (let r = 0; r < n[j]; r++) out.push(q); });
+      while (out.length < g.n && top.length) out.push(top[0][0]);
+      return out;
+    });
+  }
+
+  // --- which decision governs a step --------------------------------------------------------------------------------
+  const STEP_DEC = {
+    "Qorvo executes before the ruling": ["execute_pre_ruling"], "Akoustis files, short of cash": ["petition_cash_floor", "petition_cash_out"],
+    "Akoustis seeks a sale or financing": ["debtor_response"], "Akoustis pays": ["debtor_response"], "Akoustis files": ["debtor_response"],
+    "Stay approved": ["stay_approved"], "Qorvo levies": ["enforce_after_final", "registration_early"],
+    "Early registration allowed": ["registration_early"], "Akoustis appeals": ["appeal"],
+    "Noteholders accelerate; no filing": ["holders_act_judgment"], "Noteholders accelerate; filing": ["petition_on_notes"],
+    "Noteholders accelerate on the delisting; no filing": ["holders_act_delisting"], "Nasdaq suspends": ["nasdaq_hearing"],
+    "Nasdaq delists": ["panel_exception"], "Ruling vacates the judgment": ["ts_liability_jmol"], "Ruling orders a new trial": ["ts_damages_ruling"],
+  };
+  const stepTypes = (base) => STEP_DEC[base] || (base.startsWith("Ruling leaves") ? ["ts_damages_ruling"] : base.startsWith("Settles") ? ["settlement_accept"] : []);
+  // every node a path passes through, including the nodes inside its composite edges
+  const PNODES = D.paths.edges.map((e) => {
+    const s = new Set();
+    for (let j = 0; j < e.length; j += 2) {
+      if (e[j] >= 0) s.add(e[j]); else for (const c of D.composites[-e[j] - 1]) for (const [n] of c) s.add(n);
+    }
+    return Int32Array.from(s);
+  });
+  const TYPE_NODES = {}; D.nodes.forEach((n, i) => { if (!isBank(i)) (TYPE_NODES[n.node] = TYPE_NODES[n.node] || []).push(i); });
+  function nodeMass(paths) {  // probability mass through each node, over the given paths (all paths if none given)
+    const m = new Float64Array(N), it = paths || D.paths.edges.map((_, i) => i);
+    for (const i of it) for (const n of PNODES[i]) m[n] += probs[i];
+    return m;
+  }
+  function pickNode(types, paths) {
+    const m = nodeMass(paths); let best = -1, bm = -1;
+    for (const t of types) for (const i of TYPE_NODES[t] || []) if (m[i] > bm) { bm = m[i]; best = i; }
+    return best;
+  }
+
+  // --- the path tree: a prefix tree over each path's first steps ----------------------------------------------------
+  const DEPTH = 4, MERGE = 0.02;
+  const month = (when) => when.split(" ").pop();
+  const TRIE = { kids: new Map(), paths: [], depth: 0 };
+  for (let i = 0; i < P; i++) {
+    TRIE.paths.push(i);
+    const { steps } = stepsOf(D.paths.seq[i], false);
+    let t = TRIE;
+    for (let d = 0; d < DEPTH; d++) {
+      const st = steps[d];
+      const key = st ? `${st.base}|${month(st.when)}` : "quiet";
+      if (!st && d > 0 && FILING.has(steps[d - 1].base)) break;  // a filing ends the path; nothing after it
+      if (!t.kids.has(key)) t.kids.set(key, { key, base: st ? st.base : "quiet", when: st ? month(st.when) : "", kids: new Map(), paths: [], depth: d + 1 });
+      t = t.kids.get(key); t.paths.push(i);
+      if (!st) break;
+    }
+  }
+  function tree() {  // the trie weighed by the current path probabilities, small branches merged
+    const pp = D.paths.scalars.petition_p;
+    const weigh = (t) => {
+      let m = 0, f = 0; for (const i of t.paths) { m += probs[i]; f += probs[i] * pp[i]; }
+      const node = { key: t.key, base: t.base, when: t.when, depth: t.depth, mass: m, filed: f, paths: t.paths, kids: [] };
+      const kids = [...t.kids.values()].map(weigh).sort((a, b) => b.mass - a.mass), other = { key: "other", base: "other", when: "", depth: t.depth + 1, mass: 0, filed: 0, paths: [], kids: [] };
+      for (const k of kids) { if (k.mass >= MERGE) node.kids.push(k); else { other.mass += k.mass; other.filed += k.filed; other.paths = other.paths.concat(k.paths); } }
+      if (other.mass > 1e-9) node.kids.push(other);
+      return node;
+    };
+    return weigh(TRIE);
+  }
+
+  // --- how much each judgment moves collections (0% / Jev / 100% for its selected branch) ---------------------------
+  let sens = [];
+  function computeSens() {
+    const at = expect(probs, "collected"), bat = bexpect(bprobs, "collected");
+    sens = D.nodes.map((n, i) => {
+      const b = selB(i), get = (x) => (k) => (k === i ? withBranch(i, b, x) : dist(k));
+      const v = isBank(i) ? (x) => bexpect(bankProbs(get(x)), "collected") : (x) => expect(pathProbs(get(x)), "collected");
+      const lo = v(0), hi = v(1);
+      return { lo, hi, at: isBank(i) ? bat : at, range: Math.abs(hi - lo) };
+    });
+  }
+  const effOf = (i) => {  // the same arithmetic for one node, on demand
+    const b = selB(i), get = (x) => (k) => (k === i ? withBranch(i, b, x) : dist(k));
+    const v = isBank(i) ? (x) => bexpect(bankProbs(get(x)), "collected") : (x) => expect(pathProbs(get(x)), "collected");
+    return { lo: v(0), hi: v(1), at: isBank(i) ? bexpect(bprobs, "collected") : expect(probs, "collected") };
+  };
+  const levers = () => sens.map((s, i) => ({ i, ...s })).filter((s) => !isBank(s.i)).sort((a, b) => b.range - a.range).slice(0, 6);
 
   // --- init -------------------------------------------------------------------------------------------------------
-  const lim = Math.floor(D.meta.limit_cents / 100).toLocaleString("en-US");
-  // The facility terms, stated once: the line's limit, its fee, the installments per draw and the period.
-  const fee = D.meta.fee_bps != null ? ` · ${(D.meta.fee_bps / 100).toFixed(1)}% fee` : "";
-  const inst = D.meta.installments ? ` · each draw repaid in ${D.meta.installments} monthly installments` : "";
-  $("title").innerHTML = `<b>${esc(D.meta.borrower.replace(/,? Inc\.?$/, ""))}</b> · Slope line: limit $${lim}${fee}${inst} · ${fdate(D.meta.review)} to ${fdateY(D.meta.horizon)}`;
-  document.querySelectorAll("#mtabs button").forEach((b) => (b.onclick = () => { S.mtab = b.dataset.t; renderTabs(); renderMain(); }));
-  document.querySelectorAll("#rtabs button[data-t]").forEach((b) => (b.onclick = () => { S.rtab = b.dataset.t; S.detail = null; renderTabs(); renderRight(); }));
-  document.querySelectorAll("#viewsw button").forEach((b) => (b.onclick = () => { S.view = b.dataset.v; renderTabs(); renderTiles(); renderMain(); }));
-  if (!(D.settings || []).length) document.querySelector('#rtabs button[data-t="settings"]').style.display = "none";  // a run's page has no settings
-  $("rpanel").addEventListener("scroll", atEnd);
-  $("drawer").onclick = () => { $("right").classList.toggle("open"); atEnd(); };
-  $("drawer-close").onclick = () => $("right").classList.remove("open");
-  let rz = null;
-  window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(renderMain, 120); });
-  computeSens(); renderTabs(); renderTiles(); renderOutcomes(); renderRight(); renderMain();
-  refreshCharts();  // warms the server's reweight, so the first slider move is as quick as the rest
+  function recompute() { probs = pathProbs((k) => dist(k)); bprobs = bankProbs((k) => dist(k)); }
+  recompute();
+  const t0 = performance.now(); computeSens(); const tSens = performance.now() - t0;
+  function summary() {
+    const f = figures(), line = (v) => `funded ${money(v.funded)} · due ${money(v.due)} · collected ${money(v.collected)} · filing ${(100 * v.petition_p).toFixed(1)}% · stuck ${money(v.stuck)} · give back ${money(v.clawback)}`;
+    const dots = (g) => g.map((x) => `${x.c} ${x.n}`).join(", ");
+    const out = { bank: line(f.bank), research: line(f.research), bankDots: dots(bankDots()), researchDots: dots(researchDots()),
+      levers: levers().map((l) => `${D.nodes[l.i].node} [${D.nodes[l.i].context}] no ${money(l.lo)} · Jev ${money(l.at)} · yes ${money(l.hi)}`),
+      sensMs: Math.round(tSens), figures: f };
+    console.log(["BANK      " + out.bank, "RESEARCH  " + out.research, "DOTS bank " + out.bankDots, "DOTS res  " + out.researchDots,
+      ...out.levers.map((l, k) => `LEVER ${k + 1} ${l}`), `sens ${out.sensMs} ms`].join("\n"));
+    return out;
+  }
+  window.__summary = summary();
+  // @@PART3
 })();
