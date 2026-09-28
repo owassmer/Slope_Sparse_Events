@@ -698,7 +698,8 @@ Every path shares these. They decide much of the result, so each is stated.
 | **Opening cash and history** | Reconstruct through 14 May from anchors public by then (31 Mar balance sheet, 10-Q cash flows, the 13 May call). Do not truncate the 20 Jun feed: its April–June calibration uses later quarterly totals. |
 | **Operating outlook** | Central case: historical continuation. Scenario: the cost cut management announced on 13 May, where its cash effect can be specified. Never tune burn toward a result. |
 | **Financing** | An explicit amount-and-date scenario, shared by every path. Proceeds are booked on the completion date. "Seeks financing" alone books no cash. The central case adds no financing the record does not fix. The equity sensitivity is a plain cash injection; a debt alternative also books its service. The actual later raise is never imported. |
-| **Operating reserve** | 30 days of operating need, centrally, with one alternative setting. The same setting feeds collections capacity, the triggers for the company's response questions, and the facts given to Jev. The reserve is not an automatic filing. |
+| **Collection** | Slope debits each installment automatically on its due date, and the debit succeeds when available cash covers it (central). Sensitivity: the borrower protects its next 30 days of operating need before paying Slope. That is an assumption about the borrower, not Slope's mechanism. |
+| **Cash floor** | The point where the company must act: available cash below its next 30 days of operating need, with one alternative setting. It triggers the company's cash-floor decision (raise equity, file, continue) and sets the facts given to Jev. It is not an automatic filing and does not limit collections. |
 | **Settlement and security** | Explicit amounts and calendars. Available cash above the reserve bounds what can be paid; it is not the amount every negotiation produces. |
 | **Legal spend** | Only spend attributable to this dispute stops when the dispute ends. The professional-fee proxy is labeled as a proxy. |
 | **Ordinary obligations** | The same existing debt and background risks on every path. An event-triggered acceleration or restriction applies only when its conditions occur on the path. |
@@ -712,12 +713,13 @@ Every path shares these. They decide much of the result, so each is stated.
 - **Legal meaning comes first**, in `DECOMPOSITION_20240514.md`, in the stage order of §15.2(1): the law map, then clocks and parameters, then arithmetic. Evidence fills named slots afterwards.
 - **Depth goes where money moves.** A distinction survives only if it changes payment timing, cash availability, operating receipts, financing access, or another actor's material decision. Financially equivalent paths are merged. The number of questions is not a measure of completeness.
 - **Amounts stay code-owned.**
-  - One acquisition pass looks for public monetary evidence from before the verdict.
-  - Where the amount stays unknown, it is a declared scenario class, cut at the thresholds that change the mechanism:
-    - below the notes' $10.0M default threshold;
-    - above that threshold but payable from cash above the reserve;
-    - beyond that cash.
-  - Each class is computed on its own, with Jev's probabilities inside it. There are no probabilities across classes.
+  - The record fixes the claimed amounts. Qorvo itemised its claim before the review date: at least $66.1M of trade-secret unjust enrichment, plus $2.2M on other claims (D.I. 543-1, 22 Apr 2024).
+  - Which damages theory the jury adopts is the jury's decision, so it is a Jev question. Code sets each branch's amount from the record:
+    - Qorvo's theory: the claimed amount;
+    - the defense's theory: a bounded amount, because the defense figure was not public.
+  - Branch amounts are cut only at the thresholds that change a mechanism. Examples: the notes' $10.0M default threshold, and cash above the reserve.
+  - Differences in amount that change no mechanism are one bounded term with a sensitivity, not more branches.
+  - Where no figure is public, the amount is a declared scenario class, and there are no probabilities across classes.
 - **Jev answers one actor's decision per question.**
   - Material factors are established first; aggregation receives the factor results and the structured facts, not the whole record again.
   - A reading of the evidence is never a forecast's probability.
