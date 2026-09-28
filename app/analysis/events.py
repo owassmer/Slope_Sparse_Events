@@ -359,6 +359,8 @@ class Chain:
         self.n, self.N = draws.n, (setup.horizon - setup.review).days
         self.basis = draws.basis
         self.ev = EventCash.zeros(self.n, self.N)
+        self._cv = 0  # the event cash's version: every write to it bumps it (`_touch`); `cum` is memoized on it
+        self._cum: tuple | None = None  # (version, available cash [draws, days]); never written in place
         self.pet_cause = np.zeros(self.n, dtype=np.int8)  # PETITION_CAUSES index of the earliest petition
         self.rows = np.arange(self.n)
         self.iid = d.instance_id if d is not None else BANK
@@ -448,12 +450,21 @@ class Chain:
         """The judgment's entry day index: per trajectory for a pending claim, else the recorded date's."""
         return self.E_ix if self.pending else self.ix(self.d.judgment_date)
 
+    def _touch(self) -> None:
+        """The event cash changed: the memoized available cash is stale."""
+        self._cv += 1
+
     def cum(self) -> np.ndarray:
         """Available cash at each day's end [draws, days]: the opening balance, operating flows and event cash less
         encumbrance; under cash_facts = engine_forward_run also the line's draws less its collections, from the loan
-        engine run forward on this event cash (causal: a day's cash reads nothing booked after it)."""
+        engine run forward on this event cash (causal: a day's cash reads nothing booked after it). Memoized on the
+        event cash's version: the walk reads the same state many times between bookings. Callers never write to it."""
+        if self._cum is not None and self._cum[0] == self._cv:
+            return self._cum[1]
         c = self.basis.cash + np.cumsum(self.ev.cash - self.ev.lock, axis=1)
-        return c + self.line_net() if self.engine else c
+        c = c + self.line_net() if self.engine else c
+        self._cum = (self._cv, c)
+        return c
 
     def line_net(self) -> np.ndarray:
         import hashlib
@@ -467,11 +478,13 @@ class Chain:
             h.update(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes())
         h.update(np.ascontiguousarray(ev.petition).tobytes())
         runs, key = self.basis.runs, h.digest()
-        if key not in runs:
+        if key in runs:  # least recently used first: a hit moves to the end
+            runs[key] = runs.pop(key)
+        else:
             # the engine adds the existing line's history cash (Setup.exposure) to its opening itself
             opening = self.basis.opening - self.s.exposure.cash_cents
             tr = run(self.basis.line, opening, EventCash(ev.cash, ev.lock, ev.capacity, ev.petition))
-            if len(runs) >= 64:  # the tree is walked depth-first: recent prefixes are the ones reused
+            if len(runs) >= 256:  # the tree is walked depth-first: recent prefixes are the ones reused
                 runs.pop(next(iter(runs)))
             runs[key] = np.cumsum(tr.fundings - tr.collections, axis=1)
         return runs[key]
@@ -547,14 +560,18 @@ class Chain:
         day = np.asarray(day)
         cents = np.broadcast_to(np.asarray(cents, dtype=np.int64), day.shape)
         ok = (day >= 0) & (day < self.N) & (cents != 0)
-        np.add.at(arr, (self.rows[ok], day[ok]), cents[ok])
+        if ok.any():
+            np.add.at(arr, (self.rows[ok], day[ok]), cents[ok])
+            self._touch()
 
     def petition(self, day: np.ndarray, where: np.ndarray | None = None, cause: str = "enforcement") -> None:
         day = np.asarray(day) + int(self.p("petition_lag_days"))
         ok = (day >= 0) & (day < self.N) & (True if where is None else where)
         cur = self.ev.petition
         win = ok & ((cur < 0) | (day < cur))
-        self.ev.petition = np.where(win, day, cur)
+        if win.any():
+            self.ev.petition = np.where(win, day, cur)
+            self._touch()
         self.pet_cause = np.where(win, PETITION_CAUSES.index(cause), self.pet_cause).astype(np.int8)
 
     def live(self, day: np.ndarray) -> np.ndarray:
@@ -570,7 +587,9 @@ class Chain:
         old, self.resolved = self.resolved, np.minimum(self.resolved, day)
         t = np.arange(self.N)
         stop = (t[None, :] >= self.resolved[:, None]) & (t[None, :] < old[:, None])
-        self.ev.cash -= np.where(stop, self.basis.legal, 0)  # legal outflows are negative: adding them back
+        if stop.any():
+            self.ev.cash -= np.where(stop, self.basis.legal, 0)  # legal outflows are negative: adding them back
+            self._touch()
 
     def levy(self, day: np.ndarray, lagged: bool = False) -> None:
         """A writ on the enforceable amount; where it comes before an increase is enforceable, a second
@@ -815,19 +834,29 @@ class Chain:
 
     def tau(self) -> np.ndarray:
         """The first day available cash falls below operating need (sensitivity: below zero), or BIG."""
+        memo = self.__dict__.get("_tau")
+        if memo is not None and memo[0] == self._cv:
+            return memo[1].copy()
         cum = self.cum()
         floor = np.zeros_like(cum) if self.sens.get("cash_floor") else self.basis.need
         below = cum < floor
-        return np.where(below.any(axis=1), below.argmax(axis=1), BIG)
+        out = np.where(below.any(axis=1), below.argmax(axis=1), BIG)
+        self._tau = (self._cv, out)
+        return out.copy()
 
     def cash_out(self) -> np.ndarray:
         """The first day available cash falls below zero, or BIG. Where the floor is already zero (sensitivity) the
         company decided at that day, so nothing further arises."""
         if self.sens.get("cash_floor"):
             return np.full(self.n, BIG)
+        memo = self.__dict__.get("_out")
+        if memo is not None and memo[0] == self._cv:
+            return memo[1].copy()
         cum = self.cum()
         below = cum < 0
-        return np.where(below.any(axis=1), below.argmax(axis=1), BIG)
+        out = np.where(below.any(axis=1), below.argmax(axis=1), BIG)
+        self._out = (self._cv, out)
+        return out.copy()
 
     def listing_dates(self) -> dict[str, int]:
         """Code timing from the instrument's compliance deadline (Nasdaq Rules 5810, 5815; DGCL §222; Rule 14a-6)."""
@@ -903,6 +932,7 @@ class Chain:
             per = np.full(self.N, chips // self.N, dtype=np.int64)
             per[-1] += chips - per.sum()
             self.ev.cash += per[None, :]
+            self._touch()
 
 
     def coupon_when_due(self) -> None:
@@ -1277,9 +1307,11 @@ class Chain:
         pet = self.ev.petition
         after = (pet[:, None] >= 0) & (np.arange(self.N)[None, :] >= pet[:, None])
         self.ev.cash[after] = 0  # §362: nothing is collected from or paid by the estate after the petition
+        self._touch()
         if self.pending or self.ordinary:  # a dispute that ended (`resolve`) never re-adds its legal spend
             ended = np.arange(self.N)[None, :] >= self.resolved[:, None]
             self.ev.cash -= np.where(after & ended, self.basis.legal, 0)
+            self._touch()
         tr.events = self.ev
         tr.cause = np.where(self.ev.petition >= 0, self.pet_cause, 0).astype(np.int8)
         tr.marks = {k: v.astype(np.int32) for k, v in self.marks.items()}
@@ -1293,7 +1325,8 @@ class Chain:
     def clone(self) -> Chain:
         """An independent copy of the walk's state (every array it books into), sharing its read-only inputs."""
         new = Chain.__new__(Chain)
-        new.__dict__.update({k: v if k in Chain.SHARED else _copied(v) for k, v in self.__dict__.items()})
+        # the memoized cash is shared, not copied: it is never written in place, and each copy replaces its own
+        new.__dict__.update({k: v if k in Chain.SHARED or k in ("_cum", "_tau", "_out") else _copied(v) for k, v in self.__dict__.items()})
         return new
 
     def trigger_days(self) -> dict[str, np.ndarray]:
