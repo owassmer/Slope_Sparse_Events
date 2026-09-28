@@ -463,6 +463,12 @@
       "value": 30,
       "sensitivity": "interval_end"
     },
+    "settlement_payment": {
+      "disposition": "bounded",
+      "source": "case_scenario",
+      "value": "lump_sum",
+      "basis": "How an agreed settlement is paid. The settlement amount (settlement_scenarios) bounds what can be paid (spec §16.3); it is not a term every negotiation produces in one payment. lump_sum: one payment on the settlement date. installments: the amount in `installments` equal monthly payments, the first on the settlement date; the claim is released on the settlement date, payments due after the horizon fall outside it, and none is paid after a bankruptcy petition. The case states its terms and the sensitivity; the settlement questions are asked on those terms."
+    },
     "cash_floor": {
       "disposition": "sourced",
       "basis": "The cash floor is the first date available cash falls below the 30-day operating need of the collection rule (base) or below zero (sensitivity). Where the company keeps operating at the floor, it decides again on the first date its available cash falls below zero.",
@@ -609,7 +615,8 @@
     "base": "lump_sum",
     "scenarios": {
       "lump_sum": "the settlement amount, paid on the settlement date; the claim is released on payment",
-      "monthly": "the settlement amount in equal monthly payments from the settlement date to the end of the analysis period; no payment after a bankruptcy petition; the claim is released when the last payment is made"
+      "monthly": "the settlement amount in equal monthly payments from the settlement date to the end of the analysis period; no payment after a bankruptcy petition; the claim is released when the last payment is made",
+      "installments": "the settlement amount in equal monthly installments from the settlement date (settlement_payment); the claim is released on the settlement date; installments after the horizon fall outside it; none after a bankruptcy petition"
     },
     "asked": "once in each stage: before the post-trial ruling; from the ruling to the appeal deadline; while the judgment is enforceable and unstayed; while it is stayed"
   },
@@ -1985,7 +1992,8 @@
         "claimed": "the claims are with the jury; no judgment exists and nothing is owed until one is entered",
         "no_award": "the jury returned no money verdict: no judgment is entered",
         "set_aside": "the court set the money judgment aside after trial: no money judgment remains",
-        "first": "the company's first response to the entered judgment"
+        "first": "the company's first response to the entered judgment",
+        "settled_installments": "the company has agreed to settle with {claimant}, paying the agreed amount in {installments} equal monthly installments from the settlement date"
       },
       "cash_facts": "engine_forward_run where the case's scenario sets parameter cash_facts (spec §16.4)",
       "verdict_form": "The case's verdict form (cases/<snapshot>/scenario.json verdict_form) lists, in the form's order, each question that can change which verdict branch a path takes: its node (verdict_finding or verdict_measure), the question quoted, and for each answer the next question or a verdict branch. Each is one jury decision and none asks for an amount. Code enumerates the answer sequences and gives each verdict branch the composite edge of its conjunctions (disjoint by construction, exhaustive over the answers); a question is asked once per sequence of earlier answers that reaches it. Questions that change only an amount inside a branch are collapsed there, with the reason recorded in the case's verdict_form.",

@@ -27,6 +27,12 @@
       "sensitivity": 14610000000,
       "basis": "Base: nothing added. Sensitivity: DTSA exemplary damages at the 2x cap (USD 132.2M on the USD 66.1M) plus N.C. Gen. Stat. §24-5(b) interest at 8% from 4 Oct 2021 to entry (about USD 13.9M): USD 146.1M added. Either setting leaves the award beyond cash on every trajectory."
     },
+    "settlement_payment": {
+      "value": "installments",
+      "installments": 12,
+      "sensitivity": "lump_sum",
+      "basis": "Owen, 28 Sep 2026. The settlement amount, the company's available cash above its 30-day operating need on the settlement date capped at the amount claimed or owed, bounds what can be paid (spec §16.3). Base: that amount in 12 equal monthly installments, the first on the settlement date. A distressed company does not pay out its runway at once. Installments due after 10 Nov 2024 fall outside the horizon. Sensitivity: the same amount as one lump sum on the settlement date."
+    },
     "coupon_cash_share": {
       "value": "all_shares",
       "sensitivity": "all_cash",

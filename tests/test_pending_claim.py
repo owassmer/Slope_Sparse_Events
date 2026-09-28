@@ -321,6 +321,45 @@ def test_8_settlement_is_bounded_and_ends_the_claim(tree):
             assert (np.cumsum(ch.ev.lock, axis=1)[paid, -1] == 0).all()
 
 
+def test_settlement_terms_are_the_bound_in_twelve_monthly_installments(tree):
+    """The case's terms (Owen, 28 Sep 2026): the settlement amount (cash above the 30-day need on the settlement date,
+    capped) paid in 12 equal monthly installments from the settlement date, those after the horizon outside it; the
+    claim released on the settlement date. The lump sum is the sensitivity. Jev's settlement questions are told the
+    total and the monthly schedule, and acceptance is asked on those terms."""
+    from app.analysis.events import settlement_terms
+    from app.finance.calendar import add_months
+
+    assert settlement_terms(fx.model()) == ("installments", 12)
+    assert settlement_terms(fx.model(), {"settlement_payment": True}) == ("lump_sum", 1)
+    steps = (("settle", "I0", "yes"),)
+    base, _ = run(())
+    ch, tr = run(steps)
+    lump, _ = run(steps, {"settlement_payment": True})
+    so, pd = ch.settle_offer, 29
+    paid = so > 0
+    assert paid.any() and (lump.settle_offer == so).all() and (ch.resolved[paid] == pd).all()
+    days = [(add_months(fx.REVIEW + __import__("datetime").timedelta(days=pd + 1), i) - fx.REVIEW).days - 1
+            for i in range(12)]
+    inside = [d for d in days if d < ch.N]
+    assert 0 < len(inside) < 12  # payments due after the horizon fall outside it
+    paid_cash = (tr.events.cash - base.ev.cash)
+    legal = fx.basis().legal
+    for i in np.flatnonzero(paid)[:20]:
+        for k, d in enumerate(inside):
+            part = so[i] // 12 + (so[i] % 12 if k == 11 else 0)
+            assert paid_cash[i, d] == -part - legal[i, d]  # the installment, and legal spend stops from the release
+    lump_cash = lump.ev.cash - base.ev.cash
+    assert (lump_cash[paid, pd] == -so[paid] - legal[paid, pd]).all()
+    fc, d, _, _ = tree
+    keys = [k for k in fc.nodes if fc.nodes[k].node in ("settlement_offer", "settlement_accept") and "|I0|" in k]
+    assert keys
+    for k in keys:
+        facts = fc.path_facts(fc.nodes[k], d)["settlement_offer"]
+        assert "12 equal monthly installments" in facts["payment"] and "monthly_installment" in facts
+        if fc.nodes[k].node == "settlement_accept":
+            assert any("12 equal monthly installments" in a for a in fc.nodes[k].assumptions)
+
+
 def test_questions_marked_cash_receive_cash_facts(tree):
     """Every question outside no_cash, the I0 settlement questions included (nothing is owed before the verdict),
     receives the cash at its decision date, unless its answer cancels on every path (a holders' petition after the

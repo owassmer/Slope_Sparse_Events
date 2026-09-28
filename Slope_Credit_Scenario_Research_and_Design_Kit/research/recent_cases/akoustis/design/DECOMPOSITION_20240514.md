@@ -253,8 +253,8 @@ Operating flows come from the common model (§16.3): the 14 May feed, the operat
 ### 4.5 Settlement terms
 
 Settlement is its own decision on stated terms (spec §16.4), asked once per interval where the terms exist:
-- **Offer (D3):** the debtor offers a lump sum equal to its available cash above the 30-day reserve on the payment date, capped at the amount owed; in I0, where nothing is owed yet, capped at the claimed $67,526,412. It exists only where that amount is positive on some trajectory (the approved 20 Jun rule, `DECOMPOSITION.md` §5.4). Sensitivity: the same amount in monthly payments to the horizon.
-- **Acceptance (C2):** the claimant accepts those terms. The offered amount (P5/P50 on the payment date) is a path fact, and each interval and branch is its own node, so an acceptance probability is never reused for a different offer.
+- **Offer (D3):** the debtor offers its available cash above the 30-day reserve on the settlement date, capped at the amount owed. In I0, where nothing is owed yet, the cap is the claimed $67,526,412. That amount bounds what can be paid (spec §16.3); it is not what every negotiation produces in one payment. **Terms (Owen, 28 Sep 2026):** the amount is paid in 12 equal monthly installments, the first on the settlement date (`settlement_payment`, `scenario.json`). A distressed company does not pay out its runway at once. The claim is released on the settlement date. Installments due after 10 Nov fall outside the horizon, and none is paid after a petition. A settlement exists only where the amount is positive on some trajectory (the approved 20 Jun rule, `DECOMPOSITION.md` §5.4). Sensitivity: the same amount as one lump sum on the settlement date. The first 14 May run paid it as a lump sum, about $6.1M of $11.7M before the verdict, which left the company at its cash floor at once.
+- **Acceptance (C2):** the claimant accepts those terms. Both settlement questions are told the terms: the total and the monthly installment (P5/P50 on the settlement date) and the schedule. The offered amount is a path fact, and each interval and branch is its own node, so an acceptance probability is never reused for a different offer.
 - A paid settlement releases the claim and the stay security, removes the §7.01(i) trigger, and ends attributable legal spend.
 
 ### 4.6 What is collapsed, and why
@@ -498,6 +498,8 @@ Routing inferences, labelled:
 - Once any lesser claim succeeds, the later questions are not asked. A verdict on fewer lesser claims is carried at the O1 amount, which is lender-adverse.
 
 The three branches' composites are disjoint and exhaustive over the answers (tested), so J1's probability is the chain rule over 9 jury nodes. The cash tree is unchanged: the same three verdict steps.
+
+**Item 4: settlement terms (28 Sep 2026).** §4.5 as amended. Contract parameter `settlement_payment` (`lump_sum` by default, so the 20 Jun run is unchanged; `installments` with `installments: 12` in the 14 May case). `Chain.settle` books the bound in 12 calendar-monthly parts from the settlement date and resolves the dispute that day. Jev's settlement facts carry the total, the monthly installment and the schedule. The acceptance question's assumption states the terms. After an agreed settlement the situation reads 'agreed to settle ..., in 12 equal monthly installments'. The lump sum is the sensitivity (`settlement_payment: true`).
 
 **Item 3: the existing line.** The line opened on 1 Apr 2024. Its state on 14 May is $389,677 principal and 8 installments of $404,095 due 3 Jun–14 Aug (`Setup.exposure`, case worker). The Basis cash of both the tree and the analysis includes the line's history cash (+$384,839). The forward runs behind every ⚑ fact pass the engine its own opening, which adds that cash itself. Chain cash equals the engine's available cash on every trajectory and day (test 7).
 

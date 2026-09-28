@@ -557,7 +557,7 @@ class Forecaster:
         disputes. The claimant's branch is told its range over the enhancement settings, never one figure."""
         if d.stage != PENDING:
             return {}
-        from app.analysis.events import verdict_amount, verdict_basis
+        from app.analysis.events import settlement_terms, verdict_amount, verdict_basis
 
         lo, hi = (verdict_amount(d, self.m, "claimant_theory", {"claimant_enhancements": x}) for x in (False, True))
         lower, how = verdict_basis(d, self.m, "without_principal_measure", self.sens)
@@ -565,7 +565,13 @@ class Forecaster:
                 "amount": usd(lower) + (" (the case's declared bound; the record leaves a component's amount unknown)"
                                         if how == "bound" else ""),
                 **self.m.get("case_labels", {})}
-        return {k: v.format_map(fill) for k, v in self.m["templates"]["pending_money_claim"]["label_templates"].items()}
+        mode, count = settlement_terms(self.m, self.sens)
+        fill["installments"] = count
+        out = {k: v.format_map(fill) for k, v in self.m["templates"]["pending_money_claim"]["label_templates"].items()}
+        installments = out.pop("settled_installments", None)
+        if mode == "installments" and installments:  # the situation after an agreed settlement, on the case's terms
+            out["settled"] = installments
+        return out
 
     def verdict_context(self, n: Node) -> dict:
         """A verdict-form question as the jury meets it: the question quoted, what is asked of it, and its earlier
@@ -693,11 +699,18 @@ class Forecaster:
         """The offer the settlement questions decide on: its amount, the company's 30-day operating need on the
         settlement date, and the payment form and schedule of the scenario in force."""
         p = self.m["parameters"]["settlement_date_in_interval"]
+        from app.analysis.events import settlement_terms
+
         at_end = bool(self.sens.get("settlement_date_in_interval"))
-        monthly = self.m["settlement_scenarios"]["base"] == "monthly" or bool(self.sens.get("settlement_monthly"))
+        mode, count = settlement_terms(self.m, self.sens)
+        monthly = mode == "monthly"
         out: dict = {}
         if (offer := self._pooled(rows, masks, "settle_offer")) is not None:
             out["amount"] = {"p5": usd(int(np.quantile(offer, 0.05))), "p50": usd(int(np.quantile(offer, 0.5)))}
+            if mode == "installments":
+                each = offer // count
+                out["monthly_installment"] = {"p5": usd(int(np.quantile(each, 0.05))),
+                                              "p50": usd(int(np.quantile(each, 0.5)))}
         if self.draws is not None and self.draws.basis is not None and not at_end:
             need = self.draws.basis.need
             pd = [np.clip(r["day"] + int(p["value"]), 0, need.shape[1] - 1) for r in rows]
@@ -707,8 +720,13 @@ class Forecaster:
         out["basis"] = ("the company's available cash on the settlement date less its 30-day operating need, floored "
                         "at zero and capped at the amount owed")
         when = "at the end of the current stage of the dispute" if at_end else f"{int(p['value'])} days after the decision"
-        out["payment"] = (f"equal monthly payments from the settlement date ({when}) to {fmt(self.horizon)}" if monthly
-                          else f"one payment of the full amount on the settlement date, {when}")
+        if mode == "installments":
+            out["payment"] = (f"{count} equal monthly installments, the first on the settlement date ({when}) and "
+                              f"one each month after; the claim is released on the settlement date; installments due "
+                              f"after {fmt(self.horizon)} fall after the analysis period")
+        else:
+            out["payment"] = (f"equal monthly payments from the settlement date ({when}) to {fmt(self.horizon)}"
+                              if monthly else f"one payment of the full amount on the settlement date, {when}")
         return out
 
     def _contract_dates(self, rows: list[dict], masks: list) -> dict:
@@ -1005,7 +1023,12 @@ class _Walk:
         if not ((tr.day[-1] < self.N) & (tr.settle_offer > 0)).any():
             return then_no(s)
         a3 = self.node("settlement_offer", interval, s.cls, s=s, probe=probe)
-        q4 = self.node("settlement_accept", interval, s.cls, s=s, probe=probe, assumptions=("the company offers to settle for its available cash above its 30-day operating need",))
+        from app.analysis.events import settlement_terms
+
+        mode, count = settlement_terms(self.fc.m, self.fc.sens)
+        terms = "the company offers to settle for its available cash above its 30-day operating need" + (
+            f", paid in {count} equal monthly installments from the settlement date" if mode == "installments" else "")
+        q4 = self.node("settlement_accept", interval, s.cls, s=s, probe=probe, assumptions=(terms,))
         self.binary(s, "settle", interval, [[(a3, "yes"), (q4, "yes")]], (a3, q4),
                     lambda y: self.tail(y, "settled"), then_no)
 

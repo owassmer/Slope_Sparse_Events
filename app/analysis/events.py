@@ -25,7 +25,7 @@ import numpy as np
 from app.analysis.setup import SEED, Setup
 from app.disputes.forecast import DisputePath
 from app.domain.investigation import DisputeInstance
-from app.finance.calendar import next_business_day
+from app.finance.calendar import add_months, next_business_day
 
 TOLLING = {"rule_50b", "rule_52b", "rule_59a", "rule_59e", "injunction"}  # FRAP 4(a)(4)(A); the injunction ruling tolls
 MONEY_MOTIONS = {"rule_50b", "rule_52b", "rule_59a", "rule_59e"}
@@ -201,6 +201,19 @@ def verdict_basis(d: DisputeInstance, model: dict, branch: str, sens: dict | Non
     if spec.get("plus"):
         amount += int(pval(model, spec["plus"], sens.get(spec["plus"], False)))
     return amount, how
+
+
+def settlement_terms(model: dict, sens: dict | None = None) -> tuple[str, int]:
+    """How an agreed settlement is paid: 'installments' (the settlement amount in `installments` equal monthly
+    payments from the settlement date; the case's terms), 'lump_sum' (one payment on the settlement date) or 4.0.0's
+    'monthly' sensitivity (equal payments to the horizon). The case sets settlement_payment; otherwise the contract's
+    settlement_scenarios."""
+    sens = sens or {}
+    if model["settlement_scenarios"]["base"] == "monthly" or sens.get("settlement_monthly"):
+        return "monthly", 1
+    p = model["parameters"].get("settlement_payment", {})
+    mode = pval(model, "settlement_payment", sens.get("settlement_payment", False)) if p else "lump_sum"
+    return mode, int(p.get("installments") or 1) if mode == "installments" else 1
 
 
 def verdict_amount(d: DisputeInstance, model: dict, branch: str, sens: dict | None = None) -> int:
@@ -625,10 +638,12 @@ class Chain:
     def settle(self, start: np.ndarray, end: np.ndarray, agreed: bool = True, cap: int | None = None
                ) -> tuple[np.ndarray, np.ndarray]:
         """Settlement: available cash less 30-day need, floored at 0 and capped at the amount owed (`settle_offer`),
-        paid on interval start + 30 days (sensitivity: the interval's end). A settlement exists only where that
-        amount is positive. Lump sum: the claim is released on payment. Monthly (sensitivity): installments to the
-        horizon, none after a petition (run), and the claim is released when the last one is paid. Returns the
-        payment date and where a settlement exists."""
+        the settlement date interval start + 30 days (sensitivity: the interval's end). A settlement exists only where
+        that amount is positive; it bounds what can be paid (spec §16.3), and the terms (settlement_terms) say how it
+        is paid. Installments (the 14 May case): equal monthly payments from the settlement date, those after the
+        horizon outside it, none after a petition (run); the claim is released on the settlement date. Lump sum: one
+        payment, released on payment. Monthly (4.0.0 sensitivity): payments to the horizon, released on the last.
+        Returns the settlement date and where a settlement exists."""
         pd = np.asarray(end) if self.sens.get("settlement_date_in_interval") else np.asarray(start) + int(
             self.m["parameters"]["settlement_date_in_interval"]["value"])
         ok = self.live(pd) & (pd < self.N)
@@ -640,7 +655,12 @@ class Chain:
         if not agreed:
             return pd, ok
         release = pd
-        if self.m["settlement_scenarios"]["base"] == "monthly" or self.sens.get("settlement_monthly"):
+        mode, count = settlement_terms(self.m, self.sens)
+        if mode == "installments":  # the case's terms: the agreement releases the claim on the settlement date
+            for i in range(count):
+                part = np.where(ok, bound // count + (bound % count if i == count - 1 else 0), 0)
+                self.book(self.ev.cash, self.months_after(pd, i), -part)  # after the period: outside it
+        elif mode == "monthly":
             k = np.maximum((self.N - pd + 29) // 30, 1)
             for i in range(int(k.max())):
                 part = np.where(ok & (i < k), bound // k + np.where(i == k - 1, bound % k, 0), 0)
@@ -651,6 +671,13 @@ class Chain:
         self.resolve(release, ok & self.live(release))
         self.mark("settled", pd, ok)
         return pd, ok
+
+    def months_after(self, day: np.ndarray, k: int) -> np.ndarray:
+        """The day index `k` calendar months after each day index (a day past the period stays as it is)."""
+        day = np.asarray(day)
+        at = {int(x): (add_months(self.s.review + timedelta(days=int(x) + 1), k) - self.s.review).days - 1
+              if x < self.N else int(x) for x in np.unique(day)}
+        return np.array([at[int(x)] for x in day.ravel()], dtype=np.int64).reshape(day.shape)
 
     def stay_security(self, motion: np.ndarray, key: str, approved: bool) -> np.ndarray:
         """Rule 62(b), effective on approval (motion + briefing + a lag draw). Where the company's cash at approval
