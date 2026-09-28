@@ -542,13 +542,20 @@
       "disposition": "bounded",
       "source": "case_scenario",
       "value": "components_without_principal",
-      "basis": "The J1 branch 'liability without the principal measure': the claimant's requested components outside its principal damages measure, excluding components that restate another (duplicates) and components of a claim whose damages the court has barred. Sensitivity: the case's stated amount (a declared scenario class where no figure is public)."
+      "basis": "The J1 branch 'liability without the principal measure': the claimant's requested components outside its principal damages measure, excluding components that restate another (duplicates), components of a claim whose damages the court has barred, and the kinds the claimant_enhancements term stands for. Where a counted component's amount is unknown, the sum is unknown: the branch takes the case's declared `bound`, labelled as the bound, and with no bound declared the analysis stops and names the component. Sensitivity: the case's stated amount (a declared scenario class where no figure is public)."
     },
     "claimant_enhancements": {
       "disposition": "bounded",
       "source": "case_scenario",
       "value": 0,
-      "basis": "Exemplary, enhanced and statutory additions and pre-judgment interest on the claimant's-theory branch: one bounded term (they only raise an award already beyond cash). Base 0 added; the case states the sensitivity."
+      "basis": "Exemplary, enhanced and statutory additions, fees, costs and pre-judgment interest on the claimant's-theory branch (the component kinds in `kinds`): one bounded term (they only raise an award already beyond cash), never summed from the components. Base 0 added; the case states the sensitivity.",
+      "kinds": [
+        "exemplary",
+        "trebling",
+        "fees",
+        "prejudgment_interest",
+        "costs"
+      ]
     },
     "rate_1961_bps_pending": {
       "disposition": "bounded",
@@ -1961,7 +1968,7 @@
         }
       },
       "amount_rules": {
-        "components": "the claimant's requested components, excluding any that restates another (duplicates) and any of a claim whose damages the court has barred",
+        "components": "the claimant's requested components, excluding any that restates another (duplicates), any of a claim whose damages the court has barred, and the kinds the claimant_enhancements term stands for; an unknown component amount leaves the sum unknown, never 0",
         "components_without_principal": "the same, also excluding the claimant's principal damages measure"
       },
       "label_templates": {

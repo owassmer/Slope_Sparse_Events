@@ -557,11 +557,13 @@ class Forecaster:
         disputes. The claimant's branch is told its range over the enhancement settings, never one figure."""
         if d.stage != PENDING:
             return {}
-        from app.analysis.events import verdict_amount
+        from app.analysis.events import verdict_amount, verdict_basis
 
         lo, hi = (verdict_amount(d, self.m, "claimant_theory", {"claimant_enhancements": x}) for x in (False, True))
+        lower, how = verdict_basis(d, self.m, "without_principal_measure", self.sens)
         fill = {"claimant": d.counterparty, "range": f"{usd(min(lo, hi))} to {usd(max(lo, hi))}",
-                "amount": usd(verdict_amount(d, self.m, "without_principal_measure", self.sens)),
+                "amount": usd(lower) + (" (the case's declared bound; the record leaves a component's amount unknown)"
+                                        if how == "bound" else ""),
                 **self.m.get("case_labels", {})}
         return {k: v.format_map(fill) for k, v in self.m["templates"]["pending_money_claim"]["label_templates"].items()}
 

@@ -150,29 +150,62 @@ def pending_template(model: dict) -> dict:
     return next(t for t in model["templates"].values() if t.get("stage") == PENDING)
 
 
-def claim_components(d: DisputeInstance, principal: bool = True) -> int:
-    """The claimant's requested components (amount_rules): no restatement of another (duplicates), none of a claim
-    whose damages the court barred; principal False also leaves out the claimant's principal measure."""
+class UnknownAmount(ValueError):
+    """A branch amount that rests on a component the record leaves unquantified, where the case declares no bound for
+    it: the analysis stops and names the missing input (an unknown amount is never 0)."""
+
+
+def counted_components(d: DisputeInstance, model: dict, principal: bool = True) -> list:
+    """The claimant's requested components a verdict branch sums (amount_rules): no restatement of another
+    (duplicates), none of a claim whose damages the court barred, none of the kinds the bounded claimant_enhancements
+    term stands for (exemplary, enhanced and statutory additions, fees, costs, interest); principal False also leaves
+    out the claimant's principal measure."""
     barred = {c.claim_id for c in d.claims if c.damages_barred}
-    return int(sum(c.amount_cents or 0 for c in d.components if c.status == "requested" and not c.duplicates
-                   and c.claim not in barred and (principal or not c.principal)))
+    plus = set(model["parameters"].get("claimant_enhancements", {}).get("kinds", ()))
+    return [c for c in d.components if c.status == "requested" and not c.duplicates and c.claim not in barred
+            and c.kind not in plus and (principal or not c.principal)]
 
 
-def verdict_amount(d: DisputeInstance, model: dict, branch: str, sens: dict | None = None) -> int:
-    """A verdict branch's judgment amount (template verdict_branches): 0 where the branch enters no judgment."""
+def claim_components(d: DisputeInstance, model: dict, principal: bool = True) -> int | None:
+    """The sum of the counted components; None (unknown) where any of them has no quoted amount."""
+    cs = counted_components(d, model, principal)
+    if any(c.amount_cents is None for c in cs):
+        return None
+    return int(sum(c.amount_cents for c in cs))
+
+
+def verdict_basis(d: DisputeInstance, model: dict, branch: str, sens: dict | None = None) -> tuple[int, str]:
+    """A verdict branch's judgment amount (template verdict_branches) and what it rests on: 'record' (the quoted
+    components), 'bound' (the case's declared bound, where a counted component's amount is unknown), 'declared' (a
+    declared amount, e.g. the sensitivity), or 'none' (the branch enters no judgment). Raises UnknownAmount where a
+    counted component is unknown and the case declares no bound."""
     sens = sens or {}
     spec = pending_template(model)["verdict_branches"][branch]
     if not spec["judgment"]:
-        return 0
+        return 0, "none"
     rule = spec["amount"]
-    if rule == "components":
-        amount = claim_components(d)
+    v = "components" if rule == "components" else pval(model, rule, sens.get(rule, False))
+    if v in ("components", "components_without_principal"):
+        amount, how = claim_components(d, model, principal=v == "components"), "record"
+        if amount is None:
+            bound = model["parameters"].get(rule, {}).get("bound")
+            if bound is None:
+                missing = [c.component_id for c in counted_components(d, model, v == "components")
+                           if c.amount_cents is None]
+                raise UnknownAmount(f"The '{branch}' verdict amount is unknown: components {missing} have no quoted "
+                                    f"amount, and the case declares no bound for it (scenario.json parameters). "
+                                    f"Record the amounts from the passages that state them, or declare the bound.")
+            amount, how = int(bound), "bound"
     else:
-        v = pval(model, rule, sens.get(rule, False))
-        amount = claim_components(d, principal=False) if v == "components_without_principal" else int(v)
+        amount, how = int(v), "declared"
     if spec.get("plus"):
         amount += int(pval(model, spec["plus"], sens.get(spec["plus"], False)))
-    return amount
+    return amount, how
+
+
+def verdict_amount(d: DisputeInstance, model: dict, branch: str, sens: dict | None = None) -> int:
+    """A verdict branch's judgment amount (verdict_basis): 0 where the branch enters no judgment."""
+    return verdict_basis(d, model, branch, sens)[0]
 
 
 def prejudgment_interest_cents(d: DisputeInstance, compensatory: int, model: dict) -> int:
@@ -182,6 +215,13 @@ def prejudgment_interest_cents(d: DisputeInstance, compensatory: int, model: dic
         return 0
     bps = model["rules"][model["rules"]["nc_24_5_b"]["rate_rule"]]["value"]
     return int(round(compensatory * bps / 10_000 * (d.judgment_date - d.commenced).days / 365))
+
+
+def known(c, what: str) -> int:
+    """A component's quoted amount where the path needs it; an unknown amount stops the analysis (never 0)."""
+    if c.amount_cents is None:
+        raise UnknownAmount(f"{what}: component {c.component_id} has no quoted amount, and the path needs it")
+    return int(c.amount_cents)
 
 
 def ruling_amounts(d: DisputeInstance, outcome: dict[str, str], model: dict) -> dict[str, int]:
@@ -194,14 +234,14 @@ def ruling_amounts(d: DisputeInstance, outcome: dict[str, str], model: dict) -> 
     if comp_c is not None and survives:
         dmg = outcome.get("damages", "stands")
         if dmg == "stands":
-            comp = comp_c.amount_cents or 0
+            comp = known(comp_c, "the judgment as entered")
         elif dmg == "remit" and outcome.get("remittitur") == "accept":
             scen = model["remittitur_scenarios"]["base"]
             remitted = (model["remittitur_scenarios"]["scenarios"].get("remitted", {}).get("amount_cents")
                         or comp_c.remittitur_cents)
-            comp = (remitted if scen == "remitted" and remitted else comp_c.amount_cents) or 0
-    exemplary = (ex_c.amount_cents or 0) if (ex_c is not None and comp > 0) else 0  # exemplary damages fall with a new trial on compensatory damages
-    patent = (pat_c.amount_cents or 0) if (pat_c is not None and outcome.get("patent") != "granted") else 0
+            comp = remitted if scen == "remitted" and remitted else known(comp_c, "the remitted judgment")
+    exemplary = known(ex_c, "exemplary damages") if (ex_c is not None and comp > 0) else 0  # exemplary damages fall with a new trial on compensatory damages
+    patent = known(pat_c, "patent damages") if (pat_c is not None and outcome.get("patent") != "granted") else 0
     out = {"compensatory": comp, "exemplary": exemplary, "patent": patent, "trebling": 0, "fees": 0,
            "prejudgment_interest": 0}
     if comp > 0 and outcome.get("trebling") == "granted":
@@ -209,7 +249,7 @@ def ruling_amounts(d: DisputeInstance, outcome: dict[str, str], model: dict) -> 
         if trebled >= comp + exemplary:  # election (Kuykendall): the larger recovery; trebling drops exemplary
             out.update(trebling=trebled - comp, exemplary=0)
     if comp > 0 and fee_c is not None and outcome.get("fees") == "granted":
-        out["fees"] = fee_c.amount_cents or 0  # the requested amount, if awarded
+        out["fees"] = known(fee_c, "fees")  # the requested amount, if awarded
     if comp > 0 and outcome.get("interest") == "granted":
         out["prejudgment_interest"] = prejudgment_interest_cents(d, comp, model)  # on the untrebled amount
     return out
@@ -718,8 +758,11 @@ class Chain:
             days = {int(x): self.repurchase_day(int(x)) for x in np.unique(delist)}
             return np.array([days[int(x)] for x in delist], dtype=np.int64)
         when = self.s.review + timedelta(days=int(delist) + 1)
-        notice = self.fin.repurchase_notice_business_days or 0
-        lo, hi = self.fin.repurchase_business_days or (0, 0)
+        if self.fin.repurchase_business_days is None or self.fin.repurchase_notice_business_days is None:
+            raise ValueError(f"{self.fin.instrument_id}: the repurchase terms are unknown; its quoted terms must give "
+                             "the notice and the repurchase window")
+        notice = self.fin.repurchase_notice_business_days
+        lo, hi = self.fin.repurchase_business_days
         if self.p("repurchase_date") == "earliest":
             return self.ix(business_days_after(when, lo))
         return self.ix(business_days_after(when, notice + hi))
@@ -862,7 +905,7 @@ class Chain:
             elif branch == "retrial":  # no money award survives: the stay secures nothing from the ruling
                 self.release_lock(np.maximum(self.F, 0), self.live(self.F))
             self.mark("ruled", self.F)
-            self.increase = max((self.cls_amount or 0) - self.entered, 0)
+            self.increase = max(self.cls_amount - self.entered, 0)  # cls_amount is set on every branch above
             restart = self.m["parameters"]["stay_restart_on_increase_days"]
             mode = restart["sensitivity"] if self.sens.get("stay_restart_on_increase_days") else restart["base"]
             self.EI = self.F + (int(restart["value"]) if self.increase else 0)

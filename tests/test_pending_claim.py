@@ -182,6 +182,43 @@ def test_4_branch_amounts():
             assert not ch.judgment_default(ctx)[1].any()
 
 
+def _unknown(d, *ids):
+    """The dispute with the named components' amounts unknown (the agent quoted none)."""
+    return d.model_copy(update={"components": tuple(
+        c.model_copy(update={"amount_cents": None, "unknown": True}) if c.component_id in ids else c
+        for c in d.components)})
+
+
+def test_an_unknown_component_amount_stays_unknown():
+    """Critical rule: an unknown amount never becomes 0. The lower branch takes the case's declared bound, labelled as
+    the bound; without a declared bound the analysis refuses and names the component; the claimant's branch, which
+    declares no bound, refuses too. The enhancement kinds are the bounded claimant_enhancements term, never summed."""
+    import copy
+
+    from app.analysis.events import Chain, Draws, UnknownAmount, verdict_basis
+    from app.domain.investigation import Component
+
+    m, d = fx.model(), fx.pending()
+    assert verdict_basis(d, m, "without_principal_measure") == (142_641_200, "record")
+    gap = _unknown(d, "patent", "advertising")
+    assert verdict_basis(gap, m, "without_principal_measure") == (142_641_200, "bound")
+    assert verdict_basis(gap, m, "without_principal_measure", {"lower_award_amount": True}) == (999_999_900,
+                                                                                                "declared")
+    ch = Chain(gap, fx.setup(), m, Draws(fx.basis().cash.shape[0], basis=fx.basis()), None)
+    ch.run((("verdict", "I0", "without_principal_measure"),))
+    assert ch.entered == 142_641_200  # the judgment the lower branch books is the bound, never 0
+    bare = copy.deepcopy(m)
+    del bare["parameters"]["lower_award_amount"]["bound"]
+    with pytest.raises(UnknownAmount, match="advertising"):
+        verdict_basis(gap, bare, "without_principal_measure")
+    with pytest.raises(UnknownAmount, match="patent"):
+        verdict_basis(gap, m, "claimant_theory")
+    extra = d.model_copy(update={"components": d.components + (
+        Component(component_id="exemplary", label="exemplary damages", kind="exemplary", status="requested",
+                  unknown=True, claim="trade_secrets", theory="claimant"),)})
+    assert verdict_basis(extra, m, "claimant_theory") == (6_752_641_200, "record")
+
+
 def _sample(paths, pred, k=20):
     got = [p for p in paths if pred(p)]
     return got[:: max(1, len(got) // k)][:k]

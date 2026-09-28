@@ -19,7 +19,8 @@
     "lower_award_amount": {
       "value": "components_without_principal",
       "sensitivity": 999999900,
-      "basis": "Owen, O1 (27 Sep 2026): the lower J1 branch is liability without the head-start measure. Base: the claimant's own figures for a verdict that rejects that measure, patent USD 279,808 plus corrective advertising USD 1,146,604 = USD 1,426,412 (D.I. 543-1 Ex. A.2 ¶¶19, 42). The poaching USD 809,772 is a UDTPA claim, and D.I. 590 (14 May 2024) held the jury has no basis for compensable UDTPA damages, so it is excluded. Sensitivity: USD 9,999,999, the most an award can be and stay below the notes' USD 10.0M threshold."
+      "basis": "Owen, O1 (27 Sep 2026): the lower J1 branch is liability without the head-start measure. Base: the claimant's own figures for a verdict that rejects that measure, patent USD 279,808 plus corrective advertising USD 1,146,604 = USD 1,426,412 (D.I. 543-1 Ex. A.2 ¶¶19, 42). The poaching USD 809,772 is a UDTPA claim, and D.I. 590 (14 May 2024) held the jury has no basis for compensable UDTPA damages, so it is excluded. The same USD 1,426,412 is the declared bound: where the agent's record leaves a counted component's amount unknown, the branch uses it, labelled as the bound. Sensitivity: USD 9,999,999, the most an award can be and stay below the notes' USD 10.0M threshold.",
+      "bound": 142641200
     },
     "claimant_enhancements": {
       "value": 0,
