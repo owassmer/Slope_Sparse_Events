@@ -560,14 +560,15 @@ def label_head(label: str) -> str:
 
 def component_row(c, d, model: dict) -> dict:
     """A judgment component as the engine prices it: a compensatory award shows the model's remitted-amount scenario
-    and its source (never a party's own remittitur request); a sealed request shows as sealed; interest shows the
-    rates the engine computes it at."""
+    and its source (never a party's own remittitur request); a requested component (a pending claim) has none, since
+    nothing has been awarded to remit; a sealed request shows as sealed; interest shows the rates the engine computes
+    it at."""
     import re
 
     row = {"label": label_head(c.label), "amount": usd(c.amount_cents) if c.amount_cents is not None
            else "computed by statute" if c.statutory else "unknown", "status": c.status,
            "source": d.order_reference if c.status == "awarded" else c.motion}  # a request cites its own passage
-    if c.kind == "compensatory":
+    if c.kind == "compensatory" and c.status == "awarded":  # a remittitur can only reduce an award already made
         sc = model.get("remittitur_scenarios", {})
         rem = sc.get("scenarios", {}).get("remitted", {})
         if sc.get("base") == "remitted" and rem.get("amount_cents"):
@@ -644,7 +645,7 @@ def case_terms(d, review: date, horizon: date, model: dict, links: dict[str, str
 # Per-path means the browser reweights: the lender bridge's tiles (funded -> payments due -> collected, then due and
 # unpaid split into past due and frozen by a filing, the chance of a filing and clawback exposure) and the Exposure
 # tab's peak outstanding and capital tied up (time-weighted outstanding).
-TILES = ("funded", "due", "collected", "unpaid", "past_due", "frozen_due", "petition_p", "clawback",
+TILES = ("funded", "due", "collected", "unpaid", "past_due", "frozen_due", "not_yet_due", "petition_p", "clawback",
          "peak_outstanding", "avg_outstanding")
 
 
@@ -652,12 +653,15 @@ def path_scalars(r) -> dict[str, np.ndarray]:
     """Per path, the mean over its draws of each TILES figure. Payments due, past due and frozen by the end of the
     period are the per-day records' last day (core.Reduction.per_day). Amounts are whole cents; due and unpaid is
     payments due less collected and frozen is due and unpaid less past due, so on every path collected + due and
-    unpaid = payments due and past due + frozen = due and unpaid exactly (the bridge's two parts reconcile)."""
+    unpaid = payments due and past due + frozen = due and unpaid exactly (the bridge's two parts reconcile). Not yet
+    due is the analysis's own per-trajectory figure (engine: installments falling due after the horizon, zero where a
+    petition froze the claim), so 'due' stays due by the horizon and the contractual total is never shown."""
     last = {k: np.rint(r.per_day[k][:, -1] / r.draws) for k in ("due_cum", "past_due")}
     collected = np.rint(r.means["collected"])
     unpaid = last["due_cum"] - collected
     return {"funded": np.rint(r.means["drawn"]), "due": last["due_cum"], "collected": collected, "unpaid": unpaid,
             "past_due": last["past_due"], "frozen_due": unpaid - last["past_due"],
+            "not_yet_due": np.rint(r.means["not_yet_due"]),  # installments due after the horizon, on no-filing draws
             "petition_p": np.round(r.means["petition_p"], 4), "clawback": np.rint(r.means["preference"]),
             "peak_outstanding": np.rint(r.means["peak_outstanding"]),
             "avg_outstanding": np.rint(r.means["avg_outstanding"])}
