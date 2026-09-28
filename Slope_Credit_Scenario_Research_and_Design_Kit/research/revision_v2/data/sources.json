@@ -2526,6 +2526,64 @@
         "akoustis_20240620": "out_of_case",
         "akoustis_20240514": "eligible"
       }
+    },
+    {
+      "source_id": "ded_21cv1417_d580_verdict_form",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.580.0.pdf",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d580_verdict_form.pdf",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d580_verdict_form.pdf",
+      "sha256": "58ac4822c64d32184adf5b9c9d6477a1101c6d982189dca6e042b5b044fb707e",
+      "bytes": 228470,
+      "availability": {
+        "date": "2024-05-09",
+        "precision": "day",
+        "basis": "Federal docket entry filing date (CourtListener RECAP copy of the PACER document)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2024-05-09"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "ded_21cv1417_d550_order",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.550.0.pdf",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d550_order.pdf",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d550_order.pdf",
+      "sha256": "7ca79a7c6afd171bf8ae0ed32773b79d22248505d7f674ff57a987b9f90e1e14",
+      "bytes": 119553,
+      "availability": {
+        "date": "2024-04-26",
+        "precision": "day",
+        "basis": "Federal docket entry filing date (CourtListener RECAP copy of the PACER document)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2024-04-26"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
     }
   ]
 }
