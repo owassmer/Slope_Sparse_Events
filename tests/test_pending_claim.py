@@ -525,6 +525,34 @@ def test_7g_delisting_defaults_the_notes_whether_or_not_the_dispute_ended(tree):
     assert (ch.marks["notes_due"][inside] < 10**6).all()
 
 
+def test_7h_the_ordinary_view_is_the_forecast_whose_dispute_ends_on_the_review_date(tree):
+    """Fix 3 (spec §16.1): with no dispute events, the ordinary view's cash equals the full forecast's cash on the same
+    floor and listing steps where the dispute ends at no cost on the review date: legal spend stops from then and
+    nothing else differs (operations, coupon, the floor decisions, the listing chain and the notes' delisting route)."""
+    from app.analysis.events import bank_trace
+
+    fc, d, _, bank = tree
+    assert any(x[0] == "listing" for p in bank for x in p.steps)  # the listing chain is in both views
+    assert any(n.node == "listing_kept" for n in fc.bank_nodes.values())
+    b = fx.basis()
+    for p in bank:
+        ch = chain()
+        ch.instrument_cash()
+        ch.resolve(np.zeros(ch.n, dtype=np.int64), np.ones(ch.n, dtype=bool))  # the dispute ends at no cost
+        from app.analysis.events import Trace
+
+        tr = Trace(ch.ev)
+        for step in p.steps:
+            ch.advance(tr, *step)
+        full = ch.finish(tr)
+        bt = bank_trace(fx.notes(), p.steps, fx.setup(), fx.model(), Draws(b.cash.shape[0], basis=b), None)
+        assert (full.events.cash == bt.events.cash).all(), p.steps
+        assert (full.events.petition == bt.events.petition).all(), p.steps
+    t = np.arange(ch.N)[None, :]
+    assert (bt.events.cash[(b.legal[:, :ch.N] != 0) & (t < np.where(bt.events.petition < 0, ch.N,
+                                                                         bt.events.petition)[:, None])] != 0).all()
+
+
 def test_8_settlement_is_bounded_and_ends_the_claim(tree):
     """A settlement never exceeds cash above the 30-day need on its payment date, nor the amount claimed (I0) or owed;
     paid, it resolves the dispute (claim, lock and legal spend end)."""

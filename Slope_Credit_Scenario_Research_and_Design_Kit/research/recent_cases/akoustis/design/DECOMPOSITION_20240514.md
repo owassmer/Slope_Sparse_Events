@@ -248,7 +248,7 @@ At 14 May every Panel decision and every Form 25 falls after 10 Nov (§2.3). Ins
 
 ### 4.4 T4. Operating cash
 
-Operating flows come from the common model (§16.3): the 14 May feed, the operating outlook, the coupon (B8). Event cash comes from T1 and T5. **τ** is the first day available cash falls below the 30-day need; **D7**: the company raises equity, files or continues at τ (`financing_at_floor`, item 1; 'raise equity' only where the amount available in its situation is positive). After a raise or 'continue', **D8**: it files when cash first falls below zero (`petition_cash_out`, reused). They are also the only questions in the ordinary-operating-risk attribution run (the event given no cash effect, spec §16.1), asked there with that run's facts (`bank_state`).
+Operating flows come from the common model (§16.3): the 14 May feed, the operating outlook, the coupon (B8). Event cash comes from T1 and T5. **τ** is the first day available cash falls below the 30-day need; **D7**: the company raises equity, files or continues at τ (`financing_at_floor`, item 1; 'raise equity' only where the amount available in its situation is positive). After a raise or 'continue', **D8**: it files when cash first falls below zero (`petition_cash_out`, reused). They are also asked in the ordinary-operating-risk attribution run (the event, including its legal costs, given no cash effect, spec §16.1), with that run's facts (`bank_state`), together with the listing chain (D6 and the delisting route to the notes), a common borrower input (§7.12, PR #18 fixes).
 
 ### 4.5 Settlement terms
 
@@ -525,6 +525,13 @@ The three branches' composites are disjoint and exhaustive over the answers (tes
 - **Above the §7.10 estimate** (100–150): the counts are keyed by situation. `financing_at_floor` and `petition_cash_out` split by situation tags (28 and 29), and `listing_kept` by amount class and notes status (19). Three `holders_involuntary` asks fall after the period on every trajectory and cancel inside the merged unfiled class (the 4.0.0 rule; their reach is zero, tested). They are left as in 4.0.0, because pruning them would change the 20 Jun tree.
 - **Fix found while measuring:** the I0 settlement questions read no cash facts, because nothing is owed before a verdict. The owed filter no longer applies in I0.
 - **4.0.0 unchanged:** the 20 Jun tree was rebuilt after every step. Each rebuild gave 13,821 paths and 337 node keys, with every question and bank-view state hash identical.
+
+**PR #18 review fixes (28 Sep 2026).**
+- **Date order.** The cash floor, cash exhaustion, the levy-day response after the ruling and the notes' judgment default book on their own day on every trajectory, whatever the walk order (`events.py` `waits`); the walker asks the floor before the first decision it precedes, or whose cash it reads after the floor (a stay's approval, a settlement's payment, a levy). Their facts come from each whole path. A pending claim's levy that falls before the I3 window on some trajectory is walked first, and every branch of the company's response still reaches the window.
+- **Only impossibility removes a branch.** The raise is offered wherever a whole path makes it available at the floor, including a set-aside or payment walked after the floor question and dated before it.
+- **⚑ facts equal the engine.** Bond collateral is the engine's figure on the approval day (with §1961 interest at the pending rate); the amount owed counts only levies and payments dated before the decision.
+- **One dispute end.** A levy or payment that satisfies the judgment, a settlement, or a vacatur ends the dispute (`resolve`): legal spend stops that day and never returns, a later petition included.
+- **Ordinary operating risk (orchestrator, 28 Sep 2026).** It is the same forecast with the event, including its legal costs, given no cash effect: the dispute ends on the review date at no cost, so its legal spend stops from then (the same `resolve`), and everything else is identical: operations, the line, the coupon, the floor decisions and the listing chain with the notes' delisting route (case input `ordinary_view: same_forecast`; the 20 Jun run keeps its bank view).
 
 ---
 

@@ -73,6 +73,10 @@
     "raise_days": {
       "value": 30,
       "basis": "Owen, item 1 (27 Sep 2026): ATM sales take time; the proceeds arrive in equal daily amounts over 30 days from the decision."
+    },
+    "ordinary_view": {
+      "value": "same_forecast",
+      "basis": "Spec §16.1 (orchestrator, 28 Sep 2026): ordinary operating risk is the same forecast with the event, including its legal costs, given no cash effect. The dispute ends on the review date at no cost, so its legal spend stops from then (the one dispute-end rule); operations, the line, the coupon, the cash-floor decisions and the listing chain with the notes' delisting route are the same as in the forecast."
     }
   },
   "verdict_form": {
@@ -157,53 +161,69 @@
     "variants": [
       {
         "id": "cost_plan",
-        "label": "The announced 30% cut in operating burn",
-        "common_model": "cost_plan"
+        "label": "Operating burn 30% lower from 15 May 2024, instead of the recent run rate",
+        "common_model": "cost_plan",
+        "note": "Changes the company's operating outflows. Central: the bank feed's recent flows continue. Alternative: the cut the company announced on its 13 May 2024 earnings call, a 30% lower operating burn in the June quarter, taken off every operating outflow except legal costs and debt service."
       },
       {
         "id": "equity_injection",
-        "label": "A USD 5.0M equity injection on 14 Jun 2024",
-        "common_model": "equity_injection"
+        "label": "Equity: $5.0M received on 14 Jun 2024, instead of none booked",
+        "common_model": "equity_injection",
+        "note": "Changes the company's cash. Central: no financing is booked; any raise is the company's own decision at its cash floor. Alternative: $5.0M of new equity one month after the review. A scenario, not a fact of the record: the company was restarting its at-the-market share sales, which fix no amount or date."
       },
       {
-        "id": "raise_capacity_low",
-        "label": "USD 5.0M of equity can be raised at the cash floor, with or without an adverse judgment",
+        "id": "raise_capacity_no_judgment_low",
+        "label": "Equity raised at the cash floor with no adverse judgment: $5.0M instead of $9.7M",
         "parameters": [
-          "raise_capacity",
+          "raise_capacity"
+        ],
+        "note": "Changes what a raise at the cash floor brings in when the jury has not adopted {claimant}'s theory. Central: $9.7M, an estimate of what the company's at-the-market share sales can raise under the small-company limit (about one third of its public float per 12 months, less the January raise). Alternative: $5.0M."
+      },
+      {
+        "id": "raise_after_judgment_available",
+        "label": "Equity raised at the cash floor after an adverse judgment: $5.0M instead of none",
+        "parameters": [
           "raise_capacity_after_adverse_judgment"
-        ]
+        ],
+        "note": "Changes what a raise at the cash floor brings in after a judgment on {claimant}'s theory. Central: nothing, because the share-sale limit falls with the share price and the company's quarterly report says such a judgment creates an urgent need for liquidity. Alternative: a distressed raise of $5.0M."
       },
       {
         "id": "settlement_lump_sum",
-        "label": "A settlement is paid at once, not over 12 months",
+        "label": "Settlement paid at once, instead of in 12 monthly installments",
         "parameters": [
           "settlement_payment"
-        ]
+        ],
+        "note": "Changes when a settlement's money leaves the company. Central: the settlement amount (the company's cash above its 30-day operating need, capped at the amount claimed) paid in 12 equal monthly installments, since a distressed company does not pay out its runway at once. Alternative: the same amount in one payment on the settlement date."
       },
       {
         "id": "collection_protect_need",
-        "label": "The borrower keeps 30 days of operating need back before paying Slope",
-        "common_model": "protect_need"
+        "label": "Collection: only from cash above 30 days of operating need, instead of each installment in full when cash covers it",
+        "common_model": "protect_need",
+        "note": "Changes how Slope collects. Central: Slope's automatic debit takes each installment in full on its due date when the company's cash covers it. Alternative: the company holds back its next 30 days of operating need, and Slope collects only from cash above that."
       },
       {
         "id": "cash_floor_60_days",
-        "label": "The cash floor at 60 days of operating need",
-        "common_model": "cash_floor_60_days"
+        "label": "Cash floor: 60 days of operating outflows, instead of 30",
+        "common_model": "cash_floor_60_days",
+        "note": "Changes the cash level at which the company decides whether to raise equity, keep going or file, and the cash it counts as available for a settlement or security. Slope's debit does not read it, so collections change only through those decisions."
       },
       {
         "id": "lower_award_high",
-        "label": "The lower verdict branch at USD 9,999,999",
+        "label": "Jury: lower award at $9,999,999, instead of $1.4M",
         "parameters": [
           "lower_award_amount"
-        ]
+        ],
+        "note": "Changes the judgment on the lower-award outcome. Central: $1.4M, {claimant}'s own figures for the smaller claims that stand if the jury rejects the head-start measure (patent and corrective advertising). Alternative: $9,999,999, the largest award that stays below the notes' $10.0M judgment-default threshold."
       },
       {
         "id": "coupon_cash",
-        "label": "The June notes coupon paid in cash",
+        "label": "June notes coupon paid in cash, instead of in shares",
         "parameters": [
           "coupon_cash_share"
-        ]
+        ],
+        "note": "Changes how the company pays the $1.32M notes coupon due 15 Jun 2024. Central: in shares, which the notes allow unless the company elects cash, and which its registered shares cover. Alternative: all in cash."
       }
-    ]
+    ],
+    "central_note": "Settings every outcome shares: the bank feed's recent flows continue, no financing is booked, the cash floor is 30 days of operating outflows, and Slope collects each installment by automatic debit."
   }
 }

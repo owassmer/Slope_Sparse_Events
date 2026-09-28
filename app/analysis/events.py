@@ -360,6 +360,9 @@ class Chain:
         self.iid = d.instance_id if d is not None else BANK
         self.fin = next((f for f in d.financing if f.status != "superseded"), None) if d is not None else fin
         self.pending = d is not None and d.stage == PENDING  # a claim at trial: no judgment until the verdict step
+        # the ordinary view of a case under spec §16.1 (case input ordinary_view): the same forecast with the event,
+        # including its legal costs, given no cash effect; its floor decisions book on their own day, as the event's
+        self.ordinary = d is None and model["parameters"].get("ordinary_view", {}).get("value") == "same_forecast"
         self.bps = judgment_bps(model, d, self.sens)
         self.entered = 0 if self.pending else entered_cents(d) if d is not None else 0
         self.bookings = model.get("branch_bookings", {}).get("nodes", {})
@@ -889,6 +892,8 @@ class Chain:
                 self.book(self.ev.cash, np.full(self.n, day), -cash)
                 if cash and 0 <= day < self.N:
                     self.coupons.append((day, cash, np.ones(self.n, dtype=bool)))
+        if self.ordinary:  # the dispute ends on the review date at no cost: its legal spend stops (`resolve`)
+            self.resolve(np.zeros(self.n, dtype=np.int64), np.ones(self.n, dtype=bool))
         chips = int(self.p("chips_credit_cents"))
         if chips:
             per = np.full(self.N, chips // self.N, dtype=np.int64)
@@ -1015,7 +1020,7 @@ class Chain:
             # the notes' default and repurchase do not depend on the dispute: a pending claim's (4.1.0) opens wherever no
             # petition precedes the delisting, the dispute ended or not; 4.0.0 as recorded (only while it is live)
             pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
-            alive = self.delisted < pet if self.pending else self.live(self.delisted)
+            alive = self.delisted < pet if self.pending or self.ordinary else self.live(self.delisted)
             open_ = alive & (self.marks["notes_due"] > self.delisted) & (self.delisted < N)
             accel = self.delisted + int(self.p("holder_notice_lag_days"))
             rep = full(BIG)
@@ -1163,6 +1168,8 @@ class Chain:
         settlement window that precedes it on some trajectories, and the notes' judgment default (the walk asks the
         pre-ruling one before a ruling that can set the judgment aside first). A pending claim (4.1.0) only: 4.0.0
         books each step as it is walked, the floor last, as recorded."""
+        if self.ordinary:
+            return node in FLOOR_NODES
         return self.pending and (node in FLOOR_NODES or node == "judgment_default" or (node in RESPONSES
                                                                                      and ctx == "post"))
 
@@ -1266,7 +1273,7 @@ class Chain:
         pet = self.ev.petition
         after = (pet[:, None] >= 0) & (np.arange(self.N)[None, :] >= pet[:, None])
         self.ev.cash[after] = 0  # §362: nothing is collected from or paid by the estate after the petition
-        if self.pending:  # a dispute that ended (`resolve`) never re-adds its legal spend
+        if self.pending or self.ordinary:  # a dispute that ended (`resolve`) never re-adds its legal spend
             ended = np.arange(self.N)[None, :] >= self.resolved[:, None]
             self.ev.cash -= np.where(after & ended, self.basis.legal, 0)
         tr.events = self.ev
