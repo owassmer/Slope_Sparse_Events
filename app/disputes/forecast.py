@@ -198,6 +198,7 @@ class _Prefix:
     settle_offer: np.ndarray | None = None  # the traced step's settlement amount on its payment date (0: none)
     stay_offer: np.ndarray | None = None  # cash above the 30-day operating need on the stay-approval day (0: none)
     triggers: dict | None = None  # events.TRIGGERS name -> day index per draw (events.BIG: none)
+    raise_offer: np.ndarray | None = None  # the equity available at the cash floor on the decision day (0: none)
 
     @classmethod
     def of(cls, tr) -> _Prefix:
@@ -210,7 +211,7 @@ class _Prefix:
         h.update(np.ascontiguousarray(ev.petition).tobytes())
         return cls(tr.day, tr.cash, tr.owed, tr.collateral, ev.petition.copy(), h.digest(),
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
-                   tr.triggers)
+                   tr.triggers, getattr(tr, "raise_offer", None))
 
 
 INTERVAL_PHRASES = {"I1": "before the post-trial ruling", "I2": "after the post-trial ruling, before the appeal deadline",
@@ -234,7 +235,8 @@ STATE_PHRASES = {"entered": "the judgment as entered", "first": "the company's f
                  "notes_due": "the notes are due and unpaid, and no bankruptcy petition has been filed",
                  "delisted": "the stock has been delisted",
                  "cash_exhausted": "the company did not file when its cash fell below its 30-day operating need",
-                 "entered_not_acted": "the holders have not given notice of a default on the judgment as entered"}
+                 "entered_not_acted": "the holders have not given notice of a default on the judgment as entered",
+                 "raised": "the company raised equity when its cash fell below its 30-day operating need"}
 
 
 def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]]) -> list[str]:
@@ -245,7 +247,7 @@ def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]]) -> list
             out.append(INTERVAL_PHRASES[t])
         elif t in STATE_PHRASES:
             out.append(STATE_PHRASES[t])
-        elif t in ("pay", "nopay"):  # carried by the options offered
+        elif t in ("pay", "nopay", "raise", "noraise"):  # carried by the options offered
             continue
         elif t.startswith("amt"):
             cents = int(t[3:].split("_")[0])
@@ -278,7 +280,8 @@ MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "pate
 OWED = {"execute_pre_ruling", "stay_motion", "stay_approved", "registration_early", "debtor_response",
         "enforce_after_final", "settlement_offer", "settlement_accept", "holders_act_judgment"}
 # questions whose actor weighs the contract dates ahead: settlement, the cash floor, cash running out, the notes
-DATED = {"settlement_offer", "settlement_accept", "petition_cash_floor", "petition_cash_out", "holders_act_judgment",
+DATED = {"settlement_offer", "settlement_accept", "petition_cash_floor", "financing_at_floor", "petition_cash_out",
+         "holders_act_judgment",
          "holders_act_delisting", "holders_involuntary", "petition_on_notes"}
 TRIGGER_PHRASES = {
     "judgment_default_entered": "the notes' judgment default (§7.01(i)) on the judgment as entered: 60 days after "
@@ -326,7 +329,9 @@ class Forecaster:
         self._traces: dict = {}
         self._sources: dict[str, str] = {}  # finding -> its source's title
         self.bank_nodes: dict[str, Node] = {}  # the bank view's questions (bank_state)
-        self.bank_facts: dict[str, list] = {}  # bank node key -> [(day, cash, need) arrays]
+        self.bank_facts: dict[str, list] = {}  # bank node key -> [(day, cash, need, raise offer) arrays]
+        # the case sets raise_capacity: the company's floor decision is financing_at_floor (4.1.0)
+        self.raising = "value" in self.m["parameters"].get("raise_capacity", {})
 
     def ordered(self) -> list[tuple[DisputeInstance, None]]:
         """4.0.0 models each judgment's components and triggered instruments inside one dispute's chains, so
@@ -539,7 +544,8 @@ class Forecaster:
         offer, the reduced-security proposal and the dated contract triggers."""
         row = {"day": tr.day[-1], "cash": tr.cash[-1], "owed": tr.owed[-1], "collateral": tr.collateral[-1],
                "petition": tr.petition, "settle_offer": getattr(tr, "settle_offer", None),
-               "stay_offer": getattr(tr, "stay_offer", None), "triggers": getattr(tr, "triggers", None)}
+               "stay_offer": getattr(tr, "stay_offer", None), "triggers": getattr(tr, "triggers", None),
+               "raise_offer": getattr(tr, "raise_offer", None)}
         for k in keys:
             self.facts.setdefault(k, []).append(row)
 
@@ -579,7 +585,7 @@ class Forecaster:
         facts["projected_available_cash_at_decision_date"] = {"p5": usd(int(np.quantile(cash, 0.05))),
                                                               "p50": usd(int(np.quantile(cash, 0.5)))}
         facts["amount_owed_at_decision"] = {"p50": usd(int(np.quantile(owed, 0.5))), "max": usd(int(owed.max()))}
-        if n.node in ("petition_cash_floor", "petition_cash_out") and self.draws is not None:
+        if n.node in ("petition_cash_floor", "financing_at_floor", "petition_cash_out") and self.draws is not None:
             need = np.concatenate([self.draws.basis.need[np.arange(len(r["day"])), np.clip(r["day"], 0, self.days - 1)][m]
                                    for r, m in zip(rows, masks, strict=True)])
             facts["operating_need_30_days_at_decision"] = {"p50": usd(int(np.quantile(need, 0.5)))}
@@ -588,6 +594,8 @@ class Forecaster:
             facts["judgment_after_ruling"] = f"{usd(merged[0])} to {usd(merged[1])}"
             facts["amount_owed_at_decision"]["basis"] = ("the lowest judgment in that range, with post-judgment "
                                                          "interest, less any amount collected")
+        if n.node == "financing_at_floor" and (eq := self._pooled(rows, masks, "raise_offer")) is not None:
+            facts["equity_raise_available"] = self.raise_facts(eq)
         if reg.get("node") in ("stay_motion", "stay_approved"):
             facts["bond_collateral_required"] = usd(int(np.quantile(self._collateral(d, owed), 0.5)))
         if n.node == "stay_approved" and (offer := self._pooled(rows, masks, "stay_offer")) is not None:
@@ -608,6 +616,13 @@ class Forecaster:
                                                    f"trustee or holders of 25% of the notes"
                                                    if f.judgment_default_days else "none")}
         return facts
+
+    def raise_facts(self, eq: np.ndarray) -> dict:
+        """What the company can raise at the cash floor in its situation (code-owned case inputs), and how it arrives."""
+        days = int(self.m["parameters"]["raise_days"]["value"])
+        return {"p5": usd(int(np.quantile(eq, 0.05))), "p50": usd(int(np.quantile(eq, 0.5))), "max": usd(int(eq.max())),
+                "basis": f"sales under the company's existing equity programs, received in equal daily amounts over "
+                         f"{days} days from the decision"}
 
     @staticmethod
     def _pooled(rows: list[dict], masks: list, field: str) -> np.ndarray | None:
@@ -1213,7 +1228,11 @@ class _Walk:
             self.floor(y, outcome)
 
     def floor(self, s: _S, outcome: str) -> None:
-        """The first day available cash falls below the 30-day operating need: the company files or keeps operating."""
+        """The first day available cash falls below the 30-day operating need: the company files or keeps operating;
+        where the case sets raise_capacity, it may also raise equity ('raise_equity' only where the amount available
+        is positive on some trajectory), and zero cash stays the fallback decision."""
+        if self.fc.raising:
+            return self.financing(s, outcome)
         probe = ("cash_floor", "", "no")
         if not self.inside(s.steps + (probe,)):
             return self.emit(s, outcome)
@@ -1221,6 +1240,19 @@ class _Walk:
         self.fc.record((k,), self.fc.trace(self.d, s.steps + (probe,)))
         self.emit(s.add(("cash_floor", "", "yes"), (k, "yes")), "petition")
         self.cash_out(s.add(probe, (k, "no")), outcome)
+
+    def financing(self, s: _S, outcome: str) -> None:
+        probe = ("cash_floor", "", "continue")
+        if not self.inside(s.steps + (probe,)):
+            return self.emit(s, outcome)
+        tr = self.fc.trace(self.d, s.steps + (probe,))
+        can = bool(((tr.day[-1] < self.N) & (tr.raise_offer > 0)).any())
+        branches = (("raise_equity",) if can else ()) + ("file", "continue")
+        k = self.node("financing_at_floor", "raise" if can else "noraise", s=s, probe=probe, branches=branches)
+        self.fc.record((k,), tr)
+        for b in branches:
+            y = s.add(("cash_floor", "", b), (k, b))
+            self.emit(y, "petition") if b == "file" else self.cash_out(y, outcome)
 
     def cash_out(self, s: _S, outcome: str) -> None:
         """The first day available cash falls below zero, after the company kept operating at the floor."""
@@ -1249,23 +1281,26 @@ class _BankWalk:
         t = self.fc.bank_trace(steps).day[-1]
         return bool((t < self.fc.days).any())
 
-    def node(self, name: str, *ctx: str) -> str:
+    def node(self, name: str, *ctx: str, branches: tuple[str, ...] | None = None) -> str:
         k = f"{self.bank}:{name}|" + "|".join((self.bank, *ctx))
         if k not in self.fc.bank_nodes:
             s = self.fc.spec[name]
             self.fc.bank_nodes[k] = Node(key=k, instance_id=self.bank, node=name, context="|".join((self.bank, *ctx)),
                                          cls="", question_id=s["residual_question"], event=s["decision"],
-                                         assumptions=(), window=s["timing"], branches=tuple(s["branches"]))
+                                         assumptions=(), window=s["timing"],
+                                         branches=tuple(branches or s["branches"]))
             tr = self.fc.bank_trace(self.probe[name])
             t = tr.day[-1]
             need = self.fc.draws.basis.need[np.arange(len(t)), np.clip(t, 0, self.fc.days - 1)]
-            self.fc.bank_facts.setdefault(k, []).append((t, tr.cash[-1], need))
+            self.fc.bank_facts.setdefault(k, []).append((t, tr.cash[-1], need, tr.raise_offer))
         return k
 
     def emit(self, steps: tuple, edges: tuple, outcome: str) -> None:
         self.out.append(DisputePath(instance_id=self.bank, steps=steps, outcome=outcome, edges=edges))
 
     def run(self) -> list[DisputePath]:
+        if self.fc.raising:
+            return self.run_financing()
         floor, out = ("cash_floor", "", "no"), ("cash_out", "", "no")
         self.probe = {"petition_cash_floor": (floor,), "petition_cash_out": (floor, out)}
         if not self.inside((floor,)):
@@ -1281,6 +1316,32 @@ class _BankWalk:
         self.emit((floor, out), ((k, "no"), (k2, "no")), "operating")
         return self.out
 
+    def run_financing(self) -> list[DisputePath]:
+        """As `run`, with the financing decision at the floor (financing_at_floor): raise equity, file or continue;
+        after a raise or 'continue', the decision at zero cash."""
+        floor, out = ("cash_floor", "", "continue"), ("cash_out", "", "no")
+        if not self.inside((floor,)):
+            self.emit((), (), "operating")
+            return self.out
+        tr = self.fc.bank_trace((floor,))
+        can = bool(((tr.day[-1] < self.fc.days) & (tr.raise_offer > 0)).any())
+        branches = (("raise_equity",) if can else ()) + ("file", "continue")
+        self.probe = {"financing_at_floor": (floor,)}
+        k = self.node("financing_at_floor", "raise" if can else "noraise", branches=branches)
+        for b in branches:
+            at = ("cash_floor", "", b)
+            if b == "file":
+                self.emit((at,), ((k, b),), "petition")
+                continue
+            if not self.inside((at, out)):
+                self.emit((at,), ((k, b),), "operating")
+                continue
+            self.probe["petition_cash_out"] = (at, out)
+            k2 = self.node("petition_cash_out", "cash_exhausted", *(("raised",) if b == "raise_equity" else ()))
+            self.emit((at, ("cash_out", "", "yes")), ((k, b), (k2, "yes")), "petition")
+            self.emit((at, out), ((k, b), (k2, "no")), "operating")
+        return self.out
+
 
 def bank_state(fc: Forecaster, n: Node) -> dict:
     """The bank view's question: the company, its decision, the decision dates, its projected available cash and
@@ -1291,6 +1352,8 @@ def bank_state(fc: Forecaster, n: Node) -> dict:
     rows = fc.bank_facts.get(n.key, [])
     if rows:
         day, cash, need = (np.concatenate([r[i] for r in rows]) for i in range(3))
+        eq = np.concatenate([r[3] for r in rows if len(r) > 3 and r[3] is not None]) \
+            if any(len(r) > 3 and r[3] is not None for r in rows) else None
         inside = day < fc.days
         if inside.any():
             q = lambda x, p: usd(int(np.quantile(x[inside], p)))  # noqa: E731
@@ -1298,6 +1361,8 @@ def bank_state(fc: Forecaster, n: Node) -> dict:
                                        for k, p in (("p5", 0.05), ("p50", 0.5), ("p95", 0.95))},
                      "projected_available_cash_at_decision_date": {"p5": q(cash, 0.05), "p50": q(cash, 0.5)},
                      "operating_need_30_days_at_decision": {"p50": q(need, 0.5)}}
+            if n.node == "financing_at_floor" and eq is not None:
+                facts["equity_raise_available"] = fc.raise_facts(eq[inside])
             coupon = {"day": day, "triggers": {"coupon": fc.bank_trace(()).triggers["coupon"]}}
             if dates := fc._contract_dates([coupon], [inside]):  # the coupon: a common borrower input
                 facts["contract_dates"] = dates

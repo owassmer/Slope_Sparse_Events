@@ -1,12 +1,18 @@
 {
   "snapshot_id": "akoustis_20240514",
-  "note": "Scenario parameters of the 14 May 2024 review for the pending-claim event model (dispute model 4.1.0; DECOMPOSITION_20240514.md §3, §5, §7.7). They overlay the contract's parameters of the same name for this case only (app/disputes/rules.py load_model). The operating reserve, financing and cost plan are the common model's (run_inputs.json common_model) and are read, not restated here.",
+  "note": "Scenario parameters of the 14 May 2024 review for the pending-claim event model (dispute model 4.1.0; DECOMPOSITION_20240514.md §3, §5, §7.7). They overlay the contract's parameters of the same name for this case only (app/disputes/rules.py load_model). The operating reserve, financing and cost plan are the common model's (run_inputs.json common_model) and are read, not restated here. The central case books no exogenous financing: equity is raised only by the company's decision at the cash floor (raise_capacity); the common model's equity_injection scenario is a sensitivity only.",
   "labels": {
     "principal_measure": "the claimed head-start measure of trade-secret unjust enrichment"
   },
   "parameters": {
     "verdict_window": {
-      "days": ["2024-05-16", "2024-05-17", "2024-05-20", "2024-05-21", "2024-05-22"],
+      "days": [
+        "2024-05-16",
+        "2024-05-17",
+        "2024-05-20",
+        "2024-05-21",
+        "2024-05-22"
+      ],
       "sensitivity": "2024-05-22",
       "basis": "Court days Thu 16 to Wed 22 May 2024, drawn uniformly per trajectory. The claimant rested on 13 May and the case was 'expected to go to the jury before the end of the week, and the jury is expected to issue a verdict in the next several days' (earnings call, 13 May 2024); jurors provided for through Fri 17 May (D.I. 550, 26 Apr 2024); trial day 7 on 14 May (minute entry). Sensitivity: the window's last day."
     },
@@ -46,6 +52,20 @@
     "cash_facts": {
       "value": "engine_forward_run",
       "basis": "Spec §16.4: the cash facts, 'pay' feasibility and the cash floor read the loan engine run forward on the prefix's event cash."
+    },
+    "raise_capacity": {
+      "value": 970000000,
+      "sensitivity": 500000000,
+      "basis": "Owen, item 1 (27 Sep 2026). With no adverse money judgment on the path (no award, or the lower award): the ATM's likely usable capacity under the baby-shelf cap, USD 9.7M. An inference: one third of public float per 12 months, net of the January 2024 USD 10M raise. Record: the ATM (Sales Agreement of 2 May 2022) re-activated on 13 May 2024 with USD 48.0M remaining, and the agents are not obliged to sell (10-Q of 13 May 2024; 424B5 of 2 May 2022 and 29 Jan 2024). Sensitivity: USD 5.0M."
+    },
+    "raise_capacity_after_adverse_judgment": {
+      "value": 0,
+      "sensitivity": 500000000,
+      "basis": "Owen, item 1 (27 Sep 2026). After a judgment on the claimant's theory: nothing through the ATM. The baby-shelf cap falls with the share price, and the 10-Q (13 May 2024) says an adverse judgment creates 'an urgent need for additional liquidity'. Sensitivity: a distressed raise of USD 5.0M."
+    },
+    "raise_days": {
+      "value": 30,
+      "basis": "Owen, item 1 (27 Sep 2026): ATM sales take time; the proceeds arrive in equal daily amounts over 30 days from the decision."
     }
   }
 }

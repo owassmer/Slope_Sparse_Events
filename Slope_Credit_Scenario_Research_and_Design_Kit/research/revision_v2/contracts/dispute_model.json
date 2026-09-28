@@ -560,6 +560,21 @@
       "value": "pre_engine",
       "sensitivity": "engine_forward_run",
       "basis": "Where the chains read the borrower's available cash. pre_engine (the recorded 4.0.0 runs): the opening balance plus operating flows and event cash, without the line's draws and collections. engine_forward_run (spec §16.4; set by a 4.1.0 case's scenario): the loan engine run forward on the prefix's event cash up to the decision day, so the cash facts, 'pay' feasibility and the cash floor include the line's own flows. The engine is causal, so no feedback solver is needed."
+    },
+    "raise_capacity": {
+      "disposition": "bounded (case input)",
+      "unit": "cents",
+      "basis": "The equity the company can raise at the cash floor where no adverse money judgment is entered on the path: set per case in cases/<snapshot>/scenario.json with its basis and sensitivity. Without a case value the floor decision is petition_cash_floor (4.0.0)."
+    },
+    "raise_capacity_after_adverse_judgment": {
+      "disposition": "bounded (case input)",
+      "unit": "cents",
+      "basis": "The same, once a judgment on a verdict branch marked adverse (template verdict_branches) is entered."
+    },
+    "raise_days": {
+      "disposition": "code timing (case input)",
+      "unit": "days",
+      "basis": "The days over which raise proceeds arrive in equal daily amounts (case input)."
     }
   },
   "remittitur_scenarios": {
@@ -1590,11 +1605,57 @@
             "levied": "the company's liabilities and resources when it decides",
             "notes_due": "the company's liabilities and resources when it decides",
             "delisted": "the company's liabilities and resources when it decides",
-            "seeking": "the actor's own earlier act"
+            "seeking": "the actor's own earlier act",
+            "raised": "the actor's own earlier act"
           },
           "timing_parameters": [
             "petition_lag_days"
           ]
+        },
+        "financing_at_floor": {
+          "actor": "the company",
+          "decision": "when its available cash first falls below its 30-day operating need: raises equity (sales under its existing equity programs), files for bankruptcy, or continues operating",
+          "standard": [
+            "usc11_362"
+          ],
+          "record_items": [
+            "the company's statements on its cash, its going-concern status and its plans if its cash runs short",
+            "the company's financing routes and their status"
+          ],
+          "path_facts": [
+            "the dates the cash floor falls across the path's trajectories",
+            "cash at the cash floor (P5 / P50)",
+            "the amount owed on the judgment",
+            "the equity the company can raise in its situation (code-owned, raise_capacity), booked in equal daily amounts over raise_days"
+          ],
+          "timing": "on the day the company's available cash first falls below its 30-day operating need",
+          "asked_when": "the cash floor falls within the analysis period on some trajectory, and the case sets raise_capacity; 'raise_equity' is offered only where the amount available is positive on some trajectory (arithmetic). Else petition_cash_floor (4.0.0) is asked",
+          "branches": [
+            "raise_equity",
+            "file",
+            "continue"
+          ],
+          "context": [
+            "raise_available"
+          ],
+          "residual_question": "forecast_financing_at_floor",
+          "situation": {
+            "ruled": "the company's liabilities and resources when it decides",
+            "settled": "the company's liabilities and resources when it decides",
+            "paid": "the company's liabilities and resources when it decides",
+            "stayed": "the company's liabilities and resources when it decides",
+            "appealed": "the company's liabilities and resources when it decides",
+            "levied": "the company's liabilities and resources when it decides",
+            "notes_due": "the company's liabilities and resources when it decides",
+            "delisted": "the company's liabilities and resources when it decides",
+            "seeking": "the actor's own earlier act",
+            "raised": "the actor's own earlier act"
+          },
+          "timing_parameters": [
+            "petition_lag_days",
+            "raise_days"
+          ],
+          "since": "4.1.0"
         }
       }
     },
@@ -1821,7 +1882,8 @@
         "claimant_theory": {
           "judgment": true,
           "amount": "components",
-          "plus": "claimant_enhancements"
+          "plus": "claimant_enhancements",
+          "adverse": true
         }
       },
       "amount_rules": {
@@ -1890,6 +1952,12 @@
       "none": {
         "effect": "books nothing",
         "path": "continues"
+      },
+      "raise": {
+        "effect": "equity proceeds of the amount available in the path's situation (raise_capacity, or raise_capacity_after_adverse_judgment once a judgment on a verdict branch marked adverse is entered), in equal daily amounts over raise_days from the decision day; none after a petition",
+        "path": "continues",
+        "mark": "raised",
+        "needs_arithmetic": "raise_available"
       }
     },
     "nodes": {
@@ -1911,6 +1979,11 @@
       "petition_cash_out": {
         "yes": "petition",
         "no": "none"
+      },
+      "financing_at_floor": {
+        "raise_equity": "raise",
+        "file": "petition",
+        "continue": "none"
       }
     }
   }

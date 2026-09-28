@@ -270,7 +270,7 @@ TRIGGERS = ("judgment_default_entered", "judgment_default_ruling", "appeal_deadl
 PETITION_CAUSES = ("none", "enforcement", "notes", "cash_floor")
 # The conditions a decision can be asked in, each dated per trajectory (BIG: not on this trajectory)
 MARKS = ("executing", "stay_moved", "stayed", "ruled", "settled", "paid", "levied", "appealed", "seeking", "notes_due",
-         "delisted")  # the rule that booked a trajectory's petition
+         "delisted", "raised")  # the rule that booked a trajectory's petition
 
 
 @dataclass
@@ -285,6 +285,7 @@ class Trace:
     marks: dict = field(default_factory=dict)  # MARKS name -> the day it holds from, per draw (BIG: never)
     settle_offer: np.ndarray | None = None  # the last step's settlement amount on its payment date (0: none)
     stay_offer: np.ndarray | None = None  # the last step's cash above the 30-day need on the stay-approval day (0: none)
+    raise_offer: np.ndarray | None = None  # the last step's equity available at the cash floor (0: none)
     triggers: dict = field(default_factory=dict)  # TRIGGERS name -> day index per draw (BIG: none)
 
 
@@ -308,6 +309,9 @@ class Chain:
         self.entered = 0 if self.pending else entered_cents(d) if d is not None else 0
         self.bookings = model.get("branch_bookings", {}).get("nodes", {})
         self.engine = self.p("cash_facts") == "engine_forward_run"
+        # the case sets raise_capacity: the floor decision is financing_at_floor (4.1.0), else petition_cash_floor
+        self.raising = "value" in model["parameters"].get("raise_capacity", {})
+        self.adverse_from = np.full(self.n, BIG, dtype=np.int64)  # entry of a judgment on an adverse verdict branch
         if self.engine and (self.basis is None or self.basis.line is None):
             raise ValueError("cash_facts = engine_forward_run needs the loan engine's line on the basis (Basis.of line=)")
         if self.pending:
@@ -339,6 +343,7 @@ class Chain:
         self.jd_acted = np.zeros(self.n, dtype=bool)  # the holders acted on the judgment default as entered
         self.settle_offer = np.zeros(self.n, dtype=np.int64)
         self.stay_offer = np.zeros(self.n, dtype=np.int64)
+        self.raise_offer = np.zeros(self.n, dtype=np.int64)
         self.coupons: list[tuple[int, int, np.ndarray]] = []  # (payment day, cash, still paid per draw)
 
     def mark(self, name: str, day, where=None) -> None:
@@ -540,8 +545,31 @@ class Chain:
             self.petition(day, where, cause=cause)
         elif booking == "seek":
             self.mark("seeking", day, self.live(day))
+        elif booking == "raise":
+            self.raise_equity(day)
         elif booking != "none":
             raise ValueError(f"No Chain booking {booking!r} (contract branch_bookings)")
+
+    def raise_available(self, day: np.ndarray) -> np.ndarray:
+        """The equity the company can raise on the day (case inputs): raise_capacity, or
+        raise_capacity_after_adverse_judgment once a judgment on an adverse verdict branch is entered; 0 where the
+        case sets none, after a petition or outside the period."""
+        if not self.raising:
+            return np.zeros(self.n, dtype=np.int64)
+        day = np.asarray(day)
+        amt = np.where(day >= self.adverse_from, int(self.p("raise_capacity_after_adverse_judgment")),
+                       int(self.p("raise_capacity")))
+        return np.where(self.live(day) & (day >= 0) & (day < self.N), amt, 0).astype(np.int64)
+
+    def raise_equity(self, day: np.ndarray) -> None:
+        """The raise booking: the amount available, in equal daily amounts over raise_days from the decision day (the
+        remainder on the first day); days past the period fall outside it."""
+        amt = self.raise_available(day)
+        n = int(self.p("raise_days"))
+        each = amt // n
+        for k in range(n):
+            self.book(self.ev.cash, np.asarray(day) + k, each + (amt - each * n if k == 0 else 0))
+        self.mark("raised", day, amt > 0)
 
     def settle(self, start: np.ndarray, end: np.ndarray, agreed: bool = True, cap: int | None = None
                ) -> tuple[np.ndarray, np.ndarray]:
@@ -900,12 +928,18 @@ class Chain:
             return np.where(due < BIG, due + (self.holder_route_days() if ctx == "holders" else 0), BIG)
         if node in FLOOR_NODES:  # the company's decision at the cash floor, or when cash runs out
             t = self.tau() if node == "cash_floor" else self.cash_out()
-            self.respond(self.bookings[FLOOR_NODES[node]][branch], t, cause="cash_floor")
+            q = "financing_at_floor" if node == "cash_floor" and self.raising else FLOOR_NODES[node]
+            if q == "financing_at_floor":
+                self.raise_offer = self.raise_available(t)
+            self.respond(self.bookings[q][branch], t, cause="cash_floor")
             return t
         if node == "verdict":
-            if pending_template(self.m)["verdict_branches"][branch]["judgment"]:
+            spec = pending_template(self.m)["verdict_branches"][branch]
+            if spec["judgment"]:
                 self.entered = verdict_amount(self.d, self.m, branch, self.sens)
                 self._enter()
+                if spec.get("adverse"):
+                    self.adverse_from = self.E_ix.copy()
             return self.V.copy()
         if node == "post_trial_motions":
             filed = self.E_ix + int(self.m["rules"]["frcp_50b_59_deadline"]["value"])
@@ -944,6 +978,7 @@ class Chain:
             self.flush_levy()  # an earlier levy is in the cash the next decision sees
         self.settle_offer = np.zeros(self.n, dtype=np.int64)
         self.stay_offer = np.zeros(self.n, dtype=np.int64)
+        self.raise_offer = np.zeros(self.n, dtype=np.int64)
         before_cash = self.cum()
         day = self.step(node, ctx, branch)
         t = np.clip(day, 0, self.N - 1)
@@ -961,7 +996,7 @@ class Chain:
         tr.events = self.ev
         tr.cause = np.where(self.ev.petition >= 0, self.pet_cause, 0).astype(np.int8)
         tr.marks = {k: v.astype(np.int32) for k, v in self.marks.items()}
-        tr.settle_offer, tr.stay_offer = self.settle_offer, self.stay_offer
+        tr.settle_offer, tr.stay_offer, tr.raise_offer = self.settle_offer, self.stay_offer, self.raise_offer
         tr.triggers = self.trigger_days()
         return tr
 
