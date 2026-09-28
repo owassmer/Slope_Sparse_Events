@@ -327,4 +327,43 @@ Eighteen questions, each one actor's decision. None asks about timing, an amount
 
 Readings (`dispute_interpretation`) are routed as in 4.0.0 (`evidence_routing`): settlement signals to D3 and C2, appeal intent to D1 and D5, debtor resistance to D2, D4 and C1, amount finality to J2. A reading is evidence handed to a question, never its probability.
 
+---
+
+## 7. The generic contract design: implementation plan for the next worker
+
+The plan adds one template and one stage and reuses the walker (`forecast._Walk`), the engine chain (`events.Chain`), the composition (`Dist`, composite edges), the settlement, stay, levy, notes and listing steps, and the cash-floor questions. The 4.0.0 post-judgment template and the recorded 20 Jun run stay as they are (§7.8). Every step below ends in a test run, a commit and a push; JSON contracts are edited by small per-section scripts (skill: 'Break worker tasks into small, checkpointed steps').
+
+### 7.1 `dispute_model.json` → 4.1.0 (additive)
+
+- **`templates.pending_money_claim`** (forum `court`, instrument "a civil money claim at jury trial in US district court"), beside `federal_post_judgment`:
+  - `intervals`: I0 (review date to verdict), I1, I2, I3 as 4.0.0.
+  - `nodes`, each with `actor`, `decision`, `standard`, `record_items`, `path_facts`, `timing`, `asked_when`, `branches`, `residual_question`, `situation`, as 4.0.0 nodes: `verdict_theory` (J1), `post_trial_motions` (D1), `post_trial_ruling` (J2), `judgment_response` (D2); and by reference to the 4.0.0 nodes, reused unchanged: `execute_pre_ruling`, `enforce_after_final` (C1), `stay_motion` (D4), `stay_approved` (J3), `registration_early` (J4), `appeal` (D5), `settlement_offer` (D3), `settlement_accept` (C2). A `reuses` list names them, so `_q` keeps one spec per node name.
+  - `edges`: the §4.1 order as data: `I0: settle → verdict_theory`; `verdict_theory.no_award → tail`; money branches `→ entry: judgment_response → post_trial_motions`; `post_trial_motions.yes → I1 (settle, execute, stay, registration, response) → post_trial_ruling`; `.no → I2`; `post_trial_ruling.stands → I2`, `.set_aside → tail`. The walker reads this list to choose its next method; it does not fork.
+  - `verdict_branches`: for each J1 branch, its amount rule, in the case's terms: `no_award` → none; `defense_theory` → scenario parameter `defense_theory_amount`; `claimant_theory` → the sum of the claimant's requested components, excluding any component marked `duplicates`, plus `claimant_enhancements`.
+  - `label_templates`: every phrase the question text and the page need for this template, with placeholders filled from case inputs only (`{claimant}`, `{debtor}`, `{amount}`, `{range}`, `{date}`): e.g. `"I0": "before the jury's verdict"`, `"verdict_claimant": "the jury adopted {claimant}'s damages theory: judgment of {range}"`, `"verdict_defense": "the jury adopted {debtor}'s damages theory: an award below {threshold}"`, `"entry": "on the day the judgment is entered"`. No party name appears in the contract or in code.
+- **`templates.indenture_convertible`**: add node `listing_kept` (D6) and a rule, `listing_route`: where the Panel decision falls after the horizon on every trajectory, the listing chain is `listing_kept` alone; otherwise the four 4.0.0 nodes. The choice is by dates, never by case.
+- **`stages.court`**: prepend `liability_pending`. **`readings.events`**: add `trial_pending` ("the claims are being tried, or are set for trial, and no verdict has been returned"). **`readings.stage_rules`**: append `{event: trial_pending, stage: liability_pending}` last (lowest precedence), so a returned verdict or an entered judgment always wins.
+- **`rules`**: add `frcp_58b2` (L14), `frcp_50b_59_deadline` (L17, 28 days), `stay_as_of_right` (L16), `nasdaq_5815_hearing_stay` (L12 text already cited in `panel_decision_days`, now its own rule), each with its citation and modality.
+- **`parameters`**: add `judgment_entry` (bounded: `next_business_day` / `with_ruling`), `ruling_lag_days.mode = common` for this template, `verdict_window` (code timing: read from the case's scenario parameters, not the contract), `defense_theory_amount` and `claimant_enhancements` (bounded; values from the case, §7.6). `coupon_cash_share` gains per-case values (§7.6); the 4.0.0 values stay for the recorded run.
+- **`composition`**: `order` gains "I0: settlement, then the verdict (J1)" before I1 and "entry: the response (D2), then post-trial motions (D1)". J1 is a real Choice node, not a composite; the ruling is J2 alone. `composites` unchanged.
+- **`excluded_branches`**: add the appeal decided in the horizon (reused), the Panel decision and Form 25 (window closed), the repurchase (window closed), the injunction's cash (cannot be obtained), trebling (D.I. 590 leaves no UDTPA amount).
+
+### 7.2 `app/domain/investigation.py`
+
+- **A genuine pending-liability state.** `DisputeInstance.stage` may be `liability_pending`: the claims are pending and no judgment exists, so `judgment_date` is `None` by design, not a gap. New optional fields: `trial_started: date | None` (quoted), `claims: tuple[Claim, ...]` where `Claim(claim_id, label, finding_ids)` names each claim as the case states it.
+- **`Component`** gains `claim: str = ""` (the claim it belongs to), `theory: Literal["claimant", "defense", ""] = ""`, and `duplicates: str = ""` (the component id it restates under another theory, e.g. the conspiracy $66.1M restating the trade-secret $66.1M). `status = "requested"` and `amount_cents` quoted from the claimant's statement of damages already exist. `ComponentKind` gains `other_compensatory` for claims outside the named kinds (corrective advertising, poaching).
+- Nothing else changes; `PendingMotion` and `FinancingInstrument` are reused as they are.
+
+### 7.3 `app/disputes/interpret.py`
+
+- `DATED_STAGES` unchanged; the check `stage in DATED_STAGES and judgment_date is None → outside_model` does not fire for `liability_pending`, which is not dated.
+- Accept `liability_pending` in the agent-only arm (`stage not in DATED_STAGES + ("amount_pending", "liability_pending")`).
+- The stage rule added in §7.1 does the rest: a finding that establishes `trial_pending` and nothing later places the dispute at `liability_pending`. `amount_status` is `sought` (the claimant's figures), never `fixed`.
+
+### 7.4 `app/agent/tools.py`
+
+- `instantiate_dispute` accepts, for a pending claim: `trial_started` (quoted date), `claims` (labels, each resting on accepted findings), and requested `components` with `claim`, `theory` and `duplicates` (the same quote checks as today: every `amount_cents` appears in a cited quote). `judgment_date` stays absent; `_motions` is not required.
+- The tool's `note` names the template the stage selects, so the agent sees which chain its findings feed.
+- The agent's mission text (agent_config, mission `akoustis_20240514`) lists the pending-claim record items of §8 as the slots to fill. The agent attaches findings to slots; neither Jev nor code does (spec §3.5).
+
 <!-- next -->
