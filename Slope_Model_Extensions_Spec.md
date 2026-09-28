@@ -669,7 +669,7 @@ Owen's decisions, 27 Sep 2026. This section governs where it differs from §1–
   - three kinds of exposure kept apart: past due, owed at a filing (stayed), and not yet due.
 - **The question it answers:** given this borrower's operations and this line, how does the pending event change the distribution and timing of collections, exposure and capital available to lend again?
 - **There is no parallel bank-data projection.** A lender lends once. The event's contribution is an attribution inside the one forecast:
-  - *ordinary operating risk* is the same forecast with the event given no cash effect;
+  - *ordinary operating risk* is the same forecast with the event, including its legal costs, given no cash effect;
   - *the event* accounts for the rest.
 - **Financing terms are inputs.** The analysis does not recommend, size or condition the line.
 

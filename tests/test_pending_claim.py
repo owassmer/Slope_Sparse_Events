@@ -176,7 +176,9 @@ def test_2_a_missing_judgment_never_activates_enforcement(tree):
             ch = chain()
             ch.run(p.steps)
             day = ch.V if p.steps[cut][0] == "verdict" else ch.F
-            after = np.arange(ch.N)[None, :] >= day[:, None]
+            pet = np.where(ch.ev.petition < 0, 10**6, ch.ev.petition)
+            # from the day the path has no money judgment; where a petition came first, the estate holds what is locked
+            after = (np.arange(ch.N)[None, :] >= day[:, None]) & (day < pet)[:, None]
             held = np.cumsum(ch.ev.lock, axis=1)  # cash locked as stay security at each day's end
             assert not (held * after).any()  # nothing locked from the day the path has no money judgment
             if p.steps[cut][0] == "verdict":
@@ -310,24 +312,245 @@ def test_6_coupon_base_shares_sensitivity_cash():
 
 
 def test_7_cash_facts_equal_the_engine_on_every_trajectory(tree):
-    """§16.4: the cash every question's facts read (Chain.cum, whence tr.cash, pay feasibility and tau) equals the loan
-    engine's available cash, run forward from the line's opening state on the prefix's event cash, at every step."""
+    """§16.4, in date order: on every trajectory where a step's decision falls inside the period before any petition,
+    nothing walked after it books cash or security on an earlier day, and the cash its facts read equals the loan
+    engine's available cash that day, run forward from the line's opening state on the whole path's event cash
+    (bookings on the decision day itself, which the step may precede, aside). Paths where the cash floor precedes a
+    later-walked listing question are always checked."""
     from app.analysis.engine import run as engine_run
-    from app.analysis.events import EventCash, Trace
+    from app.analysis.events import BIG, EventCash
+
+    class Rec(Chain):
+        def step(self, node, ctx, branch):  # the walk's own step (probes are plain Chain copies)
+            if not getattr(self, "waits", lambda n, c: False)(node, ctx):
+                self.snaps[len(self.snaps)] = (self.ev.cash.copy(), self.ev.lock.copy(), None)
+            return super().step(node, ctx, branch)
+
+        def decide_waiting(self, i, node, branch, t):  # a step booked on its own day, after later-walked steps
+            self.fired.append((i, t.copy(), self.ev.cash.copy(), self.ev.lock.copy()))
+            return super().decide_waiting(i, node, branch, t)
 
     _, _, paths, _ = tree
     b, s = fx.basis(), fx.setup()
     assert s.exposure.principal_cents > 0  # the line starts with an outstanding balance
-    for p in _sample(paths, lambda p: True, 8):
+    floor_first = _sample(paths, lambda p: ("listing", "kept", "listed") in p.steps and any(
+        x[0] == "cash_floor" and x[2] != "file" for x in p.steps), 4)
+    assert floor_first
+    for p in floor_first + _sample(paths, lambda p: True, 12):
+        ch = Rec(fx.pending(), s, fx.model(), Draws(b.cash.shape[0], basis=b), None)
+        ch.snaps, ch.fired = {}, []
+        tr = ch.run(p.steps)
+        ev = tr.events
+        eng = engine_run(b.line, b.opening - s.exposure.cash_cents,
+                         EventCash(ev.cash.copy(), ev.lock.copy(), ev.capacity.copy(), ev.petition.copy()))
+        assert (ch.cum() == eng.cash[:, :ch.N]).all()
+        waits = getattr(ch, "waits", lambda n, c: False)
+        booked = iter(ch.snaps.values())
+        at = {j: next(booked)[:2] for j, x in enumerate(p.steps) if not waits(x[0], x[1])}
+        for j, t, c, lk in ch.fired:  # a waiting step books on its trajectories in one or more passes
+            rows = (t < BIG)[:, None]
+            c0, l0 = at.get(j, (c, lk))
+            at[j] = (np.where(rows, c, c0), np.where(rows, lk, l0))
+        pet = np.where(ev.petition < 0, BIG, ev.petition)
+        for j, (cash0, lock0) in at.items():
+            day = tr.day[j]
+            m = (day >= 0) & (day < ch.N) & (day < pet)
+            later = (ev.cash - cash0) - (ev.lock - lock0)
+            before = ((later != 0) & (np.arange(ch.N)[None, :] < day[:, None])).any(axis=1)
+            assert not (before & m).any(), (p.steps[j], int((before & m).sum()))
+            same = later[ch.rows, np.clip(day, 0, ch.N - 1)] != 0
+            ok = m & ~same
+            assert (tr.cash[j][ok] == eng.cash[ch.rows, np.clip(day, 0, ch.N - 1)][ok]).all(), p.steps[j]
+
+
+def test_7b_the_floor_books_the_same_cash_wherever_it_is_walked(tree):
+    """The cash floor and cash exhaustion are state-triggered: each books on its own day on every trajectory, so
+    walking them first instead of where the tree asks them leaves every trajectory's event cash, security and petition
+    unchanged (paths with a stay, a settlement or a levy after the floor question included)."""
+    _, _, paths, _ = tree
+    fl = ("cash_floor", "cash_out")
+    later = _sample(paths, lambda p: any(x[0] in ("stay", "settle", "enforce", "registration_early")
+                                         for x in p.steps[next((i for i, x in enumerate(p.steps) if x[0] in fl),
+                                                               len(p.steps)):]), 20)
+    assert later
+    for p in later + _sample(paths, lambda p: True, 10):
+        front = tuple(x for x in p.steps if x[0] in fl) + tuple(x for x in p.steps if x[0] not in fl)
+        (_, a), (_, b) = run(p.steps), run(front)
+        assert (a.events.cash == b.events.cash).all() and (a.events.lock == b.events.lock).all(), p.steps
+        assert (a.events.petition == b.events.petition).all(), p.steps
+
+
+def test_7c_the_raise_is_offered_wherever_the_whole_path_makes_it_available(tree):
+    """Only impossibility removes a branch: a floor question asked without 'raise_equity' is one where no equity is
+    available at the floor on any trajectory of any path through it, including a set-aside, payment or settlement
+    walked after the question and dated before the floor."""
+    _, _, paths, _ = tree
+    seen = 0
+    for p in paths:
+        at = [i for i, (k, _) in enumerate(p.edges) if "financing_at_floor|noraise" in k]
+        if not at:
+            continue
+        i = next(j for j, x in enumerate(p.steps) if x[0] == "cash_floor")
+        ch, tr = run(p.steps)
+        info = tr.late[i]
+        pet = np.where(info["petition"] < 0, 10**6, info["petition"])
+        assert not (((tr.day[i] < ch.N) & (tr.day[i] < pet) & (info["raise_offer"] > 0)).any()), p.steps
+        seen += 1
+    assert seen
+
+
+def test_7d_the_stay_questions_state_the_collateral_the_engine_locks(tree):
+    """⚑ bond collateral: the stay questions are told the engine's own figure on the approval day (the amount owed plus
+    §1961 interest at the pending rate over bond_forward_interest_years, times the collateral share), the amount a
+    covered stay locks, not the amount owed alone."""
+    from app.disputes.forecast import usd
+
+    fc, d, paths, _ = tree
+    nodes = [n for n in fc.nodes.values() if n.node in ("stay_motion", "stay_approved")]
+    assert nodes
+    for n in nodes:
+        rows = fc.facts[n.key]
+        masks = [fc.live(n, r) for r in rows]
+        if not any(m.any() for m in masks):
+            continue
+        coll = np.concatenate([r["collateral"][m] for r, m in zip(rows, masks, strict=True)])
+        owed = np.concatenate([r["owed"][m] for r, m in zip(rows, masks, strict=True)])
+        assert fc.path_facts(n, d)["bond_collateral_required"] == usd(int(np.quantile(coll, 0.5))), n.key
+        assert np.quantile(coll, 0.5) > np.quantile(owed, 0.5), n.key  # the bond carries the interest
+    covered = next(p for p in paths if ("stay", "I1", "yes") in p.steps)
+    i = covered.steps.index(("stay", "I1", "yes"))
+    ch, tr = run(covered.steps[: i + 1])
+    locked = np.cumsum(ch.ev.lock, axis=1).max(axis=1)
+    full = locked == tr.collateral[i]
+    assert full.any() and (tr.collateral[i][full] > 0).all()  # where cash covers it, the lock is that figure
+
+
+def test_7e_owed_facts_count_only_what_is_taken_before_the_decision(tree):
+    """⚑ amount owed, in date order: each step's owed fact equals the amount owed on its day on the whole path,
+    counting only levies and payments dated before that day (a levy dated after a decision, walked before it, is not
+    in it); and a pre-ruling judgment default does not ripen on a judgment set aside before its ripe date."""
+    from app.analysis.events import BIG
+
+    class Rec(Chain):
+        def _take(self, day):
+            t0 = self.taken.copy()
+            super()._take(day)
+            self.log.append((np.asarray(day).copy(), self.taken - t0))
+
+        def respond(self, booking, day, cause="enforcement"):
+            t0 = self.taken.copy()
+            super().respond(booking, day, cause)
+            self.log.append((np.asarray(day).copy(), self.taken - t0))
+
+    _, _, paths, _ = tree
+    b = fx.basis()
+    levied = _sample(paths, lambda p: ("registration_early", "I1", "yes") in p.steps and any(
+        x[0] == "post_trial_ruling" for x in p.steps), 8)
+    aside = _sample(paths, lambda p: ("post_trial_ruling", "", "set_aside") in p.steps and any(
+        x[0] == "judgment_default" and x[1] == "I1" for x in p.steps), 8)
+    assert levied and aside
+    for p in levied + aside:
+        ch = Rec(fx.pending(), fx.setup(), fx.model(), Draws(b.cash.shape[0], basis=b), None)
+        ch.log = []
+        tr = ch.run(p.steps)
+        pet = np.where(tr.events.petition < 0, BIG, tr.events.petition)
+        takes = ch.takes
+        for j, x in enumerate(p.steps):
+            day = tr.day[j]
+            m = (day >= 0) & (day < ch.N) & (day < pet)
+            before = sum((np.where(t < day, a, 0) for t, a in ch.log), np.zeros(ch.n, dtype=np.int64))
+            same = np.zeros(ch.n, dtype=bool)
+            for t, a in ch.log:
+                same |= (t == day) & (a != 0)
+            ch.takes = [(np.full(ch.n, -1), before)]
+            ref = ch.owed_at(day)
+            ch.takes = takes
+            ok = m & ~same
+            assert (tr.owed[j][ok] == ref[ok]).all(), x
+        if ("post_trial_ruling", "", "set_aside") in p.steps:
+            j = next(i for i, x in enumerate(p.steps) if x[0] == "judgment_default" and x[1] == "I1")
+            assert not ((tr.day[j] < BIG) & (tr.day[j] >= ch.F)).any()  # no default ripens after the set-aside
+
+
+def test_7f_one_dispute_end_a_satisfying_levy_ends_it_and_legal_spend_never_returns(tree):
+    """Fix 4: a levy or payment that satisfies the judgment ends the dispute (`resolve`, as a payment does): legal spend
+    stops that day, nothing is owed and no later step arises on it; and after a petition an ended dispute's legal
+    spend stays stopped (the petition zeroes the estate's other event cash only)."""
+    from app.analysis.events import BIG
+
+    _, _, paths, _ = tree
+    b = fx.basis()
+    levy = _sample(paths, lambda p: ("verdict", "I0", "without_principal_measure") in p.steps
+                   and ("enforce", "post", "levy") in p.steps, 6)
+    assert levy
+    hit = 0
+    for p in levy:
+        ch, tr = run(p.steps)
+        for day, take in ch.writs:
+            day = np.broadcast_to(day, (ch.n,))
+            full = (take > 0) & (ch.owed_at(day + 1) == 0) & (day < ch.N)
+            assert (ch.resolved[full] <= day[full]).all(), p.steps
+            hit += int(full.sum())
+        t = np.arange(ch.N)[None, :]
+        ended = (t >= ch.resolved[:, None]) & (b.legal[:, :ch.N] != 0)
+        pet = np.where(ch.ev.petition < 0, BIG, ch.ev.petition)[:, None]
+        assert (tr.events.cash[ended & (t >= pet)] == -b.legal[:, :ch.N][ended & (t >= pet)]).all()
+    assert hit
+    after = _sample(paths, lambda p: ("settle", "I0", "yes") in p.steps and any(
+        x[0] in ("cash_floor", "cash_out") and x[2] in ("file", "yes") for x in p.steps), 4)
+    assert after
+    for p in after:
+        ch, tr = run(p.steps)
+        pet = ch.ev.petition
+        rows = (pet >= 0) & (ch.resolved < pet)
+        assert rows.any()
+        for r in np.flatnonzero(rows)[:20]:
+            tail = slice(int(pet[r]), ch.N)
+            assert (tr.events.cash[r, tail] == -b.legal[r, tail]).all()  # the add-back, and nothing else
+
+
+def test_7g_delisting_defaults_the_notes_whether_or_not_the_dispute_ended(tree):
+    """The notes' Event of Default and repurchase on delisting do not depend on the lawsuit: after a settlement (the
+    dispute ended) the delisting route still arises and can accelerate the notes, before any petition."""
+    _, _, paths, _ = tree
+    settled = [p for p in paths if ("settle", "I0", "yes") in p.steps
+               and ("listing", "kept", "delisted_suspension") in p.steps]
+    assert settled
+    assert any(x[0] == "delisting_notes" for p in settled for x in p.steps)
+    p = next(p for p in settled if any(x[0] == "delisting_notes" and x[2] == "accelerated" for x in p.steps))
+    ch, tr = run(p.steps)
+    j = next(i for i, x in enumerate(p.steps) if x[0] == "delisting_notes")
+    inside = tr.day[j] < ch.N
+    assert inside.any() and (ch.resolved[inside] < tr.day[j][inside]).all()  # ended before it, yet it arises
+    assert (ch.marks["notes_due"][inside] < 10**6).all()
+
+
+def test_7h_the_ordinary_view_is_the_forecast_whose_dispute_ends_on_the_review_date(tree):
+    """Fix 3 (spec §16.1): with no dispute events, the ordinary view's cash equals the full forecast's cash on the same
+    floor and listing steps where the dispute ends at no cost on the review date: legal spend stops from then and
+    nothing else differs (operations, coupon, the floor decisions, the listing chain and the notes' delisting route)."""
+    from app.analysis.events import bank_trace
+
+    fc, d, _, bank = tree
+    assert any(x[0] == "listing" for p in bank for x in p.steps)  # the listing chain is in both views
+    assert any(n.node == "listing_kept" for n in fc.bank_nodes.values())
+    b = fx.basis()
+    for p in bank:
         ch = chain()
         ch.instrument_cash()
+        ch.resolve(np.zeros(ch.n, dtype=np.int64), np.ones(ch.n, dtype=bool))  # the dispute ends at no cost
+        from app.analysis.events import Trace
+
         tr = Trace(ch.ev)
         for step in p.steps:
             ch.advance(tr, *step)
-            ev = ch.ev
-            eng = engine_run(b.line, b.opening - s.exposure.cash_cents,
-                             EventCash(ev.cash.copy(), ev.lock.copy(), ev.capacity.copy(), ev.petition.copy()))
-            assert (ch.cum() == eng.cash[:, :ch.N]).all(), step
+        full = ch.finish(tr)
+        bt = bank_trace(fx.notes(), p.steps, fx.setup(), fx.model(), Draws(b.cash.shape[0], basis=b), None)
+        assert (full.events.cash == bt.events.cash).all(), p.steps
+        assert (full.events.petition == bt.events.petition).all(), p.steps
+    t = np.arange(ch.N)[None, :]
+    assert (bt.events.cash[(b.legal[:, :ch.N] != 0) & (t < np.where(bt.events.petition < 0, ch.N,
+                                                                         bt.events.petition)[:, None])] != 0).all()
 
 
 def test_8_settlement_is_bounded_and_ends_the_claim(tree):

@@ -305,7 +305,14 @@ class Reduction:
         has = mins != NO_DUE
         low = weighted_quantiles(mins[has].astype(np.float64), w[has] / w[has].sum(), QS) if has.any() else None
         kq = self.collected_quantiles(probs)
+        # due by the horizon (the page's Due tile): installments whose due date falls inside the period; contractual
+        # adds those due after it and the stayed claim's later installments. Due = collected + past due + frozen due.
+        due = float(probs @ (self.per_day["due_cum"][:, -1] / self.draws))
+        past = float(probs @ (self.per_day["past_due"][:, -1] / self.draws))
         return {
+            "due_horizon_cents": due, "past_due_horizon_cents": past,
+            "frozen_due_cents": due - e["collected"] - past,
+            "collection_rate": e["collected"] / due if due else None,
             "drawn_cents": e["drawn"], "fees_cents": e["fees"], "contractual_cents": e["contractual"],
             "collected_cents": e["collected"], "stayed_claim_cents": e["stayed"],
             "collected_p5_cents": float(kq[0]), "collected_p50_cents": float(kq[1]), "collected_p95_cents": float(kq[2]),
