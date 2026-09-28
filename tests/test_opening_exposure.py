@@ -25,8 +25,11 @@ def digest(tr) -> str:
     h = hashlib.sha256()
     for f in fields(tr):
         if f.name not in ("opening_principal", "failed_debits"):  # failed_debits: added later, not a trajectory
+            a = np.ascontiguousarray(getattr(tr, f.name))
+            if a.dtype.kind == "f":  # PVs are BLAS matmuls: last bits vary by platform; integer arrays stay bit-exact
+                a = np.rint(a) + 0.0  # whole cents (dollar-days), -0.0 folded into 0.0
             h.update(f.name.encode())
-            h.update(np.ascontiguousarray(getattr(tr, f.name)).tobytes())
+            h.update(a.tobytes())
     return h.hexdigest()[:16]
 
 
@@ -41,11 +44,11 @@ def test_an_empty_exposure_reproduces_the_new_line_bit_for_bit():
     ev.cash[:, 40] = -500_000_000
     ev.petition[::2] = 120
     got = [digest(run(line, feed.available_cents, e)) for e in (EventCash.zeros(DRAWS, line.days), ev)]
-    assert got == ["103f1f167955cfd7", "a8e6d31591d7b759"]
+    assert got == ["06bc807e3c2e9baa", "b886a643e9878b74"]
     s14 = replace(SETUP, exposure=Exposure(), collection="protect_need")  # the rule the pin was made under
     feed14 = load_feed("akoustis_20240514")
     assert digest(run(prepare(s14, simulate_for(feed14, s14)), feed14.available_cents,
-                      EventCash.zeros(DRAWS, DAYS))) == "e3c1f39aa2c40b38"
+                      EventCash.zeros(DRAWS, DAYS))) == "7fb95e406ec33acb"
 
 
 def _ops(rows: int, invoices: dict[int, int], day0: bool) -> Operating:
