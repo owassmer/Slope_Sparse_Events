@@ -1701,7 +1701,7 @@
             "the claims and the amounts the claimant requested on each"
           ],
           "timing": "on the day of the verdict, drawn per trajectory over the case's verdict window",
-          "asked_when": "the claims are with the jury and no settlement has been paid",
+          "asked_when": "never as one question: its branches are composite edges, computed by the chain rule over the jury's answers to the money-bearing questions of the case's verdict form (verdict_form)",
           "branches": [
             "no_award",
             "without_principal_measure",
@@ -1821,6 +1821,80 @@
             "ruling_lag_days"
           ],
           "since": "4.1.0"
+        },
+        "verdict_finding": {
+          "actor": "jury",
+          "decision": "answers one liability question on its verdict form, as the form puts it, given its earlier answers",
+          "standard": [
+            "jury_verdict"
+          ],
+          "record_items": [
+            "the claimant's itemised damages claim",
+            "the defense's statement of intended proof on damages",
+            "the court's rulings admitting or limiting the damages evidence",
+            "the final verdict form",
+            "the summary-judgment and validity rulings",
+            "the defendant's public statements on the trial and its likely damages",
+            "the challenges to the damages method"
+          ],
+          "timing": "on the day of the verdict, drawn per trajectory over the case's verdict window",
+          "timing_parameters": [
+            "verdict_window"
+          ],
+          "path_facts": [
+            "the claims and the amounts the claimant requested on each",
+            "the verdict form's question, quoted",
+            "the jury's earlier answers on the form"
+          ],
+          "asked_when": "the question is reached on the case's verdict form (verdict_form) given the earlier answers, and its answer can change which verdict branch the path takes",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "verdict_form_question",
+            "earlier_answers"
+          ],
+          "residual_question": "forecast_verdict_finding",
+          "situation": {},
+          "since": "4.1.0"
+        },
+        "verdict_measure": {
+          "actor": "jury",
+          "decision": "in its award on the claim the form question names, adopts the claimant's principal damages measure (which measure the award rests on; never an amount)",
+          "standard": [
+            "jury_verdict"
+          ],
+          "record_items": [
+            "the claimant's itemised damages claim",
+            "the defense's statement of intended proof on damages",
+            "the court's rulings admitting or limiting the damages evidence",
+            "the final verdict form",
+            "the summary-judgment and validity rulings",
+            "the defendant's public statements on the trial and its likely damages",
+            "the challenges to the damages method"
+          ],
+          "timing": "on the day of the verdict, drawn per trajectory over the case's verdict window",
+          "timing_parameters": [
+            "verdict_window"
+          ],
+          "path_facts": [
+            "the claims and the amounts the claimant requested on each",
+            "the verdict form's question, quoted",
+            "the jury's earlier answers on the form"
+          ],
+          "asked_when": "the verdict form asks the jury to state an award on a claim that carries the claimant's principal measure, and the jury has found the liability that question requires",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "context": [
+            "verdict_form_question",
+            "earlier_answers"
+          ],
+          "residual_question": "forecast_verdict_measure",
+          "situation": {},
+          "since": "4.1.0"
         }
       },
       "edges": [
@@ -1902,7 +1976,13 @@
         "claimant_theory": "the jury adopted {claimant}'s damages theory: judgment of {range}",
         "without_principal_measure": "the jury found liability but rejected {principal_measure}: judgment of {amount}"
       },
-      "cash_facts": "engine_forward_run where the case's scenario sets parameter cash_facts (spec §16.4)"
+      "cash_facts": "engine_forward_run where the case's scenario sets parameter cash_facts (spec §16.4)",
+      "verdict_form": "The case's verdict form (cases/<snapshot>/scenario.json verdict_form) lists, in the form's order, each question that can change which verdict branch a path takes: its node (verdict_finding or verdict_measure), the question quoted, and for each answer the next question or a verdict branch. Each is one jury decision and none asks for an amount. Code enumerates the answer sequences and gives each verdict branch the composite edge of its conjunctions (disjoint by construction, exhaustive over the answers); a question is asked once per sequence of earlier answers that reaches it. Questions that change only an amount inside a branch are collapsed there, with the reason recorded in the case's verdict_form.",
+      "cash_facts_none": [
+        "verdict_finding",
+        "verdict_measure",
+        "post_trial_ruling"
+      ]
     }
   },
   "composition": {
@@ -1925,7 +2005,7 @@
     "neutral": "Attribution step 2 sets every residual to neutral (a Noul at 0.5, a Choice uniform over the branches arithmetic leaves) and keeps everything the record fixes.",
     "paths_to_the_engine": "Paths are sequences of decisions; each decision's effect is dated per trajectory and applies only where its condition holds on that date. A petition ends every later effect on its trajectory.",
     "situation": "Each question is asked in the conditions its node's situation names, each with its basis, that hold at the decision on every trajectory of the path where it is asked. A condition that holds on only some of them is left unstated.",
-    "pending_ruling": "pending_money_claim: the post-trial ruling is one real node (J2, stands / set_aside); the verdict is one real Choice node (J1). No composite changes."
+    "pending_ruling": "pending_money_claim: the verdict's three branches (J1) are composite edges over the jury's verdict-form answers (verdict_finding, verdict_measure), by the chain rule; the post-trial ruling is one real node (J2, stands / set_aside). No 4.0.0 composite changes."
   },
   "compatible_versions": [
     "4.0.0"

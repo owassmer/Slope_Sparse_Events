@@ -62,3 +62,44 @@ def test_the_20_jun_case_keeps_its_floor_question():
 
     assert "value" not in load_model()["parameters"].get("raise_capacity", {})
     assert "value" in fx.model()["parameters"]["raise_capacity"]
+
+
+# --- item 2: the verdict's branches from the jury's verdict form ---------------------------------------------------
+
+def forecaster():
+    from app.disputes.forecast import Forecaster
+
+    d = fx.pending().model_copy(update={"status": "interpreted"})
+    return Forecaster([d], {}, borrower="B", review=fx.REVIEW, horizon=fx.setup().horizon, hydrate=lambda f: {},
+                      model=fx.model(), setup=fx.setup(), basis=fx.basis()), d
+
+
+def test_verdict_composites_are_disjoint_and_exhaustive():
+    """Every pair of conjunctions across the three verdict branches disagrees on some node's answer, and under random
+    answers the branches' probabilities sum to 1."""
+    from app.disputes.forecast import Dist, composite
+
+    fc, d = forecaster()
+    classes = fc.verdict_classes(d)
+    assert set(classes) == {"no_award", "without_principal_measure", "claimant_theory"}
+    conj = [dict(c) for parts in classes.values() for c in parts]
+    for i, a in enumerate(conj):
+        for b in conj[i + 1:]:
+            assert any(k in b and b[k] != v for k, v in a.items())
+    nodes = {k for c in conj for k in c}
+    assert all(fc.nodes[k].node in ("verdict_finding", "verdict_measure") for k in nodes)
+    assert all(fc.nodes[k].branches == ("yes", "no") for k in nodes)
+    rng = np.random.default_rng(7)
+    for _ in range(50):
+        dist = Dist({k: dict(zip(("yes", "no"), rng.dirichlet((1, 1)), strict=True)) for k in nodes})
+        assert abs(sum(dist[composite(p)]["yes"] for p in classes.values()) - 1) < 1e-12
+
+
+def test_verdict_questions_ask_no_amount_and_no_cash():
+    """Each verdict node is one jury decision on a quoted form question; its state carries no cash facts."""
+    fc, d = forecaster()
+    fc.verdict_classes(d)
+    for n in fc.nodes.values():
+        st, _, _ = fc.state(n)
+        assert st["question"]["actor"] == "jury" and st["question"]["form_question"].startswith("Question No.")
+        assert not {"projected_available_cash_at_decision_date", "amount_owed_at_decision"} & set(st["path_facts"])

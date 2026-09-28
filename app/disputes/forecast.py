@@ -274,6 +274,7 @@ def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]]) -> list
     return out
 
 
+VERDICT_NODES = ("verdict_finding", "verdict_measure")  # the jury's verdict-form questions (4.1.0 verdict_form)
 MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "patent_jmol", "trebling", "fees_awarded",
           "prejudgment_interest", "injunction")
 # questions about an unpaid judgment: their facts pool only trajectories where an amount is still owed
@@ -523,6 +524,39 @@ class Forecaster:
             if c0.startswith("beyond"):  # what Jev is told: the class's range, never one figure
                 self.class_range[_label(label)] = (lo[0], max(members[c])[0])
         return out
+
+    def verdict_classes(self, d: DisputeInstance) -> dict[str, list[list[tuple[str, str]]]]:
+        """Each verdict branch's disjoint conjunctions of the jury's answers on the case's verdict form (template
+        verdict_form), in the form's order: a question is one node per sequence of earlier answers that reaches it,
+        and each answer leads to the next question or to a verdict branch. The branches' composites are exhaustive
+        over the answers (every sequence ends in exactly one branch)."""
+        form = self.m["case_verdict_form"]
+        branches = self.m["templates"]["pending_money_claim"]["verdict_branches"]
+        out: dict[str, list] = {b: [] for b in branches}
+
+        def walk(q: str, trail: tuple[str, ...], conj: list) -> None:
+            spec = form["questions"][q]
+            k = self.node(d, spec["node"], q, *trail)
+            for ans in ("yes", "no"):
+                nxt, c = spec[ans], conj + [(k, ans)]
+                if nxt in branches:
+                    out[nxt].append(c)
+                else:
+                    walk(nxt, trail + (f"{q}={ans}",), c)
+
+        walk(form["start"], (), [])
+        return {b: parts for b, parts in out.items() if parts}
+
+    def verdict_context(self, n: Node) -> dict:
+        """A verdict-form question as the jury meets it: the question quoted, what is asked of it, and its earlier
+        answers on the form."""
+        form = self.m["case_verdict_form"]
+        tags = [c for c in n.context.split("|") if c]
+        q = form["questions"][tags[0]]
+        earlier = [f"{form['questions'][x.split('=')[0]]['form']}: {'Yes' if x.endswith('=yes') else 'No'}"
+                   for x in tags[1:]]
+        return {"verdict_form": form["source"], "form_question": f"{q['form']}: \u201c{q['quote']}\u201d",
+                **({"asked": q["asks"]} if "asks" in q else {}), "earlier_answers": earlier}
 
 
     # --- the chain walk ---------------------------------------------------------------------------------------------
@@ -817,7 +851,8 @@ class Forecaster:
         s = self.spec[n.node]
         readings, read_from = self._readings(d, n.question_id)
         evidence, fids, record = self._evidence(d, n.node, read_from)
-        ctx = context_phrases([c for c in n.context.split("|") if c], self.class_range)
+        verdict = n.node in VERDICT_NODES
+        ctx = [] if verdict else context_phrases([c for c in n.context.split("|") if c], self.class_range)
         state = {"case": {"as_of": fmt(self.review), "analysis_period_ends": fmt(self.horizon),
                           "company": self.borrower, "counterparty": d.counterparty,
                           "obligation": f"{self.m['natures'].get(d.nature, d.nature)}, {d.order_reference}"},
@@ -826,6 +861,8 @@ class Forecaster:
                  "standard": self.standard(n.node),
                  "record_items": record, "path_facts": self.path_facts(n, d),
                  "assumptions": list(n.assumptions), "evidence": evidence, "readings": readings}
+        if verdict:
+            state["question"].update(self.verdict_context(n))
         return state, fids, readings
 
     async def judge(self, judge: ForecastJudge) -> dict[str, Judgment]:

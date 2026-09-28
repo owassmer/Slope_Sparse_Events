@@ -67,5 +67,81 @@
       "value": 30,
       "basis": "Owen, item 1 (27 Sep 2026): ATM sales take time; the proceeds arrive in equal daily amounts over 30 days from the decision."
     }
+  },
+  "verdict_form": {
+    "source": "D.I. 580, the final special verdict form filed 9 May 2024 (RECAP gov.uscourts.ded.76727.580.0), read with the claimant's proposed form D.I. 535 (12 Apr 2024), which puts the same claims in the order trade secrets, UDTPA, false advertising, conspiracy, patent.",
+    "start": "q1a",
+    "questions": {
+      "q1a": {
+        "node": "verdict_finding",
+        "form": "Question No. 1(a)",
+        "quote": "Has Qorvo established by the greater weight or preponderance of the evidence that (a) this alleged trade secret qualifies as a trade secret and (b) Akoustis is liable for trade secret misappropriation for this trade secret? / Has Qorvo established by a greater weight or preponderance of the evidence that Akoustis was unjustly enriched by misappropriating this trade secret?",
+        "asks": "whether the jury answers “YES” in both columns for at least one alleged trade secret (the form's gate: “IF YOU ANSWERED “YES” IN BOTH COLUMNS FOR ANY ALLEGED TRADE SECRET IN QUESTION 1(a), THEN ANSWER QUESTIONS 1(b) AND 1(c)”)",
+        "yes": "q1b",
+        "no": "q2a"
+      },
+      "q1b": {
+        "node": "verdict_measure",
+        "form": "Question No. 1(b)",
+        "quote": "State the amount Akoustis was unjustly enriched by misappropriating Qorvo’s trade secrets as to which you have answered “Yes” and “Yes” in Question 1(a) above.",
+        "asks": "whether the unjust-enrichment award adopts the claimant's head-start measure (never the amount)",
+        "yes": "claimant_theory",
+        "no": "without_principal_measure"
+      },
+      "q2a": {
+        "node": "verdict_finding",
+        "form": "Question No. 2(a)",
+        "quote": "Has Qorvo proven by a preponderance of the evidence its Civil Conspiracy claim against Akoustis?",
+        "yes": "q2b",
+        "no": "q3a"
+      },
+      "q2b": {
+        "node": "verdict_finding",
+        "form": "Question No. 2(b)",
+        "quote": "Do you find that Qorvo has proven by a preponderance of the evidence that actual damage to Qorvo was caused by the conspiracy?",
+        "yes": "q2c",
+        "no": "q3a"
+      },
+      "q2c": {
+        "node": "verdict_measure",
+        "form": "Question No. 2(c)",
+        "quote": "What amount of damages for actual loss, if any, were caused by Akoustis’ action and thus you award to Qorvo against Akoustis?",
+        "asks": "whether the conspiracy award adopts the claimant's head-start measure, which its conspiracy claim restates (D.I. 543-1 Ex. A.2 ¶56) (never the amount)",
+        "yes": "claimant_theory",
+        "no": "without_principal_measure"
+      },
+      "q3a": {
+        "node": "verdict_finding",
+        "form": "Question No. 3(a)",
+        "quote": "Has Qorvo proven by a preponderance of the evidence each of the elements of its False Advertising claim against Akoustis?",
+        "yes": "without_principal_measure",
+        "no": "q5a"
+      },
+      "q5a": {
+        "node": "verdict_finding",
+        "form": "Question No. 5(a)",
+        "quote": "Do you find that Qorvo has proven by a preponderance of the evidence that the claims of the ’018 or the ’755 Patents have been infringed?",
+        "asks": "whether the jury answers “YES” for at least one patent claim",
+        "yes": "without_principal_measure",
+        "no": "no_award"
+      }
+    },
+    "collapsed": [
+      {
+        "form": "Question No. 1(c) and 1(d)",
+        "quote": "Was Akoustis’s misappropriation of any of Qorvo’s trade secrets as to which you answered “Yes” and “Yes” in Question 1(a) above willful and malicious?",
+        "why": "Its answer sets only exemplary damages (1(d)). Where the award adopts the head-start measure they raise an award already beyond cash on every trajectory (the bounded claimant_enhancements term, DECOMPOSITION §4.6); on the lower branch the O1 amount carries no trade-secret award to multiply. It changes no verdict branch, so it would change no path probability."
+      },
+      {
+        "form": "Questions No. 4(a)-(c)",
+        "quote": "Has Qorvo proven by a preponderance of the evidence its Unfair and Deceptive Trade Practices Act claim against Akoustis?",
+        "why": "D.I. 590 (14 May 2024): “The jury has no reasonable basis to find compensable damages under the UDTPA”. Liability alone carries no money."
+      },
+      {
+        "form": "Question No. 5(b) and 5(c)",
+        "quote": "Did Qorvo prove by a preponderance of the evidence that Akoustis’ infringement of the ’018 or ‘755 patent was willful?",
+        "why": "5(b) is an amount (inside the lower branch's bounded amount); willfulness only lets the court enhance patent damages later (35 U.S.C. §284), inside the same bound. Neither changes a verdict branch."
+      }
+    ]
   }
 }
