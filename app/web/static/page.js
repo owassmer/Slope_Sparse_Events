@@ -12,7 +12,7 @@
 
   // --- formatting -----------------------------------------------------------------------------------------------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const fill = (t, o = {}) => String(t).replace(/\{(\w+)\}/g, (m, k) => (k in o ? o[k] : m));
+  const fill = (t, o = {}) => String(t).replace(/\{(\w+)\}/g, (m, k) => (k in o ? o[k] : m)).replace(/(\d+) in 100/g, "$1\u00a0in\u00a0100");
   // money: $339k, $1.2M; whole units unless a value is under 10 of its unit
   const money = (c) => {
     const v = c / 100, a = Math.abs(v), s = v < 0 ? "−" : "";
@@ -20,7 +20,7 @@
     if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}k`;
     return `${s}$${Math.round(a)}`;
   };
-  const freq = (p) => `${Math.round(100 * p)} in 100`;
+  const freq = (p) => `${Math.round(100 * p)}\u00a0in\u00a0100`;
   const n100 = (p) => Math.round(100 * p);
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const fdate = (iso) => `${+iso.slice(8, 10)} ${MON[+iso.slice(5, 7) - 1]}`;
@@ -372,17 +372,17 @@
   }
 
   // --- the server's daily series (debounced) ------------------------------------------------------------------------
-  let ctrl = null, deb = null;
+  let ctrl = null, deb = null, first = null;
   function refreshSeries(t0) {
-    clearTimeout(deb);
+    clearTimeout(deb); first = first ?? t0; t0 = first;
     deb = setTimeout(async () => {
       if (ctrl) ctrl.abort();
       ctrl = new AbortController();
       try {
         const r = await fetch(`${API}/reweight`, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal, body: JSON.stringify({ overrides: S.overrides }) });
-        const v = await r.json();
-        if (v && v.daily) { S.event = v; if (v.bank) S.bank = { ...D.bank, ...v.bank }; renderWhen(); renderFutures(); }
-        if (t0) S.lat.push(performance.now() - t0);
+        const v = await r.json(); first = null;
+        if (v && v.daily) { S.event = v; if (v.bank) S.bank = { ...D.bank, ...v.bank }; renderWhen(); renderFutures(); renderActual(); }
+        if (t0) S.lat.push(["server", performance.now() - t0]);
       } catch (e) { if (e.name !== "AbortError") console.error(e); }
     }, 250);
   }
@@ -480,8 +480,128 @@
     (S.variant === "paths" ? renderPaths : renderMap)(sec.querySelector(".tv"));
   }
 
-  function openNode(i) { S.open = i; }  // @@DRAWER (replaced in step 4)
-  // @@PART3B
+  // --- 5. the close-up: Jev's work on one fork ----------------------------------------------------------------------
+  const cap = (t) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+  function situation(ctx) {  // the node's context string in plain words (words.situations)
+    const SI = W.situations;
+    if (!ctx) return cap(SI[""]);
+    return cap(ctx.split("; ").map((f) => {
+      if (f in SI) return SI[f];
+      if (f.startsWith("ruling leaves ")) { const nt = ", new trial on damages", rest = f.slice(14); return rest.endsWith(nt) ? `${SI["ruling leaves"]} ${rest.slice(0, -nt.length)}${SI[nt]}` : `${SI["ruling leaves"]} ${rest} owed`; }
+      return f;
+    }).join(", "));
+  }
+  const decOf = (i) => W.decisions[D.nodes[i].node] || {};
+  const blabel = (i, b) => (decOf(i).branches || {})[b] || b.replace(/_/g, " ");
+  const atLabels = (i) => {  // 'If no' / 'If yes' for a yes-no question, else never / always the selected answer
+    const n = D.nodes[i], b = selB(i);
+    return n.branches.length > 2 ? [fill(W.ui.at_never, { branch: blabel(i, n.branches[b]) }), fill(W.ui.at_always, { branch: blabel(i, n.branches[b]) })] : [W.levers.at0, W.levers.at100];
+  };
+  const dragBase = {};
+  function openNode(i) {
+    if (i < 0) return;
+    S.open = i; hideTip();
+    const n = D.nodes[i], det = n.detail || {}, dec = decOf(i), U = W.ui, J = W.jev, b = selB(i), d = dist(i);
+    const others = (TYPE_NODES[n.node] || []).filter((k) => k !== i), mass = nodeMass();
+    others.sort((a, c) => mass[c] - mass[a]);
+    const link = (l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.text)}</a>`;
+    const quotes = (det.quotes || []).slice(0, 3).map((q) => `<blockquote><p>“${esc(q.quote)}”</p><cite>${esc(q.source)}${q.link ? ` · <a href="${esc(q.link)}" target="_blank" rel="noopener">${esc(U.source)}</a>` : ""}</cite></blockquote>`).join("");
+    const pick = n.branches.length > 2 ? `<div class="pick"><span class="mute small">${esc(U.branch_pick)}</span>${n.branches.map((x, k) => `<label><input type="radio" name="br" value="${k}"${k === b ? " checked" : ""}> ${esc(blabel(i, x))}</label>`).join("")}</div>` : "";
+    const [l0, l1] = atLabels(i);
+    $("drawer").innerHTML = `<button class="x" id="dx" aria-label="${esc(U.close)}">×</button>
+      <div class="who">${esc(U.decided_by)} <b>${esc(W.deciders[dec.who] || n.decider)}</b></div>
+      <h2>${esc(dec.question || n.question)}</h2><p>${esc(dec.why || "")}</p>
+      <h3>${esc(U.asked_when)}</h3><p>${esc(situation(n.context))}</p>
+      <h3>${esc(J.read)}</h3>${quotes || `<p class="mute">${esc(U.no_quotes)}</p>`}
+      <h3>${esc(J.answer)}</h3>${pick}
+      <div class="ans"><span id="d-blab"></span><span class="big" id="d-big"></span><span class="mute small" id="d-jev"></span></div>
+      <input type="range" id="d-slider" min="0" max="100" step="1" value="${Math.round(100 * d[b])}"><div class="slabs" id="d-slabs"></div>
+      <p class="mute small">${esc(U.conditional)}</p>
+      <p class="mute small">${esc(J.drag)} <a href="#" id="d-reset"${n.key in S.overrides ? "" : " hidden"}>${esc(U.reset)}</a></p>
+      <h3>${esc(J.effect)}</h3><p class="mute small">${esc(fill(U.collected_short, WH))}</p>
+      <div class="eff"><div><span class="mute small">${esc(l0)}</span><b id="d-lo"></b></div><div class="j"><span class="mute small">${esc(U.at_jev)}</span><b id="d-at"></b></div><div><span class="mute small">${esc(l1)}</span><b id="d-hi"></b></div></div>
+      <details class="law"><summary>${esc(J.sources)}</summary>${(det.steps || []).map((s) => `<div class="step"><span class="tag">${esc(s.tag)}</span><span>${esc(s.text)}${(s.links || []).length ? ` · ${s.links.map(link).join(" · ")}` : ""}</span></div>`).join("")}</details>
+      ${others.length ? `<h3>${esc(U.other_situations)}</h3><div class="others">${others.slice(0, 5).map((k) => `<button data-i="${k}"><span>${esc(situation(D.nodes[k].context))}</span><b>${esc(blabel(k, D.nodes[k].branches[0]))} ${n100(dist(k)[0])}</b></button>`).join("")}</div>` : ""}`;
+    $("drawer").classList.add("open"); $("drawer").setAttribute("aria-hidden", "false"); $("drawer").scrollTop = 0;
+    updateDrawer();
+    $("dx").onclick = closeDrawer;
+    $("drawer").querySelectorAll(".others button").forEach((x) => (x.onclick = () => openNode(+x.dataset.i)));
+    $("drawer").querySelectorAll(".pick input").forEach((r) => (r.onchange = () => { S.sel[n.key] = +r.value; openNode(i); computeSens(); renderLevers(); }));
+    const sl = $("d-slider");
+    sl.onpointerdown = () => { if (!(i in dragBase)) dragBase[i] = dist(i).slice(); };
+    sl.oninput = () => {
+      if (!(i in dragBase)) dragBase[i] = dist(i).slice();
+      const t0 = performance.now();
+      S.overrides[n.key] = withBranch(i, selB(i), sl.value / 100, dragBase[i]);
+      onChange(t0, false);
+    };
+    sl.onchange = () => { delete dragBase[i]; onChange(null, true); };
+    $("d-reset").onclick = (ev) => { ev.preventDefault(); delete S.overrides[n.key]; delete dragBase[i]; onChange(null, true); openNode(i); };
+  }
+  function updateDrawer() {  // the numbers in the open close-up, without rebuilding its slider
+    const i = S.open; if (i === null || !$("d-big")) return;
+    const n = D.nodes[i], b = selB(i), d = dist(i), e = effOf(i);
+    $("d-big").textContent = freq(d[b]); $("d-blab").textContent = `${blabel(i, n.branches[b])}:`;
+    $("d-jev").textContent = n.key in S.overrides ? fill(W.ui.jev_said, { n: n100(jevDist(i)[b]) }) : "";
+    $("d-slabs").innerHTML = [b, ...n.branches.map((x, k) => k).filter((k) => k !== b)].map((k) => `<span>${esc(blabel(i, n.branches[k]))} ${freq(d[k])}</span>`).join("");
+    $("d-lo").textContent = money(e.lo); $("d-at").textContent = money(e.at); $("d-hi").textContent = money(e.hi);
+    $("d-reset").hidden = !(n.key in S.overrides);
+  }
+  function closeDrawer() { S.open = null; $("drawer").classList.remove("open"); $("drawer").setAttribute("aria-hidden", "true"); }
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeDrawer(); });
+
+  // --- 6. which judgments matter most -------------------------------------------------------------------------------
+  function renderLevers() {
+    const L = levers(), lo = Math.min(...L.map((l) => Math.min(l.lo, l.hi, l.at))), hi = Math.max(...L.map((l) => Math.max(l.lo, l.hi, l.at)));
+    const pos = (v) => `${(100 * (v - lo)) / (hi - lo || 1)}%`;
+    $("s-levers").innerHTML = `<h2>${esc(W.levers.title)}</h2><p class="mute">${esc(W.levers.sub)} ${esc(fill(W.ui.collected_short, WH))}.</p>
+      <div class="levers">${L.map((l) => {
+        const [a0, a1] = atLabels(l.i), dec = decOf(l.i);
+        return `<button class="lever" data-i="${l.i}"><span class="ll"><b>${esc(dec.short || D.nodes[l.i].label)}</b><span class="mute">${esc(situation(D.nodes[l.i].context))}</span></span>
+          <span class="lt"><span class="rng" style="left:${pos(Math.min(l.lo, l.hi))};width:calc(${pos(Math.max(l.lo, l.hi))} - ${pos(Math.min(l.lo, l.hi))})"></span><span class="mk" style="left:${pos(l.at)}"></span></span>
+          <span class="lv">${(l.hi < l.lo ? [[a1, l.hi], [W.ui.at_jev, l.at], [a0, l.lo]] : [[a0, l.lo], [W.ui.at_jev, l.at], [a1, l.hi]]).map(([a, v]) => `${esc(a)} <b>${money(v)}</b>`).join(" · ")}</span></button>`;
+      }).join("")}</div>`;
+    $("s-levers").querySelectorAll(".lever").forEach((x) => (x.onclick = () => openNode(+x.dataset.i)));
+  }
+
+  // --- any change to an answer: every number recomputed here, the chart from the server ------------------------------
+  function onChange(t0, settled) {
+    recompute();
+    renderFutures(); renderTree(); updateDrawer(); renderChanged();
+    if (settled) { computeSens(); renderLevers(); }
+    if (t0) S.lat.push(["local", performance.now() - t0]);
+    refreshSeries(t0);
+  }
+  function renderChanged() {
+    const k = Object.keys(S.overrides).length, el = $("changed");
+    el.hidden = !k; if (!k) return;
+    el.innerHTML = `${esc(fill(W.ui.changed, { n: k }))} <a href="#" id="rs-all">${esc(W.ui.reset_all)}</a>`;
+    $("rs-all").onclick = (ev) => { ev.preventDefault(); S.overrides = {}; onChange(null, true); if (S.open !== null) openNode(S.open); };
+  }
+
+  // --- 7. what actually happened, and the footer --------------------------------------------------------------------
+  function renderActual() {
+    const btn = $("actual"); if (!btn) return;
+    btn.textContent = S.reveal ? W.ui.reveal_hide : W.reveal.button;
+    btn.onclick = async () => {
+      if (!S.outcome) S.outcome = await (await fetch(`${API}/outcome`)).json();
+      S.reveal = !S.reveal; renderActual();
+    };
+    const o = S.outcome, body = $("actual-body");
+    if (!S.reveal || !o) { body.innerHTML = ""; return; }
+    const fy = (iso) => `${fdate(iso)} ${iso.slice(0, 4)}`, t = D.dates.indexOf(o.petition.date);
+    const by = t >= 0 ? n100(S.event.daily.petition_cum_p[t]) : null;
+    body.innerHTML = `<p>${esc(W.reveal.intro)}</p>${by !== null ? `<p class="filed">${esc(fill(W.reveal.filed, { date: fy(o.petition.date), n: by }))}</p>` : ""}
+      <ol class="events">${o.events.map((e) => `<li><span class="mute">${esc(fy(e.date))}</span><span>${esc(e.description)}${e.source_url ? ` <a href="${esc(e.source_url)}" target="_blank" rel="noopener">${esc(W.ui.source)}</a>` : ""}</span></li>`).join("")}</ol>`;
+  }
+  function renderFoot() {
+    if ($("record")) $("record").textContent = W.ui.record_link;
+    const t = D.case_terms || {}, U = W.ui, fy = (iso) => `${fdate(iso)} ${iso.slice(0, 4)}`;
+    $("terms").innerHTML = `<details><summary>${esc(U.terms)}</summary>
+      <h3>${esc(U.terms_components)}</h3><table class="terms">${(t.components || []).map((c) => `<tr><td>${esc(c.label)}</td><td>${esc(c.amount)}</td><td>${esc(c.status)}</td><td>${c.link ? `<a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.source)}</a>` : esc(c.source)}</td></tr>`).join("")}</table>
+      ${(t.notes || []).map((x) => `<h3>${esc(x.title)}</h3><table class="terms">${x.terms.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table>`).join("")}
+      <h3>${esc(U.terms_deadlines)}</h3><table class="terms">${(t.deadlines || []).map((x) => `<tr><td>${esc(fy(x.date))}</td><td>${esc(x.what)}</td></tr>`).join("")}</table></details>`;
+  }
   // --- init -------------------------------------------------------------------------------------------------------
   function recompute() { probs = pathProbs((k) => dist(k)); bprobs = bankProbs((k) => dist(k)); }
   recompute();
@@ -497,7 +617,7 @@
     return out;
   }
   window.__summary = summary();
-  renderSituation(); renderFutures(); renderWhen(); renderTree();
+  renderSituation(); renderFutures(); renderWhen(); renderTree(); renderLevers(); renderActual(); renderFoot(); renderChanged();
   // @@RENDER
   let rz = null; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { renderWhen(); renderTree(); }, 150); });
   refreshSeries();  // warms the server's reweight, so the first slider move is as quick as the rest
