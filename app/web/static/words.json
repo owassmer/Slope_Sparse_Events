@@ -22,7 +22,7 @@
       "name": "Bank data + the court and SEC record",
       "says": "The same account, the same line and the same operating ups and downs, plus what the record says can happen next: the judge's ruling, Qorvo collecting, the noteholders, Nasdaq."
     },
-    "difference": "What the research adds"
+    "difference": "What the research changes"
   },
 
   "futures": {
@@ -40,20 +40,20 @@
     "Paid": { "label": "Pays what the judge leaves owed", "filed": false },
     "Stayed on appeal": { "label": "Collection paused during appeal", "filed": false },
     "Vacated or new trial": { "label": "Judge throws out the verdict or orders a new trial", "filed": false },
-    "Unresolved": { "label": "Still open on {horizon}", "filed": false },
+    "Unresolved": { "label": "No filing; the dispute is still unresolved on {horizon}", "filed": false },
     "bank_filed": { "label": "Files when it runs short of cash", "filed": true },
-    "bank_not_filed": { "label": "Keeps operating", "filed": false }
+    "bank_not_filed": { "label": "Keeps operating, no filing", "filed": false }
   },
 
   "measures": {
     "funded": { "label": "Invoices Slope pays", "note": "Slope pays new invoices until something is overdue or Akoustis files." },
     "due": { "label": "Installments due by {horizon}" },
     "collected": { "label": "Collected by {horizon}" },
-    "rate": { "label": "Collected, out of what came due" },
+    "rate": { "label": "Collected, out of what came due", "note": "Only installments that fell due by {horizon}; invoices paid later are not due yet." },
     "unpaid": { "label": "Due but not collected", "note": "Overdue, or caught in a bankruptcy filing." },
     "petition_p": { "label": "Chance Akoustis files for bankruptcy by {horizon}" },
     "stuck": { "label": "Balance stuck in a bankruptcy", "note": "What Akoustis still owes Slope on the day it files. Recovery happens, if at all, in the bankruptcy." },
-    "clawback": { "label": "Payments Slope may have to give back", "note": "Collections in the 90 days before a filing. A bankruptcy trustee can sue to recover them. Shown before any defence Slope could raise." },
+    "clawback": { "label": "Payments Slope may have to give back", "note": "Collections in the 90 days before a filing. A bankruptcy trustee can sue to recover them. Shown before any defence Slope could raise. Lower with the research because Slope collects less in the run-up to a filing." },
     "turnover": { "label": "Times the line's money was lent out", "note": "Invoices paid ÷ average balance. The same capital does less work when the line stops early." },
     "avg_outstanding": { "label": "Average balance outstanding" }
   },
@@ -177,7 +177,7 @@
     },
     "settlement_accept": {
       "lane": "qorvo", "who": "Qorvo", "short": "Qorvo accepts the settlement",
-      "question": "Does Qorvo accept that offer?",
+      "question": "Does Qorvo accept Akoustis's settlement offer?",
       "why": "Paying the settlement takes cash out of Akoustis at once, but removes the judgment's threat.",
       "branches": { "yes": "Accepts", "no": "Refuses" }
     },
@@ -195,7 +195,7 @@
       "branches": { "accelerate": "Demand it all", "repurchase_only": "Buy-back only", "neither": "Neither" }
     },
     "petition_on_notes": {
-      "lane": "notes", "who": "Akoustis", "short": "Akoustis files once the notes are due",
+      "lane": "notes", "who": "Akoustis", "short": "Akoustis files for bankruptcy once the notes are due",
       "question": "Once the noteholders demand repayment it cannot make, does Akoustis file for bankruptcy?",
       "why": "Akoustis cannot pay $44M.",
       "branches": { "yes": "Files", "no": "Doesn't" }
@@ -233,13 +233,13 @@
     },
 
     "petition_cash_floor": {
-      "lane": "cash", "who": "Akoustis", "short": "Akoustis files when cash gets tight",
+      "lane": "cash", "who": "Akoustis", "short": "Akoustis files for bankruptcy when cash gets tight",
       "question": "When Akoustis's cash first falls below what it needs to run for the next month, does it file for bankruptcy?",
       "why": "The same question is asked on bank data alone and with the research, at the day and cash level each path reaches.",
       "branches": { "yes": "Files", "no": "Keeps going" }
     },
     "petition_cash_out": {
-      "lane": "cash", "who": "Akoustis", "short": "Akoustis files when cash runs out",
+      "lane": "cash", "who": "Akoustis", "short": "Akoustis files for bankruptcy when cash runs out",
       "question": "If it keeps going, does Akoustis file for bankruptcy when its cash runs out?",
       "why": "Asked only where it did not file when cash first got tight.",
       "branches": { "yes": "Files", "no": "Keeps going" }
@@ -305,8 +305,8 @@
   },
 
   "levers": {
-    "title": "Which judgments matter most",
-    "sub": "How much collections move if a judgment goes fully one way or the other.",
+    "title": "Which of Jev's answers matter most",
+    "sub": "How much Slope collects by {horizon} if one of Jev's answers went fully one way or the other.",
     "at0": "If no",
     "at100": "If yes"
   },
@@ -341,10 +341,10 @@
     "stay motion filed": "Akoustis has asked to pause collection",
     "paying in full is out of reach": "it cannot pay in full",
     "Qorvo executing": "Qorvo is collecting",
-    "after acceleration on the judgment default (after the ruling)": "after noteholders demand their $44M over the unpaid judgment",
-    "after acceleration on the judgment default on the entered judgment": "after noteholders demand their $44M over the judgment as entered",
-    "after acceleration on the delisting (delisted after the panel)": "after noteholders demand their $44M over the delisting",
-    "after acceleration on the delisting (suspended without a hearing)": "after noteholders demand their $44M over the suspension",
+    "after acceleration on the judgment default (after the ruling)": "after noteholders demand their $44M because the judgment went unpaid after the ruling",
+    "after acceleration on the judgment default on the entered judgment": "after noteholders demand their $44M because the judgment went unpaid 60 days from 20 Jun",
+    "after acceleration on the delisting (delisted after the panel)": "after noteholders demand their $44M because of the delisting",
+    "after acceleration on the delisting (suspended without a hearing)": "after noteholders demand their $44M because of the suspension",
     "after a settlement": "after a settlement with Qorvo",
     "no acceleration on the entered judgment": "noteholders did not act on the judgment as entered",
     "on the notes' judgment-default date": "on the day the noteholders' 60-day clock ends",
@@ -367,17 +367,18 @@
     "when_sub": "Chance that Akoustis has filed for bankruptcy by each date, out of 100.",
     "biggest_step": "{date}: the biggest jump, +{n} in 100",
     "biggest_cause": "Mostly: {cause}",
-    "bank_rises": "Bank data alone: first filings from {date}",
+    "bank_rises": "Bank data alone: no chance of a filing before {date}",
+    "ruling_band": "The judge's ruling can come on any day in the shaded period",
     "tree_title": "How it could unfold",
     "tree_toggle": { "paths": "The paths", "map": "The decisions" },
-    "tree_root": "20 Jun",
+    "tree_root": "20 Jun 2024",
     "tree_root_sub": "Today",
     "tree_other": "other ways",
     "tree_note": "Line thickness is the chance of each path. Click a step to see the question Jev answered there.",
     "map_note": "Every decision the model asks about, in the order they come up, with Jev's answer out of 100. Click one to see Jev's work.",
     "asked_in": "asked in {n} situations",
     "tree_hover": "{n} in 100 of the futures start this way. In {f} in 100 Akoustis files for bankruptcy by {horizon}.",
-    "tree_legend": { "filed": "Akoustis files for bankruptcy", "quiet": "Nothing forces a filing by {horizon}", "bar": "End bar: red part files by {horizon}" },
+    "tree_legend": { "filed": "Akoustis files for bankruptcy", "quiet": "Nothing forces a filing by {horizon}", "bar": "Red share of the end bar: files by {horizon}", "open": "Grey: neither yet, the path goes on" },
     "leaf": "{n} in 100",
     "leaf_filed": "{n} in 100 · {f} file",
     "decided_by": "Decided by",
@@ -391,7 +392,8 @@
     "close": "Close",
     "at_never": "If never “{branch}”",
     "at_always": "If always “{branch}”",
-    "at_jev": "Jev",
+    "at_jev": "At Jev's answer",
+    "lever_jev": "Jev: {branch} {n} in 100",
     "collected_short": "Collected by {horizon}",
     "branch_pick": "Moving the answer for:",
     "no_quotes": "Nothing in the public record on 20 Jun 2024 speaks to this directly.",

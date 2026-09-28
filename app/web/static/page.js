@@ -283,7 +283,7 @@
     const sgn = (d, fmt) => `${d > 0 ? "+" : d < 0 ? "−" : ""}${fmt(Math.abs(d))}`;
     const rows = [["funded", money], ["collected", money], ["rate", rate], ["stuck", money], ["clawback", money]].map(([k, fmt]) => {
       const m = M[k], shown = (v) => (k === "rate" ? Math.round(100 * v) / 100 : Math.round(v / 1e5) * 1e5), d = shown(f.research[k]) - shown(f.bank[k]);
-      return `<tr><td${m.note ? ` data-tip="${esc(m.note)}" class="hastip"` : ""}>${esc(fill(m.label, WH))}</td><td>${fmt(f.bank[k])}</td><td>${fmt(f.research[k])}</td>
+      return `<tr><td${m.note ? ` data-tip="${esc(fill(m.note, WH))}" class="hastip"` : ""}>${esc(fill(m.label, WH))}</td><td>${fmt(f.bank[k])}</td><td>${fmt(f.research[k])}</td>
         <td>${k === "rate" ? fill(U.rate_diff, { n: sgn(Math.round(100 * d), (x) => `$${x}`) }) : sgn(d, fmt)}</td></tr>`;
     }).join("");
     $("s-futures").innerHTML = `<h2>${esc(W.futures.title)}</h2><p class="mute">${esc(W.futures.dot)}</p>
@@ -328,7 +328,7 @@
     const m = { l: 40, r: 200, t: 92, b: 30 }, w = Wd - m.l - m.r, h = H - m.t - m.b;
     const X = (t) => m.l + (w * t) / (days - 1), Y = (p) => m.t + h - h * p, ix = (iso) => D.dates.indexOf(iso);
     let g = "";
-    const rw = D.pins.ruling_window; if (rw && ix(rw[0]) >= 0) g += `<rect x="${X(ix(rw[0]))}" y="${m.t}" width="${X(days - 1) - X(ix(rw[0]))}" height="${h}" fill="#f4f5f6"/>`;
+    const rw = D.pins.ruling_window; if (rw && ix(rw[0]) >= 0) g += `<rect x="${X(ix(rw[0]))}" y="${m.t}" width="${X(days - 1) - X(ix(rw[0]))}" height="${h}" fill="#f4f5f6"/><text x="${X(days - 1) - 8}" y="${Y(0.97)}" text-anchor="end" class="band">${esc(W.ui.ruling_band)}</text>`;
     for (const v of [0, 25, 50, 75, 100]) g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v / 100)}" y2="${Y(v / 100)}" stroke="${v ? "#eceef0" : "#c9cdd2"}"/><text x="${m.l - 8}" y="${Y(v / 100) + 4}" text-anchor="end">${v}</text>`;
     D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 8}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text><line x1="${X(t)}" x2="${X(t)}" y1="${m.t + h}" y2="${m.t + h + 5}" stroke="#c9cdd2"/>`; });
     const pins = [["briefing_close", D.pins.briefing_close], ["judgment_default", judgmentDefault], ["ruling_window", rw && rw[0]], ["nasdaq", D.pins.nasdaq], ["coupon", D.pins.coupon]]
@@ -438,7 +438,7 @@
       nodes += `<g class="nd${t.depth && t.base !== "other" && t.base !== "quiet" ? " click" : ""}" data-id="${id}"><rect x="${x}" y="${t.y}" width="${w}" height="${Math.max(t.h, 1)}" rx="2" fill="${t.depth ? fillOf(t) : "#dfe2e6"}"/>${bar}${txt}</g>`;
     });
     const LG = W.ui.tree_legend;
-    host.innerHTML = `<p class="mute small">${esc(W.ui.tree_note)}</p><div class="tleg"><span><i style="background:#f3d9d3"></i>${esc(LG.filed)}</span><span><i style="background:#e3ece5"></i>${esc(fill(LG.quiet, WH))}</span><span><i class="bar"></i>${esc(fill(LG.bar, WH))}</span></div><svg class="tree" viewBox="0 0 ${Wd} ${Hmax}" style="height:${Hmax}px">${links}${nodes}</svg>`;
+    host.innerHTML = `<p class="mute small">${esc(W.ui.tree_note)}</p><div class="tleg"><span><i style="background:#f3d9d3"></i>${esc(LG.filed)}</span><span><i style="background:#e3ece5"></i>${esc(fill(LG.quiet, WH))}</span><span><i style="background:#eceef1"></i>${esc(LG.open)}</span><span><i class="bar"></i>${esc(fill(LG.bar, WH))}</span></div><svg class="tree" viewBox="0 0 ${Wd} ${Hmax}" style="height:${Hmax}px">${links}${nodes}</svg>`;
     const svg = host.querySelector("svg"), chain = (t) => { const s = new Set(); for (let u = t; u; u = u.parent) s.add(u.id); return s; };
     svg.querySelectorAll(".nd").forEach((g) => {
       const t = all[+g.dataset.id];
@@ -510,7 +510,7 @@
     const [l0, l1] = atLabels(i);
     $("drawer").innerHTML = `<button class="x" id="dx" aria-label="${esc(U.close)}">×</button>
       <div class="who">${esc(U.decided_by)} <b>${esc(W.deciders[dec.who] || n.decider)}</b></div>
-      <h2>${esc(dec.question || n.question)}</h2><p>${esc(dec.why || "")}</p>
+      <h2>${esc(dec.question || n.question)}</h2><p>${esc(fill(dec.why || "", { offer: factOffer ? money(factOffer) : "–" }))}</p>
       <h3>${esc(U.asked_when)}</h3><p>${esc(situation(n.context))}</p>
       <h3>${esc(J.read)}</h3>${quotes || `<p class="mute">${esc(U.no_quotes)}</p>`}
       <h3>${esc(J.answer)}</h3>${pick}
@@ -554,10 +554,10 @@
   function renderLevers() {
     const L = levers(), lo = Math.min(...L.map((l) => Math.min(l.lo, l.hi, l.at))), hi = Math.max(...L.map((l) => Math.max(l.lo, l.hi, l.at)));
     const pos = (v) => `${(100 * (v - lo)) / (hi - lo || 1)}%`;
-    $("s-levers").innerHTML = `<h2>${esc(W.levers.title)}</h2><p class="mute">${esc(W.levers.sub)} ${esc(fill(W.ui.collected_short, WH))}.</p>
+    $("s-levers").innerHTML = `<h2>${esc(W.levers.title)}</h2><p class="mute">${esc(fill(W.levers.sub, WH))}</p>
       <div class="levers">${L.map((l) => {
         const [a0, a1] = atLabels(l.i), dec = decOf(l.i);
-        return `<button class="lever" data-i="${l.i}"><span class="ll"><b>${esc(dec.short || D.nodes[l.i].label)}</b><span class="mute">${esc(situation(D.nodes[l.i].context))}</span></span>
+        return `<button class="lever" data-i="${l.i}"><span class="ll"><b>${esc(dec.short || D.nodes[l.i].label)}</b><span class="mute">${esc(situation(D.nodes[l.i].context))} · ${esc(fill(W.ui.lever_jev, { branch: blabel(l.i, D.nodes[l.i].branches[selB(l.i)]), n: n100(dist(l.i)[selB(l.i)]) }))}</span><span class="lw">${esc(fill(dec.why || "", { offer: factOffer ? money(factOffer) : "–" }))}</span></span>
           <span class="lt"><span class="rng" style="left:${pos(Math.min(l.lo, l.hi))};width:calc(${pos(Math.max(l.lo, l.hi))} - ${pos(Math.min(l.lo, l.hi))})"></span><span class="mk" style="left:${pos(l.at)}"></span></span>
           <span class="lv">${(l.hi < l.lo ? [[a1, l.hi], [W.ui.at_jev, l.at], [a0, l.lo]] : [[a0, l.lo], [W.ui.at_jev, l.at], [a1, l.hi]]).map(([a, v]) => `${esc(a)} <b>${money(v)}</b>`).join(" · ")}</span></button>`;
       }).join("")}</div>`;
