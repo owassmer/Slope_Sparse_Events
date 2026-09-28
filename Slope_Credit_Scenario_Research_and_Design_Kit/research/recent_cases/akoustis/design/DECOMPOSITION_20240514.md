@@ -28,7 +28,7 @@ The template starts where the 4.0.0 template (`federal_post_judgment`) assumed a
 |---|---|---|---|---|
 | P1 Verdict | Jury finds each claim by a preponderance (Seventh Amendment; FRCP 48, unanimous unless stipulated) (may) | Trial under way, claims submitted on a special verdict form | Trial began 6 May; day 7 on 14 May (minute entries); jurors provided for through Fri 17 May (D.I. 550, 26 Apr); the claimant rested on 13 May and the case is "expected to go to the jury before the end of the week" with a verdict "in the next several days" (13 May call, ACQ §1(g)); special verdict form D.I. 580 (9 May) with five claim groups: trade secrets under the DTSA and the NCTSPA (unjust enrichment, willful and malicious, exemplary), civil conspiracy, Lanham Act false advertising, UDTPA, patent infringement | Verdict date: Code timing, a window drawn per trajectory (§3). Outcome: **J1**, the damages theory the jury adopts (§5, §6) |
 | P2 Claims removed before verdict | FRCP 50(a) (may); summary judgment FRCP 56 | A ruling before the verdict | RICO and false patent marking out on summary judgment (D.I. 545; 10-Q Note 14). Patent validity decided for the claimant (D.I. 557). No compensable UDTPA damages may go to the jury (D.I. 590, 14 May) | Record |
-| P3 Damages | The jury fixes the amount per claim on the form (D.I. 580 Q1(b), 1(d), 2(c), 3(b), 4(c), 5(b)) | A liability finding with a damages answer | **The claimant itemised its claim publicly** (D.I. 543-1 Ex. A.2, 22 Apr 2024; ACQ §1): trade-secret unjust enrichment "at least $66.1 million" (a 55-month head start, ¶31); patent $279,808 (¶19); corrective advertising $1,146,604 (¶42); poaching $809,772 (¶49). The UDTPA and conspiracy $66.1M figures (¶¶50, 56) are the same money under other theories, not additive. No defense figure is public (D.I. 543-1 Ex. A.4 gives none; the $305k avoided-cost figure first appears at trial). Defense counsel: "if the jury adopts the theories of [the claimant]'s experts, it is possible the jury will issue an eight-figure verdict" (13 May call) | Theory: **J1**. Amount per theory: Record and Arithmetic (§5); never Jev |
+| P3 Damages | The jury fixes the amount per claim on the form (D.I. 580 Q1(b), 1(d), 2(c), 3(b), 4(c), 5(b)) | A liability finding with a damages answer | **The claimant itemised its claim publicly** (D.I. 543-1 Ex. A.2, 22 Apr 2024; ACQ §1): trade-secret unjust enrichment "at least $66.1 million" (a 55-month head start, ¶31); patent $279,808 (¶19); corrective advertising $1,146,604 (¶42); poaching $809,772 (¶49). The UDTPA and conspiracy $66.1M figures (¶¶50, 56) are the same money under other theories, not additive. No defense figure is public (D.I. 543-1 Ex. A.4 gives none). Defense counsel: "if the jury adopts the theories of [the claimant]'s experts, it is possible the jury will issue an eight-figure verdict" (13 May call) | Theory: **J1**. Amount per theory: Record and Arithmetic (§5); never Jev |
 | P4 Exemplary and enhanced relief | DTSA exemplary ≤ 2× (18 U.S.C. §1836(b)(3)(C)); N.C. punitive cap (§1D-25(b)); patent enhancement ≤ 3× on willfulness (35 U.S.C. §284) (may); fees (§1836(b)(3)(D), §66-154(d), 35 U.S.C. §285) (may); pre-judgment interest (§24-5(b); *Devex*); UDTPA trebling (§75-16) (shall, once damages are assessed) | A finding that opens the remedy | D.I. 580 asks exemplary damages (Q1(d)) and willfulness (Q5(c)). D.I. 590 removes UDTPA damages, so §75-16 has no UDTPA amount to treble (L15) | One bounded term on the claimant's-theory branch (§5.2): each only raises an award already beyond cash, which changes no date or cash on any trajectory. Not a branch |
 | P5 Judgment entry | FRCP 58(b)(2): on a special verdict "the court must promptly approve the form of the judgment, which the clerk must promptly enter" (shall) | A verdict with a money award | — | Code timing, Bounded (L14) |
 | P6 Automatic stay | FRCP 62(a): execution stayed 30 days after entry (shall) | Entry | — | Law |
@@ -56,7 +56,7 @@ The 4.0.0 template and its node set (`DECOMPOSITION.md` §1.2, B1–B9) stand. T
 | B5 Acceleration | §7.02: the Trustee or 25% "may" declare; automatic on a bankruptcy petition | An Event of Default | — | **H1**, **H2** |
 | B6 Rescission | §7.02: majority, once every default is cured or waived; a judgment default is cured by payment, discharge or a stay | After acceleration | — | Law |
 | B7 Repurchase | §10.01: holders' put at 100% plus interest on a Fundamental Change (delisting); repurchase 20–35 business days after the company's notice, itself due within 20 business days | Delisting | The only in-horizon delisting falls on 1 Nov (§2.3); the repurchase date falls after 10 Nov on every trajectory | Removed (window closed). H2 becomes binary |
-| B8 Interest | §16.02: $44.0M × 6.0% ÷ 2 = **$1.32M due 15 Jun 2024** (a Saturday; paid Mon 17 Jun), inside the horizon; 15 Dec after it (2022 notes 8-K). Paid in shares unless the company elects cash (§16.02(c)), valued at 95% of the ten-day VWAP; §9.02(k) caps shares at 11,403,332 without a stockholder vote | The coupon date | Pre-cutoff share facts only (ACQ §4.2): the resale S-3 of 13 May registers 5,000,000 "Note Shares" for interest and make-whole payments; 175,000,000 authorized and 98,669,282 outstanding at 8 May (10-Q); close $0.60 on 1 May. At $0.60, $1.32M needs about 2.3M shares, inside the 5.0M registered and the 11.4M cap; the registered shares cover the whole coupon at any VWAP of $0.278 or more. The 20 Jun values ($0.20 price, 3.0M capacity) are post-cutoff and are not used | **Bounded** (`coupon_cash_share`, new case values): base all shares, $0 cash (§16.02(c) default, and the 13 May S-3 shows the company preparing to pay in stock); sensitivity all cash ($1.32M on 17 Jun). Booked on every path, event or not (spec §16.3 "Ordinary obligations") |
+| B8 Interest | §16.02: $44.0M × 6.0% ÷ 2 = **$1.32M due 15 Jun 2024** (a Saturday; paid Mon 17 Jun), inside the horizon; 15 Dec after it (2022 notes 8-K). Paid in shares unless the company elects cash (§16.02(c)), valued at 95% of the ten-day VWAP; §9.02(k) caps shares at 11,403,332 without a stockholder vote | The coupon date | Pre-cutoff share facts only (ACQ §4.2): the resale S-3 of 13 May registers 5,000,000 "Note Shares" for interest and make-whole payments; 175,000,000 authorized and 98,669,282 outstanding at 8 May (10-Q); close $0.60 on 1 May. At $0.60, $1.32M needs about 2.3M shares, inside the 5.0M registered and the 11.4M cap; the registered shares cover the whole coupon at any VWAP of $0.278 or more. The 20 Jun run's parameter values are not reused | **Bounded** (`coupon_cash_share`, new case values): base all shares, $0 cash (§16.02(c) default, and the 13 May S-3 shows the company preparing to pay in stock); sensitivity all cash ($1.32M on 17 Jun). Booked on every path, event or not (spec §16.3 "Ordinary obligations") |
 | B9 Debt covenant | §5.09(viii): $25.0M unsecured basket | The line | — | Law: the Slope line fits |
 | B10 Holders' own petition | §7.06 (Limitation on Suits): no holder may institute a proceeding unless it has made a written request to the Trustee and 60 days have passed (shall); §7.07 | Accelerated, unpaid, issuer has not filed | Acceleration on the entered-judgment reading falls about 19 Aug, so a §7.06 petition can fall in the horizon (about 18 Oct). On the post-ruling reading, and after the 1 Nov delisting, it cannot | Bounded route (`holder_petition_route`), reused. **H3** only where it can fall inside the horizon |
 
@@ -253,7 +253,7 @@ Amounts are code-owned: record figures, arithmetic on them, and bounded terms wi
 | Lanham Act corrective advertising | $1,146,604 (¶42) | Added |
 | UDTPA poaching | $809,772 (¶49) | Added. D.I. 590 removed compensable UDTPA damages from the jury; kept here, lender-adverse, because it moves no mechanism (it sits inside a branch already beyond cash, or inside the defense-theory bound) |
 | Exemplary, punitive, enhanced, treble damages; fees; interest | Requested, never quantified (¶¶32, 57, 61–62; D.I. 535 Q4 proposes exemplary up to 3× the trade-secret damages) | The bounded term below |
-| The defense's figure | Not public before the verdict (D.I. 543-1 Ex. A.4 gives none; the $305k avoided-cost figure first appears at trial) | The defense-theory bound below |
+| The defense's figure | Not public by 14 May (D.I. 543-1 Ex. A.4 gives none) | The defense-theory bound below |
 | Defense counsel, 13 May call | "if the jury adopts the theories of [the claimant]'s experts, it is possible the jury will issue an eight-figure verdict" | Read as: the claimant's theories give $10M or more; the defense's give less. **Inference**, labelled |
 
 ### 5.2 The branch amounts
@@ -425,4 +425,45 @@ The plan adds one template and one stage and reuses the walker (`forecast._Walk`
 6. Registry 4.1.0.
 7. Tests 1–9; measure paths and asks; report both.
 
-<!-- next -->
+---
+
+## 8. Evidence requirements
+
+The record items of §6.2 are named slots. The agent fills each one with accepted findings from the 14 May snapshot; a slot no finding fills is stated to Jev as not in the record (spec §3.5). All sources below are dated on or before 14 May 2024. "Kit" means already in `research/recent_cases/akoustis/`; "add" means the snapshot needs it (URLs in ACQ).
+
+| Record item | Questions | Sources | Status |
+|---|---|---|---|
+| the claimant's itemised damages claim | J1, D2, D3, C2 | D.I. 543-1 Ex. A.2 (22 Apr 2024), ¶¶19, 31–32, 42, 49–50, 56–57, 61–62 | add |
+| the defense's statement of intended proof on damages | J1 | D.I. 543-1 Ex. A.4 | add |
+| the court's rulings admitting or limiting the damages evidence | J1, J2 | D.I. 553 (30 Apr); D.I. 566 (3 May, poaching opinions); D.I. 590 (14 May) | 553, 590 kit; 566 add |
+| the final verdict form | J1 | D.I. 580 (9 May) | add (fetched for this document) |
+| the summary-judgment and validity rulings | J1 | D.I. 545 (25 Apr), D.I. 557 (2 May); 10-Q Note 14 | kit |
+| the defendant's public statements on the trial and its likely damages | J1, D1, D2, D5 | 13 May earnings call (Insider Monkey copy published 14 May; ACQ §1(g)); 10-Q Note 14 | call add; 10-Q kit |
+| the challenges to the damages method | J1, J2 | D.I. 476 (23 Feb, redacted brief against the head-start measure); D.I. 535 (12 Apr, proposed verdict form) | add |
+| the motions for judgment as a matter of law made at trial | J2, D1, D5 | D.I. 587 (13 May), D.I. 590 (14 May) | kit |
+| the company's statements on its liquidity and ability to post security | J3, D2, D4, D7, D8, D9 | 10-Q Note 2 and risk factors; 13 May release | kit |
+| the locations of the company's operating assets | J4 | 10-Q Note 13 (leases); FY2023 10-K (properties) | kit |
+| the claimant's public statements on the litigation and its remedies | C1, C2 | D.I. 543 §6 (relief sought); D.I. 133 (second amended complaint, prayer) | add |
+| the parties' competitive relationship | C1, C2, D3 | FY2023 10-K (competition); D.I. 590 ("testimony that the Parties are competitors") | kit |
+| the company's statements on settlement | D3, C2 | 10-Q Note 14 (none disclosed) | kit; stated as not in the record if no finding |
+| the company's own claims against the claimant | D3, C2 | 10-Q Note 14 (E.D. Tex. suit; the two IPR petitions) | kit |
+| the company's going-concern and bankruptcy statements | D2, D7, D8, D9 | 10-Q Note 2, MD&A overview, risk factors | kit |
+| the company's financing routes and their status | D2, D7, D8, D9, D6 | 10-Q Note 2 and Part II Item 5 (ATM re-activated, $48.0M remaining, no sales obligation); 8-K 29 Jan 2024 (the January offering); resale S-3 of 13 May; 424B5s of 2 May 2022 and 29 Jan 2024 (the shelf) | 10-Q and 8-K kit; S-3 and 424B5s add |
+| the listing deficiency notice and compliance deadline; the company's stated cure | D6, H2 | 10-Q Note 12 and risk factor; 8-K 27 Oct 2023 | kit |
+| the latest stockholder vote on a charter amendment | D6 | DEF 14A of 19 Sep 2023 and 8-K of 2 Nov 2023 (`STAGE3.md` E19) | add |
+| the indenture's default, acceleration and suit terms | H1, H2, H3, D9 | indenture §§7.01, 7.02, 7.06, 7.07, 10.01 | kit |
+| the notes' interest terms and payment record | H1, D2, D9 | 2022 notes 8-K; FY2023 10-K; resale S-3 of 13 May (5,000,000 Note Shares) | 8-K, 10-K kit; S-3 add |
+
+**Common-model inputs (§16.3, worker A)** are not event-model slots: the 31 Mar balance sheet, the 10-Q cash flows, the 13 May guidance on revenue, burn and CHIPS credits.
+
+**Not obtainable by 14 May, and so not slots:** the defense's damages figure; the entered pretrial order's time allocations (D.I. 549, sealed); any trial transcript; the claimant's post-verdict filings.
+
+---
+
+## Isolation log
+
+- **Case facts used** (all dated on or before 14 May 2024): the 10-Q and release of 13 May; the FY2023 10-K; the 2022 notes 8-K and indenture; the 8-Ks of 27 Oct 2023 and 29 Jan 2024; docket entries dated on or before 14 May, D.I. 15–590, and D.I. 580 (fetched from RECAP, filed 9 May); and, through `acquisition_akoustis_20240514.md`, D.I. 133, 476, 535, 543, 543-1, the 13 May call and the 13 May S-3. D.I. 590 is dated the review date itself.
+- **Read but not used for case facts:** the 20 Jun design documents (`DECOMPOSITION.md`, `RESEARCH.md`, `STAGE3.md`, the 20 Jun acquisition note), which state the later verdict, judgment and post-trial filings. Only their general law, their pre-14-May record items (R4's pace sample, all ruled by 2 May 2024; R7; R8; `STAGE3.md` E16 and E19) and their approved modelling rules are reused. The 20 Jun code and contracts were read for structure; their Akoustis parameter values are not reused.
+- **Seen and not used:** one search of the 20 Jun docket capture printed captions of entries dated 15 May to 7 Jun, the verdict entry among them. Every later reading of the capture was filtered to entries dated on or before 14 May.
+- **The verdict date** is a window drawn per trajectory from pre-14-May statements (§3), not the actual date.
+- **The acquisition note** is copied verbatim; its [POST] items are marked reveal-only there and enter no slot, parameter or question here.
