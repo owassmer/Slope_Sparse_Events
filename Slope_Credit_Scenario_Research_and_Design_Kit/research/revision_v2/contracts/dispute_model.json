@@ -1540,7 +1540,37 @@
           },
           "timing_parameters": [
             "holder_notice_lag_days"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_holders_act_judgment",
+            "actor": "the trustee or the holders of at least 25% in principal amount of the notes",
+            "decision": "Do the trustee or the holders of at least 25% in principal amount of the notes give notice of the judgment default and declare the notes due by {declaration_deadline}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "judgment_default",
+              "acceleration",
+              "indenture_limitation_on_suits",
+              "usc11_362"
+            ],
+            "record_items": [
+              "the company's going-concern and debt disclosures",
+              "the holders of record of the notes",
+              "the notes' interest payment record"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_standing",
+              "days_unpaid_and_unstayed",
+              "default_available_on",
+              "declaration_deadline",
+              "available_cash",
+              "arrears",
+              "notes_principal"
+            ]
+          }
         },
         "holders_act_delisting": {
           "actor": "holders",
@@ -1576,7 +1606,36 @@
             "paid": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now",
             "stayed": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now"
           },
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_holders_act_delisting",
+            "actor": "the trustee or the holders of at least 25% in principal amount of the notes",
+            "decision": "After the delisting default, do the trustee or the holders of at least 25% in principal amount of the notes declare the notes due by {declaration_deadline}?",
+            "branches": [
+              "accelerate",
+              "neither"
+            ],
+            "standard": [
+              "listing_default",
+              "acceleration",
+              "repurchase",
+              "indenture_limitation_on_suits",
+              "usc11_362"
+            ],
+            "record_items": [
+              "the company's going-concern and debt disclosures",
+              "the holders of record of the notes",
+              "the notes' interest payment record"
+            ],
+            "situation": [
+              "delisted_on",
+              "declaration_deadline",
+              "repurchase_date",
+              "notes_principal",
+              "available_cash",
+              "judgment_standing"
+            ]
+          }
         },
         "petition_on_notes": {
           "actor": "issuer",
@@ -1678,7 +1737,32 @@
           },
           "timing_parameters": [
             "petition_lag_days"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_holders_involuntary",
+            "actor": "noteholders",
+            "decision": "Do noteholders with claims for the notes due, qualifying under 11 U.S.C. §303(b), file an involuntary petition against {company} on {decision_date}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "indenture_limitation_on_suits",
+              "indenture_right_to_payment",
+              "usc11_303b"
+            ],
+            "record_items": [
+              "the holders of record of the notes"
+            ],
+            "situation": [
+              "decision_date",
+              "notes_balance_due",
+              "notes_due_how",
+              "petition_route",
+              "available_cash",
+              "arrears"
+            ]
+          }
         },
         "reverse_split_board": {
           "actor": "board",
@@ -1825,6 +1909,60 @@
           },
           "timing_parameters": [],
           "since": "4.1.0"
+        },
+        "bid_compliance": {
+          "residual_question": "forecast_bid_compliance",
+          "actor": "{company}",
+          "decision": "By {compliance_deadline}, does {company} regain compliance with the $1.00 minimum bid price requirement, a closing bid of at least $1.00 for 10 consecutive business days, by a reverse stock split or a rise in the price?",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "standard": [
+            "nasdaq_bid_price",
+            "dgcl_242_reverse_split"
+          ],
+          "record_items": [
+            "the listing deficiency notices",
+            "the closing bid prices",
+            "the company's stated options to regain compliance",
+            "the latest stockholder vote on a charter amendment",
+            "the authorized and outstanding shares"
+          ],
+          "situation": [
+            "bid_price_on_review_date",
+            "compliance_deadline",
+            "reverse_split_time",
+            "judgment_standing",
+            "available_cash",
+            "notes_status"
+          ],
+          "since": "5.0.0"
+        },
+        "hearing_request": {
+          "residual_question": "forecast_hearing_request",
+          "actor": "{company}",
+          "decision": "Does {company} request a hearing before a Nasdaq Hearings Panel by {hearing_request_deadline}, within 7 days of the staff's delisting determination?",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "standard": [
+            "nasdaq_5815_hearing_stay",
+            "listing_default"
+          ],
+          "record_items": [
+            "the listing deficiency notices",
+            "the company's statements on its listing"
+          ],
+          "situation": [
+            "determination_date",
+            "hearing_request_deadline",
+            "judgment_standing",
+            "available_cash",
+            "notes_status"
+          ],
+          "since": "5.0.0"
         }
       },
       "listing_route": {
@@ -2091,8 +2229,9 @@
       ],
       "asks": [
         "verdict_finding",
-        "verdict_measure",
+        "verdict_amount",
         "post_trial_ruling",
+        "remittitur_elected",
         "stay_approved",
         "registration_early",
         "execute_pre_ruling",
@@ -2103,8 +2242,10 @@
         "settlement_offer",
         "stay_motion",
         "appeal",
-        "listing_kept",
+        "bid_compliance",
+        "hearing_request",
         "financing_at_floor",
+        "offering_closes",
         "petition_cash_out",
         "petition_on_notes",
         "holders_act_judgment",

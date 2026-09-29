@@ -189,7 +189,12 @@
         "forecast_financing_at_floor",
         "forecast_offering_closes",
         "forecast_claim_petition_cash_out",
-        "forecast_claim_petition_on_notes"
+        "forecast_claim_petition_on_notes",
+        "forecast_claim_holders_act_judgment",
+        "forecast_claim_holders_act_delisting",
+        "forecast_claim_holders_involuntary",
+        "forecast_bid_compliance",
+        "forecast_hearing_request"
       ]
     }
   },
@@ -2548,6 +2553,151 @@
         "criteria": {
           "true": "{company} files a voluntary petition on {decision_date}.",
           "false": "{company} files no voluntary petition on {decision_date}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_holders_act_judgment",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Do the trustee or the holders of at least 25% in principal amount of the notes give notice of the judgment default and declare the notes due by {declaration_deadline}?",
+      "actor": "the trustee or the holders of at least 25% in principal amount of the notes",
+      "template": "pending_money_claim",
+      "node": "holders_act_judgment",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Do the trustee or the holders of at least 25% in principal amount of the notes give notice of the judgment default and declare the notes due by {declaration_deadline}?",
+        "criteria": {
+          "true": "Notice is given and the notes are declared due by {declaration_deadline}.",
+          "false": "The notes are not declared due by {declaration_deadline}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_holders_act_delisting",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "choice",
+      "question": "After the delisting default, do the trustee or the holders of at least 25% in principal amount of the notes declare the notes due by {declaration_deadline}?",
+      "actor": "the trustee or the holders of at least 25% in principal amount of the notes",
+      "template": "pending_money_claim",
+      "node": "holders_act_delisting",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "After the delisting default, do the trustee or the holders of at least 25% in principal amount of the notes declare the notes due by {declaration_deadline}?",
+        "criteria": {
+          "accelerate": "The notes are declared due by {declaration_deadline}.",
+          "neither": "The notes are not declared due by {declaration_deadline}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_holders_involuntary",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Do noteholders with claims for the notes due, qualifying under 11 U.S.C. §303(b), file an involuntary petition against {company} on {decision_date}?",
+      "actor": "noteholders",
+      "template": "pending_money_claim",
+      "node": "holders_involuntary",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Do noteholders with claims for the notes due, qualifying under 11 U.S.C. §303(b), file an involuntary petition against {company} on {decision_date}?",
+        "criteria": {
+          "true": "Noteholders file an involuntary petition against {company} on {decision_date}.",
+          "false": "No involuntary petition is filed against {company} on {decision_date}."
+        }
+      }
+    },
+    {
+      "id": "forecast_bid_compliance",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "By {compliance_deadline}, does {company} regain compliance with the $1.00 minimum bid price requirement, a closing bid of at least $1.00 for 10 consecutive business days, by a reverse stock split or a rise in the price?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "bid_compliance",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "By {compliance_deadline}, does {company} regain compliance with the $1.00 minimum bid price requirement, a closing bid of at least $1.00 for 10 consecutive business days, by a reverse stock split or a rise in the price?",
+        "criteria": {
+          "true": "{company} regains compliance with the $1.00 minimum bid price requirement by {compliance_deadline}.",
+          "false": "{company} does not regain compliance by {compliance_deadline}."
+        }
+      }
+    },
+    {
+      "id": "forecast_hearing_request",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {company} request a hearing before a Nasdaq Hearings Panel by {hearing_request_deadline}, within 7 days of the staff's delisting determination?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "hearing_request",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {company} request a hearing before a Nasdaq Hearings Panel by {hearing_request_deadline}, within 7 days of the staff's delisting determination?",
+        "criteria": {
+          "true": "{company} requests a hearing before a Hearings Panel by {hearing_request_deadline}.",
+          "false": "{company} makes no hearing request by {hearing_request_deadline}."
         }
       }
     }

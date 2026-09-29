@@ -292,7 +292,12 @@
             "forecast_financing_at_floor",
             "forecast_offering_closes",
             "forecast_claim_petition_cash_out",
-            "forecast_claim_petition_on_notes"
+            "forecast_claim_petition_on_notes",
+            "forecast_claim_holders_act_judgment",
+            "forecast_claim_holders_act_delisting",
+            "forecast_claim_holders_involuntary",
+            "forecast_bid_compliance",
+            "forecast_hearing_request"
           ]
         }
       },
