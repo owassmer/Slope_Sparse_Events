@@ -497,13 +497,13 @@
     },
     {
       "path": "research/recent_cases/akoustis/design/DECOMPOSITION_20240514.md",
-      "bytes": 98570,
-      "sha256": "648024fcfb40321dfed82bb913107acccfce60551a1aff97d780ee3b9c3a763d"
+      "bytes": 98510,
+      "sha256": "fd168610bb086417a298d9a65055060be95a327b33b43733b2f6a15610becfb8"
     },
     {
       "path": "research/recent_cases/akoustis/design/QUESTIONS_20240514.md",
-      "bytes": 36255,
-      "sha256": "7ce0259398d29487c6f1fd1f5ec7110268c4f47309e8347bcd8fe560419486d4"
+      "bytes": 40498,
+      "sha256": "70aa8305f0f734fdad725e62a6b7e683d320481948651799d68c3a71fbeb0a14"
     },
     {
       "path": "research/recent_cases/akoustis/design/acquisition_akoustis_20240514.md",
