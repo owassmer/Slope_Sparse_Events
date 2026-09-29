@@ -622,8 +622,8 @@
     },
     {
       "path": "research/revision_v2/contracts/agent_config.json",
-      "bytes": 46237,
-      "sha256": "17cbd1397ea232b5f424864451a107d90c9dc7e27f787a9093bad8023658179a"
+      "bytes": 46459,
+      "sha256": "0a499a70f0d4a8ba328230bb9c3e41ee4a2e89015ac8bba282190f1e04b005cf"
     },
     {
       "path": "research/revision_v2/contracts/barfresh-economic-effects.json",

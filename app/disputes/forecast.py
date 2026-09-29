@@ -1102,15 +1102,20 @@ class Forecaster:
                     self._raise_more.add(steps[:i])
             self._keep_late(k, steps[:i], row)
 
-    def _keep_late(self, k: str, prefix: tuple, row: dict) -> None:
-        """Keep a whole path's record for a node once per distinct record at each prefix that asks it."""
+    @staticmethod
+    def late_key(k: str, prefix: tuple, row: dict) -> tuple:
+        """What `_keep_late` keeps a record once per: the node, the prefix and the record's digest."""
         h = hashlib.blake2b(digest_size=16)
         for f in ("day", "cash", "owed", "collateral", "petition", "raise_offer", "stay_offer"):
             if row.get(f) is not None:
                 h.update(f.encode() + np.ascontiguousarray(row[f]).tobytes())
         for name in sorted(row["triggers"]):
             h.update(name.encode() + np.ascontiguousarray(row["triggers"][name]).tobytes())
-        seen = (k, prefix, h.digest())
+        return k, prefix, h.digest()
+
+    def _keep_late(self, k: str, prefix: tuple, row: dict) -> None:
+        """Keep a whole path's record for a node once per distinct record at each prefix that asks it."""
+        seen = self.late_key(k, prefix, row)
         if seen not in self._late_seen:
             self._late_seen.add(seen)
             self.facts.setdefault(k, []).append(row)

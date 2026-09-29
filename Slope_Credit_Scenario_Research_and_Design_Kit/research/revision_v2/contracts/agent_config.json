@@ -148,7 +148,7 @@
       "max_state_plus_longest_question_tokens": 32000,
       "max_entire_request_tokens": 64000,
       "provider_price_usd_per_million_input_tokens_at_design": "0.042",
-      "spend_cap_usd_per_run": "0.30",
+      "spend_cap_usd_per_run": "3.00",
       "spend_cap_policy": "Host reserves a conservative estimated input-token charge before dispatch and reconciles actual usage. This caps Jev service spend only, not Claude/Codex subscription usage.",
       "primitives": [
         "choice",
@@ -387,12 +387,12 @@
     "consecutive_no_progress_actions": 3,
     "no_progress_definition": "An action produces no new eligible evidence, no corrected finding, no resolved/narrowed gap, no new valid patch and no changed sensitivity result. Repeating the same query alone is not progress.",
     "budget_policy": "Ceilings, not targets. Record actual elapsed time, token usage, requests and spend. Finish early when further accessible evidence cannot change the action across the stated sensitivity range.",
-    "jev_max_physical_attempts_including_retries": 2000,
+    "jev_max_physical_attempts_including_retries": 12000,
     "turn_counting": "A turn is one distinct model response (message_id), counted by the host and enforced by interrupting the session. The SDK's num_turns counts differently and is recorded only for reference.",
     "sweep_max_physical_attempts_per_snapshot": 12000,
     "sweep_spend_cap_usd_per_snapshot": "0.90",
     "search_default_results": 8,
-    "jev_budget_note": "Raised from 400 in 4.0.0: a chain run asks the interpretation readings plus one request per residual node and context key (a few hundred requests). Raised for the 14 May run (Owen: caps are settings, never blockers): per-run cap USD 0.30 and 2,000 attempts (the analysis asks ~221 questions); the sweep 9,000 attempts and USD 0.60 for 1,176 sections. Turns and wall clock raised for the slot-filling run (28 Sep 2026): 220 turns, 1,800 s (the agent now fills about 31 record items with attach_record_item). Raised again for the step-9 record items on the 52-source snapshot (28 Sep 2026): 320 turns, 2,700 s (the pending chain names 54 record items); the sweep 12,000 attempts and USD 0.90."
+    "jev_budget_note": "Raised from 400 in 4.0.0: a chain run asks the interpretation readings plus one request per residual node and context key (a few hundred requests). Raised for the 14 May run (Owen: caps are settings, never blockers): per-run cap USD 0.30 and 2,000 attempts (the analysis asks ~221 questions); the sweep 9,000 attempts and USD 0.60 for 1,176 sections. Turns and wall clock raised for the slot-filling run (28 Sep 2026): 220 turns, 1,800 s (the agent now fills about 31 record items with attach_record_item). Raised again for the step-9 record items on the 52-source snapshot (28 Sep 2026): 320 turns, 2,700 s (the pending chain names 54 record items); the sweep 12,000 attempts and USD 0.90. Raised for the step-9 14 May analysis (29 Sep 2026): the tree asks each question in its situation and the adapter reserves every request worst case up front; per-run cap USD 3.00 and 12,000 attempts (reserve, not spend)."
   },
   "completion_and_decisions": {
     "execution_states": [

@@ -12,7 +12,11 @@ from __future__ import annotations
 import asyncio
 import gzip
 import json
+import os
 import re
+import resource
+import sys
+import time
 from dataclasses import asdict
 from datetime import date
 from functools import lru_cache
@@ -299,6 +303,15 @@ def run_context(run_id: str, root: Path, refresh: bool = False) -> dict:
             "findings": findings, "live": live, "m": m, "feed": feed, "hydrate": hydrate, "slots": slots}
 
 
+WALK_PROCESSES = {"akoustis_20240514": 4}  # snapshot -> processes walking its dispute tree (default: one)
+
+
+def walk_processes(snapshot_id: str) -> int:
+    """The build setting walk_processes: the case's value, or the environment's SLOPE_WALK_PROCESSES."""
+    env = os.environ.get("SLOPE_WALK_PROCESSES")
+    return int(env) if env else WALK_PROCESSES.get(snapshot_id, 1)
+
+
 def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None = None) -> tuple[Forecaster, EventModel]:
     """The tree for `setup` (and the chains' parameter sensitivities `sens`), with Jev's answer to every question.
     A question whose facts are unchanged is answered from Jev's cache; one whose facts changed is asked again."""
@@ -308,7 +321,13 @@ def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None 
                     horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup,
                     basis=basis_for(ctx["feed"], setup),  # path facts are simulated before Jev is asked
                     slots=ctx["slots"], model=ctx["m"], sens=sens)
-    per = fc.all_paths()
+    procs = walk_processes(ctx["meta"]["snapshot_id"])
+    if procs > 1:  # the pending claim's tree on a subtree queue (app/disputes/parallel.py): the single walk's result
+        from app.disputes import parallel
+
+        per = parallel.all_paths(fc, procs)
+    else:
+        per = fc.all_paths()
     bank_paths = fc.bank_paths()  # the bank view: the same distress decisions on the bank data alone
     judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
 
@@ -321,6 +340,22 @@ def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None 
     return fc, model
 
 
+def say(text: str) -> None:
+    """A progress line on stderr (the run's log)."""
+    print(f"[{time.strftime('%H:%M:%S')}] {text}", file=sys.stderr, flush=True)
+
+
+def _progress_log():
+    """Analysis progress: each pass's time at 500 paths, every 5,000 and at its end."""
+    start: dict = {}
+
+    def tick(phase: str, done: int, total: int) -> None:
+        start.setdefault(phase, time.time())
+        if done in (501, total) or done % 5000 == 1:
+            say(f"analysis {phase}: {min(done, total)}/{total} paths, {time.time() - start[phase]:.0f} s")
+    return tick
+
+
 def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dict:
     from app.agent.jev import JevAdapter
 
@@ -331,7 +366,11 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dic
     fc, model = judged_model(ctx, setup, jev, records)
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in ctx["live"] if d.status not in ("interpreted", "resolved")]
-    a = Analysis(feed, setup, model, dispute_model=m)
+    say(f"tree: {len(model.combos)} paths, {len(model.bank_paths)} ordinary paths, {len(fc.nodes)} dispute "
+        f"nodes, {len(fc.bank_nodes)} ordinary nodes; walk {getattr(fc, 'walk_stats', {})}; Jev {jev.usage_summary()}")
+    t_a = time.time()
+    a = Analysis(feed, setup, model, dispute_model=m, progress=_progress_log())
+    say(f"analysis: {time.time() - t_a:.0f} s")
     data = payload(feed, setup, model, meta_for(model, borrower, not_modelled), analysis=a)
     data["model"] = _model_json(model)
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
@@ -349,6 +388,7 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dic
     (out / "page.json").write_text(json.dumps(state["payload"], default=str) + "\n")
     save_page_state(run_id, state)
     write_exchanges(out / "jev_log.jsonl.gz", exchanges)
+    say(f"done; peak RSS {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 2**30:.2f} GB (this process)")
     (scratch / "jev_records.jsonl").write_text("\n".join(json.dumps(r, default=str) for r in records) + "\n")
     return data
 
