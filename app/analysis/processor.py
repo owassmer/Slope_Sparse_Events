@@ -11,8 +11,11 @@ Per trajectory and day, in this order:
   of Slope's installments (in their debit order) incurred after it; the notes' interest (indenture, 2022) goes first.
 - **Operating outflows** are paid up to the balance. An invoice Slope pays (a draw) leaves them, as under `net`.
 - **Arrears.** What stays unpaid becomes an arrear in its class (ARREARS). Slope's arrears clear only by its debit on
-  its retry dates. When the day's receipts exceed the day's obligations (the levy, the scheduled obligations falling due
-  and the operating outflows), the surplus pays the other classes' arrears, oldest first, up to the balance.
+  its retry dates. After the day's obligations, the available balance (locked cash is already out of it) pays the
+  other classes' arrears, oldest first: a scheduled arrear (settlement, notes interest, judgment) in full or not at
+  all, as the day's scheduled obligations are (one the balance cannot cover stays, and a later one may still be
+  paid); operating arrears up to the balance. From a petition, arrears stand as they are: nothing pays them and no
+  new one arises.
 - Available cash never goes below zero.
 
 `same_day_order = operating_first` (one internal measurement, never the base) pays the operating outflows before the
@@ -22,9 +25,8 @@ the borrower paid toward them comes back once they are routed.
 **General nonpayment, §7.01(j)(v)** (QUESTIONS_20240514 §3.3), tested each day t: over the preceding `window` days
 (t - window .. t - 1), before any petition (its consequences are moot after one), arrears were outstanding at the
 end of every day, and the obligations that fell due in those days and were still unpaid at the end of t - 1 amount to
-at least `share_bps` of all obligations that fell due in them.
-Arrears are paid oldest first, so the still-unpaid part of a window's obligations is min(arrears, arrears created in
-the window) for the other classes; Slope's are read installment by installment. Before a trajectory's first unpaid
+at least `share_bps` of all obligations that fell due in them. The still-unpaid part is read arrear by arrear (each keeps the day it arose; a skipped scheduled arrear
+can outlive a later one), Slope's installment by installment. Before a trajectory's first unpaid
 obligation nothing differs from `net`: every obligation is paid in full, so the order of the day's items cannot matter.
 """
 
@@ -78,21 +80,32 @@ def event_parts(line, events: list[EventCash]) -> dict:
     }
 
 
-def fifo_pay(q_r: np.ndarray, q_c: np.ndarray, q_a: np.ndarray, pay: np.ndarray, by_class: np.ndarray) -> tuple:
-    """Pay each row's `pay` into its arrears queue oldest first (entries are in the order they arose), partially on
-    the last one reached. Updates `by_class` [classes, rows] in place; returns the queue without settled entries."""
-    idx = np.flatnonzero(pay[q_r] > 0)
-    if idx.size:
-        idx = idx[np.argsort(q_r[idx], kind="stable")]
-        r, a = q_r[idx], q_a[idx]
-        cum = np.cumsum(a)
-        start = np.flatnonzero(np.r_[True, r[1:] != r[:-1]])
-        base = np.repeat(cum[start] - a[start], np.diff(np.r_[start, len(r)]))
-        paid = np.clip(pay[r] - (cum - a - base), 0, a)
-        q_a[idx] = a - paid
-        np.subtract.at(by_class, (q_c[idx], r), paid)
-    keep = q_a > 0
-    return q_r[keep], q_c[keep], q_a[keep]
+def pay_arrears(q_r: np.ndarray, q_c: np.ndarray, q_a: np.ndarray, bal: np.ndarray, by_class: np.ndarray) -> np.ndarray:
+    """The available balance `bal` [rows] pays each row's arrears queue oldest first (entries are in the order they
+    arose): a scheduled arrear in full or not at all (one the balance cannot cover stays, and a later one may still be
+    paid, as the day's scheduled obligations are processed), operating arrears up to the balance. Updates `q_a` and
+    `by_class` [classes, rows] in place; returns what each row paid."""
+    left = bal.copy()
+    idx = np.flatnonzero(left[q_r] > 0)
+    if not idx.size:
+        return bal - left
+    idx = idx[np.argsort(q_r[idx], kind="stable")]
+    r = q_r[idx]
+    start = np.flatnonzero(np.r_[True, r[1:] != r[:-1]])
+    rank = np.arange(len(r)) - np.repeat(start, np.diff(np.r_[start, len(r)]))
+    order = np.argsort(rank, kind="stable")
+    bounds = np.searchsorted(rank[order], np.arange(int(rank.max()) + 2))
+    for k in range(len(bounds) - 1):  # each row's k-th entry: one per row, so the rows are distinct
+        m = idx[order[bounds[k]:bounds[k + 1]]]
+        m = m[left[q_r[m]] > 0]
+        if not m.size:  # a row with a k-th entry has every earlier one: nothing is left to pay on any row
+            break
+        rr, a = q_r[m], q_a[m]
+        p = np.where(q_c[m] == OPERATING, np.minimum(a, left[rr]), np.where(left[rr] >= a, a, 0))
+        q_a[m] = a - p
+        left[rr] -= p
+        by_class[q_c[m], rr] -= p
+    return bal - left
 
 
 def order_items(rows: np.ndarray, inc: np.ndarray, cls: np.ndarray, seq: np.ndarray, rn: int) -> np.ndarray:
@@ -149,11 +162,12 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
             book[(d - s.review).days - 1].append((every, np.full(rn, cents, dtype=np.int64), OPENING_INCURRED))
     empty = lambda: np.zeros(0, dtype=np.int64)  # noqa: E731
     pend_r, pend_a, pend_i, pend_d = empty(), empty(), empty(), empty()
-    q_r, q_c, q_a = empty(), empty(), empty()  # the other classes' arrears, in the order they arose
+    q_r, q_c, q_a, q_d = empty(), empty(), empty(), empty()  # the other classes' arrears in the order they arose,
+    # with the day each arose
     collections, fundings = np.zeros((days, rn), dtype=np.int64), np.zeros((days, rn), dtype=np.int64)
     cash, outstanding = np.empty((days, rn), dtype=np.int64), np.empty((days, rn), dtype=np.int64)
     arrears = np.zeros((days, len(ARREARS), rn), dtype=np.int64)
-    created, slope_due = np.zeros((days, rn), dtype=np.int64), np.zeros((days, rn), dtype=np.int64)
+    slope_due = np.zeros((days, rn), dtype=np.int64)
     avail = np.full(rn, opening_cents + ex.cash_cents, dtype=np.int64)
     owed, funded, contract, collected, failed, levy_unmet = (np.zeros(rn, dtype=np.int64) for _ in range(6))
     funded += ex.principal_cents
@@ -174,7 +188,8 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
         live = t < pet
         if w and t >= w and streak.max() >= w:  # §3.3 on the days t - w .. t - 1, while no petition has been filed
             dw = fell_due[t - w:t].sum(axis=0)
-            left = np.minimum(by_class[1:].sum(axis=0), created[t - w:t].sum(axis=0))
+            recent = q_d >= t - w  # the other classes' arrears that arose in the window, still unpaid
+            left = np.bincount(q_r[recent], weights=q_a[recent], minlength=rn).astype(np.int64)
             if debit:
                 recent = pend_d >= t - w
                 np.add.at(left, pend_r[recent], pend_a[recent])
@@ -251,12 +266,12 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
             if miss.any():
                 unpaid = np.zeros(rn, dtype=bool)
                 unpaid[rows[miss & (~sl | debit)]] = True  # protect_need: read from what stays owed, below
-                ev_miss = miss & ~sl
+                ev_miss = miss & ~sl & live[rows]  # from a petition, arrears stand as they are
                 if ev_miss.any():
-                    q_r, q_c, q_a = (np.concatenate([q_r, rows[ev_miss]]), np.concatenate([q_c, cls[ev_miss] + 1]),
-                                     np.concatenate([q_a, amt[ev_miss]]))
+                    q_r, q_c, q_a, q_d = (np.concatenate([q_r, rows[ev_miss]]), np.concatenate([q_c, cls[ev_miss] + 1]),
+                                          np.concatenate([q_a, amt[ev_miss]]),
+                                          np.concatenate([q_d, np.full(int(ev_miss.sum()), t, dtype=np.int64)]))
                     np.add.at(by_class, (cls[ev_miss] + 1, rows[ev_miss]), amt[ev_miss])
-                    np.add.at(created[t], rows[ev_miss], amt[ev_miss])
             if debit:
                 failed += np.bincount(rows[sl & miss], minlength=rn)
                 keep = np.ones(len(pend_r), dtype=bool)
@@ -310,17 +325,19 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
         fd += sd
         fd += np.maximum(g, 0)
         if short.any():
-            r = np.flatnonzero(short)
             unpaid = short > 0 if unpaid is None else unpaid | (short > 0)
-            q_r, q_c, q_a = (np.concatenate([q_r, r]), np.concatenate([q_c, np.full(len(r), OPERATING)]),
-                             np.concatenate([q_a, short[r]]))
-            by_class[OPERATING] += short
-            created[t] += short
-        if q_r.size:  # the day's surplus over its obligations pays the other classes' arrears, oldest first
-            pay = np.minimum(np.minimum(np.maximum(recv[t] - fd, 0), np.maximum(avail, 0)), by_class[1:].sum(axis=0))
-            if pay.any():
-                q_r, q_c, q_a = fifo_pay(q_r, q_c, q_a, pay, by_class)
-                avail -= pay
+            r = np.flatnonzero(short * live)  # from a petition, arrears stand as they are
+            if r.size:
+                q_r, q_c, q_a, q_d = (np.concatenate([q_r, r]), np.concatenate([q_c, np.full(len(r), OPERATING)]),
+                                      np.concatenate([q_a, short[r]]),
+                                      np.concatenate([q_d, np.full(len(r), t, dtype=np.int64)]))
+                by_class[OPERATING, r] += short[r]
+        if q_r.size:  # the available balance pays the other classes' arrears, oldest first; nothing from a petition
+            paid = pay_arrears(q_r, q_c, q_a, np.where(live, np.maximum(avail, 0), 0), by_class)
+            if paid.any():
+                avail -= paid
+                keep = q_a > 0
+                q_r, q_c, q_a, q_d = q_r[keep], q_c[keep], q_a[keep], q_d[keep]
         by_class[0] = np.where(live, owed, by_class[0])  # Slope's: frozen at a petition (the stayed claim)
         arrears[t] = by_class
         if q_r.size or by_class[0].any():
