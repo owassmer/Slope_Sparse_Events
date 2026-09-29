@@ -489,7 +489,7 @@ The three branches' composites are disjoint and exhaustive over the answers (tes
 
 ## 8. Evidence requirements
 
-The record each question reads (`QUESTIONS_20240514.md` §4) is a set of named slots. The agent fills each one with accepted findings from the 14 May snapshot; a slot no finding fills is stated to Jev as not in the record (spec §3.5). All sources below are dated on or before 14 May 2024. "Kit" means already in `research/recent_cases/akoustis/`; "add" means the snapshot needs it (URLs in ACQ).
+The record each question reads (`QUESTIONS_20240514.md` §4) is a set of named slots. The agent fills each one with accepted findings from the 14 May snapshot; a slot no finding fills is left out of Jev's state. All sources below are dated on or before 14 May 2024. "Kit" means already in `research/recent_cases/akoustis/`; "add" means the snapshot needs it (URLs in ACQ).
 
 | Record item | Questions | Sources | Status |
 |---|---|---|---|
