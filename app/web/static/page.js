@@ -188,7 +188,7 @@
   }
   // the borrower's available cash (never below zero under daily processing) and, as their own series, its arrears by
   // class (stacked): what the day's cash could not pay
-  const ACOL = { slope: "#9b1c1c", settlement: "#e0582a", notes_interest: "#e3a008", judgment: "#b8955a", operating: "#8a9199" };
+  const ACOL = { slope: "#9b1c1c", settlement: "#e0582a", notes_interest: "#e3a008", judgment: "#7a4f9a", operating: "#4d7c5a" };
   function cashChart(host) {
     const C = W.cash, Wd = host.clientWidth || 1000, H = 260, m = { l: 56, r: 16, t: 12, b: 28 }, w = Wd - m.l - m.r, h = H - m.t - m.b, days = D.dates.length;
     const dly = S.event.daily, mean = dly.cash_mean, lo = dly.cash_p5, hi = dly.cash_p95, need = D.need_mean || [], AR = S.event.arrears;
@@ -204,7 +204,7 @@
     for (let k = 0; k <= 4; k++) { const v = y0 + step * k; g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v === 0 ? "#c9cdd2" : "#eceef0"}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${money(v)}</text>`; }
     D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 8}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text>`; });
     g += `<path d="${area(hi, lo)}" fill="#dde4ec"/>`;
-    g += stack.map(([k, b, t]) => `<path d="${area(t, b)}" fill="${ACOL[k] || "#999"}" fill-opacity=".55"/>`).join("");
+    g += stack.map(([k, b, t]) => `<path d="${area(t, b)}" fill="${ACOL[k] || "#999"}" fill-opacity=".75"/>`).join("");
     if (need.length === days) g += `<path d="${line(need)}" fill="none" stroke="#6b7178" stroke-width="1.5" stroke-dasharray="5 4"/>`;
     g += `<path d="${line(mean)}" fill="none" stroke="var(--teal)" stroke-width="2.2"/>`;
     g += `<line class="chx" y1="${m.t}" y2="${m.t + h}" stroke="#9aa0a8" visibility="hidden"/><rect class="chov" x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent"/>`;
@@ -243,20 +243,23 @@
     const t = [[fill(F.atm), f.atm_proceeds == null ? "–" : money(f.atm_proceeds), F.atm_note + (f.atm_proceeds == null ? ` ${W.notes.unavailable}` : "")],
       [fill(F.offering), pct(closed), fill(F.offering_note)]];
     if (fc !== null) t.push([F.first_close, fdate(D.dates[fc]), ""]);
-    if (T0.net_cents) t.push([F.terms, fill(F.terms_value, { net: money(T0.net_cents), gross: money(T0.gross_cents), days: T0.close_days ?? "–" }), ""]);
-    return `<div class="facts">${t.map(([k, v, n]) => `<div><span class="mute small${n ? " hastip" : ""}"${n ? ` data-tip="${esc(n)}"` : ""}>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>`;
+    const terms = T0.net_cents ? `<p class="mute small">${esc(F.terms)}: ${esc(fill(F.terms_value, { net: money(T0.net_cents), gross: money(T0.gross_cents), days: T0.close_days ?? "–" }))}</p>` : "";
+    return `<div class="facts">${t.map(([k, v, n]) => `<div><span class="mute small${n ? " hastip" : ""}"${n ? ` data-tip="${esc(n)}"` : ""}>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>${terms}`;
   }
   function renderForecast() {
     const sec = $("s-forecast"), f = figures().full;
     if (!sec.querySelector(".lad")) {
       sec.innerHTML = `<h2>${esc(fill(W.sections.forecast))}</h2><div class="tl"></div><h4 class="sub">${esc(W.forecast.chart)}</h4><div class="lad"></div><h4 class="sub">${esc(W.forecast.cum_chart)}</h4><div class="cum"></div>
-        <h4 class="sub">${esc(W.cash.chart)}</h4><p class="mute small">${esc(W.cash.note)}</p><div class="cash"></div>
-        <h4 class="sub">${esc(W.financing.title)}</h4><div class="fin"></div>
+        <h4 class="sub">${esc(W.cash.chart)}</h4><p class="mute small cnote"></p><div class="cash"></div>
+        <div class="finw"><h4 class="sub">${esc(W.financing.title)}</h4><div class="fin"></div></div>
         <details class="assume"><summary>${esc(W.forecast.assumptions)}</summary><p class="mute small">${esc(W.forecast.assumptions_note)}</p>
         <dl class="common">${(D.common || []).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></details>`;
     }
     sec.querySelector(".tl").innerHTML = tileHtml(f);
+    sec.querySelector(".cnote").textContent = S.event.arrears ? W.cash.note : "";  // daily processing: cash never below zero
     ladder(sec.querySelector(".lad")); cumChart(sec.querySelector(".cum")); cashChart(sec.querySelector(".cash"));
+    const hasFin = RAISED.some((r) => r.length) || f.atm_proceeds != null || !!((D.financing || {}).terms || {}).net_cents;
+    sec.querySelector(".finw").hidden = !hasFin;  // a run without the equity model has no financing block
     sec.querySelector(".fin").innerHTML = financingHtml(f);
   }
 

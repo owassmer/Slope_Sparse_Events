@@ -145,7 +145,7 @@
     "filed": "{company} filed for bankruptcy on {date}. The forecast put a filing by that date at {p}.",
     "filed_after": "{company} filed for bankruptcy on {date}, after the period ended on {horizon}. The forecast put a filing by {horizon} at {p}.",
     "source": "source",
-    "verdict": "The judgment entered, {amount}, is in the band {band}. The forecast put that band at {p}.",
+    "verdict": "The judgment entered was {amount}. The forecast put an award in that band ({band}) at {p}.",
     "offering": "{company} closed a share offering on {date}. The forecast put an offering closed by that date at {p}, and by {horizon} at {q}."
   },
   "ui": {
@@ -408,7 +408,7 @@
     "offering_note": "Share of outcomes in which an underwritten offering {company} starts closes by {horizon} (N1 yes, before any filing).",
     "terms": "Offering terms",
     "terms_value": "{net} net ({gross} gross), closing {days} days after it starts",
-    "first_close": "First close (median)"
+    "first_close": "First close, median where one closes"
   },
   "verdict": {
     "none": "Jury: no award",
