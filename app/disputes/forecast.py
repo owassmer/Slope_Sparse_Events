@@ -225,6 +225,9 @@ class _Prefix:
     reads: np.ndarray | None = None  # the traced step's latest cash-read day (a payment, approval or levy day)
     sit: dict | None = None  # the traced step's question-state snapshot (events.Chain.c_situation; pending claims)
     groups: np.ndarray | None = None  # the traced step's option group per draw (events.Chain.option_group; -1: not asked)
+    as_of: np.ndarray | None = None  # a day-only trace: per draw, the last day whose state it reads
+    fired: dict | None = None  # each waiting step's booking day (index -> [draws]; BIG: not booked)
+    served: bool = False  # a sibling's trace served for the walk's structure (`Forecaster._served`), not for facts
 
     @classmethod
     def of(cls, tr, daily: bool = False, whole: bool = False, digest: bool = True) -> _Prefix:
@@ -249,7 +252,8 @@ class _Prefix:
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
                    tr.triggers, getattr(tr, "raise_offer", None), getattr(tr, "reads", None),
                    (getattr(tr, "situations", None) or {}).get(len(tr.day) - 1),
-                   (getattr(tr, "groups", None) or {}).get(len(tr.day) - 1))
+                   (getattr(tr, "groups", None) or {}).get(len(tr.day) - 1), getattr(tr, "as_of", None),
+                   getattr(tr, "fired", None))
 
 
 class _DepthCache:
@@ -455,6 +459,8 @@ class Forecaster:
         # traced prefixes: the tree is walked depth-first, so the current path's prefixes stay on a stack and only
         # sibling probes share a small LRU (`_DepthCache`); each entry holds its step's question-state snapshot
         self._traces = _DepthCache(self.SIBLINGS)
+        self._reuse: dict = {}  # namespace -> depth -> the walked children's traces (`_logged`)
+        self.reuse_stats = {"computed": 0, "served": 0}
         self.remitted: dict[str, tuple[int, int, int]] = {}  # C3 node key -> the remitted amount and its band
         self._sources: dict[str, str] = {}  # finding -> its source's title
         self.bank_nodes: dict[str, Node] = {}  # the bank view's questions (bank_state)
@@ -500,26 +506,114 @@ class Forecaster:
 
     # --- prefix traces (code timing and arithmetic, before any Jev answer) ----------------------------------------
 
-    def trace(self, d: DisputeInstance, steps: tuple, full: bool = False) -> _Prefix:
+    def trace(self, d: DisputeInstance, steps: tuple, full: bool = False, real: bool = False) -> _Prefix:
         """The prefix's per-step decision days and path facts, its petition days and a fingerprint of its event cash.
         The dense [draws, days] arrays are dropped once fingerprinted: the tree has thousands of prefixes, and keeping
         each prefix's arrays held about 20 GB for the Akoustis tree. Settled only to the last step's decision day
         (events.Chain._book_to_day: every read as of that day equals the whole path's; no digest) unless `full`: a
-        read of the event cash, the petition or marks after the decision day (the digest, a petition anywhere)."""
-        from app.analysis.events import canon, event_trace
+        read of the event cash, the petition or marks after the decision day (the digest, a petition anywhere).
+        A walk read may be served by a walked sibling's trace (`_served`); `real`: a recorded fact's, never served."""
+        from app.analysis.events import canon, event_chain, event_trace
 
         steps = canon(steps)  # a grouped branch books its answer; the path's group is its mask (`_Walk._trace`)
-        ns = (d.instance_id, "full") if full else d.instance_id
-        hit = self._traces.get(ns, steps)
-        if hit is None:
+
+        def compute():
             path = DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=())
-            hit = self._traces.put(ns, steps,
-                                   _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens,
-                                                          day_only=not full),
-                                              self.setup.cash_processing == "daily", digest=full))
+            return _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens, day_only=not full),
+                              self.setup.cash_processing == "daily", digest=full)
+
+        return self._traced(d.instance_id, steps, full, real, compute,
+                            lambda st: event_chain(d, st, self.setup, self.m, self.draws, self.sens))
+
+    def _traced(self, ns, steps: tuple, full: bool, real: bool, compute, chain) -> _Prefix:
+        """A cached prefix trace (`_traces`), else a walked sibling's (`_served`), else computed; logged for the
+        siblings walked after it (`_logged`)."""
+        key = (ns, "full") if full else ns
+        hit = self._traces.get(key, steps)
+        if hit is not None and real and hit.served:
+            hit = None
+        if hit is None:
+            hit = None if real or not self.REUSE else self._served(ns, steps, full, chain)
+            if hit is None:
+                hit = compute()
+                self.reuse_stats["computed"] += 1
+            else:
+                self.reuse_stats["served"] += 1
+            self._traces.put(key, steps, hit)
+        if self.REUSE and not hit.served:
+            self._logged(ns, steps, full, hit)
         return hit
 
     SIBLINGS = 64  # traced prefixes kept off the current path (sibling probes); its ancestors are all kept
+    REUSE = True  # exact subtree reuse (`_served`)
+    REUSE_CAP = 1500  # traces logged per depth of the current path (memory: each keeps its snapshot)
+
+    # --- exact subtree reuse (Owen's approval, 29 Sep 2026; QUESTIONS §1 Depth applied exactly) ---------------------
+    # The walk is depth first and deterministic in what it reads. At each depth of the current path the traces read
+    # below each child walked so far are kept (per child step, by the steps after it). A read below a later sibling
+    # (the same steps after it) is served by a walked child's trace where it is provably the same: events.Chain
+    # .divergence gives, per draw, a day before which the two children's chains book and read the same; the engine
+    # is causal, so a trace whose step falls inside the horizon and reads nothing dated on or after that day (its
+    # `as_of`), and whose step falls after the horizon only where they agree inside it, is identical on every draw
+    # the walk reads. A waiting step's branch books on its own day: that day, in the walked trace, is the divergence.
+    # Served traces decide the walk's structure only; every recorded fact is computed (`real`), and every emitted
+    # path is traced whole (its key and late facts).
+
+    def _logged(self, ns, steps: tuple, full: bool, v: _Prefix) -> None:
+        lv = self._reuse.setdefault(ns, {})
+        for j in range(len(steps)):
+            e = lv.get(j)
+            if e is None or e["s"] != steps[:j]:  # a new parent at this depth: the deeper levels are stale too
+                for k in [k for k in lv if k >= j]:
+                    del lv[k]
+                e = lv[j] = {"s": steps[:j], "kids": {}, "size": 0, "x": {}}
+            if e["size"] < self.REUSE_CAP:
+                kid = e["kids"].setdefault(steps[j], {})
+                if (steps[j + 1:], full) not in kid:
+                    kid[(steps[j + 1:], full)] = v
+                    e["size"] += 1
+
+    def _served(self, ns, steps: tuple, full: bool, chain) -> _Prefix | None:
+        from app.analysis.events import BIG
+
+        lv = self._reuse.get(ns, {})
+        for j in range(len(steps) - 1, -1, -1):  # the nearest walked sibling first
+            e = lv.get(j)
+            if e is None or e["s"] != steps[:j]:
+                continue
+            for c, kid in e["kids"].items():
+                v = kid.get((steps[j + 1:], full))
+                if v is None or v.served:
+                    continue
+                if c == steps[j]:  # the same steps (a group sibling: its branch books the same answer)
+                    return replace(v, served=True)
+                if j == len(steps) - 1:  # the sibling step itself: its own decision's facts are its own
+                    continue
+                x = e["x"].get((c, steps[j]))
+                if x is None:
+                    x = e["x"][(c, steps[j])] = self._divergence(steps[:j], c, steps[j], chain)
+                div, wait = x
+                if wait:  # the waiting step's own booking day in the walked trace (N1's answer books from the close)
+                    f = (v.fired or {}).get(j, BIG)
+                    lag = int(self.m["parameters"]["offering_price"]["close_days"]) if steps[j][0] == "offering" else 0
+                    div = np.minimum(div, np.where(f < BIG, f + lag, BIG))
+                if full:
+                    ok = bool((div >= BIG).all())
+                else:
+                    t = v.day[-1]
+                    ok = v.as_of is not None and bool(np.where(t < self.days, v.as_of < div, div >= BIG).all())
+                if ok:
+                    return replace(v, served=True)
+        return None
+
+    def _divergence(self, parent: tuple, c: tuple, b: tuple, chain) -> tuple[np.ndarray, bool]:
+        """Per draw, the day before which the chains after `parent + (c,)` and `parent + (b,)` agree (events.Chain
+        .divergence), and whether the two steps are one waiting question's branches (their booking day diverges)."""
+        ca, cb = chain(parent + (c,)), chain(parent + (b,))
+        wait = c[:2] == b[:2] and ca.waits(c[0], c[1]) and any(w[0] == len(parent) for w in ca.waiting) \
+            and any(w[0] == len(parent) for w in cb.waiting)
+        return ca.divergence(cb, len(parent) if wait else None), wait
+
 
     def whole_trace(self, d: DisputeInstance, steps: tuple) -> _Prefix:
         """A whole path's trace with every step's facts (not cached: the page reads each path once)."""
@@ -557,18 +651,19 @@ class Forecaster:
         """The borrower's instrument whose terms are a common input to both views (the notes' coupon), or None."""
         return next((f for d in self.disputes for f in d.financing if f.status != "superseded"), None)
 
-    def bank_trace(self, steps: tuple, full: bool = False) -> _Prefix:
+    def bank_trace(self, steps: tuple, full: bool = False, real: bool = False) -> _Prefix:
         """The bank (ordinary) view's prefix, settled to its decision day unless `full` (as `trace`)."""
-        from app.analysis.events import BANK, bank_trace, canon
+        from app.analysis.events import BANK, bank_trace, canon, event_chain
 
         steps = canon(steps)
-        ns = (BANK, "full") if full else BANK
-        hit = self._traces.get(ns, steps)
-        if hit is None:
-            hit = self._traces.put(ns, steps, _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m,
-                                                                     self.draws, self.sens, day_only=not full),
-                                                          self.setup.cash_processing == "daily", digest=full))
-        return hit
+
+        def compute():
+            return _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m, self.draws, self.sens,
+                                         day_only=not full), self.setup.cash_processing == "daily", digest=full)
+
+        return self._traced(BANK, steps, full, real, compute,
+                            lambda st: event_chain(None, st, self.setup, self.m, self.draws, self.sens,
+                                                   fin=self.instrument()))
 
     @property
     def ordinary(self) -> bool:
@@ -1592,6 +1687,10 @@ class _Walk:
         """The prefix's trace on the path's trajectories (`mask_of`, `masked`): every read the walk makes of it."""
         return masked(self._raw(steps, full), self.mask_of(steps))
 
+    def _facts(self, steps) -> _Prefix:
+        """`_trace` for a recorded fact: computed, never a sibling's (`Forecaster._served`)."""
+        return masked(self.fc.trace(self.d, steps, real=True), self.mask_of(steps))
+
     # --- within-path grouping (Owen's ruling, 29 Sep 2026) ----------------------------------------------------------
     def quiet_of(self, node: str) -> str:
         """The branch that books nothing at a grouped question (its probe)."""
@@ -1630,7 +1729,7 @@ class _Walk:
 
     def rec(self, k: str, steps) -> None:
         """Record a question's facts from the prefix `steps` (its last step is the question's own day)."""
-        self.fc.record((k,), self._trace(steps))
+        self.fc.record((k,), self._facts(steps))
 
     def inside(self, steps) -> bool:
         """Whether the last step's decision falls inside the horizon, before any petition, on some trajectory."""
@@ -1647,13 +1746,13 @@ class _Walk:
     def take(self, s: _S, step, edge, keys=(), **kw) -> _S:
         """Add a step; record its path facts (from the trace of the prefix plus this step) for the nodes it asks."""
         if keys:
-            self.fc.record(keys, self._trace(s.steps + (step,)))
+            self.fc.record(keys, self._facts(s.steps + (step,)))
         return s.add(step, edge, **kw)
 
     def court(self, s: _S, key: str, ctx: str) -> None:
         """A court's ruling on a motion gets the facts of its own day (events.py court_order): the stay's approval, with
         the security measured that day, or the registration order; the motion question keeps the motion day."""
-        self.fc.record((key,), self._trace(s.steps + (("court_order", ctx, ""),)))
+        self.fc.record((key,), self._facts(s.steps + (("court_order", ctx, ""),)))
 
     def stay_court(self, s: _S, key: str, ctx: str) -> _S:
         """The stay-approval question's facts. Under daily processing they come from each whole path (events.py
@@ -1755,14 +1854,14 @@ class _Walk:
             # QUESTIONS §4.3 C1, §1 Depth: the stay it opens is approved and its levy falls only after the horizon (or
             # a petition); it is asked only where a later question reads the execution, the stay motion or the stay
             i0 = len(self.out)
-            y, st = self._raw(s.steps + (yes,)), self._raw(s.steps + (yes, ("stay", "I1", "yes")))
+            y, st = self._raw(s.steps + (yes,), True), self._raw(s.steps + (yes, ("stay", "I1", "yes")), True)
             w = _Watch({"executing": y.marks["executing"], "stay_moved": st.marks["stay_moved"]},
                        nodes=frozenset({"enforce_after_final"}), walks=frozenset({"unstayed"}))
             if not self._watched(s, no, w, self.ripe_i1):
                 return  # not asked: the path books the no-execution branch (the step, no edge)
             k = self.node("execute_pre_ruling", "I1", *self.cx(s), assumptions=("post-trial motions are pending",))
-            self.fc.record((k,), self._trace(s.steps + (yes,)))
-            self.fc.record((k,), self._trace(s.steps + (no,)))
+            self.fc.record((k,), self._facts(s.steps + (yes,)))
+            self.fc.record((k,), self._facts(s.steps + (no,)))
             self._edge_after(i0, len(s.edges), (k, "no"))
             return self.stay_i1(s.add(yes, (k, "yes")))
         k = self.node("execute_pre_ruling", "I1", *self.cx(s), assumptions=("post-trial motions are pending",))
@@ -1966,7 +2065,7 @@ class _Walk:
         """The petition questions on notes due and unpaid get the facts of the day each actor may file, on the
         trajectories where the notes fell due: the issuer on the day they fall due, the holders once §7.06 allows."""
         for k, steps in at:
-            self.fc.record((k,), self._trace(s.steps + steps))
+            self.fc.record((k,), self._facts(s.steps + steps))
 
     def unfiled(self, s: _S, node: str, ctx: str, classes: dict, pairs) -> dict:
         """A holders' petition that falls after the period on every trajectory books nothing: its class joins the
@@ -2065,14 +2164,14 @@ class _Walk:
         no, yes = ("appeal", "", "no"), ("appeal", "", "yes")
         i0 = len(self.out)
         if self.pend:  # QUESTIONS §4.1 D5, §1 Depth: asked only where a later question reads the appeal
-            w = _Watch({"appealed": self._raw(s.steps + (yes,)).marks["appealed"]},
+            w = _Watch({"appealed": self._raw(s.steps + (yes,), True).marks["appealed"]},
                        nodes=frozenset({"enforce_after_final"}))  # its context, its levy day and J4 read the appeal
             if not self._watched(s, no, w, self.stay_post):
                 return  # not asked: the path books the no-appeal branch (the step, no edge)
         k = self.node("appeal", s.cls, s=s, probe=no, assumptions=("a money award survives the ruling",))
         if self.pend:
-            self.fc.record((k,), self._trace(s.steps + (yes,)))
-            self.fc.record((k,), self._trace(s.steps + (no,)))
+            self.fc.record((k,), self._facts(s.steps + (yes,)))
+            self.fc.record((k,), self._facts(s.steps + (no,)))
             self._edge_after(i0, len(s.edges), (k, "no"))
             return self.stay_post(s.add(yes, (k, "yes"), appealed=True))
         self.stay_post(self.take(s, yes, (k, "yes"), (k,), appealed=True))
@@ -2177,7 +2276,7 @@ class _Walk:
         def ask(name, assumptions=()):
             at = ("listing_date", own[name], "")
             k = self.node(name, s=s, probe=at, assumptions=assumptions)
-            self.fc.record((k,), self._trace(s.steps + (at,)))
+            self.fc.record((k,), self._facts(s.steps + (at,)))
             return k
 
         a7 = ask("reverse_split_board")
@@ -2209,7 +2308,7 @@ class _Walk:
         if self.first(s, at, lambda y: self.kept(y, dates, outcome)):
             return
         k = self.node("listing_kept", s=s, probe=at, assumptions=ASSUMED["listing_kept"])
-        self.fc.record((k,), self._trace(s.steps + (at,)))
+        self.fc.record((k,), self._facts(s.steps + (at,)))
         self.floor(self.take(s, ("listing", "kept", "listed"), (k, "yes")), outcome)
         y = self.take(s, ("listing", "kept", "delisted_suspension"), (k, "no"))
         self.delisting_notes(y, "delisted_suspension", dates["delisted_suspension"], outcome)
@@ -2504,7 +2603,7 @@ class _Walk:
         day, events.py `waits`); 4.0.0 books it as walked, last, so its prefix's trace has them, as recorded."""
         if self.pend:
             return s.late + ((k, len(s.steps)),)
-        self.fc.record((k,), self._trace(s.steps + (probe,)))
+        self.fc.record((k,), self._facts(s.steps + (probe,)))
         return s.late
 
     def cash_out(self, s: _S, outcome: str, then=None) -> None:
@@ -2576,7 +2675,7 @@ class _BankWalk:
                                          cls="", question_id=s["residual_question"], event=s["decision"],
                                          assumptions=(), window=s["timing"],
                                          branches=tuple(branches or s["branches"]))
-            tr = self.fc.bank_trace(self.probe[name])
+            tr = self.fc.bank_trace(self.probe[name], real=True)
             t = tr.day[-1]
             need = self.fc.draws.basis.need[np.arange(len(t)), np.clip(t, 0, self.fc.days - 1)]
             self.fc.bank_facts.setdefault(k, []).append((t, tr.cash[-1], need, tr.raise_offer))
@@ -2629,6 +2728,9 @@ class _OrdinaryWalk(_Walk):
     def _raw(self, steps, full: bool = False) -> _Prefix:
         return self.fc.bank_trace(tuple(steps), full)
 
+    def _facts(self, steps) -> _Prefix:
+        return masked(self.fc.bank_trace(tuple(steps), real=True), self.mask_of(steps))
+
     def _listing_dates(self) -> dict[str, int]:
         from app.analysis.events import Chain
 
@@ -2655,7 +2757,7 @@ class _OrdinaryWalk(_Walk):
         steps = tuple(steps)
         if (k, steps) not in self.seen:
             self.seen.add((k, steps))
-            tr = self._trace(steps)
+            tr = self._facts(steps)
             self.row(k, tr, -1, sit=getattr(tr, "sit", None))
 
     def row(self, k: str, tr, i: int, late: dict | None = None, sit: dict | None = None, mask=None) -> None:

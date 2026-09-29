@@ -1857,6 +1857,7 @@ class Chain:
             self.waiting.append([i, node, branch, np.zeros(self.n, dtype=bool), ctx])
             self.wctx[i] = ctx
             return
+        self._last_node = node
         if node == "notes_due_date" and self.waiting:  # a probe on the dates a waiting judgment default sets
             self.until(np.full(self.n, self.N, dtype=np.int64))
         if self.waiting:  # what is dated before this decision comes first, on each trajectory where it arises
@@ -2083,6 +2084,11 @@ class Chain:
             return self
         v = self.clone()
         v.until(bound) if levy else v.upto(bound)
+        vf = self.__dict__.setdefault("_vfired", {})
+        for w in self.waiting:  # the day each waiting step books in the view (exact subtree reuse reads it)
+            booked = (v.rec[0][w[0]] < BIG) & ~w[3]
+            if booked.any():
+                vf[w[0]] = np.minimum(vf.get(w[0], BIG), np.where(booked, v.rec[0][w[0]], BIG))
         return v
 
     def _upto_dated(self, before, every: bool, levy, target: int | None = None) -> bool:
@@ -2170,11 +2176,17 @@ class Chain:
         walked stay's snapshot is its approval day's (`c_situations`, `_snapshot_day`): booked up to that day."""
         i = len(self.rec[0]) - 1
         if any(w[0] == i for w in self.waiting):
+            tw = next(w for w in self.waiting if w[0] == i)
             self._upto_dated(None, False, None, target=i)
+            self._booked_to = np.where(tw[3], self.rec[0][i], self.N - 1)
             return
         t, u = self.rec[0][i], self._snapshot_day(i)
+        bound = np.where(u < self.N, u + 1, np.where(t < self.N, self.N, 0))
+        # notes_due_date books every waiting decision inside the horizon first (`advance`): its day reads them all
+        self._booked_to = np.full(self.n, self.N - 1) if self.__dict__.get("_last_node") == "notes_due_date" \
+            else bound - 1
         if self.waiting:  # a snapshot after the horizon reads its last day (`c_situation` clips)
-            self._upto_dated(np.where(u < self.N, u + 1, np.where(t < self.N, self.N, 0)), False, None)
+            self._upto_dated(bound, False, None)
 
     def _snapshot_day(self, i: int) -> np.ndarray:
         """The day step i's question-state snapshot reads (`c_situations`): a walked stay's approval day, else the
@@ -2234,6 +2246,10 @@ class Chain:
         tr.situations = ({len(tr.day) - 1: self.c_situation(self._snapshot_day(len(tr.day) - 1))} if day_only
                          and (self.pending or self.ordinary) else self.c_situations(tr))  # the question-state snapshot
         tr.groups = {i: g.copy() for i, g in self.grec.items()}
+        vf = self.__dict__.get("_vfired", {})  # each waiting step's booking day, here or in a view (BIG: neither)
+        tr.fired = {i: np.minimum(tr.day[i], vf.get(i, BIG)) for i in tr.late}
+        # a day-only trace: per draw, the last day whose state it reads (what it booked through, a cash read's day)
+        tr.as_of = np.maximum(self._booked_to, self.reads) if day_only else None
         return tr
 
     SHARED = frozenset({"d", "s", "m", "dr", "basis", "sens", "fin", "rows", "bookings"})  # read-only inputs, never copied
@@ -2244,6 +2260,118 @@ class Chain:
         # the memoized cash is shared, not copied: it is never written in place, and each copy replaces its own
         new.__dict__.update({k: v if k in Chain.SHARED or k in ("_cum", "_tau", "_out") else _copied(v) for k, v in self.__dict__.items()})
         return new
+
+    # --- exact subtree reuse (forecast.py `Forecaster._served`) ------------------------------------------------------
+    # Chain state by what a later step or a walk read makes of it (a recorded fact is always computed: forecast.py
+    # `_facts`). DATED: a day per draw (an event's day; -1 or BIG: none) the engine reads only as of a day; it is
+    # causal, so two chains agreeing on every event dated before day X agree on everything read as of a day before
+    # X. UNSEEN: memos of other state, transients reset by every step, each step's own record, facts-only state (the
+    # hearing request, how the notes fell due, the offerings' list: the snapshot's listing status and texts), and
+    # state each of whose changes is booked in a dated array the same day (lock_amount, lock_day: ev.lock). Else
+    # (the timeline, flags, the ruling's amounts) is compared as it is: a difference is a divergence from day 0 on
+    # the draws it concerns (on every draw where it is not per draw).
+    DATED = frozenset({"suspended", "resolved", "release_at", "adverse_from", "adverse_until", "early_registration",
+                       "pending_levy", "delisted", "stayed_from"})
+    UNSEEN = frozenset({"_cum", "_tau", "_out", "_keys", "_av", "_hd", "_cv", "_stay_cv", "_restaying", "_atm_memo",
+                        "_atm_cols", "_atm_v", "_eq_v", "_offer_memo", "_shares_memo", "_grp", "settle_offer",
+                        "stay_offer", "raise_offer", "reads", "rec", "grec", "late", "wctx", "_atm", "_atm_cum",
+                        "_atm_sold", "_atm_nsold", "taken", "_booked_to", "_last_node", "ev", "marks", "waiting", "takes", "writs",
+                        "coupons", "floor_days", "stays", "pet_cause", "collateral_required", "lock_amount",
+                        "levied", "q1", "offerings", "_at", "notes_due_how", "appealed", "_offers", "lock_day",
+                        "hearing_requested", "_vfired"})
+
+    def divergence(self, other: Chain, wait: int | None = None) -> np.ndarray:
+        """Per draw, a day before which this chain and `other` (the same dispute after sibling steps) book and read
+        the same (BIG: they agree inside the horizon). `wait`: the index of a waiting step whose branch alone differs
+        (its booking day is the divergence, read per trace by the caller). Conservative: state it cannot date
+        diverges from day 0."""
+        n, N = self.n, self.N
+        x = np.full(n, BIG, dtype=np.int64)
+        zero = np.zeros(n, dtype=np.int64)
+
+        def day(a):
+            a = np.asarray(a if a is not None else BIG, dtype=np.int64)
+            return np.where(a < 0, BIG, a)
+
+        def dated(a, b):
+            nonlocal x
+            da, db = day(a), day(b)
+            x = np.minimum(x, np.where(da != db, np.minimum(da, db), BIG))
+
+        def cols(a, b):  # [draws, days]: the first day they differ
+            nonlocal x
+            ne = a != b
+            x = np.minimum(x, np.where(ne.any(axis=1), ne.argmax(axis=1), BIG))
+
+        def plain(a, b):
+            nonlocal x
+            if isinstance(a, np.ndarray) and isinstance(b, np.ndarray) and a.shape == b.shape == (n,):
+                x = np.where(a != b, zero, x)
+            elif not _same_state(a, b):
+                x = zero.copy()
+
+        ea, eb = self.ev, other.ev
+        for k in ("cash", "lock", "capacity"):
+            cols(getattr(ea, k), getattr(eb, k))
+        for k in set(ea.kinds) | set(eb.kinds):
+            cols(ea.kinds.get(k, 0 * ea.cash), eb.kinds.get(k, 0 * eb.cash))
+        dated(ea.petition, eb.petition)
+        for k in set(ea.incurred) | set(eb.incurred):  # the day each obligation was incurred
+            dated(ea.incurred.get(k), eb.incurred.get(k))
+        plain(ea.proceeds, eb.proceeds)
+        pa, pb = day(ea.petition), day(eb.petition)
+        x = np.minimum(x, np.where(self.pet_cause != other.pet_cause, np.minimum(pa, pb), BIG))
+        for k in set(self.marks) | set(other.marks):
+            dated(self.marks.get(k), other.marks.get(k))
+        if self.appealed != other.appealed:  # the appeal's flag acts from the appeal (the levy's registration day)
+            x = np.minimum(x, np.where(self.AD < 0, BIG, np.maximum(self.F, 0)))
+        for i in range(max(len(self._offers), len(other._offers))):  # an offering acts from its initiation
+            oa = self._offers[i] if i < len(self._offers) else None
+            ob = other._offers[i] if i < len(other._offers) else None
+            init = np.minimum(*(day(o["init"]) if o is not None else np.full(n, BIG) for o in (oa, ob)))
+            ne = np.ones(n, dtype=bool) if oa is None or ob is None else _differs(oa, ob, n)
+            x = np.minimum(x, np.where(ne, init, BIG))
+        for k in set(self.floor_days) | set(other.floor_days):
+            dated(self.floor_days.get(k), other.floor_days.get(k))
+        for la, lb in ((self.takes, other.takes), (self.writs, other.writs)):  # (day, amount) events
+            for i in range(max(len(la), len(lb))):
+                (da, aa), (db, ab) = (la[i] if i < len(la) else (BIG, 0)), (lb[i] if i < len(lb) else (BIG, 0))
+                ne = (day(da) != day(db)) | (np.asarray(aa) != np.asarray(ab))
+                x = np.minimum(x, np.where(ne, np.minimum(day(da), day(db)), BIG))
+        for i in range(max(len(self.coupons), len(other.coupons))):  # (payment day, cash, paid per draw)
+            ca = self.coupons[i] if i < len(self.coupons) else None
+            cb = other.coupons[i] if i < len(other.coupons) else None
+            if ca is None or cb is None or ca[0] != cb[0] or ca[1] != cb[1]:
+                x = np.minimum(x, min(c[0] for c in (ca, cb) if c is not None))
+            else:
+                x = np.minimum(x, np.where(np.asarray(ca[2]) != np.asarray(cb[2]), ca[0], BIG))
+        terms = ("approval", "approved", "stayed_from", "mark")  # what `restay` sizes from (the rest is its output)
+        for i in set(self.stays) | set(other.stays):  # a walked stay: what differs books from its approval
+            sa, sb = self.stays.get(i), other.stays.get(i)
+            if sa is None or sb is None:
+                x = np.minimum(x, min(day(s_["approval"]) for s_ in (sa, sb) if s_ is not None))
+                continue
+            ta, tb = {k: sa[k] for k in terms}, {k: sb[k] for k in terms}
+            appr = np.minimum(day(sa["approval"]), day(sb["approval"]))
+            x = np.minimum(x, np.where(_differs(ta, tb, n), appr, BIG))
+            if ("lock" in sa) != ("lock" in sb):  # what it booked (`restay` takes it out before re-sizing)
+                x = np.minimum(x, appr)
+            elif "lock" in sa:  # the lock on approval, its release on `rel`
+                x = np.minimum(x, np.where(sa["lock"] != sb["lock"], appr, BIG))
+                x = np.minimum(x, np.where((sa["rel"] != sb["rel"]) | (sa["held"] != sb["held"]),
+                                           np.minimum(day(sa["rel"]), day(sb["rel"])), BIG))
+        wa = {w[0]: w for w in self.waiting}
+        wb = {w[0]: w for w in other.waiting}
+        for i in set(wa) | set(wb):
+            a, b = wa.get(i), wb.get(i)
+            if a is None or b is None or a[1] != b[1] or a[4] != b[4] or (a[2] != b[2] and i != wait):
+                x = zero.copy()
+            else:
+                x = np.where(a[3] != b[3], zero, x)
+        for k in (set(self.__dict__) | set(other.__dict__)) - Chain.SHARED - Chain.UNSEEN:
+            a, b = self.__dict__.get(k), other.__dict__.get(k)
+            (dated if k in Chain.DATED else plain)(a, b)
+        return np.where(x >= N, BIG, x).astype(np.int64)
 
     def trigger_days(self) -> dict[str, np.ndarray]:
         """The dated contract and rule triggers on this path (TRIGGERS), per draw, as the engine computes them at the
@@ -2332,6 +2460,32 @@ class Chain:
               **{i: st["day"] for i, st in tr.stays.items()}}
         return {i: self.c_situation(day) for i, day in at.items()}
 
+def _same_state(a, b) -> bool:
+    """Equal chain state: arrays by value (shape, dtype, content), containers element by element."""
+    if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
+        return (isinstance(a, np.ndarray) and isinstance(b, np.ndarray) and a.shape == b.shape
+                and a.dtype == b.dtype and np.array_equal(a, b))
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_same_state(a[k], b[k]) for k in a)
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+        return type(a) is type(b) and len(a) == len(b) and all(_same_state(x, y) for x, y in zip(a, b, strict=True))
+    if isinstance(a, EventCash) or isinstance(b, EventCash):
+        return False
+    return type(a) is type(b) and a == b
+
+
+def _differs(a: dict, b: dict, n: int) -> np.ndarray:
+    """Per draw, whether two dicts of per-draw arrays (and scalars) differ (a differing scalar: every draw)."""
+    out = np.zeros(n, dtype=bool)
+    for k in set(a) | set(b):
+        x, y = a.get(k), b.get(k)
+        if isinstance(x, np.ndarray) and isinstance(y, np.ndarray) and x.shape == y.shape == (n,):
+            out |= x != y
+        elif not _same_state(x, y):
+            out[:] = True
+    return out
+
+
 class Awaiting:
     """A question-state value whose step-9 interface accessor is not built on this branch (worker C's snapshot)."""
 
@@ -2360,14 +2514,20 @@ def _copied(v):
     return copy.deepcopy(v)
 
 
-def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = False) -> Trace:
-    """`make().run(steps)`, resumed from the deepest prefix of `steps` already walked. A chain's state after k steps
-    depends only on those k steps, so with `draws.prefixes` on (the tree builder and the analysis walk paths in
-    depth-first order) each call walks only the steps after the prefix it shares with the previous call. The cache
-    holds one stack of states per chain: the root (after the instrument's cash) and each step of the last path."""
+def _advanced(make, steps, draws: Draws, key: tuple, inputs: tuple) -> tuple[Chain, Trace]:
+    """`make()` with `steps` advanced (not finished), resumed from the deepest prefix of `steps` already walked. A
+    chain's state after k steps depends only on those k steps, so with `draws.prefixes` on (the tree builder and the
+    analysis walk paths in depth-first order) each call walks only the steps after the prefix it shares with the
+    previous call. The cache holds one stack of states per chain: the root (after the instrument's cash) and each
+    step of the last path."""
     cache = draws.prefixes
     if cache is None:
-        return make().run(steps, day_only)
+        ch = make()
+        ch.instrument_cash()
+        tr = Trace(ch.ev)
+        for step in steps:
+            ch.advance(tr, *step)
+        return ch, tr
     entry = cache.get(key)
     if entry is None or len(entry[0]) != len(inputs) or any(a is not b for a, b in zip(entry[0], inputs, strict=True)):
         root = make()
@@ -2383,7 +2543,23 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
     for step in steps[k:]:
         ch.advance(tr, *step)
         stack.append((step, ch.clone(), None))
+    return ch, tr
+
+
+def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = False) -> Trace:
+    """`make().run(steps)`, resumed from the prefix stack (`_advanced`)."""
+    ch, tr = _advanced(make, steps, draws, key, inputs)
     return ch.finish(tr, day_only)
+
+
+def event_chain(d: DisputeInstance | None, steps, setup: Setup, model: dict, draws: Draws, sens: dict | None = None,
+                fin=None) -> Chain:
+    """The chain after the steps (canonical), not finished: the dispute's (d) or the bank view's (d None, `fin`)."""
+    if d is None:
+        return _advanced(lambda: Chain(None, setup, model, draws, sens, fin=fin), steps, draws, (BANK,),
+                         (fin, setup, model, sens))[0]
+    return _advanced(lambda: Chain(d, setup, model, draws, sens), steps, draws, (d.instance_id,),
+                     (d, setup, model, sens))[0]
 
 
 def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws,
