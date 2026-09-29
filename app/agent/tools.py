@@ -107,6 +107,7 @@ class RunContext:
     accepted_order: list[str] = field(default_factory=list)
     record_mode: bool = False  # the mission's submission is its record items (investigation.record_mode)
     host_dependency: str | None = None
+    dispute_template: str | None = None  # the mission's dispute chain (host_mission 'dispute_template'), if it names one
 
     @property
     def case_id(self) -> str:
@@ -823,7 +824,7 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
                         if f.level_label != "unknown"],
             "evidence_requests": [r.action for r in instance.evidence_requests],
             **({"proposed_extension": "recorded and flagged; the model is unchanged"} if instance.proposed_extension else {}),
-            "template": _template_for(model, instance.stage),
+            "template": _chain_template(ctx, model, instance.stage),
             "record_items_open": {t: len(v) for t, v in _open_items(ctx).items()},
             "note": ("Jev read the present state from the passages. After your run the host asks Jev for the conditional "
                      "probabilities of each future development and builds the financial analysis.")}
@@ -835,12 +836,20 @@ def _template_for(model: dict, stage: str | None) -> str:
     return t or ("federal_post_judgment" if stage in model["stages"]["court"] else "none")
 
 
+def _chain_template(ctx: RunContext, model: dict, stage: str | None) -> str:
+    """The template whose record items the agent fills: the mission's own dispute chain where it names one (the
+    14 May mission: the pending claim's questions, whatever stage is passed), else the one the stage selects."""
+    return ctx.dispute_template or _template_for(model, stage)
+
+
 def _slots(ctx: RunContext, template: str) -> tuple[dict[str, list[str]], dict[str, RecordItemSlot]]:
     """The template's record items (item -> the decisions that name it) and the agent's latest record of each."""
     from app.disputes.rules import load_model
     from app.disputes.slots import template_items
 
     model = load_model()
+    if ctx.dispute_template and template != ctx.dispute_template:
+        raise ToolError(f"template is {ctx.dispute_template}: this mission's forecast asks that chain's questions")
     if template not in model["templates"] or "stage" not in model["templates"][template] \
             and template != "federal_post_judgment":
         raise ToolError(f"template is a dispute template: {sorted(k for k, v in model['templates'].items() if 'stage' in v)}"
@@ -855,7 +864,7 @@ async def get_record_items(ctx: RunContext, args: dict) -> dict:
     The stage selects the chain's template."""
     from app.disputes.rules import load_model
 
-    template = _template_for(load_model(), args.get("stage"))
+    template = _chain_template(ctx, load_model(), args.get("stage"))
     if template == "none":
         raise ToolError("stage is the dispute's procedural stage, as instantiate_dispute reads it (e.g. "
                         "liability_pending, post_trial_pending)")
@@ -899,8 +908,8 @@ def _open_items(ctx: RunContext) -> dict[str, list[str]]:
     for d in ctx.run.graph["disputes"].values():
         if d.status == "superseded" or not d.stage:
             continue
-        template = _template_for(model, d.stage)
-        if template == "none":
+        template = _chain_template(ctx, model, d.stage)
+        if template == "none" or template in out:
             continue
         items, done = _slots(ctx, template)
         if missing := [x for x in items if x not in done]:

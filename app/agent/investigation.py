@@ -185,7 +185,8 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         return {**record, "run_id": run_id, "status": "FAILED_CONFIGURATION", "error": str(e)}
     ctx = RunContext(run=run, evidence=evidence, inputs=inputs, arm=arm,
                      semantics=Semantics(run, evidence, jev) if jev else None,
-                     record_mode=record_mode(snapshot_id, arm))
+                     record_mode=record_mode(snapshot_id, arm),
+                     dispute_template=host_mission(snapshot_id).get("dispute_template"))
     if jev is not None:  # host sweep inventory (cached per snapshot; its own budget)
         try:
             sweep = build_sweep(snapshot_id, inputs["baseline_profile"]["borrower"])
@@ -227,9 +228,10 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         failure = failure or f"turn budget of {max_turns} reached"
     if result is not None and result.is_error:
         failure = failure or f"agent session ended with an error: {result.subtype} {result.result or ''}"[:500]
-    if not ctx.submitted:
+    if not ctx.submitted:  # the unsubmitted packet is a reason in the packet and in run.json alike
+        ctx.incomplete_reasons.append("packet not submitted" + (f": {failure}" if failure else ""))
         run.lock({"summary": None, "configuration_failure": ctx.configuration_failure,
-                  "incomplete_reasons": ctx.incomplete_reasons + [failure or "packet not submitted"]})
+                  "incomplete_reasons": ctx.incomplete_reasons})
     if ctx.configuration_failure:
         status = "FAILED_CONFIGURATION"
     elif ctx.submitted and not ctx.incomplete_reasons and not failure:
