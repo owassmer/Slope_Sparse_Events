@@ -35,7 +35,17 @@ from app.analysis.engine import (
     run,
     run_many,
 )
-from app.analysis.events import BANK, Basis, Draws, EventCash, bank_trace, event_trace
+from app.analysis.events import (
+    BANK,
+    BIG,
+    KINDS,
+    OBLIGATIONS,
+    Basis,
+    Draws,
+    EventCash,
+    bank_trace,
+    event_trace,
+)
 from app.analysis.setup import DRAWS, Setup
 from app.analysis.stats import expectation, weighted_quantiles
 from app.disputes.forecast import DisputePath, Judgment, distributions, joint_paths
@@ -394,20 +404,33 @@ BATCH = 8  # joint paths simulated together (engine.run_many)
 PACKED_BYTES = 256 * 2**20  # at most this much event cash kept (sparse) from the bin pass for the main pass
 
 
-def _pack(ev: EventCash) -> tuple:
-    """A combo's event cash, sparse (most draws and days book nothing): flat index and value of each non-zero."""
+def _pack(ev: EventCash, kinds: bool = False) -> tuple:
+    """A combo's event cash, sparse (most draws and days book nothing): flat index and value of each non-zero. kinds:
+    also its cash by kind and the obligations' incurred days (the daily processor reads them)."""
+    xs = [ev.cash, ev.lock, ev.capacity, ev.petition + 1]  # petition: -1 (none) packs as zero
+    if kinds:
+        split = ev.split()
+        if split is None:
+            raise ValueError("daily cash processing needs the event cash by kind (EventCash.kinds)")
+        xs += [split[0][k] for k in KINDS] + [BIG - split[1][k] for k in OBLIGATIONS]  # BIG (none) packs as zero
     out = []
-    for x in (ev.cash, ev.lock, ev.capacity, ev.petition + 1):  # petition: -1 (none) packs as zero
+    for x in xs:
         i = np.flatnonzero(x)
         out += [i.astype(np.int32), x.ravel()[i]]
     return tuple(out)
 
 
 def _unpack(packed: tuple, draws: int, days: int) -> EventCash:
-    ev = EventCash.zeros(draws, days)
+    kinds = len(packed) > 8
+    ev = EventCash.zeros(draws, days, kinds=kinds)
     for j, x in enumerate((ev.cash, ev.lock, ev.capacity)):
         np.put(x, packed[2 * j], packed[2 * j + 1])
     np.put(ev.petition, packed[6], packed[7] - 1)
+    if kinds:
+        for j, k in enumerate(KINDS, 4):
+            np.put(ev.kinds[k], packed[2 * j], packed[2 * j + 1])
+        for j, k in enumerate(OBLIGATIONS, 4 + len(KINDS)):
+            np.put(ev.incurred[k], packed[2 * j], BIG - packed[2 * j + 1])
     return ev
 
 
@@ -501,7 +524,7 @@ class Analysis:
         for i, c in enumerate(combos, lo):
             ev = self.event_cash(c)
             if self._packed_bytes < PACKED_BYTES:
-                self._packed[(kind, i)] = pk = _pack(ev)
+                self._packed[(kind, i)] = pk = _pack(ev, self.setup.cash_processing == "daily")
                 self._packed_bytes += sum(x.nbytes for x in pk) + 400
             cum = np.cumsum(ev.cash - ev.lock, axis=1)
             np.minimum(lo_ev, cum.min(axis=0), out=lo_ev)

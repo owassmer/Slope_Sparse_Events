@@ -31,25 +31,56 @@ TOLLING = {"rule_50b", "rule_52b", "rule_59a", "rule_59e", "injunction"}  # FRAP
 MONEY_MOTIONS = {"rule_50b", "rule_52b", "rule_59a", "rule_59e"}
 
 
+# The kinds of event cash the daily processor orders (QUESTIONS_20240514 §2.2; engine.run_many under "daily"):
+# receipts (financing proceeds, a credit), a levy, the scheduled obligations (each with the day it was incurred), and
+# reductions of operating outflow (legal spend that stops when the dispute ends: an outflow that stops, not a receipt).
+OBLIGATIONS = ("settlement", "notes_interest", "judgment")
+KINDS = ("inflow", "levy", "reduction", *OBLIGATIONS)
+INCURRED_BEFORE = -(10**6)  # incurred before the review date and before the line opened (the notes' indenture, 2022)
+
+
 @dataclass
 class EventCash:
     """Per draw and day: borrower cash (+ receipt, - payment), encumbrance changes (+ lock, - release) and credit
     capacity changes (+ commit, - release). Shape [draws, horizon days], integer cents. `petition` [draws] is the
-    horizon day index of a bankruptcy petition on that trajectory, or -1 for none."""
+    horizon day index of a bankruptcy petition on that trajectory, or -1 for none. `kinds` splits `cash` by KINDS (they
+    sum to it exactly; None: unclassified), and `incurred` gives each obligation kind's incurred day per draw (BIG:
+    none), which orders the day's scheduled obligations."""
     cash: np.ndarray
     lock: np.ndarray
     capacity: np.ndarray
     petition: np.ndarray
+    kinds: dict[str, np.ndarray] | None = None
+    incurred: dict[str, np.ndarray] | None = None
 
     @classmethod
-    def zeros(cls, draws: int, days: int) -> EventCash:
+    def zeros(cls, draws: int, days: int, kinds: bool = False) -> EventCash:
         z = np.zeros((draws, days), dtype=np.int64)
-        return cls(z.copy(), z.copy(), z.copy(), np.full(draws, -1, dtype=np.int64))
+        return cls(z.copy(), z.copy(), z.copy(), np.full(draws, -1, dtype=np.int64),
+                   {k: z.copy() for k in KINDS} if kinds else None,
+                   {k: np.full(draws, BIG, dtype=np.int64) for k in OBLIGATIONS} if kinds else None)
+
+    def split(self) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]] | None:
+        """The kinds and incurred days, zeros where no cash is booked at all; None where cash is unclassified."""
+        if self.kinds is not None:
+            return self.kinds, self.incurred
+        if self.cash.any():
+            return None
+        n = self.cash.shape[0]
+        return ({k: np.zeros_like(self.cash) for k in KINDS},
+                {k: np.full(n, BIG, dtype=np.int64) for k in OBLIGATIONS})
 
     def __add__(self, other: EventCash) -> EventCash:
         a, b = self.petition, other.petition  # the earliest petition on the trajectory
         petition = np.where(a < 0, b, np.where(b < 0, a, np.minimum(a, b)))
-        return EventCash(self.cash + other.cash, self.lock + other.lock, self.capacity + other.capacity, petition)
+        kinds = incurred = None
+        if self.kinds is not None or other.kinds is not None:  # both classified (or empty): add kind by kind
+            x, y = self.split(), other.split()
+            if x is not None and y is not None:
+                kinds = {k: x[0][k] + y[0][k] for k in KINDS}
+                incurred = {k: np.minimum(x[1][k], y[1][k]) for k in OBLIGATIONS}
+        return EventCash(self.cash + other.cash, self.lock + other.lock, self.capacity + other.capacity, petition,
+                         kinds, incurred)
 
 
 @dataclass
@@ -358,7 +389,7 @@ class Chain:
         self.sens = sens or {}  # parameter -> use its sensitivity value
         self.n, self.N = draws.n, (setup.horizon - setup.review).days
         self.basis = draws.basis
-        self.ev = EventCash.zeros(self.n, self.N)
+        self.ev = EventCash.zeros(self.n, self.N, kinds=True)
         self._cv = 0  # the event cash's version: every write to it bumps it (`_touch`); `cum` is memoized on it
         self._cum: tuple | None = None  # (version, available cash [draws, days]); never written in place
         self.pet_cause = np.zeros(self.n, dtype=np.int8)  # PETITION_CAUSES index of the earliest petition
@@ -564,6 +595,18 @@ class Chain:
             np.add.at(arr, (self.rows[ok], day[ok]), cents[ok])
             self._touch()
 
+    def pay(self, day: np.ndarray, cents, kind: str, incurred=None) -> None:
+        """Book event cash of one kind (KINDS) on the day per draw, into the cash and its kind; an obligation also
+        records the day it was incurred (the order the daily processor clears the day's obligations in)."""
+        day = np.asarray(day)
+        cents = np.broadcast_to(np.asarray(cents, dtype=np.int64), day.shape)
+        self.book(self.ev.cash, day, cents)
+        self.book(self.ev.kinds[kind], day, cents)
+        if incurred is not None:
+            ok = (day >= 0) & (day < self.N) & (cents != 0)
+            cur = self.ev.incurred[kind]
+            self.ev.incurred[kind] = np.where(ok, np.minimum(cur, np.asarray(incurred, dtype=np.int64)), cur)
+
     def petition(self, day: np.ndarray, where: np.ndarray | None = None, cause: str = "enforcement") -> None:
         day = np.asarray(day) + int(self.p("petition_lag_days"))
         ok = (day >= 0) & (day < self.N) & (True if where is None else where)
@@ -588,7 +631,9 @@ class Chain:
         t = np.arange(self.N)
         stop = (t[None, :] >= self.resolved[:, None]) & (t[None, :] < old[:, None])
         if stop.any():
-            self.ev.cash -= np.where(stop, self.basis.legal, 0)  # legal outflows are negative: adding them back
+            back = np.where(stop, self.basis.legal, 0)  # legal outflows are negative: adding them back
+            self.ev.cash -= back
+            self.ev.kinds["reduction"] -= back  # an outflow that stops, not a receipt
             self._touch()
 
     def levy(self, day: np.ndarray, lagged: bool = False) -> None:
@@ -604,7 +649,7 @@ class Chain:
         ok = v.live(day) & (day < self.stayed_from) & (day < self.N)
         take = np.where(ok, np.minimum(self.owed_at(day, enforceable=True), np.maximum(v.cash_at(day), 0)), 0)
         satisfied = (take > 0) & (take >= self.owed_at(day)) & (not self.retrial)  # the whole judgment, that day
-        self.book(self.ev.cash, day, -take)
+        self.pay(day, -take, "levy")
         self.mark("levied", day, take > 0)
         self.taken += take
         self.takes.append((np.asarray(day).copy(), take))
@@ -648,7 +693,7 @@ class Chain:
         if booking == "pay":
             ok = self.live(day) & (day < N) & (self.cash_at(day) >= self.owed_at(day))
             amt = np.where(ok, self.owed_at(day), 0)
-            self.book(self.ev.cash, day, -amt)
+            self.pay(day, -amt, "judgment", incurred=self.entry_ix())
             self.taken += amt
             self.takes.append((np.asarray(day).copy(), amt))
             self.resolve(day, ok & (not self.retrial))  # under a new trial the dispute goes on
@@ -690,7 +735,7 @@ class Chain:
         n = int(self.p("raise_days"))
         each = amt // n
         for k in range(n):
-            self.book(self.ev.cash, np.asarray(day) + k, each + (amt - each * n if k == 0 else 0))
+            self.pay(np.asarray(day) + k, each + (amt - each * n if k == 0 else 0), "inflow")
         self.mark("raised", day, amt > 0)
 
     def settle(self, start: np.ndarray, end: np.ndarray, agreed: bool = True, cap: int | None = None
@@ -718,15 +763,15 @@ class Chain:
         if mode == "installments":  # the case's terms: the agreement releases the claim on the settlement date
             for i in range(count):
                 part = np.where(ok, bound // count + (bound % count if i == count - 1 else 0), 0)
-                self.book(self.ev.cash, self.months_after(pd, i), -part)  # after the period: outside it
+                self.pay(self.months_after(pd, i), -part, "settlement", incurred=pd)  # after the period: outside it
         elif mode == "monthly":
             k = np.maximum((self.N - pd + 29) // 30, 1)
             for i in range(int(k.max())):
                 part = np.where(ok & (i < k), bound // k + np.where(i == k - 1, bound % k, 0), 0)
-                self.book(self.ev.cash, pd + 30 * i, -part)
+                self.pay(pd + 30 * i, -part, "settlement", incurred=pd)
             release = pd + 30 * (k - 1)
         else:
-            self.book(self.ev.cash, pd, -np.where(ok, bound, 0))
+            self.pay(pd, -np.where(ok, bound, 0), "settlement", incurred=pd)
         self.resolve(release, ok & self.live(release))
         self.mark("settled", pd, ok)
         return pd, ok
@@ -922,7 +967,7 @@ class Chain:
             cash = self.coupon_cash_cents()
             for d in self.fin.interest_dates:
                 day = self.ix(next_business_day(d))
-                self.book(self.ev.cash, np.full(self.n, day), -cash)
+                self.pay(np.full(self.n, day), -cash, "notes_interest", incurred=INCURRED_BEFORE)
                 if cash and 0 <= day < self.N:
                     self.coupons.append((day, cash, np.ones(self.n, dtype=bool)))
         if self.ordinary:  # the dispute ends on the review date at no cost: its legal spend stops (`resolve`)
@@ -932,6 +977,7 @@ class Chain:
             per = np.full(self.N, chips // self.N, dtype=np.int64)
             per[-1] += chips - per.sum()
             self.ev.cash += per[None, :]
+            self.ev.kinds["inflow"] += per[None, :]
             self._touch()
 
 
@@ -941,7 +987,7 @@ class Chain:
         due = self.marks["notes_due"]
         for day, cash, kept in self.coupons:
             gone = kept & (due <= day)
-            self.book(self.ev.cash, np.full(self.n, day), np.where(gone, cash, 0))
+            self.pay(np.full(self.n, day), np.where(gone, cash, 0), "notes_interest")
             kept &= ~gone
 
     # --- steps ---
@@ -1307,10 +1353,14 @@ class Chain:
         pet = self.ev.petition
         after = (pet[:, None] >= 0) & (np.arange(self.N)[None, :] >= pet[:, None])
         self.ev.cash[after] = 0  # §362: nothing is collected from or paid by the estate after the petition
+        for k in KINDS:
+            self.ev.kinds[k][after] = 0
         self._touch()
         if self.pending or self.ordinary:  # a dispute that ended (`resolve`) never re-adds its legal spend
             ended = np.arange(self.N)[None, :] >= self.resolved[:, None]
-            self.ev.cash -= np.where(after & ended, self.basis.legal, 0)
+            back = np.where(after & ended, self.basis.legal, 0)
+            self.ev.cash -= back
+            self.ev.kinds["reduction"] -= back
             self._touch()
         tr.events = self.ev
         tr.cause = np.where(self.ev.petition >= 0, self.pet_cause, 0).astype(np.int8)
@@ -1365,7 +1415,8 @@ def _copied(v):
     if isinstance(v, (int, float, str, bool, np.generic)) or v is None:
         return v
     if isinstance(v, EventCash):
-        return EventCash(v.cash.copy(), v.lock.copy(), v.capacity.copy(), v.petition.copy())
+        return EventCash(v.cash.copy(), v.lock.copy(), v.capacity.copy(), v.petition.copy(), _copied(v.kinds),
+                         _copied(v.incurred))
     if type(v) is dict:
         return {k: _copied(x) for k, x in v.items()}
     if type(v) is list:

@@ -202,10 +202,14 @@ class _Prefix:
     reads: np.ndarray | None = None  # the traced step's latest cash-read day (a payment, approval or levy day)
 
     @classmethod
-    def of(cls, tr) -> _Prefix:
+    def of(cls, tr, daily: bool = False) -> _Prefix:
+        """daily: the cash by kind and the incurred days are in the digest too (the processor orders by them)."""
+        from app.analysis.events import KINDS, OBLIGATIONS
+
         ev = tr.events
         h = hashlib.blake2b(digest_size=32)
-        for a in (ev.cash, ev.lock, ev.capacity):  # sparse: each non-zero's flat index and value (fixed shape)
+        extra = [*(ev.kinds[k] for k in KINDS), *(ev.incurred[k] for k in OBLIGATIONS)] if daily else []
+        for a in (ev.cash, ev.lock, ev.capacity, *extra):  # sparse: each non-zero's flat index and value (fixed shape)
             flat = np.ascontiguousarray(a).ravel()
             i = np.flatnonzero(flat)
             h.update(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes())
@@ -395,7 +399,8 @@ class Forecaster:
         key = (d.instance_id, steps)
         if key not in self._traces:
             path = DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=())
-            self._traces[key] = _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens))
+            self._traces[key] = _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens),
+                                            self.setup.cash_processing == "daily")
         return self._traces[key]
 
     def situation(self, d: DisputeInstance, steps: tuple, conds: list[str]) -> tuple[set[str], set[str]]:
@@ -430,7 +435,7 @@ class Forecaster:
         key = (BANK, steps)
         if key not in self._traces:
             self._traces[key] = _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m, self.draws,
-                                                      self.sens))
+                                                      self.sens), self.setup.cash_processing == "daily")
         return self._traces[key]
 
     @property
