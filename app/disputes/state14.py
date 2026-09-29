@@ -622,16 +622,22 @@ PHRASES = {"stay_pending": "the company has moved for a stay, not yet decided",
            "entered_not_acted": "the holders did not declare the notes due when the judgment default became "
                                 "available",
            "after_none": "the company did not pay, initiate an offering or file when it last responded to the judgment",
-           "after_offer": "the company initiated an underwritten offering when it last responded to the judgment"}
+           "after_offer": "the company initiated an underwritten offering when it last responded to the judgment",
+           "after_failed": "an earlier underwritten offering on the path did not close",
+           "ruling": "the post-trial ruling changed the judgment"}
 # tags that name a class, an option set or a retired state: the situation states what they stood for
 UNSTATED = {"entered", "pay", "nopay", "raise", "noraise", "after_seek", "seeking", "raised", "claimant_theory",
-            "without_principal_measure"}
+            "without_principal_measure",
+            # the distress chain's question identities (worker A): the situation states the date, the offering
+            # available or why not, and the notes' route
+            "deadline", "determination", "offer", "nooffer", "nonpayment", "cash_out"}
+IDENTITY = re.compile(r"floor\d+|award:.*")  # D7's k-th fall below the need; a verdict class (the situation states it)
 
 
 def assumed_events(tags: list[str], labels: dict, claimant: str, strict: bool = True) -> list[str]:
     out = []
     for t in tags:
-        if t in UNSTATED or t.startswith(("amt", "beyond")) or t.endswith("_retrial"):
+        if t in UNSTATED or IDENTITY.fullmatch(t) or t.startswith(("amt", "beyond")) or t.endswith("_retrial"):
             continue
         if t in labels:
             out.append(labels[t])

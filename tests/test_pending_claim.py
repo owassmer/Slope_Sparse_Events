@@ -130,7 +130,7 @@ def test_2_a_missing_judgment_never_activates_enforcement(tree):
 def test_3_clocks_move_with_the_modeled_verdict():
     from app.analysis.events import business_days_after
 
-    ch, tr = run((("verdict", "I0", "claimant_theory"), ("judgment_response", "entry", "continue"),
+    ch, tr = run((("verdict", "I0", "claimant_theory"), ("judgment_response", "entry", "none"),
                   ("post_trial_motions", "", "yes")))
     window = {ch.ix(__import__("datetime").date.fromisoformat(x)) for x in fx.model()["parameters"]["verdict_window"]["days"]}
     assert set(np.unique(ch.V)) <= window and len(set(np.unique(ch.V))) > 1
@@ -148,7 +148,7 @@ def test_4_branch_amounts():
     assert verdict_amount(d, m, "without_principal_measure") == 142_641_200
     assert verdict_amount(d, m, "without_principal_measure", {"lower_award_amount": True}) == 999_999_900
     for sens in (None, {"lower_award_amount": True}):  # the lower branch never ripens §7.01(i)
-        ch, tr = run((("verdict", "I0", "without_principal_measure"), ("judgment_response", "entry", "continue"),
+        ch, tr = run((("verdict", "I0", "without_principal_measure"), ("judgment_response", "entry", "none"),
                       ("post_trial_motions", "", "no")), sens)
         for ctx in ("I1", "post"):
             assert not ch.judgment_default(ctx)[1].any()
@@ -256,28 +256,35 @@ def test_6_coupon_base_shares_sensitivity_cash():
 def test_7_cash_facts_equal_the_engine_on_every_trajectory(tree):
     """§16.4, in date order: on every trajectory where a step's decision falls inside the period before any petition,
     nothing walked after it books cash or security on an earlier day, and the cash its facts read equals the loan
-    engine's available cash that day, run forward from the line's opening state on the whole path's event cash
-    (bookings on the decision day itself, which the step may precede, aside). Paths where the cash floor precedes a
-    later-walked listing question are always checked."""
+    engine's balance at processing on the decision day (QUESTIONS §2.2; orchestrator, 29 Sep 2026): the engine's end
+    balance the day before, run forward from the line's opening state on the whole path's event cash, plus the day's
+    receipts, less the day's encumbrance change and any levy that day; the decision's own booking is not in it.
+    Trajectories where a booking made at or after the step changes that day's receipts, locks or levies are aside.
+    Paths with a cash-floor decision and the listing chain are always checked."""
     from app.analysis.engine import run as engine_run
     from app.analysis.events import BIG, EventCash
 
+    def snap(ev):
+        return ev.cash.copy(), ev.lock.copy(), ev.kinds["inflow"].copy(), ev.kinds["levy"].copy()
+
     class Rec(Chain):
         def step(self, node, ctx, branch):  # the walk's own step (probes are plain Chain copies)
-            if not getattr(self, "waits", lambda n, c: False)(node, ctx):
-                self.snaps[len(self.snaps)] = (self.ev.cash.copy(), self.ev.lock.copy(), None)
+            if not self.waits(node, ctx):
+                self.snaps[len(self.snaps)] = snap(self.ev)
             return super().step(node, ctx, branch)
 
         def decide_waiting(self, i, node, branch, t):  # a step booked on its own day, after later-walked steps
-            self.fired.append((i, t.copy(), self.ev.cash.copy(), self.ev.lock.copy()))
+            self.fired.append((i, t.copy(), snap(self.ev)))
             return super().decide_waiting(i, node, branch, t)
 
     _, _, paths, _ = tree
     b, s = fx.basis(), fx.setup()
     assert s.exposure.principal_cents > 0  # the line starts with an outstanding balance
-    floor_first = _sample(paths, lambda p: ("listing", "kept", "listed") in p.steps and any(
+    assert s.cash_processing == "daily"  # the 14 May central processing
+    floor_first = _sample(paths, lambda p: any(x[0] == "listing" for x in p.steps) and any(
         x[0] == "cash_floor" and x[2] != "file" for x in p.steps), 4)
     assert floor_first
+    checked = 0
     for p in floor_first + _sample(paths, lambda p: True, 12):
         ch = Rec(fx.pending(), s, fx.model(), Draws(b.cash.shape[0], basis=b), None)
         ch.snaps, ch.fired = {}, []
@@ -285,25 +292,31 @@ def test_7_cash_facts_equal_the_engine_on_every_trajectory(tree):
         ev = tr.events
         eng = engine_run(b.line, b.opening - s.exposure.cash_cents,
                          EventCash(ev.cash.copy(), ev.lock.copy(), ev.capacity.copy(), ev.petition.copy(), ev.kinds,
-                                   ev.incurred))
+                                   ev.incurred), ch.nonpayment_terms())
         assert (ch.cum() == eng.cash[:, :ch.N]).all()
-        waits = getattr(ch, "waits", lambda n, c: False)
         booked = iter(ch.snaps.values())
-        at = {j: next(booked)[:2] for j, x in enumerate(p.steps) if not waits(x[0], x[1])}
-        for j, t, c, lk in ch.fired:  # a waiting step books on its trajectories in one or more passes
+        at = {j: next(booked) for j, x in enumerate(p.steps) if not ch.waits(x[0], x[1])}
+        for j, t, sn in ch.fired:  # a waiting step books on its trajectories in one or more passes
             rows = (t < BIG)[:, None]
-            c0, l0 = at.get(j, (c, lk))
-            at[j] = (np.where(rows, c, c0), np.where(rows, lk, l0))
+            old = at.get(j, sn)
+            at[j] = tuple(np.where(rows, a, o) for a, o in zip(sn, old, strict=True))
         pet = np.where(ev.petition < 0, BIG, ev.petition)
-        for j, (cash0, lock0) in at.items():
+        for j, (cash0, lock0, in0, levy0) in at.items():
             day = tr.day[j]
             m = (day >= 0) & (day < ch.N) & (day < pet)
             later = (ev.cash - cash0) - (ev.lock - lock0)
             before = ((later != 0) & (np.arange(ch.N)[None, :] < day[:, None])).any(axis=1)
             assert not (before & m).any(), (p.steps[j], int((before & m).sum()))
-            same = later[ch.rows, np.clip(day, 0, ch.N - 1)] != 0
+            t = np.clip(day, 0, ch.N - 1)
+            same = ((ev.kinds["inflow"] - in0)[ch.rows, t] != 0) | ((ev.lock - lock0)[ch.rows, t] != 0) \
+                | ((ev.kinds["levy"] - levy0)[ch.rows, t] != 0)
+            prev = np.where(t > 0, eng.cash[ch.rows, np.maximum(t - 1, 0)], ch.basis.opening)
+            want = prev + ch.basis.inflow[ch.rows, t] + ev.kinds["inflow"][ch.rows, t] - ev.lock[ch.rows, t] \
+                + ev.kinds["levy"][ch.rows, t]
             ok = m & ~same
-            assert (tr.cash[j][ok] == eng.cash[ch.rows, np.clip(day, 0, ch.N - 1)][ok]).all(), p.steps[j]
+            assert (tr.cash[j][ok] == want[ok]).all(), (p.steps[j], int((tr.cash[j][ok] != want[ok]).sum()))
+            checked += int(ok.sum())
+    assert checked > 0
 
 
 def test_7k_daily_processing_equals_net_until_an_obligation_goes_unpaid(tree):
@@ -533,11 +546,13 @@ def test_7h_the_ordinary_view_is_the_forecast_whose_dispute_ends_on_the_review_d
 
 def test_7i_the_ordinary_view_asks_the_forecasts_questions_on_the_same_record(tree):
     """Spec §16.1: each ordinary-view question is the forecast's question of that node type in the matching situation,
-    built on the same case, record items, evidence and standard; only the path facts, the context (no dispute-branch
-    conditions) and the one condition that the event has no cash effect differ."""
+    built on the same case, record items, evidence and standard (QUESTIONS_20240514 §1 state). Only the situation (its
+    figures come from the ordinary engine run), the question's filled figures and the events assumed on the path
+    differ: the ordinary view assumes none of the dispute's branch events, and one more, that the event has no cash
+    effect."""
     from app.disputes.forecast import bank_state
 
-    fc, _, _, _ = tree
+    fc, d, _, _ = tree
     both = {n.node for n in fc.bank_nodes.values()} & {n.node for n in fc.nodes.values()}
     assert {"bid_compliance", "hearing_request", "holders_act_delisting"} <= both
     checked = set()
@@ -550,58 +565,53 @@ def test_7i_the_ordinary_view_asks_the_forecasts_questions_on_the_same_record(tr
         for m in matches:
             theirs, _, _ = fc.state(m)
             assert ours["case"] == theirs["case"] and ours["case"]["company"] == "B", (n.key, m.key)
-            extra = [a for a in ours["assumptions"] if a not in theirs["assumptions"]]
+            extra = [a for a in ours["assumed_events"] if a not in theirs["assumed_events"]]
             assert len(extra) == 1 and "given no cash effect" in extra[0], (n.key, extra)
-            strip = lambda st, extra=extra: {**{k: v for k, v in st.items() if k != "path_facts"},  # noqa: E731
-                                            "question": {k: v for k, v in st["question"].items() if k != "context"},
-                                            "assumptions": [a for a in st["assumptions"] if a not in extra]}
-            assert strip(ours) == strip(theirs), (n.key, m.key)
+            same = ("case", "standard", "record_items", "historical_evidence", "party_assertions", "court_findings",
+                    "earlier_readings")
+            assert {k: ours[k] for k in same} == {k: theirs[k] for k in same}, (n.key, m.key)
+            assert ours["question"]["actor"] == theirs["question"]["actor"], (n.key, m.key)
+            assert set(ours["question"]["answers"]) == set(theirs["question"]["answers"]) == set(n.branches)
+            assert set(ours["situation"]) == set(theirs["situation"]) == set(fc.texts(n.node, d)["situation_keys"])
         assert not {"claimed", "settled", "seeking", "motions_pending"} & tags  # no dispute-branch condition
         checked.add(n.node)
     assert checked == {n.node for n in fc.bank_nodes.values()}
 
 
 def test_7j_the_ordinary_view_carries_the_ordinary_obligations_facts_and_no_dispute_fact(tree):
-    """Spec §16.3 (orchestrator, 28 Sep 2026): for each node type asked in both views, where the situation holds in
-    both, the ordinary view's path facts carry every fact the forecast's state takes from the ordinary obligations
-    (the instrument's terms, the raise available, the operating figures; the instrument's dated triggers, dated on
-    the ordinary view's own path) and none that exists only because of the dispute (the builder's `facts_by_source`
-    names each fact's source). One fact contract per node type (design 14 May §7.12): the ordinary view's keys are
-    exactly the forecast's ordinary keys for that node type (`Forecaster.ordinary_facts` builds both)."""
-    from app.analysis.events import INSTRUMENT_TRIGGERS
-    from app.disputes.forecast import TRIGGER_PHRASES, bank_state
+    """Spec §16.3 (orchestrator, 28 Sep 2026): for each node type asked in both views, the ordinary view's situation
+    states the ordinary obligations as the forecast does (the notes' principal from the instrument's record; the
+    listing and delisting dates of the instrument and the rule) and nothing that exists only because of the dispute:
+    no judgment stands, and no dispute date (appeal deadline, judgment default) is stated. One fact contract per node
+    type (design 14 May §7.12): both views fill the contract's situation keys for it."""
+    from app.disputes.forecast import bank_state
+    from app.domain.values import usd
 
     fc, d, _, _ = tree
-    instrument = {TRIGGER_PHRASES[t].split("{")[0] for t in INSTRUMENT_TRIGGERS}
-    terms = fc.obligation_facts(fc.instrument())
-    assert terms, "the case's notes are an ordinary obligation"
+    principal = usd(fc.instrument().principal_cents)
+    assert principal == "$44,000,000.00"  # the indenture's notes outstanding (the record)
+    ordinary = ("notes_principal", "notes_balance_due", "compliance_deadline", "bid_price_on_review_date",
+                "reverse_split_time", "determination_date", "hearing_request_deadline", "delisted_on")
+    dispute = ("appeal_deadline", "default_available_on", "judgment_amount", "judgment_entered_on", "amount_owed",
+               "settlement_amount", "installments")
     checked = set()
     for n in fc.bank_nodes.values():
-        ours = bank_state(fc, n)["path_facts"]
-        if "decision_date" not in ours:
-            continue
+        ours = bank_state(fc, n)["situation"]
+        assert set(ours) == set(fc.texts(n.node, d)["situation_keys"]), n.key
+        if "judgment_standing" in ours:
+            assert ours["judgment_standing"] == "no money judgment has been entered", n.key
+        for k in dispute:
+            assert k not in ours or ours[k].startswith(("not applicable", "none")), (n.key, k, ours[k])
+        for k in ("notes_principal", "notes_balance_due"):
+            if k in ours:
+                assert ours[k] == principal, (n.key, k)
         tags = set(c for c in n.context.split("|")[1:] if c)
         for m in (m for m in fc.nodes.values() if m.node == n.node and m.branches == n.branches
                   and tags <= set(m.context.split("|"))):
-            own, common = fc.facts_by_source(m, d)
-            if "decision_date" not in common:
-                continue
-            for k, v in common.items():
-                if k == "contract_dates":
-                    continue
-                assert k in ours, (n.key, m.key, k)
-                if k in terms:
-                    assert ours[k] == v, (n.key, m.key, k)
-            for k in own:
-                if k == "contract_dates":
-                    assert not set(own[k]) & set(ours.get(k, {})), (n.key, m.key)
-                else:
-                    assert k not in ours, (n.key, m.key, k)
-            assert all(any(lab.startswith(p) for p in instrument) for lab in ours.get("contract_dates", {})), n.key
-            # one fact contract per node type: the same keys as the forecast's ordinary half, no more and no fewer
-            # (the dated triggers vary by path: a date before the decision or after the period is not stated)
-            assert set(ours) - {"contract_dates"} == set(common) - {"contract_dates"}, (
-                n.key, m.key, sorted(set(ours) ^ set(common)))
+            theirs = fc.state(m)[0]["situation"]
+            for k in ordinary:
+                if k in ours and k in theirs:
+                    assert ours[k] == theirs[k], (n.key, m.key, k)
             checked.add(n.node)
     assert {"bid_compliance", "hearing_request", "holders_act_delisting", "petition_on_notes"} <= checked, checked
 

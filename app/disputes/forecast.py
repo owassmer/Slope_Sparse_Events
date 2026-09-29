@@ -1924,17 +1924,19 @@ class _Walk:
                        branches=("accelerate", "neither"))
         a5 = self.node("petition_on_notes", f"delisting_{dc}", s=s, probe=issuer[len(s.steps):],
                        assumptions=ASSUMED["petition_on_notes:delisting"])
-        h3 = self.node("holders_involuntary", f"delisting_{dc}", s=s, probe=holders[len(s.steps):],
-                       assumptions=ASSUMED["holders_involuntary:delisting"])
         self.rec(h2, s.steps + (probe,))
         self.rec(a5, issuer)
-        self.rec(h3, holders)
         classes = {"petition_delist": [[(h2, "accelerate"), (a5, "yes")]],
-                   "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
-                   "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]], "none": [[(h2, "neither")]]}
-        if self._trace(s.steps + (("delisting_notes", dc, "petition_delist_holders"),)).digest == self._trace(
-                s.steps + (acc,)).digest:  # the holders' petition falls after the period: nothing books
-            classes["accelerated"] = classes.pop("petition_delist_holders") + classes["accelerated"]
+                   "accelerated": [[(h2, "accelerate"), (a5, "no")]], "none": [[(h2, "neither")]]}
+        # H3 only where the holders' petition, on the §3.2 route per trajectory, can fall inside the period (as on the
+        # judgment default, `notes_petition`); otherwise it books nothing and is not asked
+        if bool((self._trace(holders).day[-1] < self.N).any()):
+            h3 = self.node("holders_involuntary", f"delisting_{dc}", s=s, probe=holders[len(s.steps):],
+                           assumptions=ASSUMED["holders_involuntary:delisting"])
+            self.rec(h3, holders)
+            classes = {"petition_delist": classes["petition_delist"],
+                       "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
+                       "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]], "none": classes["none"]}
         for c, parts in classes.items():
             self.distress(s.add(("delisting_notes", dc, c), (composite(parts), "yes"), notes_due=c != "none"),
                           "petition" if c.startswith("petition") else outcome)
@@ -2195,15 +2197,16 @@ class _OrdinaryWalk(_Walk):
         steps = tuple(steps)
         if (k, steps) not in self.seen:
             self.seen.add((k, steps))
-            self.row(k, self._trace(steps), -1)
+            tr = self._trace(steps)
+            self.row(k, tr, -1, sit=getattr(tr, "sit", None))
 
-    def row(self, k: str, tr, i: int, late: dict | None = None) -> None:
+    def row(self, k: str, tr, i: int, late: dict | None = None, sit: dict | None = None) -> None:
         t = tr.day[i]
         pet, eq, trig = ((late["petition"], late["raise_offer"], late["triggers"]) if late
                          else (tr.petition, tr.raise_offer, tr.triggers))
         t = np.where((pet >= 0) & (pet <= t), self.fc.days, t)  # a decision after a petition is not taken
         need = self.fc.draws.basis.need[np.arange(len(t)), np.clip(t, 0, self.fc.days - 1)]
-        self.fc.bank_facts.setdefault(k, []).append((t, tr.cash[i], need, eq, trig))
+        self.fc.bank_facts.setdefault(k, []).append((t, tr.cash[i], need, eq, trig, sit))  # sit: the snapshot
 
     def emit(self, s: _S, outcome: str) -> None:
         """A whole path: the facts of its state-triggered decisions on their own day (kept once per distinct
@@ -2219,7 +2222,7 @@ class _OrdinaryWalk(_Walk):
                     h.update(np.ascontiguousarray(a).tobytes())
                 if (k, s.steps[:i], h.digest()) not in self.seen:
                     self.seen.add((k, s.steps[:i], h.digest()))
-                    self.row(k, tr, i, late)
+                    self.row(k, tr, i, late, sit=tr.situations.get(i))
         options = []
         for key, branch in s.edges:
             if key.startswith(COMPOSITE):

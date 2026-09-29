@@ -630,14 +630,29 @@ class Chain:
             out.append(int(v))
         return out[0], out[1]
 
-    def processing_balance(self, day: np.ndarray) -> np.ndarray:
+    def processing_balance(self, day: np.ndarray, at: tuple | None = None) -> np.ndarray:
         """Under daily processing: the balance a levy served on the day attaches (§2.2): the day before's end balance
-        plus the day's receipts, less the day's encumbrance change and any levy already booked that day."""
-        cum, t = self.cum(), np.clip(day, 0, self.N - 1)
+        plus the day's receipts, less the day's encumbrance change and any levy already booked that day. `at`: the
+        (cum, event inflow, lock, levy) arrays of an earlier state (`balance_state`) instead of the current one."""
+        cum, inflow, lock, levy = self.balance_state() if at is None else at
+        t = np.clip(day, 0, self.N - 1)
         prev = np.where(t > 0, cum[self.rows, np.maximum(t - 1, 0)], self.basis.opening)
+        return prev + self.basis.inflow[self.rows, t] + inflow[self.rows, t] - lock[self.rows, t] + levy[self.rows, t]
+
+    def balance_state(self, copy: bool = False) -> tuple:
+        """What `processing_balance` reads: the cumulative cash, the event inflows, the locks and the levies."""
         k = self.ev.kinds
-        return (prev + self.basis.inflow[self.rows, t] + k["inflow"][self.rows, t] - self.ev.lock[self.rows, t]
-                + k["levy"][self.rows, t])
+        out = (self.cum(), k["inflow"], self.ev.lock, k["levy"])
+        return tuple(a.copy() for a in out) if copy else out
+
+    def decision_cash(self, day: np.ndarray, at: tuple | None = None) -> np.ndarray:
+        """A decision question's cash fact (QUESTIONS §2.2; orchestrator, 29 Sep 2026): under daily processing, the
+        balance at processing on the decision day before the decision's own booking (the day's receipts posted, its
+        obligations not yet processed); under net processing (20 Jun, as recorded), the day's end cash."""
+        if self.daily:
+            return self.processing_balance(day, at)
+        cum = self.cum() if at is None else at[0]
+        return cum[self.rows, np.clip(day, 0, self.N - 1)]
 
     def nonpayment_day(self) -> np.ndarray:
         """The first day §7.01(j)(v) general nonpayment is met (QUESTIONS §3.3), or BIG. Daily processing only."""
@@ -1339,7 +1354,7 @@ class Chain:
         day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
         out = np.full(self.n, "unpaid", dtype=object)
         amount = self.standing_amount(day)
-        entered = self.has_judgment() & (day >= np.asarray(self.entry_ix()))
+        entered = (day >= np.asarray(self.entry_ix())) if self.has_judgment() else np.zeros(self.n, dtype=bool)
         out = np.where((self.cls_amount is not None and self.cls_amount != self.entered) & (day >= self.F)
                        & (amount > 0), "reduced", out)
         out = np.where(self.taken_before(day) > 0, "levied_in_part", out)
@@ -1723,10 +1738,10 @@ class Chain:
                 # response on the levy day, still waiting, precedes it
                 self.flush_levy(~(self.next_floor() < self.pending_levy) & ~self.response_waiting())
         self.restay()  # what was booked since (a levy, a floor decision) is in a walked stay's security
-        before_cash = self.cum()
+        before = self.balance_state(copy=True) if self.daily else (self.cum(),)
         day = self.step(node, ctx, branch)
-        t = np.clip(day, 0, self.N - 1)
-        for lst, v in zip(self.rec, (day, before_cash[self.rows, t], self.owed_at(day), self.collateral_required.copy()),
+        for lst, v in zip(self.rec, (day, self.decision_cash(day, before), self.owed_at(day),
+                                     self.collateral_required.copy()),
                           strict=True):
             lst.append(v)
         self.restay()
@@ -1899,8 +1914,7 @@ class Chain:
             lim = before if levy is None or (node in RESPONSES and ctx != "ripe") else np.minimum(before, levy)
             fire = (prior if floor else True) & ~done & (True if every else t < lim)
             if fire.any():
-                ti = np.clip(t, 0, self.N - 1)
-                vals = (t, self.cum()[self.rows, ti], self.owed_at(t), self.collateral_required)
+                vals = (t, self.decision_cash(t), self.owed_at(t), self.collateral_required)
                 for lst, v in zip(self.rec, vals, strict=True):
                     lst[i] = np.where(fire, v, lst[i])
                 late = self.late[i]
@@ -1951,8 +1965,7 @@ class Chain:
                 if not fire.any():
                     continue
                 t = days[j]
-                ti = np.clip(t, 0, self.N - 1)
-                vals = (t, self.cum()[self.rows, ti], self.owed_at(t), self.collateral_required)
+                vals = (t, self.decision_cash(t), self.owed_at(t), self.collateral_required)
                 for lst, v in zip(self.rec, vals, strict=True):
                     lst[i] = np.where(fire, v, lst[i])
                 late = self.late[i]
