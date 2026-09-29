@@ -41,13 +41,14 @@
       "basis": "Owen, 28 Sep 2026. The settlement amount, the company's available cash above its 30-day operating need on the settlement date capped at the amount claimed or owed, bounds what can be paid (spec §16.3). Base: that amount in 12 equal monthly installments, the first on the settlement date. A distressed company does not pay out its runway at once. Installments due after 10 Nov 2024 fall outside the horizon. Sensitivity: the same amount as one lump sum on the settlement date."
     },
     "coupon_cash_share": {
-      "value": "all_shares",
+      "value": "shares_to_capacity",
       "sensitivity": "all_cash",
-      "share_price_cents": 60,
+      "share_price": "model",
+      "share_value_bps": 9500,
       "share_capacity": 5000000,
       "share_limit": 11403332,
       "split_ratio": null,
-      "basis": "The 15 Jun 2024 coupon, USD 1.32M, paid Mon 17 Jun. Indenture §16.02(c): paid in shares unless the company elects cash. The resale S-3 of 13 May 2024 registers 5,000,000 Note Shares for interest and make-whole payments; at USD 0.60 (close, 1 May 2024; 10-Q) the coupon needs about 2.3M shares, inside the registered 5.0M and the 11,403,332 cap. Base: all shares, no cash. Sensitivity: all cash."
+      "basis": "The 15 Jun 2024 coupon, USD 1.32M, paid Mon 17 Jun. Indenture §16.02(c): paid in shares unless the company elects cash; the shares equal the payment divided by 95% of the simple average of the ten trading days' prices ending on the trading day before the interest date (here the path's share price, share_price). The resale S-3 of 13 May 2024 registers 5,000,000 Note Shares for interest and make-whole payments, and §9.02(k) caps the shares at 11,403,332; whole shares up to the 5,000,000, and the rest in cash from the available balance on the payment day (a scheduled obligation: paid in full or in arrears). At the 14 May close (USD 0.44) the coupon needs about 3.2M shares; the registered shares cover it at a ten-day price of USD 0.278 or more. Sensitivity: all cash."
     },
     "rate_1961_bps_pending": {
       "value": 513,
@@ -386,6 +387,11 @@
       "in_case_record": false
     },
     "akts_2024_01_29_8k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024_01_29_8k_ex1_1": {
       "author": "Akoustis Technologies",
       "status": "company disclosure",
       "in_case_record": false

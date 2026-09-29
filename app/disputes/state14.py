@@ -24,6 +24,10 @@ class Unbuilt(RuntimeError):
     """A situation key whose step-9 interface accessor is not on this branch (Chain.C_INTERFACE)."""
 
 
+def ordinal(k: int) -> str:
+    return f"{k}{'th' if 10 <= k % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(k % 10, 'th')}"
+
+
 def _l1_sums(x: np.ndarray) -> np.ndarray:
     """For each point, the sum of |x_i - x_j| over all j, in O(n log n)."""
     order = np.argsort(x, kind="stable")
@@ -495,7 +499,53 @@ class Situation:
         return (f"an underwritten public offering of common stock on the company's shelf: {t['shares']:,} shares at "
                 f"${t['price_cents_x1e4'] / 1e6:,.4f}, gross proceeds {usd(t['gross'])}, issuance costs "
                 f"{usd(t['costs'])}, net proceeds {usd(t['net'])}, closing {t['close_days']} days after it is "
-                f"initiated")
+                f"initiated" + ("; " + self.offering_lockup() if self._lockup() else ""))
+
+    def _lockup(self) -> dict | None:
+        lock = self.fc.m["parameters"].get("offering_lockup")
+        return None if not lock or lock.get("atm_carved_out") else lock
+
+    def offering_lockup(self):
+        """The underwriting agreement's lock-up (case parameter offering_lockup) and the at-the-market proceeds it
+        forgoes (`atm_lockup_proceeds`)."""
+        lock = self._lockup()
+        if lock is None:
+            return "none"
+        g = self._g()
+        rep = self.atm_lockup_proceeds(np.array([g.at_rep("day")]), np.array([g.at_rep("share_price", sit=True)]),
+                                       np.array([g.at_rep("ledger", sit=True)]))[0]
+        grp = self.atm_lockup_proceeds(g.field("day"), g.field("share_price", sit=True), g.field("ledger", sit=True))
+        return (f"the company agrees not to sell shares, including at-the-market sales, from pricing until the "
+                f"{ordinal(int(lock['value']))} day after the closing; at its current pace and share price, "
+                f"at-the-market sales over that period would bring in {money(rep, grp)}")
+
+    def atm_lockup_proceeds(self, day, price, ledger) -> np.ndarray:
+        """Per trajectory [k]: the net proceeds of the at-the-market sales the engine's schedule makes over the whole
+        lock-up of an offering initiated on the decision day (events.Chain._lockup: sale days from the initiation +
+        pricing_days through the 90th day after the scheduled close, not cut at the horizon), each day's shares
+        (Chain._atm_schedule) at the decision day's share price, net of commission as the engine books a sale
+        (rint(shares x price), less commission, rounded down), within the share ledger left that day. The whole
+        window's sales settle, so the settlement rule changes when they are received, not what they bring in."""
+        from app.analysis.events import Chain, trading_day
+
+        fc, lock = self.fc, self._lockup()
+        memo = fc.__dict__.get("_atm_lockup")
+        if memo is None:
+            ch = Chain(None, fc.setup, fc.m, fc.draws, fc.sens, fin=fc.instrument())
+            _, _, q, _ = ch._atm_schedule()
+            p = fc.m["parameters"]
+            first = ch.ix(date.fromisoformat(p["atm_pace_bps"]["first_sale"]))
+            span = fc.days + int(p["offering_price"]["close_days"]) + int(lock["value"]) + 400
+            trade = np.array([trading_day(fc.review + timedelta(days=t + 1)) and t >= first for t in range(span)])
+            memo = fc._atm_lockup = (q, int(p["atm_pace_bps"]["commission_bps"]), np.concatenate([[0], np.cumsum(trade)]),
+                                     int(p["offering_price"]["close_days"]))
+        q, comm, cum, close_days = memo
+        day = np.asarray(day, dtype=np.int64)
+        lo, hi = day + int(lock["pricing_days"]), day + close_days + int(lock["value"])  # sale days lo..hi
+        days = cum[hi + 1] - cum[lo]
+        sold = np.minimum(days, np.asarray(ledger, dtype=np.int64) // q)
+        net = np.rint(q * np.asarray(price, dtype=float)).astype(np.int64) * (10_000 - comm) // 10_000
+        return sold * net
 
     def gross_proceeds(self):
         return usd(self._terms()["gross"])

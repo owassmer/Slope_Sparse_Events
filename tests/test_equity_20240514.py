@@ -59,6 +59,17 @@ def test_one_month_of_at_the_market_proceeds_and_shares():
     assert (both[live] == 2 * net).all()
 
 
+def interest_usd(entered_usd: float, days) -> np.ndarray:
+    """28 U.S.C. §1961 on the amount entered, simple, from the entry: 5.13% (the weekly 1-year CMT for the week ending
+    10 May 2024, H.15), actual/365, in whole cents."""
+    return np.rint(entered_usd * 100 * 0.0513 * np.maximum(np.asarray(days), 0) / 365) / 100
+
+
+def net_cents(price_cents: np.ndarray) -> np.ndarray:
+    """One sale's net: 153,213 shares at the price, whole cents of gross, less 3% commission floored."""
+    return np.array([int(Decimal(round(153_213 * c)) * Decimal("0.97")) for c in np.ravel(price_cents)])
+
+
 def hand_price_usd(owed_usd: np.ndarray) -> np.ndarray:
     """The share price by hand (QUESTIONS §2.6): a Black-Scholes call on the calibrated firm value, strike the notes'
     face plus the amount owed, one year at the 1-year par yield of 14 May 2024 (5.16%), per share outstanding."""
@@ -90,7 +101,8 @@ def test_one_offerings_shares_and_the_ledger_when_capacity_binds():
     assert r.size and ch.entered == CLAIMANT * 100
     init = first["init"][r]
     levied = sum(np.where(t <= first["init"], a, 0) for t, a in ch.takes)[r] / 100  # USD, on or before initiation
-    price = hand_price_usd(CLAIMANT - levied) * 0.50 / 0.7046  # USD
+    owed = CLAIMANT + interest_usd(CLAIMANT, init - ch.E_ix[r]) - levied  # with §1961 interest from the entry
+    price = hand_price_usd(owed) * 0.50 / 0.7046  # USD
     full = np.rint(11_500_000 / price)
     left = LEDGER - ch.atm_shares_to_date(first["init"])[r]
     want = np.minimum(full, left)
@@ -106,15 +118,16 @@ def test_one_offerings_shares_and_the_ledger_when_capacity_binds():
 
 def test_at_the_market_proceeds_at_the_post_verdict_price():
     """A $67.5M judgment: the 3 Jun 2024 sale (settled T+1 on 4 Jun) sells the same 153,213 shares at the day's share
-    price, the structural price at the amount entered (nothing levied yet), net of 3%."""
+    price, the structural price at the amount owed that day (entered plus §1961 interest; nothing levied yet), net
+    of 3%."""
     ch = chain()
     ch.run(STEPS_67M)
     live = (ch.ev.petition < 0) & (ch.V < day(ch, date(2024, 6, 3)))
     got = ch.atm_to_date(day(ch, date(2024, 6, 4))) - ch.atm_to_date(day(ch, date(2024, 6, 3)))
-    cents = float(hand_price_usd(np.array([CLAIMANT]))[0]) * 100
-    net = int(Decimal(round(153_213 * cents)) * Decimal("0.97"))  # whole cents of gross, commission floored
+    since = ch.ix(date(2024, 6, 3)) - ch.E_ix[live]  # §1961 interest from the entry to the sale day
+    net = net_cents(hand_price_usd(CLAIMANT + interest_usd(CLAIMANT, since)) * 100)
     assert live.any() and (got[live] == net).all()
-    assert abs(cents - 14.09) < 0.01  # $0.141 at $67.5M (Owen's table)
+    assert abs(float(hand_price_usd(np.array([CLAIMANT]))[0]) * 100 - 14.09) < 0.01  # $0.141 at $67.5M (Owen's table)
 
 
 def test_an_offering_at_entry_prices_at_the_judgment_and_locks_up_the_sales():
@@ -140,5 +153,5 @@ def test_an_offering_at_entry_prices_at_the_judgment_and_locks_up_the_sales():
     # a sale after the lock-up: 153,213 shares at the day's price (the lower award's) less 3%, received T+1
     d0, d1 = day(ch, date(2024, 10, 1)), day(ch, date(2024, 10, 2))
     got = ch.atm_to_date(np.full(ch.n, d1)) - ch.atm_to_date(np.full(ch.n, d0))
-    cents = float(hand_price_usd(np.array([1_426_412]))[0]) * 100
-    assert (got[r] == int(Decimal(round(153_213 * cents)) * Decimal("0.97"))).all()
+    owed = 1_426_412 + interest_usd(1_426_412, d1[r] - 1 - ch.E_ix[r])  # the 1 Oct sale, §1961 from the entry
+    assert (got[r] == net_cents(hand_price_usd(owed) * 100)).all()

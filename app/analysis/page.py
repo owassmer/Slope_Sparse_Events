@@ -922,17 +922,17 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         tr = fc.whole_trace(d0, p.steps) if d0 is not None and p.steps else None
         # the draws the path follows (core.Reduction.mask: a grouped question's fork); elsewhere nothing is decided
         # on this path and nothing filed
-        m = a.r.mask[i] if getattr(a.r, "masked", False) and not a.r.mask[i].all() else None
-        if tr is not None and m is not None:
+        pm = a.r.mask[i] if getattr(a.r, "masked", False) and not a.r.mask[i].all() else None
+        if tr is not None and pm is not None:
             from app.analysis.events import BIG
 
-            tr = replace(tr, day=[np.where(m, x, BIG) for x in tr.day], petition=np.where(m, tr.petition, -1),
-                         cause=None if tr.cause is None else np.where(m, tr.cause, 0),
-                         marks=None if tr.marks is None else {k: np.where(m, v, BIG) for k, v in tr.marks.items()})
-        on = (lambda x: x) if m is None else (lambda x, m=m: x[m])  # noqa: E731
+            tr = replace(tr, day=[np.where(pm, x, BIG) for x in tr.day], petition=np.where(pm, tr.petition, -1),
+                         cause=None if tr.cause is None else np.where(pm, tr.cause, 0),
+                         marks=None if tr.marks is None else {k: np.where(pm, v, BIG) for k, v in tr.marks.items()})
+        on = (lambda x: x) if pm is None else (lambda x, pm=pm: x[pm])  # noqa: E731
         sh = outcome_shares(p.steps, p.outcome, float(pet[i]), None if tr is None or tr.cause is None else on(tr.cause),
                             {k: on(v) for k, v in tr.marks.items()} if tr is not None and tr.marks else None, a.days,
-                            share=1.0 if m is None else float(m.mean()))
+                            share=1.0 if pm is None else float(pm.mean()))
         shares.append(sh)
         raised.append(close_steps(tr.marks.get("raised") if tr is not None and tr.marks else None, a.days))
         classes.append(max(sh, key=sh.get))  # the main class, for the worst-paths table

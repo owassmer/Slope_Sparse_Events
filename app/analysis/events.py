@@ -522,7 +522,7 @@ class Chain:
         self._how = "declared"
         self.floor_days: dict[int, np.ndarray] = {}
         self._at = np.full(self.n, BIG, dtype=np.int64)  # the current step's decision day (the accessors' default)
-        self.coupons: list[tuple[int, int, np.ndarray]] = []  # (payment day, cash, still paid per draw)
+        self.coupons: list[tuple] = []  # (payment day, cash (int or [draws]), still paid per draw, interest date)
         self.rec: tuple[list, list, list, list] = ([], [], [], [])  # per step: decision day, cash, owed, collateral
         # the state-triggered decisions (FLOOR_NODES) walked but not yet booked on every trajectory: [step index, node,
         # branch, booked mask]; each books on its own day (`upto`), whatever the walk order
@@ -784,7 +784,7 @@ class Chain:
         if not self.pending:
             return self.taken
         day = np.asarray(day)
-        out = np.zeros(self.n, dtype=np.int64)
+        out = np.zeros(np.broadcast_shapes(day.shape, (self.n,)), dtype=np.int64)  # day: [draws] or [days, draws]
         for t, amt in self.takes:  # t: a day [draws] or one day (compared by broadcasting)
             out += np.where(t < day, amt, 0)
         return out
@@ -958,6 +958,12 @@ class Chain:
         for t, a in self.takes:
             amt = amt - np.where(day >= col(t), col(a), 0)
         amt = np.where(day >= col(self.resolved), 0, np.maximum(amt, 0))
+        # from the entry, the amount the engine owes that day (`owed_at`: §1961 interest from the entry, the ruling's
+        # amount from F, less what was paid or levied before the day) less what was paid or levied that day (the
+        # day's close); between the verdict and the entry, the verdict
+        owed = self.owed_at(day) if day.ndim == 1 else self.owed_at(day.T).T
+        owed = np.maximum(owed - sum((np.where(day == col(t), col(a), 0) for t, a in self.takes), 0), 0)
+        amt = np.where(day >= col(self.E_ix), owed, amt)
         if self.settlement_parts:
             left = sum(np.where(col(t) > day, col(a), 0) for t, a in self.settlement_parts)
             amt = np.where(day >= col(self.marks["settled"]), left, amt)
@@ -968,14 +974,19 @@ class Chain:
         or levy, the dispute's resolution, a settlement)."""
         if self.merton is None:
             return
-        key = (self.entered, self.cls_amount, np.asarray(self.F).tobytes(), self.resolved.tobytes(), len(self.takes),
-               len(self.settlement_parts), self.marks["settled"].tobytes())
-        if key != self._price_key:
+        b = lambda x: None if x is None else np.asarray(x).tobytes()  # noqa: E731
+        key = (self.entered, self.cls_amount, self.bps, b(self.__dict__.get("cls_fees")),
+               *(b(self.__dict__.get(k)) for k in ("F", "resolved", "V", "E_ix", "fee_day")),
+               tuple((b(t), b(a)) for t, a in self.takes), tuple((b(t), b(a)) for t, a in self.settlement_parts),
+               self.marks["settled"].tobytes())
+        if key != self._price_key:  # what the price reads changed: `_price_v` moves only where the array does
             self._price_key = key
-            self._price_v += 1
             close = float(self.m["parameters"]["atm_pace_bps"]["price_cents"])
             owed = self.price_owed(np.broadcast_to(np.arange(self.N, dtype=np.int64), (self.n, self.N)))
-            self.share_price = np.where(owed > 0, self.merton.price(owed), close)
+            price = np.where(owed > 0, self.merton.price(owed), close)
+            if self.share_price is None or not np.array_equal(price, self.share_price):
+                self._price_v += 1
+                self.share_price = price
 
     def share_price_on(self, day=None) -> np.ndarray:
         """The share price in cents on the day [draws] (or days [draws, k]), as floats (`share_price`): the 14 May
@@ -1087,6 +1098,7 @@ class Chain:
         if not self.equity or self.__dict__.get("_atm_v") == self._eq_key():
             return
         self._atm_v = self._eq_key()
+        self._coupon_rebook()  # the coupon's shares are valued at the share price
         sale, settle, q, _ = self._atm_schedule()
         pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
         stop = np.minimum(pet, self.delisted)
@@ -1673,10 +1685,13 @@ class Chain:
         p = self.m["parameters"]["holder_petition_route"]
         return int(p["request_days"]) if self.p("holder_petition_route") == p["value"] else 0
 
-    def coupon_cash_cents(self) -> int:
+    def coupon_cash_cents(self, when: date | None = None):
         """The cash part of one coupon (parameter coupon_cash_share): base, shares up to the share capacity at the
         share value (95% of the price, §16.02(c)) and the rest in cash; sensitivities all cash or all shares. A split
-        ratio scales the price up and the capacity down by the same factor (none in the record: ratio 1)."""
+        ratio scales the price up and the capacity down by the same factor (none in the record: ratio 1). Where the
+        case prices the shares off the path (`share_price: model`), the price is §16.02(c)'s: the simple average of
+        the ten trading days' prices ending on the trading day before the interest date `when` (`share_price_on`),
+        per trajectory, and the cash part is an array [draws] (whole shares; the rest in cash)."""
         c, p = self.fin.coupon_cents, self.m["parameters"]["coupon_cash_share"]
         mode = self.sens.get("coupon_cash_share") or p["value"]
         if mode is True or mode == "all_cash":
@@ -1685,22 +1700,40 @@ class Chain:
             return 0
         ratio = p.get("split_ratio") or 1
         capacity = min(p["share_capacity"], p["share_limit"]) // ratio
+        if p.get("share_price") == "model":
+            when = when or min(self.fin.interest_dates)
+            days, d = [], when - timedelta(days=1)
+            while len(days) < 10:
+                if trading_day(d):
+                    days.append(self.ix(d))
+                d -= timedelta(days=1)
+            px = self.share_price_on(np.broadcast_to(np.array(days, dtype=np.int64), (self.n, 10))).mean(axis=1)
+            value = px * ratio * p["share_value_bps"] / 10_000  # cents per share
+            shares = np.minimum(np.floor(c / value), capacity)
+            return np.maximum(c - np.rint(shares * value), 0).astype(np.int64)
         covered = capacity * p["share_price_cents"] * ratio * p["share_value_bps"] // 10_000
         return c - min(c, covered)
+
+    def _priced_coupon(self) -> bool:
+        p = self.m["parameters"].get("coupon_cash_share", {})
+        mode = self.sens.get("coupon_cash_share") or p.get("value")
+        return p.get("share_price") == "model" and mode == "shares_to_capacity" and self.fin is not None
 
     def instrument_cash(self) -> None:
         """The notes' coupon, paid on the next business day after each interest date (coupon_cash_cents), and the
         CHIPS credit (base $0; sensitivity prorated over the horizon). The petition zeroes both after it (run); notes
-        already due on the payment day pay no separate coupon (coupon_when_due)."""
+        already due on the payment day pay no separate coupon (coupon_when_due). A coupon priced off the path is
+        re-booked whenever the share price changes (`_coupon_rebook`)."""
         if self.fin is not None and self.fin.coupon_cents is None and self.fin.kind == "convertible_notes":
             raise ValueError(f"{self.fin.instrument_id}: the coupon is unknown; its quoted terms must give it")
         if self.fin is not None and self.fin.coupon_cents:
-            cash = self.coupon_cash_cents()
+            priced = self._priced_coupon()
             for d in self.fin.interest_dates:
                 day = self.ix(next_business_day(d))
+                cash = self.coupon_cash_cents(d)
                 self.pay(np.full(self.n, day), -cash, "notes_interest", incurred=INCURRED_BEFORE)
-                if cash and 0 <= day < self.N:
-                    self.coupons.append((day, cash, np.ones(self.n, dtype=bool)))
+                if 0 <= day < self.N and (priced or cash):
+                    self.coupons.append((day, cash, np.ones(self.n, dtype=bool), d))
         if self.ordinary:  # the dispute ends on the review date at no cost: its legal spend stops (`resolve`)
             self.resolve(np.zeros(self.n, dtype=np.int64), np.ones(self.n, dtype=bool))
         self._atm_rebook()
@@ -1712,12 +1745,24 @@ class Chain:
             self.ev.kinds["inflow"] += per[None, :]
             self._touch("cash", "k:inflow")
 
+    def _coupon_rebook(self) -> None:
+        """A coupon priced off the path, on the current share price: the change in its cash part is booked on its
+        payment day where it is still paid (`coupon_when_due` refunds the rest)."""
+        if not self.coupons or not self._priced_coupon():
+            return
+        for i, (day, cash, kept, when) in enumerate(self.coupons):
+            new = self.coupon_cash_cents(when)
+            delta = np.where(kept, new - cash, 0)
+            if delta.any():
+                self.pay(np.full(self.n, day), -delta, "notes_interest", incurred=INCURRED_BEFORE)
+            self.coupons[i] = (day, new, kept, when)
+
 
     def coupon_when_due(self) -> None:
         """Notes accelerated (or their repurchase due) on or before an interest payment day: the amount due already
         carries the accrued interest, so no separate coupon is paid that day."""
         due = self.marks["notes_due"]
-        for day, cash, kept in self.coupons:
+        for day, cash, kept, _ in self.coupons:
             gone = kept & (due <= day)
             self.pay(np.full(self.n, day), np.where(gone, cash, 0), "notes_interest")
             kept &= ~gone
@@ -2430,10 +2475,11 @@ class Chain:
         for i in range(max(len(self.coupons), len(other.coupons))):  # (payment day, cash, paid per draw)
             ca = self.coupons[i] if i < len(self.coupons) else None
             cb = other.coupons[i] if i < len(other.coupons) else None
-            if ca is None or cb is None or ca[0] != cb[0] or ca[1] != cb[1]:
+            if ca is None or cb is None or ca[0] != cb[0]:
                 x = np.minimum(x, min(c[0] for c in (ca, cb) if c is not None))
-            else:
-                x = np.minimum(x, np.where(np.asarray(ca[2]) != np.asarray(cb[2]), ca[0], BIG))
+            else:  # the cash part (a scalar, or per draw where priced off the path) and where it is still paid
+                ne = (np.asarray(ca[1]) != np.asarray(cb[1])) | (np.asarray(ca[2]) != np.asarray(cb[2]))
+                x = np.minimum(x, np.where(ne, ca[0], BIG))
         terms = ("approval", "approved", "stayed_from", "mark")  # what `restay` sizes from (the rest is its output)
         for i in set(self.stays) | set(other.stays):  # a walked stay: what differs books from its approval
             sa, sb = self.stays.get(i), other.stays.get(i)
@@ -2483,6 +2529,9 @@ class Chain:
             if f.coupon_cents and f.interest_dates:
                 pay = min(self.ix(next_business_day(x)) for x in f.interest_dates)
                 out["coupon"] = inside(np.full(self.n, pay))
+                c = next((c for c in self.coupons if c[0] == pay), None)
+                if c is not None and self._priced_coupon():  # not a day: the coupon's cash part per draw (Jev's facts)
+                    out["coupon_cash"] = np.broadcast_to(np.asarray(c[1], dtype=np.int64), (self.n,)).copy()
             if f.listing_deadline is not None:
                 out["listing_deadline"] = inside(np.full(self.n, self.ix(f.listing_deadline)))
             due = self.marks["notes_due"]

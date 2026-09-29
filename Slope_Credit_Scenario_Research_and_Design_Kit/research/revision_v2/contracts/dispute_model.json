@@ -2203,6 +2203,7 @@
             "net_proceeds",
             "offer_price",
             "shares_offered",
+            "offering_lockup",
             "earlier_attempts",
             "judgment_standing",
             "available_cash",

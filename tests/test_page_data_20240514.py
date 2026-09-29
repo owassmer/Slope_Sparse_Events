@@ -8,7 +8,7 @@ from datetime import date, timedelta
 import akoustis_20240514_fixture as fx
 import numpy as np
 import pytest
-from test_equity_20240514 import CLAIMANT, LEDGER, hand_price_usd
+from test_equity_20240514 import CLAIMANT, LEDGER, hand_price_usd, interest_usd
 
 from app.analysis.core import ARREARS_KEYS, Analysis, EventModel
 from app.analysis.engine import run_many
@@ -59,7 +59,8 @@ def test_the_proceeds_by_channel_are_the_hand_figures(analysis):
     ch.run(OFFERING)
     o = ch._offers[0]  # the share price at initiation binds the capacity: the net by hand (test_equity_20240514)
     levied = sum(np.where(t <= o["init"], x, 0) for t, x in ch.takes) / 100
-    price = hand_price_usd(CLAIMANT - levied) * 0.50 / 0.7046
+    owed = CLAIMANT + interest_usd(CLAIMANT, o["init"] - ch.E_ix) - levied  # §1961 from the entry
+    price = hand_price_usd(owed) * 0.50 / 0.7046
     shares = np.minimum(np.rint(11_500_000 / price), LEDGER - ch.atm_shares_to_date(o["init"]))
     net = np.where(o["closed"], np.minimum(shares * price * 100 * 1_040_000_000 / 1_150_000_000, 1_040_000_000), 0)
     assert abs(m["offering_proceeds"][1] - net.mean()) <= 1e-5 * net.mean()

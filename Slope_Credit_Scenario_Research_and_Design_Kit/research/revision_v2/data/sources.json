@@ -701,6 +701,36 @@
       }
     },
     {
+      "source_id": "akts_2024_01_29_8k_ex1_1",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024007401/ea192187ex1-1_akoustis.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2024_01_29_8k_ex1_1.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2024_01_29_8k_ex1_1.html",
+      "sha256": "bf5210de350a3155616aaf348c2528f36b95e276e02c60978024402182cfe989",
+      "bytes": 190732,
+      "availability": {
+        "date": "2024-01-29",
+        "precision": "second",
+        "accepted_at": "2024-01-29T16:21:08.000Z",
+        "basis": "EDGAR filing index headers ACCEPTANCE-DATETIME 20240129162108 (accession 0001213900-24-007401, the 8-K of 29 Jan 2024)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2024-01-29"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      },
+      "kit_copy": "The exhibit as EDGAR serves it (EX-1.1 of accession 0001213900-24-007401), unchanged."
+    },
+    {
       "source_id": "akts_2024q3_10q",
       "case_id": "akoustis_qorvo_2024",
       "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024041897/ea0204504-10q_akoustis.htm",

@@ -1273,8 +1273,8 @@ class Forecaster:
         analysis period: one date, or the range across these trajectories."""
         from app.analysis.events import BIG
 
-        names = dict.fromkeys(k for r in rows for k in (r.get("triggers") or {}))
-        out = {}
+        names = dict.fromkeys(k for r in rows for k in (r.get("triggers") or {}) if k != "coupon_cash")
+        out, coupon_cash = {}, []
         for name in names:
             label = TRIGGER_PHRASES.get(name)
             if label is None:
@@ -1285,6 +1285,8 @@ class Forecaster:
                     continue
                 v, day = r["triggers"][name][m], r["day"][m]
                 vals.append(v[(v >= day) & (v < self.days)])
+                if name == "coupon" and "coupon_cash" in r["triggers"]:  # the coupon priced off the path
+                    coupon_cash.append(r["triggers"]["coupon_cash"][m][(v >= day) & (v < self.days)])
                 later |= bool(((v >= self.days) & (v < BIG)).any())
             v = np.concatenate(vals) if vals else np.array([])
             if not v.size:
@@ -1294,20 +1296,27 @@ class Forecaster:
                 label = label.format(since=f" on {self._date(v.min() - 60)}" if v.min() == v.max() else "")
             text = lo if lo == hi else f"between {lo} and {hi} (median {self._date(np.quantile(v, 0.5))})"
             out[label] = text + (", or after the analysis period ends" if later else "") + (
-                self.coupon_amount() if name == "coupon" else "")
+                self.coupon_amount(np.concatenate(coupon_cash) if coupon_cash else None) if name == "coupon" else "")
         return out
 
-    def coupon_amount(self) -> str:
-        """The coupon as the engine books it: the amount due and the part paid in cash (a common borrower input)."""
+    def coupon_amount(self, cash: np.ndarray | None = None) -> str:
+        """The coupon as the engine books it: the amount due and the part paid in cash (a common borrower input);
+        `cash`: the cash part on the question's trajectories where the path prices the shares (one amount, or the
+        range)."""
         from app.analysis.events import Chain
 
         fin = self.instrument()
         if fin is None or not fin.coupon_cents or self.draws is None:
             return ""
         total = fin.coupon_cents
-        cash = Chain(None, self.setup, self.m, self.draws, self.sens, fin=fin).coupon_cash_cents()
-        paid = ("paid in cash" if cash == total else "paid in shares" if cash == 0 else
-                f"{usd(cash)} of it paid in cash and {usd(total - cash)} in shares")
+        if cash is None:
+            cash = Chain(None, self.setup, self.m, self.draws, self.sens, fin=fin).coupon_cash_cents()
+        lo, hi = int(np.min(cash)), int(np.max(cash))
+        if lo == hi:
+            paid = ("paid in cash" if lo == total else "paid in shares" if lo == 0 else
+                    f"{usd(lo)} of it paid in cash and {usd(total - lo)} in shares")
+        else:
+            paid = f"between {usd(lo)} and {usd(hi)} of it paid in cash and the rest in shares"
         return f": {usd(total)} due, {paid}"
 
     def standard(self, node: str) -> list[str]:

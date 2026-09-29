@@ -2,7 +2,7 @@
   "package": "Slope credit-event scenario research and design kit",
   "revision": "2",
   "status": "Research and design; not a built agent or lending application",
-  "primary_catalog_records": 102,
+  "primary_catalog_records": 103,
   "warning": "Build dated agent evidence stores. Do not expose this entire kit, outcomes or evaluator answers to investigator/reviewer runtimes.",
   "files": [
     {
@@ -179,6 +179,11 @@
       "path": "research/recent_cases/akoustis/akts_2024_01_29_8k.html",
       "bytes": 29514,
       "sha256": "1640e51bf00b7f5a33551091b52efd35f3a09219477ca4a7691c80cf1188b598"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_2024_01_29_8k_ex1_1.html",
+      "bytes": 190732,
+      "sha256": "bf5210de350a3155616aaf348c2528f36b95e276e02c60978024402182cfe989"
     },
     {
       "path": "research/recent_cases/akoustis/akts_2024_05_13_8k.html",
@@ -557,8 +562,8 @@
     },
     {
       "path": "research/recent_cases/akoustis/display.json",
-      "bytes": 20347,
-      "sha256": "3994af885bd850820ae02bb9abe047b8b098c624064267e37dacac75eb87ea07"
+      "bytes": 20603,
+      "sha256": "68587a4189d3593f37c37d93b07eceee631fce4fa8890d8f627984871571654b"
     },
     {
       "path": "research/recent_cases/akoustis/qorvo_2024_05_20_8k.html",
@@ -652,8 +657,8 @@
     },
     {
       "path": "research/revision_v2/contracts/dispute_model.json",
-      "bytes": 144884,
-      "sha256": "8a8238e9ed4aa7e78ea59b6b941fbdab8fe32ed579a0989fe1972e36987c9c89"
+      "bytes": 144915,
+      "sha256": "e31dc3d0cb9d5816e955f47f0d53c233125579a4173b359b360c30b232b256c4"
     },
     {
       "path": "research/revision_v2/contracts/economic-effects.json",
@@ -707,8 +712,8 @@
     },
     {
       "path": "research/revision_v2/data/sources.json",
-      "bytes": 124355,
-      "sha256": "f067861b59ec97d7fbecb7dbe9c1c2783140d93d28ea110f5247f746329d92a4"
+      "bytes": 125674,
+      "sha256": "0453571a25779e1a7449d5fc618d8926484b9375e1832e4dd0b5dbe4b2fa4b47"
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
