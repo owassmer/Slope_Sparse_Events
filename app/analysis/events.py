@@ -987,6 +987,12 @@ class Chain:
         self._shares_memo = (key, out)
         return out
 
+    def _eq_key(self) -> tuple:
+        """The at-the-market booking's memo key: the version of what it reads (`_eq_v`) and the per-trajectory share
+        price (`share_price`, set by the verdict on step-9-price; absent: None), an input of its sales."""
+        sp = self.__dict__.get("share_price")
+        return self._eq_v, (sp.tobytes() if isinstance(sp, np.ndarray) else sp)
+
     def _atm_columns(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """The sales settling inside the period, ordered by settlement day, the distinct settlement days and where
         each starts in that order (`_atm_rebook` sums the sales of a day in one pass)."""
@@ -1004,9 +1010,9 @@ class Chain:
         delisting, or once the ledger cannot cover a day's shares (a channel stops when it cannot cover the issuance).
         The proceeds booked before are replaced (receipts, `inflow`). Memoized on what it reads (`_eq_v`): with
         those unchanged it books nothing new."""
-        if not self.equity or self.__dict__.get("_atm_v") == self._eq_v:
+        if not self.equity or self.__dict__.get("_atm_v") == self._eq_key():
             return
-        self._atm_v = self._eq_v
+        self._atm_v = self._eq_key()
         sale, settle, q, net = self._atm_schedule()
         pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
         stop = np.minimum(pet, self.delisted)
@@ -2368,7 +2374,10 @@ class Chain:
                 x = zero.copy()
             else:
                 x = np.where(a[3] != b[3], zero, x)
-        for k in (set(self.__dict__) | set(other.__dict__)) - Chain.SHARED - Chain.UNSEEN:
+        # the per-trajectory share price (step-9-price) is an input of every equity read: compared even if it is
+        # made a shared read-only input; where it differs the chains diverge from day 0 on those draws
+        plain(self.__dict__.get("share_price"), other.__dict__.get("share_price"))
+        for k in (set(self.__dict__) | set(other.__dict__)) - Chain.SHARED - Chain.UNSEEN - {"share_price"}:
             a, b = self.__dict__.get(k), other.__dict__.get(k)
             (dated if k in Chain.DATED else plain)(a, b)
         return np.where(x >= N, BIG, x).astype(np.int64)
