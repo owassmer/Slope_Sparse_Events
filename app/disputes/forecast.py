@@ -1480,12 +1480,18 @@ class _Walk:
         h1 = self.node("holders_act_judgment", phase, s.cls, *earlier, s=s, probe=probe)
         a5 = self.node("petition_on_notes", f"judgment_{phase}", s=s, probe=issuer,
                        assumptions=("the holders accelerate the notes",))
-        h3 = self.node("holders_involuntary", f"judgment_{phase}", s=s, probe=holders,
-                       assumptions=("the notes are accelerated and unpaid", "the issuer does not file"))
-        self.notes_facts(s, ((a5, issuer), (h3, holders)))
-        classes = {"yes": [[(h1, "yes"), (a5, "yes")]],  # the issuer files on acceleration
-                   "holders_file": [[(h1, "yes"), (a5, "no"), (h3, "yes")]],  # the holders file, per §7.06
-                   "accelerated": [[(h1, "yes"), (a5, "no"), (h3, "no")]]}
+        # H3 only where the holders' petition, on the §3.2 route per trajectory, can fall inside the period
+        inside = not self.pend or bool((self.fc.trace(self.d, s.steps + holders).day[-1] < self.N).any())
+        if inside:
+            h3 = self.node("holders_involuntary", f"judgment_{phase}", s=s, probe=holders,
+                           assumptions=("the notes are accelerated and unpaid", "the issuer does not file"))
+            self.notes_facts(s, ((a5, issuer), (h3, holders)))
+            classes = {"yes": [[(h1, "yes"), (a5, "yes")]],  # the issuer files on acceleration
+                       "holders_file": [[(h1, "yes"), (a5, "no"), (h3, "yes")]],  # the holders file, per §7.06
+                       "accelerated": [[(h1, "yes"), (a5, "no"), (h3, "no")]]}
+        else:
+            self.notes_facts(s, ((a5, issuer),))
+            classes = {"yes": [[(h1, "yes"), (a5, "yes")]], "accelerated": [[(h1, "yes"), (a5, "no")]]}
         # a pending claim's default books on its own day (events.py `waits`): its facts come from each whole path
         take = ((lambda st, e, **kw: s.add(st, e, late=s.late + ((h1, len(s.steps)),), **kw)) if self.pend
                 else (lambda st, e, **kw: self.take(s, st, e, (h1,), **kw)))
