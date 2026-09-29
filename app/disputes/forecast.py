@@ -227,8 +227,9 @@ class _Prefix:
     groups: np.ndarray | None = None  # the traced step's option group per draw (events.Chain.option_group; -1: not asked)
 
     @classmethod
-    def of(cls, tr, daily: bool = False) -> _Prefix:
-        """daily: the cash by kind and the incurred days are in the digest too (the processor orders by them)."""
+    def of(cls, tr, daily: bool = False, whole: bool = False) -> _Prefix:
+        """daily: the cash by kind and the incurred days are in the digest too (the processor orders by them); whole:
+        every step's facts (the page's path sequence), not only the traced step's."""
         from app.analysis.events import KINDS, OBLIGATIONS
 
         ev = tr.events
@@ -239,7 +240,7 @@ class _Prefix:
             i = np.flatnonzero(flat)
             h.update(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes())
         h.update(np.ascontiguousarray(ev.petition).tobytes())
-        last = slice(-1, None)  # later steps read only the traced step's own facts (`tr.day[-1]`)
+        last = slice(None) if whole else slice(-1, None)  # later steps read only the traced step's (`tr.day[-1]`)
         return cls(tr.day[last], tr.cash[last], tr.owed[last], tr.collateral[last], ev.petition.copy(), h.digest(),
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
                    tr.triggers, getattr(tr, "raise_offer", None), getattr(tr, "reads", None),
@@ -477,6 +478,14 @@ class Forecaster:
             self._traces.pop(next(iter(self._traces)))
         self._traces[key] = p
         return p
+
+    def whole_trace(self, d: DisputeInstance, steps: tuple) -> _Prefix:
+        """A whole path's trace with every step's facts (not cached: the page reads each path once)."""
+        from app.analysis.events import canon, event_trace
+
+        path = DisputePath(instance_id=d.instance_id, steps=canon(steps), outcome="", edges=())
+        return _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens),
+                          self.setup.cash_processing == "daily", whole=True)
 
     def situation(self, d: DisputeInstance, steps: tuple, conds: list[str], tr: _Prefix | None = None
                   ) -> tuple[set[str], set[str]]:

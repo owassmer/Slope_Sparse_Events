@@ -56,6 +56,8 @@
     return out;
   }
   const hasKey = (k) => k in D.paths.scalars;
+  // a path's weight among all draws: p x the part of the draws it follows (a grouped question forks the path)
+  const SH = D.paths.scalars.share || null, wt = (pr, i) => (SH ? pr[i] * SH[i] : pr[i]);
   const expect = (probs, key) => { const x = D.paths.scalars[key]; if (!x) return null; let s = 0; for (let i = 0; i < P; i++) s += probs[i] * x[i]; return s; };
   const BE = D.bank.edges || [];
   const bankProbs = (get) => BE.map((e) => { let p = 1; for (let j = 0; j < e.length; j += 2) p *= get(e[j])[e[j + 1]]; return p; });
@@ -286,9 +288,9 @@
     for (const g of groups) { g.p = 0; g.c = 0; g.f = 0; g.r = 0; g.s = 0; g.seq = new Map(); }
     const at = new Map(groups.map((g) => [g.k, g]));
     for (let i = 0; i < P; i++) {
-      const g = at.get((V.path || [])[i] ?? -2); g.p += probs[i]; g.c += probs[i] * co[i]; g.f += probs[i] * pp[i];
-      if (ru[i] === 2) g.r += probs[i]; else if (ru[i] === 3) g.s += probs[i];  // J2: reduced (and accepted), set aside
-      const q = D.paths.seq[i]; g.seq.set(q, (g.seq.get(q) || 0) + probs[i]);
+      const g = at.get((V.path || [])[i] ?? -2), w = wt(probs, i); g.p += w; g.c += probs[i] * co[i]; g.f += probs[i] * pp[i];
+      if (ru[i] === 2) g.r += w; else if (ru[i] === 3) g.s += w;  // J2: reduced (and accepted), set aside
+      const q = D.paths.seq[i]; g.seq.set(q, (g.seq.get(q) || 0) + w);
     }
     return groups.filter((g) => g.p > 1e-9);
   }
@@ -396,7 +398,7 @@
   function nodeReach(i) {  // share of outcomes that meet node i: each path's probability is linear in the node's answer
     if (isBank(i)) return 1;
     const qs = D.nodes[i].branches.map((_, b) => pathProbs((k) => (k === i ? D.nodes[i].branches.map((__, c) => +(c === b)) : dist(k))));
-    let r = 0; for (let p = 0; p < P; p++) { let lo = Infinity, hi = -Infinity; for (const q of qs) { if (q[p] < lo) lo = q[p]; if (q[p] > hi) hi = q[p]; } r += hi - lo; }
+    let r = 0; for (let p = 0; p < P; p++) { let lo = Infinity, hi = -Infinity; for (const q of qs) { if (q[p] < lo) lo = q[p]; if (q[p] > hi) hi = q[p]; } r += (hi - lo) * (SH ? SH[p] : 1); }
     return Math.min(1, r / qs.length);
   }
   function effOf(i, at = null) {  // collections and the filing probability at 0%, the current answer (or `at`) and 100% of the selected branch
@@ -493,7 +495,7 @@
   function tree() {
     const pp = D.paths.scalars.petition_p;
     const weigh = (t) => {
-      let m = 0, f = 0; for (const i of t.paths) { m += probs[i]; f += probs[i] * pp[i]; }
+      let m = 0, f = 0; for (const i of t.paths) { m += wt(probs, i); f += probs[i] * pp[i]; }
       const node = { key: t.key, base: t.base, when: t.when, depth: t.depth, mass: m, filed: f, kids: [] };
       const mo = (k) => (k.base === "quiet" ? 98 : MON.indexOf(k.when) < 0 ? 97 : MON.indexOf(k.when));
       const kids = [...t.kids.values()].map(weigh).sort((a, b) => b.mass - a.mass), other = { key: "other", base: "other", when: "", depth: t.depth + 1, mass: 0, filed: 0, kids: [] };
@@ -601,7 +603,7 @@
     const vb = mm.verdict_band, bs = V.branches || [];
     if (vb && V.banded) {
       const amt = vb.amount_cents, k = bs.findIndex((b) => (b.kind === "top" ? amt > b.lo : b.kind === "band" ? amt > b.lo && amt <= b.hi : b.kind === "none" && amt === 0));
-      if (k >= 0) { let p = 0; for (let i = 0; i < P; i++) if (V.path[i] === k) p += probs[i]; out.push(fill(A.verdict, { amount: money(amt), band: bandLabel(bs[k]), p: pct(p) })); }
+      if (k >= 0) { let p = 0; for (let i = 0; i < P; i++) if (V.path[i] === k) p += wt(probs, i); out.push(fill(A.verdict, { amount: money(amt), band: bandLabel(bs[k]), p: pct(p) })); }
     }
     const oc = mm.offering_closed;
     if (oc && RAISED.length) {

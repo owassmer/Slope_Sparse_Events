@@ -123,13 +123,18 @@ def _model_json(m: EventModel) -> dict:
     return {"disputes": {k: d.model_dump(mode="json") for k, d in m.disputes.items()},
             "judgments": {k: asdict(j) for k, j in m.judgments.items()},
             "paths": {i: {c: [{"steps": [list(s) for s in p.steps], "outcome": p.outcome,
-                              "edges": [list(e) for e in p.edges], "cls": p.cls} for p in ps]
+                              "edges": [list(e) for e in p.edges], "cls": p.cls, **_mask_json(p)} for p in ps]
                           for c, ps in cl.items()} for i, cl in m.per.items()},
             "order": [[d.instance_id, parent.instance_id if parent else None] for d, parent in m.order],
             "neutral": m.neutral,
             "bank": {"judgments": {k: asdict(j) for k, j in m.bank_judgments.items()},
                      "paths": [{"steps": [list(s) for s in p.steps], "outcome": p.outcome,
-                                "edges": [list(e) for e in p.edges]} for p in m.bank_paths]}}
+                                "edges": [list(e) for e in p.edges], **_mask_json(p)} for p in m.bank_paths]}}
+
+
+def _mask_json(p: DisputePath) -> dict:
+    """A path's draws (DisputePath.mask, hex), only where it follows some of them (a grouped question's fork)."""
+    return {} if p.mask is None else {"mask": p.mask.hex()}
 
 
 def _judgments(data: dict) -> dict[str, Judgment]:
@@ -141,10 +146,11 @@ def model_from_json(data: dict) -> EventModel:
     disputes = {k: DisputeInstance.model_validate(v) for k, v in data["disputes"].items()}
     judgments = _judgments(data["judgments"])
     bank = data.get("bank") or {"judgments": {}, "paths": []}
+    mask = lambda p: bytes.fromhex(p["mask"]) if p.get("mask") else None  # noqa: E731
     bank_paths = [DisputePath(instance_id=BANK, steps=tuple(tuple(s) for s in p["steps"]), outcome=p["outcome"],
-                              edges=tuple(tuple(e) for e in p["edges"])) for p in bank["paths"]]
+                              edges=tuple(tuple(e) for e in p["edges"]), mask=mask(p)) for p in bank["paths"]]
     per = {i: {c: [DisputePath(instance_id=i, steps=tuple(tuple(s) for s in p["steps"]), outcome=p["outcome"],
-                               edges=tuple(tuple(e) for e in p["edges"]), cls=p["cls"]) for p in ps]
+                               edges=tuple(tuple(e) for e in p["edges"]), cls=p["cls"], mask=mask(p)) for p in ps]
                for c, ps in cl.items()} for i, cl in data["paths"].items()}
     order = [(disputes[i], disputes[p] if p else None) for i, p in data["order"]]
     return EventModel(disputes, judgments, per, order, neutral=data.get("neutral"), bank_paths=bank_paths,

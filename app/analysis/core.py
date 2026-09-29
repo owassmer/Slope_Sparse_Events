@@ -50,7 +50,7 @@ from app.analysis.events import (
 from app.analysis.processor import ARREARS
 from app.analysis.setup import DRAWS, Setup
 from app.analysis.stats import expectation, weighted_quantiles
-from app.disputes.forecast import DisputePath, Judgment, distributions, joint_paths
+from app.disputes.forecast import DisputePath, Judgment, combo_mask, distributions, joint_paths
 from app.disputes.rules import load_model
 from app.domain.investigation import DisputeInstance
 from app.finance.bank import BankFeed
@@ -253,44 +253,63 @@ class Reduction:
         self.hr_count = np.zeros(n)  # headroom values (trajectory x due date) per path, and how many are negative
         self.hr_negative = np.zeros(n)
         self.peak_day = np.zeros(n, dtype=np.int64)  # the day of the highest expected outstanding balance
+        # per path, the draws it follows (DisputePath.mask: a question asked per option group forks the path, each
+        # child on its group's draws); a path weighs p over them, each draw p/n (every draw's paths weigh 1)
+        self.mask = np.ones((n, draws), dtype=bool)
+        self.masked = False
 
-    def add(self, i: int, t: Trajectories, ev: EventCash | None = None) -> None:
-        """Reduce path i's trajectories `t`, run on the event cash `ev` (its equity proceeds, where it books any)."""
+    def add(self, i: int, t: Trajectories, ev: EventCash | None = None, mask: np.ndarray | None = None) -> None:
+        """Reduce path i's trajectories `t`, run on the event cash `ev` (its equity proceeds, where it books any), on
+        the draws it follows (`mask`; None: every draw). Its scalars and per-day figures are sums over those draws
+        divided by the number of draws (so p x scalar is its share of the expectation), its histograms count them."""
+        if mask is not None and mask.all():
+            mask = None
+        on = (lambda a: a) if mask is None else (lambda a: a[mask])  # noqa: E731
+        if mask is not None:
+            self.mask[i], self.masked = mask, True
         scalars = _scalars(t)
         if ev is not None and ev.proceeds is not None:
             scalars.update({k: ev.proceeds[k] for k in PROCEEDS})
         for k, v in scalars.items():
-            self.means.setdefault(k, np.zeros(self.n))[i] = float(v.mean())
+            self.means.setdefault(k, np.zeros(self.n))[i] = float(v.mean()) if mask is None \
+                else float(v[mask].sum()) / len(v)
         self.min_cash[i], self.min_headroom[i], self.collected[i] = t.min_cash, t.min_headroom, t.collected
         if self.need is not None:
             below = t.cash < self.need
             self.floor_day[i] = np.where(below.any(axis=1), below.argmax(axis=1), -1)
-        idx, pet = np.arange(self.days), t.petition[:, None]
+        cash, due, coll, fund, outs = on(t.cash), on(t.due), on(t.collections), on(t.fundings), on(t.outstanding)
+        idx, pet = np.arange(self.days), on(t.petition)[:, None]
         by_day = (pet >= 0) & (pet <= idx)
         window = (pet >= 0) & (idx >= pet - PREFERENCE_DAYS) & (idx < pet)
-        cum_due, cum_coll = np.cumsum(t.due, axis=1), np.cumsum(t.collections, axis=1)
+        cum_due, cum_coll = np.cumsum(due, axis=1), np.cumsum(coll, axis=1)
         d = self.per_day
-        d["cash"][i] = t.cash.sum(axis=0)
-        d["backup"][i] = (t.cash + np.maximum(self.setup.facility_cents - t.capacity, 0)).sum(axis=0)
+        d["cash"][i] = cash.sum(axis=0)
+        d["backup"][i] = (cash + np.maximum(self.setup.facility_cents - on(t.capacity), 0)).sum(axis=0)
         d["collected"][i], d["due_cum"][i] = cum_coll.sum(axis=0), cum_due.sum(axis=0)
-        d["fundings"][i] = t.fundings.sum(axis=0)
+        d["fundings"][i] = fund.sum(axis=0)
         d["drawn"][i] = np.cumsum(d["fundings"][i])
-        d["collections"][i], d["outstanding"][i] = t.collections.sum(axis=0), t.outstanding.sum(axis=0)
-        d["locked"][i], d["capacity"][i] = t.locked.sum(axis=0), t.capacity.sum(axis=0)
+        d["collections"][i], d["outstanding"][i] = coll.sum(axis=0), outs.sum(axis=0)
+        d["locked"][i], d["capacity"][i] = on(t.locked).sum(axis=0), on(t.capacity).sum(axis=0)
         d["petitioned"][i] = by_day.sum(axis=0)
-        d["frozen"][i] = (by_day * t.stayed[:, None]).sum(axis=0)
+        d["frozen"][i] = (by_day * on(t.stayed)[:, None]).sum(axis=0)
         d["past_due"][i] = ((cum_due - cum_coll) * ~by_day).sum(axis=0)
         d["frozen_due"][i] = ((cum_due - cum_coll) * by_day).sum(axis=0)  # frozen installments already due
-        d["clawback"][i] = (t.collections * window).sum(axis=0)
+        d["clawback"][i] = (coll * window).sum(axis=0)
         if t.processed is not None:
-            by_class = t.processed.arrears.sum(axis=0)  # [days, ARREARS]
+            by_class = on(t.processed.arrears).sum(axis=0)  # [days, ARREARS]
             for j, k in enumerate(ARREARS_KEYS):
                 d.setdefault(k, np.zeros((self.n, self.days)))[i] = by_class[:, j]
-        self.counts["cash"].add(self.bins["cash"].flat(t.cash))
+        self.counts["cash"].add(self.bins["cash"].flat(cash))
         self.counts["collected"].add(self.bins["collected"].flat(cum_coll))
-        self.counts["headroom"].add(self.bins["headroom"].flat(t.headroom, self.month_of_day[t.headroom_days]))
-        self.hr_count[i], self.hr_negative[i] = len(t.headroom), float((t.headroom < 0).sum())
+        hr = slice(None) if mask is None else mask[t.headroom_rows]
+        self.counts["headroom"].add(self.bins["headroom"].flat(t.headroom[hr], self.month_of_day[t.headroom_days[hr]]))
+        self.hr_count[i], self.hr_negative[i] = len(t.headroom[hr]), float((t.headroom[hr] < 0).sum())
         self.peak_day[i] = int(np.argmax(d["outstanding"][i]))
+
+    def draw_weights(self, probs: np.ndarray) -> np.ndarray:
+        """Each (path, draw)'s weight, [paths, draws]: p/n on the draws the path follows, else 0."""
+        w = np.asarray(probs, dtype=np.float64)[:, None] / self.draws
+        return w * self.mask if self.masked else np.broadcast_to(w, (len(w), self.draws))
 
     def finish(self) -> Reduction:
         for c in self.counts.values():
@@ -316,7 +335,7 @@ class Reduction:
         probs = np.asarray(probs, dtype=np.float64)
         e = self.expected(probs)
         live = probs > 0  # a zero-weight trajectory never moves a weighted quantile
-        w = np.repeat(probs[live] / self.draws, self.draws)
+        w = self.draw_weights(probs)[live].ravel()
         mq = weighted_quantiles(self.min_cash[live].ravel().astype(np.float64), w, QS)
         # headroom at each due date, pooled over (trajectory, due date), each weighted by its trajectory
         headroom, hw = None, probs @ self.hr_count
@@ -361,7 +380,11 @@ class Reduction:
         """When available cash first falls below the operating need, over the probability-weighted draws: the share
         that reaches it in the period and the median day (None where under half do)."""
         probs = np.asarray(probs, dtype=np.float64)
-        w = np.repeat(probs / probs.sum(), self.draws) / self.draws
+        if self.masked:
+            w = self.draw_weights(probs).ravel()
+            w = w / w.sum()
+        else:
+            w = np.repeat(probs / probs.sum(), self.draws) / self.draws
         day = self.floor_day.ravel()
         reached = day >= 0
         share = float(w[reached].sum())
@@ -375,7 +398,11 @@ class Reduction:
         """P5 / P50 / P95 of collected at the horizon, exact from each trajectory's total."""
         probs = np.asarray(probs, dtype=np.float64)
         live = probs > 0
-        w = np.repeat(probs[live] / probs[live].sum(), self.draws) / self.draws
+        if self.masked:
+            w = self.draw_weights(probs)[live].ravel()
+            w = w / w.sum()
+        else:
+            w = np.repeat(probs[live] / probs[live].sum(), self.draws) / self.draws
         return weighted_quantiles(self.collected[live].ravel().astype(np.float64), w, QS)
 
     def daily(self, probs: np.ndarray, collected_q: bool = True) -> dict:
@@ -495,14 +522,14 @@ class Analysis:
             self.bank_r = make(len(model.bank_combos))
             for i, c in enumerate(model.bank_combos):
                 ev = self._events("bank", i, c)
-                self.bank_r.add(i, run(self.line, self.opening, ev), ev)
+                self.bank_r.add(i, run(self.line, self.opening, ev), ev, combo_mask(c, DRAWS))
             self.bank_r.finish()
             self.r = make(len(model.combos))
             for lo in range(0, len(model.combos), BATCH):  # a few paths at a time: dense arrays dropped once reduced
                 chunk = model.combos[lo:lo + BATCH]
                 evs = [self._events("path", i, c) for i, c in enumerate(chunk, lo)]
                 for i, (t, ev) in enumerate(zip(run_many(self.line, self.opening, evs), evs, strict=True), lo):
-                    self.r.add(i, t, ev)
+                    self.r.add(i, t, ev, combo_mask(model.combos[i], DRAWS))
                     self._tick("simulate", i, len(model.combos))
             self.r.finish()
             self.means = self.r.means
@@ -638,7 +665,7 @@ class Analysis:
         return {"metrics": r.metrics(probs), "daily": r.daily(probs)}
 
     def min_cash_quantile(self, probs: np.ndarray, q: float) -> float:
-        w = np.repeat(np.asarray(probs, dtype=np.float64) / DRAWS, DRAWS)
+        w = self.r.draw_weights(probs).ravel()
         return float(weighted_quantiles(self.r.min_cash.ravel().astype(np.float64), w, (q,))[0])
 
     def views(self, overrides: dict | None = None) -> dict:
@@ -670,7 +697,7 @@ class Analysis:
             rows.append({"index": i, "probability": float(probs[i]),
                          "paths": [{"dispute": p.instance_id, "outcome": p.outcome, "label": path_label(p)} for p in combo],
                          "min_cash_mean_cents": m["min_cash"],
-                         "min_cash_p5_cents": float(np.quantile(self.r.min_cash[i], 0.05)),
+                         "min_cash_p5_cents": float(np.quantile(self.r.min_cash[i][self.r.mask[i]], 0.05)),
                          "lender_pv_cents": m["lender_pv"], "dollar_days": m["dollar_days"],
                          "collected_cents": m["collected"], "stayed_claim_cents": m["stayed"],
                          "preference_exposed_cents": m["preference"], "petition_p": m["petition_p"],

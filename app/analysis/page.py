@@ -10,6 +10,7 @@ would not fit the page.
 from __future__ import annotations
 
 import functools
+from dataclasses import replace
 from datetime import date, timedelta
 
 import numpy as np
@@ -255,19 +256,20 @@ def draw_classes(steps: tuple, marks: dict, days: int) -> np.ndarray:
 
 
 def outcome_shares(steps: tuple, outcome: str, petition_p: float, cause: np.ndarray | None = None,
-                   marks: dict | None = None, days: int | None = None) -> dict[str, float]:
+                   marks: dict | None = None, days: int | None = None, share: float = 1.0) -> dict[str, float]:
     """The path's draws by outcome class at the end of the period, classed by draw, not by path: the draws whose
     petition falls inside the horizon are Filed (by the rule that booked it); the rest are classed by what the engine
     booked on each (`draw_classes`, given the trace's marks), or else by the path's outcome. So the Filed shares,
     weighted by path probability, sum to the bankruptcy probability exactly, and Settled counts only draws that
-    paid a settlement."""
+    paid a settlement. share: the part of the draws the path follows (its mask; `cause` and `marks` are theirs), so
+    the shares sum to it, as its petition_p is a sum over them divided by all draws."""
     rest = {OUTCOME_CLASS.get(outcome, "unresolved"): 1.0}
     if marks is not None and days is not None:
         unfiled = (cause == 0) if cause is not None else np.ones(len(next(iter(marks.values()))), dtype=bool)
         if unfiled.any():
             names, counts = np.unique(draw_classes(steps, marks, days)[unfiled], return_counts=True)
             rest = {str(k): int(c) / int(unfiled.sum()) for k, c in zip(names, counts, strict=True)}
-    out = {k: v * (1.0 - petition_p) for k, v in rest.items()} if petition_p < 1.0 else {}
+    out = {k: v * (share - petition_p) for k, v in rest.items()} if petition_p < share else {}
     if petition_p > 0.0:
         filed = cause[cause > 0] if cause is not None else np.zeros(0)
         if filed.size:  # by the rule that booked each trajectory's earliest petition
@@ -812,6 +814,8 @@ def path_scalars(r) -> dict[str, np.ndarray]:
             "petition_p": np.round(r.means["petition_p"], 4), "clawback": np.rint(r.means["preference"]),
             "stayed": np.rint(r.means["stayed"]),  # owed on the filing day (balance at filing); zero with no filing
             "peak_outstanding": np.rint(r.means["peak_outstanding"]),
+            # the part of the draws each path follows (core.Reduction.mask): p x share weighs a count of paths
+            "share": r.mask.mean(axis=1) if getattr(r, "masked", False) else np.ones(len(r.means["drawn"])),
             "avg_outstanding": np.rint(r.means["avg_outstanding"]),
             # equity proceeds by the horizon (QUESTIONS_20240514 §2.6), where the reduction records them
             **{k: np.rint(r.means[k]) for k in EQUITY if k in r.means}}
@@ -915,9 +919,20 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
     pet = np.round(a.r.means["petition_p"], 4)  # the tile's own per-path values, so Filed sums to the tile exactly
     shares, raised = [], []
     for i, p in enumerate(lead):
-        tr = fc.trace(d0, p.steps) if d0 is not None and p.steps else None
-        sh = outcome_shares(p.steps, p.outcome, float(pet[i]), tr.cause if tr is not None else None,
-                            tr.marks if tr is not None else None, a.days)
+        tr = fc.whole_trace(d0, p.steps) if d0 is not None and p.steps else None
+        # the draws the path follows (core.Reduction.mask: a grouped question's fork); elsewhere nothing is decided
+        # on this path and nothing filed
+        m = a.r.mask[i] if getattr(a.r, "masked", False) and not a.r.mask[i].all() else None
+        if tr is not None and m is not None:
+            from app.analysis.events import BIG
+
+            tr = replace(tr, day=[np.where(m, x, BIG) for x in tr.day], petition=np.where(m, tr.petition, -1),
+                         cause=None if tr.cause is None else np.where(m, tr.cause, 0),
+                         marks=None if tr.marks is None else {k: np.where(m, v, BIG) for k, v in tr.marks.items()})
+        on = (lambda x: x) if m is None else (lambda x, m=m: x[m])  # noqa: E731
+        sh = outcome_shares(p.steps, p.outcome, float(pet[i]), None if tr is None or tr.cause is None else on(tr.cause),
+                            {k: on(v) for k, v in tr.marks.items()} if tr is not None and tr.marks else None, a.days,
+                            share=1.0 if m is None else float(m.mean()))
         shares.append(sh)
         raised.append(close_steps(tr.marks.get("raised") if tr is not None and tr.marks else None, a.days))
         classes.append(max(sh, key=sh.get))  # the main class, for the worst-paths table
@@ -1185,7 +1200,7 @@ def dev_settings() -> list[dict]:
     return json.loads(f.read_text()) if f.exists() else []
 
 
-PAGE_FORMAT = 9  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
+PAGE_FORMAT = 10  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
 def build_dev(settings: dict | None = None, progress=None) -> dict:
