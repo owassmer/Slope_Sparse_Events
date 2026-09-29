@@ -196,6 +196,14 @@
     },
     "indenture_general_nonpayment": {
       "citation": "Indenture §7.01(j)(v): an Event of Default where the Company, within the meaning of Bankruptcy Law, \"generally is not paying its debts as they become due\"; §7.02: \"if an Event of Default specified in clause (j) or (k) of Section 7.01 hereof occurs, all outstanding Notes shall be due and payable immediately without further action or notice.\""
+    },
+    "bond_coverage": {
+      "citation": "A supersedeas bond secures \"the whole amount of the judgment remaining unsatisfied, costs on the appeal, interest, and damages for delay\" (Southern Track & Pump, Inc. v. Terex Corp., C.A. No. 08-543-LPS (D. Del.), quoting Poplar Grove Planting & Ref. Co. v. Bache Halsey Stuart, 600 F.2d 1189, 1191 (5th Cir. 1979)).",
+      "modality": "shall"
+    },
+    "usc18_1836_b3c": {
+      "citation": "18 U.S.C. §1836(b)(3)(C): if the trade secret is willfully and maliciously misappropriated, exemplary damages in an amount not more than 2 times the damages awarded.",
+      "modality": "may"
     }
   },
   "readings": {
@@ -973,7 +981,7 @@
           "pending_money_claim": {
             "residual_question": "forecast_claim_execute_pre_ruling",
             "actor": "{claimant}",
-            "decision": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment, and for its registration in another district, {interval}?",
+            "decision": "Does {claimant} initiate enforcement of the unpaid, unstayed judgment {interval}?",
             "branches": [
               "yes",
               "no"
@@ -1044,7 +1052,7 @@
             "standard": [
               "frcp_62b",
               "stay_reduced_security",
-              "bond_amount"
+              "bond_coverage"
             ],
             "record_items": [
               "the notes' judgment-default terms",
@@ -1113,7 +1121,7 @@
             "standard": [
               "frcp_62b",
               "stay_reduced_security",
-              "bond_amount"
+              "bond_coverage"
             ],
             "record_items": [
               "the company's liquidity and going-concern disclosures"
@@ -1277,7 +1285,7 @@
               "frap_4a4a",
               "frcp_62b",
               "stay_reduced_security",
-              "bond_amount"
+              "bond_coverage"
             ],
             "record_items": [
               "the motions for judgment as a matter of law made at trial",
@@ -2071,7 +2079,7 @@
               "the notes' judgment-default terms",
               "the listing deficiency notices",
               "the company's going-concern and bankruptcy statements",
-              "the company's statements on its liquidity and ability to post security",
+              "the company's statements on its liquidity",
               "the company's statements on the trial",
               "the company's stated plans for its liquidity"
             ],
@@ -2149,7 +2157,7 @@
               "the notes' judgment-default terms",
               "the listing deficiency notices",
               "the company's going-concern and bankruptcy statements",
-              "the company's statements on its liquidity and ability to post security",
+              "the company's statements on its liquidity",
               "the company's statements on the trial",
               "the company's stated plans for its liquidity"
             ],
@@ -2351,7 +2359,7 @@
               "the notes' judgment-default terms",
               "the listing deficiency notices",
               "the company's going-concern and bankruptcy statements",
-              "the company's statements on its liquidity and ability to post security",
+              "the company's statements on its liquidity",
               "the company's statements on the trial"
             ],
             "situation": [
@@ -2604,7 +2612,7 @@
           ],
           "standard": [
             "jury_verdict",
-            "usc18_1836_b3d"
+            "usc18_1836_b3c"
           ],
           "record_items": [
             "the claimant's damages method and figures",

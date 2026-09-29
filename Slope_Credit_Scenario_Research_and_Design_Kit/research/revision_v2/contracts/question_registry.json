@@ -2327,7 +2327,7 @@
       "version": "5.0.0",
       "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment, and for its registration in another district, {interval}?",
+      "question": "Does {claimant} initiate enforcement of the unpaid, unstayed judgment {interval}?",
       "actor": "{claimant}",
       "template": "pending_money_claim",
       "node": "execute_pre_ruling",
@@ -2344,10 +2344,10 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment, and for its registration in another district, {interval}?",
+        "instructions": "Does {claimant} initiate enforcement of the unpaid, unstayed judgment {interval}?",
         "criteria": {
-          "true": "{claimant} applies for a writ of execution and for registration of the judgment in another district {interval}.",
-          "false": "{claimant} makes no application for a writ of execution {interval}."
+          "true": "{claimant} initiates enforcement {interval}: it applies for a writ of execution and for registration of the judgment in another district.",
+          "false": "{claimant} does not initiate enforcement {interval}."
         }
       }
     },
