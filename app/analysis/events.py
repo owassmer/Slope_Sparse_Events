@@ -1594,7 +1594,8 @@ class Chain:
         def atm_to_date(self, day):  # STUB (worker A): net at-the-market proceeds received by the day, cents
             raise NotImplementedError("Chain.atm_to_date (worker A)")
     if "offering_terms" not in locals():
-        def offering_terms(self):  # STUB (worker A): gross, costs, net, price_cents_x1e4, shares, close_days
+        def offering_terms(self, day=None):  # STUB (worker A): gross, costs, net, price_cents_x1e4, shares,
+            # close_days, each [n], at the capacity left on the day
             raise NotImplementedError("Chain.offering_terms (worker A)")
     if "listing_status" not in locals():
         def listing_status(self, day):  # STUB (worker A): listed | hearing_requested | suspended | delisted
@@ -1631,7 +1632,9 @@ class Chain:
                  "band": ("band",), "band_range": ("band_range",), "default_available": ("default_available_day",),
                  "route_days": ("holder_route_days_path",), "remitted": ("remitted_amount",),
                  "listing": ("listing_status", day), "atm": ("atm_to_date", day), "ledger": ("ledger_left", day),
-                 "offering_terms": ("offering_terms",), "offering_pending": ("offering_pending",),
+                 "offering_terms": ("offering_terms", day),
+                 "offering_pending": ("offering_pending_on", day) if hasattr(self, "offering_pending_on")
+                 else ("offering_pending",),
                  "offerings": ("offerings",), "notes_due_day": ("notes_due_day",), "notes_due_how": ("notes_due_how",),
                  "arrears": ("arrears_by_class", day), "first_unpaid": ("first_unpaid",),
                  "nonpayment_day": ("nonpayment_day",)}

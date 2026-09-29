@@ -479,7 +479,8 @@ class Situation:
         t = self._g().at_rep("offering_terms", sit=True)
         if isinstance(t, Awaiting):
             raise Unbuilt(t.name)
-        return t
+        j = self._g().rep[1]  # worker A: each term per trajectory [n], at the capacity left on the day
+        return {k: int(np.asarray(v)[j]) if np.ndim(v) else int(v) for k, v in t.items()}
 
     def offering_terms(self):
         t = self._terms()
