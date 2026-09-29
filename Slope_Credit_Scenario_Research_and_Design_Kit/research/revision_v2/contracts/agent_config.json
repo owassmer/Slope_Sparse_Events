@@ -380,19 +380,19 @@
     ]
   },
   "budgets": {
-    "main_agent_max_turns": 220,
-    "main_investigation_wall_clock_seconds": 1800,
+    "main_agent_max_turns": 320,
+    "main_investigation_wall_clock_seconds": 2700,
     "review_wall_clock_seconds": 300,
-    "total_wall_clock_seconds_including_one_repair": 2400,
+    "total_wall_clock_seconds_including_one_repair": 3300,
     "consecutive_no_progress_actions": 3,
     "no_progress_definition": "An action produces no new eligible evidence, no corrected finding, no resolved/narrowed gap, no new valid patch and no changed sensitivity result. Repeating the same query alone is not progress.",
     "budget_policy": "Ceilings, not targets. Record actual elapsed time, token usage, requests and spend. Finish early when further accessible evidence cannot change the action across the stated sensitivity range.",
     "jev_max_physical_attempts_including_retries": 2000,
     "turn_counting": "A turn is one distinct model response (message_id), counted by the host and enforced by interrupting the session. The SDK's num_turns counts differently and is recorded only for reference.",
-    "sweep_max_physical_attempts_per_snapshot": 9000,
-    "sweep_spend_cap_usd_per_snapshot": "0.60",
+    "sweep_max_physical_attempts_per_snapshot": 12000,
+    "sweep_spend_cap_usd_per_snapshot": "0.90",
     "search_default_results": 8,
-    "jev_budget_note": "Raised from 400 in 4.0.0: a chain run asks the interpretation readings plus one request per residual node and context key (a few hundred requests). Raised for the 14 May run (Owen: caps are settings, never blockers): per-run cap USD 0.30 and 2,000 attempts (the analysis asks ~221 questions); the sweep 9,000 attempts and USD 0.60 for 1,176 sections. Turns and wall clock raised for the slot-filling run (28 Sep 2026): 220 turns, 1,800 s (the agent now fills about 31 record items with attach_record_item)."
+    "jev_budget_note": "Raised from 400 in 4.0.0: a chain run asks the interpretation readings plus one request per residual node and context key (a few hundred requests). Raised for the 14 May run (Owen: caps are settings, never blockers): per-run cap USD 0.30 and 2,000 attempts (the analysis asks ~221 questions); the sweep 9,000 attempts and USD 0.60 for 1,176 sections. Turns and wall clock raised for the slot-filling run (28 Sep 2026): 220 turns, 1,800 s (the agent now fills about 31 record items with attach_record_item). Raised again for the step-9 record items on the 52-source snapshot (28 Sep 2026): 320 turns, 2,700 s (the pending chain names 54 record items); the sweep 12,000 attempts and USD 0.90."
   },
   "completion_and_decisions": {
     "execution_states": [
