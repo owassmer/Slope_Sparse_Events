@@ -10,6 +10,7 @@ cash is never shown negative. The state separates the five kinds the `event_fore
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -119,9 +120,9 @@ STANDING = {"none": "no money judgment has been entered", "unpaid": "unpaid", "s
             "set_aside": "set aside: no money judgment remains", "paid": "paid", "settled": "settled"}
 LISTING = {"listed": "listed", "hearing_requested": "listed; a hearing is requested and suspension is stayed until "
            "the Hearings Panel decides", "suspended": "suspended from trading on Nasdaq", "delisted": "delisted"}
-DUE_HOW = {"declared": "declared due by the holders or the trustee",
-           "automatic_j": "due automatically under §7.02 on a continuing §7.01(j)(v) general-nonpayment default",
-           "repurchase": "the repurchase price is due and unpaid"}
+DUE_HOW = {"declared": "by declaration of the trustee or the holders",
+           "automatic_j": "automatically under §7.02, on a continuing §7.01(j)(v) general-nonpayment default",
+           "repurchase": "on the repurchase date, unpaid"}
 STATUS = {"I1": "the post-trial motions are pending", "I2": "the post-trial motions are decided, or the time for them "
           "has run; the time to appeal is running", "I3": "the time to appeal has expired",
           "I4": "the judgment is stayed on approved security"}
@@ -181,9 +182,8 @@ class Situation:
             return "none: no money judgment has been entered"
         band = self._g().at_rep("band_range", sit=True)
         if band is not None and int(band[0]) != int(band[1]):
-            return (f"a money judgment entered on {when(self.review, entry)}, of an amount between "
-                    f"{usd(int(band[0]))} and {usd(int(band[1]))}")
-        return f"a money judgment of {usd(amount)} entered on {when(self.review, entry)}"
+            return f"an amount between {usd(int(band[0]))} and {usd(int(band[1]))}"
+        return usd(amount)
 
     def judgment_entered_on(self):
         rep, grp = self._sit("entry")
@@ -296,11 +296,11 @@ class Situation:
 
     def security_offered(self):
         kind, amount = self._security()
-        return {"full": f"full bond collateral in cash: {usd(amount)}",
-                "reduced": f"reduced cash security: {usd(amount)}, the company's cash above its operating need for "
-                           f"the next month on the day the court decides",
-                "noncash": "security not in cash, or a waiver of security: no cash is posted",
-                "none": "none available: the company has no cash above its operating need for the next month"}[kind]
+        return {"full": f"full bond collateral of {usd(amount)} in cash",
+                "reduced": f"reduced cash security of {usd(amount)}, its cash above its operating need for the next "
+                           f"month on the day the court decides",
+                "noncash": "security not in cash, or a waiver of security",
+                "none": "none: the company has no cash above its operating need for the next month"}[kind]
 
     def stay_security_required(self):
         return f"bond collateral of {self.collateral_required()}; offered: {self.security_offered()}"
@@ -328,9 +328,7 @@ class Situation:
         mode, count = settlement_terms(self.fc.m, self.fc.sens)
         if mode != "installments":
             return "one payment of the full amount on the settlement date"
-        rep, grp = self._row("settle_offer")
-        return f"{count} equal monthly installments of {money(rep // count, grp // count)}, the first on the " \
-               f"settlement date; the claim is released on the settlement date; no security"
+        return str(count)
 
     def settlement_date(self):
         p = self.fc.m["parameters"]["settlement_date_in_interval"]
@@ -371,7 +369,7 @@ class Situation:
     def notes_status(self):
         due, _ = self._sit("notes_due_day")
         if due <= self.day:
-            return f"due and unpaid since {when(self.review, due)}: {self.notes_due_how()}"
+            return f"due and unpaid since {when(self.review, due)}, {self.notes_due_how()}"
         out = []
         avail, _ = self._sit("default_available")
         if avail <= self.day:
@@ -552,6 +550,45 @@ class Situation:
     threshold = amount_established
 
 
+# the events a question's context tags assume on the path, in the contracts' wording (QUESTIONS §1 Wording: the
+# judgment as entered, no class names); the 20 Jun phrases (forecast.STATE_PHRASES) are untouched
+PHRASES = {"stay_pending": "the company has moved for a stay, not yet decided",
+           "levied": "{claimant} has levied on the company's cash", "unlevied": "no levy on the company's cash so far",
+           "appealed": "the company has appealed", "final": "the time to appeal has expired",
+           "motions_pending": "the post-trial motions are pending",
+           "executing": "{claimant} initiated enforcement before the post-trial ruling",
+           "stay_moved": "the company has moved for a stay", "stayed": "the judgment is stayed on approved security",
+           "paid": "the company has paid the judgment",
+           "notes_due": "the notes are due and unpaid, and no petition has been filed",
+           "delisted": "the stock has been delisted",
+           "cash_exhausted": "the company did not file when its available cash fell below its operating need for "
+                             "the next month",
+           "entered_not_acted": "the holders did not declare the notes due when the judgment default became "
+                                "available"}
+# tags that name a class, an option set or a retired state: the situation states what they stood for
+UNSTATED = {"entered", "pay", "nopay", "raise", "noraise", "after_seek", "seeking", "raised", "claimant_theory",
+            "without_principal_measure"}
+
+
+def assumed_events(tags: list[str], labels: dict, claimant: str, strict: bool = True) -> list[str]:
+    out = []
+    for t in tags:
+        if t in UNSTATED or t.startswith(("amt", "beyond")) or t.endswith("_retrial"):
+            continue
+        if t in labels:
+            out.append(labels[t])
+        elif t in PHRASES:
+            out.append(PHRASES[t].format(claimant=claimant))
+        elif t.startswith("judgment_"):
+            out.append("the notes were declared due on the judgment default")
+        elif t.startswith("delisting_"):
+            out.append("the notes are due after the delisting default")
+        elif strict:
+            raise ValueError(f"No 14 May phrase for decision context {t!r}")
+        else:
+            out.append(f"UNPHRASED ({t})")
+    return out
+
 # --- the state ----------------------------------------------------------------------------------------------------
 
 KIND_OF = {"court ruling": "court_findings", "party argument": "party_assertions",
@@ -607,6 +644,9 @@ def fill_text(text: str, values: dict) -> str:
     return re.sub(r"{(\w+)}", one, text)
 
 
+RANGE = re.compile(r" \(across this situation: [^)]*\)")
+
+
 def cite(fc, t: dict) -> list[str]:
     terms = {k: v for x in fc.m["templates"].values() for k, v in x.get("terms_from_instrument", {}).items()}
     return [fc.m["rules"][r]["citation"] if r in fc.m["rules"] else terms.get(r, r) for r in t["standard"]]
@@ -617,22 +657,22 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     situation's values), the standard, the record items the evidence fills, the situation, and the evidence sorted
     into historical evidence, party assertions and court findings, the events assumed on the path, and the earlier
     readings. `strict` False renders an unbuilt interface value as UNBUILT instead of raising (STATES.md)."""
-    from app.disputes.forecast import PENDING, context_phrases, fmt, registry_entry
+    from app.disputes.forecast import PENDING, fmt, registry_entry
 
     t = fc.texts(n.node, d)
     entry = registry_entry(n.question_id)
     labels = {**fc.m.get("case_labels", {}), **(fc.labels(d) if d.stage == PENDING else {})}
     g = Group.of(rows, masks) if rows else None
     sit = Situation(fc, n, d, g, tags, labels).fill(t["situation"], strict)
-    values = {"company": fc.borrower, "claimant": d.counterparty,
-              **{k: v if isinstance(v, str) else json.dumps(v) for k, v in sit.items()}}
+    values = {"company": fc.borrower, "claimant": d.counterparty,  # the question names the representative's figures
+              **{k: RANGE.sub("", v) if isinstance(v, str) else json.dumps(v) for k, v in sit.items()}}
     crit = entry["prompt"]["criteria"]
     names = dict(zip(["true", "false"], t["branches"], strict=True)) if entry["primitive"] == "noul" else \
         {k: k for k in crit}
     answers = {names[k]: fill_text(v, values) for k, v in crit.items() if names[k] in n.branches}
     kinds, filled, fids = evidence_kinds(fc, n, t, d)
     readings, _ = fc._readings(d, n.question_id)
-    assumed = [*context_phrases([x for x in tags if x in labels], {}, labels), *n.assumptions]
+    assumed = [*assumed_events(tags, labels, d.counterparty, strict), *n.assumptions]
     state = {"case": {"evidence_cutoff": fmt(fc.review), "company": fc.borrower, "counterparty": d.counterparty,
                       "obligation": f"{fc.m['natures'].get(d.nature, d.nature)}, {d.order_reference}"},
              "question": {"actor": fill_text(t["actor"], values), "text": fill_text(entry["prompt"]["instructions"],
