@@ -40,12 +40,14 @@ from app.analysis.events import (
     BIG,
     KINDS,
     OBLIGATIONS,
+    PROCEEDS,
     Basis,
     Draws,
     EventCash,
     bank_trace,
     event_trace,
 )
+from app.analysis.processor import ARREARS
 from app.analysis.setup import DRAWS, Setup
 from app.analysis.stats import expectation, weighted_quantiles
 from app.disputes.forecast import DisputePath, Judgment, distributions, joint_paths
@@ -155,6 +157,9 @@ CASH_BINS, COLLECTED_BINS, HEADROOM_BINS = 128, 128, 1024
 # Per-day sums over draws kept for every path (expectations reweight them exactly).
 DAILY = ("cash", "backup", "collected", "due_cum", "drawn", "fundings", "collections", "outstanding", "locked",
          "capacity", "petitioned", "frozen", "frozen_due", "past_due", "clawback")
+# Under daily processing also each arrears class's sum over draws at each day's end (processor.ARREARS), as
+# per_day['arrears_<class>']; under the equity model each channel's proceeds per draw (events.PROCEEDS), as means.
+ARREARS_KEYS = tuple(f"arrears_{c}" for c in ARREARS)
 
 
 @dataclass
@@ -249,8 +254,12 @@ class Reduction:
         self.hr_negative = np.zeros(n)
         self.peak_day = np.zeros(n, dtype=np.int64)  # the day of the highest expected outstanding balance
 
-    def add(self, i: int, t: Trajectories) -> None:
-        for k, v in _scalars(t).items():
+    def add(self, i: int, t: Trajectories, ev: EventCash | None = None) -> None:
+        """Reduce path i's trajectories `t`, run on the event cash `ev` (its equity proceeds, where it books any)."""
+        scalars = _scalars(t)
+        if ev is not None and ev.proceeds is not None:
+            scalars.update({k: ev.proceeds[k] for k in PROCEEDS})
+        for k, v in scalars.items():
             self.means.setdefault(k, np.zeros(self.n))[i] = float(v.mean())
         self.min_cash[i], self.min_headroom[i], self.collected[i] = t.min_cash, t.min_headroom, t.collected
         if self.need is not None:
@@ -273,6 +282,10 @@ class Reduction:
         d["past_due"][i] = ((cum_due - cum_coll) * ~by_day).sum(axis=0)
         d["frozen_due"][i] = ((cum_due - cum_coll) * by_day).sum(axis=0)  # frozen installments already due
         d["clawback"][i] = (t.collections * window).sum(axis=0)
+        if t.processed is not None:
+            by_class = t.processed.arrears.sum(axis=0)  # [days, ARREARS]
+            for j, k in enumerate(ARREARS_KEYS):
+                d.setdefault(k, np.zeros((self.n, self.days)))[i] = by_class[:, j]
         self.counts["cash"].add(self.bins["cash"].flat(t.cash))
         self.counts["collected"].add(self.bins["collected"].flat(cum_coll))
         self.counts["headroom"].add(self.bins["headroom"].flat(t.headroom, self.month_of_day[t.headroom_days]))
@@ -406,7 +419,8 @@ PACKED_BYTES = 256 * 2**20  # at most this much event cash kept (sparse) from th
 
 def _pack(ev: EventCash, kinds: bool = False) -> tuple:
     """A combo's event cash, sparse (most draws and days book nothing): flat index and value of each non-zero. kinds:
-    also its cash by kind and the obligations' incurred days (the daily processor reads them)."""
+    also its cash by kind and the obligations' incurred days (the daily processor reads them). The equity proceeds
+    per draw (dense, small) ride as they are."""
     xs = [ev.cash, ev.lock, ev.capacity, ev.petition + 1]  # petition: -1 (none) packs as zero
     if kinds:
         split = ev.split()
@@ -417,10 +431,11 @@ def _pack(ev: EventCash, kinds: bool = False) -> tuple:
     for x in xs:
         i = np.flatnonzero(x)
         out += [i.astype(np.int32), x.ravel()[i]]
-    return tuple(out)
+    return tuple(out), ev.proceeds
 
 
-def _unpack(packed: tuple, draws: int, days: int) -> EventCash:
+def _unpack(pk: tuple, draws: int, days: int) -> EventCash:
+    packed, proceeds = pk
     kinds = len(packed) > 8
     ev = EventCash.zeros(draws, days, kinds=kinds)
     for j, x in enumerate((ev.cash, ev.lock, ev.capacity)):
@@ -431,6 +446,7 @@ def _unpack(packed: tuple, draws: int, days: int) -> EventCash:
             np.put(ev.kinds[k], packed[2 * j], packed[2 * j + 1])
         for j, k in enumerate(OBLIGATIONS, 4 + len(KINDS)):
             np.put(ev.incurred[k], packed[2 * j], BIG - packed[2 * j + 1])
+    ev.proceeds = proceeds
     return ev
 
 
@@ -478,14 +494,15 @@ class Analysis:
 
             self.bank_r = make(len(model.bank_combos))
             for i, c in enumerate(model.bank_combos):
-                self.bank_r.add(i, run(self.line, self.opening, self._events("bank", i, c)))
+                ev = self._events("bank", i, c)
+                self.bank_r.add(i, run(self.line, self.opening, ev), ev)
             self.bank_r.finish()
             self.r = make(len(model.combos))
             for lo in range(0, len(model.combos), BATCH):  # a few paths at a time: dense arrays dropped once reduced
                 chunk = model.combos[lo:lo + BATCH]
                 evs = [self._events("path", i, c) for i, c in enumerate(chunk, lo)]
-                for i, t in enumerate(run_many(self.line, self.opening, evs), lo):
-                    self.r.add(i, t)
+                for i, (t, ev) in enumerate(zip(run_many(self.line, self.opening, evs), evs, strict=True), lo):
+                    self.r.add(i, t, ev)
                     self._tick("simulate", i, len(model.combos))
             self.r.finish()
             self.means = self.r.means
@@ -525,7 +542,7 @@ class Analysis:
             ev = self.event_cash(c)
             if self._packed_bytes < PACKED_BYTES:
                 self._packed[(kind, i)] = pk = _pack(ev, self.setup.cash_processing == "daily")
-                self._packed_bytes += sum(x.nbytes for x in pk) + 400
+                self._packed_bytes += sum(x.nbytes for x in (*pk[0], *(pk[1] or {}).values())) + 400
             cum = np.cumsum(ev.cash - ev.lock, axis=1)
             np.minimum(lo_ev, cum.min(axis=0), out=lo_ev)
             np.maximum(hi_ev, cum.max(axis=0), out=hi_ev)

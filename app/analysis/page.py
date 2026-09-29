@@ -9,6 +9,7 @@ would not fit the page.
 
 from __future__ import annotations
 
+import functools
 from datetime import date, timedelta
 
 import numpy as np
@@ -40,6 +41,47 @@ CLASSES = (("filed_enforcement", "Filed: {claimant} enforcement"), ("filed_notes
            ("stayed", "Stayed on appeal"), ("unresolved", "Unresolved"), ("vacated", "Vacated or new trial"))
 OUTCOME_CLASS = {"settled": "settled", "paid": "paid", "stayed": "stayed", "unresolved": "unresolved",
                  "vacated": "vacated", "new_trial": "vacated"}
+
+
+@functools.cache
+def words() -> dict:
+    """The page's vocabulary (app/web/static/words.json): the texts the payload builds here (path steps, situation
+    tags) read it too, so every word the page shows lives in one file."""
+    import json
+
+    from app.config import ROOT
+
+    return json.loads((ROOT / "app/web/static/words.json").read_text())
+
+
+def word(section: str, key: str, **fill) -> str:
+    """One words.json text, its {figure} slots filled ({company} and {claimant} stay for `named`)."""
+    import re
+
+    text = words()[section][key]
+    return re.sub(r"\{(\w+)\}", lambda m: str(fill[m.group(1)]) if m.group(1) in fill else m.group(0), text)
+
+
+def award_parts(label: str) -> tuple[int, int, int | None] | None:
+    """A J1b verdict class ('award:<booked>:<band low>:<band high|top>') or a J2 reduced class
+    ('reduced:<booked>:<low>:<high>') as (booked, low, high; None above the top line); None for another label."""
+    head, _, rest = label.partition(":")
+    if head not in ("award", "reduced") or not rest:
+        return None
+    booked, lo, hi = rest.split(":")
+    return int(booked), int(lo), None if hi == "top" else int(hi)
+
+
+def tag_text(c: str) -> str:
+    """A 14 May situation tag in words (words.json tags), or '' where the tag is not one of them."""
+    import re
+
+    T = words().get("tags", {})
+    if m := re.fullmatch(r"(award|reduced|remit)(\d+)", c):
+        return word("tags", m.group(1), amount=money_round(int(m.group(2))))
+    if m := re.fullmatch(r"floor(\d+)", c):
+        return T["floor"] if m.group(1) in ("", "0") else word("tags", "floor_n", n=int(m.group(1)) + 1)
+    return T.get(c, "")
 
 
 def decider(actor: str) -> str:
@@ -96,8 +138,8 @@ def context_text(context: str, ranges: dict[str, tuple[int, int]]) -> str:
                           "repurchase": "after an unpaid repurchase"}[head]
                          + (f" ({INTERVALS.get(rest, CONTEXT.get(rest, rest))})"
                             if rest and not (head == "judgment" and rest == "I1") else ""))
-        else:
-            parts.append(class_text(c, ranges) or SHORT_TAG.get(c, ""))
+        elif "=" not in c:  # a verdict-form tag (an earlier answer) is the form's own words (form_words)
+            parts.append(class_text(c, ranges) or tag_text(c) or SHORT_TAG.get(c, ""))
     return "; ".join(dict.fromkeys(p for p in parts if p))
 
 
@@ -168,6 +210,10 @@ def short_context(context: str, ranges: dict[str, tuple[int, int]]) -> str:
         elif c in SHORT_TAG:
             rest.append(SHORT_TAG[c])
             when = when or ("After ruling" if c in ("none", "retrial") else "")
+        elif t := tag_text(c):
+            rest.append(t)
+        elif "=" in c:  # a verdict-form tag: the form's own words (form_words)
+            continue
         elif c not in ("pay", "first"):
             rest.append(c.replace("_", " "))
     out = " · ".join(dict.fromkeys(x for x in (when, amount, *rest) if x))
@@ -180,7 +226,8 @@ def filing_cause(steps: tuple) -> str:
         if node in ("debtor_response", "judgment_response") and branch == "file":
             return "filed_enforcement"
         if (node == "judgment_default" and branch in ("yes", "holders_file")) or (
-                node == "delisting_notes" and branch.startswith("petition")):
+                node == "delisting_notes" and branch.startswith("petition")) or (
+                node == "nonpayment" and branch in ("petition", "holders_file")):
             return "filed_notes"
         if node in ("cash_floor", "cash_out") and branch in ("yes", "file"):
             return "filed_cash"
@@ -198,7 +245,8 @@ def draw_classes(steps: tuple, marks: dict, days: int) -> np.ndarray:
     cash falls short, and those trajectories are not Settled or Paid."""
     n = len(next(iter(marks.values())))
     out = np.full(n, "unresolved", dtype=object)
-    vacated = any(s[0] == "ruling" and s[2] in ("none", "retrial") for s in steps)
+    vacated = any(s[0] == "ruling" and s[2] in ("none", "retrial") or s[0] == "post_trial_ruling"
+                  and s[2] == "set_aside" for s in steps)
     for name, cls in (("stayed", "stayed"), ("ruled", "vacated" if vacated else None), ("paid", "paid"),
                       ("settled", "settled")):  # later rows win: a settlement or payment ends a stay
         if cls is not None and name in marks:
@@ -232,6 +280,29 @@ def outcome_shares(steps: tuple, outcome: str, petition_p: float, cause: np.ndar
     return out
 
 
+def close_steps(day: np.ndarray | None, days: int) -> list[list[float]]:
+    """A path's first offering close (the trace's 'raised' mark, per draw) as a step function: [day index, share of
+    the path's draws closed by that day], one pair per distinct close day inside the period; [] for none. The page
+    reads the share closed by any date from it (page.js raisedBy), so the reveal can date the forecast."""
+    if day is None:
+        return []
+    d = np.asarray(day)
+    inside = d[(d >= 0) & (d < days)]
+    if not inside.size:
+        return []
+    at, n = np.unique(inside, return_counts=True)
+    return [[int(t), round(float(c) / d.size, 4)] for t, c in zip(at, np.cumsum(n), strict=True)]
+
+
+def offering_terms(m: dict) -> dict:
+    """An underwritten offering's terms as the model books them (parameter offering_price: January's gross and net,
+    days to close); {} where the model has no offering."""
+    p = m.get("parameters", {}).get("offering_price") or {}
+    if "gross_cents" not in p:
+        return {}
+    return {"gross_cents": int(p["gross_cents"]), "net_cents": int(p["net_cents"]), "close_days": p.get("close_days")}
+
+
 def _when(review: date, day: np.ndarray | None, exact: bool = False) -> str:
     """The median day inside the horizon, as '5 Dec' (exact) or 'Dec'."""
     if day is None:
@@ -255,7 +326,43 @@ FILING = {("debtor_response", "file"): "{company} files", ("judgment_response", 
           ("delisting_notes", "petition_repurchase"): "Notes not bought back as required; filing",
           ("delisting_notes", "petition_repurchase_holders"): "Notes not bought back as required; noteholders file",
           ("cash_floor", "yes"): "{company} files at the cash floor", ("cash_floor", "file"): "{company} files at the cash floor",
-          ("cash_out", "yes"): "{company} files when its cash runs out"}
+          ("cash_out", "yes"): "{company} files when its cash runs out",
+          # the 14 May distress chain (QUESTIONS_20240514 §3.3, D7, D8, D9, H3)
+          ("cash_out", "file"): word("steps", "cash_out_file"),
+          ("nonpayment", "petition"): word("steps", "nonpayment_petition"),
+          ("nonpayment", "holders_file"): word("steps", "nonpayment_holders_file")}
+
+
+def award_phrase(label: str) -> str | None:
+    """A J1b verdict class as a path step: no award, an award in its band, or above the top line."""
+    if label == "no_award":
+        return word("steps", "award_none")
+    parts = award_parts(label)
+    if parts is None or not label.startswith("award"):
+        return None
+    _, lo, hi = parts
+    return word("steps", "award_top", lo=money_round(lo)) if hi is None else word(
+        "steps", "award_band", lo=money_round(lo), hi=money_round(hi))
+
+
+def step_phrase_14(node: str, branch: str) -> str | None:
+    """The 14 May chain's steps (J1b, J2/C3, N1, D6a/D6b, the offering branches, §3.3) in words.json's words."""
+    if node == "verdict":
+        return award_phrase(branch)
+    if node == "post_trial_ruling":
+        if branch.startswith("reduced:"):
+            return word("steps", "ruling_reduced", amount=money_round(award_parts(branch)[0]))
+        return {"unchanged": word("steps", "ruling_unchanged"),
+                "set_aside": word("steps", "ruling_set_aside")}.get(branch)
+    if node == "offering":
+        return word("steps", f"offering_{branch}")
+    if branch == "initiate_offering":
+        return word("steps", "response_offering" if node == "judgment_response" else "initiate_offering")
+    if node == "listing" and branch in ("compliant", "hearing", "suspended"):
+        return word("steps", f"listing_{branch}")
+    if node == "nonpayment" and branch == "due":
+        return word("steps", "nonpayment_due")
+    return None
 
 
 def step_phrase(node: str, ctx: str, branch: str, ranges: dict[str, tuple[int, int]]) -> str | None:
@@ -263,6 +370,8 @@ def step_phrase(node: str, ctx: str, branch: str, ranges: dict[str, tuple[int, i
 
     if (node, branch) in FILING:
         return FILING[(node, branch)]
+    if (text := step_phrase_14(node, branch)) is not None:
+        return text
     if node == "ruling":
         if branch == "none":
             return "Court sets the judgment aside"
@@ -703,7 +812,13 @@ def path_scalars(r) -> dict[str, np.ndarray]:
             "petition_p": np.round(r.means["petition_p"], 4), "clawback": np.rint(r.means["preference"]),
             "stayed": np.rint(r.means["stayed"]),  # owed on the filing day (balance at filing); zero with no filing
             "peak_outstanding": np.rint(r.means["peak_outstanding"]),
-            "avg_outstanding": np.rint(r.means["avg_outstanding"])}
+            "avg_outstanding": np.rint(r.means["avg_outstanding"]),
+            # equity proceeds by the horizon (QUESTIONS_20240514 §2.6), where the reduction records them
+            **{k: np.rint(r.means[k]) for k in EQUITY if k in r.means}}
+
+
+EQUITY = ("atm_proceeds", "offering_proceeds")  # core.Reduction means: net at-the-market and offering proceeds
+ARREARS_PREFIX = "arrears_"  # core.Reduction per_day keys, one per processor.ARREARS class
 
 
 def bridge(bank: dict[str, float], research: dict[str, float]) -> dict[str, float]:
@@ -762,7 +877,10 @@ def chart_view(r, probs: np.ndarray, months: list[tuple[int, int]]) -> dict | No
         return None
     probs = probs / total
     d = r.daily(probs, collected_q=False)
-    return {"daily": {k: d[k] for k in CHART}, "monthly": monthly_table(r, probs, d, months)}
+    arrears = {k.removeprefix(ARREARS_PREFIX): np.rint((probs @ v) / r.draws).astype(np.int64).tolist()
+               for k, v in r.per_day.items() if k.startswith(ARREARS_PREFIX)}  # the daily processor's, by class
+    return {"daily": {k: d[k] for k in CHART}, "monthly": monthly_table(r, probs, d, months),
+            **({"arrears": arrears} if arrears else {})}
 
 
 def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool, stress_rows: list | None = None,
@@ -795,12 +913,13 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
     d0 = model.disputes[lead[0].instance_id] if lead and lead[0].steps else None
     classes, seqs, seq_ix = [], [], {}
     pet = np.round(a.r.means["petition_p"], 4)  # the tile's own per-path values, so Filed sums to the tile exactly
-    shares = []
+    shares, raised = [], []
     for i, p in enumerate(lead):
         tr = fc.trace(d0, p.steps) if d0 is not None and p.steps else None
         sh = outcome_shares(p.steps, p.outcome, float(pet[i]), tr.cause if tr is not None else None,
                             tr.marks if tr is not None else None, a.days)
         shares.append(sh)
+        raised.append(close_steps(tr.marks.get("raised") if tr is not None and tr.marks else None, a.days))
         classes.append(max(sh, key=sh.get))  # the main class, for the worst-paths table
         text = (sequence(p.steps, tr.day, tr.petition, setup.review, a.days, ranges, tr.cause) if tr
                 else "No dispute events")
@@ -848,7 +967,9 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         "settings": [],
         "line": line_block(setup, inputs), "common": common_block(setup),
         "opening_cash_cents": int(getattr(getattr(getattr(fc, "draws", None), "basis", None), "opening", 0) or 0),
-        "verdict": {**vb, "branches": [{**r, "label": named(r["label"], names)} for r in vb["branches"]]} if vb else {},
+        "verdict": {**vb, "branches": [{**r, **({"label": named(r["label"], names)} if "label" in r else {})}
+                                       for r in vb["branches"]]} if vb else {},
+        "financing": {"raised": raised, "terms": offering_terms(m)},
         "dispute": {"trial_started": d0.trial_started.isoformat() if d0 is not None and d0.trial_started else None,
                     "commenced": d0.commenced.isoformat() if d0 is not None and d0.commenced else None,
                     "notes": [{"principal_cents": f.principal_cents, "default_threshold_cents": f.judgment_default_threshold_cents,
@@ -934,6 +1055,10 @@ def verdict_block(fc, d, lead: list) -> dict:
     from app.analysis.events import verdict_amount
 
     names = list(fc.m["templates"]["pending_money_claim"]["verdict_branches"])
+    seen = list(dict.fromkeys(s[2] for p in lead for s in p.steps if s[0] == "verdict"))
+    if any(award_parts(b) for b in seen):  # the 14 May verdict: one row per class the paths list (J1b bands)
+        return {**banded_rows(fc, d, lead, seen), "before": SETTLE.get("I0", "Settles"),
+                "claimed": labels.get("claimed", "")}
     rows = []
     for b in names:
         amts = [verdict_amount(d, fc.m, b, {**(fc.sens or {}), "claimant_enhancements": x}) for x in (False, True)] \
@@ -944,6 +1069,43 @@ def verdict_block(fc, d, lead: list) -> dict:
         v = next((names.index(s[2]) for s in p.steps if s[0] == "verdict" and s[2] in names), None)
         path.append(v if v is not None else -1 if any(s[0] == "settle" and s[2] == "yes" for s in p.steps) else -2)
     return {"branches": rows, "path": path, "before": SETTLE.get("I0", "Settles"), "claimed": labels.get("claimed", "")}
+
+
+RULING = {"unchanged": 1, "reduced": 2, "set_aside": 3}  # verdict.ruling per path (0: no post-trial ruling on it)
+
+
+def banded_rows(fc, d, lead: list, seen: list[str]) -> dict:
+    """The verdict by the classes the paths carry (QUESTIONS_20240514 §4.1 J1b): each row's kind ('none', 'band',
+    'top', or 'other' for a label this page does not parse), band low and high and the amount booked, in ascending
+    order; each path's row (-1 settles before the verdict, -2 no verdict on it); each path's post-trial ruling (J2:
+    RULING) and the amount a reduction books; and the J1b lines (entry-day cash, the top line, the notes'
+    threshold) where the forecaster states them."""
+    rows = []
+    for b in seen:
+        parts = award_parts(b)
+        if b == "no_award":
+            rows.append({"key": b, "kind": "none", "lo": 0, "hi": 0, "booked": 0})
+        elif parts is not None:
+            booked, lo, hi = parts
+            rows.append({"key": b, "kind": "top" if hi is None else "band", "lo": lo, "hi": hi, "booked": booked})
+        else:
+            rows.append({"key": b, "kind": "other", "label": b, "lo": None, "hi": None, "booked": None})
+    for r in rows:  # the row's own path step, as the sequences name it (page.js drops it from what follows)
+        r["step"] = award_phrase(r["key"]) or ""
+    rows.sort(key=lambda r: (r["booked"] is None, r["booked"] or 0))
+    at = {r["key"]: i for i, r in enumerate(rows)}
+    path, ruling, reduced = [], [], []
+    for p in lead:
+        v = next((at[s[2]] for s in p.steps if s[0] == "verdict" and s[2] in at), None)
+        path.append(v if v is not None else -1 if any(s[0] == "settle" and s[2] == "yes" for s in p.steps) else -2)
+        r = next((s[2] for s in p.steps if s[0] == "post_trial_ruling"), "")
+        ruling.append(RULING.get(r.split(":")[0], 0))
+        reduced.append(award_parts(r)[0] if r.startswith("reduced:") else 0)
+    lines = {}
+    if hasattr(fc, "verdict_lines"):
+        eq = fc.equity_inflows(d) if hasattr(fc, "equity_inflows") else None
+        lines = {k: v for k, v in fc.verdict_lines(d, eq).items() if k in ("reach", "top", "threshold")}
+    return {"branches": rows, "path": path, "ruling": ruling, "reduced": reduced, "lines": lines, "banded": True}
 
 
 BANK_LABELS = {"forecast_petition_cash_floor": "The company files at its cash floor",
@@ -1023,7 +1185,7 @@ def dev_settings() -> list[dict]:
     return json.loads(f.read_text()) if f.exists() else []
 
 
-PAGE_FORMAT = 8  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
+PAGE_FORMAT = 9  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
 
 
 def build_dev(settings: dict | None = None, progress=None) -> dict:

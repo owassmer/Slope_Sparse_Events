@@ -36,6 +36,9 @@ MONEY_MOTIONS = {"rule_50b", "rule_52b", "rule_59a", "rule_59e"}
 # reductions of operating outflow (legal spend that stops when the dispute ends: an outflow that stops, not a receipt).
 OBLIGATIONS = ("settlement", "notes_interest", "judgment")
 KINDS = ("inflow", "levy", "reduction", *OBLIGATIONS)
+# The equity proceeds by channel (QUESTIONS_20240514 §2.6), per draw: what each channel booked into `inflow` by the
+# horizon (EventCash.proceeds; core.Reduction means of the same names).
+PROCEEDS = ("atm_proceeds", "offering_proceeds")
 INCURRED_BEFORE = -(10**6)  # incurred before the review date and before the line opened (the notes' indenture, 2022)
 
 
@@ -45,13 +48,15 @@ class EventCash:
     capacity changes (+ commit, - release). Shape [draws, horizon days], integer cents. `petition` [draws] is the
     horizon day index of a bankruptcy petition on that trajectory, or -1 for none. `kinds` splits `cash` by KINDS (they
     sum to it exactly; None: unclassified), and `incurred` gives each obligation kind's incurred day per draw (BIG:
-    none), which orders the day's scheduled obligations."""
+    none), which orders the day's scheduled obligations. `proceeds` gives, per draw, the net cents each equity channel
+    booked (PROCEEDS; None: no equity model)."""
     cash: np.ndarray
     lock: np.ndarray
     capacity: np.ndarray
     petition: np.ndarray
     kinds: dict[str, np.ndarray] | None = None
     incurred: dict[str, np.ndarray] | None = None
+    proceeds: dict[str, np.ndarray] | None = None
 
     @classmethod
     def zeros(cls, draws: int, days: int, kinds: bool = False) -> EventCash:
@@ -79,8 +84,12 @@ class EventCash:
             if x is not None and y is not None:
                 kinds = {k: x[0][k] + y[0][k] for k in KINDS}
                 incurred = {k: np.minimum(x[1][k], y[1][k]) for k in OBLIGATIONS}
+        proceeds = None
+        if self.proceeds is not None or other.proceeds is not None:
+            z = np.zeros(len(petition), dtype=np.int64)
+            proceeds = {k: (self.proceeds or {}).get(k, z) + (other.proceeds or {}).get(k, z) for k in PROCEEDS}
         return EventCash(self.cash + other.cash, self.lock + other.lock, self.capacity + other.capacity, petition,
-                         kinds, incurred)
+                         kinds, incurred, proceeds)
 
 
 @dataclass
@@ -2082,6 +2091,12 @@ class Chain:
         for k in KINDS:
             self.ev.kinds[k][after] = 0
         self._touch()
+        if self.equity:  # each channel's receipts as booked above: the sales settled and the offerings closed before
+            stop = np.where(pet < 0, BIG, pet)  # the petition (nothing after it)
+            atm = np.zeros(self.n, dtype=np.int64) if self._atm is None else np.where(after, 0, self._atm).sum(axis=1)
+            off = sum((np.where(o["closed"] & (o["close"] < stop), o["net"], 0) for o in self._offers),
+                      np.zeros(self.n, dtype=np.int64))
+            self.ev.proceeds = {"atm_proceeds": atm.astype(np.int64), "offering_proceeds": off.astype(np.int64)}
         if self.pending or self.ordinary:  # a dispute that ended (`resolve`) never re-adds its legal spend
             ended = np.arange(self.N)[None, :] >= self.resolved[:, None]
             back = np.where(after & ended, self.basis.legal, 0)
@@ -2212,7 +2227,7 @@ def _copied(v):
         return v
     if isinstance(v, EventCash):
         return EventCash(v.cash.copy(), v.lock.copy(), v.capacity.copy(), v.petition.copy(), _copied(v.kinds),
-                         _copied(v.incurred))
+                         _copied(v.incurred), _copied(v.proceeds))
     if type(v) is dict:
         return {k: _copied(x) for k, x in v.items()}
     if type(v) is list:
