@@ -95,18 +95,17 @@
       "commission_bps": 300,
       "first_sale": "2024-05-14",
       "t1_from": "2024-05-28",
-      "basis": "QUESTIONS_20240514 §2.6 (Scenario): the at-the-market program re-activated on 13 May 2024 sells from 14 May on each trading day while the stock is listed and no petition has been filed, at 20% of the average daily dollar volume from 15 Mar to 14 May 2024 (close x volume over the 42 trading days of akts_daily_px.csv: USD 337,069.43), at the 14 May close (USD 0.44), net of the agents' commission (up to 3%). Proceeds settle two business days after the sale for sales before 28 May 2024 and one business day after it from that date. Whole shares a day: the day's dollar pace over the price. Sensitivities: 10% and 25% of that volume."
+      "basis": "QUESTIONS_20240514 §2.6 (Scenario): the at-the-market program re-activated on 13 May 2024 sells from 14 May on each trading day while the stock is listed and no petition has been filed, at 20% of the average daily dollar volume from 15 Mar to 14 May 2024 (close x volume over the 42 trading days of akts_daily_px.csv: USD 337,069.43), at the day's share price (share_price), net of the agents' commission (up to 3%). Proceeds settle two business days after the sale for sales before 28 May 2024 and one business day after it from that date. Whole shares a day: the day's dollar pace over the 14 May close (USD 0.44). Sensitivities: 10% and 25% of that volume."
     },
     "offering_price": {
       "value": "january_discount",
-      "sensitivity": "half",
       "gross_cents": 1150000000,
       "net_cents": 1040000000,
       "january_price_cents": 50,
       "january_prior_close_cents_x1e4": 704600,
       "close_cents_x1e4": 440000,
       "close_days": 5,
-      "basis": "QUESTIONS_20240514 §2.6, N1 (Scenario): an underwritten offering on the January 2024 terms. Gross USD 11.5M and net USD 10.4M after the underwriting discount and expenses (8-K of 29 Jan 2024). Price: the 14 May 2024 close (USD 0.44) less the January offering's discount to the prior close (USD 0.50 against USD 0.7046 on 24 Jan 2024, 29.0%): USD 0.3122. The shares are the gross over the price; where the share capacity binds, the gross is the shares available times the price and the net bears the costs in proportion. Close: as many days after initiation as January's launch (preliminary prospectus supplement, 24 Jan 2024) to close (29 Jan 2024): 5. Sensitivity: half that price."
+      "basis": "QUESTIONS_20240514 §2.6, N1 (Scenario): an underwritten offering on the January 2024 terms. Gross USD 11.5M and net USD 10.4M after the underwriting discount and expenses (8-K of 29 Jan 2024). Price: the share price on the initiation day (share_price) less the January offering's discount to the prior close (USD 0.50 against USD 0.7046 on 24 Jan 2024, 29.0%). The shares are the gross over the price; where the share capacity binds, the gross is the shares available times the price and the net bears the costs in proportion. Close: as many days after initiation as January's launch (preliminary prospectus supplement, 24 Jan 2024) to close (29 Jan 2024): 5."
     },
     "small_claims_awarded": {
       "value": true,
@@ -117,6 +116,16 @@
       "value": "entered",
       "sensitivity": "post_ruling",
       "basis": "QUESTIONS_20240514 §3.1. Base: the judgment as entered. The §7.01(i) default becomes available 60 days after the Rule 62(a) automatic stay of the judgment as entered ends, where the judgment remains unpaid and undischarged and execution is not effectively stayed throughout; a post-trial ruling does not restart the period, and where it changes the judgment the holders' decision is asked again on the changed judgment. Sensitivity: the post-trial ruling, 60 days from the order disposing of the last tolling motion on the surviving amount, with no earlier opportunity."
+    },
+    "share_price": {
+      "value": "structural",
+      "close_cents": 44,
+      "shares_outstanding": 98669282,
+      "notes_face_cents": 4400000000,
+      "rate_bps": 516,
+      "price_table": "research/recent_cases/akoustis/akts_daily_px_20240514.html",
+      "horizon_years": 1,
+      "basis": "Scenario: after the verdict the share price is set by a structural (Merton) model. Equity is a call on the firm's value with a strike of the notes' face plus the judgment amount owed on the day (the amount as entered, or as the post-trial ruling leaves it, less amounts paid or levied; after a settlement, its installments not yet due), over the horizon. Calibrated (KMV) on data public by 14 May 2024: the firm's value and asset volatility solve equity value = the close x shares outstanding and equity volatility = N(d1) x asset volatility x firm value / equity value. Before the verdict the price is the 14 May close. close_cents: Record: the 14 May 2024 close, USD 0.44 (akts_daily_px_20240514). shares_outstanding: Record: shares outstanding on 8 May 2024 (10-Q of 13 May 2024, cover). notes_face_cents: Record: the convertible notes' principal, USD 44.0M. rate_bps: Record: the 1-year U.S. Treasury par yield on 14 May 2024, 5.16% (U.S. Treasury, Daily Treasury Par Yield Curve Rates, 2024; home.treasury.gov). price_table: Data: equity volatility, the annualised (x 252) sample standard deviation of the daily log returns of the closes over the 240 trading days of the table (1 Jun 2023 to 14 May 2024). horizon_years: Scenario: one year."
     }
   },
   "verdict_form": {
@@ -329,14 +338,6 @@
           "nonpayment_unpaid_share_bps": 5000
         },
         "note": "Changes when the notes fall due because the company generally is not paying its debts. Central: at least a quarter of the bills that fell due in the last 30 days left unpaid. Alternative: at least half."
-      },
-      {
-        "id": "offering_price_half",
-        "label": "Share offering priced at half the central price",
-        "parameters": {
-          "offering_price": "half"
-        },
-        "note": "Changes the price of an underwritten share offering, and so the shares it needs. Central: the 14 May close less the January 2024 offering's discount (about $0.31). Alternative: half that price, so the same proceeds need twice the shares and the remaining authorized shares may run out."
       },
       {
         "id": "small_claims_nothing",
