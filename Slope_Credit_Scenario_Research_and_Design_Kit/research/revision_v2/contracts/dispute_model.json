@@ -178,6 +178,32 @@
     "jury_verdict": {
       "citation": "U.S. Const. amend. VII; Fed. R. Civ. P. 48(b) (a unanimous verdict unless the parties stipulate otherwise) and 49(a) (special verdict): the jury finds each claim by a preponderance of the evidence and fixes the damages the form asks for.",
       "modality": "may"
+    },
+    "frcp_50b_renewal": {
+      "citation": "Fed. R. Civ. P. 50(a)(2): the motion \"must specify the judgment sought and the law and facts that entitle the movant to the judgment.\" Rule 50(b): if the court does not grant a Rule 50(a) motion, the movant may file a renewed motion no later than 28 days after the entry of judgment. The renewed motion is limited to the grounds raised under Rule 50(a): \"A motion for judgment as a matter of law pursuant to Rule 50(b) must be preceded by a Rule 50(a) motion sufficiently specific to afford the party against whom the motion is directed with an opportunity to cure possible defects in proof\" (Lightning Lube, Inc. v. Witco Corp., 4 F.3d 1153, 1172-73 (3d Cir. 1993)); a \"failure to raise an issue in a Rule 50(a)(2) motion with sufficient specificity to put the plaintiffs on notice waives the defendant's right to raise the issue in their Rule 50(b) motion\" (Williams v. Runyon, 130 F.3d 568, 571-72 (3d Cir. 1997)). A party that does not renew under Rule 50(b) has no sufficiency challenge on appeal (Unitherm Food Sys., Inc. v. Swift-Eckrich, Inc., 546 U.S. 394 (2006)).",
+      "modality": "may",
+      "value": 28,
+      "unit": "days"
+    },
+    "stay_reduced_security": {
+      "citation": "Fed. R. Civ. P. 62(b): \"At any time after judgment is entered, a party may obtain a stay by providing a bond or other security.\" Courts may forego the bond \"when there are other means to secure the judgment creditor's interests\" (In re Diet Drugs Prods. Liab. Litig., 582 F.3d 524, 552 (3d Cir. 2009)). In \"extraordinary circumstances\" a court may waive the full bond where \"posting a full bond is impossible or impracticable\" and alternative means \"provide adequate (or as adequate as possible) security\" for the judgment creditor's interest (Praxis Energy Agents Pte. Ltd. v. M/V Pebble Beach, C.A. No. 17-559-LPS (D. Del. Dec. 6, 2021), citing Grand Entm't Grp., Ltd. v. Star Media Sales, Inc., 1992 WL 114953, at *2 (E.D. Pa. May 18, 1992))."
+    },
+    "nasdaq_bid_price": {
+      "citation": "Nasdaq Rule 5550(a)(2): a minimum bid price of $1 per share. Rule 5810(c)(3)(A): compliance is regained when the closing bid price is at least $1.00 for a minimum of 10 consecutive business days within the compliance period; a company that does not regain compliance receives a Staff Delisting Determination."
+    },
+    "dgcl_242_reverse_split": {
+      "citation": "8 Del. C. §242: a reverse stock split is an amendment of the certificate of incorporation, adopted by the board and approved by the stockholders at a meeting; §242(d)(2): for stock listed on a national securities exchange that meets its listing requirements after the split, the votes cast for the amendment exceed the votes cast against it. 8 Del. C. §222(b): notice of the meeting not less than 10 nor more than 60 days before it. SEC Rule 14a-6(a): a preliminary proxy statement filed at least 10 calendar days before the definitive statement."
+    },
+    "indenture_general_nonpayment": {
+      "citation": "Indenture §7.01(j)(v): an Event of Default where the Company, within the meaning of Bankruptcy Law, \"generally is not paying its debts as they become due\"; §7.02: \"if an Event of Default specified in clause (j) or (k) of Section 7.01 hereof occurs, all outstanding Notes shall be due and payable immediately without further action or notice.\""
+    },
+    "bond_coverage": {
+      "citation": "A supersedeas bond secures \"the whole amount of the judgment remaining unsatisfied, costs on the appeal, interest, and damages for delay\" (Southern Track & Pump, Inc. v. Terex Corp., C.A. No. 08-543-LPS (D. Del.), quoting Poplar Grove Planting & Ref. Co. v. Bache Halsey Stuart, 600 F.2d 1189, 1191 (5th Cir. 1979)).",
+      "modality": "shall"
+    },
+    "usc18_1836_b3c": {
+      "citation": "18 U.S.C. §1836(b)(3)(C): if the trade secret is willfully and maliciously misappropriated, exemplary damages in an amount not more than 2 times the damages awarded.",
+      "modality": "may"
     }
   },
   "readings": {
@@ -951,7 +977,36 @@
           ],
           "residual_question": "forecast_execution_pending_motions",
           "situation": {},
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_execute_pre_ruling",
+            "actor": "{claimant}",
+            "decision": "Does {claimant} initiate enforcement of the unpaid, unstayed judgment {interval}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frcp_62a",
+              "frcp_69a",
+              "usc28_1963",
+              "usc11_362",
+              "usc11_547"
+            ],
+            "record_items": [
+              "the company's assets and going-concern disclosures",
+              "the relief the claimant seeks, including a permanent injunction, and its filings on it",
+              "the parties' competitive relationship"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_entered_on",
+              "amount_owed",
+              "judgment_status",
+              "interval",
+              "available_cash"
+            ]
+          }
         },
         "stay_motion": {
           "actor": "judgment debtor",
@@ -985,7 +1040,37 @@
             "appealed": "Rule 62(b): security for a stay pending appeal; the actor's own earlier act",
             "levied": "Rule 62(b): a stay takes effect when the court approves the security and stops further execution; a completed levy reduces the amount a stay protects"
           },
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_stay_motion",
+            "actor": "{company}",
+            "decision": "Does {company} move for a stay of execution by {motion_date}, offering {security_offered} as security?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frcp_62b",
+              "stay_reduced_security",
+              "bond_coverage"
+            ],
+            "record_items": [
+              "the notes' judgment-default terms",
+              "the company's liquidity and going-concern disclosures"
+            ],
+            "situation": [
+              "judgment_amount",
+              "amount_owed",
+              "judgment_status",
+              "available_cash",
+              "operating_need_30_days",
+              "bond_required",
+              "collateral_required",
+              "security_offered",
+              "enforcement_dated",
+              "motion_date"
+            ]
+          }
         },
         "stay_approved": {
           "actor": "court",
@@ -1024,7 +1109,34 @@
           "timing_parameters": [
             "ruling_lag_days",
             "briefing_days_new_motion"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_stay_approved",
+            "actor": "court",
+            "decision": "Does the court grant {company}'s requested stay of execution on {security_offered}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frcp_62b",
+              "stay_reduced_security",
+              "bond_coverage"
+            ],
+            "record_items": [
+              "the company's liquidity and going-concern disclosures"
+            ],
+            "situation": [
+              "judgment_amount",
+              "amount_owed",
+              "judgment_status",
+              "available_cash",
+              "operating_need_30_days",
+              "bond_required",
+              "collateral_required",
+              "security_offered"
+            ]
+          }
         },
         "registration_early": {
           "actor": "court",
@@ -1058,7 +1170,29 @@
           "timing_parameters": [
             "ruling_lag_days",
             "levy_lag_days"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_registration_early",
+            "actor": "court",
+            "decision": "Does the court grant {claimant}'s application to register the judgment in another district before the judgment is final?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "usc28_1963"
+            ],
+            "record_items": [
+              "where the company and its subsidiaries are organised and operate, and their properties",
+              "the company's cash and going-concern disclosures"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_entered_on",
+              "judgment_status",
+              "available_cash"
+            ]
+          }
         },
         "debtor_response": {
           "actor": "judgment debtor",
@@ -1137,7 +1271,38 @@
           "situation": {
             "stayed": "Rule 62(b): a stay in place protects the company while its appeal is pending"
           },
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_appeal",
+            "actor": "{company}",
+            "decision": "Does {company} file a notice of appeal from the judgment by {appeal_deadline}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frap_4a1a",
+              "frap_4a4a",
+              "frcp_62b",
+              "stay_reduced_security",
+              "bond_coverage"
+            ],
+            "record_items": [
+              "the motions for judgment as a matter of law made at trial",
+              "the court's rulings on the Rule 50(a) motions",
+              "the notes' judgment-default terms",
+              "the company's statements on contesting the claims"
+            ],
+            "situation": [
+              "post_trial_ruling",
+              "judgment_amount",
+              "amount_owed",
+              "available_cash",
+              "operating_need_30_days",
+              "stay_security_required",
+              "appeal_deadline"
+            ]
+          }
         },
         "enforce_after_final": {
           "actor": "judgment creditor",
@@ -1171,7 +1336,35 @@
             "executing": "the actor's own earlier act",
             "levied": "the actor's own earlier act"
           },
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_enforce_after_final",
+            "actor": "{claimant}",
+            "decision": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment {interval}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frcp_69a",
+              "usc28_1963",
+              "usc11_362",
+              "usc11_547"
+            ],
+            "record_items": [
+              "the company's assets and going-concern disclosures",
+              "the relief the claimant seeks, including a permanent injunction, and its filings on it",
+              "the parties' competitive relationship"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_entered_on",
+              "amount_owed",
+              "judgment_status",
+              "interval",
+              "available_cash"
+            ]
+          }
         },
         "settlement_offer": {
           "actor": "judgment debtor",
@@ -1206,7 +1399,38 @@
           },
           "timing_parameters": [
             "settlement_date_in_interval"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_settlement_offer",
+            "actor": "{company}",
+            "decision": "Does {company} offer {claimant} a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security, {interval}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [],
+            "record_items": [
+              "the claimant's itemised claims",
+              "the company's going-concern and financing disclosures",
+              "the notes' judgment-default terms",
+              "the company's statements on settlement",
+              "the company's own claims against the claimant",
+              "the relief the claimant seeks, including a permanent injunction",
+              "the parties' competitive relationship"
+            ],
+            "situation": [
+              "interval",
+              "claimed_amounts",
+              "judgment_amount",
+              "judgment_standing",
+              "amount_owed",
+              "available_cash",
+              "operating_need_30_days",
+              "settlement_amount",
+              "installments",
+              "settlement_date"
+            ]
+          }
         },
         "settlement_accept": {
           "actor": "judgment creditor",
@@ -1239,7 +1463,37 @@
             "stay_moved": "Rule 62(b): the stay takes effect when the court approves the bond or other security; a pending stay motion does not suspend execution",
             "appealed": "an appeal puts the judgment at risk for both parties"
           },
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_settlement_accept",
+            "actor": "{claimant}",
+            "decision": "Does {claimant} accept, by {settlement_date}, {company}'s offer of a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "usc11_362"
+            ],
+            "record_items": [
+              "the company's going-concern and debt disclosures",
+              "the notes' terms",
+              "the relief the claimant seeks, including a permanent injunction, and its filings on it",
+              "the parties' competitive relationship"
+            ],
+            "situation": [
+              "interval",
+              "claimed_amounts",
+              "judgment_amount",
+              "judgment_standing",
+              "amount_owed",
+              "available_cash",
+              "operating_need_30_days",
+              "settlement_amount",
+              "installments",
+              "settlement_date"
+            ]
+          }
         }
       }
     },
@@ -1294,7 +1548,37 @@
           },
           "timing_parameters": [
             "holder_notice_lag_days"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_holders_act_judgment",
+            "actor": "the trustee or the holders of at least 25% in principal amount of the notes",
+            "decision": "Do the trustee or the holders of at least 25% in principal amount of the notes give notice of the judgment default and declare the notes due by {declaration_deadline}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "judgment_default",
+              "acceleration",
+              "indenture_limitation_on_suits",
+              "usc11_362"
+            ],
+            "record_items": [
+              "the company's going-concern and debt disclosures",
+              "the holders of record of the notes",
+              "the notes' interest payment record"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_standing",
+              "days_unpaid_and_unstayed",
+              "default_available_on",
+              "declaration_deadline",
+              "available_cash",
+              "arrears",
+              "notes_principal"
+            ]
+          }
         },
         "holders_act_delisting": {
           "actor": "holders",
@@ -1330,7 +1614,36 @@
             "paid": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now",
             "stayed": "the issuer's other liabilities and resources bear on what the holders can recover and on the value of acting now"
           },
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_holders_act_delisting",
+            "actor": "the trustee or the holders of at least 25% in principal amount of the notes",
+            "decision": "After the delisting default, do the trustee or the holders of at least 25% in principal amount of the notes declare the notes due by {declaration_deadline}?",
+            "branches": [
+              "accelerate",
+              "neither"
+            ],
+            "standard": [
+              "listing_default",
+              "acceleration",
+              "repurchase",
+              "indenture_limitation_on_suits",
+              "usc11_362"
+            ],
+            "record_items": [
+              "the company's going-concern and debt disclosures",
+              "the holders of record of the notes",
+              "the notes' interest payment record"
+            ],
+            "situation": [
+              "delisted_on",
+              "declaration_deadline",
+              "repurchase_date",
+              "notes_principal",
+              "available_cash",
+              "judgment_standing"
+            ]
+          }
         },
         "petition_on_notes": {
           "actor": "issuer",
@@ -1369,7 +1682,33 @@
           },
           "timing_parameters": [
             "petition_lag_days"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_petition_on_notes",
+            "actor": "{company}",
+            "decision": "Does {company} file a voluntary petition on {decision_date}, the day the notes' principal and interest of {notes_balance_due} become due {notes_due_how}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "acceleration",
+              "indenture_general_nonpayment",
+              "usc11_362"
+            ],
+            "record_items": [
+              "the company's going-concern and bankruptcy statements"
+            ],
+            "situation": [
+              "decision_date",
+              "notes_balance_due",
+              "notes_due_how",
+              "judgment_standing",
+              "available_cash",
+              "arrears",
+              "days_of_continuous_arrears"
+            ]
+          }
         },
         "holders_involuntary": {
           "actor": "noteholders (three or more)",
@@ -1406,7 +1745,32 @@
           },
           "timing_parameters": [
             "petition_lag_days"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_holders_involuntary",
+            "actor": "noteholders",
+            "decision": "Do noteholders with claims for the notes due, qualifying under 11 U.S.C. §303(b), file an involuntary petition against {company} on {decision_date}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "indenture_limitation_on_suits",
+              "indenture_right_to_payment",
+              "usc11_303b"
+            ],
+            "record_items": [
+              "the holders of record of the notes"
+            ],
+            "situation": [
+              "decision_date",
+              "notes_balance_due",
+              "notes_due_how",
+              "petition_route",
+              "available_cash",
+              "arrears"
+            ]
+          }
         },
         "reverse_split_board": {
           "actor": "board",
@@ -1553,6 +1917,60 @@
           },
           "timing_parameters": [],
           "since": "4.1.0"
+        },
+        "bid_compliance": {
+          "residual_question": "forecast_bid_compliance",
+          "actor": "{company}",
+          "decision": "By {compliance_deadline}, does {company} regain compliance with the $1.00 minimum bid price requirement, a closing bid of at least $1.00 for 10 consecutive business days, by a reverse stock split or a rise in the price?",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "standard": [
+            "nasdaq_bid_price",
+            "dgcl_242_reverse_split"
+          ],
+          "record_items": [
+            "the listing deficiency notices",
+            "the closing bid prices",
+            "the company's stated options to regain compliance",
+            "the latest stockholder vote on a charter amendment",
+            "the authorized and outstanding shares"
+          ],
+          "situation": [
+            "bid_price_on_review_date",
+            "compliance_deadline",
+            "reverse_split_time",
+            "judgment_standing",
+            "available_cash",
+            "notes_status"
+          ],
+          "since": "5.0.0"
+        },
+        "hearing_request": {
+          "residual_question": "forecast_hearing_request",
+          "actor": "{company}",
+          "decision": "Does {company} request a hearing before a Nasdaq Hearings Panel by {hearing_request_deadline}, within 7 days of the staff's delisting determination?",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "standard": [
+            "nasdaq_5815_hearing_stay",
+            "listing_default"
+          ],
+          "record_items": [
+            "the listing deficiency notices",
+            "the company's statements on its listing"
+          ],
+          "situation": [
+            "determination_date",
+            "hearing_request_deadline",
+            "judgment_standing",
+            "available_cash",
+            "notes_status"
+          ],
+          "since": "5.0.0"
         }
       },
       "listing_route": {
@@ -1642,7 +2060,41 @@
           },
           "timing_parameters": [
             "petition_lag_days"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_petition_cash_out",
+            "actor": "{company}",
+            "decision": "On {decision_date}, the first day an obligation goes unpaid, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+            "branches": [
+              "initiate_offering",
+              "file",
+              "neither"
+            ],
+            "standard": [
+              "usc11_362",
+              "indenture_general_nonpayment"
+            ],
+            "record_items": [
+              "the company's shelf registration, at-the-market program and prior underwritten offerings",
+              "the notes' judgment-default terms",
+              "the listing deficiency notices",
+              "the company's going-concern and bankruptcy statements",
+              "the company's statements on its liquidity",
+              "the company's statements on the trial",
+              "the company's stated plans for its liquidity"
+            ],
+            "situation": [
+              "decision_date",
+              "floor_decision",
+              "available_cash",
+              "unpaid_obligation",
+              "arrears",
+              "notes_status",
+              "judgment_standing",
+              "offering_terms",
+              "offering_unavailable_reason"
+            ]
+          }
         },
         "financing_at_floor": {
           "actor": "the company",
@@ -1687,7 +2139,78 @@
             "petition_lag_days",
             "raise_days"
           ],
-          "since": "4.1.0"
+          "since": "4.1.0",
+          "pending_money_claim": {
+            "residual_question": "forecast_financing_at_floor",
+            "actor": "{company}",
+            "decision": "On {decision_date}, when its available cash of {available_cash} falls below its operating need of {operating_need_30_days} for the next month, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+            "branches": [
+              "initiate_offering",
+              "file",
+              "neither"
+            ],
+            "standard": [
+              "usc11_362"
+            ],
+            "record_items": [
+              "the company's shelf registration, at-the-market program and prior underwritten offerings",
+              "the notes' judgment-default terms",
+              "the listing deficiency notices",
+              "the company's going-concern and bankruptcy statements",
+              "the company's statements on its liquidity",
+              "the company's statements on the trial",
+              "the company's stated plans for its liquidity"
+            ],
+            "situation": [
+              "decision_date",
+              "available_cash",
+              "operating_need_30_days",
+              "atm_proceeds_to_date",
+              "judgment_standing",
+              "notes_status",
+              "listing_status",
+              "share_capacity_left",
+              "offering_terms",
+              "offering_unavailable_reason"
+            ]
+          }
+        },
+        "offering_closes": {
+          "residual_question": "forecast_offering_closes",
+          "actor": "{company}",
+          "decision": "Does the specified offering close by {close_date}, delivering {net_proceeds} net on the stated terms?",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "standard": [],
+          "record_items": [
+            "the company's prior underwritten offering: its terms, discount to the prior close and underwriter",
+            "the daily price and trading volume",
+            "the company's shelf registration and share capacity",
+            "the at-the-market program and its re-activation",
+            "the company's statements on its liquidity and going concern",
+            "counsel's statement on the ability to raise money"
+          ],
+          "situation": [
+            "initiated_on",
+            "close_date",
+            "gross_proceeds",
+            "issuance_costs",
+            "net_proceeds",
+            "offer_price",
+            "shares_offered",
+            "earlier_attempts",
+            "judgment_standing",
+            "available_cash",
+            "arrears",
+            "atm_proceeds_to_date",
+            "listing_status",
+            "listing_deadline",
+            "notes_status",
+            "share_capacity_left"
+          ],
+          "since": "5.0.0"
         }
       }
     },
@@ -1714,8 +2237,9 @@
       ],
       "asks": [
         "verdict_finding",
-        "verdict_measure",
+        "verdict_amount",
         "post_trial_ruling",
+        "remittitur_elected",
         "stay_approved",
         "registration_early",
         "execute_pre_ruling",
@@ -1726,8 +2250,10 @@
         "settlement_offer",
         "stay_motion",
         "appeal",
-        "listing_kept",
+        "bid_compliance",
+        "hearing_request",
         "financing_at_floor",
+        "offering_closes",
         "petition_cash_out",
         "petition_on_notes",
         "holders_act_judgment",
@@ -1812,7 +2338,44 @@
             "levy_lag_days",
             "petition_lag_days"
           ],
-          "since": "4.1.0"
+          "since": "4.1.0",
+          "pending_money_claim": {
+            "residual_question": "forecast_judgment_response",
+            "actor": "{company}",
+            "decision": "What does {company} do on {decision_date}, {occasion}: pay the judgment balance of {amount_owed} in full, initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or none of these?",
+            "branches": [
+              "pay",
+              "initiate_offering",
+              "file",
+              "none"
+            ],
+            "standard": [
+              "frcp_62a",
+              "frcp_69a",
+              "usc11_362"
+            ],
+            "record_items": [
+              "the company's shelf registration, at-the-market program and prior underwritten offerings",
+              "the notes' judgment-default terms",
+              "the listing deficiency notices",
+              "the company's going-concern and bankruptcy statements",
+              "the company's statements on its liquidity",
+              "the company's statements on the trial"
+            ],
+            "situation": [
+              "decision_date",
+              "occasion",
+              "judgment_amount",
+              "judgment_standing",
+              "amount_owed",
+              "available_cash",
+              "operating_need_30_days",
+              "offering_terms",
+              "share_capacity_left",
+              "notes_status",
+              "listing_status"
+            ]
+          }
         },
         "post_trial_motions": {
           "actor": "judgment debtor",
@@ -1841,7 +2404,34 @@
           "residual_question": "forecast_post_trial_motions",
           "situation": {},
           "timing_parameters": [],
-          "since": "4.1.0"
+          "since": "4.1.0",
+          "pending_money_claim": {
+            "residual_question": "forecast_post_trial_motions",
+            "actor": "{company}",
+            "decision": "Does {company} file a motion under Rule 50(b) or Rule 59 challenging the judgment by {motion_deadline}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frcp_50b_59_deadline",
+              "frcp_50b_renewal",
+              "frcp_59a"
+            ],
+            "record_items": [
+              "the motions for judgment as a matter of law made at trial",
+              "the court's rulings on the Rule 50(a) motions",
+              "the notes' judgment-default terms",
+              "the company's statements on contesting the claims"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_entered_on",
+              "motion_deadline",
+              "available_cash",
+              "operating_need_30_days"
+            ]
+          }
         },
         "post_trial_ruling": {
           "actor": "court",
@@ -1874,7 +2464,39 @@
           "timing_parameters": [
             "ruling_lag_days"
           ],
-          "since": "4.1.0"
+          "since": "4.1.0",
+          "pending_money_claim": {
+            "residual_question": "forecast_post_trial_ruling",
+            "actor": "court",
+            "decision": "How does the court dispose of the pending post-trial motions as to the money judgment of {judgment_amount} entered on {judgment_entered_on}?",
+            "branches": [
+              "unchanged",
+              "reduced",
+              "set_aside"
+            ],
+            "standard": [
+              "frcp_50b_renewal",
+              "jmol_standard",
+              "frcp_59a",
+              "remittitur"
+            ],
+            "record_items": [
+              "the motions for judgment as a matter of law made at trial",
+              "the court's rulings on the Rule 50(a) motions",
+              "the rulings that narrow the issues for trial",
+              "the court's rulings admitting or limiting the damages evidence",
+              "the claimant's damages method and figures",
+              "the challenges to the damages method"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_entered_on",
+              "pending_motions",
+              "grounds_preserved",
+              "reduced_low",
+              "reduced_high"
+            ]
+          }
         },
         "verdict_finding": {
           "actor": "jury",
@@ -1911,7 +2533,37 @@
           ],
           "residual_question": "forecast_verdict_finding",
           "situation": {},
-          "since": "4.1.0"
+          "since": "4.1.0",
+          "pending_money_claim": {
+            "residual_question": "forecast_verdict_finding",
+            "actor": "jury",
+            "decision": "Does the jury answer {form_item} of the verdict form “Yes”?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "jury_verdict"
+            ],
+            "record_items": [
+              "the final verdict form",
+              "the preliminary jury instructions",
+              "the parties' proposed final jury instructions on each claim's elements and burdens",
+              "the rulings that narrow the issues for trial",
+              "the limiting instructions",
+              "each side's statement of intended proof",
+              "the witness and exhibit lists",
+              "the trial docket",
+              "the motions for judgment as a matter of law made at trial",
+              "the company's statements on the trial"
+            ],
+            "situation": [
+              "form_item",
+              "form_question",
+              "answer_rule",
+              "earlier_answers"
+            ]
+          }
         },
         "verdict_measure": {
           "actor": "jury",
@@ -1949,6 +2601,64 @@
           "residual_question": "forecast_verdict_measure",
           "situation": {},
           "since": "4.1.0"
+        },
+        "verdict_amount": {
+          "residual_question": "forecast_verdict_amount",
+          "actor": "jury",
+          "decision": "Does the amount entered on {form_item} of the verdict form exceed {threshold}?",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "standard": [
+            "jury_verdict",
+            "usc18_1836_b3c"
+          ],
+          "record_items": [
+            "the claimant's damages method and figures",
+            "the ruling admitting the claimant's damages evidence",
+            "the revenue base left to the jury",
+            "the defense's damages positions as admitted",
+            "the parties' proposed jury instructions on unjust enrichment, actual loss and exemplary damages",
+            "the limiting instructions",
+            "the rulings that narrow the issues for trial",
+            "the final verdict form",
+            "the record on actual loss",
+            "the company's statements on the likely award"
+          ],
+          "situation": [
+            "form_item",
+            "form_question",
+            "earlier_answers",
+            "amount_established",
+            "threshold"
+          ],
+          "since": "5.0.0"
+        },
+        "remittitur_elected": {
+          "residual_question": "forecast_remittitur_elected",
+          "actor": "{claimant}",
+          "decision": "Does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "standard": [
+            "remittitur",
+            "frcp_59a"
+          ],
+          "record_items": [
+            "the trial's length and scope",
+            "the company's going-concern and debt disclosures",
+            "the relief the claimant seeks, including a permanent injunction"
+          ],
+          "situation": [
+            "verdict_amount",
+            "remitted_amount",
+            "available_cash",
+            "notes_status"
+          ],
+          "since": "5.0.0"
         }
       },
       "edges": [
@@ -2042,7 +2752,8 @@
         "verdict_finding",
         "verdict_measure",
         "post_trial_ruling"
-      ]
+      ],
+      "node_texts": "A pending claim reads a node's question texts (residual question, actor, decision, branches, standard, record items, situation) from the node's pending_money_claim block where it has one, else from the node; every other template reads the node without the block."
     }
   },
   "composition": {

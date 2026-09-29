@@ -547,8 +547,8 @@
     },
     {
       "path": "research/recent_cases/akoustis/design/QUESTIONS_20240514.md",
-      "bytes": 41195,
-      "sha256": "01c9220a75d37436bba8ed29e50f16a2443909308600ba66d6e81521053072b1"
+      "bytes": 41197,
+      "sha256": "1a4f2bd1fe1b2c23034ae1db24dc4bbbde082eb8992745570774b6dc5569461a"
     },
     {
       "path": "research/recent_cases/akoustis/design/acquisition_akoustis_20240514.md",
@@ -617,8 +617,8 @@
     },
     {
       "path": "research/revision_v2/contracts/agent_config.json",
-      "bytes": 41199,
-      "sha256": "94fd357e6416e1389778c54bbe76b8848c35bb21f896c799c2d17981675b8d31"
+      "bytes": 42397,
+      "sha256": "8de95044fcde1cc7250420546ead1dd279b98be2e4c35968ebfecb604aca499c"
     },
     {
       "path": "research/revision_v2/contracts/barfresh-economic-effects.json",
@@ -652,8 +652,8 @@
     },
     {
       "path": "research/revision_v2/contracts/dispute_model.json",
-      "bytes": 113906,
-      "sha256": "d0d8405a67c11c0c2066df38571819941e8c9c881aa263eb829fa47063d36ac8"
+      "bytes": 144284,
+      "sha256": "a7489482aff0b503d9f7054bb497dee05cff058c7e8887bf74cd9da49eaa8145"
     },
     {
       "path": "research/revision_v2/contracts/economic-effects.json",
@@ -672,8 +672,8 @@
     },
     {
       "path": "research/revision_v2/contracts/question_registry.json",
-      "bytes": 123508,
-      "sha256": "bf9418b7d07935e719bdefa5f9cc26a6752af634831ea65132ca5846f886ef50"
+      "bytes": 142759,
+      "sha256": "bcfd822f1f887c588d5d0a292518851fcea8b3720848ec8f6e421d90bb8318a4"
     },
     {
       "path": "research/revision_v2/contracts/synergy-decision-context.json",

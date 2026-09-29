@@ -271,6 +271,34 @@
             "forecast_nasdaq_hearing",
             "forecast_panel_exception"
           ]
+        },
+        "event_forecast": {
+          "trigger": "host, when the analysis is built: one request per question and situation",
+          "questions": [
+            "forecast_verdict_finding",
+            "forecast_verdict_amount",
+            "forecast_post_trial_motions",
+            "forecast_post_trial_ruling",
+            "forecast_remittitur_elected",
+            "forecast_claim_appeal",
+            "forecast_claim_settlement_offer",
+            "forecast_claim_settlement_accept",
+            "forecast_claim_execute_pre_ruling",
+            "forecast_claim_enforce_after_final",
+            "forecast_claim_registration_early",
+            "forecast_claim_stay_motion",
+            "forecast_claim_stay_approved",
+            "forecast_judgment_response",
+            "forecast_financing_at_floor",
+            "forecast_offering_closes",
+            "forecast_claim_petition_cash_out",
+            "forecast_claim_petition_on_notes",
+            "forecast_claim_holders_act_judgment",
+            "forecast_claim_holders_act_delisting",
+            "forecast_claim_holders_involuntary",
+            "forecast_bid_compliance",
+            "forecast_hearing_request"
+          ]
         }
       },
       "state_policy": "The host builds each state from immutable run objects (dependency text, evidence section or table text with its heading path, agent-authored claim or finding). The agent never supplies raw Jev state or question IDs.",
