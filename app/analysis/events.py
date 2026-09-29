@@ -93,6 +93,7 @@ class Basis:
     line: object | None = None  # the loan engine's Line (engine.prepare), for cash_facts = engine_forward_run
     opening: int = 0
     runs: dict = field(default_factory=dict)  # event-cash fingerprint -> the line's cumulative net cash [draws, days]
+    inflow: np.ndarray | None = None  # the operating receipts [draws, days] (a levy attaches them, daily processing)
 
     @classmethod
     def of(cls, ops, need: np.ndarray, opening_cents: int, line=None) -> Basis:
@@ -100,7 +101,7 @@ class Basis:
         legal = ops.by_category.get("legal_fees")
         return cls(cash=opening_cents + np.cumsum(ops.total[:, :days], axis=1), need=need[:, :days],
                    legal=(legal[:, :days] if legal is not None else np.zeros_like(need[:, :days])), line=line,
-                   opening=opening_cents)
+                   opening=opening_cents, inflow=None if ops.inflow is None else ops.inflow[:, :days])
 
 
 class Draws:
@@ -404,6 +405,9 @@ class Chain:
         self.entered = 0 if self.pending else entered_cents(d) if d is not None else 0
         self.bookings = model.get("branch_bookings", {}).get("nodes", {})
         self.engine = self.p("cash_facts") == "engine_forward_run"
+        self.daily = setup.cash_processing == "daily"  # the Chain's cash is the daily processor's (QUESTIONS §2.2)
+        if self.daily and not self.engine:
+            raise ValueError("daily cash processing reads the loan engine's cash: cash_facts = engine_forward_run")
         # the case sets raise_capacity: the floor decision is financing_at_floor (4.1.0), else petition_cash_floor
         self.raising = "value" in model["parameters"].get("raise_capacity", {})
         self.adverse_from = np.full(self.n, BIG, dtype=np.int64)  # entry of a judgment on an adverse verdict branch
@@ -492,6 +496,10 @@ class Chain:
         event cash's version: the walk reads the same state many times between bookings. Callers never write to it."""
         if self._cum is not None and self._cum[0] == self._cv:
             return self._cum[1]
+        if self.daily:  # the processor's end-of-day available cash: one definition for the Chain and the engine
+            c = self.processed()[0]
+            self._cum = (self._cv, c)
+            return c
         c = self.basis.cash + np.cumsum(self.ev.cash - self.ev.lock, axis=1)
         c = c + self.line_net() if self.engine else c
         self._cum = (self._cv, c)
@@ -519,6 +527,65 @@ class Chain:
                 runs.pop(next(iter(runs)))
             runs[key] = np.cumsum(tr.fundings - tr.collections, axis=1)
         return runs[key]
+
+    def processed(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Under daily processing: the engine's end-of-day available cash [draws, days], first unpaid day and §3.3
+        day [draws] (BIG: none) on this event cash, from the run cached per event state (as `line_net`)."""
+        import hashlib
+
+        from app.analysis.engine import run
+
+        ev, h = self.ev, hashlib.blake2b(digest_size=20)
+        terms = self.nonpayment_terms()
+        h.update(b"daily" + np.array(terms, dtype=np.int64).tobytes())
+        for a in (ev.lock, *(ev.kinds[k] for k in KINDS)):  # the kinds sum to the cash: it adds nothing
+            if not a.any():
+                h.update(b"0")
+                continue
+            flat = np.ascontiguousarray(a).ravel()
+            i = np.flatnonzero(flat)
+            h.update(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes())
+        for k in OBLIGATIONS:
+            h.update(np.ascontiguousarray(ev.incurred[k]).tobytes())
+        h.update(np.ascontiguousarray(ev.petition).tobytes())
+        runs, key = self.basis.runs, h.digest()
+        if key in runs:
+            runs[key] = runs.pop(key)
+        else:
+            opening = self.basis.opening - self.s.exposure.cash_cents
+            tr = run(self.basis.line, opening, EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, ev.kinds,
+                                                         ev.incurred), terms)
+            if len(runs) >= 256:
+                runs.pop(next(iter(runs)))
+            runs[key] = (tr.cash, tr.processed.first_unpaid, tr.processed.nonpayment)
+        return runs[key]
+
+    def nonpayment_terms(self) -> tuple[int, int]:
+        """§7.01(j)(v) general nonpayment (QUESTIONS §3.3): the window in days and the unpaid share in bps, as the
+        contract declares them (a sensitivity is named by its value)."""
+        out = []
+        for key in ("nonpayment_window_days", "nonpayment_unpaid_share_bps"):
+            p, pick = self.m["parameters"][key], self.sens.get(key, False)
+            v = p["value"] if pick is False else p["sensitivity"] if pick is True else pick
+            if isinstance(v, list):
+                raise ValueError(f"{key}: name the sensitivity by its value, one of {v}")
+            out.append(int(v))
+        return out[0], out[1]
+
+    def processing_balance(self, day: np.ndarray) -> np.ndarray:
+        """Under daily processing: the balance a levy served on the day attaches (§2.2): the day before's end balance
+        plus the day's receipts, less the day's encumbrance change and any levy already booked that day."""
+        cum, t = self.cum(), np.clip(day, 0, self.N - 1)
+        prev = np.where(t > 0, cum[self.rows, np.maximum(t - 1, 0)], self.basis.opening)
+        k = self.ev.kinds
+        return (prev + self.basis.inflow[self.rows, t] + k["inflow"][self.rows, t] - self.ev.lock[self.rows, t]
+                + k["levy"][self.rows, t])
+
+    def nonpayment_day(self) -> np.ndarray:
+        """The first day §7.01(j)(v) general nonpayment is met (QUESTIONS §3.3), or BIG. Daily processing only."""
+        if not self.daily:
+            raise ValueError("general nonpayment is tested on the daily cash processor (cash_processing = daily)")
+        return self.processed()[2].copy()
 
     def _timeline(self) -> None:
         d = self.d
@@ -647,7 +714,8 @@ class Chain:
     def _take(self, day: np.ndarray) -> None:
         v = self.seen_at(day)  # a floor decision dated before the levy is in the cash it reaches
         ok = v.live(day) & (day < self.stayed_from) & (day < self.N)
-        take = np.where(ok, np.minimum(self.owed_at(day, enforceable=True), np.maximum(v.cash_at(day), 0)), 0)
+        reach = v.processing_balance(day) if self.daily else v.cash_at(day)  # daily: the balance at processing
+        take = np.where(ok, np.minimum(self.owed_at(day, enforceable=True), np.maximum(reach, 0)), 0)
         satisfied = (take > 0) & (take >= self.owed_at(day)) & (not self.retrial)  # the whole judgment, that day
         self.pay(day, -take, "levy")
         self.mark("levied", day, take > 0)
@@ -883,6 +951,10 @@ class Chain:
         if memo is not None and memo[0] == self._cv:
             return memo[1].copy()
         cum = self.cum()
+        if self.daily and self.sens.get("cash_floor"):  # cash is never below zero: nil with an obligation unpaid
+            out = self.processed()[1].copy()
+            self._tau = (self._cv, out)
+            return out.copy()
         floor = np.zeros_like(cum) if self.sens.get("cash_floor") else self.basis.need
         below = cum < floor
         out = np.where(below.any(axis=1), below.argmax(axis=1), BIG)
@@ -897,6 +969,10 @@ class Chain:
         memo = self.__dict__.get("_out")
         if memo is not None and memo[0] == self._cv:
             return memo[1].copy()
+        if self.daily:  # the first obligation the processor could not pay
+            out = self.processed()[1].copy()
+            self._out = (self._cv, out)
+            return out.copy()
         cum = self.cum()
         below = cum < 0
         out = np.where(below.any(axis=1), below.argmax(axis=1), BIG)

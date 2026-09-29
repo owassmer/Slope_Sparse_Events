@@ -342,7 +342,8 @@ def test_7_cash_facts_equal_the_engine_on_every_trajectory(tree):
         tr = ch.run(p.steps)
         ev = tr.events
         eng = engine_run(b.line, b.opening - s.exposure.cash_cents,
-                         EventCash(ev.cash.copy(), ev.lock.copy(), ev.capacity.copy(), ev.petition.copy()))
+                         EventCash(ev.cash.copy(), ev.lock.copy(), ev.capacity.copy(), ev.petition.copy(), ev.kinds,
+                                   ev.incurred))
         assert (ch.cum() == eng.cash[:, :ch.N]).all()
         waits = getattr(ch, "waits", lambda n, c: False)
         booked = iter(ch.snaps.values())
