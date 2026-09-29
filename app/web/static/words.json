@@ -68,7 +68,7 @@
     "cum_end": "{date}: mean {mean}, P5–P95 {lo} – {hi}"
   },
   "resolve": {
-    "verdict": "The verdict",
+    "verdict": "Verdict",
     "before": "Before the verdict",
     "p": "Probability",
     "judgment": "Judgment",
@@ -144,7 +144,9 @@
     "intro": "Everything below happened after the review date; none of it was available to the forecast.",
     "filed": "{company} filed for bankruptcy on {date}. The forecast put a filing by that date at {p}.",
     "filed_after": "{company} filed for bankruptcy on {date}, after the period ended on {horizon}. The forecast put a filing by {horizon} at {p}.",
-    "source": "source"
+    "source": "source",
+    "verdict": "The judgment entered, {amount}, is in the band {band}. The forecast put that band at {p}.",
+    "offering": "{company} closed a share offering on {date}. The forecast put an offering closed by that date at {p}, and by {horizon} at {q}."
   },
   "ui": {
     "close": "Close",
@@ -197,7 +199,10 @@
       "branches": {
         "pay": "pays",
         "file": "files",
-        "continue": "contests, keeps operating"
+        "continue": "contests, keeps operating",
+        "initiate_offering": "starts an offering",
+        "neither": "neither",
+        "none": "neither"
       }
     },
     "post_trial_motions": {
@@ -211,7 +216,9 @@
       "short": "Court's post-trial ruling",
       "branches": {
         "stands": "judgment stands",
-        "set_aside": "set aside"
+        "set_aside": "set aside",
+        "unchanged": "unchanged",
+        "reduced": "reduced"
       }
     },
     "execute_pre_ruling": {
@@ -270,14 +277,21 @@
       "branches": {
         "raise_equity": "raises equity",
         "file": "files",
-        "continue": "keeps going"
+        "continue": "keeps going",
+        "initiate_offering": "starts an offering",
+        "neither": "neither",
+        "none": "neither"
       }
     },
     "petition_cash_out": {
       "short": "{company} files when cash runs out",
       "branches": {
         "yes": "files",
-        "no": "doesn't file"
+        "no": "doesn't file",
+        "initiate_offering": "starts an offering",
+        "file": "files",
+        "neither": "neither",
+        "none": "neither"
       }
     },
     "petition_cash_floor": {
@@ -316,6 +330,41 @@
         "yes": "file",
         "no": "don't file"
       }
+    },
+    "verdict_amount": {
+      "short": "Jury: amount above a line",
+      "branches": {
+        "yes": "above",
+        "no": "at most"
+      }
+    },
+    "remittitur_elected": {
+      "short": "{claimant} accepts the reduced judgment",
+      "branches": {
+        "yes": "accepts",
+        "no": "new trial"
+      }
+    },
+    "offering_closes": {
+      "short": "Share offering closes",
+      "branches": {
+        "yes": "closes",
+        "no": "does not close"
+      }
+    },
+    "bid_compliance": {
+      "short": "{company} regains listing compliance",
+      "branches": {
+        "yes": "regains",
+        "no": "does not"
+      }
+    },
+    "hearing_request": {
+      "short": "{company} requests an exchange hearing",
+      "branches": {
+        "yes": "requests",
+        "no": "does not"
+      }
     }
   },
   "inputs": {
@@ -332,5 +381,79 @@
     "awarded": "awarded",
     "pending": "pending",
     "defense": "{company}'s position"
+  },
+  "cash": {
+    "chart": "Borrower cash",
+    "mean": "Available cash (mean)",
+    "range": "Available cash, P5–P95",
+    "need": "30-day operating need (mean)",
+    "arrears": "Arrears (mean)",
+    "classes": {
+      "slope": "Past due to Slope",
+      "settlement": "Settlement installments",
+      "notes_interest": "Notes interest",
+      "judgment": "Judgment payment",
+      "operating": "Operating bills"
+    },
+    "note": "Available cash never goes below zero: what the day's cash cannot pay stays unpaid as arrears, by class.",
+    "hover": "{date}: available cash {mean}, P5–P95 {lo} – {hi}",
+    "hover_arrears": "Arrears {total}: {parts}",
+    "unavailable": "Arrears by class are not in this run's data yet."
+  },
+  "financing": {
+    "title": "Equity financing",
+    "atm": "At-the-market proceeds by {horizon}",
+    "atm_note": "Net proceeds of share sales on the market from the review date; sales stop at a filing, a delisting or when no shares are left to issue.",
+    "offering": "Offering closed by {horizon}",
+    "offering_note": "Share of outcomes in which an underwritten offering {company} starts closes by {horizon} (N1 yes, before any filing).",
+    "terms": "Offering terms",
+    "terms_value": "{net} net ({gross} gross), closing {days} days after it starts",
+    "first_close": "First close (median)"
+  },
+  "verdict": {
+    "none": "Jury: no award",
+    "band": "Award {lo} – {hi}",
+    "top": "Award above {lo}",
+    "booked": "Booked at {amount}",
+    "note": "The jury's total award, in bands cut where the cash consequences change: entry-day cash, the most {company} can pay by {horizon} and the notes' judgment-default threshold. A band books its midpoint; above the top line every award books the same cash.",
+    "lines": "Lines: entry-day cash {reach}; top line {top}; notes' threshold {threshold}",
+    "ruling": "Post-trial ruling",
+    "ruling_value": "reduced {r} · set aside {s}"
+  },
+  "steps": {
+    "award_none": "Jury: no award",
+    "award_band": "Jury awards {lo}–{hi}",
+    "award_top": "Jury awards above {lo}",
+    "ruling_unchanged": "Court leaves the judgment unchanged",
+    "ruling_reduced": "Court reduces the judgment to {amount}; {claimant} accepts",
+    "ruling_set_aside": "Court sets the judgment aside or orders a new trial",
+    "initiate_offering": "{company} starts a share offering",
+    "offering_yes": "Share offering closes",
+    "offering_no": "Share offering does not close",
+    "listing_compliant": "{company} regains listing compliance",
+    "listing_hearing": "{company} requests an exchange hearing",
+    "listing_suspended": "The exchange suspends trading",
+    "floor_file": "{company} files at its cash floor",
+    "cash_out_file": "{company} files when an obligation goes unpaid",
+    "nonpayment_petition": "Notes due on general nonpayment; {company} files",
+    "nonpayment_holders_file": "Notes due on general nonpayment; noteholders file",
+    "nonpayment_due": "Notes due on general nonpayment; no filing",
+    "response_offering": "{company} starts a share offering after the judgment"
+  },
+  "tags": {
+    "award": "after an award of {amount}",
+    "reduced": "judgment reduced to {amount}",
+    "remit": "remitted to {amount}",
+    "floor": "cash floor",
+    "floor_n": "cash floor, time {n}",
+    "offer": "offering available",
+    "nooffer": "no offering available",
+    "after_failed": "after an offering that did not close",
+    "nonpayment": "general nonpayment",
+    "ruling": "at the post-trial ruling",
+    "deadline": "on the listing deadline",
+    "determination": "after the exchange's determination",
+    "unchanged": "judgment unchanged",
+    "no_judgment": "no money judgment"
   }
 }
