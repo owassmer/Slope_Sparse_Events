@@ -103,7 +103,6 @@
       "net_cents": 1040000000,
       "january_price_cents": 50,
       "january_prior_close_cents_x1e4": 704600,
-      "close_cents_x1e4": 440000,
       "close_days": 5,
       "basis": "QUESTIONS_20240514 §2.6, N1 (Scenario): an underwritten offering on the January 2024 terms. Gross USD 11.5M and net USD 10.4M after the underwriting discount and expenses (8-K of 29 Jan 2024). Price: the share price on the initiation day (share_price) less the January offering's discount to the prior close (USD 0.50 against USD 0.7046 on 24 Jan 2024, 29.0%). The shares are the gross over the price; where the share capacity binds, the gross is the shares available times the price and the net bears the costs in proportion. Close: as many days after initiation as January's launch (preliminary prospectus supplement, 24 Jan 2024) to close (29 Jan 2024): 5."
     },
