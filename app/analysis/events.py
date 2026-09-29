@@ -378,6 +378,9 @@ class Trace:
     late: dict = field(default_factory=dict)  # a floor step's index -> its petition day, triggers, equity available
     reads: np.ndarray | None = None  # the last step's latest day whose cash it read (a payment, approval or levy day)
     triggers: dict = field(default_factory=dict)  # TRIGGERS name -> day index per draw (BIG: none)
+    # daily processing: a stay step's index -> the security sized on the whole path (Chain.restay): its approval day,
+    # the cash, amount owed, collateral and reduced security that day, and the path's petition day
+    stays: dict = field(default_factory=dict)
 
 
 class Chain:
@@ -453,6 +456,12 @@ class Chain:
         self.wctx: dict = {}  # a waiting step's index -> its context
         self.late: dict = {}  # their step index -> petition day, triggers and equity available at the decision
         self.reads = np.full(self.n, -1, dtype=np.int64)  # the current step's latest cash-read day (`seen_at`)
+        # daily processing (QUESTIONS §2.5): each walked stay (step index -> its terms and what it booked), re-sized on
+        # the approval day's balance after every later booking (`restay`); the day the dispute ends, per draw
+        self.stays: dict = {}
+        self.release_at = np.full(self.n, BIG, dtype=np.int64)
+        self._stay_cv = -1  # the event cash's version at the last `restay`
+        self._restaying = False  # inside `restay` (its views do not re-size)
 
     def mark(self, name: str, day, where=None) -> None:
         day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
@@ -709,6 +718,7 @@ class Chain:
         day = np.asarray(day) + (0 if lagged else int(self.p("levy_lag_days")))
         self._take(day)
         if self.increase:
+            self.restay()  # a first writ dated before an approval is in the security's balance
             self._take(np.where(day < self.EI, self.EI, BIG))
 
     def _take(self, day: np.ndarray) -> None:
@@ -857,8 +867,19 @@ class Chain:
         proposes reduced security, posted on approval: its available cash above its 30-day operating need on the
         approval day (`stay_offer`, what the court is told). If approved, that amount is locked. Where the company has
         no cash above its need that day, the stay is effective only under stay_security = noncash (security or a
-        waiver not in cash; nothing locked). The lock is released when the dispute ends (`release_lock`)."""
+        waiver not in cash; nothing locked). The lock is released when the dispute ends (`release_lock`).
+        Under daily processing (QUESTIONS §2.5) the security is sized on the approval day's balance after every event
+        dated before it, whatever the walk order, never above that balance and never on or after a petition:
+        `_size_stay` sizes it here, and `restay` re-sizes it after every later booking."""
         approval = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, key)
+        if self.daily:  # sized on the approval day whatever the walk order (`restay`)
+            if approved:
+                self.mark("stay_moved", motion, self.live(motion))
+            st = {"approval": approval, "approved": approved, "stayed_from": self.stayed_from.copy(),
+                  "mark": self.marks["stayed"].copy(), "triggers": self.trigger_days()}
+            self.stays[len(self.rec[0])] = st
+            self._size_stay(st, read=True)
+            return approval
         v = self.seen_at(approval, levy=True)  # what is dated before the approval is in the cash it reads
         collateral = v.bond_collateral(approval)
         cash_a = v.cash_at(approval)
@@ -885,6 +906,11 @@ class Chain:
         """The dispute ends on the day (vacatur, new trial, settlement or payment): the stay's security is released
         that day. Where the approval falls on or after it there is nothing left to stay, and no lock is booked."""
         day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        if self.daily:  # the stay's lock is re-sized with its release (`restay`)
+            ends = np.asarray(where, dtype=bool) & (day < self.N)
+            self.release_at = np.where(ends, np.minimum(self.release_at, day), self.release_at)
+            self.restay(force=True)
+            return
         held = np.asarray(where, dtype=bool) & (self.lock_amount > 0) & (day < self.N)
         if not held.any():
             return
@@ -893,6 +919,61 @@ class Chain:
         self.marks["stayed"] = np.where(late, BIG, self.marks["stayed"])
         self.lock_amount = np.where(held, 0, self.lock_amount)
         self.lock_day = np.where(held, BIG, self.lock_day)
+
+    def _size_stay(self, st: dict, read: bool) -> None:
+        """Daily processing (QUESTIONS §2.5): size one walked stay's security on its approval day, on the balance after
+        every event dated before it (the waiting decisions and the pending levy dated before it included, `seen_at`),
+        with its own lock and release taken out first. Full collateral where the balance less the month's need covers
+        it, else the balance above the need; never more than the balance, and nothing on or after a petition or once
+        the dispute has ended. An approved stay books the lock on approval and its release when the dispute ends.
+        `read`: the walked step's own read (its `stay_offer`, collateral and cash-read day)."""
+        approval = st["approval"]
+        if "lock" in st:  # what it booked before
+            self.book(self.ev.lock, approval, -st["lock"])
+            self.book(self.ev.lock, st["rel"], np.where(st["held"], st["lock"], 0))
+        reads = self.reads
+        v = self.seen_at(approval, levy=True)
+        self.reads = self.reads if read else reads
+        collateral = v.bond_collateral(approval)
+        cash_a = v.cash_at(approval)
+        need_a = self.basis.need[self.rows, np.clip(approval, 0, self.N - 1)]
+        covers = cash_a - need_a >= collateral
+        live = v.live(approval) & (approval < self.N)
+        offer = np.where(live & ~covers, np.maximum(cash_a - need_a, 0), 0).astype(np.int64)
+        st.update(day=approval, cash=cash_a, owed=v.owed_at(approval), collateral=collateral, stay_offer=offer,
+                  petition=v.ev.petition.copy())
+        if read:
+            self.stay_offer, self.collateral_required = offer, collateral
+        if not st["approved"]:
+            return
+        effective = live & (covers | (offer > 0) | (self.p("stay_security") == "noncash"))
+        lock = np.where(effective & covers, collateral, np.where(effective, offer, 0)).astype(np.int64)
+        self.stayed_from = np.minimum(st["stayed_from"], np.where(effective, approval, BIG))
+        rel = self.release_at
+        held = (lock > 0) & (rel < self.N)
+        late = held & (approval >= rel)  # the dispute ended by approval: nothing left to stay
+        self.marks["stayed"] = st["mark"].copy()
+        self.mark("stayed", approval, effective & ~late)
+        st.update(lock=lock, held=held, rel=np.where(late, approval, rel))
+        self.book(self.ev.lock, approval, lock)
+        self.book(self.ev.lock, st["rel"], -np.where(held, lock, 0))
+        self.lock_amount = np.where(held, 0, lock)
+        self.lock_day = np.where(self.lock_amount > 0, approval, BIG)
+
+    def restay(self, force: bool = False) -> None:
+        """Daily processing: re-size every approved stay walked so far (`_size_stay`) once anything has been booked since
+        the last re-sizing, so a step walked later but dated before an approval (a levy, a petition, a floor decision)
+        is in the balance its security is sized on. The processor is causal: one pass settles it."""
+        if not self.daily or not self.stays or self._restaying or (self._stay_cv == self._cv and not force):
+            return
+        self._restaying = True
+        try:
+            for st in self.stays.values():
+                if st["approved"]:
+                    self._size_stay(st, read=False)
+        finally:
+            self._restaying = False
+        self._stay_cv = self._cv
 
     def bond_collateral(self, approval: np.ndarray) -> np.ndarray:
         """The bond (the path judgment plus §1961 interest over the appeal) times the collateral share."""
@@ -1276,12 +1357,14 @@ class Chain:
             if not answers_levy(node, ctx) and self.pending_levy is not None:  # unless a floor decision or the
                 # response on the levy day, still waiting, precedes it
                 self.flush_levy(~(self.next_floor() < self.pending_levy) & ~self.response_waiting())
+        self.restay()  # what was booked since (a levy, a floor decision) is in a walked stay's security
         before_cash = self.cum()
         day = self.step(node, ctx, branch)
         t = np.clip(day, 0, self.N - 1)
         for lst, v in zip(self.rec, (day, before_cash[self.rows, t], self.owed_at(day), self.collateral_required.copy()),
                           strict=True):
             lst.append(v)
+        self.restay()
 
     def response_day(self, ctx: str) -> np.ndarray:
         """The day the company responds (BIG: no response on that trajectory)."""
@@ -1420,8 +1503,15 @@ class Chain:
         if self.pending_levy is not None:  # the floor decisions dated up to the pending levy, and the levy
             self.until(self.pending_levy + 1)
         self.flush_levy()
+        self.restay()
         triggers = self.trigger_days()  # as of the last step: a floor decision dated after it is not in them
         self.upto(None, every=True)
+        self.restay()
+        for st in self.stays.values():  # a stay not approved: its security sized on the whole path, for its facts
+            if not st["approved"]:
+                self._size_stay(st, read=False)
+        tr.stays = {i: {k: st[k] for k in ("day", "cash", "owed", "collateral", "stay_offer", "petition",
+                                         "triggers")} for i, st in self.stays.items()}
         tr.day, tr.cash, tr.owed, tr.collateral = (list(x) for x in self.rec)
         tr.late = {i: dict(v) for i, v in self.late.items()}
         if self.late and max(self.late) == len(self.rec[0]) - 1:  # the path ends at a floor: its equity available

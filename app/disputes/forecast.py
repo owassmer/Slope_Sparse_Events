@@ -688,6 +688,9 @@ class Forecaster:
         tr = event_trace(d, DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=()), self.setup,
                          self.m, self.draws, self.sens)
         for k, i in late:
+            if i in tr.stays:  # a stay's approval (daily processing): the security sized on the whole path
+                self._keep_late(k, steps[:i], {**tr.stays[i], "settle_offer": None, "raise_offer": None})
+                continue
             info = tr.late[i]
             n = self.nodes[k]
             if n.node == "financing_at_floor" and "noraise" in n.context.split("|"):
@@ -697,15 +700,20 @@ class Forecaster:
             row = {"day": tr.day[i], "cash": tr.cash[i], "owed": tr.owed[i], "collateral": tr.collateral[i],
                    "petition": info["petition"], "settle_offer": None, "stay_offer": None,
                    "triggers": info["triggers"], "raise_offer": info["raise_offer"]}
-            h = hashlib.blake2b(digest_size=16)
-            for f in ("day", "cash", "owed", "collateral", "petition", "raise_offer"):
-                h.update(np.ascontiguousarray(row[f]).tobytes())
-            for name in sorted(row["triggers"]):
-                h.update(name.encode() + np.ascontiguousarray(row["triggers"][name]).tobytes())
-            seen = (k, steps[:i], h.digest())
-            if seen not in self._late_seen:
-                self._late_seen.add(seen)
-                self.facts.setdefault(k, []).append(row)
+            self._keep_late(k, steps[:i], row)
+
+    def _keep_late(self, k: str, prefix: tuple, row: dict) -> None:
+        """Keep a whole path's record for a node once per distinct record at each prefix that asks it."""
+        h = hashlib.blake2b(digest_size=16)
+        for f in ("day", "cash", "owed", "collateral", "petition", "raise_offer", "stay_offer"):
+            if row.get(f) is not None:
+                h.update(f.encode() + np.ascontiguousarray(row[f]).tobytes())
+        for name in sorted(row["triggers"]):
+            h.update(name.encode() + np.ascontiguousarray(row["triggers"][name]).tobytes())
+        seen = (k, prefix, h.digest())
+        if seen not in self._late_seen:
+            self._late_seen.add(seen)
+            self.facts.setdefault(k, []).append(row)
 
     def live(self, n: Node, row: dict) -> np.ndarray:
         """The trajectories where the question's situation holds: the decision falls inside the analysis period,
@@ -1158,6 +1166,15 @@ class _Walk:
         the security measured that day, or the registration order; the motion question keeps the motion day."""
         self.fc.record((key,), self.fc.trace(self.d, s.steps + (("court_order", ctx, ""),)))
 
+    def stay_court(self, s: _S, key: str, ctx: str) -> _S:
+        """The stay-approval question's facts. Under daily processing they come from each whole path (events.py
+        `restay`: the security is sized on the approval day's balance after every event dated before it, whatever
+        the walk order, and is what the engine locks); otherwise from the court's own day on the prefix (`court`)."""
+        if self.fc.setup is not None and self.fc.setup.cash_processing == "daily":
+            return replace(s, late=s.late + ((key, len(s.steps)),))
+        self.court(s, key, ctx)
+        return s
+
     def binary(self, s: _S, node: str, ctx: str, parts: list[list[tuple[str, str]]], keys, then_yes, then_no):
         k = composite(parts)
         then_yes(self.take(s, (node, ctx, "yes"), (k, "yes"), keys))
@@ -1251,7 +1268,7 @@ class _Walk:
         a1 = self.node("stay_motion", "I1", s.cls, s=s, probe=probe,
                        assumptions=("the creditor executes before the ruling",))
         j8 = self.node("stay_approved", "I1", s.cls, s=s, probe=probe, assumptions=("the company moves for a stay",))
-        self.court(s, j8, "stay_I1")
+        s = self.stay_court(s, j8, "stay_I1")
         self.binary(s, "stay", "I1", [[(a1, "yes"), (j8, "yes")]], (a1,),
                     lambda y: self.j9_stayed(replace(y, stayed=True)), self.j9_i1)
 
@@ -1418,7 +1435,7 @@ class _Walk:
             return
         a1 = self.node("stay_motion", "post", s.cls, s=s, probe=probe, assumptions=("the final judgment is entered",))
         j8 = self.node("stay_approved", "post", s.cls, s=s, probe=probe, assumptions=("the company moves for a stay",))
-        self.court(s, j8, "stay_post")
+        s = self.stay_court(s, j8, "stay_post")
         self.binary(s, "stay", "post", [[(a1, "yes"), (j8, "yes")]], (a1,),
                     lambda y: self.enforce(replace(y, stayed=True), self.stayed_tail, pending=True), self.i3)
 
