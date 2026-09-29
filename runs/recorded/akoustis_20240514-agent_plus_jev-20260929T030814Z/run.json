@@ -1,0 +1,146 @@
+{
+  "snapshot_id": "akoustis_20240514",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-29T03:08:14.682826+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "4.2.0",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "6a28983e1fa43857d9d4b2084020120680dae9d82b960dfa2de498493f7447e4",
+    "sections": 1584,
+    "flagged": 731,
+    "unscreened": 0,
+    "chunks": 1664,
+    "units": 5009,
+    "flagged_units": 2400,
+    "unscreened_units": 0,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 789,
+      "cache_hits": 5884,
+      "physical_attempts": 789,
+      "attempt_ceiling": 12000,
+      "spent_usd": "0.038847522",
+      "spend_cap_usd": "0.90"
+    },
+    "inventory_items": 2400
+  },
+  "run_id": "akoustis_20240514-agent_plus_jev-20260929T030814Z",
+  "status": "INCOMPLETE_REVIEW",
+  "failure": null,
+  "incomplete_reasons": [
+    "Jev unavailable (TypeSafeBadRequestError): POST https://openrouter.ai/api/v1/systemone: 400 HTTP 400: {\"detail\":{\"error_type\":\"max_tokens_exceeded\"}}",
+    "disputed effect eff_008 (receipt delay): The effect moves no cash (cash_direction none): it records, for the reviewer, that Akoustis's Texas claim against Qorvo produces no receipt in the loan horizon. The finding's 'alleged' posture is exactly why no receipt is modeled; the guard's requirement of a completed/contractual posture fits effects that move cash, not a documented zero. No mechanism in the list fits a pending claim with no cash effect."
+  ],
+  "finished_at": "2026-09-29T03:25:53.970029+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_loan_terms": 1,
+    "read_inventory": 1,
+    "record_dependency": 3,
+    "search_evidence": 24,
+    "read_evidence": 47,
+    "judge": 2,
+    "propose_finding": 57,
+    "resolve_finding": 56,
+    "resolve_reconciliation": 8,
+    "instantiate_dispute": 7,
+    "instantiate_financing": 3,
+    "get_record_items": 2,
+    "attach_record_item": 54,
+    "propose_effect": 8,
+    "escalate_effect": 1,
+    "request_missing_fact": 3,
+    "submit_packet": 4,
+    "StructuredOutput": 1
+  },
+  "turns_used": 87,
+  "max_turns": 320,
+  "claude": {
+    "num_turns": 285,
+    "duration_ms": 1052170,
+    "usage": {
+      "input_tokens": 174,
+      "cache_creation_input_tokens": 390490,
+      "cache_read_input_tokens": 18750523,
+      "output_tokens": 123307,
+      "output_tokens_details": {
+        "thinking_tokens": 14546
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 390490,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 1126,
+          "cache_read_input_tokens": 388023,
+          "cache_creation_input_tokens": 2467,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 2467
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 9.3408606,
+    "structured_output": {
+      "conclusion": "As of 14 May 2024 the jury trial in Qorvo v. Akoustis (D. Del. 1:21-cv-01417) was under way with no verdict.\n- **Qorvo's claims:** $66.1M of trade-secret unjust enrichment (the same figure repeated under conspiracy and UDTPA), $279,808 of patent royalty and $1,146,604 of corrective advertising. It also seeks exemplary damages (up to 2x under the DTSA), treble patent damages, fees, interest and an injunction. By derived arithmetic, the non-duplicative compensatory claims total about $67.5M. On 14 May the court held there is no basis for compensable UDTPA damages.\n- **Defense position:** Akoustis contends Qorvo is owed no patent damages. Its general counsel said an eight-figure verdict is possible if the jury adopts Qorvo's experts.\n- **Liquidity:** Akoustis had $15.2M of cash at 31 March 2024, recorded no accrual for the case and discloses substantial doubt about its ability to continue as a going concern. It states an adverse judgment could lead it to curtail or cease operations and seek bankruptcy protection.\n- **Notes:** a final money judgment over $10.0M that stays unpaid and unstayed for 60 days, after notice, is an event of default on its $44.0M convertible notes and permits acceleration.\n- **Equity access:** the stock is below the Nasdaq $1.00 minimum, with compliance due by 21 October 2024; the company says failing to regain compliance would materially impair its ability to raise capital. The validated funding-constraint effect therefore does not assume equity inflows.\n- **Excluded from cash:** note interest was settled in stock, so no cash outflow is modeled for it. Akoustis's Texas claim against Qorvo has a pending motion to dismiss and no stated amount.\n- **Inference flagged:** the roughly two-week trial length is inferred from the juror-lunch order.\n- **Open facts:** the verdict amounts, any stay of execution or post-verdict equity raise, and the defense's redacted damages figure.\n- **Grouped for the host:** the dispute is dispute_002, the notes are financing_001, and the Texas-claim effect (eff_008) is escalated to the reviewer.",
+      "pivotal_unknowns": [
+        "Jury verdict in Qorvo v. Akoustis (liability and amounts per claim) and the date/amount of any judgment entered",
+        "Whether Akoustis obtains a stay of execution and on what security, and whether it can raise equity (ATM/underwritten offering) after the verdict before the 15 Aug 2024 final installment",
+        "Akoustis's damages expert's redacted trade-secret damages figure (lower anchor of the award range)",
+        "Whether the court (DTSA) or jury (NCTSPA/conspiracy) adds exemplary or punitive damages, fees and interest",
+        "Whether Akoustis regains Nasdaq bid-price compliance by 21 Oct 2024 (notes listing default)"
+      ],
+      "supported_effect_ids": [
+        "eff_004",
+        "eff_007"
+      ]
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 418,
+    "cache_hits": 108,
+    "physical_attempts": 418,
+    "attempt_ceiling": 2000,
+    "spent_usd": "0.051927960",
+    "spend_cap_usd": "0.30"
+  },
+  "graph_counts": {
+    "dependencies": 3,
+    "candidates": 161,
+    "jev_calls": 525,
+    "observations": 1517,
+    "findings": 57,
+    "reconciliations": 8,
+    "effects": 8,
+    "inventory": 2400,
+    "disputes": 1,
+    "financing": 1,
+    "record_items": 54
+  },
+  "chain_head": "3c926b437fb8a6bf5197f31bc156ec05c57c2ea3e8b63846805aed58df78bd53"
+}
