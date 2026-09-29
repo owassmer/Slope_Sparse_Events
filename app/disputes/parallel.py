@@ -1,8 +1,8 @@
 """The pending claim's dispute tree walked by several processes on a subtree queue (build setting walk_processes).
 
-Every process walks the tree's shared top and claims units (O_EXCL files): a unit is the subtree below the first state
-on a path at least CUT steps below the verdict, or where a watched question starts (q1, appeal: their no-branch walk
-decides whether they are asked, so a watch never spans units), or an emitted leaf. Only the claimer walks a unit.
+Every process walks the tree's shared top and claims units (O_EXCL files; on GitHub runners, among the units of its
+machine's share): a unit is the subtree below the first state on a path at least CUT steps below the verdict, or an
+emitted leaf. Only the claimer walks a unit. Watched questions: see the note below `STARTS`.
 Each process logs what the walk adds to the Forecaster (a node, a recorded fact, a whole path's late fact, a path and
 its equivalence key), keyed by its place in the single walk's order: a top event by the number of logged calls made at
 the top so far (the same in every process: the top is walked identically), an event of a unit's walk (a segment) by
@@ -27,8 +27,9 @@ from dataclasses import replace
 CUT = int(os.environ.get("SLOPE_WALK_CUT", "4"))  # a unit starts this many steps below the verdict
 STARTS = ("emit", "_end")  # walks that always start a unit
 
-# Watched questions (forecast.py `_Watch`: q1, the appeal) are split across units too. A watch's no-event branch is
-# walked as the single walk walks it; whether the question is asked depends on reads anywhere below it, so every
+# Watched questions (forecast.py `_Watch`: q1, the appeal) that start inside a unit are walked as the single walk walks
+# them. One that starts at the top is split across units: its no-event branch is walked as the single walk walks it;
+# whether the question is asked depends on reads anywhere below it, so every
 # process walks on as if it were asked (a speculative region: the question's node, facts, the event branch) and logs
 # each event with the regions open when it happened, each read of a watch, and the watch's edge. `walk` then decides
 # each region as the single walk would (a watch is read if a read under regions that all hold occurred), keeps the
@@ -41,27 +42,33 @@ def _child(fc, d, k: int, run: str, log) -> None:
 
     t0 = time.time()
     st = {"seg": None, "clock": 0, "nseg": 0, "vdepth": 0, "roots": {}, "seq": 0, "mine": set(), "j": 0, "n": 0,
-          "regions": [], "wstack": []}
+          "regions": [], "wstack": [], "local": False}
     events: list = []
-    # (kind, key) logged with no open region: a later occurrence cannot come first. The top's are kept apart from
-    # this process's units', so every process logs the same top events (their count is the top's clock).
+    # (key, regions) already logged: a later occurrence under the same open regions holds exactly where the logged
+    # one does and comes after it, and one logged with no region open holds everywhere. The top's are kept apart
+    # from this process's units', so every process logs the same top events (their count is the top's clock).
     once_top: set = set()
     once_unit: set = set()
 
-    def fresh(key) -> bool:
-        """Whether an event with this dedupe key is still to be logged here; marks it logged when no region is open."""
+    def logged(key, cond) -> bool:
         top = st["seg"] is None
-        if key in once_top or (not top and key in once_unit):
+        return any((key, c) in o for o in ((once_top,) if top else (once_top, once_unit)) for c in ((), cond))
+
+    def fresh(key) -> bool:
+        """Whether an event with this dedupe key is still to be logged here under the open regions; marks it."""
+        cond = tuple(st["regions"])
+        if logged(key, cond):
             return False
-        if not st["regions"]:
-            (once_top if top else once_unit).add(key)
+        (once_top if st["seg"] is None else once_unit).add((key, cond))
         return True
 
-    shards = int(os.environ.get("SLOPE_WALK_SHARDS", "0"))  # shards on separate machines: unit seq mod shards
+    job = os.environ.get("SLOPE_WALK_JOB")  # '<job>/<jobs>': a machine's units are seq mod jobs, claimed as below
 
     def claim(root, seq: int) -> bool:
-        if shards:
-            return seq % shards == k
+        if job:
+            j, n = map(int, job.split("/"))
+            if seq % n != j:
+                return False
         name = "c_" + hashlib.blake2b(repr(root).encode(), digest_size=12).hexdigest()
         try:
             os.close(os.open(os.path.join(run, name), os.O_CREAT | os.O_EXCL))
@@ -137,9 +144,15 @@ def _child(fc, d, k: int, run: str, log) -> None:
     F._Walk.emit = emit_logged
 
     # --- watched questions: speculative regions, reads and edges ---------------------------------------------------
+    single_watched, single_edge = F._Walk._watched, F._Walk._edge_after
+
     def watched(self, s, no, w, then):
         """`_Walk._watched` with the no-event branch splittable: returns True (walk on as if asked, in a region
-        named by the watch) and logs the watch's reads (`logged_reads`)."""
+        named by the watch) and logs the watch's reads (`logged_reads`). Inside a unit the whole no-event branch is
+        this process's, so the watch is the single walk's (no region, the edge applied here)."""
+        st["local"] = st["seg"] is not None
+        if st["local"]:
+            return single_watched(self, s, no, w, then)
         wid = (no, s.steps)
         w.wid = wid
         self._watch.append(w)
@@ -153,23 +166,23 @@ def _child(fc, d, k: int, run: str, log) -> None:
         return True
 
     def logged_reads(f):
-        """A walk read that may read a watched event: log each watch it reads (once per set of open regions, for
-        the top and for this process's units apart). A read never settles a watch here: whether a later read's
-        check runs must not depend on which units this process walked (the single walk stops checking once read;
-        checking on changes no step)."""
+        """A walk read that may read a watched event: log each split watch it reads, once per set of open regions
+        (for the top and for this process's units apart). A split watch counts as read, so its checks are skipped
+        as the single walk skips them, exactly where its read is already logged under the open regions."""
         @functools.wraps(f)
         def g(self, *a, **kw):
+            cond = tuple(st["regions"])
+            for w in self._watch:
+                if hasattr(w, "wid"):
+                    w.read = logged(("read", w.wid), cond)
             try:
                 return f(self, *a, **kw)
             finally:
                 for w in self._watch:
-                    if w.read and hasattr(w, "wid"):
-                        w.read = False
-                        cond = tuple(st["regions"])
-                        top = st["seg"] is None
-                        if (w.wid, cond) not in once_top and (top or (w.wid, cond) not in once_unit):
-                            (once_top if top else once_unit).add((w.wid, cond))
+                    if hasattr(w, "wid"):
+                        if w.read and fresh(("read", w.wid)):
                             log_event("read", w.wid)
+                        w.read = False
         return g
 
     def closing(f):
@@ -182,7 +195,9 @@ def _child(fc, d, k: int, run: str, log) -> None:
                 del st["regions"][n:]
         return g
 
-    def edge_after(self, i0, at, edge):  # applied in `walk` to the paths emitted under the watch, wherever walked
+    def edge_after(self, i0, at, edge):  # a split watch's: applied in `walk` to the paths emitted under it
+        if st["local"]:
+            return single_edge(self, i0, at, edge)
         log_event("edge", st["regions"][-1], at, edge)
 
     F._Walk._watched, F._Walk._edge_after = watched, edge_after
@@ -201,10 +216,10 @@ def _child(fc, d, k: int, run: str, log) -> None:
 
     def node_logged(self, d_, name, *ctx, **kw):
         key = self.key(d_, name, *ctx)
-        if fresh(("node", key)):
-            log_event("node", key, self.new_node(d_, name, *ctx, **kw))
-        if key not in self.nodes:
-            self.nodes[key] = self.new_node(d_, name, *ctx, **kw)
+        if fresh(("node", key)):  # logged: every key is in self.nodes (the process's first creation, kept)
+            n = self.new_node(d_, name, *ctx, **kw)
+            self.nodes.setdefault(key, n)
+            log_event("node", key, n)
         return key
 
     def record_logged(self, keys, tr):
@@ -338,6 +353,7 @@ def walk(fc, d, procs: int, log=sys.stderr):
               f"walking again", file=log, flush=True)
     assert len({p["clock"] for p in parts}) == 1 and len({p["nseg"] for p in parts}) == 1, "the tops differ"
     nodes, facts, seen, walked = dict(fc.nodes), {x: v.copy() for x, v in fc.facts.items()}, set(fc._late_seen), []
+    under: dict = {}  # a split watch -> the paths walked under it (its no-event branch)
     for _, kind, x, _c in stream:
         if kind == "node":
             if x[0] not in nodes:  # the first live creation, as the single walk keeps it
@@ -350,12 +366,14 @@ def walk(fc, d, procs: int, log=sys.stderr):
                 seen.add(x[1])
                 facts.setdefault(x[0], Rows()).append_blob(_ROW_BLOBS.setdefault(x[2], x[2]))
         elif kind == "path":
-            walked.append([x[0], x[1], x[2]])
+            for wid in x[2]:
+                under.setdefault(wid, []).append(len(walked))
+            walked.append([x[0], x[1]])
         elif kind == "edge":  # the question asked: its edge on the no-event branch's paths (`_Walk._edge_after`)
             wid, at, edge = x
-            for w in walked:
-                if wid in w[2]:
-                    w[0] = replace(w[0], edges=w[0].edges[:at] + (edge,) + w[0].edges[at:])
+            for i in under.get(wid, ()):
+                w = walked[i]
+                w[0] = replace(w[0], edges=w[0].edges[:at] + (edge,) + w[0].edges[at:])
     pre, keys = [w[0] for w in walked], [w[1] for w in walked]
     fc.nodes, fc.facts, fc._late_seen = nodes, facts, seen
 
@@ -370,7 +388,9 @@ def walk(fc, d, procs: int, log=sys.stderr):
     out = merge_equivalent(pre, keys, {x: n.branches for x, n in fc.nodes.items()})
     fc.walk_stats = {"walked": len(pre), "paths": len(out), "nodes": len(fc.nodes), "seconds": time.time() - t0,
                      "processes": [(p["k"], p["walked"], round(p["seconds"]), round(p["rss"], 2)) for p in parts]}
-    print(f"{time.time() - t0:7.0f}s parallel walk: {len(pre)} paths walked, {len(out)} after the merge, "
+    dropped = sum(p["walked"] for p in parts) - len(pre)
+    print(f"{time.time() - t0:7.0f}s parallel walk: {len(pre)} paths kept ({dropped} walked under questions not "
+          f"asked, dropped), {len(out)} after the merge, "
           f"{len(fc.nodes)} nodes; processes (k, paths, s, peak GB) {fc.walk_stats['processes']}", file=log, flush=True)
     return out
 
@@ -410,7 +430,7 @@ def shard(run_id: str, job: int, jobs: int, procs: int, out: str) -> None:
                     horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup, basis=basis_for(ctx["feed"], setup),
                     slots=ctx["slots"], model=ctx["m"], sens=None)
     d = next(x for x, _ in fc.ordered() if x.stage == PENDING and x.borrower_role == "debtor")
-    os.environ["SLOPE_WALK_SHARDS"] = str(jobs * procs)
+    os.environ["SLOPE_WALK_JOB"] = f"{job}/{jobs}"  # this machine's units, claimed by its processes as they free up
     os.makedirs(out, exist_ok=True)
     _fork(fc, d, procs, out, sys.stderr, ks=range(job * procs, job * procs + procs))
 
