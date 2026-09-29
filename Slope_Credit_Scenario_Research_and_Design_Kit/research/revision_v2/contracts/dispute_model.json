@@ -998,7 +998,7 @@
               "the relief the claimant seeks, including a permanent injunction, and its filings on it",
               "the parties' competitive relationship"
             ],
-            "situation": [
+            "situation_keys": [
               "judgment_amount",
               "judgment_entered_on",
               "amount_owed",
@@ -1058,7 +1058,7 @@
               "the notes' judgment-default terms",
               "the company's liquidity and going-concern disclosures"
             ],
-            "situation": [
+            "situation_keys": [
               "judgment_amount",
               "amount_owed",
               "judgment_status",
@@ -1126,7 +1126,7 @@
             "record_items": [
               "the company's liquidity and going-concern disclosures"
             ],
-            "situation": [
+            "situation_keys": [
               "judgment_amount",
               "amount_owed",
               "judgment_status",
@@ -1186,7 +1186,7 @@
               "where the company and its subsidiaries are organised and operate, and their properties",
               "the company's cash and going-concern disclosures"
             ],
-            "situation": [
+            "situation_keys": [
               "judgment_amount",
               "judgment_entered_on",
               "judgment_status",
@@ -1293,7 +1293,7 @@
               "the notes' judgment-default terms",
               "the company's statements on contesting the claims"
             ],
-            "situation": [
+            "situation_keys": [
               "post_trial_ruling",
               "judgment_amount",
               "amount_owed",
@@ -1356,7 +1356,7 @@
               "the relief the claimant seeks, including a permanent injunction, and its filings on it",
               "the parties' competitive relationship"
             ],
-            "situation": [
+            "situation_keys": [
               "judgment_amount",
               "judgment_entered_on",
               "amount_owed",
@@ -1418,7 +1418,7 @@
               "the relief the claimant seeks, including a permanent injunction",
               "the parties' competitive relationship"
             ],
-            "situation": [
+            "situation_keys": [
               "interval",
               "claimed_amounts",
               "judgment_amount",
@@ -1481,7 +1481,7 @@
               "the relief the claimant seeks, including a permanent injunction, and its filings on it",
               "the parties' competitive relationship"
             ],
-            "situation": [
+            "situation_keys": [
               "interval",
               "claimed_amounts",
               "judgment_amount",
@@ -1568,7 +1568,7 @@
               "the holders of record of the notes",
               "the notes' interest payment record"
             ],
-            "situation": [
+            "situation_keys": [
               "judgment_amount",
               "judgment_standing",
               "days_unpaid_and_unstayed",
@@ -1635,7 +1635,7 @@
               "the holders of record of the notes",
               "the notes' interest payment record"
             ],
-            "situation": [
+            "situation_keys": [
               "delisted_on",
               "declaration_deadline",
               "repurchase_date",
@@ -1699,7 +1699,7 @@
             "record_items": [
               "the company's going-concern and bankruptcy statements"
             ],
-            "situation": [
+            "situation_keys": [
               "decision_date",
               "notes_balance_due",
               "notes_due_how",
@@ -1762,7 +1762,7 @@
             "record_items": [
               "the holders of record of the notes"
             ],
-            "situation": [
+            "situation_keys": [
               "decision_date",
               "notes_balance_due",
               "notes_due_how",
@@ -1937,7 +1937,7 @@
             "the latest stockholder vote on a charter amendment",
             "the authorized and outstanding shares"
           ],
-          "situation": [
+          "situation_keys": [
             "bid_price_on_review_date",
             "compliance_deadline",
             "reverse_split_time",
@@ -1963,7 +1963,7 @@
             "the listing deficiency notices",
             "the company's statements on its listing"
           ],
-          "situation": [
+          "situation_keys": [
             "determination_date",
             "hearing_request_deadline",
             "judgment_standing",
@@ -2083,7 +2083,7 @@
               "the company's statements on the trial",
               "the company's stated plans for its liquidity"
             ],
-            "situation": [
+            "situation_keys": [
               "decision_date",
               "floor_decision",
               "available_cash",
@@ -2161,7 +2161,7 @@
               "the company's statements on the trial",
               "the company's stated plans for its liquidity"
             ],
-            "situation": [
+            "situation_keys": [
               "decision_date",
               "available_cash",
               "operating_need_30_days",
@@ -2192,7 +2192,7 @@
             "the company's statements on its liquidity and going concern",
             "counsel's statement on the ability to raise money"
           ],
-          "situation": [
+          "situation_keys": [
             "initiated_on",
             "close_date",
             "gross_proceeds",
@@ -2362,7 +2362,7 @@
               "the company's statements on its liquidity",
               "the company's statements on the trial"
             ],
-            "situation": [
+            "situation_keys": [
               "decision_date",
               "occasion",
               "judgment_amount",
@@ -2424,7 +2424,7 @@
               "the notes' judgment-default terms",
               "the company's statements on contesting the claims"
             ],
-            "situation": [
+            "situation_keys": [
               "judgment_amount",
               "judgment_entered_on",
               "motion_deadline",
@@ -2488,7 +2488,7 @@
               "the claimant's damages method and figures",
               "the challenges to the damages method"
             ],
-            "situation": [
+            "situation_keys": [
               "judgment_amount",
               "judgment_entered_on",
               "pending_motions",
@@ -2557,7 +2557,7 @@
               "the motions for judgment as a matter of law made at trial",
               "the company's statements on the trial"
             ],
-            "situation": [
+            "situation_keys": [
               "form_item",
               "form_question",
               "answer_rule",
@@ -2626,7 +2626,7 @@
             "the record on actual loss",
             "the company's statements on the likely award"
           ],
-          "situation": [
+          "situation_keys": [
             "form_item",
             "form_question",
             "earlier_answers",
@@ -2652,7 +2652,7 @@
             "the company's going-concern and debt disclosures",
             "the relief the claimant seeks, including a permanent injunction"
           ],
-          "situation": [
+          "situation_keys": [
             "verdict_amount",
             "remitted_amount",
             "available_cash",
@@ -2753,7 +2753,7 @@
         "verdict_measure",
         "post_trial_ruling"
       ],
-      "node_texts": "A pending claim reads a node's question texts (residual question, actor, decision, branches, standard, record items, situation) from the node's pending_money_claim block where it has one, else from the node; every other template reads the node without the block."
+      "node_texts": "A pending claim reads a node's question texts (residual question, actor, decision, branches, standard, record items, situation keys) from the node's pending_money_claim block where it has one, else from the node; every other template reads the node without the block."
     }
   },
   "composition": {

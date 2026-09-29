@@ -737,7 +737,7 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     entry = registry_entry(n.question_id)
     labels = {**fc.m.get("case_labels", {}), **(fc.labels(d) if d.stage == PENDING else {})}
     g = Group.of(rows, eligible(fc, n, rows, masks)) if rows else None
-    sit = Situation(fc, n, d, g, tags, labels).fill(t["situation"], strict)
+    sit = Situation(fc, n, d, g, tags, labels).fill(t["situation_keys"], strict)
     values = {"company": fc.borrower, "claimant": d.counterparty,  # the question names the representative's figures
               **{k: RANGE.sub("", v) if isinstance(v, str) else json.dumps(v) for k, v in sit.items()}}
     crit = entry["prompt"]["criteria"]
