@@ -248,6 +248,52 @@ class _Prefix:
                    (getattr(tr, "groups", None) or {}).get(len(tr.day) - 1))
 
 
+class _DepthCache:
+    """A cache keyed by step prefixes, for a depth-first walk. Per namespace (one chain: a dispute's, the bank's) it
+    keeps the prefixes of the current path (the latest request that is not an ancestor of the one before) on a stack (the current path's ancestors, one per
+    depth), which nothing evicts; an entry that stops being a prefix of the latest request (a sibling probe, the
+    path just left) moves to a small LRU, and returns to the stack when a later request extends it again. An
+    ancestor is lost only after `side` other entries have left the stack with no request below it in between.
+    Per request: O(d) (d: the depth where the request leaves the previous one's path, the promotions below it)."""
+
+    def __init__(self, side: int) -> None:
+        self.side = side
+        self.tip: dict = {}  # namespace -> the latest request's steps
+        self.levels: dict = {}  # namespace -> {depth: value of tip[:depth]}
+        self.lru: dict = {}  # (namespace, steps) -> value, least recently used first
+
+    def _move(self, ns, steps: tuple) -> dict:
+        tip = self.tip.get(ns, ())
+        lv = self.levels.setdefault(ns, {})
+        c, top = 0, min(len(tip), len(steps))
+        while c < top and tip[c] == steps[c]:
+            c += 1
+        if c == len(steps):  # an ancestor of the latest request (a parent's mask, a re-read): the path stays
+            return lv
+        for L in [L for L in lv if L > c]:  # no longer on the path: to the LRU
+            self._side((ns, tip[:L]), lv.pop(L))
+        if self.lru:
+            for L in range(c + 1, len(steps) + 1):  # back on the path
+                v = self.lru.pop((ns, steps[:L]), None)
+                if v is not None:
+                    lv[L] = v
+        self.tip[ns] = steps
+        return lv
+
+    def _side(self, key, v) -> None:
+        self.lru.pop(key, None)
+        if len(self.lru) >= self.side:
+            self.lru.pop(next(iter(self.lru)))
+        self.lru[key] = v
+
+    def get(self, ns, steps: tuple):
+        return self._move(ns, steps).get(len(steps))
+
+    def put(self, ns, steps: tuple, v):
+        self._move(ns, steps)[len(steps)] = v
+        return v
+
+
 def masked(p: _Prefix, m: np.ndarray | None) -> _Prefix:
     """The prefix on the path's trajectories only: elsewhere its decision is not taken (day BIG) and a petition
     precedes it (day 0), so a read over trajectories (inside the horizon, before a petition, every one filed, the
@@ -402,9 +448,9 @@ class Forecaster:
         self._raise_open: set = set()
         self._raise_more: set = set()
         self.node_group: dict[str, int] = {}  # a grouped question's key -> the option group it is asked of
-        # traced prefixes, least recently used first: the tree is walked depth-first, so only the current path's
-        # prefixes and their siblings' probes are read again; each entry holds its step's question-state snapshot
-        self._traces: dict = {}
+        # traced prefixes: the tree is walked depth-first, so the current path's prefixes stay on a stack and only
+        # sibling probes share a small LRU (`_DepthCache`); each entry holds its step's question-state snapshot
+        self._traces = _DepthCache(self.SIBLINGS)
         self.remitted: dict[str, tuple[int, int, int]] = {}  # C3 node key -> the remitted amount and its band
         self._sources: dict[str, str] = {}  # finding -> its source's title
         self.bank_nodes: dict[str, Node] = {}  # the bank view's questions (bank_state)
@@ -457,27 +503,15 @@ class Forecaster:
         from app.analysis.events import canon, event_trace
 
         steps = canon(steps)  # a grouped branch books its answer; the path's group is its mask (`_Walk._trace`)
-        key = (d.instance_id, steps)
-        hit = self._cached(key)
+        hit = self._traces.get(d.instance_id, steps)
         if hit is None:
             path = DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=())
-            hit = self._keep(key, _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens),
-                                             self.setup.cash_processing == "daily"))
+            hit = self._traces.put(d.instance_id, steps,
+                                   _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens),
+                                              self.setup.cash_processing == "daily"))
         return hit
 
-    TRACES = 512  # the prefixes kept (the tree's depth is under 60 steps, each with a few sibling probes)
-
-    def _cached(self, key) -> _Prefix | None:
-        hit = self._traces.pop(key, None)
-        if hit is not None:
-            self._traces[key] = hit  # most recently used last
-        return hit
-
-    def _keep(self, key, p: _Prefix) -> _Prefix:
-        if len(self._traces) >= self.TRACES:
-            self._traces.pop(next(iter(self._traces)))
-        self._traces[key] = p
-        return p
+    SIBLINGS = 64  # traced prefixes kept off the current path (sibling probes); its ancestors are all kept
 
     def whole_trace(self, d: DisputeInstance, steps: tuple) -> _Prefix:
         """A whole path's trace with every step's facts (not cached: the page reads each path once)."""
@@ -519,11 +553,11 @@ class Forecaster:
         from app.analysis.events import BANK, bank_trace, canon
 
         steps = canon(steps)
-        key = (BANK, steps)
-        hit = self._cached(key)
+        hit = self._traces.get(BANK, steps)
         if hit is None:
-            hit = self._keep(key, _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m, self.draws,
-                                                        self.sens), self.setup.cash_processing == "daily"))
+            hit = self._traces.put(BANK, steps, _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m,
+                                                                       self.draws, self.sens),
+                                                            self.setup.cash_processing == "daily"))
         return hit
 
     @property
@@ -1455,7 +1489,7 @@ def merge_equivalent(paths: list[DisputePath], keys: list, branches: dict) -> li
 class _Walk:
     def __init__(self, fc: Forecaster, d: DisputeInstance) -> None:
         self.fc, self.d, self.out = fc, d, []
-        self._masks: dict = {}  # a prefix ending in a grouped step -> its trajectories (`mask_of`)
+        self._masks = _DepthCache(fc.SIBLINGS)  # a prefix ending in a grouped step -> its trajectories (`mask_of`)
         self._watch: list[_Watch] = []  # the questions whose no-event branch is being walked (QUESTIONS §1 Depth)
         self.keys: list = []  # per emitted path, its financial-equivalence key (`equivalence`)
         self.fin = next((f for f in d.financing if f.status != "superseded"), None)
@@ -1576,12 +1610,12 @@ class _Walk:
         if j is None:
             return None
         key = steps[:j + 1]
-        m = self._masks.get(key)
+        m = self._masks.get(None, key)
         if m is None:
             node, ctx, branch = steps[j]
             g = self.walk_groups(steps[:j] + ((node, ctx, self.quiet_of(node)),)) == step_group(branch)
             parent = self.mask_of(steps[:j])
-            m = self._masks[key] = g if parent is None else parent & g
+            m = self._masks.put(None, key, g if parent is None else parent & g)
         return m
 
     def rec(self, k: str, steps) -> None:
@@ -2570,7 +2604,7 @@ class _OrdinaryWalk(_Walk):
         from app.analysis.events import BANK
 
         self.fc, self.out, self.bank = fc, [], BANK
-        self._masks: dict = {}
+        self._masks = _DepthCache(fc.SIBLINGS)
         self._watch: list[_Watch] = []
         self.d = None
         self.fin = fc.instrument()
