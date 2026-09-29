@@ -88,6 +88,33 @@ class Group:
         return v[j] if isinstance(v, np.ndarray) else v
 
 
+def signatures(fc, n, g: Group) -> dict:
+    """QUESTIONS §1 Grouping: each member's legal status, available actions and ability to pay, on the dimensions the
+    spec names (pay eligibility, stay security type, notes status, listing status), counted over the group. More than
+    one signature means the group should split; the walk asks one answer per path for all its trajectories, so a split
+    inside one path's trajectories needs per-trajectory answers (reported, not built here). A dimension whose accessor
+    is not on the branch counts as '?'."""
+    from collections import Counter
+
+    sit = Situation(fc, n, None if g is None else fc.disputes[0], g, [], {})
+    out = Counter()
+    for i, j in g.members:
+        r, day = g.rows[i], int(g.rows[i]["day"][j])
+        pay = "pay" if 0 < int(r["owed"][j]) <= int(r["cash"][j]) else "nopay"
+        sec = "-"
+        if n.node in ("stay_motion", "stay_approved"):
+            sit.g = Group(g.rows, g.members, (i, j))
+            sec = sit._security()[0]
+        sn = r.get("sit") or {}
+        due, avail, listing = (None if isinstance(sn.get(x), Awaiting) else sn.get(x)
+                               for x in ("notes_due_day", "default_available", "listing"))
+        notes = "?" if due is None or avail is None else (
+            "due" if int(due[j]) <= day else "default" if int(avail[j]) <= day else "current")
+        lst = "?" if listing is None else str(listing[j])
+        out[(pay, sec, notes, lst)] += 1
+    return dict(out)
+
+
 def money(rep: int, group: np.ndarray | None = None) -> str:
     """An amount (never below zero) and, where the group differs, its range."""
     text = usd(max(int(rep), 0))
