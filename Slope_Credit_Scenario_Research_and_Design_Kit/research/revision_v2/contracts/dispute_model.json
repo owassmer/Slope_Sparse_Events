@@ -475,6 +475,21 @@
       "value": "need",
       "sensitivity": "zero"
     },
+    "nonpayment_window_days": {
+      "disposition": "bounded",
+      "basis": "Indenture §7.01(j)(v): an Event of Default where the Company 'generally is not paying its debts as they become due'. Whether nonpayment is the company's general practice turns on its extent and its duration; one late payment is not. Scenario (QUESTIONS_20240514 §3.3), tested daily by code on the daily cash processor (§2.2; cash_processing = daily): met on a day when, over the preceding window, arrears were outstanding at the end of every day and the obligations that fell due in the window and are still unpaid amount to at least the unpaid share of all obligations that fell due in it (Slope's installments, settlement installments, cash interest, a judgment payment, a levy and the operating outflows). Where it is met the notes are due at once under §7.02 without a declaration, and §7.06 does not bar a holders' petition. No Jev question decides it. This parameter: the window, 30 days (base); 15 or 60 days (sensitivities).",
+      "value": 30,
+      "sensitivity": [
+        15,
+        60
+      ]
+    },
+    "nonpayment_unpaid_share_bps": {
+      "disposition": "bounded",
+      "basis": "Indenture §7.01(j)(v): an Event of Default where the Company 'generally is not paying its debts as they become due'. Whether nonpayment is the company's general practice turns on its extent and its duration; one late payment is not. Scenario (QUESTIONS_20240514 §3.3), tested daily by code on the daily cash processor (§2.2; cash_processing = daily): met on a day when, over the preceding window, arrears were outstanding at the end of every day and the obligations that fell due in the window and are still unpaid amount to at least the unpaid share of all obligations that fell due in it (Slope's installments, settlement installments, cash interest, a judgment payment, a levy and the operating outflows). Where it is met the notes are due at once under §7.02 without a declaration, and §7.06 does not bar a holders' petition. No Jev question decides it. This parameter: the unpaid share, one quarter (base); one half (sensitivity).",
+      "value": 2500,
+      "sensitivity": 5000
+    },
     "form25_after_panel_days": {
       "disposition": "bounded",
       "basis": "The stock is not listed from its suspension (base); sensitivity: Form 25 effectiveness at the panel decision + 60 days (Rule 5820 windows) + 10 (17 C.F.R. §240.12d2-2(d)(1)), or suspension + 10 without a hearing.",

@@ -114,6 +114,9 @@ class Trajectories:
     # [draws] failed collection attempts: under `debit`, installment debits that failed; under `protect_need`,
     # attempts that left an amount owed
     failed_debits: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.int64))
+    # under cash_processing = daily: the processor's arrears, first unpaid day and §3.3 day (processor.Processed).
+    # Not a field: a net run's fields are exactly as before.
+    processed = None
 
     @property
     def fees(self) -> np.ndarray:
@@ -192,8 +195,8 @@ def with_petition(events: EventCash, day: np.ndarray | int) -> EventCash:
     return events + p
 
 
-def run(line: Line, opening_cents: int, events: EventCash) -> Trajectories:
-    return run_many(line, opening_cents, [events])[0]
+def run(line: Line, opening_cents: int, events: EventCash, nonpayment: tuple[int, int] | None = None) -> Trajectories:
+    return run_many(line, opening_cents, [events], nonpayment)[0]
 
 
 def _tiled(line: Line, b: int) -> tuple:
@@ -219,10 +222,16 @@ def _tiled(line: Line, b: int) -> tuple:
     return cache[b]
 
 
-def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Trajectories]:
+def run_many(line: Line, opening_cents: int, events: list[EventCash], nonpayment: tuple[int, int] | None = None
+             ) -> list[Trajectories]:
     """`run` for several joint paths at once: their draws are stacked through the day loop, day-major so each day's
     values are contiguous (every operation in the loop is per trajectory and in integers, so each path's rows are
-    exactly what it computes alone), then each path is finished on its own rows."""
+    exactly what it computes alone), then each path is finished on its own rows. Under cash_processing = daily the
+    daily processor runs instead (app/analysis/processor.py; `nonpayment`: the §3.3 terms, window days and share bps)."""
+    if line.setup.cash_processing == "daily":
+        from app.analysis.processor import run_daily
+
+        return run_daily(line, opening_cents, events, nonpayment)
     s, n, days, b = line.setup, line.ops.draws, line.days, len(events)
     debit = s.collection == "debit"
     base = np.ascontiguousarray(np.concatenate([line.ops.total[:, :days] + e.cash - e.lock for e in events]).T)
