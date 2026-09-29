@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
-from functools import cache, lru_cache
+from functools import lru_cache
 
 import numpy as np
 
@@ -85,7 +85,7 @@ class Merton:
         vals = np.array([self._price1(int(x)) for x in u], dtype=float)
         return vals[inv].reshape(a.shape)
 
-    @cache  # noqa: B019 (one calibrated instance per case; the amounts owed accrue daily)
+    @lru_cache(maxsize=1 << 16)  # noqa: B019 (bounded: the amounts owed accrue daily, so they rarely repeat far apart)
     def _price1(self, owed: int) -> float:
         return self.call(self.V, self.notes_cents + max(owed, 0), self.asset_vol)[0] / self.shares
 

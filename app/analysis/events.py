@@ -761,6 +761,11 @@ class Chain:
         day = np.asarray(day)
         if self.d is None:
             return np.zeros(self.n, dtype=np.int64)
+        out = self._owed_gross(day, enforceable)
+        return np.where(day >= self.resolved, 0, np.maximum(out - self.taken_before(day), 0))
+
+    def _owed_gross(self, day: np.ndarray, enforceable: bool = False) -> np.ndarray:
+        """`owed_at` before what was levied or paid and before the dispute's resolution."""
         since_entry = day - self.entry_ix() if self.has_judgment() else np.zeros(self.n)
         before = self.entered + interest_1961(self.entered, 0, since_entry, 0, self.bps)
         if self.cls_amount is None:
@@ -775,7 +780,7 @@ class Chain:
             out = np.where(day >= self.F, after, before)
         if self.pending:  # nothing is owed before the modeled entry
             out = np.where(day < self.E_ix, 0, out)
-        return np.where(day >= self.resolved, 0, np.maximum(out - self.taken_before(day), 0))
+        return out
 
     def taken_before(self, day) -> np.ndarray:
         """Levied or paid toward the judgment before the day. A pending claim (4.1.0) dates each amount, so a decision
@@ -969,6 +974,34 @@ class Chain:
             amt = np.where(day >= col(self.marks["settled"]), left, amt)
         return np.where(day >= col(self.V), amt, 0).astype(np.int64)
 
+    def _through(self, events) -> np.ndarray:
+        """Per draw and day [draws, days], the sum of the (day, amount) events dated on or before the day."""
+        g = np.zeros((self.n, self.N + 1), dtype=np.int64)
+        for t, a in events:
+            np.add.at(g, (self.rows, np.clip(self.per_draw(t), 0, self.N)), self.per_draw(a))
+        return np.cumsum(g[:, :self.N], axis=1)
+
+    def _price_owed_grid(self) -> np.ndarray:
+        """`price_owed` on every draw and day [draws, days], with the takes and the settlement parts summed once
+        (a take on or before the day is the take before it plus the day's own)."""
+        if not self.pending or not self.entered:
+            return np.zeros((self.n, self.N), dtype=np.int64)
+        day = np.arange(self.N, dtype=np.int64)[None, :]
+        col = lambda a: self.per_draw(a)[:, None]  # noqa: E731
+        taken = self._through(self.takes)
+        amt = np.full((self.n, self.N), self.entered, dtype=np.int64)
+        if self.cls_amount is not None:
+            amt = np.where(day >= col(self.F), self.cls_amount, amt)
+        amt = np.where(day >= col(self.resolved), 0, np.maximum(amt - taken, 0))
+        gross = self._owed_gross(np.broadcast_to(day.T, (self.N, self.n))).T
+        owed = np.where(day >= col(self.resolved), 0, np.maximum(gross - taken, 0))
+        amt = np.where(day >= col(self.E_ix), owed, amt)
+        if self.settlement_parts:
+            total = sum(self.per_draw(a) for _, a in self.settlement_parts)
+            left = total[:, None] - self._through(self.settlement_parts)
+            amt = np.where(day >= col(self.marks["settled"]), left, amt)
+        return np.where(day >= col(self.V), amt, 0).astype(np.int64)
+
     def _reprice(self) -> None:
         """Bump `_price_v` where what the share price reads has changed (the amount entered, the ruling, a payment
         or levy, the dispute's resolution, a settlement)."""
@@ -982,7 +1015,7 @@ class Chain:
         if key != self._price_key:  # what the price reads changed: `_price_v` moves only where the array does
             self._price_key = key
             close = float(self.m["parameters"]["atm_pace_bps"]["price_cents"])
-            owed = self.price_owed(np.broadcast_to(np.arange(self.N, dtype=np.int64), (self.n, self.N)))
+            owed = self._price_owed_grid()
             price = np.where(owed > 0, self.merton.price(owed), close)
             if self.share_price is None or not np.array_equal(price, self.share_price):
                 self._price_v += 1
