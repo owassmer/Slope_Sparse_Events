@@ -2065,35 +2065,14 @@ class Chain:
 
 
     # --- step 9 worker C: the question-state snapshot and the interface it reads ---------------------------------
-    # The step-9 interface (SPLIT_common.md) is implemented by workers A and B. Each method below is defined here only
-    # where no earlier definition in this class exists (`locals()` in the class body), so it never shadows theirs;
-    # INTEGRATOR: delete each stub once its real definition is merged. Per-trajectory attributes are read through
-    # `c_read`, which raises NotImplementedError naming any the chain does not have.
+    # The step-9 interface (SPLIT_common.md) is implemented by workers A and B above (merged at integration; worker C's
+    # guarded stubs retired). Per-trajectory attributes are read through `c_read`, which
+    # raises NotImplementedError naming any the chain does not have.
     C_INTERFACE = {"A": ("ledger_left", "atm_to_date", "offering_terms", "offering_pending", "offerings",
                          "listing_status", "notes_due_day", "notes_due_how", "arrears_by_class", "first_unpaid",
                          "nonpayment_day"),
                    "B": ("judgment_amount_entered", "judgment_standing", "band", "band_range", "default_available_day",
                          "holder_route_days_path", "remitted_amount")}
-
-    if "ledger_left" not in locals():
-        def ledger_left(self, day):  # STUB (worker A): shares available on the day, per trajectory
-            raise NotImplementedError("Chain.ledger_left (worker A)")
-    if "atm_to_date" not in locals():
-        def atm_to_date(self, day):  # STUB (worker A): net at-the-market proceeds received by the day, cents
-            raise NotImplementedError("Chain.atm_to_date (worker A)")
-    if "offering_terms" not in locals():
-        def offering_terms(self, day=None):  # STUB (worker A): gross, costs, net, price_cents_x1e4, shares,
-            # close_days, each [n], at the capacity left on the day
-            raise NotImplementedError("Chain.offering_terms (worker A)")
-    if "listing_status" not in locals():
-        def listing_status(self, day):  # STUB (worker A): listed | hearing_requested | suspended | delisted
-            raise NotImplementedError("Chain.listing_status (worker A)")
-    if "arrears_by_class" not in locals():
-        def arrears_by_class(self, day):  # STUB (worker A): class -> [n] cents, from the processor
-            raise NotImplementedError("Chain.arrears_by_class (worker A)")
-    if "judgment_standing" not in locals():
-        def judgment_standing(self, day):  # STUB (worker B): none | unpaid | stayed | levied_in_part | reduced | ...
-            raise NotImplementedError("Chain.judgment_standing (worker B)")
 
     def c_read(self, name: str, *args):
         """An interface value: an attribute or property as it is, a method called with `args`."""
