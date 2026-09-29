@@ -157,6 +157,21 @@
       "questions": [
         "record_item_supplied"
       ]
+    },
+    "event_forecast": {
+      "primitive": "noul+choice",
+      "trigger": "host, when the analysis is built: one request per question and situation",
+      "rules": [
+        "Forecast the outcome specified in the question at the stated decision time, conditional on the supplied scenario. Treat the scenario's events and amounts as given. Use the supplied evidence available by the evidence cutoff, preserving each source's author, date and status. Apply the supplied legal or contractual provisions where relevant. Estimate the probabilities of the defined outcomes."
+      ],
+      "state_contract": {
+        "historical_evidence": "Documents and data dated by the evidence cutoff, each with its author, date and status.",
+        "party_assertions": "What a party states or argues in its own interest, attributed to it.",
+        "court_findings": "What the court has ruled, ordered or found.",
+        "assumed_events": "The events, amounts, balances, terms and statuses given as the question's situation.",
+        "earlier_readings": "Readings of the record taken before the question, each with the date of its source."
+      },
+      "questions": []
     }
   },
   "state_contract": {

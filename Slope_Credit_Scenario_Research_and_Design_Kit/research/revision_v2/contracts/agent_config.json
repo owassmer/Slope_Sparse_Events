@@ -271,6 +271,10 @@
             "forecast_nasdaq_hearing",
             "forecast_panel_exception"
           ]
+        },
+        "event_forecast": {
+          "trigger": "host, when the analysis is built: one request per question and situation",
+          "questions": []
         }
       },
       "state_policy": "The host builds each state from immutable run objects (dependency text, evidence section or table text with its heading path, agent-authored claim or finding). The agent never supplies raw Jev state or question IDs.",

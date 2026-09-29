@@ -178,6 +178,24 @@
     "jury_verdict": {
       "citation": "U.S. Const. amend. VII; Fed. R. Civ. P. 48(b) (a unanimous verdict unless the parties stipulate otherwise) and 49(a) (special verdict): the jury finds each claim by a preponderance of the evidence and fixes the damages the form asks for.",
       "modality": "may"
+    },
+    "frcp_50b_renewal": {
+      "citation": "Fed. R. Civ. P. 50(a)(2): the motion \"must specify the judgment sought and the law and facts that entitle the movant to the judgment.\" Rule 50(b): if the court does not grant a Rule 50(a) motion, the movant may file a renewed motion no later than 28 days after the entry of judgment. The renewed motion is limited to the grounds raised under Rule 50(a): \"A motion for judgment as a matter of law pursuant to Rule 50(b) must be preceded by a Rule 50(a) motion sufficiently specific to afford the party against whom the motion is directed with an opportunity to cure possible defects in proof\" (Lightning Lube, Inc. v. Witco Corp., 4 F.3d 1153, 1172-73 (3d Cir. 1993)); a \"failure to raise an issue in a Rule 50(a)(2) motion with sufficient specificity to put the plaintiffs on notice waives the defendant's right to raise the issue in their Rule 50(b) motion\" (Williams v. Runyon, 130 F.3d 568, 571-72 (3d Cir. 1997)). A party that does not renew under Rule 50(b) has no sufficiency challenge on appeal (Unitherm Food Sys., Inc. v. Swift-Eckrich, Inc., 546 U.S. 394 (2006)).",
+      "modality": "may",
+      "value": 28,
+      "unit": "days"
+    },
+    "stay_reduced_security": {
+      "citation": "Fed. R. Civ. P. 62(b): \"At any time after judgment is entered, a party may obtain a stay by providing a bond or other security.\" Courts may forego the bond \"when there are other means to secure the judgment creditor's interests\" (In re Diet Drugs Prods. Liab. Litig., 582 F.3d 524, 552 (3d Cir. 2009)). In \"extraordinary circumstances\" a court may waive the full bond where \"posting a full bond is impossible or impracticable\" and alternative means \"provide adequate (or as adequate as possible) security\" for the judgment creditor's interest (Praxis Energy Agents Pte. Ltd. v. M/V Pebble Beach, C.A. No. 17-559-LPS (D. Del. Dec. 6, 2021), citing Grand Entm't Grp., Ltd. v. Star Media Sales, Inc., 1992 WL 114953, at *2 (E.D. Pa. May 18, 1992))."
+    },
+    "nasdaq_bid_price": {
+      "citation": "Nasdaq Rule 5550(a)(2): a minimum bid price of $1 per share. Rule 5810(c)(3)(A): compliance is regained when the closing bid price is at least $1.00 for a minimum of 10 consecutive business days within the compliance period; a company that does not regain compliance receives a Staff Delisting Determination."
+    },
+    "dgcl_242_reverse_split": {
+      "citation": "8 Del. C. §242: a reverse stock split is an amendment of the certificate of incorporation, adopted by the board and approved by the stockholders at a meeting; §242(d)(2): for stock listed on a national securities exchange that meets its listing requirements after the split, the votes cast for the amendment exceed the votes cast against it. 8 Del. C. §222(b): notice of the meeting not less than 10 nor more than 60 days before it. SEC Rule 14a-6(a): a preliminary proxy statement filed at least 10 calendar days before the definitive statement."
+    },
+    "indenture_general_nonpayment": {
+      "citation": "Indenture §7.01(j)(v): an Event of Default where the Company, within the meaning of Bankruptcy Law, \"generally is not paying its debts as they become due\"; §7.02: \"if an Event of Default specified in clause (j) or (k) of Section 7.01 hereof occurs, all outstanding Notes shall be due and payable immediately without further action or notice.\""
     }
   },
   "readings": {
@@ -2042,7 +2060,8 @@
         "verdict_finding",
         "verdict_measure",
         "post_trial_ruling"
-      ]
+      ],
+      "node_texts": "A pending claim reads a node's question texts (residual question, actor, decision, branches, standard, record items, situation) from the node's pending_money_claim block where it has one, else from the node; every other template reads the node without the block."
     }
   },
   "composition": {
