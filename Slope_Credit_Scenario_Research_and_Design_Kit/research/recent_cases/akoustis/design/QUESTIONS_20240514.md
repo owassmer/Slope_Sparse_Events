@@ -54,7 +54,7 @@ Available cash on the decision date, and the operating need for the next month. 
 
 **Processing (Scenario).** Each day, the day's receipts post first. Obligations due that day are then processed against the available balance at that moment: the balance left after every earlier payment, less restricted cash (locked stay security). A levy served that day is processed first: it attaches the reachable balance. Scheduled obligations with a fixed due date are processed next, in the order they were incurred. These are Slope's installments by automatic debit, agreed settlement installments, and interest payable in cash. The day's operating outflows are processed next. A scheduled obligation is paid in full or not at all. Operating outflows are paid up to the balance. Whatever is unpaid becomes an arrear in its class: Slope, settlement, notes interest, operating. This same-day order is a convention; its effect is measured once against operating outflows first (§5).
 
-**Arrears.** A failed Slope debit is retried on the line's retry dates. An unpaid settlement installment stays owed to the claimant; the settlement terms carry no acceleration. Unpaid operating outflows remain arrears. Receipts and spending continue as the operating forecast has them. When receipts exceed the day's obligations, the surplus pays the other classes' arrears, oldest first. Slope's arrears are collected only by its debit, on the line's retry dates.
+**Arrears.** A failed Slope debit is retried on the line's retry dates. An unpaid settlement installment stays owed to the claimant; the settlement terms carry no acceleration. Unpaid operating outflows remain arrears. Receipts and spending continue as the operating forecast has them. After the day's obligations, the available balance pays the other classes' arrears, oldest first: a scheduled arrear in full or not at all, operating arrears up to the balance. Slope's arrears are collected only by its debit, on the line's retry dates. From a petition, arrears are frozen and nothing pays them.
 
 **State given to Jev.** Available cash, the operating need, and from the first unpaid obligation: the arrears by class and amount, and the days since the first obligation went unpaid.
 
@@ -68,7 +68,7 @@ The bid-price deficiency, the 21 Oct 2024 compliance deadline, and on the decisi
 
 ### 2.5 Stay security
 
-One of four types, each with its terms: full bond collateral (the amount); reduced cash security (the amount of cash above the month's operating need on the approval day); non-cash security or waiver (the non-cash scenario only); none available. A reduced-security amount of zero is never used to mean that full collateral is available.
+One of four types, each with its terms: full bond collateral (the amount); reduced cash security (the amount of cash above the month's operating need on the approval day); non-cash security or waiver (the non-cash scenario only); none available. A reduced-security amount of zero is never used to mean that full collateral is available. The security is sized on the approval day, on the balance after every event dated before it, and is never more than that balance. No security is posted after a petition.
 
 ### 2.6 Equity: channels and share capacity
 
@@ -94,7 +94,7 @@ One of four types, each with its terms: full bond collateral (the amount); reduc
 
 ### 3.3 General nonpayment, §7.01(j)(v)
 
-"Generally is not paying its debts as they become due" asks whether nonpayment is the company's general practice, by extent and over time; one late payment is not. It is met on a day when, over the preceding 30 days, arrears (§2.2) have been outstanding throughout and the obligations left unpaid amount to at least a quarter of all obligations that fell due in those days. Sensitivities: a 15- or 60-day window; half of the obligations due. Code tests it daily. Where it is met: an Event of Default under (j); the notes become due immediately under §7.02 without any declaration; §7.06 does not bar a holders' petition. No Jev question decides whether it is met.
+"Generally is not paying its debts as they become due" asks whether nonpayment is the company's general practice, by extent and over time; one late payment is not. It is met on a day when, over the preceding 30 days, arrears (§2.2) have been outstanding throughout and the obligations left unpaid amount to at least a quarter of all obligations that fell due in those days. Sensitivities: a 15- or 60-day window; half of the obligations due. Code tests it daily. A levy is neither an obligation falling due nor one left unpaid in that test. Where it is met: an Event of Default under (j); the notes become due immediately under §7.02 without any declaration; §7.06 does not bar a holders' petition. No Jev question decides whether it is met.
 
 ### 3.4 Which rules apply
 
