@@ -49,42 +49,47 @@ def medoid(day: np.ndarray, cash: np.ndarray) -> int:
 
 @dataclass
 class Group:
-    """A question's pooled trajectories: per member its row index and trajectory, and the representative's."""
+    """A question's pooled trajectories: per row the indices of its live trajectories (`idx`), the members as
+    (row, trajectory) pairs in the same order, and the representative's pair."""
     rows: list
+    idx: list
     members: np.ndarray  # [(row, trajectory)]
     rep: tuple[int, int]
 
     @classmethod
     def of(cls, rows: list, masks: list) -> Group | None:
-        pairs = np.array([(i, j) for i, m in enumerate(masks) for j in np.flatnonzero(m)], dtype=np.int64)
-        if not pairs.size:
+        idx = [np.flatnonzero(m) for m in masks]
+        if not sum(x.size for x in idx):
             return None
-        day = np.array([rows[i]["day"][j] for i, j in pairs], dtype=np.int64)
-        cash = np.array([max(int(rows[i]["cash"][j]), 0) for i, j in pairs], dtype=np.int64)
+        pairs = np.concatenate([np.stack([np.full(x.size, i), x], axis=1) for i, x in enumerate(idx)]).astype(np.int64)
+        day = np.concatenate([rows[i]["day"][x] for i, x in enumerate(idx)]).astype(np.int64)
+        cash = np.maximum(np.concatenate([rows[i]["cash"][x] for i, x in enumerate(idx)]), 0).astype(np.int64)
         k = medoid(day, cash)
-        return cls(rows, pairs, (int(pairs[k][0]), int(pairs[k][1])))
+        return cls(rows, idx, pairs, (int(pairs[k][0]), int(pairs[k][1])))
 
-    def field(self, name: str, sit: bool = False) -> np.ndarray:
-        """A per-trajectory fact over the group (row field, or the snapshot's with `sit`)."""
-        vals = []
-        for i, j in self.members:
-            src = self.rows[i].get("sit") if sit else self.rows[i]
-            if src is None:
-                raise Unbuilt(f"no question-state snapshot on the rows of this question ({name})")
-            v = src[name]
-            if isinstance(v, Awaiting):
-                raise Unbuilt(v.name)
-            vals.append(v[j] if isinstance(v, np.ndarray) else v)
-        return np.asarray(vals)
+    def rowwise(self, fn) -> np.ndarray:
+        """fn(row, trajectory indices) -> values, concatenated over the group in member order."""
+        return np.concatenate([np.asarray(fn(self.rows[i], x)) for i, x in enumerate(self.idx) if x.size])
 
-    def at_rep(self, name: str, sit: bool = False):
-        i, j = self.rep
+    def _src(self, i: int, name: str, sit: bool):
         src = self.rows[i].get("sit") if sit else self.rows[i]
         if src is None:
             raise Unbuilt(f"no question-state snapshot on the rows of this question ({name})")
         v = src[name]
         if isinstance(v, Awaiting):
             raise Unbuilt(v.name)
+        return v
+
+    def field(self, name: str, sit: bool = False) -> np.ndarray:
+        """A per-trajectory fact over the group (row field, or the snapshot's with `sit`)."""
+        def one(i, x):
+            v = self._src(i, name, sit)
+            return v[x] if isinstance(v, np.ndarray) else np.full(x.size, v)
+        return np.concatenate([one(i, x) for i, x in enumerate(self.idx) if x.size])
+
+    def at_rep(self, name: str, sit: bool = False):
+        i, j = self.rep
+        v = self._src(i, name, sit)
         return v[j] if isinstance(v, np.ndarray) else v
 
 
@@ -96,23 +101,31 @@ def signatures(fc, n, g: Group) -> dict:
     is not on the branch counts as '?'."""
     from collections import Counter
 
-    sit = Situation(fc, n, None if g is None else fc.disputes[0], g, [], {})
-    out = Counter()
-    for i, j in g.members:
-        r, day = g.rows[i], int(g.rows[i]["day"][j])
-        pay = "pay" if 0 < int(r["owed"][j]) <= int(r["cash"][j]) else "nopay"
-        sec = "-"
-        if n.node in ("stay_motion", "stay_approved"):
-            sit.g = Group(g.rows, g.members, (i, j))
-            sec = sit._security()[0]
-        sn = r.get("sit") or {}
-        due, avail, listing = (None if isinstance(sn.get(x), Awaiting) else sn.get(x)
-                               for x in ("notes_due_day", "default_available", "listing"))
-        notes = "?" if due is None or avail is None else (
-            "due" if int(due[j]) <= day else "default" if int(avail[j]) <= day else "current")
-        lst = "?" if listing is None else str(listing[j])
-        out[(pay, sec, notes, lst)] += 1
-    return dict(out)
+    from app.analysis.events import pval
+
+    day, cash, owed = g.field("day").astype(np.int64), g.field("cash").astype(np.int64), g.field("owed").astype(np.int64)
+    m = len(g.members)
+    pay = np.where((owed > 0) & (owed <= cash), "pay", "nopay")
+    sec = np.full(m, "-", dtype=object)
+    if n.node in ("stay_motion", "stay_approved"):
+        need = g.rowwise(lambda r, x: fc.draws.basis.need[x, np.minimum(r["day"][x], fc.draws.basis.need.shape[1] - 1)])
+        coll = g.field("collateral").astype(np.int64)
+        offer = g.rowwise(lambda r, x: r["stay_offer"][x] if r.get("stay_offer") is not None else np.zeros(x.size))
+        noncash = pval(fc.m, "stay_security", fc.sens.get("stay_security", False)) == "noncash"
+        sec = np.where((coll > 0) & (cash - need >= coll), "full", np.where(offer > 0, "reduced",
+                                                                            "noncash" if noncash else "none"))
+
+    def sit(name):
+        try:
+            return g.field(name, sit=True)
+        except Unbuilt:
+            return None
+
+    due, avail, listing = sit("notes_due_day"), sit("default_available"), sit("listing")
+    notes = np.full(m, "?", dtype=object) if due is None or avail is None else np.where(
+        due.astype(np.int64) <= day, "due", np.where(avail.astype(np.int64) <= day, "default", "current"))
+    lst = np.full(m, "?", dtype=object) if listing is None else listing.astype(str)
+    return dict(Counter(zip(pay.tolist(), sec.tolist(), notes.tolist(), lst.tolist(), strict=True)))
 
 
 def money(rep: int, group: np.ndarray | None = None) -> str:
@@ -249,11 +262,10 @@ class Situation:
 
     def _trigger(self, name: str, none: str = "not applicable") -> str:
         g = self._g()
-        vals = np.array([(g.rows[i].get("triggers") or {}).get(name, np.full(len(g.rows[i]["day"]), BIG))[j]
-                         for i, j in g.members], dtype=np.int64)
+        get = lambda r: (r.get("triggers") or {}).get(name, np.full(len(r["day"]), BIG))  # noqa: E731
+        vals = g.rowwise(lambda r, x: get(r)[x]).astype(np.int64)
         i, j = g.rep
-        rep = int((g.rows[i].get("triggers") or {}).get(name, np.full(len(g.rows[i]["day"]), BIG))[j])
-        return dated(self.review, rep, vals, none=none)
+        return dated(self.review, int(get(g.rows[i])[j]), vals, none=none)
 
     # the company's cash (§2.2)
     def decision_date(self):
@@ -264,7 +276,7 @@ class Situation:
 
     def _need(self):
         g, need = self._g(), self.fc.draws.basis.need
-        vals = np.array([need[j, min(int(g.rows[i]["day"][j]), need.shape[1] - 1)] for i, j in g.members])
+        vals = g.rowwise(lambda r, x: need[x, np.minimum(r["day"][x], need.shape[1] - 1)])
         i, j = g.rep
         return int(need[j, min(int(g.rows[i]["day"][j]), need.shape[1] - 1)]), vals
 
