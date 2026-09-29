@@ -1573,7 +1573,8 @@ class _Walk:
         aside = [[(k, "set_aside")]]
         if below:
             lo, hi, booked = below
-            c3 = self.node("remittitur_elected", s.cls, f"remit{booked}", s=s, probe=probe,
+            # its contract `situation` lists state keys (the question state's), not marks the walker tests
+            c3 = self.node("remittitur_elected", s.cls, f"remit{booked}",
                            assumptions=("the court orders a new trial unless the claimant accepts the reduced amount",))
             self.fc.remitted[c3] = (booked, lo, hi)
             step = ("post_trial_ruling", "", f"reduced:{booked}:{lo}:{hi}")
