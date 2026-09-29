@@ -986,6 +986,15 @@ class Chain:
         return ((day >= 0) & (day < self.N) & (day < pet) & (day < self.suspended) & (day < self.delisted)
                 & ~self.offering_pending_on(day) & (self.ledger_left(day) > 0))
 
+    def offer_available(self, day) -> np.ndarray:
+        """The net proceeds of the offering the company could initiate on the day, before the day's decision is
+        booked [draws] (0: none available, or no equity model). D2's 'initiate an offering' is offered where it is
+        positive on some trajectory (QUESTIONS §4.4 D2), as D7's and D8's are (`decide_distress`)."""
+        day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        if not self.equity:
+            return np.zeros(self.n, dtype=np.int64)
+        return np.where((day < self.N) & self.offering_available(day), self.offering_terms(day)["net"], 0).astype(np.int64)
+
     def initiate(self, day: np.ndarray, occasion: str) -> np.ndarray:
         """The company initiates an underwritten offering on the day where one is available (N1 follows): its
         shares are reserved on the ledger until the close. Returns where it was initiated."""
@@ -1524,6 +1533,7 @@ class Chain:
             return motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, f"registration_{phase}")
         if node in RESPONSES:
             milestone = self.response_day(ctx)
+            self.raise_offer = self.offer_available(milestone)
             self.respond(self.booking(node, branch), milestone, occasion=ctx)
             return milestone  # the levy is booked at the next step (or the path's end): the response comes first
         if node == "registration_early":
@@ -1748,9 +1758,10 @@ class Chain:
             return self.decide_floor(node, branch, t)
         if node == "judgment_default":
             self.book_default(self.wctx[i], branch, t < BIG)
-        else:
-            self.respond(self.booking(node, branch), t, occasion=self.wctx[i])
-        return np.zeros(self.n, dtype=np.int64)
+            return np.zeros(self.n, dtype=np.int64)
+        amt = self.offer_available(t) if node in RESPONSES else np.zeros(self.n, dtype=np.int64)
+        self.respond(self.booking(node, branch), t, occasion=self.wctx[i])
+        return amt
 
     def decide_floor(self, node: str, branch: str, t: np.ndarray) -> np.ndarray:
         """The company's decision at the cash floor, or when cash runs out, booked on day t (BIG: not on that

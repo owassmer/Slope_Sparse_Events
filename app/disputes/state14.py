@@ -589,10 +589,19 @@ class Situation:
     def earlier_answers(self):
         return self._form()["earlier_answers"] or "none: this is the form's first question"
 
-    def amount_established(self):
-        raise Unbuilt("the jury's amount question's context (worker B, J1b)")
+    def _ask(self) -> dict:
+        """The amount question's J1b terms (worker B's `Forecaster.verdict_asks`): its item, the threshold the item's
+        amount is asked against, and the total judgment the earlier answers establish."""
+        a = getattr(self.fc, "verdict_asks", {}).get(self.n.key)
+        if a is None:
+            raise Unbuilt(f"no J1b terms for {self.n.key} (Forecaster.verdict_classes not built)")
+        return a
 
-    threshold = amount_established
+    def amount_established(self):
+        return usd(int(self._ask()["established"]))
+
+    def threshold(self):
+        return usd(int(self._ask()["threshold"]))
 
 
 # the events a question's context tags assume on the path, in the contracts' wording (QUESTIONS §1 Wording: the
@@ -611,7 +620,9 @@ PHRASES = {"stay_pending": "the company has moved for a stay, not yet decided",
            "delisted_suspension": "the stock was delisted on suspension, with no hearing",
            "delisted_panel": "the stock was delisted on the Hearings Panel's decision",
            "entered_not_acted": "the holders did not declare the notes due when the judgment default became "
-                                "available"}
+                                "available",
+           "after_none": "the company did not pay, initiate an offering or file when it last responded to the judgment",
+           "after_offer": "the company initiated an underwritten offering when it last responded to the judgment"}
 # tags that name a class, an option set or a retired state: the situation states what they stood for
 UNSTATED = {"entered", "pay", "nopay", "raise", "noraise", "after_seek", "seeking", "raised", "claimant_theory",
             "without_principal_measure"}

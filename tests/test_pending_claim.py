@@ -64,10 +64,15 @@ def test_verdict_questions_ask_no_amount_and_no_cash():
     """Each verdict node is one jury decision on a quoted form question; its state carries no cash facts."""
     fc, d = forecaster()
     fc.verdict_classes(d)
+    cash = {"decision_date", "available_cash", "operating_need_30_days", "amount_owed", "arrears", "unpaid_obligation",
+            "atm_proceeds_to_date", "share_capacity_left", "net_proceeds"}  # the 14 May situation keys that read cash
     for n in fc.nodes.values():
         st, _, _ = fc.state(n)
-        assert st["question"]["actor"] == "jury" and st["question"]["form_question"].startswith("Question No.")
-        assert not {"projected_available_cash_at_decision_date", "amount_owed_at_decision"} & set(st["path_facts"])
+        sit = st["situation"]
+        assert st["question"]["actor"] == "jury" and sit["form_question"].startswith("Question No."), n.key
+        assert sit["form_item"] in st["question"]["text"], n.key  # the question asks the quoted form item
+        assert not cash & set(sit), (n.key, cash & set(sit))
+        assert not st["assumed_events"], n.key  # the form's earlier answers are its situation, not path events
 
 
 # --- §7.9 tests 1-9 on the 14 May tree (no Jev) --------------------------------------------------------------------

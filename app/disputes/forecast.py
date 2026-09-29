@@ -403,7 +403,7 @@ class Forecaster:
             self.nodes[k] = Node(key=k, instance_id=d.instance_id, node=node, context="|".join(ctx), cls="",
                                  question_id=s["residual_question"], event=s["decision"],
                                  assumptions=tuple(assumptions), window=s.get("timing", ""),  # 5.0.0: none
-                                 branches=tuple(branches or self.spec[node]["branches"]))  # the walker books its branches by name
+                                 branches=tuple(branches or s["branches"]))  # a pending claim: the block's answers
         return k
 
     # --- prefix traces (code timing and arithmetic, before any Jev answer) ----------------------------------------
@@ -1278,11 +1278,12 @@ class _S:
     out: str = "open"
     np: str = "open"
     failed: bool = False
+    resp: str = "none"  # a pending claim's last D2 answer that leaves the response open: none | offer
 
     def add(self, step, edge, **kw) -> _S:
         return _S(self.steps + (step,), self.edges + ((edge,) if edge else ()),
                   **{**{k: getattr(self, k) for k in ("cls", "stayed", "appealed", "early", "a4", "notes_due", "floor",
-                                                      "late", "k", "out", "np", "failed")}, **kw})
+                                                      "late", "k", "out", "np", "failed", "resp")}, **kw})
 
 
 def _label(c: str) -> str:
@@ -1297,8 +1298,11 @@ class _Walk:
         self.N = fc.days
         self.pend = d.stage == PENDING
         self.resp = "judgment_response" if self.pend else "debtor_response"  # the template's response node
-        self.quiet = "continue" if self.pend else "neither"  # the branch that books nothing
-        self.seek = "continue" if self.pend else "seek_sale_or_financing"  # the branch re-asked at the next milestone
+        self.quiet = "none" if self.pend else "neither"  # the branch that books nothing
+        # the branches after which the response is asked again at the next milestone (QUESTIONS §4.4 D2: 'none' and
+        # an initiation; no state of seeking a sale or financing exists in 14 May)
+        self.seek = "none" if self.pend else "seek_sale_or_financing"
+        self.again = ("none", "initiate_offering") if self.pend else (self.seek,)
         if self.fin is not None and fc.reach is not None and self.fin.principal_cents <= fc.reach:
             raise NotImplementedError("Paying the notes is arithmetically possible on some trajectory; the chains remove "
                                       "that branch only when the principal exceeds cash on every trajectory")
@@ -1512,22 +1516,29 @@ class _Walk:
             return
         probe = (self.resp, phase, self.seek)
         pay = self.fc.pay_possible(self.d, s.steps, probe)
-        rest = ("file", "continue") if self.pend else ("seek_sale_or_financing", "file", "neither")
+        if self.pend:  # QUESTIONS §4.4 D2: pay, initiate an offering (where one is available), file, none
+            tr = self._trace(s.steps + ((self.resp, phase, self.quiet),))
+            pet = np.where(tr.petition < 0, np.iinfo(np.int64).max, tr.petition)
+            can = self.fc.equity and bool(((tr.day[-1] < self.N) & (tr.day[-1] < pet) & (tr.raise_offer > 0)).any())
+            rest = (("initiate_offering",) if can else ()) + ("file", "none")
+        else:
+            rest = ("seek_sale_or_financing", "file", "neither")
         branches = (("pay",) if pay else ()) + rest
         pending = s.stayed and phase in ("I1", "post")  # moved for a stay, not yet approved
         when = {"post": ("the creditor levies on the company's cash that day",),
                 "ripe": ("the judgment default under the notes has ripened that day",),
                 "entry": ("the money judgment was entered that day, unpaid; execution is stayed automatically for "
                           "its first 30 days (Fed. R. Civ. P. 62(a))",)}.get(phase, ())
-        k = self.node(self.resp, phase, s.cls, "pay" if pay else "nopay",
-                      "after_seek" if s.a4 == "seek" else "first", *(("stay_pending",) if pending else ()),
+        after = ("after_" + s.resp if self.pend else "after_seek") if s.a4 == "seek" else "first"
+        k = self.node(self.resp, phase, s.cls, "pay" if pay else "nopay", after, *(("stay_pending",) if pending else ()),
                       s=s, probe=(self.resp, phase, self.quiet),
                       assumptions=(() if phase == "entry" else ("the judgment is enforceable, unstayed and unpaid",))
                       + when
                       + (("the company has moved for a stay, not yet approved",) if pending else ()), branches=branches)
         late = self.pend and phase in ("post", "ripe")  # booked on its own day (events.py `waits`)
         for b in branches:
-            kw = {"a4": "seek" if b == self.seek else "closed"}
+            kw = {"a4": "seek" if b in self.again else "closed",
+                  **({"resp": "offer" if b == "initiate_offering" else "none"} if self.pend else {})}
             y = (s.add((self.resp, phase, b), (k, b), late=s.late + ((k, len(s.steps)),), **kw) if late
                  else self.take(s, (self.resp, phase, b), (k, b), (k,), **kw))
             if b == "pay":
@@ -1535,6 +1546,8 @@ class _Walk:
                 self.settle(y, "I3", paid) if i3 else paid(y)
             elif b == "file":
                 self.settle(y, "I3", on_file) if i3 else on_file(y)
+            elif b == "initiate_offering":  # N1 follows (QUESTIONS §4.4 N1), then the path as after 'none'
+                self.offer(y, phase, then)
             else:
                 then(y)
 
@@ -1836,7 +1849,9 @@ class _Walk:
                    "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
                    "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]]}
         none = [[(h2, "neither")]]
-        if Chain_(self.fc, self.d).repurchase_day(delist) < self.N:
+        if self.pend:  # QUESTIONS §4.5 H2: the question asks only the declaration ('repurchase only' retires)
+            pass
+        elif Chain_(self.fc, self.d).repurchase_day(delist) < self.N:
             rep = ("delisting_notes", dc, "repurchase_unpaid")
             r_issuer, r_holders = (rep, ("notes_due_date", "issuer", "")), (rep, ("notes_due_date", "holders", ""))
             a5r = self.node("petition_on_notes", f"repurchase_{dc}", s=s, probe=r_issuer,
@@ -2168,7 +2183,7 @@ class _OrdinaryWalk(_Walk):
     def node(self, name, *ctx, s: _S | None = None, probe=None, assumptions=(), branches=None):
         k = f"{self.bank}:{name}|" + "|".join((self.bank, *ctx))
         if k not in self.fc.bank_nodes:
-            sp = self.fc.spec[name]
+            sp = self.fc.texts(name, self.fc.ordinary_dispute())  # the forecast's question: the pending block's texts
             self.fc.bank_nodes[k] = Node(key=k, instance_id=self.bank, node=name, context="|".join((self.bank, *ctx)),
                                          cls="", question_id=sp["residual_question"], event=sp["decision"],
                                          assumptions=(*assumptions, self.fc.no_cash_effect()),
