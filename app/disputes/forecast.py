@@ -400,7 +400,7 @@ class Forecaster:
             self.nodes[k] = Node(key=k, instance_id=d.instance_id, node=node, context="|".join(ctx), cls="",
                                  question_id=s["residual_question"], event=s["decision"],
                                  assumptions=tuple(assumptions), window=s["timing"],
-                                 branches=tuple(branches or s["branches"]))
+                                 branches=tuple(branches or self.spec[node]["branches"]))  # the walker books its branches by name
         return k
 
     # --- prefix traces (code timing and arithmetic, before any Jev answer) ----------------------------------------
