@@ -243,7 +243,12 @@ class Situation:
         return f"{self.judgment_standing()}; {status}"
 
     def interval(self):
-        return next((self.labels[t] for t in self.tags if t in self.labels and t.startswith("I")), "not stated")
+        got = next((self.labels[t] for t in self.tags if t in self.labels and t.startswith("I")), None)
+        if got is None and "final" in self.tags:
+            return "after the time to appeal has expired"
+        if got is None:
+            raise Unbuilt(f"no interval among the context tags {self.tags}")
+        return got
 
     def claimed_amounts(self):
         return [self.fc._component(c, {}) for c in self.d.components]
@@ -384,7 +389,7 @@ class Situation:
     notes_balance_due = notes_principal
 
     def days_unpaid_and_unstayed(self):
-        entry, _ = self._entered()
+        entry, _ = self._sit("entry")
         if entry >= BIG:
             return "not applicable: no judgment has been entered"
         stayed = self._sit("stayed_from")[0]
@@ -542,7 +547,7 @@ class Situation:
 
     # the post-trial questions
     def motion_deadline(self):
-        entry, _ = self._entered()
+        entry, _ = self._sit("entry")
         return when(self.review, entry + 28) + " (28 days after entry; Fed. R. Civ. P. 50(b), 59(b))"
 
     def pending_motions(self):
@@ -602,6 +607,8 @@ PHRASES = {"stay_pending": "the company has moved for a stay, not yet decided",
            "delisted": "the stock has been delisted",
            "cash_exhausted": "the company did not file when its available cash fell below its operating need for "
                              "the next month",
+           "delisted_suspension": "the stock was delisted on suspension, with no hearing",
+           "delisted_panel": "the stock was delisted on the Hearings Panel's decision",
            "entered_not_acted": "the holders did not declare the notes due when the judgment default became "
                                 "available"}
 # tags that name a class, an option set or a retired state: the situation states what they stood for
@@ -686,6 +693,31 @@ def fill_text(text: str, values: dict) -> str:
     return re.sub(r"{(\w+)}", one, text)
 
 
+def eligible(fc, n, rows: list, masks: list) -> list:
+    """QUESTIONS §4.2-4.3 eligibility inside the trajectories a node is asked on: a settlement question covers only
+    trajectories whose offer is positive (D3, C2); a stay question only those where security of some type is
+    available (D4, J3: full collateral, positive reduced cash security, or the non-cash scenario). Where none is
+    eligible the masks stay as they are (the walk asked it; the state then shows what holds)."""
+    from app.analysis.events import pval
+
+    if n.node in ("settlement_offer", "settlement_accept"):
+        out = [m & (r["settle_offer"] > 0) if r.get("settle_offer") is not None else m & False
+               for r, m in zip(rows, masks, strict=True)]
+    elif n.node in ("stay_motion", "stay_approved"):
+        if pval(fc.m, "stay_security", fc.sens.get("stay_security", False)) == "noncash":
+            return masks
+        need = fc.draws.basis.need
+        out = []
+        for r, m in zip(rows, masks, strict=True):
+            t = np.minimum(r["day"], need.shape[1] - 1)
+            nd = need[np.arange(len(t)), t]
+            offer = r["stay_offer"] if r.get("stay_offer") is not None else 0
+            out.append(m & (((r["collateral"] > 0) & (r["cash"] - nd >= r["collateral"])) | (offer > 0)))
+    else:
+        return masks
+    return out if any(x.any() for x in out) else masks
+
+
 RANGE = re.compile(r" \(across this situation: [^)]*\)")
 
 
@@ -704,7 +736,7 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     t = fc.texts(n.node, d)
     entry = registry_entry(n.question_id)
     labels = {**fc.m.get("case_labels", {}), **(fc.labels(d) if d.stage == PENDING else {})}
-    g = Group.of(rows, masks) if rows else None
+    g = Group.of(rows, eligible(fc, n, rows, masks)) if rows else None
     sit = Situation(fc, n, d, g, tags, labels).fill(t["situation"], strict)
     values = {"company": fc.borrower, "claimant": d.counterparty,  # the question names the representative's figures
               **{k: RANGE.sub("", v) if isinstance(v, str) else json.dumps(v) for k, v in sit.items()}}
@@ -714,7 +746,8 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     answers = {names[k]: fill_text(v, values) for k, v in crit.items() if names[k] in n.branches}
     kinds, filled, fids = evidence_kinds(fc, n, t, d)
     readings, _ = fc._readings(d, n.question_id)
-    assumed = [*assumed_events(tags, labels, d.counterparty, strict), *n.assumptions]
+    verdict = n.node in ("verdict_finding", "verdict_amount")
+    assumed = [*([] if verdict else assumed_events(tags, labels, d.counterparty, strict)), *n.assumptions]
     state = {"case": {"evidence_cutoff": fmt(fc.review), "company": fc.borrower, "counterparty": d.counterparty,
                       "obligation": f"{fc.m['natures'].get(d.nature, d.nature)}, {d.order_reference}"},
              "question": {"actor": fill_text(t["actor"], values), "text": fill_text(entry["prompt"]["instructions"],
