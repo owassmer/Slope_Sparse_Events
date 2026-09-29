@@ -212,6 +212,8 @@ def verdict_basis(d: DisputeInstance, model: dict, branch: str, sens: dict | Non
     declared amount, e.g. the sensitivity), or 'none' (the branch enters no judgment). Raises UnknownAmount where a
     counted component is unknown and the case declares no bound."""
     sens = sens or {}
+    if branch.startswith("award:"):  # a J1b class (QUESTIONS §4.1): the amount it books
+        return int(branch.split(":")[1]), "band"
     spec = pending_template(model)["verdict_branches"][branch]
     if not spec["judgment"]:
         return 0, "none"
@@ -425,6 +427,9 @@ class Chain:
             self.ruling, never = {}, np.full(self.n, BIG)
             self.F, self.A, self.AD, self.fee_day, self.EF, self.EI = (never.copy() for _ in range(6))
             self.E0, self.e_ix = 0, -1
+        self.band: str | None = None  # the total-judgment band of the award (J1b), 'lo-hi' ('top' above the line)
+        self.band_range: tuple | None = None  # (low, high) of that band; high None above the top line
+        self.remitted_amount = np.zeros(self.n, dtype=np.int64)  # the surviving amount of a reduced judgment (J2, C3)
         self.cls_amount = None  # the path amount after the ruling (None: the judgment as entered)
         self.increase = 0
         self.retrial = False  # the ruling orders a new trial: the dispute goes on after any payment
@@ -1368,6 +1373,14 @@ class Chain:
             self.raise_offer = self.decide_floor(node, branch, t)
             return t
         if node == "verdict":
+            if branch.startswith("award:"):  # J1b (QUESTIONS §4.1): the award booked and its total-judgment band
+                _, total, lo, hi = branch.split(":")
+                self.entered = int(total)
+                self.band, self.band_range = f"{lo}-{hi}", (int(lo), None if hi == "top" else int(hi))
+                self._enter()
+                if hi == "top":  # the claimant's amount: the adverse branch
+                    self.adverse_from = self.E_ix.copy()
+                return self.V.copy()
             spec = pending_template(self.m)["verdict_branches"][branch]
             if spec["judgment"]:
                 self.entered = verdict_amount(self.d, self.m, branch, self.sens)
