@@ -427,6 +427,9 @@ class Chain:
         self.ev = EventCash.zeros(self.n, self.N, kinds=True)
         self._cv = 0  # the event cash's version: every write to it bumps it (`_touch`); `cum` is memoized on it
         self._cum: tuple | None = None  # (version, available cash [draws, days]); never written in place
+        self._av: dict[str, int] = {}  # each event-cash array's version (`_touch` names it; absent: 0)
+        self._hd: dict[str, tuple] = {}  # array name -> (its version, its content digest)
+        self._keys: dict[str, tuple] = {}  # "net" | "daily" -> (version, the engine run's cache key)
         self.pet_cause = np.zeros(self.n, dtype=np.int8)  # PETITION_CAUSES index of the earliest petition
         self.rows = np.arange(self.n)
         self.iid = d.instance_id if d is not None else BANK
@@ -546,9 +549,51 @@ class Chain:
         """The judgment's entry day index: per trajectory for a pending claim, else the recorded date's."""
         return self.E_ix if self.pending else self.ix(self.d.judgment_date)
 
-    def _touch(self) -> None:
-        """The event cash changed: the memoized available cash is stale."""
+    def _touch(self, *names: str) -> None:
+        """The event cash changed: the memoized available cash and engine runs are stale. `names`: the arrays written
+        (`_arrays` names); none: every array."""
         self._cv += 1
+        for k in names or [k for k, _ in self._arrays()]:
+            self._av[k] = self._cv
+
+    def _arrays(self):
+        """The event cash's arrays by name: cash, lock, capacity, petition, `k:<kind>`, `i:<obligation>` (incurred)."""
+        ev = self.ev
+        yield from (("cash", ev.cash), ("lock", ev.lock), ("capacity", ev.capacity), ("petition", ev.petition))
+        yield from ((f"k:{k}", ev.kinds[k]) for k in KINDS)
+        yield from ((f"i:{k}", ev.incurred[k]) for k in OBLIGATIONS)
+
+    def _name(self, arr: np.ndarray) -> tuple[str, ...]:
+        """The name of an event-cash array (by identity); () if it is not one (then `_touch` bumps every array)."""
+        return next(((k,) for k, a in self._arrays() if a is arr), ())
+
+    def _digest(self, name: str, a: np.ndarray) -> bytes:
+        """The array's content digest (its nonzero positions and values), rehashed only when its version moved."""
+        import hashlib
+
+        v, hit = self._av.get(name, 0), self._hd.get(name)
+        if hit is not None and hit[0] == v:
+            return hit[1]
+        flat = np.ascontiguousarray(a).ravel()
+        i = np.flatnonzero(flat)
+        d = hashlib.blake2b(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes(), digest_size=20).digest()
+        self._hd[name] = (v, d)
+        return d
+
+    def _run_key(self, which: str, names: tuple[str, ...], head: bytes = b"") -> bytes:
+        """The engine run's cache key: a function of the named arrays' content only (equal states share one run),
+        memoized on the event cash's version."""
+        import hashlib
+
+        memo = self._keys.get(which)
+        if memo is not None and memo[0] == self._cv:
+            return memo[1]
+        arrays = dict(self._arrays())
+        h = hashlib.blake2b(which.encode() + head, digest_size=20)
+        for k in names:
+            h.update(self._digest(k, arrays[k]))
+        self._keys[which] = (self._cv, h.digest())
+        return self._keys[which][1]
 
     def cum(self) -> np.ndarray:
         """Available cash at each day's end [draws, days]: the opening balance, operating flows and event cash less
@@ -566,18 +611,15 @@ class Chain:
         self._cum = (self._cv, c)
         return c
 
-    def line_net(self) -> np.ndarray:
-        import hashlib
+    NET_KEY = ("cash", "lock", "capacity", "petition")  # what the net engine reads
+    # the daily processor's: the kinds sum to the cash, so the cash adds nothing
+    DAILY_KEY = ("lock", "capacity", "petition", *(f"k:{k}" for k in KINDS), *(f"i:{k}" for k in OBLIGATIONS))
 
+    def line_net(self) -> np.ndarray:
         from app.analysis.engine import run
 
-        ev, h = self.ev, hashlib.blake2b(digest_size=20)
-        for a in (ev.cash, ev.lock):
-            flat = np.ascontiguousarray(a).ravel()
-            i = np.flatnonzero(flat)
-            h.update(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes())
-        h.update(np.ascontiguousarray(ev.petition).tobytes())
-        runs, key = self.basis.runs, h.digest()
+        ev, runs = self.ev, self.basis.runs
+        key = self._run_key("net", self.NET_KEY)
         if key in runs:  # least recently used first: a hit moves to the end
             runs[key] = runs.pop(key)
         else:
@@ -592,24 +634,11 @@ class Chain:
     def processed(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Under daily processing: the engine's end-of-day available cash [draws, days], first unpaid day and §3.3
         day [draws] (BIG: none) on this event cash, from the run cached per event state (as `line_net`)."""
-        import hashlib
-
         from app.analysis.engine import run
 
-        ev, h = self.ev, hashlib.blake2b(digest_size=20)
+        ev, runs = self.ev, self.basis.runs
         terms = self.nonpayment_terms()
-        h.update(b"daily" + np.array(terms, dtype=np.int64).tobytes())
-        for a in (ev.lock, *(ev.kinds[k] for k in KINDS)):  # the kinds sum to the cash: it adds nothing
-            if not a.any():
-                h.update(b"0")
-                continue
-            flat = np.ascontiguousarray(a).ravel()
-            i = np.flatnonzero(flat)
-            h.update(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes())
-        for k in OBLIGATIONS:
-            h.update(np.ascontiguousarray(ev.incurred[k]).tobytes())
-        h.update(np.ascontiguousarray(ev.petition).tobytes())
-        runs, key = self.basis.runs, h.digest()
+        key = self._run_key("daily", self.DAILY_KEY, np.array(terms, dtype=np.int64).tobytes())
         if key in runs:
             runs[key] = runs.pop(key)
         else:
@@ -736,7 +765,7 @@ class Chain:
         ok = (day >= 0) & (day < self.N) & (cents != 0)
         if ok.any():
             np.add.at(arr, (self.rows[ok], day[ok]), cents[ok])
-            self._touch()
+            self._touch(*self._name(arr))
 
     def pay(self, day: np.ndarray, cents, kind: str, incurred=None) -> None:
         """Book event cash of one kind (KINDS) on the day per draw, into the cash and its kind; an obligation also
@@ -748,7 +777,10 @@ class Chain:
         if incurred is not None:
             ok = (day >= 0) & (day < self.N) & (cents != 0)
             cur = self.ev.incurred[kind]
-            self.ev.incurred[kind] = np.where(ok, np.minimum(cur, np.asarray(incurred, dtype=np.int64)), cur)
+            new = np.where(ok, np.minimum(cur, np.asarray(incurred, dtype=np.int64)), cur)
+            if not np.array_equal(new, cur):
+                self.ev.incurred[kind] = new
+                self._touch(f"i:{kind}")
 
     def petition(self, day: np.ndarray, where: np.ndarray | None = None, cause: str = "enforcement") -> None:
         day = np.asarray(day) + int(self.p("petition_lag_days"))
@@ -757,7 +789,7 @@ class Chain:
         win = ok & ((cur < 0) | (day < cur))
         if win.any():
             self.ev.petition = np.where(win, day, cur)
-            self._touch()
+            self._touch("petition")
         self.pet_cause = np.where(win, PETITION_CAUSES.index(cause), self.pet_cause).astype(np.int8)
         if win.any():
             self._atm_rebook()  # the at-the-market sales stop at a petition
@@ -779,7 +811,7 @@ class Chain:
             back = np.where(stop, self.basis.legal, 0)  # legal outflows are negative: adding them back
             self.ev.cash -= back
             self.ev.kinds["reduction"] -= back  # an outflow that stops, not a receipt
-            self._touch()
+            self._touch("cash", "k:reduction")
 
     def levy(self, day: np.ndarray, lagged: bool = False) -> None:
         """A writ on the enforceable amount; where it comes before an increase is enforceable, a second
@@ -931,7 +963,7 @@ class Chain:
         if delta.any():
             self.ev.cash += delta
             self.ev.kinds["inflow"] += delta
-            self._touch()
+            self._touch("cash", "k:inflow")
 
     def atm_to_date(self, day=None) -> np.ndarray:
         """Net at-the-market proceeds received (settled) by the day's end, in cents [draws]."""
@@ -1115,7 +1147,8 @@ class Chain:
         if not self.daily:
             raise ValueError("arrears are the daily cash processor's (cash_processing = daily)")
         runs = self.basis.__dict__.setdefault("arrears_runs", {})
-        key = (self._cv, id(self.ev))
+        # the event state's content, as `processed` keys it (a version is not unique across clones of one state)
+        key = self._run_key("daily", self.DAILY_KEY, np.array(self.nonpayment_terms(), dtype=np.int64).tobytes())
         if key not in runs:
             ev = self.ev
             opening = self.basis.opening - self.s.exposure.cash_cents
@@ -1530,7 +1563,7 @@ class Chain:
             per[-1] += chips - per.sum()
             self.ev.cash += per[None, :]
             self.ev.kinds["inflow"] += per[None, :]
-            self._touch()
+            self._touch("cash", "k:inflow")
 
 
     def coupon_when_due(self) -> None:
@@ -2087,7 +2120,7 @@ class Chain:
             back = np.where(after & ended, self.basis.legal, 0)
             self.ev.cash -= back
             self.ev.kinds["reduction"] -= back
-            self._touch()
+            self._touch("cash", "k:reduction")
         tr.events = self.ev
         tr.cause = np.where(self.ev.petition >= 0, self.pet_cause, 0).astype(np.int8)
         tr.marks = {k: v.astype(np.int32) for k, v in self.marks.items()}
