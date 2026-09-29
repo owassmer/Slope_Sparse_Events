@@ -18,11 +18,13 @@ This document owns the Jev questions of the pending-claim model for the 14 May 2
 
 **Grouping.** One question covers trajectories that share legal status, available actions and ability to pay the amount in question. A difference in any of the three splits the group. Within a group the state gives one representative trajectory's joint facts (date, cash, amounts owed, all from the same trajectory) and the group's range for each; the answer applies to the group as its average. Figures from different trajectories are never combined into one situation.
 
-**Typed values.** Zero is a value. "Not applicable" and "not available" are states, stated in words. Cash is never shown negative: a shortfall is shown as available cash of nil and the obligations unpaid (§2.2).
+**Typed values.** Zero is a value. "Not applicable" and "not available" are states, stated in words. Cash is never shown negative; obligations the balance does not cover are shown as unpaid (§2.2).
 
 **Wording.** The question keeps every qualification that defines its event: "if any", notice requirements, burdens, the amount and timing of a proposed payment, the security offered, deadlines, and the month's operating need where it bears on the decision. It carries no implementation language: no draws, trajectories, lags, class names, booking rules, or instructions about amounts. The judgment is stated as entered ("a money judgment of $X entered on <date>"); an amount band states its band.
 
 **Evidence.** Each question receives the record that bears on whether its event occurs: the conditions the event depends on, the positions, options and incentives of every party whose action shapes it, and the facts that bound it, whoever wrote them. The scope follows the event, not an actor. A threshold on the jury's award draws on the trial record and on what the parties said about the likely award; an offering's completion draws on the company's condition, its trading, its past offerings and the terms. Balance between the parties is not a goal, and no party's own statement is a prerequisite. Each item carries its author, date and status: court ruling, statement of intended proof, party argument, company disclosure, or third-party record. Where the event is decided on a closed record (the jury on the trial evidence, a court on the papers before it), an item that was not part of that record is marked as such: it can inform the forecast without having been before the decider. An item establishes only what it states, and the question states what the record establishes; it does not list what the record lacks. A precedent is evidence, not a guarantee. Party advocacy stays, attributed. Duplicates, material that does not bear on the event, and historical warnings presented as live conditions are removed. A record item is labelled as what it is, and one that cannot exist by the cutoff is not listed. A reading of the record carries its source date and is routed only where it bears on the event at the decision date.
+
+**Record and situation.** Record names the historical evidence and the legal and contractual sources, retrieved from the snapshot; a record item no finding fills is left out. Situation gives the events, amounts, balances, terms and statuses established on the path; it comes from the path state and is always stated.
 
 **Legal meaning is not a Jev question.** Where research settles a legal question, it is Law. Where it does not, the interpretation is a declared legal scenario (§3), held the same way along the whole path, with the alternative as a sensitivity.
 
@@ -52,7 +54,7 @@ Available cash on the decision date, and the operating need for the next month. 
 
 **Processing (Scenario).** Each day, the day's receipts post first. Obligations due that day are then processed against the available balance at that moment: the balance left after every earlier payment, less restricted cash (locked stay security). A levy served that day is processed first: it attaches the reachable balance. Scheduled obligations with a fixed due date are processed next, in the order they were incurred. These are Slope's installments by automatic debit, agreed settlement installments, and interest payable in cash. The day's operating outflows are processed next. A scheduled obligation is paid in full or not at all. Operating outflows are paid up to the balance. Whatever is unpaid becomes an arrear in its class: Slope, settlement, notes interest, operating. This same-day order is a convention; its effect is measured once against operating outflows first (§5).
 
-**Arrears.** A failed Slope debit is retried on the line's retry dates. An unpaid settlement installment stays owed to the claimant; the settlement terms carry no acceleration. Unpaid operating outflows are carried as vendor credit: receipts and spending continue as the operating forecast has them. When receipts exceed the day's obligations, the surplus pays the other classes' arrears, oldest first. Slope's arrears are collected only by its debit, on the line's retry dates.
+**Arrears.** A failed Slope debit is retried on the line's retry dates. An unpaid settlement installment stays owed to the claimant; the settlement terms carry no acceleration. Unpaid operating outflows remain arrears. Receipts and spending continue as the operating forecast has them. When receipts exceed the day's obligations, the surplus pays the other classes' arrears, oldest first. Slope's arrears are collected only by its debit, on the line's retry dates.
 
 **State given to Jev.** Available cash, the operating need, and from the first unpaid obligation: the arrears by class and amount, and the days since the first obligation went unpaid.
 
@@ -112,7 +114,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Order:** the form's order. 3(a) and 5(a) are asked on every path where the trade-secret and conspiracy amounts leave the total award below the J1b top line, or no award. Above the top line their amounts change no cash.
 - **Answers:** yes, the jury answers the item "yes"; no, the jury answers "no". A "no" to 1(a) is stated as the form's answer ("Question 1(a): No"), not as a finding of no trade-secret liability.
 - **Situation:** the form's question quoted, the earlier answers as the form records them. No cash.
-- **Record:** the verdict form (D.I. 580); the instructions on each claim's elements and burdens (the preliminary instructions and the proposed final instructions); the rulings that narrow the issues (D.I. 545, D.I. 546, D.I. 557, D.I. 152, D.I. 590); the limiting instructions (D.I. 565); each side's statement of intended proof (D.I. 543-1); the witnesses and exhibits; the trial's docket through 14 May; the parties' Rule 50(a) papers filed by 14 May; the company's statements on the trial.
+- **Record:** the verdict form (D.I. 580); the preliminary instructions; the parties' proposed final instructions on each claim's elements and burdens, as proposals; the rulings that narrow the issues (D.I. 545, D.I. 546, D.I. 557, D.I. 152, D.I. 590); the limiting instructions (D.I. 565); each side's statement of intended proof (D.I. 543-1); the witnesses and exhibits; the trial's docket through 14 May; the parties' Rule 50(a) papers filed by 14 May; the company's statements on the trial.
 - **Consequences:** the award is the sum of the amounts for the items found: 5(a) yes, $279,808; 3(a) yes, $1,146,604; trade secrets and conspiracy, from J1b.
 - **Build:** change. The lower award books only the claims found (today every lower branch books $1,426,412), and the liability record is routed.
 
@@ -123,7 +125,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Exemplary damages:** 1(c) (willful and malicious) and 1(d) (the exemplary amount, at most twice 1(b) under the DTSA) are their own questions, asked in the form's order, only where the 1(b) band leaves the total within a band that exemplary damages could move across a line.
 - **Answers:** yes, the amount exceeds $X; no, it is $X or less. At the first cut, no means nothing is entered.
 - **Situation:** the form's words, the earlier answers. No cash.
-- **Record:** Qorvo's damages method and figures (D.I. 543-1) and the ruling admitting them (D.I. 553); the revenue base left to the jury; the defense's damages positions as admitted; the instructions on unjust enrichment, actual loss and exemplary damages; the limiting instructions (D.I. 565); D.I. 590; the verdict form; the company's statements on the likely award. For 2(c), the record on actual loss.
+- **Record:** Qorvo's damages method and figures (D.I. 543-1) and the ruling admitting them (D.I. 553); the revenue base left to the jury; the defense's damages positions as admitted; the parties' proposed instructions on unjust enrichment, actual loss and exemplary damages, as proposals; the limiting instructions (D.I. 565); D.I. 590; the verdict form; the company's statements on the likely award. For 2(c), the record on actual loss.
 - **Consequences:** no award books nothing. A positive band below the top line books its midpoint, with its ends as the sensitivity. The band above the top line books Qorvo's claimed amount; by the line's definition every amount in it books the same cash, which the build verifies.
 - **Build:** new. The measure questions retire.
 
@@ -131,9 +133,9 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 - **Event:** Akoustis files a timely Rule 50(b) or Rule 59 motion (28 days from entry) challenging the judgment.
 - **Answers:** no, no such motion by the deadline; the judgment is final as entered and the time to appeal runs from entry.
-- **Situation:** the judgment as entered.
+- **Situation:** the judgment as entered; the company's cash.
 - **Standard:** Rules 50(b) and 59. A party that moved under Rule 50(a) at trial must renew under 50(b) to keep a sufficiency challenge for appeal (*Unitherm Food Sys. v. Swift-Eckrich*, 546 U.S. 394 (2006)).
-- **Record:** the grounds preserved at trial (the Rule 50(a) motions, D.I. 587, D.I. 590); the judgment against the company's cash; the notes' judgment-default terms; the company's statements on contesting the claims.
+- **Record:** the grounds preserved at trial (the Rule 50(a) motions, D.I. 587, D.I. 590); the notes' judgment-default terms; the company's statements on contesting the claims.
 - **Consequences:** yes, the ruling date is code-owned (briefing plus the judge's measured pace); no, finality at entry.
 - **Build:** keep the booking; add the standard and the record.
 
@@ -146,7 +148,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
   - set aside: no money judgment remains, and the claim stays in dispute (a new trial, or an appeal by Qorvo).
 - **Remittitur:** where a reduction is a conditional remittitur, Qorvo's election (accept the reduced amount, or a new trial) is its own question (C3), asked on the same terms.
 - **Situation:** the judgment as entered, the motions and the grounds preserved at trial. No cash. No reading of amount finality taken before the verdict.
-- **Record:** the grounds preserved at trial and the motions' standards (Rules 50(b) and 59; remittitur in the Third Circuit); the court's rulings on the evidence and the claims (D.I. 545, D.I. 546, D.I. 553, D.I. 590); the verdict and the damages record.
+- **Record:** the grounds preserved at trial and the motions' standards (Rules 50(b) and 59; remittitur in the Third Circuit); the court's rulings on the evidence and the claims (D.I. 545, D.I. 546, D.I. 553, D.I. 590); the damages record.
 - **Consequences:** unchanged, nothing booked. Reduced, the amount owed becomes the surviving amount on the ruling date. Set aside, nothing owed, the adverse judgment ends, any stay security is released, and legal spend continues.
 - **Build:** keep the set-aside booking. Add the reduced outcome and C3. Remove the 13 May amount-finality reading.
 
@@ -154,7 +156,8 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 - **Event:** Qorvo accepts the remitted amount, where the court conditions a new trial on its refusal.
 - **Answers:** no, Qorvo takes the new trial; the judgment is set aside and the claim stays in dispute.
-- **Record:** the remitted amount against the verdict; the cost and risk of a new trial; the company's cash, going-concern and debt disclosures; the relief Qorvo seeks, including a permanent injunction (D.I. 543-1 ¶¶41, 62).
+- **Situation:** the verdict; the remitted amount; the company's cash and the notes' status.
+- **Record:** the trial's length and scope (the docket); the company's going-concern and debt disclosures; the relief Qorvo seeks, including a permanent injunction (D.I. 543-1 ¶¶41, 62).
 - **Consequences:** yes, the reduced judgment as J2; no, as J2 set aside.
 - **Build:** new, only where J2's reduced outcome is asked.
 
@@ -163,7 +166,8 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Event:** Akoustis files a notice of appeal by the deadline that applies on the path: 30 days from entry where no timely tolling motion was filed; 30 days from the order disposing of the last tolling motion otherwise (FRAP 4(a)(1)(A), 4(a)(4)).
 - **Answers:** no, no notice by that deadline.
 - **Asked:** only where an appeal changes cash inside the horizon (a stay pending appeal, or enforcement timing).
-- **Record:** the grounds preserved and the post-trial ruling; the judgment against the company's cash; a stay pending appeal and the security it needs; the notes' judgment-default terms; the company's statements on contesting the claims.
+- **Situation:** the post-trial ruling; the judgment and the company's cash; the security a stay pending appeal needs.
+- **Record:** the grounds preserved at trial (D.I. 587, D.I. 590); the notes' judgment-default terms; the standard for a stay pending appeal; the company's statements on contesting the claims.
 - **Build:** keep; route the record; state the one applicable deadline.
 
 ### 4.2 Settlement
@@ -174,8 +178,8 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Terms, stated as facts:** the amount (the cash above the month's operating need on the settlement date, capped at the amount Qorvo claims before a judgment and at the amount owed after one), paid in 12 monthly installments from the settlement date, first payment on that date, the claim released on the settlement date, no security.
 - **Answers:** no, Akoustis does not make this offer in the stage.
 - **Eligibility:** only trajectories where the offer amount is positive. Groups split where offers differ materially in size relative to the amount owed.
-- **Situation:** before the verdict, Akoustis is the defendant, no judgment exists, and the cap is the claimed amount.
-- **Record:** the claim or judgment and its range of outcomes; the company's cash, going-concern and financing position; the notes' judgment-default terms; the company's statements on settlement; its own claims against Qorvo; the relief Qorvo seeks, including a permanent injunction; the parties' competitive relationship.
+- **Situation:** the claim before a verdict, or the judgment and its standing; the company's cash; the offer's terms. Before the verdict, Akoustis is the defendant, no judgment exists, and the cap is the claimed amount.
+- **Record:** Qorvo's itemised claims (D.I. 543-1); the company's going-concern and financing disclosures; the notes' judgment-default terms; the company's statements on settlement; its own claims against Qorvo; the relief Qorvo seeks, including a permanent injunction; the parties' competitive relationship.
 - **Consequences:** the settlement books through the existing rule: installments from the settlement date, release on that date, only where the amount is positive. Its installments are scheduled obligations under §2.2.
 - **Build:** keep `settle()` and its positive-amount guard. Change the eligible population and the stated terms (the cap is described as the claimed amount before judgment).
 
@@ -184,7 +188,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Event:** Qorvo accepts the stated terms (as D3) by the settlement date.
 - **Answers:** no, Qorvo does not accept these terms in the stage.
 - **Eligibility and situation:** as D3, the same population and terms.
-- **Record:** the terms against the claim or judgment; the company's cash, going-concern and debt disclosures; the notes' claim alongside the judgment; a petition's effect on an unsecured claim; the relief Qorvo seeks, including a permanent injunction (D.I. 543-1 ¶¶41, 62); Qorvo's statements on the litigation; the parties' competitive relationship.
+- **Record:** the company's going-concern and debt disclosures; the notes' terms; a petition's effect on an unsecured claim; the relief Qorvo seeks, including a permanent injunction (D.I. 543-1 ¶¶41, 62), and its filings on it; the parties' competitive relationship.
 - **Build:** keep the booking; change the population, the terms stated, and the record.
 
 ### 4.3 Stay and enforcement
@@ -194,7 +198,8 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Event:** Qorvo initiates execution on the unpaid, unstayed judgment during the stated interval, where execution is permitted.
 - **Answers:** yes, Qorvo applies for a writ (and, before finality, for registration elsewhere, J4); no, Qorvo does not initiate enforcement in the interval.
 - **Status stated:** motions pending; ruled with an appeal pending; or the appeal period expired. Where enforcement is already under way on the path, it continues by the levy rule and is not asked again.
-- **Record:** the judgment, unpaid and unstayed; the company's cash, assets and going-concern disclosures; the relief Qorvo seeks; Qorvo's statements on the litigation; a petition's effect on a levy (11 U.S.C. §§362, 547); the parties' competitive relationship.
+- **Situation:** the judgment, unpaid and unstayed; its status; the company's cash.
+- **Record:** the company's assets and going-concern disclosures; the relief Qorvo seeks and its filings on it; a petition's effect on a levy (11 U.S.C. §§362, 547); the parties' competitive relationship.
 - **Consequences (Scenario, the levy rule):** a writ levies the lesser of the enforceable amount and reachable cash on the levy day, the levy lag after initiation.
 - **Build:** keep; change the status wording and the record.
 
@@ -212,8 +217,8 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Event:** Akoustis moves for a stay of execution offering the stated security (§2.5), by the stated day.
 - **Answers:** no, no such motion by that day.
 - **Grouping:** split by security type. Where no security of any type is available under the scenario, the question is not asked.
-- **Situation:** the bond required, the collateral required, and the security offered with its type and amount: the same terms J3 judges.
-- **Record:** the judgment against the company's cash; the bond and the security available; the enforcement dated on the path; the notes' judgment-default terms; the company's liquidity and going-concern disclosures.
+- **Situation:** the judgment; the company's cash; the bond required, the collateral required, and the security offered with its type and amount: the same terms J3 judges; the enforcement dated on the path.
+- **Record:** the notes' judgment-default terms; the company's liquidity and going-concern disclosures; the Rule 62 standards.
 - **Build:** keep the booking; change the stated terms.
 
 #### J3 · The court grants the stay · `forecast_stay_approved`
@@ -222,7 +227,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Answers:** no, the stay is not granted.
 - **Situation:** the security type and amount as D4, the bond and collateral required, the judgment.
 - **Scope:** in the cash-only scenario, the request offers full collateral or positive reduced cash security. Non-cash security or a waiver is its own scenario. This is the model's scope, stated as the scenario, not as the court's rule.
-- **Record:** the security offered against the judgment; the company's financial condition; the Rule 62(b) standard and the Third Circuit's standard for a stay on reduced security.
+- **Record:** the company's financial-condition disclosures; the Rule 62(b) standard and the district's standard for a stay on reduced security.
 - **Consequences:** effective on approval. Full collateral is locked, or the reduced cash security is locked; nothing is locked under non-cash security. Released when the dispute ends.
 - **Build:** keep `stay_security()` and its effectiveness rule. Change the typed security (no zero standing for full coverage) and the stated scenario.
 
@@ -238,7 +243,8 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
   - none of these on that day.
 - **Grouping:** "pay" is offered only to a group whose available cash covers the balance on every trajectory; groups split on that. "Initiate an offering" is offered where an offering is available (§2.6).
 - **After "none":** later questions state that Akoustis did not pay, raise or file on that day. No state of seeking a sale or financing exists. A sale of the company is not modelled.
-- **Record:** the judgment against the company's cash; the offering channels and their status; the notes' judgment-default terms; the listing status; the company's going-concern, bankruptcy and liquidity statements; its statements on the trial.
+- **Situation:** the judgment and its standing; the company's cash; the offerings available and the share capacity left; the notes' status; the listing status.
+- **Record:** the offering channels (the shelf, the at-the-market program, the January 2024 offering); the notes' judgment-default terms; the listing deficiency; the company's going-concern, bankruptcy and liquidity statements; its statements on the trial.
 - **Consequences:** pay, the balance is paid and the dispute ends (under a new trial it continues); initiate, N1; file, a petition on the day; none, nothing booked.
 - **Build:** change. "Continue" splits into "initiate an offering" and "none", and the seeking tag retires.
 
@@ -248,7 +254,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Asked:** at the first such day, and again at each later day cash falls below the need after having recovered above it.
 - **Answers:** neither, nothing booked. At-the-market sales continue, and the next decision is at the first unpaid obligation (D8).
 - **Situation:** available cash, the month's operating need, at-the-market proceeds to date, the judgment's standing, the notes' status, the listing status, and the share capacity left. Where an offering is unavailable, the state says why: delisted, a petition filed, an offering pending, or no capacity.
-- **Record:** the company's cash against the month's operating need; the offering channels, at-the-market proceeds and the share capacity left; the judgment's standing; the notes and the listing; the company's going-concern statements and stated plans.
+- **Record:** as D2; the company's stated plans.
 - **Build:** change. The raise becomes an initiation followed by N1; the fixed raise amount and its 30-day inflow retire.
 
 #### N1 · The offering raises its proceeds · new
@@ -258,7 +264,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Answers:** yes, the proposed net amount is received by the close date; no, it is not received by that date.
 - **Asked:** after every initiation (D2, D7, D8), including after an earlier offering on the path did not close. The situation states any earlier attempt and its outcome.
 - **Situation:** the judgment and its standing; available cash and any arrears; at-the-market proceeds to date; the listing status and deadline; the notes' status and any default continuing; the share capacity left.
-- **Record:** the January 2024 offering (the 8-K of 29 Jan 2024 and its prospectus supplement: 23.0M shares at $0.50, 29% below the prior close, underwritten by Roth); the daily price and volume to 14 May 2024; the shelf and the share capacity; the at-the-market program and its re-activation on 13 May; the company's cash, liquidity and going-concern statements; the judgment's standing; the listing status; the notes' status; counsel's statement on the ability to raise money.
+- **Record:** the January 2024 offering (the 8-K of 29 Jan 2024 and its prospectus supplement: 23.0M shares at $0.50, 29% below the prior close, underwritten by Roth); the daily price and volume to 14 May 2024; the shelf and the share capacity; the at-the-market program and its re-activation on 13 May; the company's liquidity and going-concern statements; counsel's statement on the ability to raise money.
 - **Consequences:** yes, the net amount on the close date, and its shares drawn from capacity. No, nothing; the next decision point on the path follows, where an offering can be initiated again.
 - **Build:** new.
 
@@ -266,9 +272,9 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 - **Event:** on the first day an obligation goes unpaid (§2.2), Akoustis files a voluntary petition, initiates an underwritten offering where one is available (§2.6; N1 follows), or does neither.
 - **Answers:** neither, no petition and no offering that day; nothing more.
-- **Situation:** it did not file at the cash floor; available cash nil; the obligation unpaid that day and its class; the notes' status; the judgment's standing.
-- **Record:** as D7; the obligation unpaid and its class; the notes' general-nonpayment terms (§7.01(j), §7.02).
-- **Consequences:** file, a petition on the day; initiate, N1, with processing under §2.2 continuing until the close date; neither: processing under §2.2 continues. Slope's debits clear only when the balance covers them, arrears accrue, and after 30 days of continuous arrears §3.3 makes the notes due, with D9 and H3 following.
+- **Situation:** it did not file at the cash floor; the available cash; the obligation unpaid that day, its amount and class; existing arrears; the notes' status; the judgment's standing.
+- **Record:** as D7; the notes' general-nonpayment terms (§7.01(j), §7.02).
+- **Consequences:** file, a petition on the day; initiate, N1, with processing under §2.2 continuing until the close date; neither: processing under §2.2 continues. Slope's debits clear only when the balance covers them, arrears accrue, and when the §3.3 conditions are met the notes become due, with D9 and H3 following.
 - **Build:** change. The trigger becomes the first unpaid obligation, the offering is added where available, and the state after "neither" follows §2.2. Keep the conditioning on the floor decision. There is no monthly re-ask.
 
 #### D9 · Akoustis files on the notes · `forecast_petition_on_notes`
@@ -277,7 +283,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Answers:** no, no petition then. The notes stay due and unpaid, in default. No forbearance or restructuring is booked, and the holders' petition (H3) remains open.
 - **Situation:** the notes' balance due, stated apart from the judgment; the cash state and arrears as D8; for a §3.3 acceleration, the days of continuous arrears.
 - **Grouping:** where D8 and D9 fall on the same day on a path, one question asks the filing.
-- **Record:** the notes due against the company's cash and arrears; the judgment; the listing status; the company's going-concern and bankruptcy statements.
+- **Record:** the indenture's acceleration terms; the company's going-concern and bankruptcy statements.
 - **Build:** change the state and the answer's meaning; keep the petition booking.
 
 ### 4.5 The notes
@@ -288,7 +294,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Asked:** where the default becomes available; again at the post-trial ruling where the ruling changes the judgment and the holders have not acted, with the default still available. Not asked where the notes are already due.
 - **Answers:** no, no declaration by that day; the default continues while its conditions hold.
 - **Situation:** the judgment, its standing and the days it has gone unpaid and unstayed; the issuer's cash state; the notes' terms.
-- **Record:** the indenture's default, acceleration, rescission and suit terms; the judgment and its standing; the company's cash, going-concern disclosures and other obligations; a petition's effect on the notes; the holders of record; the notes' interest payment record.
+- **Record:** the indenture's default, acceleration, rescission and suit terms; the company's going-concern and debt disclosures; a petition's effect on the notes; the holders of record; the notes' interest payment record.
 - **Consequences:** yes, the notes are due at the declaration (the notice lag after availability); D9 and H3 follow.
 - **Build:** change the legal clock to §3.1 (base: as entered). Keep the `jd_acted` conditioning.
 
@@ -296,8 +302,8 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 - **Event:** after the delisting default (§7.01(b)), the trustee or holders of at least 25% declare the notes due by the stated day.
 - **Answers:** no, no declaration by that day.
-- **Situation:** includes each holder's individual repurchase right and its repurchase date. That date falls after 10 Nov 2024 on every path, and it bears on the holders' choice.
-- **Record:** as H1; the delisting default; each holder's repurchase right and its date.
+- **Situation:** each holder's repurchase right and its repurchase date.
+- **Record:** as H1; the delisting default and the repurchase right.
 - **Consequences:** yes, as H1. Repurchase books nothing inside the horizon.
 - **Build:** change. The question asks only the declaration; the repurchase date enters the state; the "repurchase only" branch retires.
 
@@ -306,9 +312,9 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Event:** qualifying creditors (§303(b)), identified as noteholders with claims for the notes due, file an involuntary petition against Akoustis on the day the §7.06 route (§3.2) first allows it.
 - **Eligibility:** the notes are due and unpaid; Akoustis has not filed; the §7.06 route under §3.2 (at once where a (j) default is continuing).
 - **Answers:** no, no petition on that day.
-- **Situation:** the timing text follows the route under which it is asked.
+- **Situation:** the notes due and unpaid; the company's cash and arrears; the timing text follows the route under which it is asked.
 - **Asked:** only where the petition can fall inside the horizon.
-- **Record:** the indenture's §7.06 and §7.07 terms; §303(b); the notes due and unpaid; the company's cash and arrears; the holders of record.
+- **Record:** the indenture's §7.06 and §7.07 terms; §303(b); the holders of record.
 - **Consequences:** the petition stops Slope's collections from its date (§362). An order for relief and the company's operations are separate from the filing; nothing else is booked from the petition.
 - **Build:** change the eligibility (the (j) exception) and synchronise the timing text with `holder_route_days()`. Drop the asks beyond the horizon.
 
@@ -319,7 +325,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Event:** by 21 Oct 2024, the end of its second compliance period, Akoustis regains compliance with the $1.00 minimum bid price (a closing bid of at least $1.00 for 10 consecutive business days), by any route: a reverse stock split or a rise in the price.
 - **Answers:** no, compliance is not regained by 21 Oct; the staff's delisting determination follows.
 - **Situation:** the bid price on the review date; the judgment's standing; the company's cash and the notes' status; the time a reverse split takes: stockholder approval of a charter amendment under DGCL §242, called and noticed under the bylaws and the proxy rules.
-- **Record:** the $1.00 requirement and the compliance periods; the closing bid prices to 14 May 2024; the company's stated options to regain compliance; the latest stockholder vote on a charter amendment; the authorized and outstanding shares; the judgment's standing and the company's condition.
+- **Record:** the $1.00 requirement and the compliance periods; the closing bid prices to 14 May 2024; the company's stated options to regain compliance; the latest stockholder vote on a charter amendment; the authorized and outstanding shares.
 - **Consequences:** yes, the stock stays listed and the listing chain ends. No cash is booked; the share ledger keeps its dollar capacity. No, D6b.
 - **Build:** new.
 
