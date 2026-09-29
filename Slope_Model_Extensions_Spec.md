@@ -214,7 +214,7 @@ Each sub-question is answered, where possible, by:
 | **Record** | a dated, cited passage from before D | the briefing schedule; the motion grounds; the company's statements |
 | **Data** | measured from the record or a sourced dataset | this judge's time to rule on earlier fully briefed motions on this docket |
 | **Arithmetic** | computed by code on the path | amount owed, bond size against cash, dated triggers |
-| **Jev** | what remains: one actor's decision, given the facts | how the judge weighs these grounds; whether the holders give notice |
+| **Jev** | what remains: one well-defined uncertainty, given the facts | how the judge weighs these grounds; whether the holders give notice |
 
 **Stop** only when the next question is no more answerable than the current one. What remains goes to Jev.
 
@@ -234,11 +234,10 @@ Each sub-question is answered, where possible, by:
   Event dates are drawn independently of the probabilities, so path facts are simulated **before** Jev is asked. There is no loop.
 - **Arithmetic impossibility:** a branch that no trajectory of the path can take (e.g. paying in full an amount greater than the path's maximum cash) is dropped. A branch that is merely unlikely is not.
 
-### 3.4 What Jev answers: one actor's decision
+### 3.4 What Jev answers: one well-defined uncertainty
 
 Each Jev question names:
-- the actor;
-- the decision;
+- the event and what each answer establishes;
 - the legal standard or contract terms;
 - the record items;
 - the path facts.
@@ -349,7 +348,7 @@ The **actors** are both parties. The **record** is:
 
 ### 4.5 The resulting Jev questions (Akoustis)
 
-About 20–30 residual questions, each one actor's decision with its facts, depending on path contexts. Plus about 12–15 case-free outside-view anchors, shared and cached.
+About 20–30 residual questions, each one well-defined uncertainty with its facts, depending on path contexts. Plus about 12–15 case-free outside-view anchors, shared and cached.
 
 **What is no longer Jev's:**
 - any timing;
