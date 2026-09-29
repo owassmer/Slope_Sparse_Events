@@ -467,6 +467,14 @@ class Situation:
         return when(self.review, self._listing()["hearing_request"])
 
     # equity (§2.6)
+    def share_price(self):
+        """'the company's share price on <date>: $X' on the decision day, with the group's range."""
+        g = self._g()
+        rep, grp = float(g.at_rep("share_price", sit=True)), np.asarray(g.field("share_price", sit=True), dtype=float)
+        text = f"the company's share price on {when(self.review, self.day)}: ${rep / 100:,.4f}"
+        lo, hi = round(float(grp.min()) / 100, 4), round(float(grp.max()) / 100, 4)
+        return text + ("" if lo == hi else f" (across this situation: ${lo:,.4f} to ${hi:,.4f})")
+
     def atm_proceeds_to_date(self):
         return money(*self._sit("atm"))
 

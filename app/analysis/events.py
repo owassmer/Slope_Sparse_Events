@@ -503,6 +503,17 @@ class Chain:
         # a version of what the at-the-market sales read (the petition, delisting, the offerings' held shares),
         # bumped where any of them changes: `_atm_rebook` and `_offer_stack` are memoized on it
         self._eq_v = 0
+        # the share price (QUESTIONS §2.6, case parameter share_price): the 14 May close before the verdict, then the
+        # structural model at the judgment amount owed; `_price_v` is bumped whenever what it reads changes
+        from app.analysis.share_price import model_for
+        self.merton = model_for(model["parameters"]) if self.equity else None
+        self._price_v = 0
+        self._price_key = None
+        # the share price in cents per trajectory and day [draws, days] (None: no equity model), replaced whenever
+        # `_price_v` moves
+        self.share_price = (np.full((self.n, self.N), float(model["parameters"]["atm_pace_bps"]["price_cents"]))
+                            if self.merton is not None else None)
+        self.settlement_parts: list[tuple[np.ndarray, np.ndarray]] = []  # (day, part) per installment, any date
         self.offerings: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
         self._n1: dict[str, bool] = {}
         self.hearing_requested = np.full(self.n, BIG, dtype=np.int64)
@@ -861,6 +872,7 @@ class Chain:
             self.resolve(np.asarray(day), satisfied)
             self.mark("paid", day, satisfied)
         self.writs.append((day, take))
+        self._atm_rebook()  # a levy changes the amount owed the share price reads
 
     def flush_levy(self, rows: np.ndarray | None = None) -> None:
         """Book the pending pre-ruling levy. It waits one step so the debtor's response on the levy day acts
@@ -902,6 +914,7 @@ class Chain:
             self.resolve(day, ok & (not self.retrial))  # under a new trial the dispute goes on
             self.release_lock(day, ok)  # paid in full: nothing left to secure
             self.mark("paid", day, ok)
+            self._atm_rebook()  # the share price reads the amount owed
         elif booking == "petition":
             where = day < N if cause == "cash_floor" else self.live(day) & (day < N)  # the floor: as 4.0.0
             self.petition(day, where, cause=cause)
@@ -928,6 +941,53 @@ class Chain:
         return (day >= self.adverse_from) & (day < self.adverse_until) & (day < self.resolved)
 
     # --- equity (QUESTIONS_20240514 §2.6): the share ledger, at-the-market sales and underwritten offerings ---------
+    def price_owed(self, day) -> np.ndarray:
+        """The judgment amount owed that the share price reads on the day [draws] (or days [draws, k]): 0 before the
+        verdict or with no award; the amount as entered, from the post-trial ruling the amount it leaves, less what
+        was paid or levied on or before the day; 0 once the dispute is resolved; after a settlement, its installments
+        not yet due."""
+        day = np.asarray(day, dtype=np.int64)
+        if day.ndim == 0:
+            day = np.full(self.n, day, dtype=np.int64)
+        col = (lambda a: self.per_draw(a)[:, None]) if day.ndim == 2 else self.per_draw  # noqa: E731
+        if not self.pending or not self.entered:
+            return np.zeros(day.shape, dtype=np.int64)
+        amt = np.full(day.shape, self.entered, dtype=np.int64)
+        if self.cls_amount is not None:
+            amt = np.where(day >= col(self.F), self.cls_amount, amt)
+        for t, a in self.takes:
+            amt = amt - np.where(day >= col(t), col(a), 0)
+        amt = np.where(day >= col(self.resolved), 0, np.maximum(amt, 0))
+        if self.settlement_parts:
+            left = sum(np.where(col(t) > day, col(a), 0) for t, a in self.settlement_parts)
+            amt = np.where(day >= col(self.marks["settled"]), left, amt)
+        return np.where(day >= col(self.V), amt, 0).astype(np.int64)
+
+    def _reprice(self) -> None:
+        """Bump `_price_v` where what the share price reads has changed (the amount entered, the ruling, a payment
+        or levy, the dispute's resolution, a settlement)."""
+        if self.merton is None:
+            return
+        key = (self.entered, self.cls_amount, np.asarray(self.F).tobytes(), self.resolved.tobytes(), len(self.takes),
+               len(self.settlement_parts), self.marks["settled"].tobytes())
+        if key != self._price_key:
+            self._price_key = key
+            self._price_v += 1
+            close = float(self.m["parameters"]["atm_pace_bps"]["price_cents"])
+            owed = self.price_owed(np.broadcast_to(np.arange(self.N, dtype=np.int64), (self.n, self.N)))
+            self.share_price = np.where(owed > 0, self.merton.price(owed), close)
+
+    def share_price_on(self, day=None) -> np.ndarray:
+        """The share price in cents on the day [draws] (or days [draws, k]), as floats (`share_price`): the 14 May
+        close where no judgment amount is owed (before the verdict, no award, resolved), else the structural model's."""
+        day = self._at if day is None else np.asarray(day, dtype=np.int64)
+        if self.share_price is None:
+            close = float(self.m["parameters"]["atm_pace_bps"]["price_cents"])
+            return np.full(np.shape(day) if np.ndim(day) else (self.n,), close)
+        self._reprice()
+        t = np.clip(self.per_draw(day) if np.ndim(day) < 2 else day, 0, self.N - 1)
+        return self.share_price[self.rows, t] if t.ndim == 1 else np.take_along_axis(self.share_price, t, axis=1)
+
     def _atm_schedule(self) -> tuple[np.ndarray, np.ndarray, int, int]:
         """The at-the-market program's sales (Scenario): each trading day from the first sale (14 May) to the horizon,
         whole shares at the day's dollar pace (the pace share of the average daily dollar volume) over the 14 May close,
@@ -988,10 +1048,24 @@ class Chain:
         return out
 
     def _eq_key(self) -> tuple:
-        """The at-the-market booking's memo key: the version of what it reads (`_eq_v`) and the per-trajectory share
-        price (`share_price`, set by the verdict on step-9-price; absent: None), an input of its sales."""
-        sp = self.__dict__.get("share_price")
-        return self._eq_v, (sp.tobytes() if isinstance(sp, np.ndarray) else sp)
+        """The at-the-market booking's memo key: the version of what it reads (`_eq_v`) and of the per-trajectory share
+        price (`_price_v`, bumped only where the `share_price` array changes), an input of its sales."""
+        self._reprice()
+        return self._eq_v, self._price_v
+
+    def _lockup(self, sale: np.ndarray) -> np.ndarray:
+        """The sale days an offering's lock-up covers [draws, sales] (case parameter offering_lockup): from its pricing
+        to its close, and where it closed, through the lock-up's last day after the close (none: no offering)."""
+        out = np.zeros((self.n, sale.size), dtype=bool)
+        lock = self.m["parameters"].get("offering_lockup")
+        st = self._offer_stack()
+        if not lock or st is None or lock.get("atm_carved_out"):
+            return out
+        init, close, closed, _ = (a[:, :, None] for a in st)
+        s = sale[None, None, :]
+        held = (init < BIG) & (s >= init + int(lock["pricing_days"])) & (
+            (s < close) | (closed & (s <= close + int(lock["value"]))))
+        return held.any(axis=0)
 
     def _atm_columns(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """The sales settling inside the period, ordered by settlement day, the distinct settlement days and where
@@ -1013,20 +1087,24 @@ class Chain:
         if not self.equity or self.__dict__.get("_atm_v") == self._eq_key():
             return
         self._atm_v = self._eq_key()
-        sale, settle, q, net = self._atm_schedule()
+        sale, settle, q, _ = self._atm_schedule()
         pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
         stop = np.minimum(pet, self.delisted)
         led = int(self.m["parameters"]["share_ledger"]["value"])
         other = self._offer_shares_on(np.broadcast_to(sale, (self.n, sale.size)))  # [draws, sales]
-        k = np.arange(1, sale.size + 1, dtype=np.int64)[None, :]
-        ok = (sale[None, :] < stop[:, None]) & (k * q + other <= led)
-        ok = np.logical_and.accumulate(ok, axis=1)
+        on = (sale[None, :] < stop[:, None]) & ~self._lockup(sale)
+        k = np.cumsum(on, axis=1, dtype=np.int64)  # the sales made so far, this one included
+        fail = on & (k * q + other > led)  # the ledger cannot cover the day's shares: the channel stops
+        ok = on & ~np.logical_or.accumulate(fail, axis=1)
         self._atm_sold = ok  # [draws, sales]
-        self._atm_nsold = ok.sum(axis=1)  # a prefix of the sales: sold up to the first that fails
+        self._atm_csold = np.cumsum(ok, axis=1, dtype=np.int64)
         j, days, start = self._atm_columns()
         new = np.zeros((self.n, self.N), dtype=np.int64)
-        if j.size:  # each settlement day's sales, summed per trajectory
-            new[:, days] = np.add.reduceat(ok[:, j].astype(np.int64), start, axis=1) * net
+        if j.size:  # each settlement day's sales at the sale day's share price, net of commission, per trajectory
+            comm = int(self.m["parameters"]["atm_pace_bps"]["commission_bps"])
+            gross = np.rint(q * self.share_price_on(np.broadcast_to(sale[j], (self.n, j.size)))).astype(np.int64)
+            net = gross * (10_000 - comm) // 10_000
+            new[:, days] = np.add.reduceat(np.where(ok[:, j], net, 0), start, axis=1)
         old = self._atm if self._atm is not None else np.zeros_like(new)
         delta = new - old
         self._atm = new
@@ -1049,7 +1127,8 @@ class Chain:
         if self._atm is None:
             return np.zeros(self.n, dtype=np.int64)
         sale, _, q, _ = self._atm_schedule()
-        return np.minimum(np.searchsorted(sale, day, side="right"), self._atm_nsold).astype(np.int64) * q
+        i = np.searchsorted(sale, day, side="right")
+        return np.where(i > 0, self._atm_csold[self.rows, np.maximum(i - 1, 0)], 0).astype(np.int64) * q
 
     def ledger_left(self, day=None) -> np.ndarray:
         """Shares available on the day [draws]: the ledger less the at-the-market shares sold and the offerings'
@@ -1058,25 +1137,24 @@ class Chain:
         led = int(self.m["parameters"]["share_ledger"]["value"])
         return np.maximum(led - self.atm_shares_to_date(day) - self._offer_shares_on(day), 0)
 
-    def offering_price_x1e4(self) -> int:
-        """The offering price in cents x 1e4: the 14 May close less the January offering's discount to its prior
-        close; the sensitivity, half that price."""
+    def offering_price_x1e4(self, day=None) -> np.ndarray:
+        """The offering price in cents x 1e4 [draws]: the share price on the day (initiation) less the January
+        offering's discount to its prior close, rounded half up."""
         p = self.m["parameters"]["offering_price"]
-        price = (int(p["close_cents_x1e4"]) * int(p["january_price_cents"]) * 10_000 * 2
-                 // int(p["january_prior_close_cents_x1e4"]) + 1) // 2  # rounded half up
-        return price // 2 if self.p("offering_price") == "half" else price
+        close = np.rint(self.share_price_on(self._at if day is None else self.per_draw(day)) * 10_000).astype(np.int64)
+        return (close * int(p["january_price_cents"]) * 10_000 * 2 // int(p["january_prior_close_cents_x1e4"]) + 1) // 2
 
     def offering_terms(self, day=None) -> dict[str, np.ndarray]:
         """An offering's terms at the capacity left on the day [draws]: the gross (the January gross, or the shares
         available times the price where capacity binds), costs in proportion, net, price, shares and close days."""
         p = self.m["parameters"]["offering_price"]
-        price, gross0, net0 = self.offering_price_x1e4(), int(p["gross_cents"]), int(p["net_cents"])
+        price, gross0, net0 = self.offering_price_x1e4(day), int(p["gross_cents"]), int(p["net_cents"])
         full = (gross0 * 10_000 * 2 // price + 1) // 2
         shares = np.minimum(full, self.ledger_left(day))
         binds = shares < full
         gross = np.where(binds, shares * price // 10_000, gross0)
         net = np.where(binds, gross * net0 // gross0, net0)
-        return {"gross": gross, "costs": gross - net, "net": net, "price_cents_x1e4": np.full(self.n, price),
+        return {"gross": gross, "costs": gross - net, "net": net, "price_cents_x1e4": price,
                 "shares": shares, "close_days": np.full(self.n, int(p["close_days"]))}
 
     def offering_pending_on(self, day) -> np.ndarray:
@@ -1254,16 +1332,20 @@ class Chain:
             for i in range(count):
                 part = np.where(ok, bound // count + (bound % count if i == count - 1 else 0), 0)
                 self.pay(self.months_after(pd, i), -part, "settlement", incurred=pd)  # after the period: outside it
+                self.settlement_parts.append((self.months_after(pd, i), part))
         elif mode == "monthly":
             k = np.maximum((self.N - pd + 29) // 30, 1)
             for i in range(int(k.max())):
                 part = np.where(ok & (i < k), bound // k + np.where(i == k - 1, bound % k, 0), 0)
                 self.pay(pd + 30 * i, -part, "settlement", incurred=pd)
+                self.settlement_parts.append((pd + 30 * i, part))
             release = pd + 30 * (k - 1)
         else:
             self.pay(pd, -np.where(ok, bound, 0), "settlement", incurred=pd)
+            self.settlement_parts.append((pd, np.where(ok, bound, 0)))
         self.resolve(release, ok & self.live(release))
         self.mark("settled", pd, ok)
+        self._atm_rebook()  # the settlement terms replace the judgment in the share price
         return pd, ok
 
     def months_after(self, day: np.ndarray, k: int) -> np.ndarray:
@@ -1878,6 +1960,7 @@ class Chain:
         before = self.balance_state(copy=True) if self.daily else (self.cum(),)
         self._grp = None
         day = self.step(node, ctx, branch)
+        self._atm_rebook()  # a verdict, a ruling or an election changes the amount owed the share price reads
         if self._grp is not None:
             self.grec[len(self.rec[0])] = self._grp
         for lst, v in zip(self.rec, (day, self.decision_cash(day, before), self.owed_at(day),
@@ -2258,7 +2341,7 @@ class Chain:
         tr.as_of = np.maximum(self._booked_to, self.reads) if day_only else None
         return tr
 
-    SHARED = frozenset({"d", "s", "m", "dr", "basis", "sens", "fin", "rows", "bookings"})  # read-only inputs, never copied
+    SHARED = frozenset({"d", "s", "m", "dr", "basis", "sens", "fin", "rows", "bookings", "merton"})  # read-only inputs, never copied
 
     def clone(self) -> Chain:
         """An independent copy of the walk's state (every array it books into), sharing its read-only inputs."""
@@ -2284,7 +2367,7 @@ class Chain:
                         "_atm_sold", "_atm_nsold", "taken", "_booked_to", "_last_node", "ev", "marks", "waiting", "takes", "writs",
                         "coupons", "floor_days", "stays", "pet_cause", "collateral_required", "lock_amount",
                         "levied", "q1", "offerings", "_at", "notes_due_how", "appealed", "_offers", "lock_day",
-                        "hearing_requested", "_vfired"})
+                        "hearing_requested", "_vfired", "_price_v", "_price_key"})
 
     def divergence(self, other: Chain, wait: int | None = None) -> np.ndarray:
         """Per draw, a day before which this chain and `other` (the same dispute after sibling steps) book and read
@@ -2376,6 +2459,7 @@ class Chain:
                 x = np.where(a[3] != b[3], zero, x)
         # the per-trajectory share price (step-9-price) is an input of every equity read: compared even if it is
         # made a shared read-only input; where it differs the chains diverge from day 0 on those draws
+        self._reprice(), other._reprice()  # compared as later reads see it
         plain(self.__dict__.get("share_price"), other.__dict__.get("share_price"))
         for k in (set(self.__dict__) | set(other.__dict__)) - Chain.SHARED - Chain.UNSEEN - {"share_price"}:
             a, b = self.__dict__.get(k), other.__dict__.get(k)
@@ -2415,7 +2499,7 @@ class Chain:
     # The step-9 interface (SPLIT_common.md) is implemented by workers A and B above (merged at integration; worker C's
     # guarded stubs retired). Per-trajectory attributes are read through `c_read`, which
     # raises NotImplementedError naming any the chain does not have.
-    C_INTERFACE = {"A": ("ledger_left", "atm_to_date", "offering_terms", "offering_pending", "offerings",
+    C_INTERFACE = {"A": ("ledger_left", "atm_to_date", "offering_terms", "offering_pending", "offerings", "share_price_on",
                          "listing_status", "notes_due_day", "notes_due_how", "arrears_by_class", "first_unpaid",
                          "nonpayment_day"),
                    "B": ("judgment_amount_entered", "judgment_standing", "band", "band_range", "default_available_day",
@@ -2446,7 +2530,7 @@ class Chain:
                  "band": ("band",), "band_range": ("band_range",), "default_available": ("default_available_day",),
                  "route_days": ("holder_route_days_path",), "remitted": ("remitted_amount",),
                  "listing": ("listing_status", day), "atm": ("atm_to_date", day), "ledger": ("ledger_left", day),
-                 "offering_terms": ("offering_terms", day),
+                 "offering_terms": ("offering_terms", day), "share_price": ("share_price_on", day),
                  "offering_pending": ("offering_pending_on", day) if hasattr(self, "offering_pending_on")
                  else ("offering_pending",),
                  "offerings": ("offerings",), "notes_due_day": ("notes_due_day",), "notes_due_how": ("notes_due_how",),

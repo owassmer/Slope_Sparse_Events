@@ -8,6 +8,7 @@ from datetime import date, timedelta
 import akoustis_20240514_fixture as fx
 import numpy as np
 import pytest
+from test_equity_20240514 import CLAIMANT, LEDGER, hand_price_usd
 
 from app.analysis.core import ARREARS_KEYS, Analysis, EventModel
 from app.analysis.engine import run_many
@@ -49,12 +50,19 @@ def _sales_settled_by(horizon: date) -> int:
 
 def test_the_proceeds_by_channel_are_the_hand_figures(analysis):
     """No award, nothing stops the sales: every sale settled by the horizon (124 by 10 Nov), none from an offering.
-    The offering path: January's $10.4M net where the offering closed, and the two channels are the path's receipts."""
+    The offering path: the net at the initiation day's share price where the offering closed (capacity binds), and the two channels are the path's receipts."""
     a, d = analysis
     m = a.r.means
     assert _sales_settled_by(fx.setup().horizon) == 124
     assert m["atm_proceeds"][0] == 124 * NET_SALE and m["offering_proceeds"][0] == 0
-    assert m["offering_proceeds"][1] == 1_040_000_000
+    ch = Chain(d, a.setup, a.m, Draws(a._draws.n, basis=a._draws.basis), None)
+    ch.run(OFFERING)
+    o = ch._offers[0]  # the share price at initiation binds the capacity: the net by hand (test_equity_20240514)
+    levied = sum(np.where(t <= o["init"], x, 0) for t, x in ch.takes) / 100
+    price = hand_price_usd(CLAIMANT - levied) * 0.50 / 0.7046
+    shares = np.minimum(np.rint(11_500_000 / price), LEDGER - ch.atm_shares_to_date(o["init"]))
+    net = np.where(o["closed"], np.minimum(shares * price * 100 * 1_040_000_000 / 1_150_000_000, 1_040_000_000), 0)
+    assert abs(m["offering_proceeds"][1] - net.mean()) <= 1e-5 * net.mean()
     for s in (NO_AWARD, OFFERING):
         ev = Chain(d, a.setup, a.m, Draws(a._draws.n, basis=a._draws.basis), None).run(s).events
         assert (ev.proceeds["atm_proceeds"] + ev.proceeds["offering_proceeds"] == ev.kinds["inflow"].sum(axis=1)).all()
