@@ -280,7 +280,7 @@
         "id": "cash_floor_60_days",
         "label": "Cash floor: 60 days of operating outflows, instead of 30",
         "common_model": "cash_floor_60_days",
-        "note": "Changes the cash level at which the company decides whether to raise equity, keep going or file, and the cash it counts as available for a settlement or security. Slope's debit does not read it, so collections change only through those decisions."
+        "note": "Changes the cash level at which the company decides whether to initiate an offering, file, or do neither, and the cash it counts as available for a settlement or security. Slope's debit does not read it, so collections change only through those decisions."
       },
       {
         "id": "coupon_cash",
