@@ -46,13 +46,13 @@ def test_verdict_composites_are_disjoint_and_exhaustive():
 
     fc, d = forecaster()
     classes = fc.verdict_classes(d)
-    assert set(classes) == {"no_award", "without_principal_measure", "claimant_theory"}
+    assert "no_award" in classes and all(c == "no_award" or c.startswith("award:") for c in classes)
     conj = [dict(c) for parts in classes.values() for c in parts]
     for i, a in enumerate(conj):
         for b in conj[i + 1:]:
             assert any(k in b and b[k] != v for k, v in a.items())
     nodes = {k for c in conj for k in c}
-    assert all(fc.nodes[k].node in ("verdict_finding", "verdict_measure") for k in nodes)
+    assert all(fc.nodes[k].node in ("verdict_finding", "verdict_amount") for k in nodes)
     assert all(fc.nodes[k].branches == ("yes", "no") for k in nodes)
     rng = np.random.default_rng(7)
     for _ in range(50):
@@ -225,7 +225,7 @@ def _sample(paths, pred, k=20):
 def test_5_claimant_branch_is_cash_and_date_identical_under_its_enhancements(tree):
     """The claimant's branch is beyond cash under both claimant_enhancements settings: same cash, lock, petition, days."""
     _, _, paths, _ = tree
-    for p in _sample(paths, lambda p: ("verdict", "I0", "claimant_theory") in p.steps):
+    for p in _sample(paths, lambda p: any(s[0] == "verdict" and s[2].endswith(":top") for s in p.steps)):
         (_, ta), (_, tb) = run(p.steps), run(p.steps, {"claimant_enhancements": True})
         assert (ta.events.cash == tb.events.cash).all() and (ta.events.lock == tb.events.lock).all()
         assert (ta.events.petition == tb.events.petition).all()
@@ -451,8 +451,8 @@ def test_7f_one_dispute_end_a_satisfying_levy_ends_it_and_legal_spend_never_retu
 
     _, _, paths, _ = tree
     b = fx.basis()
-    levy = _sample(paths, lambda p: ("verdict", "I0", "without_principal_measure") in p.steps
-                   and ("enforce", "post", "levy") in p.steps, 6)
+    small = lambda s: s[0] == "verdict" and s[2].startswith("award:") and int(s[2].split(":")[1]) < 200_000_000  # noqa: E731
+    levy = _sample(paths, lambda p: any(small(s) for s in p.steps) and ("enforce", "post", "levy") in p.steps, 6)
     assert levy
     hit = 0
     for p in levy:

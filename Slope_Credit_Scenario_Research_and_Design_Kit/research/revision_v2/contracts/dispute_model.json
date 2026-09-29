@@ -2606,6 +2606,10 @@
           "residual_question": "forecast_verdict_amount",
           "actor": "jury",
           "decision": "Does the amount entered on {form_item} of the verdict form exceed {threshold}?",
+          "timing": "on the day of the verdict, drawn per trajectory over the case's verdict window",
+          "timing_parameters": [
+            "verdict_window"
+          ],
           "branches": [
             "yes",
             "no"
@@ -2639,6 +2643,10 @@
           "residual_question": "forecast_remittitur_elected",
           "actor": "{claimant}",
           "decision": "Does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+          "timing": "on the day of the post-trial ruling that orders the remittitur",
+          "timing_parameters": [
+            "ruling_lag_days"
+          ],
           "branches": [
             "yes",
             "no"

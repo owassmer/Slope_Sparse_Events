@@ -111,6 +111,11 @@
       "value": true,
       "sensitivity": false,
       "basis": "QUESTIONS_20240514 J1 (Scenario): a 'yes' to 5(a) books USD 279,808 and to 3(a) USD 1,146,604, the amounts the claimant claims (D.I. 543-1 Ex. A.2 ¶¶19, 42). Sensitivity: nothing awarded on those items."
+    },
+    "judgment_default_reading": {
+      "value": "entered",
+      "sensitivity": "post_ruling",
+      "basis": "QUESTIONS_20240514 §3.1. Base: the judgment as entered. The §7.01(i) default becomes available 60 days after the Rule 62(a) automatic stay of the judgment as entered ends, where the judgment remains unpaid and undischarged and execution is not effectively stayed throughout; a post-trial ruling does not restart the period, and where it changes the judgment the holders' decision is asked again on the changed judgment. Sensitivity: the post-trial ruling, 60 days from the order disposing of the last tolling motion on the surviving amount, with no earlier opportunity."
     }
   },
   "verdict_form": {
@@ -127,18 +132,42 @@
         "plain": {
           "asks": "whether the jury finds {company} liable for misappropriating at least one of {claimant}'s trade secrets and unjustly enriched by it",
           "yes": "trade-secret liability found",
-          "no": "no trade-secret liability"
+          "no": "Question 1(a): No"
         }
       },
       "q1b": {
-        "node": "verdict_measure",
+        "node": "verdict_amount",
         "form": "Question No. 1(b)",
         "quote": "State the amount Akoustis was unjustly enriched by misappropriating Qorvo’s trade secrets as to which you have answered “Yes” and “Yes” in Question 1(a) above.",
-        "asks": "whether the unjust-enrichment award adopts the claimant's head-start measure (never the amount)",
-        "yes": "claimant_theory",
-        "no": "without_principal_measure",
+        "next": "q1c",
+        "zero": "q2a",
         "plain": {
-          "asks": "whether the jury's award for the trade-secret claim adopts {claimant}'s head-start measure"
+          "asks": "the amount of the jury's award for unjust enrichment on the trade-secret claim"
+        }
+      },
+      "q1c": {
+        "node": "verdict_finding",
+        "form": "Question No. 1(c)",
+        "quote": "Was Akoustis’s misappropriation of any of Qorvo’s trade secrets as to which you answered “Yes” and “Yes” in Question 1(a) above willful and malicious?",
+        "exemplary_of": "q1b",
+        "times": 2,
+        "yes": "q1d",
+        "no": "q2a",
+        "plain": {
+          "asks": "whether the jury finds the misappropriation willful and malicious",
+          "yes": "willful and malicious",
+          "no": "not willful and malicious"
+        }
+      },
+      "q1d": {
+        "node": "verdict_amount",
+        "form": "Question No. 1(d)",
+        "quote": "What amount of exemplary damages, if any, do you award to Qorvo against Akoustis?",
+        "of": "q1b",
+        "times": 2,
+        "next": "q2a",
+        "plain": {
+          "asks": "the amount of exemplary damages, at most twice the unjust-enrichment award (18 U.S.C. §1836(b)(3)(C))"
         }
       },
       "q2a": {
@@ -166,48 +195,43 @@
         }
       },
       "q2c": {
-        "node": "verdict_measure",
+        "node": "verdict_amount",
         "form": "Question No. 2(c)",
         "quote": "What amount of damages for actual loss, if any, were caused by Akoustis’ action and thus you award to Qorvo against Akoustis?",
-        "asks": "whether the conspiracy award adopts the claimant's head-start measure, which its conspiracy claim restates (D.I. 543-1 Ex. A.2 ¶56) (never the amount)",
-        "yes": "claimant_theory",
-        "no": "without_principal_measure",
+        "next": "q3a",
         "plain": {
-          "asks": "whether the jury's award for the conspiracy claim adopts {claimant}'s head-start measure"
+          "asks": "the amount of the jury's award for actual loss on the conspiracy claim"
         }
       },
       "q3a": {
         "node": "verdict_finding",
         "form": "Question No. 3(a)",
         "quote": "Has Qorvo proven by a preponderance of the evidence each of the elements of its False Advertising claim against Akoustis?",
-        "yes": "without_principal_measure",
+        "yes": "q5a",
         "no": "q5a",
         "plain": {
           "asks": "whether the jury finds the false-advertising claim proven",
           "yes": "false advertising proven",
           "no": "no false advertising"
-        }
+        },
+        "award": "advertising"
       },
       "q5a": {
         "node": "verdict_finding",
         "form": "Question No. 5(a)",
         "quote": "Do you find that Qorvo has proven by a preponderance of the evidence that the claims of the ’018 or the ’755 Patents have been infringed?",
         "asks": "whether the jury answers “YES” for at least one patent claim",
-        "yes": "without_principal_measure",
-        "no": "no_award",
+        "yes": "end",
+        "no": "end",
         "plain": {
           "asks": "whether the jury finds at least one patent claim infringed",
           "yes": "patent infringed",
           "no": "no patent infringed"
-        }
+        },
+        "award": "patent"
       }
     },
     "collapsed": [
-      {
-        "form": "Question No. 1(c) and 1(d)",
-        "quote": "Was Akoustis’s misappropriation of any of Qorvo’s trade secrets as to which you answered “Yes” and “Yes” in Question 1(a) above willful and malicious?",
-        "why": "Its answer sets only exemplary damages (1(d)). Where the award adopts the head-start measure they raise an award already beyond cash on every trajectory (the bounded claimant_enhancements term, DECOMPOSITION §4.6); on the lower branch the O1 amount carries no trade-secret award to multiply. It changes no verdict branch, so it would change no path probability."
-      },
       {
         "form": "Questions No. 4(a)-(c)",
         "quote": "Has Qorvo proven by a preponderance of the evidence its Unfair and Deceptive Trade Practices Act claim against Akoustis?",
@@ -218,7 +242,8 @@
         "quote": "Did Qorvo prove by a preponderance of the evidence that Akoustis’ infringement of the ’018 or ‘755 patent was willful?",
         "why": "5(b) is an amount (inside the lower branch's bounded amount); willfulness only lets the court enhance patent damages later (35 U.S.C. §284), inside the same bound. Neither changes a verdict branch."
       }
-    ]
+    ],
+    "amounts": "QUESTIONS_20240514 §4.1 J1, J1b. The award is the sum of the items the jury finds: 3(a) books the corrective-advertising amount and 5(a) the patent amount Qorvo claims (D.I. 543-1 Ex. A.2 ¶¶19, 42: USD 1,146,604 and USD 279,808; nothing where the parameter small_claims_awarded is false); 3(a) and 5(a) are asked wherever the total stays below the J1b top line. The amount items 1(b), 1(d) and 2(c) are asked as thresholds on the total judgment's lines (Forecaster.verdict_lines: nothing, the reach line, the top line, one further cut in each band below the top line, and USD 10,000,000 wherever a band would straddle it), each conditional on the band established; a band below the top line books its midpoint and the band above it the claimant's amount (USD 67,526,412). 1(c) and 1(d) are asked only where exemplary damages (at most twice 1(b)) can move the total across a line."
   },
   "assumption_variants": {
     "note": "Economic sensitivities precomputed for the page (spec §16.6). Each changes one declared setting from the central case: a common-model scenario (run_inputs.json common_model.scenarios) or a parameter's declared sensitivity (above). Its basis is that setting's own. A question whose facts the change moves is asked again.",

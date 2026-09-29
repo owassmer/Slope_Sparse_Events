@@ -284,7 +284,7 @@ def context_phrases(tags: list[str], ranges: dict[str, tuple[int, int]], labels:
 
 PENDING = "liability_pending"  # a claim at trial (template pending_money_claim, 4.1.0)
 NO_JUDGMENT = ("claimed", "no_award", "set_aside")  # a pending claim's amount classes with no money judgment
-VERDICT_NODES = ("verdict_finding", "verdict_measure")  # the jury's verdict-form questions (4.1.0 verdict_form)
+VERDICT_NODES = ("verdict_finding", "verdict_measure", "verdict_amount")  # the jury's verdict-form questions (4.1.0 verdict_form)
 MERITS = ("ts_liability_jmol", "ts_damages_ruling", "remittitur_accepted", "patent_jmol", "trebling", "fees_awarded",
           "prejudgment_interest", "injunction")
 # questions about an unpaid judgment: their facts pool only trajectories where an amount is still owed
@@ -361,6 +361,7 @@ class Forecaster:
         self._raise_open: set = set()
         self._raise_more: set = set()
         self._traces: dict = {}
+        self.remitted: dict[str, tuple[int, int, int]] = {}  # C3 node key -> the remitted amount and its band
         self._sources: dict[str, str] = {}  # finding -> its source's title
         self.bank_nodes: dict[str, Node] = {}  # the bank view's questions (bank_state)
         self.bank_facts: dict[str, list] = {}  # bank node key -> [(day, cash, need, raise offer) arrays]
@@ -590,27 +591,141 @@ class Forecaster:
                 self.class_range[_label(label)] = (lo[0], max(members[c])[0])
         return out
 
+    def verdict_lines(self, d: DisputeInstance, inflows: np.ndarray | None = None) -> dict:
+        """J1b's cut points on the total judgment (QUESTIONS §4.1 J1b), measured on the built trajectories before
+        the tree is built. `inflows`: [draws, days] net equity proceeds received by each day (cumulative), at the most
+        the equity channels can deliver (worker A's at-the-market sales and offerings; None: no equity inflow).
+        - reach: the most Akoustis can pay from cash on the entry day (the most entry-day cash on any trajectory);
+        - top: the lowest amount above which every award books the same cash on every trajectory through the
+          horizon: an amount owed that no day's balance (the balance a levy attaches, end-of-day cash, the cash above
+          the month's need over the bond collateral share) can reach, and above the notes' judgment-default threshold;
+        - cuts: nothing, one further cut in each band below the top line (its midpoint), the reach and top lines, and
+          the notes' threshold wherever a band would straddle it.
+        Returns the lines and the bands, each band with the amount it books (the top band: the claimant's amount)."""
+        from app.analysis.events import BIG, Chain, Trace, pending_template, verdict_amount
+
+        key = (d.instance_id, None if inflows is None else hash(np.asarray(inflows).tobytes()))
+        memo = self.__dict__.setdefault("_lines", {})
+        if key in memo:
+            return memo[key]
+        ch = Chain(d, self.setup, self.m, self.draws, self.sens)
+        ch.instrument_cash()
+        branches = pending_template(self.m)["verdict_branches"]
+        claimant = next(b for b, v in branches.items() if v.get("adverse"))
+        ch.advance(Trace(ch.ev), "verdict", "I0", claimant)  # books nothing but the entry day
+        cum, E, n, N = ch.cum(), ch.E_ix, ch.n, ch.N
+        eq = np.zeros((n, N), dtype=np.int64) if inflows is None else np.asarray(inflows, dtype=np.int64)
+        after = (np.arange(N)[None, :] >= E[:, None]) & (E < N)[:, None]
+        prev = np.concatenate([np.full((n, 1), ch.basis.opening, dtype=cum.dtype), cum[:, :-1]], axis=1)
+        balance = prev + ch.basis.inflow + eq  # the balance a levy served that day attaches (§2.2)
+        end = cum + eq
+        reach = int(end[ch.rows, np.minimum(E, N - 1)].max())
+        years = ch.p("bond_forward_interest_years")
+        share = (self.setup.collateral_share[0] if self.setup.collateral_share else
+                 self.m["parameters"]["bond_collateral_share_bps"]["lower" if self.sens.get("bond_collateral_share_bps")
+                                                                  else "value"] / 10_000)
+        covers = (end - ch.basis.need) / (share * (1 + ch.bps / 10_000 * years))  # full collateral within reach
+        most = max(int(np.where(after, balance, 0).max()), int(np.where(after, end, 0).max()),
+                   int(np.ceil(np.where(after, covers, 0).max())))
+        f = ch.fin
+        thr = (f.judgment_default_threshold_cents + f.insured_cents) if f is not None and \
+            f.judgment_default_threshold_cents else 0
+        up = lambda x: -(-int(x) // 100) * 100  # noqa: E731  whole dollars, rounded up (a line is never below its measure)
+        reach, top = up(reach), up(max(most, thr))
+        cuts = sorted({0, up(reach // 2), reach, up((reach + top) // 2), top})
+        if thr and thr not in cuts and any(a < thr < b for a, b in zip(cuts, cuts[1:], strict=False)):
+            cuts = sorted({*cuts, thr})
+        top_amount = verdict_amount(d, self.m, claimant, self.sens)
+        if top_amount <= top:
+            raise ValueError(f"the claimant's amount {top_amount} is not above the J1b top line {top}")
+        bands = [(0, 0, 0)] + [(a, b, (a + b) // 2) for a, b in zip(cuts, cuts[1:], strict=False)] \
+            + [(top, BIG * 10**6, top_amount)]
+        out = {"reach": reach, "top": top, "threshold": thr, "cuts": cuts, "bands": bands, "top_amount": top_amount}
+        memo[key] = out
+        return out
+
+    def equity_inflows(self, d: DisputeInstance) -> np.ndarray | None:
+        """The integration point for the J1b top line: [draws, days] cumulative net equity proceeds the channels can
+        deliver by each day at their most (QUESTIONS §2.6: at-the-market sales from the review date and offerings
+        up to the share capacity), from the equity code. None until that code is merged: no equity inflow."""
+        return None
+
     def verdict_classes(self, d: DisputeInstance) -> dict[str, list[list[tuple[str, str]]]]:
-        """Each verdict branch's disjoint conjunctions of the jury's answers on the case's verdict form (template
-        verdict_form), in the form's order: a question is one node per sequence of earlier answers that reaches it,
-        and each answer leads to the next question or to a verdict branch. The branches' composites are exhaustive
-        over the answers (every sequence ends in exactly one branch)."""
-        form = self.m["case_verdict_form"]
-        branches = self.m["templates"]["pending_money_claim"]["verdict_branches"]
-        out: dict[str, list] = {b: [] for b in branches}
+        """The jury's verdict, in the form's order (case verdict_form; QUESTIONS §4.1 J1, J1b), as disjoint
+        conjunctions of its answers per booked award (exhaustive over the answers). J1 asks the liability items;
+        J1b asks, for each amount item (1(b), 1(d), 2(c)), whether it exceeds each J1b line above the total already
+        established (`verdict_lines`; the first cut at nothing), in ascending order, each conditional on the band
+        established. The amount items book the midpoint of the total band they establish (the top band: the
+        claimant's amount); the items the jury finds with a claimed amount (3(a), 5(a)) add that amount (none where
+        small_claims_awarded is false). Nothing is asked once the total is above the top line, and exemplary damages
+        (1(c), 1(d), at most twice 1(b)) only where they can move the total across a line. Each class is labelled
+        'no_award' or 'award:<booked>:<band low>:<band high|top>'; `verdict_asks` holds each amount question's item,
+        threshold and the total established before it."""
+        from app.analysis.events import pval
 
-        def walk(q: str, trail: tuple[str, ...], conj: list) -> None:
+        form, lines = self.m["case_verdict_form"], self.verdict_lines(d, self.equity_inflows(d))
+        cuts, top = lines["cuts"], lines["top"]
+        comp = {c.component_id: c.amount_cents for c in d.components}
+        small = (pval(self.m, "small_claims_awarded", self.sens.get("small_claims_awarded", False))
+                 if "small_claims_awarded" in self.m["parameters"] else True)
+        TOP = -1  # the total is above the top line
+        out: dict[str, list] = {}
+        self.verdict_asks = getattr(self, "verdict_asks", {})
+
+        def band(x: int) -> tuple[int, str]:
+            if x <= 0:
+                return 0, "0"
+            return next((a, str(b)) for a, b in zip(cuts, cuts[1:], strict=False) if a < x <= b)
+
+        def finish(conj: list, amt: int, fixed: int) -> None:
+            if amt == TOP:
+                label = f"award:{lines['top_amount']}:{top}:top"
+            elif amt + fixed > top:  # above the top line every award books the same cash: the top class
+                label = f"award:{lines['top_amount']}:{top}:top"
+            else:
+                lo, hi = band(amt + fixed)
+                label = "no_award" if amt + fixed == 0 else f"award:{amt + fixed}:{lo}:{hi}"
+            out.setdefault(label, []).append(conj)
+
+        def walk(q: str, trail: tuple, conj: list, amt: int, fixed: int, hi: dict) -> None:
+            if q == "end" or amt == TOP:
+                return finish(conj, amt, fixed)
             spec = form["questions"][q]
-            k = self.node(d, spec["node"], q, *trail)
-            for ans in ("yes", "no"):
-                nxt, c = spec[ans], conj + [(k, ans)]
-                if nxt in branches:
-                    out[nxt].append(c)
+            if spec["node"] == "verdict_finding":
+                if "exemplary_of" in spec:  # only where exemplary damages can move the total across a line
+                    cap = spec.get("times", 2) * hi.get(spec["exemplary_of"], 0)
+                    if not any(amt < c < amt + cap for c in cuts):
+                        return walk(spec["no"], trail, conj, amt, fixed, hi)
+                k = self.node(d, "verdict_finding", q, *trail)
+                for ans in ("yes", "no"):
+                    add = int(comp.get(spec.get("award")) or 0) if ans == "yes" and small else 0
+                    walk(spec[ans], trail + (f"{q}={ans}",), conj + [(k, ans)], amt, fixed + add, hi)
+                return
+            nxt = spec["next"]
+            limit = amt + spec["times"] * hi[spec["of"]] if "of" in spec else None
+            above = [c for c in cuts if c > amt or c == amt == 0]
+            above = [c for c in above if limit is None or c < limit]
+            if not above:
+                return walk(nxt, trail, conj, amt, fixed, hi)
+            t, cj = trail, conj
+            for i, c in enumerate(above):
+                x = c - amt
+                k = self.node(d, "verdict_amount", q, f"X={x}", *t)
+                self.verdict_asks[k] = {"item": q, "threshold": x, "established": amt, "line": c}
+                if i == 0:  # at most the next line: nothing (the first cut) or the total stays in its band
+                    walk(spec.get("zero", nxt) if c == amt == 0 else nxt, t + (f"{q}>{x}=no",), cj + [(k, "no")],
+                         amt, fixed, {**hi, q: x})
                 else:
-                    walk(nxt, trail + (f"{q}={ans}",), c)
+                    walk(nxt, t + (f"{q}>{x}=no",), cj + [(k, "no")], (above[i - 1] + c) // 2, fixed, {**hi, q: x})
+                t, cj = t + (f"{q}>{x}=yes",), cj + [(k, "yes")]
+            last = above[-1]
+            if last == top:
+                return walk(nxt, t, cj, TOP, fixed, hi)
+            nb = next(c for c in cuts if c > last)  # capped below the next line: the band above the last line
+            walk(nxt, t, cj, (last + nb) // 2, fixed, {**hi, q: limit - amt})
 
-        walk(form["start"], (), [])
-        return {b: parts for b, parts in out.items() if parts}
+        walk(form["start"], (), [], 0, 0, {})
+        return out
 
     def labels(self, d: DisputeInstance) -> dict[str, str]:
         """A pending claim's label templates filled from case inputs (never a party name in the contract); {} for 4.0.0
@@ -635,14 +750,28 @@ class Forecaster:
 
     def verdict_context(self, n: Node) -> dict:
         """A verdict-form question as the jury meets it: the question quoted, what is asked of it, and its earlier
-        answers on the form."""
+        answers on the form; an amount question (J1b) also its threshold, as a figure."""
         form = self.m["case_verdict_form"]
         tags = [c for c in n.context.split("|") if c]
         q = form["questions"][tags[0]]
-        earlier = [f"{form['questions'][x.split('=')[0]]['form']}: {'Yes' if x.endswith('=yes') else 'No'}"
-                   for x in tags[1:]]
-        return {"verdict_form": form["source"], "form_question": f"{q['form']}: \u201c{q['quote']}\u201d",
-                **({"asked": q["asks"]} if "asks" in q else {}), "earlier_answers": earlier}
+        earlier = []
+        for x in tags[1:]:
+            if x.startswith("X="):
+                continue
+            e, ans = x.rsplit("=", 1)
+            if ">" in e:  # an earlier amount answer: above or at most a figure
+                item, fig = e.split(">")
+                said = ("more than " + usd(int(fig)) if ans == "yes"
+                        else "no amount" if fig == "0" else usd(int(fig)) + " or less")
+                earlier.append(f"{form['questions'][item]['form']}: {said}")
+            else:
+                earlier.append(f"{form['questions'][e]['form']}: {'Yes' if ans == 'yes' else 'No'}")
+        out = {"verdict_form": form["source"], "form_question": f"{q['form']}: \u201c{q['quote']}\u201d",
+               **({"asked": q["asks"]} if "asks" in q else {}), "earlier_answers": earlier}
+        ask = getattr(self, "verdict_asks", {}).get(n.key)
+        if ask is not None:
+            out["threshold"] = usd(ask["threshold"])
+        return out
 
 
     # --- the chain walk ---------------------------------------------------------------------------------------------
@@ -1246,8 +1375,10 @@ class _Walk:
         if self.first(s, ("verdict", "I0", next(iter(branches))), self.verdict):
             return
         for b, parts in self.fc.verdict_classes(self.d).items():
-            y = s.add(("verdict", "I0", b), (composite(parts), "yes"), cls=b)
-            if branches[b]["judgment"]:
+            # the class: no award, or the award booked ('award:<booked>:<band>'), named by its booked amount
+            cls = b if b in branches else "award" + b.split(":")[1]
+            y = s.add(("verdict", "I0", b), (composite(parts), "yes"), cls=cls)
+            if b not in branches or branches[b]["judgment"]:
                 self.entry(y)
             else:  # no money judgment: no enforcement, stay, registration or judgment-default node on the path
                 self.tail(y, "no_judgment")
@@ -1336,7 +1467,7 @@ class _Walk:
                       assumptions=(() if phase == "entry" else ("the judgment is enforceable, unstayed and unpaid",))
                       + when
                       + (("the company has moved for a stay, not yet approved",) if pending else ()), branches=branches)
-        late = self.pend and phase == "post"
+        late = self.pend and phase in ("post", "ripe")  # booked on its own day (events.py `waits`)
         for b in branches:
             kw = {"a4": "seek" if b == self.seek else "closed"}
             y = (s.add((self.resp, phase, b), (k, b), late=s.late + ((k, len(s.steps)),), **kw) if late
@@ -1365,12 +1496,18 @@ class _Walk:
         h1 = self.node("holders_act_judgment", phase, s.cls, *earlier, s=s, probe=probe)
         a5 = self.node("petition_on_notes", f"judgment_{phase}", s=s, probe=issuer,
                        assumptions=("the holders accelerate the notes",))
-        h3 = self.node("holders_involuntary", f"judgment_{phase}", s=s, probe=holders,
-                       assumptions=("the notes are accelerated and unpaid", "the issuer does not file"))
-        self.notes_facts(s, ((a5, issuer), (h3, holders)))
-        classes = {"yes": [[(h1, "yes"), (a5, "yes")]],  # the issuer files on acceleration
-                   "holders_file": [[(h1, "yes"), (a5, "no"), (h3, "yes")]],  # the holders file, per §7.06
-                   "accelerated": [[(h1, "yes"), (a5, "no"), (h3, "no")]]}
+        # H3 only where the holders' petition, on the §3.2 route per trajectory, can fall inside the period
+        inside = not self.pend or bool((self.fc.trace(self.d, s.steps + holders).day[-1] < self.N).any())
+        if inside:
+            h3 = self.node("holders_involuntary", f"judgment_{phase}", s=s, probe=holders,
+                           assumptions=("the notes are accelerated and unpaid", "the issuer does not file"))
+            self.notes_facts(s, ((a5, issuer), (h3, holders)))
+            classes = {"yes": [[(h1, "yes"), (a5, "yes")]],  # the issuer files on acceleration
+                       "holders_file": [[(h1, "yes"), (a5, "no"), (h3, "yes")]],  # the holders file, per §7.06
+                       "accelerated": [[(h1, "yes"), (a5, "no"), (h3, "no")]]}
+        else:
+            self.notes_facts(s, ((a5, issuer),))
+            classes = {"yes": [[(h1, "yes"), (a5, "yes")]], "accelerated": [[(h1, "yes"), (a5, "no")]]}
         # a pending claim's default books on its own day (events.py `waits`): its facts come from each whole path
         take = ((lambda st, e, **kw: s.add(st, e, late=s.late + ((h1, len(s.steps)),), **kw)) if self.pend
                 else (lambda st, e, **kw: self.take(s, st, e, (h1,), **kw)))
@@ -1398,8 +1535,25 @@ class _Walk:
                 classes[none] = classes.pop(filed) + classes[none]
         return classes
 
+    def reading(self) -> str:
+        """The §7.01(i) reading held on the path (QUESTIONS §3.1; parameter judgment_default_reading)."""
+        from app.analysis.events import pval
+
+        return pval(self.fc.m, "judgment_default_reading", self.fc.sens.get("judgment_default_reading", False))
+
     def ripe_i1(self, s: _S) -> None:
-        self.notes_petition(s, "I1", self.ruling)
+        """The judgment as entered (QUESTIONS §3.1 base): on the day the default becomes available the company
+        responds (D2), then the holders decide (H1). The response books on its own day (events.py `waits`)."""
+        after = lambda y: self.notes_petition(y, "I1", self.ruling)  # noqa: E731
+
+        def filed(y: _S) -> None:  # the walk goes on where the day does not arise on some trajectory
+            everywhere = (self.fc.trace(self.d, y.steps).petition >= 0).all()
+            self.emit(y, "petition") if everywhere else after(y)
+
+        if self.pend and self.reading() == "entered" and s.a4 == "seek" \
+                and self.arises(s, (self.resp, "ripe", self.quiet)):
+            return self.a4(s, "ripe", after, filed)
+        after(s)
 
 
     # the ruling and after
@@ -1416,17 +1570,47 @@ class _Walk:
                 self.post(y)
 
     def ruling_pending(self, s: _S) -> None:
-        """J2, one binary node per verdict branch: the money judgment stands, or is set aside (no money judgment on
-        the path; any stay security released). A ruling after the period on every trajectory is not asked."""
-        probe = ("post_trial_ruling", "", "stands")
+        """J2 (QUESTIONS §4.1): the court leaves the money judgment unchanged, reduces it, or sets it aside (no money
+        judgment on the path; any stay security released). 'Reduced' is asked only where a reduction moves the award
+        across a J1b line: the surviving amount's band is the band below the award's, booked at its midpoint (the
+        judgment's lowest band has none: a reduction there crosses no line). Qorvo's election on the remitted amount
+        (C3) follows: accepted, the reduced judgment, with the holders asked again on the changed judgment (§3.1);
+        refused, a new trial, as set aside. A ruling after the period on every trajectory is not asked."""
+        probe = ("post_trial_ruling", "", "unchanged")
         if not self.arises(s, probe):
             return self.tail(s, "motions_pending")
         if self.first(s, probe, self.ruling_pending):
             return
-        k = self.node("post_trial_ruling", s.cls, s=s, probe=probe, assumptions=("post-trial motions are pending",))
-        self.post(self.take(s, probe, (k, "stands"), (k,)))
-        self.tail(self.take(s, ("post_trial_ruling", "", "set_aside"), (k, "set_aside"), (k,), cls="set_aside"),
-                  "set_aside")
+        below = self.reduced_band(s)
+        branches = ("unchanged",) + (("reduced",) if below else ()) + ("set_aside",)
+        k = self.node("post_trial_ruling", s.cls, s=s, probe=probe, assumptions=("post-trial motions are pending",),
+                      branches=branches)
+        self.post(self.take(s, probe, (k, "unchanged"), (k,)))
+        aside = [[(k, "set_aside")]]
+        if below:
+            lo, hi, booked = below
+            # its contract `situation` lists state keys (the question state's), not marks the walker tests
+            c3 = self.node("remittitur_elected", s.cls, f"remit{booked}",
+                           assumptions=("the court orders a new trial unless the claimant accepts the reduced amount",))
+            self.fc.remitted[c3] = (booked, lo, hi)
+            step = ("post_trial_ruling", "", f"reduced:{booked}:{lo}:{hi}")
+            y = self.take(s, step, (composite([[(k, "reduced"), (c3, "yes")]]), "yes"), (k, c3),
+                          cls=f"reduced{booked}")
+            self.notes_petition(y, "ruling", self.post)
+            aside.append([(k, "reduced"), (c3, "no")])
+        self.tail(self.take(s, ("post_trial_ruling", "", "set_aside"), (composite(aside), "yes"), (k,),
+                            cls="set_aside"), "set_aside")
+
+    def reduced_band(self, s: _S) -> tuple[int, int, int] | None:
+        """The band below the award's on the path (J1b lines), as (low, high, booked midpoint); None where the award
+        is in the lowest positive band or no award was booked by band."""
+        label = next((st[2] for st in s.steps if st[0] == "verdict"), "")
+        if not label.startswith("award:"):
+            return None
+        total = int(label.split(":")[1])
+        bands = [b for b in self.fc.verdict_lines(self.d, self.fc.equity_inflows(self.d))["bands"] if b[1] > 0]
+        at = next(i for i, (lo, hi, _) in enumerate(bands) if lo < total <= hi)
+        return bands[at - 1] if at > 0 else None
 
     def post(self, s: _S) -> None:
         self.settle(s, "I2", self.appeal)
@@ -1508,7 +1692,8 @@ class _Walk:
     def ripe_post(self, s: _S) -> None:
         """After 'seek a sale or financing', the company responds again at the ripe default date."""
         after = lambda y: self.notes_petition(y, "post", lambda z: self.tail(z, "unresolved"))  # noqa: E731
-        if s.a4 == "seek" and self.arises(s, (self.resp, "ripe", self.quiet)):
+        if s.a4 == "seek" and not (self.pend and self.reading() == "entered") \
+                and self.arises(s, (self.resp, "ripe", self.quiet)):  # the entered reading asks it in ripe_i1
             return self.a4(s, "ripe", after, lambda y: self.tail(y, "petition"))
         after(s)
 

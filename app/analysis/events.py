@@ -233,6 +233,8 @@ def verdict_basis(d: DisputeInstance, model: dict, branch: str, sens: dict | Non
     declared amount, e.g. the sensitivity), or 'none' (the branch enters no judgment). Raises UnknownAmount where a
     counted component is unknown and the case declares no bound."""
     sens = sens or {}
+    if branch.startswith("award:"):  # a J1b class (QUESTIONS §4.1): the amount it books
+        return int(branch.split(":")[1]), "band"
     spec = pending_template(model)["verdict_branches"][branch]
     if not spec["judgment"]:
         return 0, "none"
@@ -453,6 +455,9 @@ class Chain:
             self.ruling, never = {}, np.full(self.n, BIG)
             self.F, self.A, self.AD, self.fee_day, self.EF, self.EI = (never.copy() for _ in range(6))
             self.E0, self.e_ix = 0, -1
+        self.band: str | None = None  # the total-judgment band of the award (J1b), 'lo-hi' ('top' above the line)
+        self.band_range: tuple | None = None  # (low, high) of that band; high None above the top line
+        self.remitted_amount = np.zeros(self.n, dtype=np.int64)  # the surviving amount of a reduced judgment (J2, C3)
         self.cls_amount = None  # the path amount after the ruling (None: the judgment as entered)
         self.increase = 0
         self.retrial = False  # the ruling orders a new trial: the dispute goes on after any payment
@@ -1244,13 +1249,14 @@ class Chain:
         accel = ripe + int(self.p("holder_notice_lag_days"))
         if branch in ("yes", "holders_file", "accelerated"):
             self.mark("notes_due", accel, cond)
-            if ctx == "I1":
+            if ctx in ("I1", "ruling"):
                 self.jd_acted |= cond
         self.coupon_when_due()
         if branch == "yes":
             self.petition(accel, cond, cause="notes")
-        elif branch == "holders_file":
-            self.petition(accel + self.holder_route_days(), cond, cause="notes")
+        elif branch == "holders_file":  # a pending claim: the §3.2 route per trajectory ((j) default: at once)
+            route = self.holder_route_days_path if self.pending else self.holder_route_days()
+            self.petition(accel + route, cond, cause="notes")
         return np.where(cond, ripe, BIG)
 
     def judgment_default(self, ctx: str) -> tuple[np.ndarray, np.ndarray]:
@@ -1263,9 +1269,13 @@ class Chain:
         full = np.full(self.n, 0, dtype=np.int64)
         if f is None or not f.judgment_default_days or self.d is None:
             return full + BIG, np.zeros(self.n, dtype=bool)
+        if ctx == "ruling":  # QUESTIONS §3.1 base (as entered): the ruling changed the judgment, default already open
+            return self._default_at_ruling(f, reading)
         if ctx == "I1":
             ripe = full + self.e_ix + f.judgment_default_days
-            amount, on = self.entered, reading in ("both", "entered")
+            on = reading in ("both", "entered")
+            # a pending claim (§3.1): the judgment standing on the ripe day, as a ruling dated before it left it
+            amount = self.standing_amount(ripe) if self.pending else self.entered
             cond = np.full(self.n, on and self.has_judgment())
         else:
             ripe = np.maximum(self.A, self.e_ix) + f.judgment_default_days
@@ -1275,6 +1285,80 @@ class Chain:
         cond = cond & (amount - f.insured_cents > f.judgment_default_threshold_cents)
         cond = cond & (self.stayed_from > ripe) & self.live(ripe) & (self.owed_at(ripe) > 0)
         return ripe, cond
+
+    def _default_at_ruling(self, f, reading: str) -> tuple[np.ndarray, np.ndarray]:
+        """QUESTIONS §3.1 base (the judgment as entered): a post-trial ruling does not restart the 60 days. Where it
+        changes the judgment (a reduced amount) after the default became available on the judgment as entered, and
+        the holders have not acted, their decision is asked again on the ruling day on the changed judgment, with the
+        default still available: the changed amount above the threshold, unpaid, not effectively stayed, the notes not
+        yet due, and no petition. No new 60 days."""
+        day = np.maximum(self.F, 0).astype(np.int64)
+        changed = self.pending and self.cls_amount is not None and 0 < self.cls_amount != self.entered
+        if reading != "entered" or not changed:
+            return np.full(self.n, BIG, dtype=np.int64), np.zeros(self.n, dtype=bool)
+        ripe_i1, open_i1 = self.judgment_default("I1")
+        cond = open_i1 & (ripe_i1 <= day) & ~self.jd_acted & (self.F >= 0)
+        cond = cond & (self.cls_amount - f.insured_cents > f.judgment_default_threshold_cents)
+        cond = cond & (self.stayed_from > day) & self.live(day) & (self.owed_at(day) > 0)
+        cond = cond & (self.marks["notes_due"] > day)
+        return day, cond
+
+    def standing_amount(self, day: np.ndarray) -> np.ndarray:
+        """The judgment's amount on the day, before interest and payments: as entered, or from the post-trial ruling
+        on (the surviving amount; 0 once set aside). 0 before entry or with no judgment."""
+        day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        out = np.full(self.n, self.entered, dtype=np.int64)
+        if self.cls_amount is not None:
+            out = np.where(day >= self.F, self.cls_amount, out)
+        if self.pending:
+            out = np.where(day >= self.E_ix, out, 0)
+        return out if self.has_judgment() else np.zeros(self.n, dtype=np.int64)
+
+    # --- the notes and the judgment, per trajectory (the step-9 interface; QUESTIONS §§2.1, 2.3, 3.1, 3.2) ---
+    @property
+    def judgment_amount_entered(self) -> np.ndarray:
+        """The money judgment's amount as entered, per trajectory; 0 where none is entered inside the period."""
+        if not self.has_judgment():
+            return np.zeros(self.n, dtype=np.int64)
+        e = np.broadcast_to(np.asarray(self.entry_ix(), dtype=np.int64), (self.n,))
+        return np.where(e < self.N, self.entered, 0).astype(np.int64)
+
+    def judgment_standing(self, day) -> np.ndarray:
+        """The judgment's standing on the day (QUESTIONS §2.1), per trajectory: none, unpaid, stayed, levied_in_part,
+        reduced, set_aside, paid or settled."""
+        day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        out = np.full(self.n, "unpaid", dtype=object)
+        amount = self.standing_amount(day)
+        entered = self.has_judgment() & (day >= np.asarray(self.entry_ix()))
+        out = np.where((self.cls_amount is not None and self.cls_amount != self.entered) & (day >= self.F)
+                       & (amount > 0), "reduced", out)
+        out = np.where(self.taken_before(day) > 0, "levied_in_part", out)
+        out = np.where(self.stayed_from <= day, "stayed", out)
+        out = np.where(entered & (amount == 0), "set_aside", out)
+        out = np.where(self.marks["paid"] <= day, "paid", out)
+        out = np.where(self.marks["settled"] <= day, "settled", out)
+        return np.where(entered, out, np.where(self.marks["settled"] <= day, "settled", "none"))
+
+    @property
+    def default_available_day(self) -> np.ndarray:
+        """The day the §7.01(i) judgment default becomes available under the reading held on the path (§3.1; base:
+        the judgment as entered, entry + 30 days of the Rule 62(a) stay + 60 days; sensitivity: the post-trial
+        ruling + 60 days, with no earlier opportunity), BIG where it does not."""
+        out = np.full(self.n, BIG, dtype=np.int64)
+        for ctx in ("I1", "post"):
+            ripe, cond = self.judgment_default(ctx)
+            out = np.minimum(out, np.where(cond, ripe, BIG))
+        return np.where(out < self.N, out, BIG).astype(np.int64)
+
+    @property
+    def holder_route_days_path(self) -> np.ndarray:
+        """Per trajectory, days from the notes falling due to the holders' petition (§3.2): none where a §7.01(j)
+        general-nonpayment default (§3.3) is continuing when they fall due (§7.06 does not bar it), else the declared
+        route (base: the §7.06 request at acceleration + 60 days; sensitivity: at acceleration)."""
+        route = np.full(self.n, self.holder_route_days(), dtype=np.int64)
+        if not self.daily:
+            return route
+        return np.where(self.nonpayment_day() <= self.marks["notes_due"], 0, route)
 
     def tau(self) -> np.ndarray:
         """The first day available cash falls below operating need (sensitivity: below zero), or BIG."""
@@ -1536,7 +1620,8 @@ class Chain:
             # motions are ruled on by then
             due = self.marks["notes_due"]
             self.mark("ruled", self.F)
-            return np.where(due < BIG, due + (self.holder_route_days() if ctx == "holders" else 0), BIG)
+            route = self.holder_route_days_path if self.pending else self.holder_route_days()  # §3.2 per trajectory
+            return np.where(due < BIG, due + (route if ctx == "holders" else 0), BIG)
         if self.equity and node in DISTRESS:  # booked on every trajectory now (`advance` books it on its own day)
             t = self.distress_day(node, ctx)
             self.raise_offer = self.decide_distress(node, ctx, branch, t)
@@ -1546,6 +1631,14 @@ class Chain:
             self.raise_offer = self.decide_floor(node, branch, t)
             return t
         if node == "verdict":
+            if branch.startswith("award:"):  # J1b (QUESTIONS §4.1): the award booked and its total-judgment band
+                _, total, lo, hi = branch.split(":")
+                self.entered = int(total)
+                self.band, self.band_range = f"{lo}-{hi}", (int(lo), None if hi == "top" else int(hi))
+                self._enter()
+                if hi == "top":  # the claimant's amount: the adverse branch
+                    self.adverse_from = self.E_ix.copy()
+                return self.V.copy()
             spec = pending_template(self.m)["verdict_branches"][branch]
             if spec["judgment"]:
                 self.entered = verdict_amount(self.d, self.m, branch, self.sens)
@@ -1568,6 +1661,9 @@ class Chain:
             self.A, self.EF, self.EI = self.F.copy(), self.F.copy(), self.F.copy()
             return filed
         if node == "post_trial_ruling":
+            if branch.startswith("reduced:"):  # J2 reduced, the remittitur accepted (C3): the surviving amount
+                self.cls_amount = int(branch.split(":")[1])
+                self.remitted_amount = np.where(self.live(self.F) & (self.F < self.N), self.cls_amount, 0)
             if branch == "set_aside":  # no money judgment on the path; the dispute goes on (legal spend too)
                 self.cls_amount, self.retrial = 0, True
                 self.adverse_until = np.minimum(self.adverse_until, self.F)  # no adverse judgment stands after it
@@ -1635,6 +1731,8 @@ class Chain:
             milestone = np.where((lv < self.stayed_from) & (lv < self.F), lv, BIG)
         elif ctx == "post":  # the day the creditor's levy after the ruling falls, before it is booked
             milestone = np.where((lv < self.stayed_from) & (lv < N), lv, BIG)
+        elif self.pending:  # "ripe" (QUESTIONS D2): the day the judgment default becomes available (§3.1)
+            milestone = self.default_available_day
         else:  # "ripe": after seeking a sale or financing, the post-ruling judgment default's ripe date
             ripe, cond = self.judgment_default("post")
             milestone = np.where(cond, ripe, BIG)
@@ -1754,7 +1852,7 @@ class Chain:
         if self.ordinary:
             return node in FLOOR_NODES
         return self.pending and (node in FLOOR_NODES or node == "judgment_default" or (node in RESPONSES
-                                                                                     and ctx == "post"))
+                                                                                     and ctx in ("post", "ripe")))
 
     def waiting_day(self, node: str, ctx: str) -> np.ndarray:
         """A waiting non-floor step's day as of now (BIG: it does not arise on that trajectory)."""
@@ -1767,7 +1865,7 @@ class Chain:
         """Per draw, whether a waiting levy-day response is not yet booked (the levy waits for it)."""
         out = np.zeros(self.n, dtype=bool)
         for _, node, _, done, ctx in self.waiting:
-            if node in RESPONSES:
+            if node in RESPONSES and ctx != "ripe":  # the levy-day responses (the default's day is not a levy's)
                 out |= ~done & (self.response_day(ctx) < BIG)
         return out
 
@@ -1786,7 +1884,7 @@ class Chain:
             t = (self.tau() if node == "cash_floor" else self.cash_out()) if floor else self.waiting_day(node, ctx)
             # a waiting step dated after the pending levy (levy: its day) books after it; the response on the levy
             # day comes before it
-            lim = before if levy is None or node in RESPONSES else np.minimum(before, levy)
+            lim = before if levy is None or (node in RESPONSES and ctx != "ripe") else np.minimum(before, levy)
             fire = (prior if floor else True) & ~done & (True if every else t < lim)
             if fire.any():
                 ti = np.clip(t, 0, self.N - 1)
