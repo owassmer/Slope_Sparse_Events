@@ -364,8 +364,10 @@ class Forecaster:
         self._sources: dict[str, str] = {}  # finding -> its source's title
         self.bank_nodes: dict[str, Node] = {}  # the bank view's questions (bank_state)
         self.bank_facts: dict[str, list] = {}  # bank node key -> [(day, cash, need, raise offer) arrays]
-        # the case sets raise_capacity: the company's floor decision is financing_at_floor (4.1.0)
+        # the case sets raise_capacity: the company's floor decision is financing_at_floor (4.1.0; retired, 14 May)
         self.raising = "value" in self.m["parameters"].get("raise_capacity", {})
+        # QUESTIONS_20240514 §2.6: the case declares a share ledger: the equity channels and the distress loop
+        self.equity = "value" in self.m["parameters"].get("share_ledger", {})
 
     def ordered(self) -> list[tuple[DisputeInstance, None]]:
         """4.0.0 models each judgment's components and triggered instruments inside one dispute's chains, so
@@ -384,7 +386,7 @@ class Forecaster:
             s = self.spec[node]
             self.nodes[k] = Node(key=k, instance_id=d.instance_id, node=node, context="|".join(ctx), cls="",
                                  question_id=s["residual_question"], event=s["decision"],
-                                 assumptions=tuple(assumptions), window=s["timing"],
+                                 assumptions=tuple(assumptions), window=s.get("timing", ""),  # 5.0.0: none
                                  branches=tuple(branches or s["branches"]))
         return k
 
@@ -1083,11 +1085,17 @@ class _S:
     notes_due: bool = False  # the notes are accelerated or the repurchase is due, unpaid, and nobody has filed
     floor: str = "open"  # the state-triggered decisions: open (floor not asked) | cash_out (floor asked) | done
     late: tuple = ()  # (node key, step index) of each floor decision asked: its facts come from the whole path
+    # the equity model's distress loop (QUESTIONS §4.4): the next cash-floor decision's index (D7 at the k-th fall
+    # below the need after a recovery), D8 and §3.3 open or done, and whether an offering on the path did not close
+    k: int = 1
+    out: str = "open"
+    np: str = "open"
+    failed: bool = False
 
     def add(self, step, edge, **kw) -> _S:
         return _S(self.steps + (step,), self.edges + ((edge,) if edge else ()),
                   **{**{k: getattr(self, k) for k in ("cls", "stayed", "appealed", "early", "a4", "notes_due", "floor",
-                                                      "late")}, **kw})
+                                                      "late", "k", "out", "np", "failed")}, **kw})
 
 
 def _label(c: str) -> str:
@@ -1143,9 +1151,17 @@ class _Walk:
                 out.append(c)
         return tuple(out)
 
+    def _trace(self, steps) -> _Prefix:
+        """The prefix's trace in this walk's view (the forecast's dispute; the ordinary view overrides it)."""
+        return self.fc.trace(self.d, steps)
+
+    def rec(self, k: str, steps) -> None:
+        """Record a question's facts from the prefix `steps` (its last step is the question's own day)."""
+        self.fc.record((k,), self._trace(steps))
+
     def inside(self, steps) -> bool:
         """Whether the last step's decision falls inside the horizon, before any petition, on some trajectory."""
-        tr = self.fc.trace(self.d, steps)
+        tr = self._trace(steps)
         t = tr.day[-1]
         pet = np.where(tr.petition < 0, np.iinfo(np.int64).max, tr.petition)
         return bool(((t < self.N) & (t < pet)).any())
@@ -1500,6 +1516,8 @@ class _Walk:
     def tail(self, s: _S, outcome: str) -> None:
         """The listing chain reaches collections only through the notes: once they are due and unpaid, or once a
         petition precedes it, it moves nothing and the path goes to the cash floor."""
+        if self.fc.equity:
+            return self.listing(s, outcome)
         f = self.fin
         probe = ("listing", "", "listed")
         if f is None or f.listing_deadline is None or not self.inside(s.steps + (probe,)):
@@ -1597,12 +1615,169 @@ class _Walk:
                           notes_due=c != "none")
             self.floor(y, outcome)
 
+    # --- the distress chain (QUESTIONS_20240514 §4.4, §4.6): one chain for the forecast and the ordinary view ---
+    def listing(self, s: _S, outcome: str) -> None:
+        """D6a, compliance with the bid price regained by the deadline; where it is not, D6b, a timely hearing
+        request (suspension stayed until the panel decides, after the period); without one, suspension and the
+        delisting default (H2). Then the distress loop. Asked where no petition precedes the deadline."""
+        f = self.fin
+        at = ("listing_date", "compliance", "")
+        if f is None or f.listing_deadline is None or not self.inside(s.steps + (at,)):
+            return self.distress(s, outcome)
+        if self.first(s, at, lambda y: self.listing(y, outcome)):
+            return
+        hr = ("listing_date", "hearing_request", "")
+        d6a = self.node("bid_compliance", "deadline")
+        d6b = self.node("hearing_request", "determination", assumptions=("compliance is not regained by the deadline",))
+        self.rec(d6a, s.steps + (at,))
+        self.rec(d6b, s.steps + (hr,))
+        dates = self._listing_dates()
+        classes = {"compliant": [[(d6a, "yes")]], "hearing": [[(d6a, "no"), (d6b, "yes")]],
+                   "suspended": [[(d6a, "no"), (d6b, "no")]]}
+        for c, parts in classes.items():
+            y = s.add(("listing", "", c), (composite(parts), "yes"))
+            if c == "suspended" and dates["delisted_suspension"] < self.N:
+                self.delisting(y, "delisted_suspension", dates["delisted_suspension"], outcome)
+            else:
+                self.distress(y, outcome)
+
+    def _listing_dates(self) -> dict[str, int]:
+        return _listing_dates(self.fc, self.d)
+
+    def _repurchase_day(self, delist: int) -> int:
+        return int(Chain_(self.fc, self.d).repurchase_day(np.array([delist]))[0])
+
+    def delisting(self, s: _S, dc: str, delist: int, outcome: str) -> None:
+        """The delisting default (§7.01(b)), where the notes are not already due: H2, the holders declare the notes
+        due, or not (the repurchase date is in the situation); after a declaration, D9, the issuer files, or else
+        H3, the holders file once §7.06 allows, or the notes stay due and unpaid. Then the distress loop."""
+        probe = ("delisting_notes", dc, "none")
+        if not self.inside(s.steps + (probe,)):
+            return self.distress(s, outcome)
+        if self.first(s, probe, lambda y: self.delisting(y, dc, delist, outcome)):
+            return
+        if self._repurchase_day(delist) < self.N:
+            raise NotImplementedError("the repurchase falls due inside the period: D9 on an unpaid repurchase and H3 "
+                                      "on it are not built (QUESTIONS §4.4 D9)")
+        acc = ("delisting_notes", dc, "accelerated")
+        issuer, holders = s.steps + (acc, ("notes_due_date", "issuer", "")), s.steps + (acc, ("notes_due_date",
+                                                                                              "holders", ""))
+        h2 = self.node("holders_act_delisting", dc, s=s, probe=probe, assumptions=ASSUMED["holders_act_delisting"],
+                       branches=("accelerate", "neither"))
+        a5 = self.node("petition_on_notes", f"delisting_{dc}", s=s, probe=issuer[len(s.steps):],
+                       assumptions=ASSUMED["petition_on_notes:delisting"])
+        h3 = self.node("holders_involuntary", f"delisting_{dc}", s=s, probe=holders[len(s.steps):],
+                       assumptions=ASSUMED["holders_involuntary:delisting"])
+        self.rec(h2, s.steps + (probe,))
+        self.rec(a5, issuer)
+        self.rec(h3, holders)
+        classes = {"petition_delist": [[(h2, "accelerate"), (a5, "yes")]],
+                   "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
+                   "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]], "none": [[(h2, "neither")]]}
+        if self._trace(s.steps + (("delisting_notes", dc, "petition_delist_holders"),)).digest == self._trace(
+                s.steps + (acc,)).digest:  # the holders' petition falls after the period: nothing books
+            classes["accelerated"] = classes.pop("petition_delist_holders") + classes["accelerated"]
+        for c, parts in classes.items():
+            self.distress(s.add(("delisting_notes", dc, c), (composite(parts), "yes"), notes_due=c != "none"),
+                          "petition" if c.startswith("petition") else outcome)
+
+    def _candidates(self, s: _S) -> list[tuple[str, str, str]]:
+        """The next state-triggered decisions, in walk order: D7 at the next fall below the need after a recovery,
+        D8 at the first unpaid obligation, §3.3 general nonpayment. Each books on its own day (events.py
+        `_upto_dated`), whatever the walk order."""
+        out = [("cash_floor", str(s.k), "neither")]
+        if s.out == "open":
+            out.append(("cash_out", "", "neither"))
+        if s.np == "open" and s.out == "done":  # §3.3 needs arrears throughout its window: after the first unpaid
+            out.append(("nonpayment", "", "due"))
+        return out
+
+    def distress(self, s: _S, outcome: str, then=None) -> None:
+        """The distress loop: the first of the next decisions that arises inside the period before any petition is
+        asked, and after each of its branches the loop again; where none arises, the path ends (or `then`)."""
+        for c in self._candidates(s):
+            if self.inside(s.steps + (c,)):
+                return self.ask_distress(s, c, outcome, then)
+        return self._end(s, outcome, then)
+
+    def _first_distress(self, s: _S, probe, then) -> bool:
+        """`first` under the equity model: a distress decision dated before the probe's decision (or the latest day
+        whose cash it reads) on some trajectory, before any petition, is asked first, so the probe's facts include
+        it; `then` continues each of its branches."""
+        x = self._trace(s.steps + (probe,))
+        dx = x.day[-1]
+        rx = dx if x.reads is None else np.maximum(dx, x.reads)
+        for c in self._candidates(s):
+            a = self._trace(s.steps + (c,))
+            t = a.day[-1]
+            pet = np.where(a.petition < 0, np.iinfo(np.int64).max, a.petition)
+            if ((t < rx) & (dx < self.N) & (t < pet) & (dx < pet)).any():
+                self.ask_distress(s, c, "", then)
+                return True
+        return False
+
+    def ask_distress(self, s: _S, c: tuple, outcome: str, then) -> None:
+        """Ask one distress decision (D7, D8 or §3.3); `then` continues each branch (from `first`), else the loop."""
+        def nxt(y: _S, o: str) -> None:
+            then(y) if then is not None else self.distress(y, o)
+
+        node, ctx, _ = c
+        if node == "nonpayment":
+            return self.nonpayment(s, c, outcome, nxt)
+        tr = self._trace(s.steps + (c,))
+        pet = np.where(tr.petition < 0, np.iinfo(np.int64).max, tr.petition)
+        can = bool(((tr.day[-1] < self.N) & (tr.day[-1] < pet) & (tr.raise_offer > 0)).any())
+        branches = (("initiate_offering",) if can else ()) + ("file", "neither")
+        tag = "offer" if can else "nooffer"
+        if node == "cash_floor":
+            k = self.node("financing_at_floor", f"floor{ctx}", tag, s=s, probe=c, branches=branches)
+            occasion, kw = f"floor{ctx}", {"k": s.k + 1}
+        else:
+            k = self.node("petition_cash_out", "cash_exhausted", tag, s=s, probe=c, branches=branches)
+            occasion, kw = "cash_out", {"out": "done"}
+        late = s.late + ((k, len(s.steps)),)
+        for b in branches:
+            y = s.add((node, ctx, b), (k, b), late=late, **kw)
+            if b == "initiate_offering":
+                self.offer(y, occasion, lambda z: nxt(z, outcome))
+            elif b == "file":
+                self._end(y, "petition", then)
+            else:
+                nxt(y, outcome)
+
+    def offer(self, s: _S, occasion: str, then) -> None:
+        """N1 after an initiation at `occasion` (D2's phase, D7's floor{k}, or cash_out): the offering closes by its
+        close date on the stated terms, or does not. It books on its own day (events.py), so its facts come from each
+        whole path. `then` continues each branch."""
+        n1 = self.node("offering_closes", occasion, *(("after_failed",) if s.failed else ()), branches=("yes", "no"))
+        late = s.late + ((n1, len(s.steps)),)
+        for b in ("yes", "no"):
+            then(s.add(("offering", occasion, b), (n1, b), late=late, failed=s.failed or b == "no"))
+
+    def nonpayment(self, s: _S, c: tuple, outcome: str, nxt) -> None:
+        """§3.3: general nonpayment is met; the notes are due at once under §7.02 (no declaration). D9, the issuer
+        files; else H3, the noteholders file that day (§7.06 does not bar a (j) default); else the notes stay due and
+        unpaid."""
+        a5 = self.node("petition_on_notes", "nonpayment", s=s, probe=c,
+                       assumptions=("the notes are due and unpaid under Indenture §7.02 on the general nonpayment",))
+        h3 = self.node("holders_involuntary", "nonpayment", s=s, probe=c,
+                       assumptions=("the notes are due and unpaid under Indenture §7.02 on the general nonpayment",
+                                    "the issuer does not file"))
+        late = s.late + ((a5, len(s.steps)), (h3, len(s.steps)))
+        classes = {"petition": [[(a5, "yes")]], "holders_file": [[(a5, "no"), (h3, "yes")]],
+                   "due": [[(a5, "no"), (h3, "no")]]}
+        for b, parts in classes.items():
+            y = s.add(("nonpayment", "", b), (composite(parts), "yes"), late=late, np="done", notes_due=True)
+            nxt(y, "petition" if b != "due" else outcome)
+
     def first(self, s: _S, probe, then) -> bool:
         """The cash floor, and after it cash exhaustion, are state-triggered: the engine books each on its own day on
         every trajectory (events.py `upto`). A pending claim (4.1.0) asks each before the first decision it precedes on
         some trajectory, so every later-dated question's facts include it; the question's situation keeps the model's
         rule (a condition holding on only some trajectories stays unstated). 4.0.0 asks them last, as recorded.
         Returns whether it asked one; `then` continues each of its branches."""
+        if self.fc.equity:
+            return self._first_distress(s, probe, then)
         if not self.pend or s.floor == "done":
             return False
         at = (("cash_floor", "", "continue" if self.fc.raising else "no") if s.floor == "open"
@@ -1624,12 +1799,12 @@ class _Walk:
         where the case sets raise_capacity, it may also raise equity ('raise_equity' only where the amount available
         is positive on some trajectory), and zero cash stays the fallback decision. Asked last (then None: each branch
         ends the path), or early by `first` (then continues the walk; cash exhaustion is asked where it falls due)."""
+        if self.fc.equity:  # QUESTIONS_20240514 §4.4: the distress loop
+            return self.distress(s, outcome, then)
         if s.floor == "cash_out":
             return self.cash_out(s, outcome, then)
         if s.floor == "done":
             return self._end(s, outcome, then)
-        if self.fc.raising:
-            return self.financing(s, outcome, then)
         probe = ("cash_floor", "", "no")
         if not self.inside(s.steps + (probe,)):
             return self._end(s, outcome, then)
@@ -1638,22 +1813,6 @@ class _Walk:
         self._end(s.add(("cash_floor", "", "yes"), (k, "yes"), floor="done", late=late), "petition", then)
         y = s.add(probe, (k, "no"), floor="cash_out", late=late)
         self.cash_out(y, outcome) if then is None else then(y)
-
-    def financing(self, s: _S, outcome: str, then=None) -> None:
-        probe = ("cash_floor", "", "continue")
-        if not self.inside(s.steps + (probe,)):
-            return self._end(s, outcome, then)
-        tr = self.fc.trace(self.d, s.steps + (probe,))
-        can = bool(((tr.day[-1] < self.N) & (tr.raise_offer > 0)).any()) or s.steps in self.fc._raise_open
-        branches = (("raise_equity",) if can else ()) + ("file", "continue")
-        k = self.node("financing_at_floor", "raise" if can else "noraise", s=s, probe=probe, branches=branches)
-        late = self.late(s, k, probe)
-        for b in branches:
-            y = s.add(("cash_floor", "", b), (k, b), floor="done" if b == "file" else "cash_out", late=late)
-            if b == "file":
-                self._end(y, "petition", then)
-            else:
-                self.cash_out(y, outcome) if then is None else then(y)
 
     def late(self, s: _S, k: str, probe) -> tuple:
         """A state-triggered decision's facts: a pending claim's (4.1.0) come from each whole path (it books on its own
@@ -1712,9 +1871,7 @@ class _BankWalk:
 
     def run(self) -> list[DisputePath]:
         if self.fc.m["parameters"].get("ordinary_view", {}).get("value") == "same_forecast":
-            return self.run_dated()
-        if self.fc.raising:
-            return self.run_financing()
+            return _OrdinaryWalk(self.fc).run()
         floor, out = ("cash_floor", "", "no"), ("cash_out", "", "no")
         self.probe = {"petition_cash_floor": (floor,), "petition_cash_out": (floor, out)}
         if not self.inside((floor,)):
@@ -1730,61 +1887,57 @@ class _BankWalk:
         self.emit((floor, out), ((k, "no"), (k2, "no")), "operating")
         return self.out
 
-    def run_financing(self) -> list[DisputePath]:
-        """As `run`, with the financing decision at the floor (financing_at_floor): raise equity, file or continue;
-        after a raise or 'continue', the decision at zero cash."""
-        floor, out = ("cash_floor", "", "continue"), ("cash_out", "", "no")
-        if not self.inside((floor,)):
-            self.emit((), (), "operating")
-            return self.out
-        tr = self.fc.bank_trace((floor,))
-        can = bool(((tr.day[-1] < self.fc.days) & (tr.raise_offer > 0)).any())
-        branches = (("raise_equity",) if can else ()) + ("file", "continue")
-        self.probe = {"financing_at_floor": (floor,)}
-        k = self.node("financing_at_floor", "raise" if can else "noraise", branches=branches)
-        for b in branches:
-            at = ("cash_floor", "", b)
-            if b == "file":
-                self.emit((at,), ((k, b),), "petition")
-                continue
-            if not self.inside((at, out)):
-                self.emit((at,), ((k, b),), "operating")
-                continue
-            self.probe["petition_cash_out"] = (at, out)
-            k2 = self.node("petition_cash_out", "cash_exhausted", *(("raised",) if b == "raise_equity" else ()))
-            self.emit((at, ("cash_out", "", "yes")), ((k, b), (k2, "yes")), "petition")
-            self.emit((at, out), ((k, b), (k2, "no")), "operating")
+class _OrdinaryWalk(_Walk):
+    """Spec §16.1's ordinary view: the forecast's distress chain (`_Walk.listing` onward: the listing, the delisting
+    default, D7, N1, D8, §3.3) on the ordinary engine run (events.py `bank_trace`: the dispute resolved on the review
+    date at no cost). Its questions are the forecast's node types with a context free of dispute-branch tags and the
+    view's situation among their assumptions; their facts go to `fc.bank_facts`. page.js `bankProbs` reads plain
+    node edges only, so each path's composite edges are emitted as one path per conjunction (the same probability)."""
+
+    def __init__(self, fc: Forecaster) -> None:
+        from app.analysis.events import BANK
+
+        self.fc, self.out, self.bank = fc, [], BANK
+        self.d = None
+        self.fin = fc.instrument()
+        self.N = fc.days
+        self.pend = True
+        self.seen: set = set()
+
+    def run(self) -> list[DisputePath]:
+        self.listing(_S(cls=""), "operating")
         return self.out
 
-    # --- §16 (the 14 May case): the ordinary view is the same forecast with the event given no cash effect ----------
-    def run_dated(self) -> list[DisputePath]:
-        """The company's decisions at the cash floor and when cash runs out, then the notes' listing chain, as in the
-        research view (a common borrower input): each floor decision books on its own day (events.py `waits`), so it
-        is walked first and its facts come from each whole path; a listing question dated before it on some
-        trajectory still arises there."""
-        self.floor_dated((), ())
-        return self.out
+    def _trace(self, steps) -> _Prefix:
+        return self.fc.bank_trace(tuple(steps))
 
-    def before_petition(self, steps: tuple) -> bool:
-        tr = self.fc.bank_trace(steps)
-        pet = np.where(tr.petition < 0, np.iinfo(np.int64).max, tr.petition)
-        return bool(((tr.day[-1] < self.fc.days) & (tr.day[-1] < pet)).any())
+    def _listing_dates(self) -> dict[str, int]:
+        from app.analysis.events import Chain
 
-    def dated_node(self, name: str, *ctx: str, branches: tuple[str, ...] | None = None, at: tuple | None = None,
-                   assumptions: tuple[str, ...] = ()) -> str:
-        """An ordinary-view node; its facts are recorded from the prefix `at` (None: from each whole path,
-        `emit_dated`). It holds the forecast's conditions for the question plus the ordinary view's situation."""
+        return Chain(None, self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens, fin=self.fin).listing_dates()
+
+    def _repurchase_day(self, delist: int) -> int:
+        from app.analysis.events import Chain
+
+        ch = Chain(None, self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens, fin=self.fin)
+        return int(ch.repurchase_day(np.array([delist]))[0])
+
+    def node(self, name, *ctx, s: _S | None = None, probe=None, assumptions=(), branches=None):
         k = f"{self.bank}:{name}|" + "|".join((self.bank, *ctx))
         if k not in self.fc.bank_nodes:
-            s = self.fc.spec[name]
+            sp = self.fc.spec[name]
             self.fc.bank_nodes[k] = Node(key=k, instance_id=self.bank, node=name, context="|".join((self.bank, *ctx)),
-                                         cls="", question_id=s["residual_question"], event=s["decision"],
-                                         assumptions=(*assumptions, self.fc.no_cash_effect()), window=s["timing"],
-                                         branches=tuple(branches or s["branches"]))
-        if at is not None and (k, at) not in self.seen:
-            self.seen.add((k, at))
-            self.row(k, self.fc.bank_trace(at), -1)
+                                         cls="", question_id=sp["residual_question"], event=sp["decision"],
+                                         assumptions=(*assumptions, self.fc.no_cash_effect()),
+                                         window=sp.get("timing", ""),
+                                         branches=tuple(branches or sp["branches"]))
         return k
+
+    def rec(self, k: str, steps) -> None:
+        steps = tuple(steps)
+        if (k, steps) not in self.seen:
+            self.seen.add((k, steps))
+            self.row(k, self._trace(steps), -1)
 
     def row(self, k: str, tr, i: int, late: dict | None = None) -> None:
         t = tr.day[i]
@@ -1794,122 +1947,33 @@ class _BankWalk:
         need = self.fc.draws.basis.need[np.arange(len(t)), np.clip(t, 0, self.fc.days - 1)]
         self.fc.bank_facts.setdefault(k, []).append((t, tr.cash[i], need, eq, trig))
 
-    def floor_dated(self, steps: tuple, edges: tuple) -> None:
-        raising = self.fc.raising
-        probe = ("cash_floor", "", "continue" if raising else "no")
-        if not self.before_petition(steps + (probe,)):
-            return self.listing(steps, edges, "operating")
-        if raising:
-            tr = self.fc.bank_trace(steps + (probe,))
-            can = bool(((tr.day[-1] < self.fc.days) & (tr.raise_offer > 0)).any())
-            branches = (("raise_equity",) if can else ()) + ("file", "continue")
-            k = self.dated_node("financing_at_floor", "raise" if can else "noraise", branches=branches)
-        else:
-            branches = ("yes", "no")
-            k = self.dated_node("petition_cash_floor")
-        for b in branches:
-            s2, e2 = steps + (("cash_floor", "", b),), edges + ((k, b),)
-            if b in ("file", "yes"):
-                self.listing(s2, e2, "petition")
-            else:
-                self.cash_out_dated(s2, e2, ("raised",) if b == "raise_equity" else ())
-
-    def cash_out_dated(self, steps: tuple, edges: tuple, tags: tuple) -> None:
-        probe = ("cash_out", "", "no")
-        if not self.before_petition(steps + (probe,)):
-            return self.listing(steps, edges, "operating")
-        k = self.dated_node("petition_cash_out", "cash_exhausted", *tags)
-        self.listing(steps + (("cash_out", "", "yes"),), edges + ((k, "yes"),), "petition")
-        self.listing(steps + (probe,), edges + ((k, "no"),), "operating")
-
-    def listing(self, steps: tuple, edges: tuple, outcome: str) -> None:
-        """The listing chain (listing_route): one company decision on the hearing-request day, where suspension can
-        fall inside the period before any petition; then, delisted, the notes' holders and the issuer."""
-        from app.analysis.events import Chain
-
-        fin = self.fc.instrument()
-        if fin is None or fin.listing_deadline is None:
-            return self.emit_dated(steps, edges, outcome)
-        dates = Chain(None, self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens, fin=fin).listing_dates()
-        if dates["delisted_suspension"] >= self.fc.days:
-            return self.emit_dated(steps, edges, outcome)
-        if dates["panel_decision"] < self.fc.days:
-            raise NotImplementedError("the bank view models the listing_route chain only (the Panel decides after "
-                                      "the period); this case needs the four-node listing chain")
-        at = ("listing_date", "kept", "")
-        if not self.before_petition(steps + (at,)):
-            return self.emit_dated(steps, edges, outcome)
-        k = self.dated_node("listing_kept", at=steps + (at,), assumptions=ASSUMED["listing_kept"])
-        self.emit_dated(steps + (("listing", "kept", "listed"),), edges + ((k, "yes"),), outcome)
-        self.delisting(steps + (("listing", "kept", "delisted_suspension"),), edges + ((k, "no"),), outcome)
-
-    def delisting(self, steps: tuple, edges: tuple, outcome: str) -> None:
-        """Delisted on suspension: an Event of Default and a Fundamental Change under the notes, as in the research
-        view (_Walk.delisting_notes): the holders accelerate, require the repurchase, or neither; then the issuer
-        files, or else the holders file once §7.06 allows, or the notes stay due and unpaid."""
-        from app.analysis.events import Chain
-
-        dc = "delisted_suspension"
-        probe = ("delisting_notes", dc, "none")
-        if not self.before_petition(steps + (probe,)):
-            return self.emit_dated(steps, edges, outcome)
-        acc = ("delisting_notes", dc, "accelerated")
-        issuer, holders = steps + (acc, ("notes_due_date", "issuer", "")), steps + (acc, ("notes_due_date", "holders", ""))
-        h2 = self.dated_node("holders_act_delisting", dc, at=steps + (probe,),
-                             assumptions=ASSUMED["holders_act_delisting"])
-        a5 = self.dated_node("petition_on_notes", f"delisting_{dc}", at=issuer,
-                             assumptions=ASSUMED["petition_on_notes:delisting"])
-        h3 = self.dated_node("holders_involuntary", f"delisting_{dc}", at=holders,
-                             assumptions=ASSUMED["holders_involuntary:delisting"])
-        classes = {"petition_delist": [[(h2, "accelerate"), (a5, "yes")]],
-                   "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
-                   "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]]}
-        none = [[(h2, "neither")]]
-        fin = self.fc.instrument()
-        delist = Chain(None, self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens, fin=fin).listing_dates()[dc]
-        if Chain(None, self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens, fin=fin).repurchase_day(
-                np.array([delist]))[0] < self.fc.days:
-            rep = ("delisting_notes", dc, "repurchase_unpaid")
-            a5r = self.dated_node("petition_on_notes", f"repurchase_{dc}",
-                                  at=steps + (rep, ("notes_due_date", "issuer", "")),
-                                  assumptions=ASSUMED["petition_on_notes:repurchase"])
-            h3r = self.dated_node("holders_involuntary", f"repurchase_{dc}",
-                                  at=steps + (rep, ("notes_due_date", "holders", "")),
-                                  assumptions=ASSUMED["holders_involuntary:repurchase"])
-            classes["petition_repurchase"] = [[(h2, "repurchase_only"), (a5r, "yes")]]
-            classes["petition_repurchase_holders"] = [[(h2, "repurchase_only"), (a5r, "no"), (h3r, "yes")]]
-            classes["repurchase_unpaid"] = [[(h2, "repurchase_only"), (a5r, "no"), (h3r, "no")]]
-        else:  # the repurchase date falls after the horizon: requiring it moves nothing inside it
-            none.append([(h2, "repurchase_only")])
-        classes["none"] = none
-        for filed, nobody in (("petition_delist_holders", "accelerated"), ("petition_repurchase_holders",
-                                                                           "repurchase_unpaid")):
-            if filed in classes and nobody in classes and self.fc.bank_trace(steps + (("delisting_notes", dc, filed),)
-                                                                              ).digest == self.fc.bank_trace(
-                    steps + (("delisting_notes", dc, nobody),)).digest:
-                classes[nobody] = classes.pop(filed) + classes[nobody]  # a holders' petition after the period
-        for c, parts in classes.items():  # one path per conjunction, with plain node edges (the page reweights the
-            for conj in parts:  # ordinary view edge by edge): the same probabilities as the class's composite
-                self.emit_dated(steps + (("delisting_notes", dc, c),), edges + tuple(conj), outcome)
-
-    def emit_dated(self, steps: tuple, edges: tuple, outcome: str) -> None:
-        """A whole path: the floor decisions' facts on their own day on it (kept once per distinct record)."""
-        from app.analysis.events import FLOOR_NODES
-
-        at = [i for i, x in enumerate(steps) if x[0] in FLOOR_NODES]
-        if at:
+    def emit(self, s: _S, outcome: str) -> None:
+        """A whole path: the facts of its state-triggered decisions on their own day (kept once per distinct
+        record), then one path per combination of its composite edges' conjunctions."""
+        if s.late:
             from app.analysis.events import bank_trace
 
-            tr = bank_trace(self.fc.instrument(), steps, self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens)
-            for i in at:
-                k = next(e for e, _ in edges[i:i + 1])
+            tr = bank_trace(self.fin, s.steps, self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens)
+            for k, i in s.late:
+                late = tr.late[i]
                 h = hashlib.blake2b(digest_size=16)
-                for a in (tr.day[i], tr.cash[i], tr.late[i]["petition"], tr.late[i]["raise_offer"]):
+                for a in (tr.day[i], tr.cash[i], late["petition"], late["raise_offer"]):
                     h.update(np.ascontiguousarray(a).tobytes())
-                if (k, steps[:i], h.digest()) not in self.seen:
-                    self.seen.add((k, steps[:i], h.digest()))
-                    self.row(k, tr, i, tr.late[i])
-        self.emit(steps, edges, outcome)
+                if (k, s.steps[:i], h.digest()) not in self.seen:
+                    self.seen.add((k, s.steps[:i], h.digest()))
+                    self.row(k, tr, i, late)
+        options = []
+        for key, branch in s.edges:
+            if key.startswith(COMPOSITE):
+                if branch != "yes":
+                    raise ValueError("the ordinary view expands composite edges taken on 'yes' only")
+                options.append(_conjunctions(key))
+            else:
+                options.append((((key, branch),),))
+        for combo in itertools.product(*options):
+            edges = tuple(e for part in combo for e in part)
+            self.out.append(DisputePath(instance_id=self.bank, steps=s.steps, outcome=outcome, edges=edges))
+
 
 def bank_state(fc: Forecaster, n: Node) -> dict:
     """The bank view's question (the 20 Jun two-view design): the company, its decision, the decision dates, its

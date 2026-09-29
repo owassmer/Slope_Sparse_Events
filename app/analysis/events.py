@@ -373,7 +373,7 @@ FLOOR_NODES = {"cash_floor": "petition_cash_floor", "cash_out": "petition_cash_o
 # obligation, N1 after an initiation (ctx: the initiating occasion), and §3.3 general nonpayment (D9 and H3)
 DISTRESS = ("cash_floor", "cash_out", "offering", "nonpayment")
 DISTRESS_NODES = {"cash_floor": "financing_at_floor", "cash_out": "petition_cash_out"}
-DISTRESS_BOOKINGS = {"initiate_offering": "offer", "file": "petition", "neither": "none"}
+DISTRESS_BOOKINGS = {"initiate_offering": "offer", "file": "petition", "neither": "none", "none": "none"}
 BANK = "bank"  # the bank view's chain: the common borrower inputs and the company's distress decisions, no dispute
 # the dated contract and rule triggers given to the questions (day index; BIG: none), by source: those the dispute
 # sets (`trigger_days` under `self.d`: the appeal deadline and the judgment default's ripe dates, which exist only
@@ -831,6 +831,14 @@ class Chain:
             self.initiate(day, occasion)
         elif booking != "none":
             raise ValueError(f"No Chain booking {booking!r} (contract branch_bookings)")
+
+    def booking(self, node: str, branch: str) -> str:
+        """The Chain booking of a branch: the contract's (branch_bookings); under the equity model, the company's
+        14 May branches it does not list (initiate_offering: an offering, N1 follows; none: nothing)."""
+        own = self.bookings.get(node, {})
+        if branch not in own and self.equity and branch in DISTRESS_BOOKINGS:
+            return DISTRESS_BOOKINGS[branch]
+        return own[branch]
 
     def adverse_standing(self, day: np.ndarray) -> np.ndarray:
         """Whether a money judgment on an adverse verdict branch stands on the day: entered, not set aside after
@@ -1431,7 +1439,7 @@ class Chain:
             return motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, f"registration_{phase}")
         if node in RESPONSES:
             milestone = self.response_day(ctx)
-            self.respond(self.bookings[node][branch], milestone)
+            self.respond(self.booking(node, branch), milestone, occasion=ctx)
             return milestone  # the levy is booked at the next step (or the path's end): the response comes first
         if node == "registration_early":
             motion = full(self.E0) if ctx == "I1" else self.F
@@ -1642,7 +1650,7 @@ class Chain:
         if node == "judgment_default":
             self.book_default(self.wctx[i], branch, t < BIG)
         else:
-            self.respond(self.bookings[node][branch], t)
+            self.respond(self.booking(node, branch), t, occasion=self.wctx[i])
         return np.zeros(self.n, dtype=np.int64)
 
     def decide_floor(self, node: str, branch: str, t: np.ndarray) -> np.ndarray:
