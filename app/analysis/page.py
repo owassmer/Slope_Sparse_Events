@@ -1090,6 +1090,8 @@ def banded_rows(fc, d, lead: list, seen: list[str]) -> dict:
             rows.append({"key": b, "kind": "top" if hi is None else "band", "lo": lo, "hi": hi, "booked": booked})
         else:
             rows.append({"key": b, "kind": "other", "label": b, "lo": None, "hi": None, "booked": None})
+    for r in rows:  # the row's own path step, as the sequences name it (page.js drops it from what follows)
+        r["step"] = award_phrase(r["key"]) or ""
     rows.sort(key=lambda r: (r["booked"] is None, r["booked"] or 0))
     at = {r["key"]: i for i, r in enumerate(rows)}
     path, ruling, reduced = [], [], []

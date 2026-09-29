@@ -73,7 +73,7 @@
   function recompute() { probs = pathProbs((k) => dist(k)); bprobs = bankProbs((k) => dist(k)); }
 
   // --- the figures: central from the paths here; a variant's from the server (/reweight) ----------------------------
-  const KEYS = ["funded", "due", "collected", "past_due", "frozen_due", "not_yet_due", "petition_p", "clawback", "stayed"];
+  const KEYS = ["funded", "due", "collected", "past_due", "frozen_due", "not_yet_due", "petition_p", "clawback", "stayed", "atm_proceeds", "offering_proceeds"];
   const variant = (id = S.assumption) => (D.assumptions || []).find((a) => a.id === id);
   function figures() {
     const r = {}, b = {}, v = S.assumption !== "central" ? variant() : null;
@@ -103,7 +103,8 @@
 
   // --- 1. situation -----------------------------------------------------------------------------------------------
   const notes = ((D.dispute || {}).notes || [])[0] || {};
-  const claimBranch = ((D.verdict || {}).branches || []).find((b) => b.key === "claimant_theory");
+  const claimBranch = ((D.verdict || {}).branches || []).find((b) => b.key === "claimant_theory")
+    || (((D.verdict || {}).branches || []).filter((b) => b.kind === "top").map((b) => ({ lo: b.booked }))[0]);  // J1b: the claimant's amount books the top band
   function renderSituation() {
     const L = W.line, l = D.line || {}, inst = l.installments || [];
     const owed = inst.reduce((s, x) => s + x[1], 0);
@@ -185,15 +186,78 @@
     host.innerHTML = `<svg class="ladder" viewBox="0 0 ${Wd} ${H}" style="height:${H}px">${g}</svg>
       <div class="lg"><span><i style="background:var(--teal);height:3px;vertical-align:3px"></i>${esc(W.forecast.cum_mean)}</span>${pts.length ? `<span><i style="background:#5fa69d;width:2px;height:12px;vertical-align:-1px"></i>${esc(W.forecast.cum_range)}</span>` : ""}</div>`;
   }
+  // the borrower's available cash (never below zero under daily processing) and, as their own series, its arrears by
+  // class (stacked): what the day's cash could not pay
+  const ACOL = { slope: "#9b1c1c", settlement: "#e0582a", notes_interest: "#e3a008", judgment: "#b8955a", operating: "#8a9199" };
+  function cashChart(host) {
+    const C = W.cash, Wd = host.clientWidth || 1000, H = 260, m = { l: 56, r: 16, t: 12, b: 28 }, w = Wd - m.l - m.r, h = H - m.t - m.b, days = D.dates.length;
+    const dly = S.event.daily, mean = dly.cash_mean, lo = dly.cash_p5, hi = dly.cash_p95, need = D.need_mean || [], AR = S.event.arrears;
+    const cls = AR ? Object.keys(C.classes).filter((k) => AR[k] && AR[k].some((v) => v > 0)) : [];
+    let base = new Array(days).fill(0); const stack = [];
+    for (const k of cls) { const top = base.map((b, t) => b + AR[k][t]); stack.push([k, base, top]); base = top; }
+    const ymin = Math.min(0, ...lo), raw = 1.08 * Math.max(...hi, ...mean, ...need, ...base) - ymin || 1, mag = 10 ** Math.floor(Math.log10(raw / 4));
+    const step = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((s) => s * mag).find((s) => s * 4 >= raw), y0 = Math.floor(ymin / step) * step, top = y0 + step * 4;
+    const X = (t) => m.l + (w * t) / (days - 1), Y = (v) => m.t + h - (h * (v - y0)) / (top - y0);
+    const line = (ys) => ys.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join("");
+    const area = (up, dn) => `${line(up)}${dn.map((v, t) => [t, v]).reverse().map(([t, v]) => `L${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join("")}Z`;
+    let g = "";
+    for (let k = 0; k <= 4; k++) { const v = y0 + step * k; g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v === 0 ? "#c9cdd2" : "#eceef0"}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${money(v)}</text>`; }
+    D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 8}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text>`; });
+    g += `<path d="${area(hi, lo)}" fill="#dde4ec"/>`;
+    g += stack.map(([k, b, t]) => `<path d="${area(t, b)}" fill="${ACOL[k] || "#999"}" fill-opacity=".55"/>`).join("");
+    if (need.length === days) g += `<path d="${line(need)}" fill="none" stroke="#6b7178" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+    g += `<path d="${line(mean)}" fill="none" stroke="var(--teal)" stroke-width="2.2"/>`;
+    g += `<line class="chx" y1="${m.t}" y2="${m.t + h}" stroke="#9aa0a8" visibility="hidden"/><rect class="chov" x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent"/>`;
+    const sw = (col, bar) => `<i style="background:${col};${bar ? "height:3px;vertical-align:3px" : ""}"></i>`;
+    host.innerHTML = `<svg class="ladder" viewBox="0 0 ${Wd} ${H}" style="height:${H}px">${g}</svg>
+      <div class="lg"><span>${sw("var(--teal)", 1)}${esc(C.mean)}</span><span>${sw("#dde4ec")}${esc(C.range)}</span>${need.length === days ? `<span>${sw("#6b7178", 1)}${esc(C.need)}</span>` : ""}
+      ${cls.map((k) => `<span>${sw(ACOL[k] || "#999")}${esc(C.arrears)}: ${esc(C.classes[k])}</span>`).join("")}</div>${AR ? "" : `<p class="mute small">${esc(C.unavailable)}</p>`}`;
+    const svg = host.querySelector("svg"), hov = svg.querySelector(".chov"), hx = svg.querySelector(".chx");
+    hov.onmousemove = (ev) => {
+      const r = hov.getBoundingClientRect(), t = Math.max(0, Math.min(days - 1, Math.round(((ev.clientX - r.left) / r.width) * (days - 1))));
+      hx.setAttribute("x1", X(t)); hx.setAttribute("x2", X(t)); hx.setAttribute("visibility", "visible");
+      const parts = cls.filter((k) => AR[k][t] > 0).map((k) => `${C.classes[k]} ${money(AR[k][t])}`).join(", ");
+      showTip(ev, esc(fill(C.hover, { date: fdate(D.dates[t]), mean: money(mean[t]), lo: money(lo[t]), hi: money(hi[t]) }))
+        + (parts ? `<br>${esc(fill(C.hover_arrears, { total: money(base[t]), parts }))}` : ""));
+    };
+    hov.onmouseleave = () => { hx.setAttribute("visibility", "hidden"); hideTip(); };
+  }
+  // equity financing: at-the-market proceeds (the reduction's per-path means, variant-aware) and the offering (N1):
+  // the share of outcomes in which one closes by a date, from each path's close steps (central paths)
+  const RAISED = (D.financing || {}).raised || [];
+  function raisedBy(t, pr = probs) {
+    let s = 0;
+    for (let i = 0; i < RAISED.length; i++) { let v = 0; for (const [d, c] of RAISED[i]) { if (d <= t) v = c; else break; } s += pr[i] * v; }
+    return s;
+  }
+  function firstClose(pr = probs) {  // the median first-close day over the outcomes with one by the horizon
+    const mass = new Map(); let tot = 0;
+    for (let i = 0; i < RAISED.length; i++) { let prev = 0; for (const [d, c] of RAISED[i]) { const x = pr[i] * (c - prev); mass.set(d, (mass.get(d) || 0) + x); tot += x; prev = c; } }
+    if (tot <= 0) return null; let acc = 0;
+    for (const d of [...mass.keys()].sort((a, b) => a - b)) { acc += mass.get(d); if (acc >= tot / 2) return d; }
+    return null;
+  }
+  function financingHtml(f) {
+    const F = W.financing, T0 = (D.financing || {}).terms || {}, central = S.assumption === "central";
+    const closed = central && RAISED.length ? raisedBy(D.dates.length - 1) : null, fc = central ? firstClose() : null;
+    const t = [[fill(F.atm), f.atm_proceeds == null ? "–" : money(f.atm_proceeds), F.atm_note + (f.atm_proceeds == null ? ` ${W.notes.unavailable}` : "")],
+      [fill(F.offering), pct(closed), fill(F.offering_note)]];
+    if (fc !== null) t.push([F.first_close, fdate(D.dates[fc]), ""]);
+    if (T0.net_cents) t.push([F.terms, fill(F.terms_value, { net: money(T0.net_cents), gross: money(T0.gross_cents), days: T0.close_days ?? "–" }), ""]);
+    return `<div class="facts">${t.map(([k, v, n]) => `<div><span class="mute small${n ? " hastip" : ""}"${n ? ` data-tip="${esc(n)}"` : ""}>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>`;
+  }
   function renderForecast() {
     const sec = $("s-forecast"), f = figures().full;
     if (!sec.querySelector(".lad")) {
       sec.innerHTML = `<h2>${esc(fill(W.sections.forecast))}</h2><div class="tl"></div><h4 class="sub">${esc(W.forecast.chart)}</h4><div class="lad"></div><h4 class="sub">${esc(W.forecast.cum_chart)}</h4><div class="cum"></div>
+        <h4 class="sub">${esc(W.cash.chart)}</h4><p class="mute small">${esc(W.cash.note)}</p><div class="cash"></div>
+        <h4 class="sub">${esc(W.financing.title)}</h4><div class="fin"></div>
         <details class="assume"><summary>${esc(W.forecast.assumptions)}</summary><p class="mute small">${esc(W.forecast.assumptions_note)}</p>
         <dl class="common">${(D.common || []).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></details>`;
     }
     sec.querySelector(".tl").innerHTML = tileHtml(f);
-    ladder(sec.querySelector(".lad")); cumChart(sec.querySelector(".cum"));
+    ladder(sec.querySelector(".lad")); cumChart(sec.querySelector(".cum")); cashChart(sec.querySelector(".cash"));
+    sec.querySelector(".fin").innerHTML = financingHtml(f);
   }
 
   // --- steps of a path ------------------------------------------------------------------------------------------------
@@ -208,21 +272,33 @@
 
   // --- 3. how the lawsuit can resolve ---------------------------------------------------------------------------------
   const V = D.verdict || {};
+  // a verdict row's label: a banded class (J1b) by its kind and band, else the payload's own label
+  const bandLabel = (b) => (b.kind === "none" ? W.verdict.none : b.kind === "band" ? fill(W.verdict.band, { lo: money(b.lo), hi: money(b.hi) })
+    : b.kind === "top" ? fill(W.verdict.top, { lo: money(b.lo) }) : b.label);
   function verdictGroups() {
-    const bs = V.branches || [], groups = [{ k: -1, label: V.before, lo: null, hi: null }, ...bs.map((b, k) => ({ k, label: b.label, text: b.text, lo: b.lo, hi: b.hi })), { k: -2, label: W.resolve.other, lo: null, hi: null }];
-    const pp = D.paths.scalars.petition_p, co = D.paths.scalars.collected;
-    for (const g of groups) { g.p = 0; g.c = 0; g.f = 0; g.seq = new Map(); }
+    const bs = V.branches || [], groups = [{ k: -1, label: V.before, lo: null, hi: null }, ...bs.map((b, k) => (V.banded
+      ? { k, label: bandLabel(b), step: b.step, text: b.kind === "none" ? "" : fill(W.verdict.booked, { amount: money(b.booked) }), lo: b.booked, hi: b.booked }
+      : { k, label: b.label, text: b.text, lo: b.lo, hi: b.hi })), { k: -2, label: W.resolve.other, lo: null, hi: null }];
+    const pp = D.paths.scalars.petition_p, co = D.paths.scalars.collected, ru = V.ruling || [];
+    for (const g of groups) { g.p = 0; g.c = 0; g.f = 0; g.r = 0; g.s = 0; g.seq = new Map(); }
     const at = new Map(groups.map((g) => [g.k, g]));
     for (let i = 0; i < P; i++) {
       const g = at.get((V.path || [])[i] ?? -2); g.p += probs[i]; g.c += probs[i] * co[i]; g.f += probs[i] * pp[i];
+      if (ru[i] === 2) g.r += probs[i]; else if (ru[i] === 3) g.s += probs[i];  // J2: reduced (and accepted), set aside
       const q = D.paths.seq[i]; g.seq.set(q, (g.seq.get(q) || 0) + probs[i]);
     }
     return groups.filter((g) => g.p > 1e-9);
   }
+  const rulingText = (g) => (g.k < 0 || !(g.r + g.s) ? "–" : fill(W.verdict.ruling_value, { r: pct(g.r / g.p), s: pct(g.s / g.p) }));
+  function verdictNote() {  // the J1b bands and lines, above the verdict table
+    if (!V.banded) return "";
+    const L = V.lines || {}, lines = L.top ? fill(W.verdict.lines, { reach: money(L.reach), top: money(L.top), threshold: L.threshold ? money(L.threshold) : "–" }) : "";
+    return `<p class="mute small">${esc(fill(W.verdict.note))}${lines ? ` ${esc(lines)}.` : ""}</p>`;
+  }
   function follows(g) {
     const top = [...g.seq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
     return top.map(([q, m]) => {
-      const st = stepsOf(q).steps.filter((s) => s.base !== g.label && s.base !== V.before);
+      const st = stepsOf(q).steps.filter((s) => s.base !== g.label && s.base !== g.step && s.base !== V.before);
       const txt = st.length ? st.map((s) => `${s.base}${s.when ? ` (${s.when})` : ""}`).join(" → ") : W.resolve.nothing;
       return `<div>${esc(fill(W.resolve.of_outcome, { p: pct(m / g.p) }))} · ${esc(txt)}</div>`;
     }).join("");
@@ -291,12 +367,13 @@
   }
   function renderResolve() {
     const sec = $("s-resolve"), R = W.resolve, f = figures();
-    if (!sec.querySelector(".vt")) sec.innerHTML = `<h2>${esc(W.sections.resolve)}</h2><p class="mute small cn" hidden>${esc(W.assumption.path_note)}</p><h4 class="sub">${esc(R.verdict)}</h4><table class="vt"></table>
+    if (!sec.querySelector(".vt")) sec.innerHTML = `<h2>${esc(W.sections.resolve)}</h2><p class="mute small cn" hidden>${esc(W.assumption.path_note)}</p><h4 class="sub">${esc(R.verdict)}</h4>${verdictNote()}<table class="vt"></table>
       <h4 class="sub">${esc(R.attribution)}</h4><table class="at" style="max-width:760px"></table><h4 class="sub">${esc(R.when)}</h4><div class="wh"></div>
       <h4 class="sub">${esc(fill(R.grid))}</h4><p class="mute small">${esc(R.grid_note)}</p><div class="gd"></div>`;
     sec.querySelector(".cn").hidden = S.assumption === "central";
-    sec.querySelector(".vt").innerHTML = `<tr><th></th><th>${esc(R.p)}</th><th>${esc(R.judgment)}</th><th>${esc(R.collected)}</th><th>${esc(fill(R.filing))}</th><th style="text-align:left">${esc(R.follows)}</th></tr>`
-      + verdictGroups().map((g) => `<tr${g.k === -2 ? ' class="sub"' : ""}><td${g.text ? ` class="hastip" data-tip="${esc(cap(g.text))}"` : ""}><b>${esc(g.label)}</b></td><td><b>${pct(g.p)}</b></td><td>${esc(amountText(g))}</td><td>${money(g.c / g.p)}</td><td>${pct(g.f / g.p)}</td><td class="fl">${follows(g)}</td></tr>`).join("");
+    const rc = !!V.banded;  // the J2 column: the post-trial ruling's reduced and set-aside shares of each band
+    sec.querySelector(".vt").innerHTML = `<tr><th></th><th>${esc(R.p)}</th><th>${esc(R.judgment)}</th>${rc ? `<th>${esc(W.verdict.ruling)}</th>` : ""}<th>${esc(R.collected)}</th><th>${esc(fill(R.filing))}</th><th style="text-align:left">${esc(R.follows)}</th></tr>`
+      + verdictGroups().map((g) => `<tr${g.k === -2 ? ' class="sub"' : ""}><td${g.text ? ` class="hastip" data-tip="${esc(cap(g.text))}"` : ""}><b>${esc(g.label)}</b></td><td><b>${pct(g.p)}</b></td><td>${esc(amountText(g))}</td>${rc ? `<td>${esc(rulingText(g))}</td>` : ""}<td>${money(g.c / g.p)}</td><td>${pct(g.f / g.p)}</td><td class="fl">${follows(g)}</td></tr>`).join("");
     sec.querySelector(".at").innerHTML = `<tr><th></th><th>${esc(R.without)}</th><th>${esc(R.with)}</th><th>${esc(R.difference)}</th></tr>${attributionRows(f)}`;
     renderWhen(sec.querySelector(".wh"));
     sec.querySelector(".gd").innerHTML = gridHtml();
@@ -514,6 +591,22 @@
   }
 
   // --- 6. what actually happened, and the footer --------------------------------------------------------------------
+  // the actual events on the model's branches (outcomes/<snapshot>.json model_map): the judgment's J1b band and its
+  // forecast probability; the offering's close date and the forecast share of outcomes with one closed by then
+  function revealMap(mm) {
+    const out = [], A = W.actual;
+    const vb = mm.verdict_band, bs = V.branches || [];
+    if (vb && V.banded) {
+      const amt = vb.amount_cents, k = bs.findIndex((b) => (b.kind === "top" ? amt > b.lo : b.kind === "band" ? amt > b.lo && amt <= b.hi : b.kind === "none" && amt === 0));
+      if (k >= 0) { let p = 0; for (let i = 0; i < P; i++) if (V.path[i] === k) p += probs[i]; out.push(fill(A.verdict, { amount: money(amt), band: bandLabel(bs[k]), p: pct(p) })); }
+    }
+    const oc = mm.offering_closed;
+    if (oc && RAISED.length) {
+      const t = D.dates.indexOf(oc.date);
+      if (t >= 0) out.push(fill(A.offering, { date: fyear(oc.date), p: pct(raisedBy(t)), q: pct(raisedBy(D.dates.length - 1)) }));
+    }
+    return out;
+  }
   function renderActual() {
     $("actual-h").textContent = W.sections.actual;
     const btn = $("actual"); if (!btn) return;
@@ -522,7 +615,8 @@
     const o = S.outcome, body = $("actual-body"); if (!S.reveal || !o) { body.innerHTML = ""; return; }
     const pd = o.petition && o.petition.date, t = pd ? D.dates.indexOf(pd) : -1, cum = S.event.daily.petition_cum_p;
     const filed = pd ? fill(t >= 0 ? W.actual.filed : W.actual.filed_after, { date: fyear(pd), p: pct(t >= 0 ? cum[t] : last(cum)) }) : "";
-    body.innerHTML = `<p>${esc(W.actual.intro)}</p>${filed ? `<p class="filed">${esc(filed)}</p>` : ""}
+    const mapped = revealMap(o.model_map || {});
+    body.innerHTML = `<p>${esc(W.actual.intro)}</p>${filed ? `<p class="filed">${esc(filed)}</p>` : ""}${mapped.map((x) => `<p class="filed">${esc(x)}</p>`).join("")}
       <ol class="events">${o.events.map((e) => `<li><span class="mute">${esc(fyear(e.date))}</span><span>${esc(e.description)}${e.source_url ? ` <a href="${esc(e.source_url)}" target="_blank" rel="noopener">${esc(W.actual.source)}</a>` : ""}</span></li>`).join("")}</ol>`;
   }
   function renderFoot() {
