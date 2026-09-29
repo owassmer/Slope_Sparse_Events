@@ -626,13 +626,16 @@ CLOSED = {"verdict_finding": "the jury", "verdict_amount": "the jury", "post_tri
 
 
 def attribution(fc, fid: str) -> dict:
-    """A finding's author, date and status (source level, from the case's `source_attribution`)."""
+    """A finding's author, date and status: the source's (the case's `source_attribution`), with the author replaced
+    by the finding's `speaker` where the agent recorded one (the party whose statement the passage is, where it is not
+    the document's author; propose_finding on step-9-contracts)."""
     f = fc.findings[fid]
     src = f.spans[0].source_id
     a = fc.m.get("case_sources", {}).get(src)
     if a is None:
         raise ValueError(f"No attribution for source {src!r} (scenario.json source_attribution)")
-    return {"source_id": src, **a}
+    speaker = getattr(f, "speaker", None)
+    return {"source_id": src, **a, **({"author": speaker, "document_author": a["author"]} if speaker else {})}
 
 
 def evidence_kinds(fc, n, node_texts: dict, d) -> tuple[dict, list, tuple]:
