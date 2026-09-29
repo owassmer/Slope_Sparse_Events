@@ -45,9 +45,23 @@ def declared(snapshot_id: str, inputs: dict, model: dict) -> list[dict]:
             raise ValueError(f"{v['id']}: parameters {missing} declare no sensitivity")
         out.append({"id": v["id"], "label": v["label"], "basis": " ".join(p["basis"] for p in params.values()),
                     "central": False, "scenario": "central",
-                    "sens": {k: p["sensitivity"] if isinstance(p["sensitivity"], str) else True
-                             for k, p in params.items()}})
+                    "sens": {k: named(v, k, p) for k, p in params.items()}})
     return out
+
+
+def named(v: dict, k: str, p: dict):
+    """A variant's setting of parameter k: its declared sensitivity (a list of parameters), or the one it names (a
+    {parameter: value} map), which must be the declared sensitivity or one of them. A string stays named; a figure
+    of a list is named by its value; a single non-string sensitivity is True (the chains' `sens`)."""
+    sens = p["sensitivity"]
+    if isinstance(v["parameters"], dict):
+        x = v["parameters"][k]
+        if x != sens and not (isinstance(sens, list) and x in sens):
+            raise ValueError(f"{v['id']}: {k} = {x!r} is not a declared sensitivity ({sens!r})")
+        return x if isinstance(x, str) or isinstance(sens, list) else True
+    if isinstance(sens, list):
+        raise ValueError(f"{v['id']}: {k} declares several sensitivities; name one ({{parameter: value}})")
+    return sens if isinstance(sens, str) else True
 
 
 def out_dir(run_id: str) -> Path:

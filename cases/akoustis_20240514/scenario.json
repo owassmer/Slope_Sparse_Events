@@ -8,7 +8,8 @@
     "{company} holds about {cash} of cash and owes {notes} on convertible notes. A final judgment above {threshold} left unpaid and unstayed for {days} days is a default under the notes, which lets the noteholders demand repayment. Its shares trade below the exchange's minimum bid price; the compliance deadline is {listing}."
   ],
   "labels": {
-    "principal_measure": "the claimed head-start measure of trade-secret unjust enrichment"
+    "principal_measure": "the claimed head-start measure of trade-secret unjust enrichment",
+    "bid_price_on_review_date": "$0.44, the closing price on 14 May 2024, against the $1.00 minimum bid"
   },
   "parameters": {
     "verdict_window": {
@@ -66,23 +67,56 @@
       "value": "engine_forward_run",
       "basis": "Spec §16.4: the cash facts, 'pay' feasibility and the cash floor read the loan engine run forward on the prefix's event cash."
     },
-    "raise_capacity": {
-      "value": 970000000,
-      "sensitivity": 500000000,
-      "basis": "Owen, item 1 (27 Sep 2026). With no adverse money judgment on the path (no award, or the lower award): the ATM's likely usable capacity under the baby-shelf cap, USD 9.7M. An inference: one third of public float per 12 months, net of the January 2024 USD 10M raise. Record: the ATM (Sales Agreement of 2 May 2022) re-activated on 13 May 2024 with USD 48.0M remaining, and the agents are not obliged to sell (10-Q of 13 May 2024; 424B5 of 2 May 2022 and 29 Jan 2024). Sensitivity: USD 5.0M."
-    },
-    "raise_capacity_after_adverse_judgment": {
-      "value": 0,
-      "sensitivity": 500000000,
-      "basis": "Owen, item 1 (27 Sep 2026). After a judgment on the claimant's theory: nothing through the ATM. The baby-shelf cap falls with the share price, and the 10-Q (13 May 2024) says an adverse judgment creates 'an urgent need for additional liquidity'. Sensitivity: a distressed raise of USD 5.0M."
-    },
-    "raise_days": {
-      "value": 30,
-      "basis": "Owen, item 1 (27 Sep 2026): ATM sales take time; the proceeds arrive in equal daily amounts over 30 days from the decision."
-    },
     "ordinary_view": {
       "value": "same_forecast",
       "basis": "Spec §16.1 (orchestrator, 28 Sep 2026): ordinary operating risk is the same forecast with the event, including its legal costs, given no cash effect. The dispute ends on the review date at no cost, so its legal spend stops from then (the one dispute-end rule); operations, the line, the coupon, the cash-floor decisions and the listing chain with the notes' delisting route are the same as in the forecast."
+    },
+    "share_ledger": {
+      "value": 58957268,
+      "authorized": 175000000,
+      "outstanding": 98669282,
+      "reserved_conversion": 9341825,
+      "reserved_options": 3031625,
+      "coupon_shares": 5000000,
+      "basis": "QUESTIONS_20240514 §2.6 (Record, Arithmetic): authorized shares neither issued nor reserved, 175,000,000 authorized less 98,669,282 outstanding (8 May 2024), 9,341,825 reserved for conversion, 3,031,625 for options and the 5,000,000 registered for interest paid in shares = 58,957,268; an upper bound, because the equity-plan reserves are not stated (10-Q of 13 May 2024 cover and Note 16; resale S-3 of 13 May 2024). At-the-market sales and offerings draw on it; interest paid in shares draws on its own 5,000,000 (coupon_cash_share)."
+    },
+    "atm_pace_bps": {
+      "value": 2000,
+      "sensitivity": [
+        1000,
+        2500
+      ],
+      "adv_cents": 33706943,
+      "adv_window": [
+        "2024-03-15",
+        "2024-05-14"
+      ],
+      "price_cents": 44,
+      "commission_bps": 300,
+      "first_sale": "2024-05-14",
+      "t1_from": "2024-05-28",
+      "basis": "QUESTIONS_20240514 §2.6 (Scenario): the at-the-market program re-activated on 13 May 2024 sells from 14 May on each trading day while the stock is listed and no petition has been filed, at 20% of the average daily dollar volume from 15 Mar to 14 May 2024 (close x volume over the 42 trading days of akts_daily_px.csv: USD 337,069.43), at the 14 May close (USD 0.44), net of the agents' commission (up to 3%). Proceeds settle two business days after the sale for sales before 28 May 2024 and one business day after it from that date. Whole shares a day: the day's dollar pace over the price. Sensitivities: 10% and 25% of that volume."
+    },
+    "offering_price": {
+      "value": "january_discount",
+      "sensitivity": "half",
+      "gross_cents": 1150000000,
+      "net_cents": 1040000000,
+      "january_price_cents": 50,
+      "january_prior_close_cents_x1e4": 704600,
+      "close_cents_x1e4": 440000,
+      "close_days": 5,
+      "basis": "QUESTIONS_20240514 §2.6, N1 (Scenario): an underwritten offering on the January 2024 terms. Gross USD 11.5M and net USD 10.4M after the underwriting discount and expenses (8-K of 29 Jan 2024). Price: the 14 May 2024 close (USD 0.44) less the January offering's discount to the prior close (USD 0.50 against USD 0.7046 on 24 Jan 2024, 29.0%): USD 0.3122. The shares are the gross over the price; where the share capacity binds, the gross is the shares available times the price and the net bears the costs in proportion. Close: as many days after initiation as January's launch (preliminary prospectus supplement, 24 Jan 2024) to close (29 Jan 2024): 5. Sensitivity: half that price."
+    },
+    "small_claims_awarded": {
+      "value": true,
+      "sensitivity": false,
+      "basis": "QUESTIONS_20240514 J1 (Scenario): a 'yes' to 5(a) books USD 279,808 and to 3(a) USD 1,146,604, the amounts the claimant claims (D.I. 543-1 Ex. A.2 ¶¶19, 42). Sensitivity: nothing awarded on those items."
+    },
+    "judgment_default_reading": {
+      "value": "entered",
+      "sensitivity": "post_ruling",
+      "basis": "QUESTIONS_20240514 §3.1. Base: the judgment as entered. The §7.01(i) default becomes available 60 days after the Rule 62(a) automatic stay of the judgment as entered ends, where the judgment remains unpaid and undischarged and execution is not effectively stayed throughout; a post-trial ruling does not restart the period, and where it changes the judgment the holders' decision is asked again on the changed judgment. Sensitivity: the post-trial ruling, 60 days from the order disposing of the last tolling motion on the surviving amount, with no earlier opportunity."
     }
   },
   "verdict_form": {
@@ -99,18 +133,42 @@
         "plain": {
           "asks": "whether the jury finds {company} liable for misappropriating at least one of {claimant}'s trade secrets and unjustly enriched by it",
           "yes": "trade-secret liability found",
-          "no": "no trade-secret liability"
+          "no": "Question 1(a): No"
         }
       },
       "q1b": {
-        "node": "verdict_measure",
+        "node": "verdict_amount",
         "form": "Question No. 1(b)",
         "quote": "State the amount Akoustis was unjustly enriched by misappropriating Qorvo’s trade secrets as to which you have answered “Yes” and “Yes” in Question 1(a) above.",
-        "asks": "whether the unjust-enrichment award adopts the claimant's head-start measure (never the amount)",
-        "yes": "claimant_theory",
-        "no": "without_principal_measure",
+        "next": "q1c",
+        "zero": "q2a",
         "plain": {
-          "asks": "whether the jury's award for the trade-secret claim adopts {claimant}'s head-start measure"
+          "asks": "the amount of the jury's award for unjust enrichment on the trade-secret claim"
+        }
+      },
+      "q1c": {
+        "node": "verdict_finding",
+        "form": "Question No. 1(c)",
+        "quote": "Was Akoustis’s misappropriation of any of Qorvo’s trade secrets as to which you answered “Yes” and “Yes” in Question 1(a) above willful and malicious?",
+        "exemplary_of": "q1b",
+        "times": 2,
+        "yes": "q1d",
+        "no": "q2a",
+        "plain": {
+          "asks": "whether the jury finds the misappropriation willful and malicious",
+          "yes": "willful and malicious",
+          "no": "not willful and malicious"
+        }
+      },
+      "q1d": {
+        "node": "verdict_amount",
+        "form": "Question No. 1(d)",
+        "quote": "What amount of exemplary damages, if any, do you award to Qorvo against Akoustis?",
+        "of": "q1b",
+        "times": 2,
+        "next": "q2a",
+        "plain": {
+          "asks": "the amount of exemplary damages, at most twice the unjust-enrichment award (18 U.S.C. §1836(b)(3)(C))"
         }
       },
       "q2a": {
@@ -138,48 +196,43 @@
         }
       },
       "q2c": {
-        "node": "verdict_measure",
+        "node": "verdict_amount",
         "form": "Question No. 2(c)",
         "quote": "What amount of damages for actual loss, if any, were caused by Akoustis’ action and thus you award to Qorvo against Akoustis?",
-        "asks": "whether the conspiracy award adopts the claimant's head-start measure, which its conspiracy claim restates (D.I. 543-1 Ex. A.2 ¶56) (never the amount)",
-        "yes": "claimant_theory",
-        "no": "without_principal_measure",
+        "next": "q3a",
         "plain": {
-          "asks": "whether the jury's award for the conspiracy claim adopts {claimant}'s head-start measure"
+          "asks": "the amount of the jury's award for actual loss on the conspiracy claim"
         }
       },
       "q3a": {
         "node": "verdict_finding",
         "form": "Question No. 3(a)",
         "quote": "Has Qorvo proven by a preponderance of the evidence each of the elements of its False Advertising claim against Akoustis?",
-        "yes": "without_principal_measure",
+        "yes": "q5a",
         "no": "q5a",
         "plain": {
           "asks": "whether the jury finds the false-advertising claim proven",
           "yes": "false advertising proven",
           "no": "no false advertising"
-        }
+        },
+        "award": "advertising"
       },
       "q5a": {
         "node": "verdict_finding",
         "form": "Question No. 5(a)",
         "quote": "Do you find that Qorvo has proven by a preponderance of the evidence that the claims of the ’018 or the ’755 Patents have been infringed?",
         "asks": "whether the jury answers “YES” for at least one patent claim",
-        "yes": "without_principal_measure",
-        "no": "no_award",
+        "yes": "end",
+        "no": "end",
         "plain": {
           "asks": "whether the jury finds at least one patent claim infringed",
           "yes": "patent infringed",
           "no": "no patent infringed"
-        }
+        },
+        "award": "patent"
       }
     },
     "collapsed": [
-      {
-        "form": "Question No. 1(c) and 1(d)",
-        "quote": "Was Akoustis’s misappropriation of any of Qorvo’s trade secrets as to which you answered “Yes” and “Yes” in Question 1(a) above willful and malicious?",
-        "why": "Its answer sets only exemplary damages (1(d)). Where the award adopts the head-start measure they raise an award already beyond cash on every trajectory (the bounded claimant_enhancements term, DECOMPOSITION §4.6); on the lower branch the O1 amount carries no trade-secret award to multiply. It changes no verdict branch, so it would change no path probability."
-      },
       {
         "form": "Questions No. 4(a)-(c)",
         "quote": "Has Qorvo proven by a preponderance of the evidence its Unfair and Deceptive Trade Practices Act claim against Akoustis?",
@@ -190,7 +243,8 @@
         "quote": "Did Qorvo prove by a preponderance of the evidence that Akoustis’ infringement of the ’018 or ‘755 patent was willful?",
         "why": "5(b) is an amount (inside the lower branch's bounded amount); willfulness only lets the court enhance patent damages later (35 U.S.C. §284), inside the same bound. Neither changes a verdict branch."
       }
-    ]
+    ],
+    "amounts": "QUESTIONS_20240514 §4.1 J1, J1b. The award is the sum of the items the jury finds: 3(a) books the corrective-advertising amount and 5(a) the patent amount Qorvo claims (D.I. 543-1 Ex. A.2 ¶¶19, 42: USD 1,146,604 and USD 279,808; nothing where the parameter small_claims_awarded is false); 3(a) and 5(a) are asked wherever the total stays below the J1b top line. The amount items 1(b), 1(d) and 2(c) are asked as thresholds on the total judgment's lines (Forecaster.verdict_lines: nothing, the reach line, the top line, one further cut in each band below the top line, and USD 10,000,000 wherever a band would straddle it), each conditional on the band established; a band below the top line books its midpoint and the band above it the claimant's amount (USD 67,526,412). 1(c) and 1(d) are asked only where exemplary damages (at most twice 1(b)) can move the total across a line."
   },
   "assumption_variants": {
     "note": "Economic sensitivities precomputed for the page (spec §16.6). Each changes one declared setting from the central case: a common-model scenario (run_inputs.json common_model.scenarios) or a parameter's declared sensitivity (above). Its basis is that setting's own. A question whose facts the change moves is asked again.",
@@ -206,23 +260,7 @@
         "id": "equity_injection",
         "label": "Equity: $5.0M received on 14 Jun 2024, instead of none booked",
         "common_model": "equity_injection",
-        "note": "Changes the company's cash. Central: no financing is booked; any raise is the company's own decision at its cash floor. Alternative: $5.0M of new equity one month after the review. A scenario, not a fact of the record: the company was restarting its at-the-market share sales, which fix no amount or date."
-      },
-      {
-        "id": "raise_capacity_no_judgment_low",
-        "label": "Equity raised at the cash floor with no adverse judgment: $5.0M instead of $9.7M",
-        "parameters": [
-          "raise_capacity"
-        ],
-        "note": "Changes what a raise at the cash floor brings in when the jury has not adopted {claimant}'s theory. Central: $9.7M, an estimate of what the company's at-the-market share sales can raise under the small-company limit (about one third of its public float per 12 months, less the January raise). Alternative: $5.0M."
-      },
-      {
-        "id": "raise_after_judgment_available",
-        "label": "Equity raised at the cash floor after an adverse judgment: $5.0M instead of none",
-        "parameters": [
-          "raise_capacity_after_adverse_judgment"
-        ],
-        "note": "Changes what a raise at the cash floor brings in after a judgment on {claimant}'s theory. Central: nothing, because the share-sale limit falls with the share price and the company's quarterly report says such a judgment creates an urgent need for liquidity. Alternative: a distressed raise of $5.0M."
+        "note": "Changes the company's cash. Central: no financing is booked beyond the company's share sales on the market; any offering is the company's own decision. Alternative: $5.0M of new equity one month after the review. A scenario, not a fact of the record: the company was restarting its at-the-market share sales, which fix no amount or date."
       },
       {
         "id": "settlement_lump_sum",
@@ -242,15 +280,7 @@
         "id": "cash_floor_60_days",
         "label": "Cash floor: 60 days of operating outflows, instead of 30",
         "common_model": "cash_floor_60_days",
-        "note": "Changes the cash level at which the company decides whether to raise equity, keep going or file, and the cash it counts as available for a settlement or security. Slope's debit does not read it, so collections change only through those decisions."
-      },
-      {
-        "id": "lower_award_high",
-        "label": "Jury: lower award at $9,999,999, instead of $1.4M",
-        "parameters": [
-          "lower_award_amount"
-        ],
-        "note": "Changes the judgment on the lower-award outcome. Central: $1.4M, {claimant}'s own figures for the smaller claims that stand if the jury rejects the head-start measure (patent and corrective advertising). Alternative: $9,999,999, the largest award that stays below the notes' $10.0M judgment-default threshold."
+        "note": "Changes the cash level at which the company decides whether to initiate an offering, file, or do neither, and the cash it counts as available for a settlement or security. Slope's debit does not read it, so collections change only through those decisions."
       },
       {
         "id": "coupon_cash",
@@ -259,8 +289,334 @@
           "coupon_cash_share"
         ],
         "note": "Changes how the company pays the $1.32M notes coupon due 15 Jun 2024. Central: in shares, which the notes allow unless the company elects cash, and which its registered shares cover. Alternative: all in cash."
+      },
+      {
+        "id": "atm_pace_10",
+        "label": "Share sales on the market: 10% of recent trading volume a day, instead of 20%",
+        "parameters": {
+          "atm_pace_bps": 1000
+        },
+        "note": "Changes the cash the company raises by selling shares on the market. Central: from 14 May, 20% of the average daily dollar volume of 15 Mar to 14 May 2024 (about $67,400 a trading day) at the 14 May close, less a 3% commission. Alternative: 10%."
+      },
+      {
+        "id": "atm_pace_25",
+        "label": "Share sales on the market: 25% of recent trading volume a day, instead of 20%",
+        "parameters": {
+          "atm_pace_bps": 2500
+        },
+        "note": "Changes the cash the company raises by selling shares on the market. Central: 20% of the average daily dollar volume of 15 Mar to 14 May 2024. Alternative: 25%."
+      },
+      {
+        "id": "nonpayment_window_15",
+        "label": "General nonpayment under the notes: judged over 15 days, instead of 30",
+        "parameters": {
+          "nonpayment_window_days": 15
+        },
+        "note": "Changes when the notes fall due because the company generally is not paying its debts. Central: unpaid bills outstanding throughout the last 30 days, and at least a quarter of what fell due in them left unpaid. Alternative: over 15 days."
+      },
+      {
+        "id": "nonpayment_window_60",
+        "label": "General nonpayment under the notes: judged over 60 days, instead of 30",
+        "parameters": {
+          "nonpayment_window_days": 60
+        },
+        "note": "Changes when the notes fall due because the company generally is not paying its debts. Central: over the last 30 days. Alternative: over 60 days."
+      },
+      {
+        "id": "nonpayment_share_half",
+        "label": "General nonpayment under the notes: half of what fell due left unpaid, instead of a quarter",
+        "parameters": {
+          "nonpayment_unpaid_share_bps": 5000
+        },
+        "note": "Changes when the notes fall due because the company generally is not paying its debts. Central: at least a quarter of the bills that fell due in the last 30 days left unpaid. Alternative: at least half."
+      },
+      {
+        "id": "offering_price_half",
+        "label": "Share offering priced at half the central price",
+        "parameters": {
+          "offering_price": "half"
+        },
+        "note": "Changes the price of an underwritten share offering, and so the shares it needs. Central: the 14 May close less the January 2024 offering's discount (about $0.31). Alternative: half that price, so the same proceeds need twice the shares and the remaining authorized shares may run out."
+      },
+      {
+        "id": "small_claims_nothing",
+        "label": "Jury: nothing awarded on the patent and advertising claims when it finds them, instead of the amounts claimed",
+        "parameters": {
+          "small_claims_awarded": false
+        },
+        "note": "Changes what the jury awards if it finds for {claimant} on patent infringement or false advertising. Central: the amounts {claimant} claims for them ($279,808 and $1,146,604). Alternative: nothing."
+      },
+      {
+        "id": "judgment_default_post_ruling",
+        "label": "Notes' judgment default: counted from the post-trial ruling, instead of from the judgment's entry",
+        "parameters": {
+          "judgment_default_reading": "post_ruling"
+        },
+        "note": "Changes when an unpaid judgment becomes a default under the notes. Central: 60 days after the judgment's automatic 30-day stay ends. Alternative: 60 days after the court rules on the last post-trial motion, on the amount that survives."
       }
     ],
-    "central_note": "Settings every outcome shares: the bank feed's recent flows continue, no financing is booked, the cash floor is 30 days of operating outflows, and Slope collects each installment by automatic debit."
+    "central_note": "Settings every outcome shares: the bank feed's recent flows continue, the company sells shares on the market at 20% of recent daily trading volume, no other financing is booked unless the company initiates an offering, the cash floor is 30 days of operating outflows, and Slope collects each installment by automatic debit."
+  },
+  "source_attribution": {
+    "akts_2022_06_notes_8k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2022_06_notes_indenture": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_fy2023_10k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2023_10_27_8k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024_01_29_8k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024q3_10q": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024_05_13_8k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024_05_13_release": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "ded_21cv1417_d015_reply": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d047_reply": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d067_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d112_joint_statement": {
+      "author": "Qorvo and Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d152_claim_construction": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d313_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d487_reply": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d545_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d546_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d553_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d557_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d587_brief": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d590_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_docket_20240514": {
+      "author": "the Clerk of the District Court (docket)",
+      "status": "third-party record",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d001_complaint": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d133_amended_complaint": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d471_brief": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d476_brief": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d496_brief": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d508_reply": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d535_proposed_verdict": {
+      "author": "Qorvo",
+      "status": "proposal",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d543_pretrial_order": {
+      "author": "Qorvo and Akoustis (joint proposed order)",
+      "status": "proposal",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d543_1_exhibits": {
+      "author": "Qorvo and Akoustis (each side's statement)",
+      "status": "statement of intended proof",
+      "in_case_record": true
+    },
+    "akts_2024_05_13_s3": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2022_05_02_424b5": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024_01_29_424b5": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024_05_13_call": {
+      "author": "Akoustis Technologies management (call transcript by Earnings Whispers)",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "ded_21cv1417_d580_verdict_form": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d550_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "akts_2022_02_04_s3": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2022_05_02_atm_agreement": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2023_09_19_def14a": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2023_11_02_8k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "ded_21cv1417_d565_limiting_instructions": {
+      "author": "Qorvo and Akoustis (stipulated)",
+      "status": "stipulation",
+      "in_case_record": true
+    },
+    "akts_2023_01_23_424b5": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "ded_21cv1417_d533_preliminary_instructions": {
+      "author": "Qorvo",
+      "status": "proposal",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d537_final_instructions": {
+      "author": "Qorvo and Akoustis (each side's proposals)",
+      "status": "proposal",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d539_witness_list": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d582_judicial_notice": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d585_exhibit_list": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d588_bench_memo": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d589_bench_memo": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "akts_fy2023_10k_ex21": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_daily_px_20240514": {
+      "author": "stockanalysis.com (Nasdaq trading data)",
+      "status": "third-party record",
+      "in_case_record": false
+    }
   }
 }
