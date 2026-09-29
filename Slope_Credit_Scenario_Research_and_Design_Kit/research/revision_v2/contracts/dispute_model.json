@@ -1943,7 +1943,8 @@
             "reverse_split_time",
             "judgment_standing",
             "available_cash",
-            "notes_status"
+            "notes_status",
+            "share_price"
           ],
           "since": "5.0.0"
         },
@@ -2092,7 +2093,8 @@
               "notes_status",
               "judgment_standing",
               "offering_terms",
-              "offering_unavailable_reason"
+              "offering_unavailable_reason",
+              "share_price"
             ]
           }
         },
@@ -2171,7 +2173,8 @@
               "listing_status",
               "share_capacity_left",
               "offering_terms",
-              "offering_unavailable_reason"
+              "offering_unavailable_reason",
+              "share_price"
             ]
           }
         },
@@ -2208,7 +2211,8 @@
             "listing_status",
             "listing_deadline",
             "notes_status",
-            "share_capacity_left"
+            "share_capacity_left",
+            "share_price"
           ],
           "since": "5.0.0"
         }
@@ -2373,7 +2377,8 @@
               "offering_terms",
               "share_capacity_left",
               "notes_status",
-              "listing_status"
+              "listing_status",
+              "share_price"
             ]
           }
         },
