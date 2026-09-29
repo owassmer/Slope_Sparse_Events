@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 import numpy as np
+from numba import njit
 
 from app.config import KIT
 
@@ -19,6 +20,20 @@ ROW = re.compile(r"<tr><td>(\d{4}-\d\d-\d\d)</td><td>[\d.]+</td><td>[\d.]+</td><
 
 def _n(x: float) -> float:
     return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+@njit(cache=True)
+def _prices(owed, V, notes, s, rate, T, shares):
+    """`Merton._price1` over an array of amounts owed (cents, int64): the same operations in the same order."""
+    out = np.empty(owed.shape[0], dtype=np.float64)
+    sq = s * math.sqrt(T)
+    for i in range(owed.shape[0]):
+        K = float(notes + max(owed[i], 0))
+        d1 = (math.log(V / K) + (rate + s * s / 2) * T) / sq
+        n1 = 0.5 * (1.0 + math.erf(d1 / math.sqrt(2.0)))
+        n2 = 0.5 * (1.0 + math.erf((d1 - sq) / math.sqrt(2.0)))
+        out[i] = (V * n1 - K * math.exp(-rate * T) * n2) / shares
+    return out
 
 
 def closes(table: str) -> list[float]:
@@ -82,11 +97,11 @@ class Merton:
 
     def _price_flat(self, a: np.ndarray) -> np.ndarray:
         u, inv = np.unique(a, return_inverse=True)
-        vals = np.array([self._price1(int(x)) for x in u], dtype=float)
+        vals = _prices(u, self.V, self.notes_cents, self.asset_vol, self.rate, self.T, self.shares)
         return vals[inv].reshape(a.shape)
 
-    @lru_cache(maxsize=1 << 16)  # noqa: B019 (bounded: the amounts owed accrue daily, so they rarely repeat far apart)
     def _price1(self, owed: int) -> float:
+        """One amount's price (the scalar form `_prices` computes, operation for operation)."""
         return self.call(self.V, self.notes_cents + max(owed, 0), self.asset_vol)[0] / self.shares
 
 
