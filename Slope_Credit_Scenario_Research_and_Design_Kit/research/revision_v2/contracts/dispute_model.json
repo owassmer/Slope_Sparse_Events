@@ -1155,7 +1155,38 @@
           "situation": {
             "stayed": "Rule 62(b): a stay in place protects the company while its appeal is pending"
           },
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_appeal",
+            "actor": "{company}",
+            "decision": "Does {company} file a notice of appeal from the judgment by {appeal_deadline}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frap_4a1a",
+              "frap_4a4a",
+              "frcp_62b",
+              "stay_reduced_security",
+              "bond_amount"
+            ],
+            "record_items": [
+              "the motions for judgment as a matter of law made at trial",
+              "the court's rulings on the Rule 50(a) motions",
+              "the notes' judgment-default terms",
+              "the company's statements on contesting the claims"
+            ],
+            "situation": [
+              "post_trial_ruling",
+              "judgment_amount",
+              "amount_owed",
+              "available_cash",
+              "operating_need_30_days",
+              "stay_security_required",
+              "appeal_deadline"
+            ]
+          }
         },
         "enforce_after_final": {
           "actor": "judgment creditor",
@@ -1859,7 +1890,34 @@
           "residual_question": "forecast_post_trial_motions",
           "situation": {},
           "timing_parameters": [],
-          "since": "4.1.0"
+          "since": "4.1.0",
+          "pending_money_claim": {
+            "residual_question": "forecast_post_trial_motions",
+            "actor": "{company}",
+            "decision": "Does {company} file a motion under Rule 50(b) or Rule 59 challenging the judgment by {motion_deadline}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frcp_50b_59_deadline",
+              "frcp_50b_renewal",
+              "frcp_59a"
+            ],
+            "record_items": [
+              "the motions for judgment as a matter of law made at trial",
+              "the court's rulings on the Rule 50(a) motions",
+              "the notes' judgment-default terms",
+              "the company's statements on contesting the claims"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_entered_on",
+              "motion_deadline",
+              "available_cash",
+              "operating_need_30_days"
+            ]
+          }
         },
         "post_trial_ruling": {
           "actor": "court",
@@ -1892,7 +1950,39 @@
           "timing_parameters": [
             "ruling_lag_days"
           ],
-          "since": "4.1.0"
+          "since": "4.1.0",
+          "pending_money_claim": {
+            "residual_question": "forecast_post_trial_ruling",
+            "actor": "court",
+            "decision": "How does the court dispose of the pending post-trial motions as to the money judgment of {judgment_amount} entered on {judgment_entered_on}?",
+            "branches": [
+              "unchanged",
+              "reduced",
+              "set_aside"
+            ],
+            "standard": [
+              "frcp_50b_renewal",
+              "jmol_standard",
+              "frcp_59a",
+              "remittitur"
+            ],
+            "record_items": [
+              "the motions for judgment as a matter of law made at trial",
+              "the court's rulings on the Rule 50(a) motions",
+              "the rulings that narrow the issues for trial",
+              "the court's rulings admitting or limiting the damages evidence",
+              "the claimant's damages method and figures",
+              "the challenges to the damages method"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_entered_on",
+              "pending_motions",
+              "grounds_preserved",
+              "reduced_low",
+              "reduced_high"
+            ]
+          }
         },
         "verdict_finding": {
           "actor": "jury",
@@ -1929,7 +2019,37 @@
           ],
           "residual_question": "forecast_verdict_finding",
           "situation": {},
-          "since": "4.1.0"
+          "since": "4.1.0",
+          "pending_money_claim": {
+            "residual_question": "forecast_verdict_finding",
+            "actor": "jury",
+            "decision": "Does the jury answer {form_item} of the verdict form “Yes”?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "jury_verdict"
+            ],
+            "record_items": [
+              "the final verdict form",
+              "the preliminary jury instructions",
+              "the parties' proposed final jury instructions on each claim's elements and burdens",
+              "the rulings that narrow the issues for trial",
+              "the limiting instructions",
+              "each side's statement of intended proof",
+              "the witness and exhibit lists",
+              "the trial docket",
+              "the motions for judgment as a matter of law made at trial",
+              "the company's statements on the trial"
+            ],
+            "situation": [
+              "form_item",
+              "form_question",
+              "answer_rule",
+              "earlier_answers"
+            ]
+          }
         },
         "verdict_measure": {
           "actor": "jury",
@@ -1967,6 +2087,64 @@
           "residual_question": "forecast_verdict_measure",
           "situation": {},
           "since": "4.1.0"
+        },
+        "verdict_amount": {
+          "residual_question": "forecast_verdict_amount",
+          "actor": "jury",
+          "decision": "Does the amount entered on {form_item} of the verdict form exceed {threshold}?",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "standard": [
+            "jury_verdict",
+            "usc18_1836_b3d"
+          ],
+          "record_items": [
+            "the claimant's damages method and figures",
+            "the ruling admitting the claimant's damages evidence",
+            "the revenue base left to the jury",
+            "the defense's damages positions as admitted",
+            "the parties' proposed jury instructions on unjust enrichment, actual loss and exemplary damages",
+            "the limiting instructions",
+            "the rulings that narrow the issues for trial",
+            "the final verdict form",
+            "the record on actual loss",
+            "the company's statements on the likely award"
+          ],
+          "situation": [
+            "form_item",
+            "form_question",
+            "earlier_answers",
+            "amount_established",
+            "threshold"
+          ],
+          "since": "5.0.0"
+        },
+        "remittitur_elected": {
+          "residual_question": "forecast_remittitur_elected",
+          "actor": "{claimant}",
+          "decision": "Does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+          "branches": [
+            "yes",
+            "no"
+          ],
+          "standard": [
+            "remittitur",
+            "frcp_59a"
+          ],
+          "record_items": [
+            "the trial's length and scope",
+            "the company's going-concern and debt disclosures",
+            "the relief the claimant seeks, including a permanent injunction"
+          ],
+          "situation": [
+            "verdict_amount",
+            "remitted_amount",
+            "available_cash",
+            "notes_status"
+          ],
+          "since": "5.0.0"
         }
       },
       "edges": [

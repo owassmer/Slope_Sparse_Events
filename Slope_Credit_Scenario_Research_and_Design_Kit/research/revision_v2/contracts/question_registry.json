@@ -171,7 +171,14 @@
         "assumed_events": "The events, amounts, balances, terms and statuses given as the question's situation.",
         "earlier_readings": "Readings of the record taken before the question, each with the date of its source."
       },
-      "questions": []
+      "questions": [
+        "forecast_verdict_finding",
+        "forecast_verdict_amount",
+        "forecast_post_trial_motions",
+        "forecast_post_trial_ruling",
+        "forecast_remittitur_elected",
+        "forecast_claim_appeal"
+      ]
     }
   },
   "state_contract": {
@@ -1945,32 +1952,32 @@
     },
     {
       "id": "forecast_verdict_finding",
-      "version": "4.1.0",
-      "profile": "dispute_forecast",
+      "version": "5.0.0",
+      "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does the jury answer this question on its verdict form 'yes'?",
+      "question": "Does the jury answer {form_item} of the verdict form “Yes”?",
       "actor": "jury",
       "template": "pending_money_claim",
       "node": "verdict_finding",
-      "asked_when": "the question is reached on the verdict form given the earlier answers",
       "state_fields": [
         "case",
         "question",
         "standard",
         "record_items",
-        "path_facts",
-        "assumptions",
-        "evidence",
-        "readings"
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. state.question.form_question quotes the question on the jury's verdict form and state.question.earlier_answers the jury's answers to the form's earlier questions; state.question.asked, where present, says what the answer turns on.",
+        "instructions": "Does the jury answer {form_item} of the verdict form “Yes”?",
         "criteria": {
-          "true": "The jury answers the question 'yes'.",
-          "false": "The jury answers the question 'no'."
+          "true": "The jury answers {form_item} “Yes”.",
+          "false": "The jury answers {form_item} “No”."
         }
-      },
-      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+      }
     },
     {
       "id": "forecast_verdict_measure",
@@ -2003,61 +2010,63 @@
     },
     {
       "id": "forecast_post_trial_motions",
-      "version": "4.1.0",
-      "profile": "dispute_forecast",
+      "version": "5.0.0",
+      "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does the judgment debtor file timely post-trial motions (judgment as a matter of law, a new trial or remittitur) within 28 days of entry?",
-      "actor": "judgment debtor",
+      "question": "Does {company} file a motion under Rule 50(b) or Rule 59 challenging the judgment by {motion_deadline}?",
+      "actor": "{company}",
       "template": "pending_money_claim",
       "node": "post_trial_motions",
-      "asked_when": "a money judgment is entered and the company continued",
       "state_fields": [
         "case",
         "question",
         "standard",
         "record_items",
-        "path_facts",
-        "assumptions",
-        "evidence",
-        "readings"
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
+        "instructions": "Does {company} file a motion under Rule 50(b) or Rule 59 challenging the judgment by {motion_deadline}?",
         "criteria": {
-          "true": "The company files timely post-trial motions.",
-          "false": "The time for post-trial motions runs without a motion."
+          "true": "{company} files a motion under Rule 50(b) or Rule 59 challenging the judgment by {motion_deadline}.",
+          "false": "{company} files no motion under Rule 50(b) or Rule 59 by {motion_deadline}."
         }
-      },
-      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+      }
     },
     {
       "id": "forecast_post_trial_ruling",
-      "version": "4.1.0",
-      "profile": "dispute_forecast",
+      "version": "5.0.0",
+      "profile": "event_forecast",
       "primitive": "choice",
-      "question": "Does the court's ruling on the post-trial motions leave the money judgment standing, or set it aside (judgment as a matter of law on liability, or a new trial)?",
+      "question": "How does the court dispose of the pending post-trial motions as to the money judgment of {judgment_amount} entered on {judgment_entered_on}?",
       "actor": "court",
       "template": "pending_money_claim",
       "node": "post_trial_ruling",
-      "asked_when": "post-trial motions are filed and the ruling can fall inside the analysis period",
       "state_fields": [
         "case",
         "question",
         "standard",
         "record_items",
-        "path_facts",
-        "assumptions",
-        "evidence",
-        "readings"
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
+        "instructions": "How does the court dispose of the pending post-trial motions as to the money judgment of {judgment_amount} entered on {judgment_entered_on}?",
         "criteria": {
-          "stands": "a money judgment stands (with or without a remittitur the claimant accepts)",
-          "set_aside": "no money judgment survives: judgment as a matter of law, or a new trial"
-        }
-      },
-      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+          "unchanged": "The money judgment stands as entered.",
+          "reduced": "The court reduces the money judgment to an amount from {reduced_low} to {reduced_high}, outright or on condition that {claimant} accepts it in place of a new trial.",
+          "set_aside": "No money judgment remains: the court grants judgment as a matter of law or a new trial."
+        },
+        "criteria_from_host": true
+      }
     },
     {
       "id": "forecast_judgment_response",
@@ -2149,6 +2158,93 @@
         "criteria_from_host": true
       },
       "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+    },
+    {
+      "id": "forecast_verdict_amount",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does the amount entered on {form_item} of the verdict form exceed {threshold}?",
+      "actor": "jury",
+      "template": "pending_money_claim",
+      "node": "verdict_amount",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does the amount entered on {form_item} of the verdict form exceed {threshold}?",
+        "criteria": {
+          "true": "The amount entered on {form_item} exceeds {threshold}.",
+          "false": "The amount entered on {form_item} is {threshold} or less."
+        }
+      }
+    },
+    {
+      "id": "forecast_remittitur_elected",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+      "actor": "{claimant}",
+      "template": "pending_money_claim",
+      "node": "remittitur_elected",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+        "criteria": {
+          "true": "{claimant} accepts the remitted amount of {remitted_amount}.",
+          "false": "{claimant} does not accept the remitted amount."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_appeal",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {company} file a notice of appeal from the judgment by {appeal_deadline}?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "appeal",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {company} file a notice of appeal from the judgment by {appeal_deadline}?",
+        "criteria": {
+          "true": "{company} files a notice of appeal by {appeal_deadline}.",
+          "false": "{company} files no notice of appeal by {appeal_deadline}."
+        }
+      }
     }
   ],
   "retired_in_4_0_0": {

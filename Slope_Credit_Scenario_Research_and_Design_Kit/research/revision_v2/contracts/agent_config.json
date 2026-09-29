@@ -274,7 +274,14 @@
         },
         "event_forecast": {
           "trigger": "host, when the analysis is built: one request per question and situation",
-          "questions": []
+          "questions": [
+            "forecast_verdict_finding",
+            "forecast_verdict_amount",
+            "forecast_post_trial_motions",
+            "forecast_post_trial_ruling",
+            "forecast_remittitur_elected",
+            "forecast_claim_appeal"
+          ]
         }
       },
       "state_policy": "The host builds each state from immutable run objects (dependency text, evidence section or table text with its heading path, agent-authored claim or finding). The agent never supplies raw Jev state or question IDs.",
