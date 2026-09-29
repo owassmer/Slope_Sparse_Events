@@ -647,8 +647,38 @@ class Forecaster:
     def equity_inflows(self, d: DisputeInstance) -> np.ndarray | None:
         """The integration point for the J1b top line: [draws, days] cumulative net equity proceeds the channels can
         deliver by each day at their most (QUESTIONS §2.6: at-the-market sales from the review date and offerings
-        up to the share capacity), from the equity code. None until that code is merged: no equity inflow."""
-        return None
+        up to the share capacity), or None where the case has no share ledger (4.0.0).
+        The at-the-market sales are not in it: `instrument_cash` books them into the Chain's own cash, at the full
+        pace from the review date on the verdict line's path (no petition, no delisting), so `verdict_lines` reads
+        them from `cum`. The offerings are the company's decision (D7, D8), so no path is assumed to book them; at
+        their most they run back to back from the review date (the earliest any occasion can initiate one), each
+        initiated the day the last closes, on the Chain's own terms and ledger (January's gross, or the shares left
+        times the price), until no capacity is left or the next would close after the horizon. This bounds every
+        path's offering proceeds by each day: a later occasion only finds fewer shares left and closes later."""
+        from app.analysis.events import BIG, Chain
+
+        if "value" not in self.m["parameters"].get("share_ledger", {}):
+            return None
+        memo = self.__dict__.setdefault("_inflows", {})
+        if d.instance_id in memo:
+            return memo[d.instance_id]
+        ch = Chain(d, self.setup, self.m, self.draws, self.sens)
+        ch.instrument_cash()
+        day, k = np.zeros(ch.n, dtype=np.int64), 0
+        while True:
+            occasion = f"top_line_{k}"
+            if not ch.initiate(day, occasion).any():
+                break
+            ch.offering_outcome(occasion, True)
+            day = np.where(ch.offerings[-1][2], ch.offerings[-1][1], BIG)
+            k += 1
+        per = np.zeros((ch.n, ch.N), dtype=np.int64)
+        for o in ch._offers:
+            rows = np.flatnonzero(o["closed"])
+            per[rows, o["close"][rows]] += o["net"][rows]
+        out = np.cumsum(per, axis=1)
+        memo[d.instance_id] = out
+        return out
 
     def verdict_classes(self, d: DisputeInstance) -> dict[str, list[list[tuple[str, str]]]]:
         """The jury's verdict, in the form's order (case verdict_form; QUESTIONS §4.1 J1, J1b), as disjoint

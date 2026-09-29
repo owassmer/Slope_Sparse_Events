@@ -238,12 +238,14 @@ def test_6_coupon_base_shares_sensitivity_cash():
     base, _ = run(())
     cash, _ = run((), {"coupon_cash_share": True})
     day = base.ix(date(2024, 6, 17))
-    assert (base.ev.cash[:, day] == 0).all()
-    assert (cash.ev.cash[:, day] == -132_000_000).all() and (cash.ev.cash.sum(axis=1) == -132_000_000).all()
+    coupon = lambda ev: ev.kinds["notes_interest"]  # noqa: E731  the at-the-market receipts are cash too (§2.6)
+    assert (coupon(base.ev)[:, day] == 0).all()
+    assert (coupon(cash.ev)[:, day] == -132_000_000).all() and (coupon(cash.ev).sum(axis=1) == -132_000_000).all()
+    assert (cash.ev.cash - base.ev.cash == coupon(cash.ev)).all()  # the coupon is the only difference
     filed, tr = run((("verdict", "I0", "claimant_theory"), ("judgment_response", "entry", "file")),
                     {"coupon_cash_share": True})
     early = (tr.events.petition >= 0) & (tr.events.petition <= day)
-    assert early.all() and (tr.events.cash[:, day] == 0).all()  # a petition before it: no coupon
+    assert early.all() and (coupon(tr.events)[:, day] == 0).all()  # a petition before it: no coupon
 
 
 def test_7_cash_facts_equal_the_engine_on_every_trajectory(tree):
