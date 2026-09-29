@@ -1772,12 +1772,12 @@ class Chain:
             return self.F.copy()
         raise ValueError(f"Unknown chain step {node}")
 
-    def run(self, steps) -> Trace:
+    def run(self, steps, day_only: bool = False) -> Trace:
         self.instrument_cash()
         tr = Trace(self.ev)
         for node, ctx, branch in steps:
             self.advance(tr, node, ctx, branch)
-        return self.finish(tr)
+        return self.finish(tr, day_only)
 
     def advance(self, tr: Trace, node: str, ctx: str, branch: str) -> None:
         """One step of `run`: book it and record its decision day and path facts. The cash floor and cash exhaustion
@@ -2028,12 +2028,18 @@ class Chain:
         v.until(bound) if levy else v.upto(bound)
         return v
 
-    def _upto_dated(self, before, every: bool, levy) -> bool:
+    def _upto_dated(self, before, every: bool, levy, target: int | None = None) -> bool:
         """`upto` under the equity model: each trajectory books its waiting decisions one at a time, the earliest-
         dated first (ties in walk order), each day recomputed on the cash as booked so far, so a later-walked step
-        dated before an earlier-walked one books first. every: all left, the undated last (they book nothing)."""
+        dated before an earlier-walked one books first. every: all left, the undated last (they book nothing).
+        target: a waiting step's index (`finish(day_only=True)` of a prefix ending in it): on each trajectory, every
+        decision dated inside the horizon up to and including it (the order `every` books them in), then those
+        dated on its own day; `before` is ignored."""
         moved = False
+        tdone = next((w[3] for w in self.waiting if w[0] == target), None) if target is not None else None
         while self.waiting:
+            if tdone is not None:  # the target's day is known once it is booked on the trajectory
+                before = np.where(tdone, self.rec[0][target] + 1, self.N)
             best = np.full(self.n, BIG + 1, dtype=np.int64)
             pick = np.full(self.n, -1, dtype=np.int64)
             days = []
@@ -2096,21 +2102,50 @@ class Chain:
             if not moved:
                 break
 
-    def finish(self, tr: Trace) -> Trace:
+    def _book_to_day(self) -> None:
+        """The day-only end of a prefix (`finish(day_only=True)`): on each trajectory, the waiting decisions dated up
+        to the last step's decision day, in the order the whole path books them (a prefix of that order), and nothing
+        after it. The engine is causal (a day reads nothing booked after it), so every read of the prefix as of its
+        decision day (cash, owed, marks and petition on or before it, its facts, its situation) equals the whole
+        path's; the fingerprint of the event cash to the horizon is not computed (`_Prefix.digest` None). Where the
+        last step itself waits, its day is known only once it books: every decision before it, it, then those on
+        its day. Trajectories where the step falls outside the horizon book nothing more (no read looks there). A
+        walked stay's snapshot is its approval day's (`c_situations`, `_snapshot_day`): booked up to that day."""
+        i = len(self.rec[0]) - 1
+        if any(w[0] == i for w in self.waiting):
+            self._upto_dated(None, False, None, target=i)
+            return
+        t, u = self.rec[0][i], self._snapshot_day(i)
+        if self.waiting:  # a snapshot after the horizon reads its last day (`c_situation` clips)
+            self._upto_dated(np.where(u < self.N, u + 1, np.where(t < self.N, self.N, 0)), False, None)
+
+    def _snapshot_day(self, i: int) -> np.ndarray:
+        """The day step i's question-state snapshot reads (`c_situations`): a walked stay's approval day, else the
+        step's decision day."""
+        return self.stays[i]["approval"] if i in self.stays else self.rec[0][i]
+
+    def finish(self, tr: Trace, day_only: bool = False) -> Trace:
         """The end of `run`: the pending levy, the waiting floor decisions, the petition's stay of the feed's cash,
-        and the path's marks."""
+        and the path's marks. day_only: the waiting decisions only up to the last step's day (`_book_to_day`), and
+        the question-state snapshot of the last step only."""
         if self.pending_levy is not None:  # the floor decisions dated up to the pending levy, and the levy
             self.until(self.pending_levy + 1)
         self.flush_levy()
         self.restay()
         triggers = self.trigger_days()  # as of the last step: a floor decision dated after it is not in them
-        self.upto(None, every=True)
+        day_only = day_only and self.equity and bool(self.rec[0])
+        if day_only:
+            self._book_to_day()
+        else:
+            self.upto(None, every=True)
         self.restay()
-        for st in self.stays.values():  # a stay not approved: its security sized on the whole path, for its facts
-            if not st["approved"]:
-                self._size_stay(st, read=False)
-        tr.stays = {i: {k: st[k] for k in ("day", "cash", "owed", "collateral", "stay_offer", "petition",
-                                         "triggers")} for i, st in self.stays.items()}
+        if not day_only:
+            for st in self.stays.values():  # a stay not approved: its security sized on the whole path, for its facts
+                if not st["approved"]:
+                    self._size_stay(st, read=False)
+        tr.stays = {} if day_only else {
+            i: {k: st[k] for k in ("day", "cash", "owed", "collateral", "stay_offer", "petition", "triggers")}
+            for i, st in self.stays.items()}
         tr.day, tr.cash, tr.owed, tr.collateral = (list(x) for x in self.rec)
         tr.late = {i: dict(v) for i, v in self.late.items()}
         if self.late and max(self.late) == len(self.rec[0]) - 1:  # the path ends at a floor: its equity available
@@ -2139,7 +2174,8 @@ class Chain:
         tr.settle_offer, tr.stay_offer, tr.raise_offer = self.settle_offer, self.stay_offer, self.raise_offer
         tr.reads = self.reads
         tr.triggers = triggers
-        tr.situations = self.c_situations(tr)  # worker C: the question-state snapshot
+        tr.situations = ({len(tr.day) - 1: self.c_situation(self._snapshot_day(len(tr.day) - 1))} if day_only
+                         and (self.pending or self.ordinary) else self.c_situations(tr))  # the question-state snapshot
         tr.groups = {i: g.copy() for i, g in self.grec.items()}
         return tr
 
@@ -2267,14 +2303,14 @@ def _copied(v):
     return copy.deepcopy(v)
 
 
-def _run(make, steps, draws: Draws, key: tuple, inputs: tuple) -> Trace:
+def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = False) -> Trace:
     """`make().run(steps)`, resumed from the deepest prefix of `steps` already walked. A chain's state after k steps
     depends only on those k steps, so with `draws.prefixes` on (the tree builder and the analysis walk paths in
     depth-first order) each call walks only the steps after the prefix it shares with the previous call. The cache
     holds one stack of states per chain: the root (after the instrument's cash) and each step of the last path."""
     cache = draws.prefixes
     if cache is None:
-        return make().run(steps)
+        return make().run(steps, day_only)
     entry = cache.get(key)
     if entry is None or len(entry[0]) != len(inputs) or any(a is not b for a, b in zip(entry[0], inputs, strict=True)):
         root = make()
@@ -2290,13 +2326,14 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple) -> Trace:
     for step in steps[k:]:
         ch.advance(tr, *step)
         stack.append((step, ch.clone(), None))
-    return ch.finish(tr)
+    return ch.finish(tr, day_only)
 
 
 def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws,
-                sens: dict | None = None) -> Trace:
+                sens: dict | None = None, day_only: bool = False) -> Trace:
+    """The path's trace; day_only: settled only to its last step's decision day (`Chain._book_to_day`)."""
     return _run(lambda: Chain(d, setup, model, draws, sens), canon(path.steps), draws, (d.instance_id,),
-                (d, setup, model, sens))
+                (d, setup, model, sens), day_only)
 
 
 GROUPED = (*RESPONSES, "cash_floor", "cash_out")  # questions asked per option group (Owen's ruling, 29 Sep 2026)
@@ -2331,10 +2368,11 @@ def answers_levy(node: str, ctx: str) -> bool:
     return node in RESPONSES and ctx in ("I1", "post")
 
 
-def bank_trace(fin, steps, setup: Setup, model: dict, draws: Draws, sens: dict | None = None) -> Trace:
+def bank_trace(fin, steps, setup: Setup, model: dict, draws: Draws, sens: dict | None = None,
+               day_only: bool = False) -> Trace:
     """The bank view's chain: the borrower's instrument `fin` (common input; None: none) and its distress steps."""
     return _run(lambda: Chain(None, setup, model, draws, sens, fin=fin), canon(steps), draws, (BANK,),
-                (fin, setup, model, sens))
+                (fin, setup, model, sens), day_only)
 
 
 def event_cash(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws) -> EventCash:

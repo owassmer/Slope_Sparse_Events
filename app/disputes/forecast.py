@@ -215,7 +215,7 @@ class _Prefix:
     owed: list
     collateral: list
     petition: np.ndarray
-    digest: bytes
+    digest: bytes | None  # None: a day-only trace (events.Chain._book_to_day), whose cash to the horizon is unread
     cause: np.ndarray | None = None  # per draw: the rule that booked the earliest petition (events.PETITION_CAUSES)
     marks: dict | None = None  # condition -> the day it holds from, per draw (events.MARKS)
     settle_offer: np.ndarray | None = None  # the traced step's settlement amount on its payment date (0: none)
@@ -227,21 +227,25 @@ class _Prefix:
     groups: np.ndarray | None = None  # the traced step's option group per draw (events.Chain.option_group; -1: not asked)
 
     @classmethod
-    def of(cls, tr, daily: bool = False, whole: bool = False) -> _Prefix:
+    def of(cls, tr, daily: bool = False, whole: bool = False, digest: bool = True) -> _Prefix:
         """daily: the cash by kind and the incurred days are in the digest too (the processor orders by them); whole:
-        every step's facts (the page's path sequence), not only the traced step's."""
+        every step's facts (the page's path sequence), not only the traced step's; digest: False for a day-only
+        trace (its event cash after the decision day is not booked)."""
         from app.analysis.events import KINDS, OBLIGATIONS
 
         ev = tr.events
-        h = hashlib.blake2b(digest_size=32)
-        extra = [*(ev.kinds[k] for k in KINDS), *(ev.incurred[k] for k in OBLIGATIONS)] if daily else []
-        for a in (ev.cash, ev.lock, ev.capacity, *extra):  # sparse: each non-zero's flat index and value (fixed shape)
-            flat = np.ascontiguousarray(a).ravel()
-            i = np.flatnonzero(flat)
-            h.update(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes())
-        h.update(np.ascontiguousarray(ev.petition).tobytes())
+        h = None
+        if digest:
+            h = hashlib.blake2b(digest_size=32)
+            extra = [*(ev.kinds[k] for k in KINDS), *(ev.incurred[k] for k in OBLIGATIONS)] if daily else []
+            for a in (ev.cash, ev.lock, ev.capacity, *extra):  # sparse: each non-zero's flat index and value
+                flat = np.ascontiguousarray(a).ravel()
+                i = np.flatnonzero(flat)
+                h.update(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes())
+            h.update(np.ascontiguousarray(ev.petition).tobytes())
         last = slice(None) if whole else slice(-1, None)  # later steps read only the traced step's (`tr.day[-1]`)
-        return cls(tr.day[last], tr.cash[last], tr.owed[last], tr.collateral[last], ev.petition.copy(), h.digest(),
+        return cls(tr.day[last], tr.cash[last], tr.owed[last], tr.collateral[last], ev.petition.copy(),
+                   None if h is None else h.digest(),
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
                    tr.triggers, getattr(tr, "raise_offer", None), getattr(tr, "reads", None),
                    (getattr(tr, "situations", None) or {}).get(len(tr.day) - 1),
@@ -496,19 +500,23 @@ class Forecaster:
 
     # --- prefix traces (code timing and arithmetic, before any Jev answer) ----------------------------------------
 
-    def trace(self, d: DisputeInstance, steps: tuple) -> _Prefix:
+    def trace(self, d: DisputeInstance, steps: tuple, full: bool = False) -> _Prefix:
         """The prefix's per-step decision days and path facts, its petition days and a fingerprint of its event cash.
         The dense [draws, days] arrays are dropped once fingerprinted: the tree has thousands of prefixes, and keeping
-        each prefix's arrays held about 20 GB for the Akoustis tree."""
+        each prefix's arrays held about 20 GB for the Akoustis tree. Settled only to the last step's decision day
+        (events.Chain._book_to_day: every read as of that day equals the whole path's; no digest) unless `full`: a
+        read of the event cash, the petition or marks after the decision day (the digest, a petition anywhere)."""
         from app.analysis.events import canon, event_trace
 
         steps = canon(steps)  # a grouped branch books its answer; the path's group is its mask (`_Walk._trace`)
-        hit = self._traces.get(d.instance_id, steps)
+        ns = (d.instance_id, "full") if full else d.instance_id
+        hit = self._traces.get(ns, steps)
         if hit is None:
             path = DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=())
-            hit = self._traces.put(d.instance_id, steps,
-                                   _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens),
-                                              self.setup.cash_processing == "daily"))
+            hit = self._traces.put(ns, steps,
+                                   _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens,
+                                                          day_only=not full),
+                                              self.setup.cash_processing == "daily", digest=full))
         return hit
 
     SIBLINGS = 64  # traced prefixes kept off the current path (sibling probes); its ancestors are all kept
@@ -549,15 +557,17 @@ class Forecaster:
         """The borrower's instrument whose terms are a common input to both views (the notes' coupon), or None."""
         return next((f for d in self.disputes for f in d.financing if f.status != "superseded"), None)
 
-    def bank_trace(self, steps: tuple) -> _Prefix:
+    def bank_trace(self, steps: tuple, full: bool = False) -> _Prefix:
+        """The bank (ordinary) view's prefix, settled to its decision day unless `full` (as `trace`)."""
         from app.analysis.events import BANK, bank_trace, canon
 
         steps = canon(steps)
-        hit = self._traces.get(BANK, steps)
+        ns = (BANK, "full") if full else BANK
+        hit = self._traces.get(ns, steps)
         if hit is None:
-            hit = self._traces.put(BANK, steps, _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m,
-                                                                       self.draws, self.sens),
-                                                            self.setup.cash_processing == "daily"))
+            hit = self._traces.put(ns, steps, _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m,
+                                                                     self.draws, self.sens, day_only=not full),
+                                                          self.setup.cash_processing == "daily", digest=full))
         return hit
 
     @property
@@ -608,7 +618,7 @@ class Forecaster:
     def moves_cash(self, d: DisputeInstance, steps: tuple, a: tuple, b: tuple) -> bool:
         """Whether two branches of a step book different event cash, encumbrance, credit capacity or petition day on
         some trajectory (else they merge)."""
-        return self.trace(d, steps + (a,)).digest != self.trace(d, steps + (b,)).digest
+        return self.trace(d, steps + (a,), full=True).digest != self.trace(d, steps + (b,), full=True).digest
 
     def pay_possible(self, d: DisputeInstance, steps: tuple, step: tuple) -> bool:
         """Arithmetic: 'pay' stays unless the amount owed exceeds available cash on every trajectory of the path at
@@ -1573,14 +1583,14 @@ class _Walk:
                 out.append(c)
         return tuple(out)
 
-    def _raw(self, steps) -> _Prefix:
+    def _raw(self, steps, full: bool = False) -> _Prefix:
         """The prefix's trace on every trajectory, in this walk's view (the forecast's dispute; the ordinary view
-        overrides it)."""
-        return self.fc.trace(self.d, steps)
+        overrides it). Settled to the last step's decision day (`Forecaster.trace`) unless `full`."""
+        return self.fc.trace(self.d, steps, full)
 
-    def _trace(self, steps) -> _Prefix:
+    def _trace(self, steps, full: bool = False) -> _Prefix:
         """The prefix's trace on the path's trajectories (`mask_of`, `masked`): every read the walk makes of it."""
-        return masked(self._raw(steps), self.mask_of(steps))
+        return masked(self._raw(steps, full), self.mask_of(steps))
 
     # --- within-path grouping (Owen's ruling, 29 Sep 2026) ----------------------------------------------------------
     def quiet_of(self, node: str) -> str:
@@ -1766,7 +1776,7 @@ class _Walk:
         levy-day response either)."""
         from app.analysis.events import BIG, pval
 
-        q = self._trace(s.steps + (yes,))
+        q = self._trace(s.steps + (yes,), True)  # the petition after the execution day bounds them
         t = q.day[-1]
         pet = np.where(q.petition < 0, BIG, q.petition)
         on = (t < self.N) & (t < pet)
@@ -1946,7 +1956,7 @@ class _Walk:
         for branch, parts in self.unfiled(s, "judgment_default", phase, classes,
                                           (("holders_file", "accelerated"),)).items():
             y = take(("judgment_default", phase, branch), (composite(parts), "yes"), notes_due=True)
-            if branch != "accelerated" and (self._trace(y.steps).petition >= 0).all():
+            if branch != "accelerated" and (self._trace(y.steps, True).petition >= 0).all():
                 self.floor(y, "petition")  # a petition on every trajectory
             else:
                 then(y)
@@ -1962,8 +1972,8 @@ class _Walk:
         """A holders' petition that falls after the period on every trajectory books nothing: its class joins the
         class in which nobody files (the two are identical in cash, dates and state)."""
         for filed, none in pairs:
-            if filed in classes and none in classes and self._trace(s.steps + ((node, ctx, filed),)).digest \
-                    == self._trace(s.steps + ((node, ctx, none),)).digest:
+            if filed in classes and none in classes and self._trace(s.steps + ((node, ctx, filed),), True).digest \
+                    == self._trace(s.steps + ((node, ctx, none),), True).digest:
                 classes[none] = classes.pop(filed) + classes[none]
         return classes
 
@@ -1979,7 +1989,7 @@ class _Walk:
         after = lambda y: self.notes_petition(y, "I1", self.ruling)  # noqa: E731
 
         def filed(y: _S) -> None:  # the walk goes on where the day does not arise on some trajectory
-            everywhere = (self._trace(y.steps).petition >= 0).all()
+            everywhere = (self._trace(y.steps, True).petition >= 0).all()
             self.emit(y, "petition") if everywhere else after(y)
 
         if self.pend and self.reading() == "entered" and s.a4 == "seek" \
@@ -2421,7 +2431,7 @@ class _Walk:
         close_days, events.Chain.offering_terms) on or after the horizon's end or a petition."""
         from app.analysis.events import BIG
 
-        tr = self._trace(s.steps + (("offering", occasion, "no"),))
+        tr = self._trace(s.steps + (("offering", occasion, "no"),), True)  # a petition before the close
         init = tr.day[-1]  # the initiation day (BIG where none was initiated)
         m = self.mask_of(s.steps)
         on = np.ones(len(init), dtype=bool) if m is None else m
@@ -2616,8 +2626,8 @@ class _OrdinaryWalk(_Walk):
         self.listing(_S(cls=""), "operating")
         return self.out
 
-    def _raw(self, steps) -> _Prefix:
-        return self.fc.bank_trace(tuple(steps))
+    def _raw(self, steps, full: bool = False) -> _Prefix:
+        return self.fc.bank_trace(tuple(steps), full)
 
     def _listing_dates(self) -> dict[str, int]:
         from app.analysis.events import Chain
