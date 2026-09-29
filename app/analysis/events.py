@@ -410,6 +410,7 @@ class Trace:
     # daily processing: a stay step's index -> the security sized on the whole path (Chain.restay): its approval day,
     # the cash, amount owed, collateral and reduced security that day, and the path's petition day
     stays: dict = field(default_factory=dict)
+    situations: dict = field(default_factory=dict)  # worker C: step index -> Chain.c_situation
 
 
 class Chain:
@@ -2022,6 +2023,7 @@ class Chain:
         tr.settle_offer, tr.stay_offer, tr.raise_offer = self.settle_offer, self.stay_offer, self.raise_offer
         tr.reads = self.reads
         tr.triggers = triggers
+        tr.situations = self.c_situations(tr)  # worker C: the question-state snapshot
         return tr
 
     SHARED = frozenset({"d", "s", "m", "dr", "basis", "sens", "fin", "rows", "bookings"})  # read-only inputs, never copied
@@ -2060,6 +2062,95 @@ class Chain:
                 rep[self.delisted < self.N] = self.repurchase_day(self.delisted[self.delisted < self.N])
                 out["repurchase_due"] = inside(rep)
         return out
+
+
+    # --- step 9 worker C: the question-state snapshot and the interface it reads ---------------------------------
+    # The step-9 interface (SPLIT_common.md) is implemented by workers A and B. Each method below is defined here only
+    # where no earlier definition in this class exists (`locals()` in the class body), so it never shadows theirs;
+    # INTEGRATOR: delete each stub once its real definition is merged. Per-trajectory attributes are read through
+    # `c_read`, which raises NotImplementedError naming any the chain does not have.
+    C_INTERFACE = {"A": ("ledger_left", "atm_to_date", "offering_terms", "offering_pending", "offerings",
+                         "listing_status", "notes_due_day", "notes_due_how", "arrears_by_class", "first_unpaid",
+                         "nonpayment_day"),
+                   "B": ("judgment_amount_entered", "judgment_standing", "band", "band_range", "default_available_day",
+                         "holder_route_days_path", "remitted_amount")}
+
+    if "ledger_left" not in locals():
+        def ledger_left(self, day):  # STUB (worker A): shares available on the day, per trajectory
+            raise NotImplementedError("Chain.ledger_left (worker A)")
+    if "atm_to_date" not in locals():
+        def atm_to_date(self, day):  # STUB (worker A): net at-the-market proceeds received by the day, cents
+            raise NotImplementedError("Chain.atm_to_date (worker A)")
+    if "offering_terms" not in locals():
+        def offering_terms(self, day=None):  # STUB (worker A): gross, costs, net, price_cents_x1e4, shares,
+            # close_days, each [n], at the capacity left on the day
+            raise NotImplementedError("Chain.offering_terms (worker A)")
+    if "listing_status" not in locals():
+        def listing_status(self, day):  # STUB (worker A): listed | hearing_requested | suspended | delisted
+            raise NotImplementedError("Chain.listing_status (worker A)")
+    if "arrears_by_class" not in locals():
+        def arrears_by_class(self, day):  # STUB (worker A): class -> [n] cents, from the processor
+            raise NotImplementedError("Chain.arrears_by_class (worker A)")
+    if "judgment_standing" not in locals():
+        def judgment_standing(self, day):  # STUB (worker B): none | unpaid | stayed | levied_in_part | reduced | ...
+            raise NotImplementedError("Chain.judgment_standing (worker B)")
+
+    def c_read(self, name: str, *args):
+        """An interface value: an attribute or property as it is, a method called with `args`."""
+        if not hasattr(self, name):
+            raise NotImplementedError(f"Chain.{name} (step-9 interface, not on this branch)")
+        v = getattr(self, name)
+        if callable(v) and not isinstance(v, np.ndarray):
+            if name == "nonpayment_day":  # the base's method takes no day
+                return v()
+            return v(*args)
+        return v
+
+    def c_situation(self, day: np.ndarray) -> dict:
+        """What a question's situation reads on its decision day (QUESTIONS §§2.1-2.6), per trajectory: each entry an
+        array [n], a scalar or dict, or an Awaiting marker where the interface is not built on this branch."""
+        day = np.asarray(day, dtype=np.int64)
+        t = np.clip(day, 0, self.N - 1)  # the end of the decision day's processing (the question's cash is the row's)
+        out: dict = {"cash_end": np.maximum(self.cash_at(t), 0), "owed": self.owed_at(day),
+                     "entry": (np.broadcast_to(np.asarray(self.entry_ix(), dtype=np.int64), (self.n,)).copy()
+                               if self.has_judgment() else np.full(self.n, BIG, dtype=np.int64)),
+                     "ruling": np.asarray(self.F, dtype=np.int64).copy(), "delisted": self.delisted.copy(),
+                     "stayed_from": np.asarray(self.stayed_from, dtype=np.int64).copy()}
+        reads = {"standing": ("judgment_standing", day), "entered": ("judgment_amount_entered",),
+                 "band": ("band",), "band_range": ("band_range",), "default_available": ("default_available_day",),
+                 "route_days": ("holder_route_days_path",), "remitted": ("remitted_amount",),
+                 "listing": ("listing_status", day), "atm": ("atm_to_date", day), "ledger": ("ledger_left", day),
+                 "offering_terms": ("offering_terms", day),
+                 "offering_pending": ("offering_pending_on", day) if hasattr(self, "offering_pending_on")
+                 else ("offering_pending",),
+                 "offerings": ("offerings",), "notes_due_day": ("notes_due_day",), "notes_due_how": ("notes_due_how",),
+                 "arrears": ("arrears_by_class", day), "first_unpaid": ("first_unpaid",),
+                 "nonpayment_day": ("nonpayment_day",)}
+        for key, (name, *args) in reads.items():
+            try:
+                v = self.c_read(name, *args)
+            except NotImplementedError:
+                v = Awaiting(name)
+            out[key] = _copied(v)
+        return out
+
+    def c_situations(self, tr) -> dict:
+        """A pending claim's (or the ordinary view's) snapshot at the steps whose facts a question reads: the last
+        step (a prefix's decision), each state-triggered step and each stay (their facts come from the whole path)."""
+        if not (self.pending or self.ordinary) or not tr.day:
+            return {}
+        at = {len(tr.day) - 1: tr.day[-1], **{i: tr.day[i] for i in tr.late},
+              **{i: st["day"] for i, st in tr.stays.items()}}
+        return {i: self.c_situation(day) for i, day in at.items()}
+
+class Awaiting:
+    """A question-state value whose step-9 interface accessor is not built on this branch (worker C's snapshot)."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __repr__(self) -> str:
+        return f"Awaiting({self.name})"
 
 
 def _copied(v):
