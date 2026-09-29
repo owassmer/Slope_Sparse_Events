@@ -88,17 +88,23 @@ def tree():
 
 
 def test_1_every_path_family_sums_to_one(tree):
-    """Composition: under random Dirichlet answers for every node, the dispute's and the bank view's path
-    probabilities each sum to 1 (every composite is disjoint and exhaustive)."""
-    from app.disputes.forecast import Dist, path_probability
+    """Composition: under random Dirichlet answers for every node, on every draw the probabilities of the dispute's
+    paths that follow it sum to 1, and likewise the bank view's (every composite is disjoint and exhaustive, and a
+    question asked per option group forks each draw's path once per answer of its own group)."""
+    from app.disputes.forecast import Dist, path_mask, path_probability
 
     fc, _, paths, bank = tree
+    n = fc.draws.n
     rng = np.random.default_rng(11)
     for _ in range(5):
         dist = Dist({k: dict(zip(n.branches, rng.dirichlet(np.ones(len(n.branches))), strict=True))
                      for k, n in {**fc.nodes, **fc.bank_nodes}.items()})
         for family in (paths, bank):
-            assert abs(sum(path_probability(p.edges, dist) for p in family) - 1) < 1e-9
+            cover = np.zeros(n)
+            for p in family:
+                m = path_mask(p, n)
+                cover += path_probability(p.edges, dist) * (1.0 if m is None else m)
+            assert np.abs(cover - 1).max() < 1e-9
 
 
 def test_2_a_missing_judgment_never_activates_enforcement(tree):

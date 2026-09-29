@@ -1073,19 +1073,12 @@ class Chain:
         return np.where(on, pay.astype(np.int8) + 2 * offer.astype(np.int8), -1).astype(np.int8)
 
     def book_grouped(self, node: str, branch: str, day: np.ndarray, book) -> np.ndarray:
-        """Book a step's branch on day [draws] through `book(branch, day) -> amount [draws]`; a grouped branch books
-        each group's answer on its own trajectories. Keeps the option groups (`_grp`) for the step's record."""
-        g = self.option_group(node, day) if node in GROUPED and (self.pending or self.equity) else None
-        self._grp = g
-        by = grouped_branches(branch)
-        if by is None:
-            return book(branch, day)
-        if g is None:
-            raise ValueError(f"a grouped branch on {node}, which has no option groups")
-        out = np.zeros(self.n, dtype=np.int64)
-        for code, b in by.items():
-            out = out + book(b, np.where(g == code, day, BIG))
-        return out
+        """Book a step's branch on day [draws] through `book(branch, day) -> amount [draws]`, keeping the option groups
+        (`_grp`) measured before it for the step's record. A grouped question's answer is booked on every trajectory:
+        the path's mask (forecast.py `_Walk.mask_of`) holds the group it was asked of, and the trajectories are
+        independent, so what it books outside the mask is never read."""
+        self._grp = self.option_group(node, day) if node in GROUPED and (self.pending or self.equity) else None
+        return book(branch, day)
 
     def initiate(self, day: np.ndarray, occasion: str) -> np.ndarray:
         """The company initiates an underwritten offering on the day where one is available (N1 follows): its
@@ -1789,7 +1782,9 @@ class Chain:
     def advance(self, tr: Trace, node: str, ctx: str, branch: str) -> None:
         """One step of `run`: book it and record its decision day and path facts. The cash floor and cash exhaustion
         (FLOOR_NODES) are state-triggered: walked here, they book on each trajectory on their own day (`upto`), after
-        every step dated before it and before every step dated after it, whatever the walk order."""
+        every step dated before it and before every step dated after it, whatever the walk order. A grouped branch
+        ('@<group>=<answer>') books its answer (`plain`)."""
+        branch = plain(branch)
         if not self.waits(node, ctx) and not self.waiting and not answers_levy(node, ctx):
             self.flush_levy()  # an earlier levy is in the cash the next decision sees
         self.settle_offer = np.zeros(self.n, dtype=np.int64)
@@ -2300,19 +2295,29 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple) -> Trace:
 
 def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws,
                 sens: dict | None = None) -> Trace:
-    return _run(lambda: Chain(d, setup, model, draws, sens), tuple(path.steps), draws, (d.instance_id,),
+    return _run(lambda: Chain(d, setup, model, draws, sens), canon(path.steps), draws, (d.instance_id,),
                 (d, setup, model, sens))
 
 
 GROUPED = (*RESPONSES, "cash_floor", "cash_out")  # questions asked per option group (Owen's ruling, 29 Sep 2026)
 
 
-def grouped_branches(branch: str) -> dict[int, str] | None:
-    """A grouped step's answers (`@code=branch;...`): each option group's code -> the branch its trajectories book
-    (Chain.option_group: bit 0, the balance can be paid; bit 1, an offering is available). None: one branch for all."""
-    if not branch.startswith("@"):
-        return None
-    return {int(c): b for c, b in (x.split("=") for x in branch[1:].split(";"))}
+def plain(branch: str) -> str:
+    """A step's answer: a grouped step's branch '@<group>=<answer>' (the path asked it of one option group,
+    Chain.option_group: bit 0, the balance can be paid; bit 1, an offering is available; -1, not asked) books
+    <answer>."""
+    return branch.split("=", 1)[1] if branch.startswith("@") else branch
+
+
+def step_group(branch: str) -> int | None:
+    """The option group a grouped step's branch names (None: not grouped)."""
+    return int(branch[1:].split("=", 1)[0]) if branch.startswith("@") else None
+
+
+def canon(steps) -> tuple:
+    """The steps as the engine books them (grouped branches as their answers): paths that differ only in the group
+    they follow share one chain."""
+    return tuple((n, c, plain(b)) if b.startswith("@") else (n, c, b) for n, c, b in steps)
 
 
 def group_tags(node: str, code: int) -> tuple[str, ...]:
@@ -2328,7 +2333,7 @@ def answers_levy(node: str, ctx: str) -> bool:
 
 def bank_trace(fin, steps, setup: Setup, model: dict, draws: Draws, sens: dict | None = None) -> Trace:
     """The bank view's chain: the borrower's instrument `fin` (common input; None: none) and its distress steps."""
-    return _run(lambda: Chain(None, setup, model, draws, sens, fin=fin), tuple(steps), draws, (BANK,),
+    return _run(lambda: Chain(None, setup, model, draws, sens, fin=fin), canon(steps), draws, (BANK,),
                 (fin, setup, model, sens))
 
 
