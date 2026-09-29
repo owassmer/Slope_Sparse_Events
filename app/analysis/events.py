@@ -25,7 +25,7 @@ import numpy as np
 from app.analysis.setup import SEED, Setup
 from app.disputes.forecast import DisputePath
 from app.domain.investigation import DisputeInstance
-from app.finance.calendar import add_months, next_business_day
+from app.finance.calendar import BANK_HOLIDAYS, add_months, is_business_day, next_business_day
 
 TOLLING = {"rule_50b", "rule_52b", "rule_59a", "rule_59e", "injunction"}  # FRAP 4(a)(4)(A); the injunction ruling tolls
 MONEY_MOTIONS = {"rule_50b", "rule_52b", "rule_59a", "rule_59e"}
@@ -131,8 +131,8 @@ class Draws:
 def pval(model: dict, key: str, sensitivity: bool | str = False):
     """The parameter's value: its base, its sensitivity (True), or the named sensitivity (a string)."""
     p = model["parameters"][key]
-    if isinstance(sensitivity, str):
-        return sensitivity
+    if isinstance(sensitivity, str) or (isinstance(sensitivity, (int, float)) and not isinstance(sensitivity, bool)):
+        return sensitivity  # a named sensitivity (a string, or one figure of a list of sensitivities)
     return p["sensitivity"] if sensitivity and "sensitivity" in p else p["value"]
 
 
@@ -143,6 +143,27 @@ def rate_1961_bps(model: dict, judgment: date) -> int:
     if not weeks or (judgment - date.fromisoformat(weeks[-1])).days > 7:
         raise ValueError(f"No §1961 rate for the week before {judgment}; add it to the dispute model (sourced)")
     return int(table[weeks[-1]])
+
+
+# Nasdaq trading days (QUESTIONS_20240514 §2.6): weekdays other than the exchange's holidays. The Federal Reserve's
+# holidays are the exchange's except Columbus Day and Veterans Day (the exchange is open) and Good Friday (it is not).
+EXCHANGE_OPEN_ON_BANK_HOLIDAY = frozenset(date.fromisoformat(x) for x in ("2024-10-14", "2024-11-11", "2025-10-13",
+                                                                        "2025-11-11", "2026-10-12", "2026-11-11"))
+EXCHANGE_CLOSED = frozenset(date.fromisoformat(x) for x in ("2024-03-29", "2025-04-18", "2026-04-03"))
+
+
+def trading_day(d: date) -> bool:
+    return (d.weekday() < 5 and d not in EXCHANGE_CLOSED
+            and (d not in BANK_HOLIDAYS or d in EXCHANGE_OPEN_ON_BANK_HOLIDAY))
+
+
+def settlement_date(d: date, n: int) -> date:
+    """T+n: the n-th settlement (business) day after the trade date."""
+    out, k = d, 0
+    while k < n:
+        out += timedelta(days=1)
+        k += is_business_day(out)
+    return out
 
 
 def business_days_after(d: date, n: int) -> date:
@@ -347,6 +368,12 @@ BIG = 10**6  # a day index meaning "not in this path / never"
 PENDING = "liability_pending"  # the stage of a claim at trial (template pending_money_claim, dispute model 4.1.0)
 RESPONSES = ("debtor_response", "judgment_response")  # the debtor's response steps (4.0.0; 4.1.0)
 FLOOR_NODES = {"cash_floor": "petition_cash_floor", "cash_out": "petition_cash_out"}  # step -> its question node
+# the equity model's distress loop (QUESTIONS_20240514 §4.4): the state-triggered steps, each booked on its own day in
+# date order (`_upto_dated`): D7 at the k-th fall below the need after a recovery (ctx k), D8 at the first unpaid
+# obligation, N1 after an initiation (ctx: the initiating occasion), and §3.3 general nonpayment (D9 and H3)
+DISTRESS = ("cash_floor", "cash_out", "offering", "nonpayment")
+DISTRESS_NODES = {"cash_floor": "financing_at_floor", "cash_out": "petition_cash_out"}
+DISTRESS_BOOKINGS = {"initiate_offering": "offer", "file": "petition", "neither": "none"}
 BANK = "bank"  # the bank view's chain: the common borrower inputs and the company's distress decisions, no dispute
 # the dated contract and rule triggers given to the questions (day index; BIG: none), by source: those the dispute
 # sets (`trigger_days` under `self.d`: the appeal deadline and the judgment default's ripe dates, which exist only
@@ -411,8 +438,9 @@ class Chain:
         self.daily = setup.cash_processing == "daily"  # the Chain's cash is the daily processor's (QUESTIONS §2.2)
         if self.daily and not self.engine:
             raise ValueError("daily cash processing reads the loan engine's cash: cash_facts = engine_forward_run")
-        # the case sets raise_capacity: the floor decision is financing_at_floor (4.1.0), else petition_cash_floor
-        self.raising = "value" in model["parameters"].get("raise_capacity", {})
+        # QUESTIONS_20240514 §2.6: the case declares a share ledger, so the company's equity channels (at-the-market
+        # sales, underwritten offerings) and the distress loop (D7, N1, D8, §3.3) run; else the 4.0.0 floor
+        self.equity = "value" in model["parameters"].get("share_ledger", {})
         self.adverse_from = np.full(self.n, BIG, dtype=np.int64)  # entry of a judgment on an adverse verdict branch
         self.adverse_until = np.full(self.n, BIG, dtype=np.int64)  # the ruling that set that judgment aside
         if self.engine and (self.basis is None or self.basis.line is None):
@@ -447,7 +475,20 @@ class Chain:
         self.jd_acted = np.zeros(self.n, dtype=bool)  # the holders acted on the judgment default as entered
         self.settle_offer = np.zeros(self.n, dtype=np.int64)
         self.stay_offer = np.zeros(self.n, dtype=np.int64)
-        self.raise_offer = np.zeros(self.n, dtype=np.int64)
+        self.raise_offer = np.zeros(self.n, dtype=np.int64)  # the net proceeds of an offering available at the step
+        # equity (QUESTIONS §2.6): the at-the-market proceeds booked [draws, days] (None: none), each offering's terms
+        # and outcome, the offerings as (initiated, close, closed [draws]); the listing's dated states; how the notes
+        # fell due; the distress decisions' days (floor k -> day, per draw)
+        self._atm: np.ndarray | None = None
+        self._offers: list[dict] = []
+        self.offerings: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+        self._n1: dict[str, bool] = {}
+        self.hearing_requested = np.full(self.n, BIG, dtype=np.int64)
+        self.suspended = np.full(self.n, BIG, dtype=np.int64)
+        self.notes_due_how = np.full(self.n, "", dtype="<U11")
+        self._how = "declared"
+        self.floor_days: dict[int, np.ndarray] = {}
+        self._at = np.full(self.n, BIG, dtype=np.int64)  # the current step's decision day (the accessors' default)
         self.coupons: list[tuple[int, int, np.ndarray]] = []  # (payment day, cash, still paid per draw)
         self.rec: tuple[list, list, list, list] = ([], [], [], [])  # per step: decision day, cash, owed, collateral
         # the state-triggered decisions (FLOOR_NODES) walked but not yet booked on every trajectory: [step index, node,
@@ -466,6 +507,8 @@ class Chain:
     def mark(self, name: str, day, where=None) -> None:
         day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
         ok = (day >= 0) & (day < self.N) & (True if where is None else where)
+        if name == "notes_due":  # how they fell due (declared, automatic under §7.02 on a (j) default, repurchase)
+            self.notes_due_how = np.where(ok & (day < self.marks[name]), self._how, self.notes_due_how)
         self.marks[name] = np.where(ok, np.minimum(self.marks[name], day), self.marks[name])
 
     def p(self, key: str):
@@ -692,6 +735,8 @@ class Chain:
             self.ev.petition = np.where(win, day, cur)
             self._touch()
         self.pet_cause = np.where(win, PETITION_CAUSES.index(cause), self.pet_cause).astype(np.int8)
+        if win.any():
+            self._atm_rebook()  # the at-the-market sales stop at a petition
 
     def live(self, day: np.ndarray) -> np.ndarray:
         """No petition before the day and the judgment not resolved by it."""
@@ -764,7 +809,7 @@ class Chain:
         self.e_ix = self.E_ix + int(self.m["rules"]["frcp_62a"]["value"]) + 1
         self.E0 = np.maximum(self.e_ix, 0)
 
-    def respond(self, booking: str, day: np.ndarray, cause: str = "enforcement") -> None:
+    def respond(self, booking: str, day: np.ndarray, cause: str = "enforcement", occasion: str = "") -> None:
         """One branch's booking (contract branch_bookings) on the decision day: pay the amount owed, a petition, a
         mark that the company is seeking a transaction, or nothing. A new booking needs its code here."""
         N = self.N
@@ -782,8 +827,8 @@ class Chain:
             self.petition(day, where, cause=cause)
         elif booking == "seek":
             self.mark("seeking", day, self.live(day))
-        elif booking == "raise":
-            self.raise_equity(day)
+        elif booking == "offer":  # an underwritten offering, where one is available (N1 follows)
+            self.initiate(day, occasion)
         elif booking != "none":
             raise ValueError(f"No Chain booking {booking!r} (contract branch_bookings)")
 
@@ -794,27 +839,224 @@ class Chain:
         day = np.asarray(day)
         return (day >= self.adverse_from) & (day < self.adverse_until) & (day < self.resolved)
 
-    def raise_available(self, day: np.ndarray) -> np.ndarray:
-        """The equity the company can raise on the day (case inputs): raise_capacity_after_adverse_judgment while
-        an adverse money judgment stands on the path (adverse_standing), raise_capacity everywhere else; 0 where the
-        case sets none, after a petition or outside the period. The dispute's own resolution does not matter."""
-        if not self.raising:
-            return np.zeros(self.n, dtype=np.int64)
-        day = np.asarray(day)
-        amt = np.where(self.adverse_standing(day), int(self.p("raise_capacity_after_adverse_judgment")),
-                       int(self.p("raise_capacity")))
-        pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
-        return np.where((day < pet) & (day >= 0) & (day < self.N), amt, 0).astype(np.int64)
+    # --- equity (QUESTIONS_20240514 §2.6): the share ledger, at-the-market sales and underwritten offerings ---------
+    def _atm_schedule(self) -> tuple[np.ndarray, np.ndarray, int, int]:
+        """The at-the-market program's sales (Scenario): each trading day from the first sale (14 May) to the horizon,
+        whole shares at the day's dollar pace (the pace share of the average daily dollar volume) over the 14 May close,
+        net of the agents' commission, settling T+2 before 28 May 2024 and T+1 from it. Returns each sale's day index,
+        its settlement day index, the shares a sale and the net cents a sale."""
+        memo = self.__dict__.get("_atm_memo")
+        if memo is not None:
+            return memo
+        p = self.m["parameters"]["atm_pace_bps"]
+        price, pace = int(p["price_cents"]), int(self.p("atm_pace_bps"))
+        shares = int(p["adv_cents"]) * pace // 10_000 // price
+        gross = shares * price
+        net = gross * (10_000 - int(p["commission_bps"])) // 10_000
+        d, t1, end = date.fromisoformat(p["first_sale"]), date.fromisoformat(p["t1_from"]), self.s.horizon
+        sale, settle = [], []
+        while d <= end:
+            if trading_day(d):
+                sale.append(self.ix(d))
+                settle.append(self.ix(settlement_date(d, 2 if d < t1 else 1)))
+            d += timedelta(days=1)
+        self._atm_memo = (np.array(sale, dtype=np.int64), np.array(settle, dtype=np.int64), shares, net)
+        return self._atm_memo
 
-    def raise_equity(self, day: np.ndarray) -> None:
-        """The raise booking: the amount available, in equal daily amounts over raise_days from the decision day (the
-        remainder on the first day); days past the period fall outside it."""
-        amt = self.raise_available(day)
-        n = int(self.p("raise_days"))
-        each = amt // n
-        for k in range(n):
-            self.pay(np.asarray(day) + k, each + (amt - each * n if k == 0 else 0), "inflow")
-        self.mark("raised", day, amt > 0)
+    def _offer_shares_on(self, day: np.ndarray) -> np.ndarray:
+        """Shares the offerings hold on the ledger on the day [draws]: reserved from initiation to close, drawn from
+        the close where the offering closed (an outcome not yet walked holds them to the close)."""
+        day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,)) if np.ndim(day) < 2 else np.asarray(day)
+        col = (lambda a: a) if day.ndim == 1 else (lambda a: a[:, None])  # noqa: E731  [draws] or [draws, k] days
+        out = np.zeros(day.shape, dtype=np.int64)
+        for o in self._offers:
+            held = (day >= col(o["init"])) & ((day < col(o["close"])) | col(o["closed"]))
+            out = out + np.where(col(o["rows"]) & held, col(o["shares"]), 0)
+        return out
+
+    def _atm_rebook(self) -> None:
+        """Book the at-the-market proceeds on the path's current state: sales stop on the day of a petition or a
+        delisting, or once the ledger cannot cover a day's shares (a channel stops when it cannot cover the issuance).
+        The proceeds booked before are replaced (receipts, `inflow`)."""
+        if not self.equity:
+            return
+        sale, settle, q, net = self._atm_schedule()
+        pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
+        stop = np.minimum(pet, self.delisted)
+        led = int(self.m["parameters"]["share_ledger"]["value"])
+        other = self._offer_shares_on(sale[None, :] + np.zeros((self.n, 1), dtype=np.int64))  # [draws, sales]
+        k = np.arange(1, sale.size + 1, dtype=np.int64)[None, :]
+        ok = (sale[None, :] < stop[:, None]) & (k * q + other <= led)
+        ok = np.cumprod(ok, axis=1).astype(bool)
+        self._atm_sold = ok  # [draws, sales]
+        new = np.zeros((self.n, self.N), dtype=np.int64)
+        inside = (settle >= 0) & (settle < self.N)
+        for j in np.flatnonzero(inside):
+            new[:, settle[j]] += np.where(ok[:, j], net, 0)
+        old = self._atm if self._atm is not None else np.zeros_like(new)
+        delta = new - old
+        self._atm = new
+        if delta.any():
+            self.ev.cash += delta
+            self.ev.kinds["inflow"] += delta
+            self._touch()
+
+    def atm_to_date(self, day=None) -> np.ndarray:
+        """Net at-the-market proceeds received (settled) by the day's end, in cents [draws]."""
+        day = self._at if day is None else np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        if self._atm is None:
+            return np.zeros(self.n, dtype=np.int64)
+        c = np.cumsum(self._atm, axis=1)
+        return np.where(day < 0, 0, c[self.rows, np.clip(day, 0, self.N - 1)])
+
+    def atm_shares_to_date(self, day=None) -> np.ndarray:
+        """Shares the at-the-market program sold by the day (trade date) [draws]."""
+        day = self._at if day is None else np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        if self._atm is None:
+            return np.zeros(self.n, dtype=np.int64)
+        sale, _, q, _ = self._atm_schedule()
+        return ((sale[None, :] <= day[:, None]) & self._atm_sold).sum(axis=1).astype(np.int64) * q
+
+    def ledger_left(self, day=None) -> np.ndarray:
+        """Shares available on the day [draws]: the ledger less the at-the-market shares sold and the offerings'
+        shares held (reserved or drawn); never below zero."""
+        day = self._at if day is None else np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        led = int(self.m["parameters"]["share_ledger"]["value"])
+        return np.maximum(led - self.atm_shares_to_date(day) - self._offer_shares_on(day), 0)
+
+    def offering_price_x1e4(self) -> int:
+        """The offering price in cents x 1e4: the 14 May close less the January offering's discount to its prior
+        close; the sensitivity, half that price."""
+        p = self.m["parameters"]["offering_price"]
+        price = (int(p["close_cents_x1e4"]) * int(p["january_price_cents"]) * 10_000 * 2
+                 // int(p["january_prior_close_cents_x1e4"]) + 1) // 2  # rounded half up
+        return price // 2 if self.p("offering_price") == "half" else price
+
+    def offering_terms(self, day=None) -> dict[str, np.ndarray]:
+        """An offering's terms at the capacity left on the day [draws]: the gross (the January gross, or the shares
+        available times the price where capacity binds), costs in proportion, net, price, shares and close days."""
+        p = self.m["parameters"]["offering_price"]
+        price, gross0, net0 = self.offering_price_x1e4(), int(p["gross_cents"]), int(p["net_cents"])
+        full = (gross0 * 10_000 * 2 // price + 1) // 2
+        shares = np.minimum(full, self.ledger_left(day))
+        binds = shares < full
+        gross = np.where(binds, shares * price // 10_000, gross0)
+        net = np.where(binds, gross * net0 // gross0, net0)
+        return {"gross": gross, "costs": gross - net, "net": net, "price_cents_x1e4": np.full(self.n, price),
+                "shares": shares, "close_days": np.full(self.n, int(p["close_days"]))}
+
+    def offering_pending_on(self, day) -> np.ndarray:
+        """An initiated offering has not reached its close date on the day [draws]."""
+        day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        out = np.zeros(self.n, dtype=bool)
+        for o in self._offers:
+            out |= o["rows"] & (day >= o["init"]) & (day < o["close"])
+        return out
+
+    @property
+    def offering_pending(self) -> np.ndarray:
+        return self.offering_pending_on(self._at)
+
+    def listing_status(self, day=None) -> np.ndarray:
+        """"listed", "hearing_requested" (suspension stayed until the panel decides), "suspended" or "delisted"
+        (the indenture's Eligible Market condition fails) on the day [draws]."""
+        day = self._at if day is None else np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        return np.where(day >= self.delisted, "delisted", np.where(
+            day >= self.suspended, "suspended", np.where(day >= self.hearing_requested, "hearing_requested",
+                                                         "listed")))
+
+    def offering_available(self, day) -> np.ndarray:
+        """An offering can be initiated on the day [draws]: listed, no petition filed, none pending, capacity left."""
+        day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
+        return ((day >= 0) & (day < self.N) & (day < pet) & (day < self.suspended) & (day < self.delisted)
+                & ~self.offering_pending_on(day) & (self.ledger_left(day) > 0))
+
+    def initiate(self, day: np.ndarray, occasion: str) -> np.ndarray:
+        """The company initiates an underwritten offering on the day where one is available (N1 follows): its
+        shares are reserved on the ledger until the close. Returns where it was initiated."""
+        day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,)).copy()
+        rows = self.offering_available(day)
+        if not rows.any():
+            return rows
+        terms = self.offering_terms(day)
+        o = {"occasion": occasion, "init": np.where(rows, day, BIG), "rows": rows,
+             "close": np.where(rows, day + terms["close_days"], BIG), "shares": np.where(rows, terms["shares"], 0),
+             "net": np.where(rows, terms["net"], 0), "closed": np.zeros(self.n, dtype=bool), "booked": False}
+        self._offers.append(o)
+        self._close(o)
+        self._atm_rebook()
+        return rows
+
+    def _close(self, o: dict) -> None:
+        """N1's outcome for the offering, once both the initiation and the answer are on the path: 'yes' books the
+        net proceeds on the close date (where no petition precedes it) and draws the ledger; 'no' books nothing."""
+        yes = self._n1.get(o["occasion"])
+        if yes is None or o["booked"]:
+            return
+        o["booked"] = True
+        pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
+        closed = o["rows"] & (o["close"] < pet) & (o["close"] < self.N) if yes else np.zeros(self.n, dtype=bool)
+        o["closed"] = closed
+        self.pay(np.where(closed, o["close"], BIG), np.where(closed, o["net"], 0), "inflow")
+        self.offerings.append((o["init"].copy(), o["close"].copy(), closed.copy()))
+        self.mark("raised", o["close"], closed)
+
+    def offering_outcome(self, occasion: str, closes: bool) -> np.ndarray:
+        """N1 on the path: the offering initiated at `occasion` closes, or does not. Returns its initiation day
+        (BIG where none was initiated)."""
+        self._n1[occasion] = closes
+        out = np.full(self.n, BIG, dtype=np.int64)
+        for o in self._offers:
+            if o["occasion"] == occasion:
+                self._close(o)
+                out = np.where(o["rows"], o["init"], out)
+        self._atm_rebook()
+        return out
+
+    def offering_day(self, occasion: str) -> np.ndarray:
+        """The initiation day of the offering at `occasion` [draws] (BIG: none initiated yet)."""
+        out = np.full(self.n, BIG, dtype=np.int64)
+        for o in self._offers:
+            if o["occasion"] == occasion:
+                out = np.where(o["rows"], o["init"], out)
+        return out
+
+    @property
+    def notes_due_day(self) -> np.ndarray:
+        return self.marks["notes_due"]
+
+    def arrears_by_class(self, day=None) -> dict[str, np.ndarray]:
+        """The processor's arrears by class at the day's end [draws] (daily processing)."""
+        from app.analysis.processor import ARREARS
+
+        day = self._at if day is None else np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        arr = self._arrears()
+        t = np.clip(day, 0, self.N - 1)
+        return {c: np.where((day >= 0) & (day < self.N), arr[self.rows, t, i], 0) for i, c in enumerate(ARREARS)}
+
+    def _arrears(self) -> np.ndarray:
+        """The processor's arrears [draws, days, ARREARS] on this event cash: a run of its own, cached for the few
+        states a question reads (the full array is too large for the per-prefix cache `processed` keeps)."""
+        from app.analysis.engine import run
+
+        if not self.daily:
+            raise ValueError("arrears are the daily cash processor's (cash_processing = daily)")
+        runs = self.basis.__dict__.setdefault("arrears_runs", {})
+        key = (self._cv, id(self.ev))
+        if key not in runs:
+            ev = self.ev
+            opening = self.basis.opening - self.s.exposure.cash_cents
+            tr = run(self.basis.line, opening, EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, ev.kinds,
+                                                         ev.incurred), self.nonpayment_terms())
+            if len(runs) >= 4:
+                runs.pop(next(iter(runs)))
+            runs[key] = tr.processed.arrears
+        return runs[key]
+
+    @property
+    def first_unpaid(self) -> np.ndarray:
+        return self.processed()[1].copy()
 
     def settle(self, start: np.ndarray, end: np.ndarray, agreed: bool = True, cap: int | None = None
                ) -> tuple[np.ndarray, np.ndarray]:
@@ -1072,7 +1314,8 @@ class Chain:
         panel = det + timedelta(days=int(self.p("panel_decision_days")))
         suspension = det + timedelta(days=int(self.p("suspension_after_determination_days")))
         f25 = int(self.p("form25_after_panel_days")) if self.sens.get("form25_after_panel_days") else 0
-        return {"vote_call": self.ix(effective_by - timedelta(days=20)), "effective_by": self.ix(effective_by),
+        return {"deadline": self.ix(dl), "suspension": self.ix(suspension),
+                "vote_call": self.ix(effective_by - timedelta(days=20)), "effective_by": self.ix(effective_by),
                 "determination": self.ix(det), "hearing_request": self.ix(det + timedelta(days=7)),
                 "panel_decision": self.ix(panel),
                 "delisted_suspension": self.ix(suspension) + (10 if f25 else 0),
@@ -1129,6 +1372,7 @@ class Chain:
                     self.coupons.append((day, cash, np.ones(self.n, dtype=bool)))
         if self.ordinary:  # the dispute ends on the review date at no cost: its legal spend stops (`resolve`)
             self.resolve(np.zeros(self.n, dtype=np.int64), np.ones(self.n, dtype=bool))
+        self._atm_rebook()
         chips = int(self.p("chips_credit_cents"))
         if chips:
             per = np.full(self.N, chips // self.N, dtype=np.int64)
@@ -1239,6 +1483,8 @@ class Chain:
                 # booked at the next step, after the company's response on the levy day
                 self.pending_levy = np.maximum(day, 0) + int(self.p("levy_lag_days"))
             return np.maximum(self.EF, 0)
+        if node in ("listing", "listing_date") and self.equity:
+            return self.listing_step(node, ctx, branch)
         if node in ("listing", "listing_date"):
             # the listing chain runs where no acceleration precedes the board's vote call
             # listing_kept (ctx "kept", listing_route): one company decision on the hearing-request day
@@ -1283,6 +1529,10 @@ class Chain:
             due = self.marks["notes_due"]
             self.mark("ruled", self.F)
             return np.where(due < BIG, due + (self.holder_route_days() if ctx == "holders" else 0), BIG)
+        if self.equity and node in DISTRESS:  # booked on every trajectory now (`advance` books it on its own day)
+            t = self.distress_day(node, ctx)
+            self.raise_offer = self.decide_distress(node, ctx, branch, t)
+            return t
         if node in FLOOR_NODES:  # booked on every trajectory now (`advance` books it on its own day instead)
             t = self.tau() if node == "cash_floor" else self.cash_out()
             self.raise_offer = self.decide_floor(node, branch, t)
@@ -1385,6 +1635,8 @@ class Chain:
 
     def decide_waiting(self, i: int, node: str, branch: str, t: np.ndarray) -> np.ndarray:
         """Book waiting step i on day t (BIG: not on that trajectory); returns the equity available at a floor."""
+        if self.equity and node in DISTRESS:
+            return self.decide_distress(node, self.wctx[i], branch, t)
         if node in FLOOR_NODES:
             return self.decide_floor(node, branch, t)
         if node == "judgment_default":
@@ -1396,10 +1648,92 @@ class Chain:
     def decide_floor(self, node: str, branch: str, t: np.ndarray) -> np.ndarray:
         """The company's decision at the cash floor, or when cash runs out, booked on day t (BIG: not on that
         trajectory). Returns the equity available at the floor (0 where the decision is petition_cash_floor)."""
-        q = "financing_at_floor" if node == "cash_floor" and self.raising else FLOOR_NODES[node]
-        amt = self.raise_available(t) if q == "financing_at_floor" else np.zeros(self.n, dtype=np.int64)
+        q = FLOOR_NODES[node]
+        amt = np.zeros(self.n, dtype=np.int64)
         self.respond(self.bookings[q][branch], t, cause="cash_floor")
         return amt
+
+    # --- the distress loop (QUESTIONS_20240514 §4.4, one chain for both views) -----------------------------------
+    def _fall_after(self, prev: np.ndarray) -> np.ndarray:
+        """The first day after `prev` that available cash falls below the month's need having recovered to it (at or
+        above) after `prev` [draws] (BIG: none)."""
+        cum = self.cum()
+        floor = np.zeros_like(cum) if self.sens.get("cash_floor") else self.basis.need
+        idx = np.arange(self.N)[None, :]
+        up = (cum >= floor) & (idx > prev[:, None])
+        rec = np.where(up.any(axis=1), up.argmax(axis=1), BIG)
+        down = (cum < floor) & (idx > rec[:, None])
+        return np.where(down.any(axis=1), down.argmax(axis=1), BIG).astype(np.int64)
+
+    def distress_day(self, node: str, ctx: str) -> np.ndarray:
+        """The day a distress step's decision falls on this path's cash as booked so far [draws] (BIG: none)."""
+        if node == "cash_floor":
+            k = int(ctx)
+            if k == 1:
+                return self.tau()
+            prev = self.floor_days.get(k - 1)
+            return self._fall_after(prev) if prev is not None else np.full(self.n, BIG, dtype=np.int64)
+        if node == "cash_out":
+            return self.cash_out()
+        if node == "offering":
+            return self.offering_day(ctx)
+        if node == "nonpayment":  # §3.3 met while the notes are not yet due
+            day = self.nonpayment_day()
+            return np.where((day < BIG) & (self.marks["notes_due"] > day), day, BIG)
+        raise ValueError(f"No distress step {node}")
+
+    def decide_distress(self, node: str, ctx: str, branch: str, t: np.ndarray) -> np.ndarray:
+        """Book a distress step on day t (BIG: not on that trajectory). Returns the net proceeds of the offering
+        available at a financing decision (0 where none is available), before its booking."""
+        zero = np.zeros(self.n, dtype=np.int64)
+        on = t < self.N
+        if node == "offering":  # N1: the offering initiated at the occasion closes, or does not
+            self.offering_outcome(ctx, branch == "yes")
+            return zero
+        if node == "nonpayment":  # §3.3: the notes are due automatically (§7.02); D9 and H3 (§7.06 does not bar it)
+            self._how = "automatic_j"
+            self.mark("notes_due", t, on)
+            self._how = "declared"
+            self.coupon_when_due()
+            if branch == "petition":
+                self.petition(t, on, cause="notes")
+            elif branch == "holders_file":
+                self.petition(t, on, cause="notes")
+            elif branch != "due":
+                raise ValueError(f"No §3.3 branch {branch!r}")
+            return zero
+        if node == "cash_floor":
+            k = int(ctx)
+            self.floor_days[k] = np.where(on, t, self.floor_days.get(k, np.full(self.n, BIG, dtype=np.int64)))
+        occasion = f"floor{ctx}" if node == "cash_floor" else "cash_out"
+        amt = np.where(on & self.offering_available(t), self.offering_terms(t)["net"], 0).astype(np.int64)
+        self.respond(DISTRESS_BOOKINGS[branch], t, cause="cash_floor", occasion=occasion)
+        return amt
+
+    def listing_step(self, node: str, ctx: str, branch: str) -> np.ndarray:
+        """The listing under the equity model (QUESTIONS §4.6): D6a, compliance regained by the deadline, decided on
+        it; else the staff's determination the next day and D6b, a hearing request within 7 days, which stays
+        suspension until the panel decides; without one, suspension on the rule's day, when the indenture's Eligible
+        Market condition fails (delisted). Asked where no petition precedes the deadline."""
+        full = np.full(self.n, 0, dtype=np.int64)
+        dates = self.listing_dates()
+        pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
+        if node == "listing_date":  # a question's own decision day: ctx "compliance" (D6a) or "hearing_request" (D6b)
+            day = dates["deadline"] if ctx == "compliance" else dates["hearing_request"]
+            return np.where(full + day < pet, full + day, BIG)
+        on = full + dates["deadline"] < pet
+        if branch == "hearing":
+            if dates["panel_decision"] < self.N:
+                raise NotImplementedError("the panel decides inside the period: its decision is not modeled")
+            self.hearing_requested = np.where(on, dates["hearing_request"], self.hearing_requested)
+        elif branch == "suspended":
+            self.suspended = np.where(on, dates["suspension"], self.suspended)
+            self.delisted = np.where(on, dates["delisted_suspension"], self.delisted)
+            self.mark("delisted", self.delisted)
+            self._atm_rebook()  # the at-the-market sales stop at delisting
+        elif branch != "compliant":
+            raise ValueError(f"No listing branch {branch!r}")
+        return np.where(on, dates["deadline"], BIG)
 
     def waits(self, node: str, ctx: str) -> bool:
         """The decisions booked on their own day on each trajectory, whatever the walk order: the cash floor and cash
@@ -1407,6 +1741,8 @@ class Chain:
         settlement window that precedes it on some trajectories, and the notes' judgment default (the walk asks the
         pre-ruling one before a ruling that can set the judgment aside first). A pending claim (4.1.0) only: 4.0.0
         books each step as it is walked, the floor last, as recorded."""
+        if self.equity and node in DISTRESS:
+            return True
         if self.ordinary:
             return node in FLOOR_NODES
         return self.pending and (node in FLOOR_NODES or node == "judgment_default" or (node in RESPONSES
@@ -1433,6 +1769,8 @@ class Chain:
         `before` is final there; its facts (day, cash, owed, collateral, earlier petitions, triggers) are its own day's."""
         if not self.waiting or (before is None and not every):
             return False
+        if self.equity:
+            return self._upto_dated(before, every, levy)
         moved = False
         prior = np.ones(self.n, dtype=bool)
         for i, node, branch, done, ctx in self.waiting:
@@ -1472,8 +1810,52 @@ class Chain:
         v.until(bound) if levy else v.upto(bound)
         return v
 
+    def _upto_dated(self, before, every: bool, levy) -> bool:
+        """`upto` under the equity model: each trajectory books its waiting decisions one at a time, the earliest-
+        dated first (ties in walk order), each day recomputed on the cash as booked so far, so a later-walked step
+        dated before an earlier-walked one books first. every: all left, the undated last (they book nothing)."""
+        moved = False
+        while self.waiting:
+            best = np.full(self.n, BIG + 1, dtype=np.int64)
+            pick = np.full(self.n, -1, dtype=np.int64)
+            days = []
+            for j, (_, node, _, done, ctx) in enumerate(self.waiting):
+                t = self.distress_day(node, ctx) if node in DISTRESS else self.waiting_day(node, ctx)
+                lim = before if levy is None or node in RESPONSES else np.minimum(before, levy)
+                cand = ~done & (True if every else t < lim)
+                better = cand & (t < best)
+                best, pick = np.where(better, t, best), np.where(better, j, pick)
+                days.append(t)
+            if (pick < 0).all():
+                break
+            for j, (i, node, branch, done, _ctx) in enumerate(self.waiting):
+                fire = pick == j
+                if not fire.any():
+                    continue
+                t = days[j]
+                ti = np.clip(t, 0, self.N - 1)
+                vals = (t, self.cum()[self.rows, ti], self.owed_at(t), self.collateral_required)
+                for lst, v in zip(self.rec, vals, strict=True):
+                    lst[i] = np.where(fire, v, lst[i])
+                late = self.late[i]
+                late["petition"] = np.where(fire, self.ev.petition, late["petition"])
+                late["triggers"] = {k: np.where(fire, v, late["triggers"].get(k, BIG))
+                                    for k, v in self.trigger_days().items()}
+                amt = self.decide_waiting(i, node, branch, np.where(fire, t, BIG))
+                late["raise_offer"] = np.where(fire, amt, late["raise_offer"])
+                done |= fire  # each trajectory books one step a pass (bookings are per trajectory)
+                moved = True
+            self.waiting = [w for w in self.waiting if not w[3].all()]
+        return moved
+
     def next_floor(self) -> np.ndarray:
         """Per draw, the day of the next waiting floor decision (BIG: none)."""
+        if self.equity:
+            out = np.full(self.n, BIG, dtype=np.int64)
+            for _, node, _, done, ctx in self.waiting:
+                if node in DISTRESS:
+                    out = np.where(~done, np.minimum(out, self.distress_day(node, ctx)), out)
+            return out
         out, prior = np.full(self.n, BIG, dtype=np.int64), np.ones(self.n, dtype=bool)
         for _, node, _, done, _ in self.waiting:
             if node not in FLOOR_NODES:
