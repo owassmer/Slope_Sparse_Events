@@ -364,6 +364,39 @@ def test_7_cash_facts_equal_the_engine_on_every_trajectory(tree):
             assert (tr.cash[j][ok] == eng.cash[ch.rows, np.clip(day, 0, ch.N - 1)][ok]).all(), p.steps[j]
 
 
+def test_7k_daily_processing_equals_net_until_an_obligation_goes_unpaid(tree):
+    """QUESTIONS_20240514 §2.2: while every obligation is paid in full, the order of the day's payments cannot matter.
+    On each trajectory of sampled paths (dispute and bank view), the daily processor equals the net engine on the path's
+    own event cash (cash, collections, fundings, due, outstanding) on every day before the first day either leaves an
+    obligation unpaid. Net's is its first failed debit: it reads the whole day's net flow, including an invoice that
+    Slope pays when the debit succeeds first. Every levy the Chain books is reached."""
+    from dataclasses import replace
+
+    from app.analysis.engine import prepare, run_many
+    from app.analysis.events import BIG, EventCash, bank_trace
+
+    fc, d, paths, bank = tree
+    b, s, m = fx.basis(), fx.setup(), fx.model()
+    net = prepare(replace(s, cash_processing="net"), b.line.ops)
+    opening, N = b.opening - s.exposure.cash_cents, b.line.days
+    days = np.arange(N)[None, :]
+    evs = [run(p.steps)[1].events for p in _sample(paths, lambda p: True, 16)]
+    evs += [bank_trace(fc.instrument(), p.steps, s, m, Draws(b.cash.shape[0], basis=b)).events for p in bank[:4]]
+    unpaid = 0
+    for ev in evs:
+        dly = run_many(b.line, opening, [ev], (30, 2500))[0]
+        nt = run_many(net, opening, [EventCash(ev.cash, ev.lock, ev.capacity, ev.petition)])[0]
+        owed = np.cumsum(nt.due, axis=1) - np.cumsum(nt.collections, axis=1)
+        pet = np.where(ev.petition < 0, N, ev.petition)[:, None]
+        tried = ((nt.due > 0) | b.line.month_end[None, :N]) & (owed > 0) & (days < pet)
+        net_fail = np.where(tried.any(axis=1), tried.argmax(axis=1), BIG)
+        before = days < np.minimum(dly.processed.first_unpaid, net_fail)[:, None]
+        for f in ("cash", "collections", "fundings", "due", "outstanding"):
+            assert (getattr(dly, f)[before] == getattr(nt, f)[before]).all(), f
+        assert not dly.processed.levy_unmet.any()
+        unpaid += int((dly.processed.first_unpaid < BIG).sum())
+    assert unpaid  # the check reaches trajectories that run out of cash
+
 def test_7b_the_floor_books_the_same_cash_wherever_it_is_walked(tree):
     """The cash floor and cash exhaustion are state-triggered: each books on its own day on every trajectory, so
     walking them first instead of where the tree asks them leaves every trajectory's event cash, security and petition

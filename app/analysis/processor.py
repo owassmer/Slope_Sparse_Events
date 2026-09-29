@@ -20,8 +20,9 @@ scheduled obligations; the invoices Slope pays that day are decided after the de
 the borrower paid toward them comes back once they are routed.
 
 **General nonpayment, §7.01(j)(v)** (QUESTIONS_20240514 §3.3), tested each day t: over the preceding `window` days
-(t - window .. t - 1), arrears were outstanding at the end of every day, and the obligations that fell due in those
-days and were still unpaid at the end of t - 1 amount to at least `share_bps` of all obligations that fell due in them.
+(t - window .. t - 1), before any petition (its consequences are moot after one), arrears were outstanding at the
+end of every day, and the obligations that fell due in those days and were still unpaid at the end of t - 1 amount to
+at least `share_bps` of all obligations that fell due in them.
 Arrears are paid oldest first, so the still-unpaid part of a window's obligations is min(arrears, arrears created in
 the window) for the other classes; Slope's are read installment by installment. Before a trajectory's first unpaid
 obligation nothing differs from `net`: every obligation is paid in full, so the order of the day's items cannot matter.
@@ -171,7 +172,7 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
     w = nonpayment[0] if nonpayment is not None else 0
     for t in range(days):
         live = t < pet
-        if w and t >= w and streak.max() >= w:  # §3.3 on the days t - w .. t - 1
+        if w and t >= w and streak.max() >= w:  # §3.3 on the days t - w .. t - 1, while no petition has been filed
             dw = fell_due[t - w:t].sum(axis=0)
             left = np.minimum(by_class[1:].sum(axis=0), created[t - w:t].sum(axis=0))
             if debit:
@@ -179,7 +180,7 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
                 np.add.at(left, pend_r[recent], pend_a[recent])
             else:
                 left += np.minimum(by_class[0], slope_due[t - w:t].sum(axis=0))
-            met = (nonpay == BIG) & (streak >= w) & (dw > 0) & (left * 10_000 >= nonpayment[1] * dw)
+            met = live & (nonpay == BIG) & (streak >= w) & (dw > 0) & (left * 10_000 >= nonpayment[1] * dw)
             nonpay[met] = t
         avail += post[t]
         dt = due[t]
@@ -316,7 +317,7 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
             by_class[OPERATING] += short
             created[t] += short
         if q_r.size:  # the day's surplus over its obligations pays the other classes' arrears, oldest first
-            pay = np.minimum(np.minimum(np.maximum(recv[t] - fd, 0), avail), by_class[1:].sum(axis=0))
+            pay = np.minimum(np.minimum(np.maximum(recv[t] - fd, 0), np.maximum(avail, 0)), by_class[1:].sum(axis=0))
             if pay.any():
                 q_r, q_c, q_a = fifo_pay(q_r, q_c, q_a, pay, by_class)
                 avail -= pay
