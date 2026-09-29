@@ -125,6 +125,13 @@
       "price_table": "research/recent_cases/akoustis/akts_daily_px_20240514.html",
       "horizon_years": 1,
       "basis": "Scenario: after the verdict the share price is set by a structural (Merton) model. Equity is a call on the firm's value with a strike of the notes' face plus the judgment amount owed on the day (the amount as entered, or as the post-trial ruling leaves it, less amounts paid or levied; after a settlement, its installments not yet due), over the horizon. Calibrated (KMV) on data public by 14 May 2024: the firm's value and asset volatility solve equity value = the close x shares outstanding and equity volatility = N(d1) x asset volatility x firm value / equity value. Before the verdict the price is the 14 May close. close_cents: Record: the 14 May 2024 close, USD 0.44 (akts_daily_px_20240514). shares_outstanding: Record: shares outstanding on 8 May 2024 (10-Q of 13 May 2024, cover). notes_face_cents: Record: the convertible notes' principal, USD 44.0M. rate_bps: Record: the 1-year U.S. Treasury par yield on 14 May 2024, 5.16% (U.S. Treasury, Daily Treasury Par Yield Curve Rates, 2024; home.treasury.gov). price_table: Data: equity volatility, the annualised (x 252) sample standard deviation of the daily log returns of the closes over the 240 trading days of the table (1 Jun 2023 to 14 May 2024). horizon_years: Scenario: one year."
+    },
+    "offering_lockup": {
+      "value": 90,
+      "pricing_days": 1,
+      "atm_carved_out": false,
+      "quote": "For a period commencing on the date hereof and ending on the 90th day after the closing of the Offering (the “Lock-Up Period”), the Company agrees not to, directly or indirectly, without the prior written consent of the Representative, (1) offer for sale, sell, pledge or otherwise dispose of [...] any shares of Common Stock",
+      "basis": "Record: the underwriting agreement of 25 Jan 2024 with Roth Capital Partners (Exhibit 1.1 to the 8-K of 29 Jan 2024), §4(l) Company Lock-Up. The exceptions (A)-(H) cover the offered shares, employee plans, the notes' conversion and interest shares, the S-8, the TST acquisition shares and strategic issuances; none covers at-the-market sales, and the 424B5 of 29 Jan 2024 says the program may resume 'subject to any applicable lock-up restrictions in the Underwriting Agreement'. Applied to an offering on the path: the at-the-market sales pause from its pricing (the underwriting agreement's date, one day after launch as in January: 24 to 25 Jan 2024) to its close, and where it closes, through the 90th day after the close."
     }
   },
   "verdict_form": {

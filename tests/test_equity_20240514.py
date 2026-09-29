@@ -115,3 +115,30 @@ def test_at_the_market_proceeds_at_the_post_verdict_price():
     net = int(Decimal(round(153_213 * cents)) * Decimal("0.97"))  # whole cents of gross, commission floored
     assert live.any() and (got[live] == net).all()
     assert abs(cents - 14.09) < 0.01  # $0.141 at $67.5M (Owen's table)
+
+
+def test_an_offering_at_entry_prices_at_the_judgment_and_locks_up_the_sales():
+    """The lower award ($1,426,412) with an offering at entry: its price is the structural price at that amount less
+    January's discount, the January gross over it (capacity does not bind), January's net. The underwriting
+    agreement's lock-up (§4(l), no at-the-market exception): no sale from pricing (launch + 1 day) through the 90th
+    day after the close, every sale before and after it."""
+    ch = chain()
+    ch.run((("verdict", "I0", "without_principal_measure"), ("judgment_response", "entry", "initiate_offering"),
+            ("offering", "entry", "yes")))
+    o = ch._offers[0]
+    r = o["rows"] & o["closed"] & (ch.ev.petition < 0)
+    assert r.any() and ch.entered == 142_641_200
+    price = float(hand_price_usd(np.array([1_426_412]))[0]) * 0.50 / 0.7046  # USD
+    assert abs(float(hand_price_usd(np.array([1_426_412]))[0]) - 0.4296) < 1e-4  # Owen's table: $0.430 at $1.43M
+    want = 11_500_000 / price  # the engine prices in 1/10,000 cent: within that rounding
+    assert (np.abs(o["shares"][r] - want) <= 2e-6 * want).all() and (o["net"][r] == 1_040_000_000).all()
+    sale, _, _, _ = ch._atm_schedule()
+    for i in np.flatnonzero(r)[:20]:
+        locked = (sale >= o["init"][i] + 1) & (sale <= o["close"][i] + 90)
+        assert locked.any() and not ch._atm_sold[i][locked].any()
+        assert ch._atm_sold[i][~locked & (sale < ch.N)].all()
+    # a sale after the lock-up: 153,213 shares at the day's price (the lower award's) less 3%, received T+1
+    d0, d1 = day(ch, date(2024, 10, 1)), day(ch, date(2024, 10, 2))
+    got = ch.atm_to_date(np.full(ch.n, d1)) - ch.atm_to_date(np.full(ch.n, d0))
+    cents = float(hand_price_usd(np.array([1_426_412]))[0]) * 100
+    assert (got[r] == int(Decimal(round(153_213 * cents)) * Decimal("0.97"))).all()

@@ -80,6 +80,8 @@ One of four types, each with its terms: full bond collateral (the amount); reduc
 
 **Underwritten offerings (N1, Scenario).** An offering is available while the stock is listed, no petition has been filed, no other offering is pending, and capacity covers it. Its terms: gross proceeds of the January 2024 offering ($11.5M), its issuance costs (net $10.4M), and a price of the share price on the initiation day less the January offering's discount to the prior close. The shares are the gross proceeds over the price. Where capacity binds, the gross proceeds are the shares available times the price, and the net proceeds bear the same costs in proportion. There is no fixed count of offerings per path.
 
+**Lock-up (Record).** The January underwriting agreement's company lock-up runs from the agreement's date (pricing, one day after launch) to the 90th day after the closing; its exceptions do not cover at-the-market sales. An offering on the path carries the same lock-up: at-the-market sales pause from its pricing to its close, and where it closes, through the 90th day after the close.
+
 ---
 
 ## 3. Legal scenarios held along a path

@@ -1047,6 +1047,20 @@ class Chain:
         self._shares_memo = (key, out)
         return out
 
+    def _lockup(self, sale: np.ndarray) -> np.ndarray:
+        """The sale days an offering's lock-up covers [draws, sales] (case parameter offering_lockup): from its pricing
+        to its close, and where it closed, through the lock-up's last day after the close (none: no offering)."""
+        out = np.zeros((self.n, sale.size), dtype=bool)
+        lock = self.m["parameters"].get("offering_lockup")
+        st = self._offer_stack()
+        if not lock or st is None or lock.get("atm_carved_out"):
+            return out
+        init, close, closed, _ = (a[:, :, None] for a in st)
+        s = sale[None, None, :]
+        held = (init < BIG) & (s >= init + int(lock["pricing_days"])) & (
+            (s < close) | (closed & (s <= close + int(lock["value"]))))
+        return held.any(axis=0)
+
     def _atm_columns(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """The sales settling inside the period, ordered by settlement day, the distinct settlement days and where
         each starts in that order (`_atm_rebook` sums the sales of a day in one pass)."""
@@ -1075,11 +1089,12 @@ class Chain:
         stop = np.minimum(pet, self.delisted)
         led = int(self.m["parameters"]["share_ledger"]["value"])
         other = self._offer_shares_on(np.broadcast_to(sale, (self.n, sale.size)))  # [draws, sales]
-        k = np.arange(1, sale.size + 1, dtype=np.int64)[None, :]
-        ok = (sale[None, :] < stop[:, None]) & (k * q + other <= led)
-        ok = np.logical_and.accumulate(ok, axis=1)
+        on = (sale[None, :] < stop[:, None]) & ~self._lockup(sale)
+        k = np.cumsum(on, axis=1, dtype=np.int64)  # the sales made so far, this one included
+        fail = on & (k * q + other > led)  # the ledger cannot cover the day's shares: the channel stops
+        ok = on & ~np.logical_or.accumulate(fail, axis=1)
         self._atm_sold = ok  # [draws, sales]
-        self._atm_nsold = ok.sum(axis=1)  # a prefix of the sales: sold up to the first that fails
+        self._atm_csold = np.cumsum(ok, axis=1, dtype=np.int64)
         j, days, start = self._atm_columns()
         new = np.zeros((self.n, self.N), dtype=np.int64)
         if j.size:  # each settlement day's sales at the sale day's share price, net of commission, per trajectory
@@ -1109,7 +1124,8 @@ class Chain:
         if self._atm is None:
             return np.zeros(self.n, dtype=np.int64)
         sale, _, q, _ = self._atm_schedule()
-        return np.minimum(np.searchsorted(sale, day, side="right"), self._atm_nsold).astype(np.int64) * q
+        i = np.searchsorted(sale, day, side="right")
+        return np.where(i > 0, self._atm_csold[self.rows, np.maximum(i - 1, 0)], 0).astype(np.int64) * q
 
     def ledger_left(self, day=None) -> np.ndarray:
         """Shares available on the day [draws]: the ledger less the at-the-market shares sold and the offerings'
