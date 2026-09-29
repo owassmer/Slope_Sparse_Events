@@ -542,12 +542,17 @@ class Forecaster:
              branches: tuple[str, ...] | None = None) -> str:
         k = self.key(d, node, *ctx)
         if k not in self.nodes:
-            s = self.texts(node, d)
-            self.nodes[k] = Node(key=k, instance_id=d.instance_id, node=node, context="|".join(ctx), cls="",
-                                 question_id=s["residual_question"], event=s["decision"],
-                                 assumptions=tuple(assumptions), window=s.get("timing", ""),  # 5.0.0: none
-                                 branches=tuple(branches or s["branches"]))  # a pending claim: the block's answers
+            self.nodes[k] = self.new_node(d, node, *ctx, assumptions=assumptions, branches=branches)
         return k
+
+    def new_node(self, d: DisputeInstance, node: str, *ctx: str, assumptions: tuple[str, ...] = (),
+                 branches: tuple[str, ...] | None = None) -> Node:
+        """The node `node` creates where its key is new."""
+        s = self.texts(node, d)
+        return Node(key=self.key(d, node, *ctx), instance_id=d.instance_id, node=node, context="|".join(ctx), cls="",
+                    question_id=s["residual_question"], event=s["decision"],
+                    assumptions=tuple(assumptions), window=s.get("timing", ""),  # 5.0.0: none
+                    branches=tuple(branches or s["branches"]))  # a pending claim: the block's answers
 
     # --- prefix traces (code timing and arithmetic, before any Jev answer) ----------------------------------------
 
