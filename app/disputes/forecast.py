@@ -201,6 +201,7 @@ class _Prefix:
     raise_offer: np.ndarray | None = None  # the equity available at the cash floor on the decision day (0: none)
     reads: np.ndarray | None = None  # the traced step's latest cash-read day (a payment, approval or levy day)
     sit: dict | None = None  # the traced step's question-state snapshot (events.Chain.c_situation; pending claims)
+    groups: np.ndarray | None = None  # the traced step's option group per draw (events.Chain.option_group; -1: not asked)
 
     @classmethod
     def of(cls, tr, daily: bool = False) -> _Prefix:
@@ -218,7 +219,8 @@ class _Prefix:
         return cls(tr.day, tr.cash, tr.owed, tr.collateral, ev.petition.copy(), h.digest(),
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
                    tr.triggers, getattr(tr, "raise_offer", None), getattr(tr, "reads", None),
-                   (getattr(tr, "situations", None) or {}).get(len(tr.day) - 1))
+                   (getattr(tr, "situations", None) or {}).get(len(tr.day) - 1),
+                   (getattr(tr, "groups", None) or {}).get(len(tr.day) - 1))
 
 
 INTERVAL_PHRASES = {"I1": "before the post-trial ruling", "I2": "after the post-trial ruling, before the appeal deadline",
@@ -362,6 +364,7 @@ class Forecaster:
         # set-aside, a payment, a settlement) makes it available on some trajectory: the walk offers the raise there
         self._raise_open: set = set()
         self._raise_more: set = set()
+        self.node_group: dict[str, int] = {}  # a grouped question's key -> the option group it is asked of
         self._traces: dict = {}
         self.remitted: dict[str, tuple[int, int, int]] = {}  # C3 node key -> the remitted amount and its band
         self._sources: dict[str, str] = {}  # finding -> its source's title
@@ -851,7 +854,7 @@ class Forecaster:
                "petition": tr.petition, "settle_offer": getattr(tr, "settle_offer", None),
                "stay_offer": getattr(tr, "stay_offer", None), "triggers": getattr(tr, "triggers", None),
                "raise_offer": getattr(tr, "raise_offer", None), "sit": getattr(tr, "sit", None),
-               "marks": getattr(tr, "marks", None)}
+               "marks": getattr(tr, "marks", None), "groups": getattr(tr, "groups", None)}
         for k in keys:
             self.facts.setdefault(k, []).append(row)
 
@@ -878,7 +881,7 @@ class Forecaster:
             row = {"day": tr.day[i], "cash": tr.cash[i], "owed": tr.owed[i], "collateral": tr.collateral[i],
                    "petition": info["petition"], "settle_offer": None, "stay_offer": None,
                    "triggers": info["triggers"], "raise_offer": info["raise_offer"], "sit": tr.situations.get(i),
-                   "marks": tr.marks}
+                   "marks": tr.marks, "groups": tr.groups.get(i)}
             self._keep_late(k, steps[:i], row)
 
     def _keep_late(self, k: str, prefix: tuple, row: dict) -> None:
@@ -900,6 +903,9 @@ class Forecaster:
         day = row["day"]
         pet = np.where(row["petition"] < 0, np.iinfo(np.int64).max, row["petition"])
         ok = (day < self.days) & (day < pet)
+        g = self.node_group.get(n.key)  # a question asked of one option group: its trajectories only
+        if g is not None and row.get("groups") is not None:
+            ok = ok & (row["groups"] == g)
         # before a pending claim's verdict (I0) nothing is owed by design: the claim, not a judgment, is the situation
         return ok & (row["owed"] > 0) if n.node in OWED and not n.context.startswith("I0") else ok
 
@@ -1281,7 +1287,9 @@ class _S:
     resp: str = "none"  # a pending claim's last D2 answer that leaves the response open: none | offer
 
     def add(self, step, edge, **kw) -> _S:
-        return _S(self.steps + (step,), self.edges + ((edge,) if edge else ()),
+        """edge: one (node key, branch), None, or a list of them (a grouped step: one edge per option group)."""
+        new = tuple(edge) if isinstance(edge, list) else ((edge,) if edge else ())
+        return _S(self.steps + (step,), self.edges + new,
                   **{**{k: getattr(self, k) for k in ("cls", "stayed", "appealed", "early", "a4", "notes_due", "floor",
                                                       "late", "k", "out", "np", "failed", "resp")}, **kw})
 
@@ -1514,6 +1522,8 @@ class _Walk:
         window is still to be asked (it precedes the levy on some trajectories), on every branch."""
         if self.first(s, (self.resp, phase, self.quiet), lambda y: self.a4(y, phase, then, on_file, i3)):
             return
+        if self.pend:
+            return self.a4_grouped(s, phase, then, on_file, i3)
         probe = (self.resp, phase, self.seek)
         pay = self.fc.pay_possible(self.d, s.steps, probe)
         if self.pend:  # QUESTIONS §4.4 D2: pay, initiate an offering (where one is available), file, none
@@ -1550,6 +1560,74 @@ class _Walk:
                 self.offer(y, phase, then)
             else:
                 then(y)
+
+    # --- within-path grouping (Owen's ruling, 29 Sep 2026) ----------------------------------------------------------
+    def option_groups(self, steps) -> list[int]:
+        """The option groups (events.Chain.option_group) among the trajectories where the last step is asked."""
+        tr = self._trace(steps)
+        if tr.groups is None:
+            return []
+        t = tr.day[-1]
+        pet = np.where(tr.petition < 0, np.iinfo(np.int64).max, tr.petition)
+        inside = (t < self.N) & (t < pet) & (tr.groups >= 0)
+        return sorted({int(x) for x in tr.groups[inside]})
+
+    def grouped(self, keyed: list[tuple[int, str, tuple[str, ...]]]):
+        """A question asked separately of each option group (keyed: (group, node key, its answers)); each trajectory
+        takes its own group's answer. Yields, per combination of the groups' answers, the step's grouped branch, its
+        edges (one per group) and the set of answers chosen."""
+        for c, k, _ in keyed:
+            self.fc.node_group[k] = c
+        for choice in itertools.product(*(bs for _, _, bs in keyed)):
+            branch = "@" + ";".join(f"{c}={b}" for (c, _, _), b in zip(keyed, choice, strict=True))
+            yield branch, [(k, b) for (_, k, _), b in zip(keyed, choice, strict=True)], set(choice)
+
+    def a4_grouped(self, s: _S, phase: str, then, on_file, i3: bool) -> None:
+        """D2 (QUESTIONS §4.4) asked of each option group: pay where the group's cash covers the balance, initiate an
+        offering where one is available, file, none. Each trajectory books its own group's answer. The path goes on as
+        the most open answer requires: an offering (N1, then as after none), none, payment (the listing and distress
+        chain), all file (the filing). A filed or paid trajectory is inert in what follows (no step books after a
+        petition or on a resolved dispute)."""
+        from app.analysis.events import group_tags
+
+        probe = (self.resp, phase, self.quiet)
+        codes = self.option_groups(s.steps + (probe,))
+        if not codes:
+            return then(s)
+        pending = s.stayed and phase in ("I1", "post")  # moved for a stay, not yet approved
+        when = {"post": ("the creditor levies on the company's cash that day",),
+                "ripe": ("the judgment default under the notes has ripened that day",),
+                "entry": ("the money judgment was entered that day, unpaid; execution is stayed automatically for "
+                          "its first 30 days (Fed. R. Civ. P. 62(a))",)}.get(phase, ())
+        after = ("after_" + s.resp) if s.a4 == "seek" else "first"
+        assumed = ((() if phase == "entry" else ("the judgment is enforceable, unstayed and unpaid",)) + when
+                   + (("the company has moved for a stay, not yet approved",) if pending else ()))
+        keyed = []
+        for c in codes:
+            br = (("pay",) if c & 1 else ()) + (("initiate_offering",) if c & 2 else ()) + ("file", "none")
+            k = self.node(self.resp, phase, s.cls, *group_tags(self.resp, c), after,
+                          *(("stay_pending",) if pending else ()), s=s, probe=probe, assumptions=assumed, branches=br)
+            keyed.append((c, k, br))
+        keys = tuple(k for _, k, _ in keyed)
+        late = phase in ("post", "ripe")  # booked on its own day (events.py `waits`)
+        filed = lambda z: self.tail(z, "petition")  # noqa: E731  inert where every trajectory has filed
+        for branch, edges, chosen in self.grouped(keyed):
+            open_ = chosen & {"none", "initiate_offering"}
+            resp = ("offer" if open_ == {"initiate_offering"} else "none" if open_ == {"none"} else "mixed") \
+                if open_ else s.resp
+            kw = {"a4": "seek" if open_ else "closed", "resp": resp}
+            step = (self.resp, phase, branch)
+            y = (s.add(step, edges, late=s.late + tuple((k, len(s.steps)) for k in keys), **kw) if late
+                 else self.take(s, step, edges, keys, **kw))
+            if "initiate_offering" in open_:  # N1 follows (QUESTIONS §4.4 N1), then the path as after 'none'
+                self.offer(y, phase, then)
+            elif open_:
+                then(y)
+            elif "pay" in chosen:
+                paid = lambda z: self.tail(z, "paid")  # noqa: E731
+                self.settle(y, "I3", paid) if i3 else paid(y)
+            else:
+                self.settle(y, "I3", filed) if i3 else filed(y)
 
     def notes_petition(self, s: _S, phase: str, then) -> None:
         """The judgment default: the holders give notice and accelerate, then the issuer files, or else three holders
@@ -1984,26 +2062,27 @@ class _Walk:
         node, ctx, _ = c
         if node == "nonpayment":
             return self.nonpayment(s, c, outcome, nxt)
-        tr = self._trace(s.steps + (c,))
-        pet = np.where(tr.petition < 0, np.iinfo(np.int64).max, tr.petition)
-        can = bool(((tr.day[-1] < self.N) & (tr.day[-1] < pet) & (tr.raise_offer > 0)).any())
-        branches = (("initiate_offering",) if can else ()) + ("file", "neither")
-        tag = "offer" if can else "nooffer"
-        if node == "cash_floor":
-            k = self.node("financing_at_floor", f"floor{ctx}", tag, s=s, probe=c, branches=branches)
-            occasion, kw = f"floor{ctx}", {"k": s.k + 1}
-        else:
-            k = self.node("petition_cash_out", "cash_exhausted", tag, s=s, probe=c, branches=branches)
-            occasion, kw = "cash_out", {"out": "done"}
-        late = s.late + ((k, len(s.steps)),)
-        for b in branches:
-            y = s.add((node, ctx, b), (k, b), late=late, **kw)
-            if b == "initiate_offering":
+        from app.analysis.events import group_tags
+
+        codes = self.option_groups(s.steps + (c,))  # asked of each option group (Owen's ruling, 29 Sep 2026)
+        if not codes:
+            return nxt(s, outcome)
+        q, qctx = (("financing_at_floor", f"floor{ctx}") if node == "cash_floor"
+                   else ("petition_cash_out", "cash_exhausted"))
+        occasion, kw = (f"floor{ctx}", {"k": s.k + 1}) if node == "cash_floor" else ("cash_out", {"out": "done"})
+        keyed = []
+        for code in codes:
+            br = (("initiate_offering",) if code & 2 else ()) + ("file", "neither")
+            keyed.append((code, self.node(q, qctx, *group_tags(node, code), s=s, probe=c, branches=br), br))
+        late = s.late + tuple((k, len(s.steps)) for _, k, _ in keyed)
+        for branch, edges, chosen in self.grouped(keyed):
+            y = s.add((node, ctx, branch), edges, late=late, **kw)
+            if "initiate_offering" in chosen:  # N1 on the trajectories that initiated, then the loop
                 self.offer(y, occasion, lambda z: nxt(z, outcome))
-            elif b == "file":
-                self._end(y, "petition", then)
-            else:
+            elif "neither" in chosen:
                 nxt(y, outcome)
+            else:  # every group files
+                self._end(y, "petition", then)
 
     def offer(self, s: _S, occasion: str, then) -> None:
         """N1 after an initiation at `occasion` (D2's phase, D7's floor{k}, or cash_out): the offering closes by its
@@ -2198,14 +2277,17 @@ class _OrdinaryWalk(_Walk):
         if (k, steps) not in self.seen:
             self.seen.add((k, steps))
             tr = self._trace(steps)
-            self.row(k, tr, -1, sit=getattr(tr, "sit", None))
+            self.row(k, tr, -1, sit=getattr(tr, "sit", None), groups=getattr(tr, "groups", None))
 
-    def row(self, k: str, tr, i: int, late: dict | None = None, sit: dict | None = None) -> None:
+    def row(self, k: str, tr, i: int, late: dict | None = None, sit: dict | None = None, groups=None) -> None:
         t = tr.day[i]
         pet, eq, trig = ((late["petition"], late["raise_offer"], late["triggers"]) if late
                          else (tr.petition, tr.raise_offer, tr.triggers))
         t = np.where((pet >= 0) & (pet <= t), self.fc.days, t)  # a decision after a petition is not taken
         need = self.fc.draws.basis.need[np.arange(len(t)), np.clip(t, 0, self.fc.days - 1)]
+        g = self.fc.node_group.get(k)  # a grouped question: its option group's trajectories only
+        if g is not None and groups is not None:
+            t = np.where(groups == g, t, self.fc.days)
         self.fc.bank_facts.setdefault(k, []).append((t, tr.cash[i], need, eq, trig, sit))  # sit: the snapshot
 
     def emit(self, s: _S, outcome: str) -> None:
@@ -2222,7 +2304,7 @@ class _OrdinaryWalk(_Walk):
                     h.update(np.ascontiguousarray(a).tobytes())
                 if (k, s.steps[:i], h.digest()) not in self.seen:
                     self.seen.add((k, s.steps[:i], h.digest()))
-                    self.row(k, tr, i, late, sit=tr.situations.get(i))
+                    self.row(k, tr, i, late, sit=tr.situations.get(i), groups=tr.groups.get(i))
         options = []
         for key, branch in s.edges:
             if key.startswith(COMPOSITE):

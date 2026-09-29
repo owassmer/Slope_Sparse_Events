@@ -411,6 +411,7 @@ class Trace:
     # the cash, amount owed, collateral and reduced security that day, and the path's petition day
     stays: dict = field(default_factory=dict)
     situations: dict = field(default_factory=dict)  # worker C: step index -> Chain.c_situation
+    groups: dict = field(default_factory=dict)  # a grouped step's index -> its option group per draw (-1: not asked)
 
 
 class Chain:
@@ -501,6 +502,8 @@ class Chain:
         # branch, booked mask]; each books on its own day (`upto`), whatever the walk order
         self.waiting: list = []
         self.wctx: dict = {}  # a waiting step's index -> its context
+        self.grec: dict = {}  # a grouped step's index -> Chain.option_group per draw, measured before its booking
+        self._grp = None  # the last walked step's option groups
         self.late: dict = {}  # their step index -> petition day, triggers and equity available at the decision
         self.reads = np.full(self.n, -1, dtype=np.int64)  # the current step's latest cash-read day (`seen_at`)
         # daily processing (QUESTIONS §2.5): each walked stay (step index -> its terms and what it booked), re-sized on
@@ -1009,6 +1012,37 @@ class Chain:
         if not self.equity:
             return np.zeros(self.n, dtype=np.int64)
         return np.where((day < self.N) & self.offering_available(day), self.offering_terms(day)["net"], 0).astype(np.int64)
+
+    def option_group(self, node: str, day) -> np.ndarray:
+        """Per trajectory, the answers a question offers on its day, before its booking (Owen's ruling on within-path
+        grouping, 29 Sep 2026): -1 where it is not asked (outside the period, after a petition; for the response, no
+        amount owed or the dispute resolved); else bit 0, the balance can be paid (the response only: `respond('pay')`'s
+        own test), and bit 1, an offering is available. Trajectories whose answer sets differ are asked separately."""
+        day = np.broadcast_to(np.asarray(day, dtype=np.int64), (self.n,))
+        pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
+        on = (day >= 0) & (day < self.N) & (day < pet)
+        pay = np.zeros(self.n, dtype=bool)
+        if node in RESPONSES:
+            owed = self.owed_at(day)
+            on &= self.live(day) & (owed > 0)
+            pay = on & (self.cash_at(day) >= owed)
+        offer = on & (self.offer_available(day) > 0)
+        return np.where(on, pay.astype(np.int8) + 2 * offer.astype(np.int8), -1).astype(np.int8)
+
+    def book_grouped(self, node: str, branch: str, day: np.ndarray, book) -> np.ndarray:
+        """Book a step's branch on day [draws] through `book(branch, day) -> amount [draws]`; a grouped branch books
+        each group's answer on its own trajectories. Keeps the option groups (`_grp`) for the step's record."""
+        g = self.option_group(node, day) if node in GROUPED and (self.pending or self.equity) else None
+        self._grp = g
+        by = grouped_branches(branch)
+        if by is None:
+            return book(branch, day)
+        if g is None:
+            raise ValueError(f"a grouped branch on {node}, which has no option groups")
+        out = np.zeros(self.n, dtype=np.int64)
+        for code, b in by.items():
+            out = out + book(b, np.where(g == code, day, BIG))
+        return out
 
     def initiate(self, day: np.ndarray, occasion: str) -> np.ndarray:
         """The company initiates an underwritten offering on the day where one is available (N1 follows): its
@@ -1549,7 +1583,8 @@ class Chain:
         if node in RESPONSES:
             milestone = self.response_day(ctx)
             self.raise_offer = self.offer_available(milestone)
-            self.respond(self.booking(node, branch), milestone, occasion=ctx)
+            self.book_grouped(node, branch, milestone, lambda b, t: (self.respond(self.booking(node, b), t,
+                                                                                   occasion=ctx), 0)[1])
             return milestone  # the levy is booked at the next step (or the path's end): the response comes first
         if node == "registration_early":
             motion = full(self.E0) if ctx == "I1" else self.F
@@ -1650,7 +1685,7 @@ class Chain:
             return np.where(due < BIG, due + (route if ctx == "holders" else 0), BIG)
         if self.equity and node in DISTRESS:  # booked on every trajectory now (`advance` books it on its own day)
             t = self.distress_day(node, ctx)
-            self.raise_offer = self.decide_distress(node, ctx, branch, t)
+            self.raise_offer = self.book_grouped(node, branch, t, lambda b, day: self.decide_distress(node, ctx, b, day))
             return t
         if node in FLOOR_NODES:  # booked on every trajectory now (`advance` books it on its own day instead)
             t = self.tau() if node == "cash_floor" else self.cash_out()
@@ -1739,7 +1774,10 @@ class Chain:
                 self.flush_levy(~(self.next_floor() < self.pending_levy) & ~self.response_waiting())
         self.restay()  # what was booked since (a levy, a floor decision) is in a walked stay's security
         before = self.balance_state(copy=True) if self.daily else (self.cum(),)
+        self._grp = None
         day = self.step(node, ctx, branch)
+        if self._grp is not None:
+            self.grec[len(self.rec[0])] = self._grp
         for lst, v in zip(self.rec, (day, self.decision_cash(day, before), self.owed_at(day),
                                      self.collateral_required.copy()),
                           strict=True):
@@ -1766,7 +1804,16 @@ class Chain:
         return milestone
 
     def decide_waiting(self, i: int, node: str, branch: str, t: np.ndarray) -> np.ndarray:
-        """Book waiting step i on day t (BIG: not on that trajectory); returns the equity available at a floor."""
+        """Book waiting step i on day t (BIG: not on that trajectory); returns the equity available at a floor. A
+        grouped branch books each option group's answer on its own trajectories (`book_grouped`)."""
+        self._grp = None
+        amt = self.book_grouped(node, branch, t, lambda b, day: self._decide_waiting(i, node, b, day))
+        if self._grp is not None:
+            old = self.grec.get(i, np.full(self.n, -1, dtype=np.int8))
+            self.grec[i] = np.where(t < BIG, self._grp, old).astype(np.int8)
+        return amt
+
+    def _decide_waiting(self, i: int, node: str, branch: str, t: np.ndarray) -> np.ndarray:
         if self.equity and node in DISTRESS:
             return self.decide_distress(node, self.wctx[i], branch, t)
         if node in FLOOR_NODES:
@@ -2048,6 +2095,7 @@ class Chain:
         tr.reads = self.reads
         tr.triggers = triggers
         tr.situations = self.c_situations(tr)  # worker C: the question-state snapshot
+        tr.groups = {i: g.copy() for i, g in self.grec.items()}
         return tr
 
     SHARED = frozenset({"d", "s", "m", "dr", "basis", "sens", "fin", "rows", "bookings"})  # read-only inputs, never copied
@@ -2204,6 +2252,23 @@ def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict
                 sens: dict | None = None) -> Trace:
     return _run(lambda: Chain(d, setup, model, draws, sens), tuple(path.steps), draws, (d.instance_id,),
                 (d, setup, model, sens))
+
+
+GROUPED = (*RESPONSES, "cash_floor", "cash_out")  # questions asked per option group (Owen's ruling, 29 Sep 2026)
+
+
+def grouped_branches(branch: str) -> dict[int, str] | None:
+    """A grouped step's answers (`@code=branch;...`): each option group's code -> the branch its trajectories book
+    (Chain.option_group: bit 0, the balance can be paid; bit 1, an offering is available). None: one branch for all."""
+    if not branch.startswith("@"):
+        return None
+    return {int(c): b for c, b in (x.split("=") for x in branch[1:].split(";"))}
+
+
+def group_tags(node: str, code: int) -> tuple[str, ...]:
+    """The context tags naming an option group (they key the group's own question)."""
+    offer = "offer" if code & 2 else "nooffer"
+    return (("pay" if code & 1 else "nopay"), offer) if node in RESPONSES else (offer,)
 
 
 def answers_levy(node: str, ctx: str) -> bool:
