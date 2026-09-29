@@ -76,7 +76,7 @@ One of four types, each with its terms: full bond collateral (the amount); reduc
 
 **At-the-market sales (Scenario).** The program the company re-activated on 13 May sells from 14 May on each trading day while the stock is listed and no petition has been filed. Volume: 20% of the average daily dollar volume from 15 Mar to 14 May 2024 (about $337k), with 10% and 25% as sensitivities. Price: the 14 May close. Proceeds are net of the agents' commission (up to 3%). They settle two business days after the sale for sales before 28 May 2024, and one business day after it from that date. No Jev question: the company's decision to sell is on the record; the pace is the declared assumption.
 
-**Underwritten offerings (N1).** An offering is available while the stock is listed, no petition has been filed, no other offering is pending, and capacity covers it. Its proposed size is the January 2024 offering's net proceeds, or less where capacity binds: the shares available times the offering price. For the ledger, an offering's shares are counted at the 14 May close less the January offering's discount to the prior close, and at-the-market shares at the 14 May close. These prices serve only the share count: the market sets the actual price, and no question states one. There is no fixed count of offerings per path.
+**Underwritten offerings (N1, Scenario).** An offering is available while the stock is listed, no petition has been filed, no other offering is pending, and capacity covers it. Its terms: gross proceeds of the January 2024 offering ($11.5M), its issuance costs (net $10.4M), and a price of the 14 May close less the January offering's discount to the prior close; sensitivity, half that price. The shares are the gross proceeds over the price. Where capacity binds, the gross proceeds are the shares available times the price, and the net proceeds bear the same costs in proportion. At-the-market shares are counted at the 14 May close. There is no fixed count of offerings per path.
 
 ---
 
@@ -115,7 +115,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Answers:** yes, the jury answers the item "yes"; no, the jury answers "no". A "no" to 1(a) is stated as the form's answer ("Question 1(a): No"), not as a finding of no trade-secret liability.
 - **Situation:** the form's question quoted, the earlier answers as the form records them. No cash.
 - **Record:** the verdict form (D.I. 580); the preliminary instructions; the parties' proposed final instructions on each claim's elements and burdens, as proposals; the rulings that narrow the issues (D.I. 545, D.I. 546, D.I. 557, D.I. 152, D.I. 590); the limiting instructions (D.I. 565); each side's statement of intended proof (D.I. 543-1); the witnesses and exhibits; the trial's docket through 14 May; the parties' Rule 50(a) papers filed by 14 May; the company's statements on the trial.
-- **Consequences:** the award is the sum of the amounts for the items found: 5(a) yes, $279,808; 3(a) yes, $1,146,604; trade secrets and conspiracy, from J1b.
+- **Consequences:** the award is the sum of the amounts for the items found: 5(a) yes, $279,808, and 3(a) yes, $1,146,604 (Scenario: the amounts Qorvo claims; sensitivity, nothing awarded); trade secrets and conspiracy, from J1b.
 - **Build:** change. The lower award books only the claims found (today every lower branch books $1,426,412), and the liability record is routed.
 
 #### J1b · The jury's amounts · replaces `forecast_verdict_measure`
@@ -259,9 +259,9 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 #### N1 · The offering raises its proceeds · new
 
-- **Event:** the proposed offering raises at least its proposed net amount by its close date.
-- **Proposed terms, stated as facts:** an underwritten public offering of common stock on the company's shelf, at the price the market sets; the size under §2.6; the close date, as many days after initiation as the January 2024 offering took from launch to close. It is not described as committed.
-- **Answers:** yes, the proposed net amount is received by the close date; no, it is not received by that date.
+- **Event:** the specified offering closes by its close date, delivering its net proceeds on the stated terms.
+- **Proposed terms, stated as facts:** an underwritten public offering of common stock on the company's shelf; the gross proceeds, issuance costs, net proceeds, price and share count under §2.6; the close date, as many days after initiation as the January 2024 offering took from launch to close. It is not described as committed.
+- **Answers:** yes, the offering closes on those terms by the close date; no, it does not close.
 - **Asked:** after every initiation (D2, D7, D8), including after an earlier offering on the path did not close. The situation states any earlier attempt and its outcome.
 - **Situation:** the judgment and its standing; available cash and any arrears; at-the-market proceeds to date; the listing status and deadline; the notes' status and any default continuing; the share capacity left.
 - **Record:** the January 2024 offering (the 8-K of 29 Jan 2024 and its prospectus supplement: 23.0M shares at $0.50, 29% below the prior close, underwritten by Roth); the daily price and volume to 14 May 2024; the shelf and the share capacity; the at-the-market program and its re-activation on 13 May; the company's liquidity and going-concern statements; counsel's statement on the ability to raise money.
@@ -353,4 +353,4 @@ Each check takes its expected value from outside the code:
 - For one month, at-the-market proceeds and the shares drawn equal a hand computation from §2.6; the share ledger never goes below zero.
 - The same-day order's effect on Slope's collections, measured once against operating outflows first, is reported before the page is built.
 
-After the build, the questions are frozen. Stability is measured with the evidence held constant: equivalent paraphrases, option order, and a group's answer re-asked at two other representative trajectories. It measures stability, not calibration.
+After the build, the questions are frozen. Stability is measured with the evidence held constant: equivalent paraphrases, option order, and a group's answer re-asked at two other representative trajectories. The questions downstream of the J1b band above the top line (C2, D2, N1, H1) are asked at the band's two ends; where an answer differs, the band splits at that question. It measures stability, not calibration.
