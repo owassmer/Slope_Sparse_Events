@@ -586,6 +586,21 @@ class Chain:
         for k in names or [k for k, _ in self._arrays()]:
             self._av[k] = self._cv
 
+    def _evw(self, name: str) -> np.ndarray:
+        """The event-cash array `name` (cash, lock, capacity, `k:<kind>`) for an in-place write. A clone shares its
+        parent's arrays (`clone`, read-only while shared); the first write in either copies the array it writes."""
+        ev, own = self.ev, self.__dict__.get("_ev_own")
+        k = name[2:] if name.startswith("k:") else None
+        a = ev.kinds[k] if k is not None else getattr(ev, name)
+        if own is not None and name not in own:
+            a = a.copy()
+            if k is not None:
+                ev.kinds[k] = a
+            else:
+                setattr(ev, name, a)
+            own.add(name)
+        return a
+
     def _arrays(self):
         """The event cash's arrays by name: cash, lock, capacity, petition, `k:<kind>`, `i:<obligation>` (incurred)."""
         ev = self.ev
@@ -802,8 +817,10 @@ class Chain:
         cents = cents if cents.shape == day.shape else np.broadcast_to(cents, day.shape)
         ok = (day >= 0) & (day < self.N) & (cents != 0)
         if ok.any():
+            name = self._name(arr)
+            arr = self._evw(name[0]) if name else arr
             np.add.at(arr, (self.rows[ok], day[ok]), cents[ok])
-            self._touch(*self._name(arr))
+            self._touch(*name)
 
     def pay(self, day: np.ndarray, cents, kind: str, incurred=None) -> None:
         """Book event cash of one kind (KINDS) on the day per draw, into the cash and its kind; an obligation also
@@ -849,8 +866,8 @@ class Chain:
         stop = (t[None, :] >= self.resolved[:, None]) & (t[None, :] < old[:, None])
         if stop.any():
             back = np.where(stop, self.basis.legal, 0)  # legal outflows are negative: adding them back
-            self.ev.cash -= back
-            self.ev.kinds["reduction"] -= back  # an outflow that stops, not a receipt
+            self._evw("cash")[...] -= back
+            self._evw("k:reduction")[...] -= back  # an outflow that stops, not a receipt
             self._touch("cash", "k:reduction")
 
     def levy(self, day: np.ndarray, lagged: bool = False) -> None:
@@ -1155,8 +1172,8 @@ class Chain:
         self._atm = new
         self._atm_cum = np.cumsum(new, axis=1)
         if delta.any():
-            self.ev.cash += delta
-            self.ev.kinds["inflow"] += delta
+            self._evw("cash")[...] += delta
+            self._evw("k:inflow")[...] += delta
             self._touch("cash", "k:inflow")
 
     def atm_to_date(self, day=None) -> np.ndarray:
@@ -1774,8 +1791,8 @@ class Chain:
         if chips:
             per = np.full(self.N, chips // self.N, dtype=np.int64)
             per[-1] += chips - per.sum()
-            self.ev.cash += per[None, :]
-            self.ev.kinds["inflow"] += per[None, :]
+            self._evw("cash")[...] += per[None, :]
+            self._evw("k:inflow")[...] += per[None, :]
             self._touch("cash", "k:inflow")
 
     def _coupon_rebook(self) -> None:
@@ -2388,9 +2405,10 @@ class Chain:
             self.raise_offer = self.late[max(self.late)]["raise_offer"]
         pet = self.ev.petition
         after = (pet[:, None] >= 0) & (np.arange(self.N)[None, :] >= pet[:, None])
-        self.ev.cash[after] = 0  # §362: nothing is collected from or paid by the estate after the petition
-        for k in KINDS:
-            self.ev.kinds[k][after] = 0
+        if after.any():  # §362: nothing is collected from or paid by the estate after the petition
+            self._evw("cash")[after] = 0
+            for k in KINDS:
+                self._evw(f"k:{k}")[after] = 0
         self._touch()
         if self.equity:  # each channel's receipts as booked above: the sales settled and the offerings closed before
             stop = np.where(pet < 0, BIG, pet)  # the petition (nothing after it)
@@ -2401,8 +2419,8 @@ class Chain:
         if self.pending or self.ordinary:  # a dispute that ended (`resolve`) never re-adds its legal spend
             ended = np.arange(self.N)[None, :] >= self.resolved[:, None]
             back = np.where(after & ended, self.basis.legal, 0)
-            self.ev.cash -= back
-            self.ev.kinds["reduction"] -= back
+            self._evw("cash")[...] -= back
+            self._evw("k:reduction")[...] -= back
             self._touch("cash", "k:reduction")
         tr.events = self.ev
         tr.cause = np.where(self.ev.petition >= 0, self.pet_cause, 0).astype(np.int8)
@@ -2421,11 +2439,26 @@ class Chain:
 
     SHARED = frozenset({"d", "s", "m", "dr", "basis", "sens", "fin", "rows", "bookings", "merton"})  # read-only inputs, never copied
 
+    # [draws, days] state only ever replaced, never written in place: a clone shares it
+    REPLACED = frozenset({"_cum", "_tau", "_out", "share_price", "_atm", "_atm_cum", "_atm_csold", "_atm_sold"})
+    EV_WRITTEN = ("cash", "lock", "capacity")  # with `k:<kind>`: the event-cash arrays written in place (`_evw`)
+
     def clone(self) -> Chain:
-        """An independent copy of the walk's state (every array it books into), sharing its read-only inputs."""
+        """An independent copy of the walk's state, sharing its read-only inputs. The event cash's [draws, days]
+        arrays are shared copy-on-write: both chains mark them read-only and copy one before writing it (`_evw`);
+        the petition and incurred days, replaced on every change, are shared as they are. The other [draws, days]
+        state (`REPLACED`) is only ever replaced, so it is shared too."""
         new = Chain.__new__(Chain)
-        # the memoized cash is shared, not copied: it is never written in place, and each copy replaces its own
-        new.__dict__.update({k: v if k in Chain.SHARED or k in ("_cum", "_tau", "_out") else _copied(v) for k, v in self.__dict__.items()})
+        ev = self.ev
+        for a in (ev.cash, ev.lock, ev.capacity, ev.petition, *ev.kinds.values(), *ev.incurred.values(),
+                  *(self.__dict__.get(k) for k in Chain.REPLACED)):
+            if isinstance(a, np.ndarray):  # a write that bypasses `_evw` fails instead of changing the other chain
+                a.flags.writeable = False
+        new.__dict__.update({k: v if k in Chain.SHARED or k in Chain.REPLACED else _copied(v)
+                             for k, v in self.__dict__.items() if k not in ("ev", "_ev_own")})
+        new.ev = EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, dict(ev.kinds), dict(ev.incurred),
+                           _copied(ev.proceeds))
+        self._ev_own, new._ev_own = set(), set()
         return new
 
     # --- exact subtree reuse (forecast.py `Forecaster._served`) ------------------------------------------------------
@@ -2445,7 +2478,7 @@ class Chain:
                         "_atm_sold", "_atm_nsold", "taken", "_booked_to", "_last_node", "ev", "marks", "waiting", "takes", "writs",
                         "coupons", "floor_days", "stays", "pet_cause", "collateral_required", "lock_amount",
                         "levied", "q1", "offerings", "_at", "notes_due_how", "appealed", "_offers", "lock_day",
-                        "hearing_requested", "_vfired", "_price_v", "_price_key"})
+                        "hearing_requested", "_vfired", "_price_v", "_price_key", "_ev_own"})
 
     def divergence(self, other: Chain, wait: int | None = None) -> np.ndarray:
         """Per draw, a day before which this chain and `other` (the same dispute after sibling steps) book and read
