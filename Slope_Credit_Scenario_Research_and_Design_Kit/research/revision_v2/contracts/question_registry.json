@@ -162,7 +162,7 @@
       "primitive": "noul+choice",
       "trigger": "host, when the analysis is built: one request per question and situation",
       "rules": [
-        "Forecast the outcome specified in the question at the stated decision time, conditional on the supplied scenario. Treat the scenario's events and amounts as given. Use the supplied evidence available by the evidence cutoff, preserving each source's author, date and status. Apply the supplied legal or contractual provisions where relevant. Estimate the probabilities of the defined outcomes."
+        "Forecast the outcome specified in the question at the stated decision time, conditional on the supplied situation. Treat the situation's events and amounts as given. Use the supplied evidence available by the evidence cutoff, preserving each source's author, date and status. Apply the supplied legal or contractual provisions where relevant. Estimate the probabilities of the defined outcomes."
       ],
       "state_contract": {
         "historical_evidence": "Documents and data dated by the evidence cutoff, each with its author, date and status.",
