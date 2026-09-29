@@ -25,7 +25,8 @@ the borrower paid toward them comes back once they are routed.
 **General nonpayment, §7.01(j)(v)** (QUESTIONS_20240514 §3.3), tested each day t: over the preceding `window` days
 (t - window .. t - 1), before any petition (its consequences are moot after one), arrears were outstanding at the
 end of every day, and the obligations that fell due in those days and were still unpaid at the end of t - 1 amount to
-at least `share_bps` of all obligations that fell due in them. The still-unpaid part is read arrear by arrear (each keeps the day it arose; a skipped scheduled arrear
+at least `share_bps` of all obligations that fell due in them. A levy is neither an obligation falling due nor one
+left unpaid. The still-unpaid part is read arrear by arrear (each keeps the day it arose; a skipped scheduled arrear
 can outlive a later one), Slope's installment by installment. Before a trajectory's first unpaid
 obligation nothing differs from `net`: every obligation is paid in full, so the order of the day's items cannot matter.
 """
@@ -142,7 +143,8 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
     post = recv - ev["lock"]  # what posts before anything is paid: receipts, less encumbrance changes
     levy_on = levy.any(axis=1)
     obl_on = {c: obl[c].any(axis=1) for c in OBLIGATIONS}
-    fell_due = levy + sum(obl.values())  # §3.3: what falls due each day (Slope's and operating added in the loop)
+    fell_due = sum(obl.values())  # §3.3: what falls due each day (Slope's and operating added in the loop; a levy
+    # is neither an obligation falling due nor one left unpaid)
     pet = np.concatenate([np.where((e.petition >= 0) & (e.petition < days), e.petition, days) for e in events])
     need, limit, slots = _tiled(line, b)
     rn = n * b
