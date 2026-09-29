@@ -70,6 +70,17 @@ class Merton:
         """Cents per share at the amount owed (cents; scalar or array), as floats: the call at strike
         notes + owed, per share. Vectorised over its distinct amounts."""
         a = np.asarray(owed_cents, dtype=np.int64)
+        if a.ndim == 2:  # [draws, days]: draws with the same path of amounts share one row of prices
+            first: dict[bytes, int] = {}  # a row's bytes -> the index of its first draw
+            rep = np.fromiter((first.setdefault(r.tobytes(), i) for i, r in enumerate(a)), dtype=np.int64,
+                              count=len(a))
+            if len(first) == len(a):
+                return self._price_flat(a)
+            reps = np.fromiter(first.values(), dtype=np.int64, count=len(first))  # increasing
+            return self._price_flat(a[reps])[np.searchsorted(reps, rep)]
+        return self._price_flat(a)
+
+    def _price_flat(self, a: np.ndarray) -> np.ndarray:
         u, inv = np.unique(a, return_inverse=True)
         vals = np.array([self._price1(int(x)) for x in u], dtype=float)
         return vals[inv].reshape(a.shape)
