@@ -200,6 +200,7 @@ class _Prefix:
     triggers: dict | None = None  # events.TRIGGERS name -> day index per draw (events.BIG: none)
     raise_offer: np.ndarray | None = None  # the equity available at the cash floor on the decision day (0: none)
     reads: np.ndarray | None = None  # the traced step's latest cash-read day (a payment, approval or levy day)
+    sit: dict | None = None  # the traced step's question-state snapshot (events.Chain.c_situation; pending claims)
 
     @classmethod
     def of(cls, tr, daily: bool = False) -> _Prefix:
@@ -216,7 +217,8 @@ class _Prefix:
         h.update(np.ascontiguousarray(ev.petition).tobytes())
         return cls(tr.day, tr.cash, tr.owed, tr.collateral, ev.petition.copy(), h.digest(),
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
-                   tr.triggers, getattr(tr, "raise_offer", None), getattr(tr, "reads", None))
+                   tr.triggers, getattr(tr, "raise_offer", None), getattr(tr, "reads", None),
+                   (getattr(tr, "situations", None) or {}).get(len(tr.day) - 1))
 
 
 INTERVAL_PHRASES = {"I1": "before the post-trial ruling", "I2": "after the post-trial ruling, before the appeal deadline",
@@ -674,7 +676,7 @@ class Forecaster:
         row = {"day": tr.day[-1], "cash": tr.cash[-1], "owed": tr.owed[-1], "collateral": tr.collateral[-1],
                "petition": tr.petition, "settle_offer": getattr(tr, "settle_offer", None),
                "stay_offer": getattr(tr, "stay_offer", None), "triggers": getattr(tr, "triggers", None),
-               "raise_offer": getattr(tr, "raise_offer", None)}
+               "raise_offer": getattr(tr, "raise_offer", None), "sit": getattr(tr, "sit", None)}
         for k in keys:
             self.facts.setdefault(k, []).append(row)
 
@@ -689,7 +691,8 @@ class Forecaster:
                          self.m, self.draws, self.sens)
         for k, i in late:
             if i in tr.stays:  # a stay's approval (daily processing): the security sized on the whole path
-                self._keep_late(k, steps[:i], {**tr.stays[i], "settle_offer": None, "raise_offer": None})
+                self._keep_late(k, steps[:i], {**tr.stays[i], "settle_offer": None, "raise_offer": None,
+                                               "sit": tr.situations.get(i)})
                 continue
             info = tr.late[i]
             n = self.nodes[k]
@@ -699,7 +702,7 @@ class Forecaster:
                     self._raise_more.add(steps[:i])
             row = {"day": tr.day[i], "cash": tr.cash[i], "owed": tr.owed[i], "collateral": tr.collateral[i],
                    "petition": info["petition"], "settle_offer": None, "stay_offer": None,
-                   "triggers": info["triggers"], "raise_offer": info["raise_offer"]}
+                   "triggers": info["triggers"], "raise_offer": info["raise_offer"], "sit": tr.situations.get(i)}
             self._keep_late(k, steps[:i], row)
 
     def _keep_late(self, k: str, prefix: tuple, row: dict) -> None:
