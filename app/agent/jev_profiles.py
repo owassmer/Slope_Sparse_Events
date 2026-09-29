@@ -54,6 +54,62 @@ def excerpt(text: str, anchor: str | None = None, limit: int = PASSAGE_CHARS) ->
     return ("… " if start else "") + text[start:start + limit] + (" …" if start + limit < len(text) else "")
 
 
+TABLE_NEIGHBOUR_ROWS = 5
+
+
+def excerpt_around(text: str, anchors: list[str], limit: int = PASSAGE_CHARS) -> str:
+    """Keep a long section within the state budget around every cited quote: one window when the quotes fit in it,
+    otherwise one window per quote (the budget shared between them), joined with '…'."""
+    at = sorted((i, i + len(a)) for a in dict.fromkeys(anchors) if (i := text.find(a)) >= 0)
+    if len(text) <= limit or len(at) <= 1:
+        return excerpt(text, at and text[at[0][0]:at[0][1]] or (anchors[0] if anchors else None), limit)
+    if at[-1][1] - at[0][0] <= limit:
+        start = max(0, min(len(text) - limit, at[0][0] - (limit - (at[-1][1] - at[0][0])) // 3))
+        return ("… " if start else "") + text[start:start + limit] + (" …" if start + limit < len(text) else "")
+    width = max(limit // len(at), 600)
+    windows: list[list[int]] = []
+    for lo, hi in at:
+        pad = max(0, width - (hi - lo)) // 2
+        lo, hi = max(0, lo - pad), min(len(text), hi + pad)
+        if windows and lo <= windows[-1][1]:
+            windows[-1][1] = max(windows[-1][1], hi)
+        else:
+            windows.append([lo, hi])
+    out = " … ".join(text[lo:hi] for lo, hi in windows)
+    return ("… " if windows[0][0] else "") + out + (" …" if windows[-1][1] < len(text) else "")
+
+
+def table_excerpt(rendered: str, anchors: list[str], header_rows: int = 1, limit: int = PASSAGE_CHARS) -> str:
+    """A table over the budget keeps its header rows and each cited row with its neighbouring rows."""
+    lines = rendered.split("\n")
+    if len(rendered) <= limit or not anchors:
+        return rendered
+    starts, pos = [], 0
+    for line in lines:
+        starts.append(pos)
+        pos += len(line) + 1
+    cited = set()
+    for a in anchors:
+        i = rendered.find(a)
+        if i < 0:
+            continue
+        cited.update(k for k, st in enumerate(starts) if st < i + len(a) and st + len(lines[k]) >= i)
+    if not cited:
+        return excerpt(rendered, None, limit)
+    keep = set(range(min(header_rows, len(lines))))
+    for k in cited:
+        keep.update(range(max(0, k - TABLE_NEIGHBOUR_ROWS), min(len(lines), k + TABLE_NEIGHBOUR_ROWS + 1)))
+    out, last = [], -1
+    for k in sorted(keep):
+        if k != last + 1:
+            out.append("| … |")
+        out.append(lines[k])
+        last = k
+    if last != len(lines) - 1:
+        out.append("| … |")
+    return "\n".join(out)
+
+
 def route(signals: dict[str, float]) -> str:
     """Order-only routing. A missing signal is unscreened, never silently context-only."""
     if any(signals.get(q) is None for q in ("gap_relevance", "usable_evidence", "premise_conflict")):
@@ -91,12 +147,16 @@ class Semantics:
         return {"source_id": s["source_id"], "title": s["title"], "publisher": s["publisher"],
                 "document_kind": s["document_kind"], "available_at": s["available_at"]}
 
-    def _passage(self, item_id: str, anchor: str | None = None) -> tuple[dict, str]:
+    def _passage(self, item_id: str, anchor: str | None = None, anchors: list[str] | None = None) -> tuple[dict, str]:
+        """An item's text for a state. With cited quotes (`anchors`), a long item is cut to windows around every quote
+        and a long table to its header and the cited rows with their neighbours."""
         item = self.evidence.read(item_id)
+        quotes = anchors if anchors is not None else ([anchor] if anchor else [])
         if "#t" in item_id:
-            text = "\n".join(filter(None, [item["context_before"], item["rendered"], item["context_after"]]))
+            table = table_excerpt(item["rendered"], quotes, int(item.get("header_rows") or 1))
+            text = "\n".join(filter(None, [item["context_before"], table, item["context_after"]]))
         else:
-            text = excerpt(item["text"], anchor)
+            text = excerpt_around(item["text"], quotes)
         passage = {"heading_path": " > ".join(item["heading_path"]), "text": text}
         return passage, item["source"]["sha256"]
 
@@ -158,10 +218,15 @@ class Semantics:
 
     async def check_finding(self, finding: AtomicFinding) -> list[SemanticObservation]:
         """finding_check on the finding's cited spans (the passages it claims to rest on)."""
-        passages, hashes = [], []
+        # One passage per cited item, carrying all of its cited quotes: a passage repeated per span multiplied the
+        # state (three rows of one price table sent the table three times, past Jev's input limit).
+        quotes: dict[str, list[str]] = {}
         for span in finding.spans:
-            p, sha = self._passage(span.item_id, anchor=span.quote)
-            passages.append({**p, "cited_quote": span.quote})
+            quotes.setdefault(span.item_id, []).append(span.quote)
+        passages, hashes = [], []
+        for item_id, qs in quotes.items():
+            p, sha = self._passage(item_id, anchors=qs)
+            passages.append({**p, **({"cited_quote": qs[0]} if len(qs) == 1 else {"cited_quotes": qs})})
             hashes.append(sha)
         source = self._source(finding.spans[0].source_id)
         proposed = finding.proposition + (" (the agent presents this as an inference from the cited passages)"
