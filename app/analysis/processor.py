@@ -36,11 +36,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from numba import njit
 
 from app.analysis.events import BIG, OBLIGATIONS, EventCash
 
 ARREARS = ("slope", "settlement", "notes_interest", "judgment", "operating")  # arrears classes, Trajectories.arrears
 OPERATING = ARREARS.index("operating")
+NCLASS = len(ARREARS)
 OPENING_INCURRED = -1  # the opening exposure's installments: the line opened before the review date, after the notes
 
 
@@ -132,232 +134,24 @@ def order_items(rows: np.ndarray, inc: np.ndarray, cls: np.ndarray, seq: np.ndar
 
 def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tuple[int, int] | None = None) -> list:
     """`engine.run_many` under daily processing (module docstring). `nonpayment` (window days, unpaid share bps): the
-    §3.3 terms the contract declares; None leaves `Processed.nonpayment` uncomputed (None). Steps with nothing to do on
-    a day are skipped (no levy, no obligation, no arrears): the result is the same, and most days have none."""
-    from app.analysis.engine import _finish, _tiled, installment_amounts
+    §3.3 terms the contract declares; None leaves `Processed.nonpayment` uncomputed (None). The day loop is compiled
+    (`_daily_kernel`), one trajectory at a time: every step is per trajectory and in integers."""
+    from app.analysis.engine import _finish, _in_loop_order, _kernel_line
 
     s, n, days, b = line.setup, line.ops.draws, line.days, len(events)
-    debit, first_op = s.collection == "debit", s.same_day_order == "operating_first"
-    ev = event_parts(line, events)
-    recv, levy, out, obl, inc = (ev[k] for k in ("recv", "levy", "out", "obl", "inc"))
-    post = recv - ev["lock"]  # what posts before anything is paid: receipts, less encumbrance changes
-    levy_on = levy.any(axis=1)
-    obl_on = {c: obl[c].any(axis=1) for c in OBLIGATIONS}
-    fell_due = sum(obl.values())  # §3.3: what falls due each day (Slope's and operating added in the loop; a levy
-    # is neither an obligation falling due nor one left unpaid)
-    pet = np.concatenate([np.where((e.petition >= 0) & (e.petition < days), e.petition, days) for e in events])
-    need, limit, slots = _tiled(line, b)
-    rn = n * b
-    due = np.zeros((line.tail, rn), dtype=np.int64)
+    need, limit, month_end, routes, due_idx, due0, book_d, book_a, nroutes = _kernel_line(line)
+    post, levy, out, obl, inc = _rows(line, events)
+    pet = np.concatenate([np.where((e.petition >= 0) & (e.petition < days), e.petition, days) for e in events]
+                         ).astype(np.int64, copy=False)
     ex = s.exposure
-    for d, cents in ex.installments:
-        due[(d - s.review).days - 1] += cents
-    due[0] += ex.past_due_cents
-    # debit: book[d] lists (rows, amounts, incurred day) falling due on day d in draw order; `pend_*` hold the
-    # installments due and unpaid, oldest first per row, with the day each was incurred and fell due
-    book: list[list] = [[] for _ in range(line.tail)] if debit else []
-    if debit:
-        every = np.arange(rn)
-        if ex.past_due_cents:
-            book[0].append((every, np.full(rn, ex.past_due_cents, dtype=np.int64), OPENING_INCURRED))
-        for d, cents in ex.installments:
-            book[(d - s.review).days - 1].append((every, np.full(rn, cents, dtype=np.int64), OPENING_INCURRED))
-    empty = lambda: np.zeros(0, dtype=np.int64)  # noqa: E731
-    pend_r, pend_a, pend_i, pend_d = empty(), empty(), empty(), empty()
-    q_r, q_c, q_a, q_d = empty(), empty(), empty(), empty()  # the other classes' arrears in the order they arose,
-    # with the day each arose
-    collections, fundings = np.zeros((days, rn), dtype=np.int64), np.zeros((days, rn), dtype=np.int64)
-    cash, outstanding = np.empty((days, rn), dtype=np.int64), np.empty((days, rn), dtype=np.int64)
-    arrears = np.zeros((days, len(ARREARS), rn), dtype=np.int64)
-    slope_due = np.zeros((days, rn), dtype=np.int64)
-    avail = np.full(rn, opening_cents + ex.cash_cents, dtype=np.int64)
-    owed, funded, contract, collected, failed, levy_unmet = (np.zeros(rn, dtype=np.int64) for _ in range(6))
-    funded += ex.principal_cents
-    contract += ex.owed_cents
-    by_class = np.zeros((len(ARREARS), rn), dtype=np.int64)
-    first_unpaid, nonpay = np.full(rn, BIG, dtype=np.int64), np.full(rn, BIG, dtype=np.int64)
-    streak = np.zeros(rn, dtype=np.int64)  # consecutive days ending yesterday with arrears outstanding
-    hr_rows, hr_vals, hr_days, d_rows, d_days, d_amts = [], [], [], [], [], []
-    no_rows = np.zeros(rn, dtype=np.int64)
-
-    def principal_out(r=slice(None)) -> np.ndarray:
-        f, c = funded[r], contract[r]
-        return f - np.where(c > 0, collected[r] * f // np.maximum(c, 1), 0)
-
-    po = principal_out()
-    w = nonpayment[0] if nonpayment is not None else 0
-    for t in range(days):
-        live = t < pet
-        if w and t >= w and streak.max() >= w:  # §3.3 on the days t - w .. t - 1, while no petition has been filed
-            dw = fell_due[t - w:t].sum(axis=0)
-            recent = q_d >= t - w  # the other classes' arrears that arose in the window, still unpaid
-            left = np.bincount(q_r[recent], weights=q_a[recent], minlength=rn).astype(np.int64)
-            if debit:
-                recent = pend_d >= t - w
-                np.add.at(left, pend_r[recent], pend_a[recent])
-            else:
-                left += np.minimum(by_class[0], slope_due[t - w:t].sum(axis=0))
-            met = live & (nonpay == BIG) & (streak >= w) & (dw > 0) & (left * 10_000 >= nonpayment[1] * dw)
-            nonpay[met] = t
-        avail += post[t]
-        dt = due[t]
-        owed += dt
-        sd = slope_due[t]
-        np.multiply(dt, live, out=sd)
-        if levy_on[t]:  # the Chain books what the levy reaches: normally all of it
-            take = np.minimum(levy[t], np.maximum(avail, 0))
-            levy_unmet += levy[t] - take
-            avail -= take
-        falls_due = sd > 0
-        if falls_due.any():
-            hr_rows.append(np.nonzero(falls_due)[0])
-            hr_vals.append((avail - need[t] - owed)[falls_due])
-            hr_days.append(np.full(int(falls_due.sum()), t, dtype=np.int64))
-        attempt = live & (falls_due | line.month_end[t]) & (owed > 0)
-        if debit and book[t]:
-            pend_r = np.concatenate([pend_r, *(r for r, _, _ in book[t])])
-            pend_a = np.concatenate([pend_a, *(a for _, a, _ in book[t])])
-            pend_i = np.concatenate([pend_i, *(np.full(len(r), i, dtype=np.int64) for r, _, i in book[t])])
-            pend_d = np.concatenate([pend_d, *(np.full(len(r), t, dtype=np.int64) for r, _, _ in book[t])])
-        if first_op:  # operating outflows first, the invoices Slope pays still among them (settled after the draws)
-            a0 = avail.copy()
-            pay0 = np.minimum(out[t], np.maximum(avail, 0))
-            avail -= pay0
-        unpaid = None  # rows where an obligation went unpaid today (None: none)
-        # the scheduled obligations: Slope's installments (debit order) and the events' (incurred order)
-        items = []  # (rows, amounts, incurred, class (-1: Slope), seq, index into pend (-1: none))
-        any_attempt = attempt.any()
-        if debit and any_attempt:
-            sel = np.flatnonzero(attempt[pend_r])
-            sel = sel[np.argsort(pend_r[sel], kind="stable")]
-            r = pend_r[sel]
-            start = np.flatnonzero(np.r_[True, r[1:] != r[:-1]]) if r.size else empty()
-            seq = np.arange(len(r)) - np.repeat(start, np.diff(np.r_[start, len(r)])) if r.size else empty()
-            items.append((r, pend_a[sel], pend_i[sel], np.full(len(r), -1), seq, sel))
-        elif any_attempt:  # protect_need: one collection per row, its amount read at its turn
-            r = np.flatnonzero(attempt)
-            items.append((r, np.zeros(len(r), dtype=np.int64), np.full(len(r), OPENING_INCURRED), np.full(len(r), -1),
-                          np.zeros(len(r), dtype=np.int64), np.full(len(r), -1)))
-        for ci, c in enumerate(OBLIGATIONS):
-            if obl_on[c][t]:
-                r = np.flatnonzero(obl[c][t])
-                items.append((r, obl[c][t][r], inc[c][r], np.full(len(r), ci), np.zeros(len(r), dtype=np.int64),
-                              np.full(len(r), -1)))
-        coll = no_rows
-        if items:
-            rows, amt, ii, cls, seq, pi = (np.concatenate(x) for x in zip(*items, strict=True))
-            o = order_items(rows, ii, cls, seq, rn)
-            rows, amt, cls, pi = rows[o], amt[o].astype(np.int64), cls[o], pi[o]
-            start = np.flatnonzero(np.r_[True, rows[1:] != rows[:-1]])
-            rank = np.arange(len(rows)) - np.repeat(start, np.diff(np.r_[start, len(rows)]))
-            ok = np.zeros(len(rows), dtype=bool)
-            for k in range(int(rank.max()) + 1):  # each row's k-th item: one per row, so the rows are distinct
-                m = np.flatnonzero(rank == k) if k else start
-                r, a = rows[m], amt[m]
-                if not debit:
-                    pn = cls[m] < 0
-                    a[pn] = np.minimum(owed[r[pn]], np.maximum(avail[r[pn]] - need[t][r[pn]], 0))
-                    amt[m] = a
-                hit = avail[r] >= a
-                avail[r[hit]] -= a[hit]
-                ok[m] = hit
-            sl = cls < 0
-            coll = np.zeros(rn, dtype=np.int64)
-            np.add.at(coll, rows[sl & ok], amt[sl & ok])
-            miss = ~ok
-            if miss.any():
-                unpaid = np.zeros(rn, dtype=bool)
-                unpaid[rows[miss & (~sl | debit)]] = True  # protect_need: read from what stays owed, below
-                ev_miss = miss & ~sl & live[rows]  # from a petition, arrears stand as they are
-                if ev_miss.any():
-                    q_r, q_c, q_a, q_d = (np.concatenate([q_r, rows[ev_miss]]), np.concatenate([q_c, cls[ev_miss] + 1]),
-                                          np.concatenate([q_a, amt[ev_miss]]),
-                                          np.concatenate([q_d, np.full(int(ev_miss.sum()), t, dtype=np.int64)]))
-                    np.add.at(by_class, (cls[ev_miss] + 1, rows[ev_miss]), amt[ev_miss])
-            if debit:
-                failed += np.bincount(rows[sl & miss], minlength=rn)
-                keep = np.ones(len(pend_r), dtype=bool)
-                keep[pi[sl & ok]] = False
-                pend_r, pend_a, pend_i, pend_d = pend_r[keep], pend_a[keep], pend_i[keep], pend_d[keep]
-        if any_attempt:
-            if not debit:
-                short_pn = attempt & (owed > coll)
-                failed += short_pn
-                if short_pn.any():
-                    unpaid = short_pn if unpaid is None else unpaid | short_pn
-            owed -= coll
-            collected += coll
-            collections[t] = coll
-        g = out[t]  # the day's operating payments the borrower owes, less the invoices Slope pays (below)
-        if slots[t]:
-            routed = np.zeros(rn, dtype=np.int64)
-            open_ = live & (owed == 0)
-            for rows, amts in slots[t]:  # the line's draws, exactly as under net
-                sel = open_[rows]
-                if not sel.any():
-                    continue
-                rows, amts = rows[sel], amts[sel]
-                okd = principal_out(rows) + amts <= limit[t][rows]
-                if not okd.any():
-                    continue
-                rows, amt_d = rows[okd], amts[okd]
-                parts = installment_amounts(amt_d, s.fee_bps, s.installments)
-                due[np.ix_(line.due_idx[t], rows)] += parts.T
-                if debit:
-                    for k, d in enumerate(line.due_idx[t]):
-                        book[d].append((rows, parts[:, k], t))
-                funded[rows] += amt_d
-                contract[rows] += parts.sum(axis=1)
-                routed[rows] += amt_d  # Slope pays the supplier: the invoice leaves the borrower's outflows today
-                fundings[t][rows] += amt_d
-                d_rows.append(rows)
-                d_days.append(np.full(len(rows), t, dtype=np.int64))
-                d_amts.append(amt_d)
-            g = g - routed
-        else:
-            routed = None
-        if first_op:
-            pay = np.minimum(g, np.maximum(a0, 0))  # g <= 0 (a receipt): min(g, .) = g
-            avail += pay0 - pay  # what it paid toward invoices Slope then paid comes back
-        else:
-            pay = np.minimum(g, np.maximum(avail, 0))
-            avail -= pay
-        short = g - pay  # >= 0: unpaid operating outflow
-        fd = fell_due[t]
-        fd += sd
-        fd += np.maximum(g, 0)
-        if short.any():
-            unpaid = short > 0 if unpaid is None else unpaid | (short > 0)
-            r = np.flatnonzero(short * live)  # from a petition, arrears stand as they are
-            if r.size:
-                q_r, q_c, q_a, q_d = (np.concatenate([q_r, r]), np.concatenate([q_c, np.full(len(r), OPERATING)]),
-                                      np.concatenate([q_a, short[r]]),
-                                      np.concatenate([q_d, np.full(len(r), t, dtype=np.int64)]))
-                by_class[OPERATING, r] += short[r]
-        if q_r.size:  # the available balance pays the other classes' arrears, oldest first; nothing from a petition
-            paid = pay_arrears(q_r, q_c, q_a, np.where(live, np.maximum(avail, 0), 0), by_class)
-            if paid.any():
-                avail -= paid
-                keep = q_a > 0
-                q_r, q_c, q_a, q_d = q_r[keep], q_c[keep], q_a[keep], q_d[keep]
-        by_class[0] = np.where(live, owed, by_class[0])  # Slope's: frozen at a petition (the stayed claim)
-        arrears[t] = by_class
-        if q_r.size or by_class[0].any():
-            streak = np.where(by_class.sum(axis=0) > 0, streak + 1, 0)
-        elif w:
-            streak[:] = 0
-        if unpaid is not None:
-            first_unpaid = np.where(unpaid & (first_unpaid == BIG), t, first_unpaid)
-        cash[t] = avail
-        if any_attempt or routed is not None:
-            po = principal_out()
-        outstanding[t] = po
-
-    due, cash, outstanding = due.T, cash.T, outstanding.T
-    collections, fundings = np.ascontiguousarray(collections.T), np.ascontiguousarray(fundings.T)
-    cat = lambda xs: np.concatenate(xs) if xs else np.zeros(0, dtype=np.int64)  # noqa: E731
-    hr = (cat(hr_rows), cat(hr_vals), cat(hr_days))
-    dr = (cat(d_rows), cat(d_days), cat(d_amts))
+    w, share = (int(nonpayment[0]), int(nonpayment[1])) if nonpayment is not None else (0, 0)
+    (cash, collections, fundings, outstanding, due, funded, contract, collected, failed, arrears, first_unpaid, nonpay,
+     levy_unmet, hr, dr) = _daily_kernel(
+        post, levy, out, obl, inc, pet, need, limit, month_end, routes, due_idx, np.int64(s.fee_bps), s.installments,
+        s.collection == "debit", s.same_day_order == "operating_first", due0, book_d, book_a,
+        np.int64(opening_cents + ex.cash_cents), np.int64(ex.principal_cents), np.int64(ex.owed_cents), b * nroutes,
+        np.int64(w), np.int64(share))
+    hr, dr = _in_loop_order(hr, dr, days, routes.shape[2])
     res = []
     failed = failed.reshape(b, n)
     for j, e in enumerate(events):
@@ -367,9 +161,383 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
         tr = _finish(line, e, pet[sl], due[sl], collections[sl], fundings[sl], cash[sl], outstanding[sl], funded[sl],
                      contract[sl], collected[sl], (hr[0][mh] - lo, hr[1][mh], hr[2][mh]),
                      (dr[0][md] - lo, dr[1][md], dr[2][md]), failed[j])
-        tr.processed = Processed(arrears=np.ascontiguousarray(arrears[:, :, sl].transpose(2, 0, 1)),
-                                 first_unpaid=first_unpaid[sl].copy(),
+        tr.processed = Processed(arrears=arrears[sl], first_unpaid=first_unpaid[sl].copy(),
                                  nonpayment=None if nonpayment is None else nonpay[sl].copy(),
                                  levy_unmet=levy_unmet[sl].copy())
         res.append(tr)
     return res
+
+
+def _rows(line, events: list[EventCash]) -> tuple:
+    """`event_parts`, row-major [rows, days] (the kernel reads one trajectory's days in sequence): what posts before
+    anything is paid (receipts less encumbrance changes), the levy, the operating outflow still to pay before draws,
+    the obligations [OBLIGATIONS, rows, days] and their incurred days [OBLIGATIONS, rows]."""
+    ops, days = line.ops, line.days
+    if ops.inflow is None or ops.outflow is None:
+        raise ValueError("daily cash processing needs the operating inflows and outflows apart (Operating.inflow)")
+    split = [e.split() for e in events]
+    parts = [p for p in split if p is not None]
+    if len(parts) != len(split):
+        raise ValueError("daily cash processing needs the event cash by kind (EventCash.kinds)")
+    cat = lambda f: np.concatenate([f(e, p) for e, p in zip(events, parts, strict=True)]).astype(np.int64, copy=False)  # noqa: E731
+    inflow = cat(lambda e, p: p[0]["inflow"])
+    levy = -cat(lambda e, p: p[0]["levy"])
+    obl = np.stack([-cat(lambda e, p, c=c: p[0][c]) for c in OBLIGATIONS])
+    if (inflow < 0).any() or (levy < 0).any() or (obl < 0).any():
+        raise ValueError("event cash of the wrong sign for its kind (a receipt paid out or an obligation received)")
+    b = len(events)
+    post = np.tile(ops.inflow[:, :days], (b, 1)) + inflow - cat(lambda e, p: e.lock)
+    out = np.tile(-ops.outflow[:, :days], (b, 1)) - cat(lambda e, p: p[0]["reduction"])
+    inc = np.stack([np.concatenate([p[1][c] for p in parts]) for c in OBLIGATIONS]).astype(np.int64, copy=False)
+    return post, levy, out, obl, inc
+
+
+@njit(cache=True)
+def _book(d, a, i, e_amt, e_inc, e_next, head, last, ne):
+    """Append an installment (amount a, incurred day i) to the debit book of day d; returns the new entry count."""
+    e_amt[ne] = a
+    e_inc[ne] = i
+    e_next[ne] = -1
+    if head[d] < 0:
+        head[d] = ne
+    else:
+        e_next[last[d]] = ne
+    last[d] = ne
+    return ne + 1
+
+
+@njit(cache=True)
+def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes, due_idx, fee_bps, inst, debit,
+                  first_op, due0, book_d, book_a, opening, funded0, contract0, draw_cap, w, share):
+    """`run_daily`'s day loop, compiled, one trajectory (row) at a time, each step as the vectorised loop took it:
+    the day's scheduled items in `order_items` order, `pay_arrears` oldest first, §3.3 on the window (the still-unpaid
+    arrears summed in float64 in queue order and truncated, as `np.bincount` with weights did). Row r reads draw r % n
+    of the line's arrays."""
+    rn, days = post.shape
+    n, tail, nslot, nobl = need.shape[0], due0.shape[0], routes.shape[2], obl.shape[0]
+    cash = np.empty((rn, days), np.int64)
+    collections = np.zeros((rn, days), np.int64)
+    fundings = np.zeros((rn, days), np.int64)
+    outstanding = np.empty((rn, days), np.int64)
+    due = np.empty((rn, tail), np.int64)
+    arrears = np.empty((rn, days, NCLASS), np.int64)
+    funded = np.empty(rn, np.int64)
+    contract = np.empty(rn, np.int64)
+    collected = np.empty(rn, np.int64)
+    failed = np.zeros(rn, np.int64)
+    first_unpaid = np.full(rn, BIG, np.int64)
+    nonpay = np.full(rn, BIG, np.int64)
+    levy_unmet = np.zeros(rn, np.int64)
+    hr_r = np.empty(rn * days, np.int64)
+    hr_t = np.empty(rn * days, np.int64)
+    hr_v = np.empty(rn * days, np.int64)
+    dr_t = np.empty(draw_cap, np.int64)
+    dr_k = np.empty(draw_cap, np.int64)
+    dr_r = np.empty(draw_cap, np.int64)
+    dr_a = np.empty(draw_cap, np.int64)
+    cap = book_d.shape[0] + days * nslot * inst  # book entries a row can hold
+    e_amt = np.empty(cap, np.int64)
+    e_inc = np.empty(cap, np.int64)
+    e_next = np.empty(cap, np.int64)
+    head = np.empty(tail, np.int64)
+    last = np.empty(tail, np.int64)
+    p_amt = np.empty(cap, np.int64)  # pending installments: amount, incurred day, day fallen due
+    p_inc = np.empty(cap, np.int64)
+    p_day = np.empty(cap, np.int64)
+    qcap = days * (nobl + 1)  # arrears queue: class, amount, day arisen
+    q_c = np.empty(qcap, np.int64)
+    q_a = np.empty(qcap, np.int64)
+    q_d = np.empty(qcap, np.int64)
+    icap = cap + nobl + 1  # the day's scheduled items
+    it_amt = np.empty(icap, np.int64)
+    it_inc = np.empty(icap, np.int64)
+    it_cls = np.empty(icap, np.int64)
+    it_seq = np.empty(icap, np.int64)
+    it_pos = np.empty(icap, np.int64)
+    it_ok = np.empty(icap, np.bool_)
+    order = np.empty(icap, np.int64)
+    fell = np.empty(days, np.int64)
+    slope_due = np.empty(days, np.int64)
+    bc = np.zeros(NCLASS, np.int64)
+    nh = 0
+    nd = 0
+    for r in range(rn):
+        i = r % n
+        for d in range(tail):
+            due[r, d] = due0[d]
+            head[d] = -1
+            last[d] = -1
+        ne = 0
+        if debit:
+            for q in range(book_d.shape[0]):
+                ne = _book(book_d[q], book_a[q], OPENING_INCURRED, e_amt, e_inc, e_next, head, last, ne)
+        for t in range(days):
+            f = np.int64(0)
+            for c in range(nobl):
+                f += obl[c, r, t]
+            fell[t] = f
+        for c in range(NCLASS):
+            bc[c] = 0
+        npend = 0
+        nq = 0
+        avail = opening
+        owed = np.int64(0)
+        fu = funded0
+        co = contract0
+        cl = np.int64(0)
+        fl = np.int64(0)
+        lu = np.int64(0)
+        fu_day = BIG
+        np_day = BIG
+        streak = 0
+        pr = pet[r]
+        for t in range(days):
+            live = t < pr
+            if w > 0 and t >= w and streak >= w:  # §3.3 on the days t - w .. t - 1
+                dw = np.int64(0)
+                for u in range(t - w, t):
+                    dw += fell[u]
+                lf = 0.0
+                for q in range(nq):
+                    if q_d[q] >= t - w:
+                        lf += q_a[q]
+                left = np.int64(lf)
+                if debit:
+                    for q in range(npend):
+                        if p_day[q] >= t - w:
+                            left += p_amt[q]
+                else:
+                    sd_w = np.int64(0)
+                    for u in range(t - w, t):
+                        sd_w += slope_due[u]
+                    left += min(bc[0], sd_w)
+                if live and np_day == BIG and dw > 0 and left * 10_000 >= share * dw:
+                    np_day = t
+            avail += post[r, t]
+            dt = due[r, t]
+            owed += dt
+            sd = dt if live else np.int64(0)
+            slope_due[t] = sd
+            lv = levy[r, t]  # the Chain books what the levy reaches: normally all of it
+            x = avail if avail > 0 else np.int64(0)
+            take = lv if lv < x else x
+            lu += lv - take
+            avail -= take
+            falls_due = sd > 0
+            if falls_due:
+                hr_r[nh] = r
+                hr_t[nh] = t
+                hr_v[nh] = avail - need[i, t] - owed
+                nh += 1
+            attempt = live and (falls_due or month_end[t]) and owed > 0
+            if debit:
+                e = head[t]
+                while e >= 0:
+                    p_amt[npend] = e_amt[e]
+                    p_inc[npend] = e_inc[e]
+                    p_day[npend] = t
+                    npend += 1
+                    e = e_next[e]
+            a0 = avail
+            pay0 = np.int64(0)
+            if first_op:  # operating outflows first, the invoices Slope pays still among them
+                x = avail if avail > 0 else np.int64(0)
+                pay0 = out[r, t] if out[r, t] < x else x
+                avail -= pay0
+            unpaid = False
+            # the day's scheduled items: Slope's installments (debit order) and the events' (incurred order)
+            ni = 0
+            if attempt:
+                if debit:
+                    for q in range(npend):
+                        it_amt[ni] = p_amt[q]
+                        it_inc[ni] = p_inc[q]
+                        it_cls[ni] = -1
+                        it_seq[ni] = q
+                        ni += 1
+                else:  # protect_need: one collection, its amount read at its turn
+                    it_amt[ni] = 0
+                    it_inc[ni] = OPENING_INCURRED
+                    it_cls[ni] = -1
+                    it_seq[ni] = 0
+                    ni += 1
+            nslope = ni
+            for c in range(nobl):
+                a = obl[c, r, t]
+                if a != 0:
+                    it_amt[ni] = a
+                    it_inc[ni] = inc[c, r]
+                    it_cls[ni] = c
+                    it_seq[ni] = 0
+                    ni += 1
+            coll = np.int64(0)
+            if ni:
+                for q in range(ni):  # order_items: an event obligation before the first Slope item incurred after it
+                    if q < nslope:
+                        it_pos[q] = it_seq[q]
+                    else:
+                        p = nslope
+                        for s_ in range(nslope):
+                            if it_inc[s_] > it_inc[q] and it_seq[s_] < p:
+                                p = it_seq[s_]
+                        it_pos[q] = p
+                for q in range(ni):  # insertion sort on (pos, slope, incurred for events, class)
+                    order[q] = q
+                    j = q
+                    while j > 0 and _before(order[j], order[j - 1], it_pos, it_cls, it_inc):
+                        order[j], order[j - 1] = order[j - 1], order[j]
+                        j -= 1
+                for q in range(ni):
+                    m = order[q]
+                    a = it_amt[m]
+                    if not debit and it_cls[m] < 0:
+                        x = avail - need[i, t]
+                        if x < 0:
+                            x = 0
+                        a = owed if owed < x else x
+                        it_amt[m] = a
+                    it_ok[m] = avail >= a
+                    if it_ok[m]:
+                        avail -= a
+                k2 = 0
+                for q in range(ni):
+                    m = order[q]
+                    slope = it_cls[m] < 0
+                    if it_ok[m]:
+                        if slope:
+                            coll += it_amt[m]
+                        continue
+                    if not slope or debit:
+                        unpaid = True
+                    if not slope and live:  # from a petition, arrears stand as they are
+                        q_c[nq] = it_cls[m] + 1
+                        q_a[nq] = it_amt[m]
+                        q_d[nq] = t
+                        nq += 1
+                        bc[it_cls[m] + 1] += it_amt[m]
+                    if slope and debit:
+                        fl += 1
+                if debit and nslope:  # the paid installments leave the pending list (item q is pending q)
+                    for q in range(npend):
+                        if not it_ok[q]:
+                            p_amt[k2] = p_amt[q]
+                            p_inc[k2] = p_inc[q]
+                            p_day[k2] = p_day[q]
+                            k2 += 1
+                    npend = k2
+            if attempt:
+                if not debit and owed > coll:
+                    fl += 1
+                    unpaid = True
+                owed -= coll
+                cl += coll
+                collections[r, t] = coll
+            g = out[r, t]  # the day's operating payments the borrower owes, less the invoices Slope pays
+            if live and owed == 0:
+                routed = np.int64(0)
+                for k in range(nslot):
+                    amt = routes[i, t, k]
+                    if amt <= 0:
+                        continue
+                    po = fu - (cl * fu // co if co > 0 else 0)
+                    if po + amt > limit[i, t]:
+                        continue
+                    total = amt + (2 * amt * fee_bps + 10_000) // 20_000  # installment_amounts
+                    part = (2 * total + inst) // (2 * inst)
+                    for kk in range(inst):
+                        a = part if kk < inst - 1 else total - part * (inst - 1)
+                        d = due_idx[t, kk]
+                        due[r, d] += a
+                        if debit:
+                            ne = _book(d, a, t, e_amt, e_inc, e_next, head, last, ne)
+                    fu += amt
+                    co += total
+                    routed += amt
+                    fundings[r, t] += amt
+                    dr_t[nd] = t
+                    dr_k[nd] = k
+                    dr_r[nd] = r
+                    dr_a[nd] = amt
+                    nd += 1
+                g = g - routed
+            if first_op:
+                x = a0 if a0 > 0 else np.int64(0)
+                pay = g if g < x else x
+                avail += pay0 - pay  # what it paid toward invoices Slope then paid comes back
+            else:
+                x = avail if avail > 0 else np.int64(0)
+                pay = g if g < x else x
+                avail -= pay
+            short = g - pay  # >= 0: unpaid operating outflow
+            fell[t] += sd
+            fell[t] += g if g > 0 else np.int64(0)
+            if short > 0:
+                unpaid = True
+            if short != 0 and live:
+                q_c[nq] = OPERATING
+                q_a[nq] = short
+                q_d[nq] = t
+                nq += 1
+                bc[OPERATING] += short
+            if nq:  # the available balance pays the other classes' arrears, oldest first; nothing from a petition
+                bal = (avail if avail > 0 else np.int64(0)) if live else np.int64(0)
+                left = bal
+                for q in range(nq):
+                    if left <= 0:
+                        break
+                    a = q_a[q]
+                    c = q_c[q]
+                    if c == OPERATING:
+                        p = a if a < left else left
+                    else:
+                        p = a if left >= a else np.int64(0)
+                    q_a[q] = a - p
+                    left -= p
+                    bc[c] -= p
+                paid_ = bal - left
+                if paid_ != 0:
+                    avail -= paid_
+                    k2 = 0
+                    for q in range(nq):
+                        if q_a[q] > 0:
+                            q_c[k2] = q_c[q]
+                            q_a[k2] = q_a[q]
+                            q_d[k2] = q_d[q]
+                            k2 += 1
+                    nq = k2
+            if live:
+                bc[0] = owed  # Slope's: frozen at a petition (the stayed claim)
+            tot = np.int64(0)
+            for c in range(NCLASS):
+                arrears[r, t, c] = bc[c]
+                tot += bc[c]
+            streak = streak + 1 if tot > 0 else 0
+            if unpaid and fu_day == BIG:
+                fu_day = t
+            cash[r, t] = avail
+            outstanding[r, t] = fu - (cl * fu // co if co > 0 else 0)
+        funded[r] = fu
+        contract[r] = co
+        collected[r] = cl
+        failed[r] = fl
+        levy_unmet[r] = lu
+        first_unpaid[r] = fu_day
+        nonpay[r] = np_day
+    return (cash, collections, fundings, outstanding, due, funded, contract, collected, failed, arrears, first_unpaid,
+            nonpay, levy_unmet, (hr_r[:nh], hr_t[:nh], hr_v[:nh]), (dr_t[:nd], dr_k[:nd], dr_r[:nd], dr_a[:nd]))
+
+
+@njit(cache=True)
+def _before(x, y, pos, cls, inc):
+    """Item x goes before item y in `order_items`' lexsort (pos, then events before Slope's, then incurred day for
+    events, then class). Items of one row never tie."""
+    if pos[x] != pos[y]:
+        return pos[x] < pos[y]
+    sx, sy = cls[x] < 0, cls[y] < 0
+    if sx != sy:
+        return sy
+    ix = 0 if sx else inc[x]
+    iy = 0 if sy else inc[y]
+    if ix != iy:
+        return ix < iy
+    return cls[x] < cls[y]
