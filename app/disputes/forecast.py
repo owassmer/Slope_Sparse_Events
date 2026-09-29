@@ -908,8 +908,8 @@ class Forecaster:
             self._raise_more = set()
             out = W.run()
             more = self._raise_more - self._raise_open
-            if not more:
-                return out
+            if not more:  # QUESTIONS §1 Depth: financially equivalent paths are one path
+                return merge_equivalent(out, W.keys, {k: n.branches for k, n in self.nodes.items()})
             self._raise_open |= more
             self.nodes, self.facts, self._late_seen = kept
             W = _Walk(self, d)
@@ -929,7 +929,8 @@ class Forecaster:
         for k in keys:
             self.facts.setdefault(k, []).append(row)
 
-    def record_late(self, d: DisputeInstance, steps: tuple, late: tuple, mask: np.ndarray | None = None) -> None:
+    def record_late(self, d: DisputeInstance, steps: tuple, late: tuple, mask: np.ndarray | None = None,
+                    tr=None) -> None:
         """The facts of the state-triggered decisions on a whole path (the cash floor, cash exhaustion): the engine
         books each on its own day on every trajectory, after the steps dated before it wherever the walk put them
         (events.py `upto`), so its day and cash are known only once the path is. Kept once per distinct record at each
@@ -942,8 +943,9 @@ class Forecaster:
             return {**row, "day": np.where(mask, row["day"], BIG),
                     **({"petition": np.where(mask, row["petition"], 0)} if row.get("petition") is not None else {})}
 
-        tr = event_trace(d, DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=()), self.setup,
-                         self.m, self.draws, self.sens)
+        if tr is None:
+            tr = event_trace(d, DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=()), self.setup,
+                             self.m, self.draws, self.sens)
         for k, i in late:
             if i in tr.stays:  # a stay's approval (daily processing): the security sized on the whole path
                 self._keep_late(k, steps[:i], on({**tr.stays[i], "settle_offer": None, "raise_offer": None,
@@ -1373,10 +1375,89 @@ def _label(c: str) -> str:
         "_retrial" if c.endswith(":retrial") else "")
 
 
+@dataclass
+class _Watch:
+    """A question whose no-event branch is walked first (QUESTIONS_20240514 §1 Depth; spec §16.4): it is asked only if
+    a later question on that branch reads what its event would change. marks: condition -> the day it would hold from
+    on each trajectory had the event occurred (a later question's situation tags read them, `_Walk.situation`);
+    nodes: later questions that read the event directly; walks: walker structure the event changes (`_Walk._reads`)."""
+    marks: dict
+    nodes: frozenset = frozenset()
+    walks: frozenset = frozenset()
+    read: bool = False
+
+
+def _complement(conj: tuple, branches: dict) -> list[list[tuple[str, str]]]:
+    """Disjoint conjunctions covering exactly the answers no conjunction of `conj` covers (a composite's 'no'), split
+    node by node over each node's branches."""
+    if not conj:
+        return [[]]
+    if any(not c for c in conj):  # an empty conjunction covers everything
+        return []
+    k = conj[0][0][0]
+    out = []
+    for b in branches[k]:
+        rest = tuple(tuple(e for e in c if e[0] != k) for c in conj if dict(c).get(k, b) == b)
+        out += [[(k, b), *x] for x in _complement(rest, branches)] if rest else [[(k, b)]]
+    return out
+
+
+def _expand(edges, branches: dict) -> list[list[tuple[str, str]]]:
+    """A product of edges as disjoint conjunctions of node answers (a composite's 'yes': its conjunctions; its 'no':
+    their complement)."""
+    opts = []
+    for k, b in edges:
+        if k.startswith(COMPOSITE):
+            conj = _conjunctions(k)
+            opts.append([list(c) for c in conj] if b == "yes" else _complement(conj, branches))
+        else:
+            opts.append([[(k, b)]])
+    return [[e for part in combo for e in part] for combo in itertools.product(*opts)]
+
+
+def merge_equivalent(paths: list[DisputePath], keys: list, branches: dict) -> list[DisputePath]:
+    """QUESTIONS_20240514 §1 Depth, the backstop: paths with the same draw mask, the same event cash to the horizon and
+    the same verdict class and post-trial ruling (`_Walk.equivalence`) are one path. Its edges are those every member
+    carries, and one composite edge whose conjunctions are the rest of each member's edges (disjoint: the members
+    are distinct paths of one tree), so its probability is the members' sum by the chain rule (`Dist.__missing__`).
+    It keeps the first member's steps and outcome (the page's path text)."""
+    from collections import Counter
+
+    groups: dict = {}
+    for i, k in enumerate(keys):
+        groups.setdefault(k, []).append(i)
+    out = []
+    for i, k in enumerate(keys):
+        g = groups[k]
+        if g[0] != i:
+            continue
+        if len(g) == 1:
+            out.append(paths[i])
+            continue
+        common = Counter(paths[g[0]].edges)
+        for j in g[1:]:
+            common &= Counter(paths[j].edges)
+        keep, left = [], Counter(common)
+        for e in paths[g[0]].edges:
+            if left[e] > 0:
+                keep.append(e)
+                left[e] -= 1
+        conj = []
+        for j in g:
+            rest = list((Counter(paths[j].edges) - common).elements())
+            if not rest:
+                raise ValueError("a merged path's edges are a subset of another member's: the members are not disjoint")
+            conj += _expand(rest, branches)
+        out.append(replace(paths[g[0]], edges=(*keep, (composite(conj), "yes"))))
+    return out
+
+
 class _Walk:
     def __init__(self, fc: Forecaster, d: DisputeInstance) -> None:
         self.fc, self.d, self.out = fc, d, []
         self._masks: dict = {}  # a prefix ending in a grouped step -> its trajectories (`mask_of`)
+        self._watch: list[_Watch] = []  # the questions whose no-event branch is being walked (QUESTIONS §1 Depth)
+        self.keys: list = []  # per emitted path, its financial-equivalence key (`equivalence`)
         self.fin = next((f for f in d.financing if f.status != "superseded"), None)
         self.N = fc.days
         self.pend = d.stage == PENDING
@@ -1394,15 +1475,48 @@ class _Walk:
     def node(self, name, *ctx, s: _S | None = None, probe=None, assumptions=(), branches=None):
         """The question in its situation: the context tags given, plus the conditions its actor weighs (the model
         node's `situation`) that hold at the decision on every trajectory."""
+        for w in self._watch:  # a later question that reads the watched event directly
+            w.read |= name in w.nodes
         tags = self.situation(s, probe, name, ctx) if s is not None else ()
         return self.fc.node(self.d, name, *ctx, *tags, assumptions=assumptions, branches=branches)
+
+    def _reads(self, walk: str) -> None:
+        """A later question asked where the walk's structure depends on a watched event (`_Watch.walks`)."""
+        for w in self._watch:
+            w.read |= walk in w.walks
+
+    def _watched(self, s: _S, no: tuple, w: _Watch, then) -> bool:
+        """Walk the no-event branch `no` (no edge) with `w` watching; return whether a later question read the event.
+        Where it did, the question is asked: the caller adds its node and walks the event branch, and the no-event
+        branch's paths get its edge (`_edge_after`)."""
+        self._watch.append(w)
+        try:
+            then(s.add(no, None))
+        finally:
+            self._watch.pop()
+        return w.read
+
+    def _edge_after(self, i0: int, at: int, edge: tuple) -> None:
+        """Give the paths emitted since `i0` the edge `edge` at position `at` (the question's own place on them)."""
+        for i in range(i0, len(self.out)):
+            p = self.out[i]
+            self.out[i] = replace(p, edges=p.edges[:at] + (edge,) + p.edges[at:])
 
     def situation(self, s: _S, probe, name: str, ctx) -> tuple[str, ...]:
         conds = list(self.fc.spec[name].get("situation", []))
         if not conds:
             return ()
         at = probe if isinstance(probe[0], tuple) else (probe,)  # one probe step, or several
-        held, never = self.fc.situation(self.d, s.steps + at, conds, tr=self._trace(s.steps + at))
+        tr = self._trace(s.steps + at)
+        out = self._tags(s, conds, ctx, tr, at)
+        for w in self._watch:  # would the event, had it occurred, change the question's situation?
+            if not w.read and tr.marks is not None and set(w.marks) & set(conds):
+                cf = {**tr.marks, **{c: np.minimum(tr.marks[c], v) for c, v in w.marks.items()}}
+                w.read = self._tags(s, conds, ctx, replace(tr, marks=cf), at) != out
+        return out
+
+    def _tags(self, s: _S, conds: list, ctx, tr: _Prefix, at) -> tuple[str, ...]:
+        held, never = self.fc.situation(self.d, s.steps + at, conds, tr=tr)
         out = []
         for c in conds:
             if c == "ruled" and self.pend and s.cls in NO_JUDGMENT:
@@ -1518,6 +1632,8 @@ class _Walk:
         tr = self._trace(s.steps + (probe,))
         if not ((tr.day[-1] < self.N) & (tr.settle_offer > 0)).any():
             return then_no(s)
+        if interval == "I3":
+            self._reads("unstayed")  # the window after the appeal deadline: asked on a path not stayed before the ruling
         if self.first(s, probe, lambda y: self.settle(y, interval, then_no)):
             return
         a3 = self.node("settlement_offer", interval, s.cls, s=s, probe=probe)
@@ -1590,9 +1706,41 @@ class _Walk:
     def q1(self, s: _S) -> None:
         if self.first(s, ("execute_pre_ruling", "I1", "no"), self.q1):
             return
+        no, yes = ("execute_pre_ruling", "I1", "no"), ("execute_pre_ruling", "I1", "yes")
+        if self.pend and self._q1_opens_nothing(s, yes):
+            # QUESTIONS §4.3 C1, §1 Depth: the stay it opens is approved and its levy falls only after the horizon (or
+            # a petition); it is asked only where a later question reads the execution, the stay motion or the stay
+            i0 = len(self.out)
+            y, st = self._raw(s.steps + (yes,)), self._raw(s.steps + (yes, ("stay", "I1", "yes")))
+            w = _Watch({"executing": y.marks["executing"], "stay_moved": st.marks["stay_moved"]},
+                       nodes=frozenset({"enforce_after_final"}), walks=frozenset({"unstayed"}))
+            if not self._watched(s, no, w, self.ripe_i1):
+                return  # not asked: the path books the no-execution branch (the step, no edge)
+            k = self.node("execute_pre_ruling", "I1", *self.cx(s), assumptions=("post-trial motions are pending",))
+            self.fc.record((k,), self._trace(s.steps + (yes,)))
+            self.fc.record((k,), self._trace(s.steps + (no,)))
+            self._edge_after(i0, len(s.edges), (k, "no"))
+            return self.stay_i1(s.add(yes, (k, "yes")))
         k = self.node("execute_pre_ruling", "I1", *self.cx(s), assumptions=("post-trial motions are pending",))
         self.stay_i1(self.take(s, ("execute_pre_ruling", "I1", "yes"), (k, "yes"), (k,)))
         self.ripe_i1(self.take(s, ("execute_pre_ruling", "I1", "no"), (k, "no"), (k,)))
+
+    def _q1_opens_nothing(self, s: _S, yes: tuple) -> bool:
+        """On the path's trajectories where the execution falls inside the horizon before any petition, what the
+        execution opens books nothing inside it: the stay (D4, J3) is approved, and its security locked, only on or
+        after the horizon's end or a petition, and so is the levy an early registration (J4) would bring (so no
+        levy-day response either)."""
+        from app.analysis.events import BIG, pval
+
+        q = self._trace(s.steps + (yes,))
+        t = q.day[-1]
+        pet = np.where(q.petition < 0, BIG, q.petition)
+        on = (t < self.N) & (t < pet)
+        end = np.minimum(self.N, pet)
+        approval = self._trace(s.steps + (yes, ("court_order", "stay_I1", ""))).day[-1]
+        order = self._trace(s.steps + (yes, ("court_order", "registration_I1", ""))).day[-1]
+        levy = order + int(pval(self.fc.m, "levy_lag_days", self.fc.sens.get("levy_lag_days", False)))
+        return bool(((approval >= end) & (levy >= end))[on].all())
 
     def stay_i1(self, s: _S) -> None:
         probe = ("stay", "I1", "no")
@@ -1870,16 +2018,28 @@ class _Walk:
             return self.stay_post(s)
         if self.first(s, ("appeal", "", "no"), self.appeal):
             return
-        k = self.node("appeal", s.cls, s=s, probe=("appeal", "", "no"),
-                      assumptions=("a money award survives the ruling",))
-        self.stay_post(self.take(s, ("appeal", "", "yes"), (k, "yes"), (k,), appealed=True))
-        self.stay_post(self.take(s, ("appeal", "", "no"), (k, "no"), (k,)))
+        no, yes = ("appeal", "", "no"), ("appeal", "", "yes")
+        i0 = len(self.out)
+        if self.pend:  # QUESTIONS §4.1 D5, §1 Depth: asked only where a later question reads the appeal
+            w = _Watch({"appealed": self._raw(s.steps + (yes,)).marks["appealed"]},
+                       nodes=frozenset({"enforce_after_final"}))  # its context, its levy day and J4 read the appeal
+            if not self._watched(s, no, w, self.stay_post):
+                return  # not asked: the path books the no-appeal branch (the step, no edge)
+        k = self.node("appeal", s.cls, s=s, probe=no, assumptions=("a money award survives the ruling",))
+        if self.pend:
+            self.fc.record((k,), self._trace(s.steps + (yes,)))
+            self.fc.record((k,), self._trace(s.steps + (no,)))
+            self._edge_after(i0, len(s.edges), (k, "no"))
+            return self.stay_post(s.add(yes, (k, "yes"), appealed=True))
+        self.stay_post(self.take(s, yes, (k, "yes"), (k,), appealed=True))
+        self.stay_post(self.take(s, no, (k, "no"), (k,)))
 
     def stay_post(self, s: _S) -> None:
         if s.stayed:
             return self.stayed_tail(s)
         if not self.arises(s, ("stay", "post", "no")):
             return self.i3(s)
+        self._reads("unstayed")  # the stay pending appeal: asked on a path not stayed before the ruling
         probe = ("stay", "post", "no")
         if self.first(s, probe, self.stay_post):
             return
@@ -1914,6 +2074,7 @@ class _Walk:
         """The company's response on the day the creditor's levy falls, before the levy."""
         if s.a4 == "closed" or not self.arises(s, (self.resp, "post", self.quiet)):
             return then(s)
+        self._reads("unstayed")
         self.a4(s, "post", then, lambda y: self.tail(y, "petition"), i3)
 
     def enforce(self, s: _S, then=None, pending: bool = False, i3: bool = False) -> None:
@@ -1923,6 +2084,7 @@ class _Walk:
         levy_step, none_step = ("enforce", "post", "levy"), ("enforce", "post", "none")
         if not self.arises(s, none_step) or (pending and not self.fc.moves_cash(self.d, s.steps, levy_step, none_step)):
             return then(s)
+        self._reads("unstayed")
         if self.first(s, none_step, lambda y: self.enforce(y, then, pending, i3)):
             return
         extra = ("stay_pending",) if pending else ()
@@ -1944,6 +2106,7 @@ class _Walk:
         after = lambda y: self.notes_petition(y, "post", lambda z: self.tail(z, "unresolved"))  # noqa: E731
         if s.a4 == "seek" and not (self.pend and self.reading() == "entered") \
                 and self.arises(s, (self.resp, "ripe", self.quiet)):  # the entered reading asks it in ripe_i1
+            self._reads("unstayed")
             return self.a4(s, "ripe", after, lambda y: self.tail(y, "petition"))
         after(s)
 
@@ -2096,6 +2259,8 @@ class _Walk:
         if self._repurchase_day(delist) < self.N:
             raise NotImplementedError("the repurchase falls due inside the period: D9 on an unpaid repurchase and H3 "
                                       "on it are not built (QUESTIONS §4.4 D9)")
+        if self._declared_after(s, probe):  # QUESTIONS §1 Depth: not asked; the path books 'none' (the step, no edge)
+            return self.distress(s.add(probe, None), outcome)
         acc = ("delisting_notes", dc, "accelerated")
         issuer, holders = s.steps + (acc, ("notes_due_date", "issuer", "")), s.steps + (acc, ("notes_due_date",
                                                                                               "holders", ""))
@@ -2119,6 +2284,20 @@ class _Walk:
         for c, parts in classes.items():
             self.distress(s.add(("delisting_notes", dc, c), (composite(parts), "yes"), notes_due=c != "none"),
                           "petition" if c.startswith("petition") else outcome)
+
+    def _declared_after(self, s: _S, probe: tuple) -> bool:
+        """H2 (QUESTIONS §4.5): whether, on every trajectory of the path where the delisting default arises inside the
+        horizon before any petition, a declaration would take effect (delisting + holder_notice_lag_days) only on or
+        after the horizon's end. Everything it brings is dated from then (the notes due, D9's and H3's petitions, the
+        coupon it replaces), so it books nothing inside the horizon, and no later question can read it."""
+        from app.analysis.events import BIG, pval
+
+        tr = self._trace(s.steps + (probe,))
+        t = tr.day[-1]  # the delisting day where the default is open (BIG elsewhere)
+        pet = np.where(tr.petition < 0, BIG, tr.petition)
+        on = (t < self.N) & (t < pet)
+        lag = int(pval(self.fc.m, "holder_notice_lag_days", self.fc.sens.get("holder_notice_lag_days", False)))
+        return bool((t[on] + lag >= self.N).all())
 
     def _candidates(self, s: _S) -> list[tuple[str, str, str]]:
         """The next state-triggered decisions, in walk order: D7 at the next fall below the need after a recovery,
@@ -2192,11 +2371,29 @@ class _Walk:
     def offer(self, s: _S, occasion: str, then) -> None:
         """N1 after an initiation at `occasion` (D2's phase, D7's floor{k}, or cash_out): the offering closes by its
         close date on the stated terms, or does not. It books on its own day (events.py), so its facts come from each
-        whole path. `then` continues each branch."""
+        whole path. `then` continues each branch. Asked only where the offering can close inside the horizon on some
+        trajectory of the path (QUESTIONS §1 Depth): where its close date falls on or after the horizon's end or a
+        petition on every one, 'yes' books nothing either, and while it is pending no other offering can be initiated,
+        so no later question reads the outcome; the path books 'no' (the step, no edge)."""
+        if self._closes_after(s, occasion):
+            return then(s.add(("offering", occasion, "no"), None))
         n1 = self.node("offering_closes", occasion, *(("after_failed",) if s.failed else ()), branches=("yes", "no"))
         late = s.late + ((n1, len(s.steps)),)
         for b in ("yes", "no"):
             then(s.add(("offering", occasion, b), (n1, b), late=late, failed=s.failed or b == "no"))
+
+    def _closes_after(self, s: _S, occasion: str) -> bool:
+        """Whether, on every trajectory of the path, the offering initiated at `occasion` closes (initiation +
+        close_days, events.Chain.offering_terms) on or after the horizon's end or a petition."""
+        from app.analysis.events import BIG
+
+        tr = self._trace(s.steps + (("offering", occasion, "no"),))
+        init = tr.day[-1]  # the initiation day (BIG where none was initiated)
+        m = self.mask_of(s.steps)
+        on = np.ones(len(init), dtype=bool) if m is None else m
+        pet = np.where(tr.petition < 0, BIG, tr.petition)
+        close = init + int(self.fc.m["parameters"]["offering_price"]["close_days"])
+        return bool(((init < BIG) & (close >= np.minimum(self.N, pet)))[on].all())
 
     def nonpayment(self, s: _S, c: tuple, outcome: str, nxt) -> None:
         """§3.3: general nonpayment is met; the notes are due at once under §7.02 (no declaration). D9, the issuer
@@ -2277,11 +2474,40 @@ class _Walk:
         self._end(s.add(probe, (k, "no"), floor="done", late=late), outcome, then)
 
     def emit(self, s: _S, outcome: str) -> None:
+        from app.analysis.events import event_trace
+
         m = self.mask_of(s.steps)
+        tr = None
+        if self.pend:  # the whole path's trace: its late facts and its equivalence key
+            tr = event_trace(self.d, DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome="", edges=()),
+                             self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens)
+            self.keys.append(self.equivalence(s, outcome, tr, m))
         if s.late:
-            self.fc.record_late(self.d, s.steps, s.late, m)
+            self.fc.record_late(self.d, s.steps, s.late, m, tr=tr)
         self.out.append(DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome=outcome, edges=s.edges,
                                     mask=pack_mask(m)))
+
+    def equivalence(self, s: _S, outcome: str, tr, m: np.ndarray | None) -> tuple:
+        """The path's financial-equivalence key (QUESTIONS §1 Depth; `merge_equivalent`): its draws, and on them every
+        array the engine and the analysis read (the event cash by kind, encumbrance, credit capacity, incurred days,
+        offering proceeds, petition day and cause, and the marks the outcome classes and offering closes read, inside
+        the horizon), with its verdict class, post-trial ruling and outcome."""
+        from app.analysis.events import BIG
+
+        ev, h = tr.events, hashlib.blake2b(digest_size=16)
+        named = [("cash", ev.cash), ("lock", ev.lock), ("capacity", ev.capacity), ("petition", ev.petition),
+                 *((f"k:{k}", ev.kinds[k]) for k in sorted(ev.kinds)),
+                 *((f"i:{k}", ev.incurred[k]) for k in sorted(ev.incurred)),
+                 *((f"p:{k}", v) for k, v in sorted((ev.proceeds or {}).items())),
+                 *((("cause", tr.cause),) if tr.cause is not None else ()),
+                 *((f"m:{k}", np.where(tr.marks[k] < self.N, tr.marks[k], BIG))
+                   for k in ("stayed", "ruled", "paid", "settled", "raised") if tr.marks and k in tr.marks)]
+        for name, a in named:
+            a = np.ascontiguousarray(a if m is None else np.asarray(a)[m])
+            h.update(name.encode() + str(a.shape).encode() + str(a.dtype).encode() + a.tobytes())
+        verdict = next((x[2] for x in s.steps if x[0] == "verdict"), "")
+        ruling = next((x[2] for x in s.steps if x[0] == "post_trial_ruling"), "")
+        return pack_mask(m), h.digest(), verdict, ruling, outcome
 
 
 class _BankWalk:
@@ -2345,6 +2571,7 @@ class _OrdinaryWalk(_Walk):
 
         self.fc, self.out, self.bank = fc, [], BANK
         self._masks: dict = {}
+        self._watch: list[_Watch] = []
         self.d = None
         self.fin = fc.instrument()
         self.N = fc.days
