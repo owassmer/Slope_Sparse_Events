@@ -121,12 +121,14 @@ def _child(fc, d, k: int, run: str, log) -> None:
     def record_logged(self, keys, tr):
         n0 = {x: len(self.facts.get(x, ())) for x in keys}
         record(self, keys, tr)
-        log_event("rec", tuple(keys), self.facts[keys[0]][n0[keys[0]]] if keys else None)
+        log_event("rec", tuple(keys), self.facts[keys[0]].blob(n0[keys[0]]) if keys else None)
 
     def keep_logged(self, key, prefix, row):
         n0 = len(self.facts.get(key, ()))
         keep_late(self, key, prefix, row)
-        log_event("late", key, self.late_key(key, prefix, row) if len(self.facts.get(key, ())) > n0 else None, row)
+        new = len(self.facts.get(key, ())) > n0
+        log_event("late", key, self.late_key(key, prefix, row) if new else None,
+                  self.facts[key].blob(n0) if new else None)
     F.Forecaster.node, F.Forecaster.record, F.Forecaster._keep_late = node_logged, record_logged, keep_logged
 
     W = F._Walk(fc, d)
@@ -202,7 +204,7 @@ def walk(fc, d, procs: int, log=sys.stderr):
     Forecaster's nodes, facts and walk dictionaries set as the single walk leaves them."""
     import shutil
 
-    from app.disputes.forecast import merge_equivalent
+    from app.disputes.forecast import Rows, merge_equivalent
 
     t0 = time.time()
     while True:  # as Forecaster.paths: walk again where a whole path shows equity the floor's prefix did not
@@ -220,7 +222,7 @@ def walk(fc, d, procs: int, log=sys.stderr):
     assert len({p["clock"] for p in parts}) == 1 and len({p["nseg"] for p in parts}) == 1, "the tops differ"
     stream = sorted((e for p in parts for e in p["events"]), key=lambda e: e[0])
     assert len({e[0] for e in stream}) == len(stream), "a segment walked twice"
-    nodes, facts, seen, pre, keys = dict(fc.nodes), {x: list(v) for x, v in fc.facts.items()}, set(fc._late_seen), [], []
+    nodes, facts, seen, pre, keys = dict(fc.nodes), {x: v.copy() for x, v in fc.facts.items()}, set(fc._late_seen), [], []
     for _, kind, x in stream:
         if kind == "node":
             if x[0] in nodes:
@@ -229,11 +231,11 @@ def walk(fc, d, procs: int, log=sys.stderr):
                 nodes[x[0]] = x[1]
         elif kind == "rec":
             for key in x[0]:
-                facts.setdefault(key, []).append(x[1])
+                facts.setdefault(key, Rows()).append_blob(x[1])
         elif kind == "late":
             if x[1] not in seen:
                 seen.add(x[1])
-                facts.setdefault(x[0], []).append(x[2])
+                facts.setdefault(x[0], Rows()).append_blob(x[2])
         else:
             pre.append(x[0])
             keys.append(x[1])

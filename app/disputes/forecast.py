@@ -23,6 +23,8 @@ import hashlib
 import itertools
 import json
 import math
+import pickle
+import zlib
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
@@ -203,6 +205,49 @@ def registry_entry(qid: str) -> dict:
 def _q(model: dict) -> dict[str, dict]:
     """Chain node name -> its template spec (all templates)."""
     return {n: s for t in model["templates"].values() for n, s in t.get("nodes", {}).items()}
+
+
+_ROW_BLOBS: dict[bytes, bytes] = {}  # identical rows share one compressed blob
+
+
+def pack_row(row: dict) -> bytes:
+    """A recorded row as one compressed pickle, interned by content (identical rows are stored once)."""
+    b = zlib.compress(pickle.dumps(row, protocol=pickle.HIGHEST_PROTOCOL), 1)
+    return _ROW_BLOBS.setdefault(b, b)
+
+
+def unpack_row(b: bytes) -> dict:
+    return pickle.loads(zlib.decompress(b))
+
+
+class Rows:
+    """A node's recorded rows, stored compressed; iterating or indexing yields the rows as recorded."""
+
+    __slots__ = ("_b",)
+
+    def __init__(self, blobs=()):
+        self._b = list(blobs)
+
+    def append(self, row: dict) -> None:
+        self._b.append(pack_row(row))
+
+    def append_blob(self, b: bytes) -> None:
+        self._b.append(b)
+
+    def blob(self, i: int) -> bytes:
+        return self._b[i]
+
+    def copy(self) -> Rows:
+        return Rows(self._b)
+
+    def __len__(self) -> int:
+        return len(self._b)
+
+    def __iter__(self):
+        return (unpack_row(b) for b in self._b)
+
+    def __getitem__(self, i):
+        return unpack_row(self._b[i])
 
 
 @dataclass(frozen=True)
@@ -545,7 +590,7 @@ class Forecaster:
         return hit
 
     SIBLINGS = 64  # traced prefixes kept off the current path (sibling probes); its ancestors are all kept
-    REUSE = True  # exact subtree reuse (`_served`)
+    REUSE = False  # exact subtree reuse (`_served`): off; its kept traces cost ~0.75 MB a path and saved no time
     REUSE_CAP = 1500  # traces logged per depth of the current path (memory: each keeps its snapshot)
 
     # --- exact subtree reuse (Owen's approval, 29 Sep 2026; QUESTIONS §1 Depth applied exactly) ---------------------
@@ -1043,7 +1088,7 @@ class Forecaster:
         if not W.pend:
             return W.run()
         while True:  # a pending claim: walk again where a whole path shows equity the floor's prefix did not
-            kept = dict(self.nodes), {k: list(v) for k, v in self.facts.items()}, set(self._late_seen)
+            kept = dict(self.nodes), {k: v.copy() for k, v in self.facts.items()}, set(self._late_seen)
             self._raise_more = set()
             out = W.run()
             more = self._raise_more - self._raise_open
@@ -1065,8 +1110,9 @@ class Forecaster:
                "stay_offer": getattr(tr, "stay_offer", None), "triggers": getattr(tr, "triggers", None),
                "raise_offer": getattr(tr, "raise_offer", None), "sit": getattr(tr, "sit", None),
                "marks": getattr(tr, "marks", None), "groups": getattr(tr, "groups", None)}
+        b = pack_row(row)
         for k in keys:
-            self.facts.setdefault(k, []).append(row)
+            self.facts.setdefault(k, Rows()).append_blob(b)
 
     def record_late(self, d: DisputeInstance, steps: tuple, late: tuple, mask: np.ndarray | None = None,
                     tr=None) -> None:
@@ -1118,7 +1164,7 @@ class Forecaster:
         seen = self.late_key(k, prefix, row)
         if seen not in self._late_seen:
             self._late_seen.add(seen)
-            self.facts.setdefault(k, []).append(row)
+            self.facts.setdefault(k, Rows()).append(row)
 
     def live(self, n: Node, row: dict) -> np.ndarray:
         """The trajectories where the question's situation holds: the decision falls inside the analysis period,
@@ -1163,7 +1209,7 @@ class Forecaster:
             own["pending_motions"] = self._pending(d, n.node)
         if n.question_id in self.no_cash:
             return own, common
-        rows = self.facts.get(n.key, [])
+        rows = list(self.facts.get(n.key, ()))
         masks = [self.live(n, r) for r in rows]
         if not any(m.any() for m in masks):
             return own, common
@@ -1448,7 +1494,7 @@ class Forecaster:
 
     def state(self, n: Node) -> tuple[dict, tuple[str, ...], dict]:
         d = next(x for x in self.disputes if x.instance_id == n.instance_id)
-        rows = self.facts.get(n.key, [])
+        rows = list(self.facts.get(n.key, ()))
         return self.built(n, d, [c for c in n.context.split("|") if c], lambda: self.path_facts(n, d),
                           (rows, [self.live(n, r) for r in rows]))
 
