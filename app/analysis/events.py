@@ -1403,6 +1403,9 @@ class Chain:
             self.A, self.EF, self.EI = self.F.copy(), self.F.copy(), self.F.copy()
             return filed
         if node == "post_trial_ruling":
+            if branch.startswith("reduced:"):  # J2 reduced, the remittitur accepted (C3): the surviving amount
+                self.cls_amount = int(branch.split(":")[1])
+                self.remitted_amount = np.where(self.live(self.F) & (self.F < self.N), self.cls_amount, 0)
             if branch == "set_aside":  # no money judgment on the path; the dispute goes on (legal spend too)
                 self.cls_amount, self.retrial = 0, True
                 self.adverse_until = np.minimum(self.adverse_until, self.F)  # no adverse judgment stands after it

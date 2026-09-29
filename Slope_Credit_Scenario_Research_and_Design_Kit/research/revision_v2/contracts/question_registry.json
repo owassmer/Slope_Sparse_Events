@@ -2743,8 +2743,7 @@
       ],
       "amount_finality": [
         "forecast_ts_damages_ruling",
-        "forecast_remittitur_accepted",
-        "forecast_post_trial_ruling"
+        "forecast_remittitur_accepted"
       ]
     },
     "reading_items": {

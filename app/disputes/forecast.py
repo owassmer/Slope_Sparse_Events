@@ -361,6 +361,7 @@ class Forecaster:
         self._raise_open: set = set()
         self._raise_more: set = set()
         self._traces: dict = {}
+        self.remitted: dict[str, tuple[int, int, int]] = {}  # C3 node key -> the remitted amount and its band
         self._sources: dict[str, str] = {}  # finding -> its source's title
         self.bank_nodes: dict[str, Node] = {}  # the bank view's questions (bank_state)
         self.bank_facts: dict[str, list] = {}  # bank node key -> [(day, cash, need, raise offer) arrays]
@@ -1547,17 +1548,46 @@ class _Walk:
                 self.post(y)
 
     def ruling_pending(self, s: _S) -> None:
-        """J2, one binary node per verdict branch: the money judgment stands, or is set aside (no money judgment on
-        the path; any stay security released). A ruling after the period on every trajectory is not asked."""
-        probe = ("post_trial_ruling", "", "stands")
+        """J2 (QUESTIONS §4.1): the court leaves the money judgment unchanged, reduces it, or sets it aside (no money
+        judgment on the path; any stay security released). 'Reduced' is asked only where a reduction moves the award
+        across a J1b line: the surviving amount's band is the band below the award's, booked at its midpoint (the
+        judgment's lowest band has none: a reduction there crosses no line). Qorvo's election on the remitted amount
+        (C3) follows: accepted, the reduced judgment, with the holders asked again on the changed judgment (§3.1);
+        refused, a new trial, as set aside. A ruling after the period on every trajectory is not asked."""
+        probe = ("post_trial_ruling", "", "unchanged")
         if not self.arises(s, probe):
             return self.tail(s, "motions_pending")
         if self.first(s, probe, self.ruling_pending):
             return
-        k = self.node("post_trial_ruling", s.cls, s=s, probe=probe, assumptions=("post-trial motions are pending",))
-        self.post(self.take(s, probe, (k, "stands"), (k,)))
-        self.tail(self.take(s, ("post_trial_ruling", "", "set_aside"), (k, "set_aside"), (k,), cls="set_aside"),
-                  "set_aside")
+        below = self.reduced_band(s)
+        branches = ("unchanged",) + (("reduced",) if below else ()) + ("set_aside",)
+        k = self.node("post_trial_ruling", s.cls, s=s, probe=probe, assumptions=("post-trial motions are pending",),
+                      branches=branches)
+        self.post(self.take(s, probe, (k, "unchanged"), (k,)))
+        aside = [[(k, "set_aside")]]
+        if below:
+            lo, hi, booked = below
+            c3 = self.node("remittitur_elected", s.cls, f"remit{booked}", s=s, probe=probe,
+                           assumptions=("the court orders a new trial unless the claimant accepts the reduced amount",))
+            self.fc.remitted[c3] = (booked, lo, hi)
+            step = ("post_trial_ruling", "", f"reduced:{booked}:{lo}:{hi}")
+            y = self.take(s, step, (composite([[(k, "reduced"), (c3, "yes")]]), "yes"), (k, c3),
+                          cls=f"reduced{booked}")
+            self.notes_petition(y, "ruling", self.post)
+            aside.append([(k, "reduced"), (c3, "no")])
+        self.tail(self.take(s, ("post_trial_ruling", "", "set_aside"), (composite(aside), "yes"), (k,),
+                            cls="set_aside"), "set_aside")
+
+    def reduced_band(self, s: _S) -> tuple[int, int, int] | None:
+        """The band below the award's on the path (J1b lines), as (low, high, booked midpoint); None where the award
+        is in the lowest positive band or no award was booked by band."""
+        label = next((st[2] for st in s.steps if st[0] == "verdict"), "")
+        if not label.startswith("award:"):
+            return None
+        total = int(label.split(":")[1])
+        bands = [b for b in self.fc.verdict_lines(self.d, self.fc.equity_inflows(self.d))["bands"] if b[1] > 0]
+        at = next(i for i, (lo, hi, _) in enumerate(bands) if lo < total <= hi)
+        return bands[at - 1] if at > 0 else None
 
     def post(self, s: _S) -> None:
         self.settle(s, "I2", self.appeal)
