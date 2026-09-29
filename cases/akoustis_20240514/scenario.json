@@ -234,23 +234,7 @@
         "id": "equity_injection",
         "label": "Equity: $5.0M received on 14 Jun 2024, instead of none booked",
         "common_model": "equity_injection",
-        "note": "Changes the company's cash. Central: no financing is booked; any raise is the company's own decision at its cash floor. Alternative: $5.0M of new equity one month after the review. A scenario, not a fact of the record: the company was restarting its at-the-market share sales, which fix no amount or date."
-      },
-      {
-        "id": "raise_capacity_no_judgment_low",
-        "label": "Equity raised at the cash floor with no adverse judgment: $5.0M instead of $9.7M",
-        "parameters": [
-          "raise_capacity"
-        ],
-        "note": "Changes what a raise at the cash floor brings in when the jury has not adopted {claimant}'s theory. Central: $9.7M, an estimate of what the company's at-the-market share sales can raise under the small-company limit (about one third of its public float per 12 months, less the January raise). Alternative: $5.0M."
-      },
-      {
-        "id": "raise_after_judgment_available",
-        "label": "Equity raised at the cash floor after an adverse judgment: $5.0M instead of none",
-        "parameters": [
-          "raise_capacity_after_adverse_judgment"
-        ],
-        "note": "Changes what a raise at the cash floor brings in after a judgment on {claimant}'s theory. Central: nothing, because the share-sale limit falls with the share price and the company's quarterly report says such a judgment creates an urgent need for liquidity. Alternative: a distressed raise of $5.0M."
+        "note": "Changes the company's cash. Central: no financing is booked beyond the company's share sales on the market; any offering is the company's own decision. Alternative: $5.0M of new equity one month after the review. A scenario, not a fact of the record: the company was restarting its at-the-market share sales, which fix no amount or date."
       },
       {
         "id": "settlement_lump_sum",
@@ -273,22 +257,78 @@
         "note": "Changes the cash level at which the company decides whether to raise equity, keep going or file, and the cash it counts as available for a settlement or security. Slope's debit does not read it, so collections change only through those decisions."
       },
       {
-        "id": "lower_award_high",
-        "label": "Jury: lower award at $9,999,999, instead of $1.4M",
-        "parameters": [
-          "lower_award_amount"
-        ],
-        "note": "Changes the judgment on the lower-award outcome. Central: $1.4M, {claimant}'s own figures for the smaller claims that stand if the jury rejects the head-start measure (patent and corrective advertising). Alternative: $9,999,999, the largest award that stays below the notes' $10.0M judgment-default threshold."
-      },
-      {
         "id": "coupon_cash",
         "label": "June notes coupon paid in cash, instead of in shares",
         "parameters": [
           "coupon_cash_share"
         ],
         "note": "Changes how the company pays the $1.32M notes coupon due 15 Jun 2024. Central: in shares, which the notes allow unless the company elects cash, and which its registered shares cover. Alternative: all in cash."
+      },
+      {
+        "id": "atm_pace_10",
+        "label": "Share sales on the market: 10% of recent trading volume a day, instead of 20%",
+        "parameters": {
+          "atm_pace_bps": 1000
+        },
+        "note": "Changes the cash the company raises by selling shares on the market. Central: from 14 May, 20% of the average daily dollar volume of 15 Mar to 14 May 2024 (about $67,400 a trading day) at the 14 May close, less a 3% commission. Alternative: 10%."
+      },
+      {
+        "id": "atm_pace_25",
+        "label": "Share sales on the market: 25% of recent trading volume a day, instead of 20%",
+        "parameters": {
+          "atm_pace_bps": 2500
+        },
+        "note": "Changes the cash the company raises by selling shares on the market. Central: 20% of the average daily dollar volume of 15 Mar to 14 May 2024. Alternative: 25%."
+      },
+      {
+        "id": "nonpayment_window_15",
+        "label": "General nonpayment under the notes: judged over 15 days, instead of 30",
+        "parameters": {
+          "nonpayment_window_days": 15
+        },
+        "note": "Changes when the notes fall due because the company generally is not paying its debts. Central: unpaid bills outstanding throughout the last 30 days, and at least a quarter of what fell due in them left unpaid. Alternative: over 15 days."
+      },
+      {
+        "id": "nonpayment_window_60",
+        "label": "General nonpayment under the notes: judged over 60 days, instead of 30",
+        "parameters": {
+          "nonpayment_window_days": 60
+        },
+        "note": "Changes when the notes fall due because the company generally is not paying its debts. Central: over the last 30 days. Alternative: over 60 days."
+      },
+      {
+        "id": "nonpayment_share_half",
+        "label": "General nonpayment under the notes: half of what fell due left unpaid, instead of a quarter",
+        "parameters": {
+          "nonpayment_unpaid_share_bps": 5000
+        },
+        "note": "Changes when the notes fall due because the company generally is not paying its debts. Central: at least a quarter of the bills that fell due in the last 30 days left unpaid. Alternative: at least half."
+      },
+      {
+        "id": "offering_price_half",
+        "label": "Share offering priced at half the central price",
+        "parameters": {
+          "offering_price": "half"
+        },
+        "note": "Changes the price of an underwritten share offering, and so the shares it needs. Central: the 14 May close less the January 2024 offering's discount (about $0.31). Alternative: half that price, so the same proceeds need twice the shares and the remaining authorized shares may run out."
+      },
+      {
+        "id": "small_claims_nothing",
+        "label": "Jury: nothing awarded on the patent and advertising claims when it finds them, instead of the amounts claimed",
+        "parameters": {
+          "small_claims_awarded": false
+        },
+        "note": "Changes what the jury awards if it finds for {claimant} on patent infringement or false advertising. Central: the amounts {claimant} claims for them ($279,808 and $1,146,604). Alternative: nothing."
+      },
+      {
+        "id": "judgment_default_post_ruling",
+        "label": "Notes' judgment default: counted from the post-trial ruling, instead of from the judgment's entry",
+        "parameters": {
+          "judgment_default_reading": "post_ruling"
+        },
+        "note": "Changes when an unpaid judgment becomes a default under the notes. Central: 60 days after the judgment's automatic 30-day stay ends. Alternative: 60 days after the court rules on the last post-trial motion, on the amount that survives."
       }
     ],
-    "central_note": "Settings every outcome shares: the bank feed's recent flows continue, no financing is booked, the cash floor is 30 days of operating outflows, and Slope collects each installment by automatic debit."
+    "central_note": "Settings every outcome shares: the bank feed's recent flows continue, the company sells shares on the market at 20% of recent daily trading volume, no other financing is booked unless the company initiates an offering, the cash floor is 30 days of operating outflows, and Slope collects each installment by automatic debit."
   }
 }
