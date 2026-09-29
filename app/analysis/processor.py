@@ -151,7 +151,7 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
         s.collection == "debit", s.same_day_order == "operating_first", due0, book_d, book_a,
         np.int64(opening_cents + ex.cash_cents), np.int64(ex.principal_cents), np.int64(ex.owed_cents), b * nroutes,
         np.int64(w), np.int64(share))
-    hr, dr = _in_loop_order(hr, dr, n * b, routes.shape[2])
+    hr, dr = _in_loop_order(hr, dr, days, routes.shape[2])
     res = []
     failed = failed.reshape(b, n)
     for j, e in enumerate(events):

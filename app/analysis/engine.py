@@ -244,7 +244,7 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash], nonpayment
         base, pet, need, limit, month_end, routes, due_idx, np.int64(s.fee_bps), s.installments,
         s.collection == "debit", due0, book_d, book_a, np.int64(opening_cents + ex.cash_cents),
         np.int64(ex.principal_cents), np.int64(ex.owed_cents), b * nroutes)
-    hr, dr = _in_loop_order(hr, dr, n * b, routes.shape[2])
+    hr, dr = _in_loop_order(hr, dr, days, routes.shape[2])
     out = []
     failed = failed.reshape(b, n)
     for j, ev in enumerate(events):
@@ -290,13 +290,28 @@ def _kernel_line(line: Line) -> tuple:
     return out
 
 
-def _in_loop_order(hr: tuple, dr: tuple, rn: int, slots: int) -> tuple:
+def _in_loop_order(hr: tuple, dr: tuple, days: int, slots: int) -> tuple:
     """The kernels emit headroom and draw entries row by row; the day loop over stacked rows emitted them by day, then
     (draws) slot, then row. Returns (rows, values, days) and (rows, days, amounts) in that order."""
     (hr_r, hr_t, hr_v), (dr_t, dr_k, dr_r, dr_a) = hr, dr
-    o = np.argsort(hr_t * rn + hr_r, kind="stable")
-    p = np.argsort((dr_t * slots + dr_k) * rn + dr_r, kind="stable")
+    o = _stable_buckets(hr_t, days)  # rows ascending within a bucket: the kernels emit row by row
+    p = _stable_buckets(dr_t * slots + dr_k, days * slots)
     return (hr_r[o], hr_v[o], hr_t[o]), (dr_r[p], dr_t[p], dr_a[p])
+
+
+@njit(cache=True)
+def _stable_buckets(bucket, nb):
+    """The stable counting-sort order of entries by bucket (0 <= bucket < nb)."""
+    start = np.zeros(nb + 1, np.int64)
+    for x in bucket:
+        start[x + 1] += 1
+    for j in range(nb):
+        start[j + 1] += start[j]
+    out = np.empty(bucket.shape[0], np.int64)
+    for q in range(bucket.shape[0]):
+        out[start[bucket[q]]] = q
+        start[bucket[q]] += 1
+    return out
 
 
 @njit(cache=True)
