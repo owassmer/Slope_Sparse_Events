@@ -23,7 +23,7 @@ import sys
 import tempfile
 import time
 
-CUT = 4  # a unit starts this many steps below the verdict
+CUT = int(os.environ.get("SLOPE_WALK_CUT", "4"))  # a unit starts this many steps below the verdict
 STARTS = ("q1", "appeal", "emit", "_end")  # walks that always start a unit
 
 
@@ -35,7 +35,11 @@ def _child(fc, d, k: int, run: str, log) -> None:
     st = {"seg": None, "clock": 0, "nseg": 0, "vdepth": 0, "roots": {}, "seq": 0, "mine": set(), "j": 0, "n": 0}
     events: list = []
 
-    def claim(root) -> bool:
+    shards = int(os.environ.get("SLOPE_WALK_SHARDS", "0"))  # shards on separate machines: unit seq mod shards
+
+    def claim(root, seq: int) -> bool:
+        if shards:
+            return seq % shards == k
         name = "c_" + hashlib.blake2b(repr(root).encode(), digest_size=12).hexdigest()
         try:
             os.close(os.open(os.path.join(run, name), os.O_CREAT | os.O_EXCL))
@@ -53,7 +57,7 @@ def _child(fc, d, k: int, run: str, log) -> None:
         if W._watch:
             return None
         if len(steps) - st["vdepth"] >= CUT or name in STARTS:
-            r = st["roots"][steps] = (st["seq"], claim(steps))
+            r = st["roots"][steps] = (st["seq"], claim(steps, st["seq"]))
             st["seq"] += 1
             return r
         return None
@@ -148,12 +152,13 @@ def _child(fc, d, k: int, run: str, log) -> None:
     print(f"{time.time() - t0:7.0f}s part {k}: done, {st['n']} paths, {st['nseg']} segments", file=log, flush=True)
 
 
-def _fork(fc, d, procs: int, run: str, log) -> list[dict]:
-    """Walk in `procs` forked processes; their results in process order."""
+def _fork(fc, d, procs: int, run: str, log, ks=None) -> list[dict] | None:
+    """Walk in `procs` forked processes (ks: their part numbers, default 0..procs-1); their results in process order
+    (ks given: written to run/part<k>.pkl only)."""
     pids = []
     sys.stdout.flush()
     sys.stderr.flush()
-    for k in range(procs):
+    for k in (range(procs) if ks is None else ks):
         pid = os.fork()
         if pid == 0:
             code = 1
@@ -169,6 +174,8 @@ def _fork(fc, d, procs: int, run: str, log) -> list[dict]:
     bad = [k for k, pid in enumerate(pids) if os.waitpid(pid, 0)[1] != 0]
     if bad:
         raise RuntimeError(f"parallel walk: process(es) {bad} failed (log: {getattr(log, 'name', log)})")
+    if ks is not None:
+        return None
     parts = []
     for k in range(procs):
         with open(os.path.join(run, f"part{k}.pkl"), "rb") as fh:
@@ -204,18 +211,24 @@ def walk(fc, d, procs: int, log=sys.stderr):
     Forecaster's nodes, facts and walk dictionaries set as the single walk leaves them."""
     import shutil
 
-    from app.disputes.forecast import Rows, merge_equivalent
+    from app.disputes.forecast import _ROW_BLOBS, Rows, merge_equivalent
 
     t0 = time.time()
+    saved = os.environ.get("SLOPE_WALK_PARTS")  # the parts the shards walked (GitHub Actions: app/disputes/parallel.py)
     while True:  # as Forecaster.paths: walk again where a whole path shows equity the floor's prefix did not
-        run = tempfile.mkdtemp(prefix="walk_")
-        try:
-            parts = _fork(fc, d, procs, run, log)
-        finally:
-            shutil.rmtree(run, ignore_errors=True)
+        if saved:
+            parts = load_parts(saved)
+        else:
+            run = tempfile.mkdtemp(prefix="walk_")
+            try:
+                parts = _fork(fc, d, procs, run, log)
+            finally:
+                shutil.rmtree(run, ignore_errors=True)
         more = set().union(*(p["raise_more"] for p in parts)) - fc._raise_open
         if not more:
             break
+        if saved:
+            raise RuntimeError(f"the raise is re-offered at {len(more)} floor prefixes: walk the shards again with them")
         fc._raise_open |= more
         print(f"{time.time() - t0:7.0f}s parallel walk: the raise re-offered at {len(more)} floor prefixes; "
               f"walking again", file=log, flush=True)
@@ -231,11 +244,11 @@ def walk(fc, d, procs: int, log=sys.stderr):
                 nodes[x[0]] = x[1]
         elif kind == "rec":
             for key in x[0]:
-                facts.setdefault(key, Rows()).append_blob(x[1])
+                facts.setdefault(key, Rows()).append_blob(_ROW_BLOBS.setdefault(x[1], x[1]))
         elif kind == "late":
             if x[1] not in seen:
                 seen.add(x[1])
-                facts.setdefault(x[0], Rows()).append_blob(x[2])
+                facts.setdefault(x[0], Rows()).append_blob(_ROW_BLOBS.setdefault(x[2], x[2]))
         else:
             pre.append(x[0])
             keys.append(x[1])
@@ -260,3 +273,39 @@ def all_paths(fc, procs: int, log=sys.stderr) -> dict:
 
     return {d.instance_id: {"": walk(fc, d, procs, log) if d.stage == PENDING and d.borrower_role == "debtor"
                             else fc.paths(d)} for d, _ in fc.ordered()}
+
+
+def load_parts(folder: str) -> list[dict]:
+    """The shards' parts (part<k>.pkl under `folder`, any depth), in part order; every part present."""
+    from pathlib import Path
+
+    files = {int(p.stem[4:]): p for p in Path(folder).rglob("part*.pkl")}
+    assert files and sorted(files) == list(range(len(files))), f"parts missing: have {sorted(files)}"
+    parts = []
+    for k in sorted(files):
+        with open(files[k], "rb") as fh:
+            parts.append(pickle.load(fh))
+    return parts
+
+
+def shard(run_id: str, job: int, jobs: int, procs: int, out: str) -> None:
+    """One machine's share of the pending claim's walk: parts job*procs .. job*procs+procs-1 of jobs*procs, the
+    Forecaster built as `build.judged_model` builds it."""
+    from pathlib import Path
+
+    from app.analysis.build import basis_for, run_context
+    from app.disputes.forecast import PENDING, Forecaster
+
+    ctx = run_context(run_id, Path("runs/recorded"))
+    setup = ctx["setup"]
+    fc = Forecaster(ctx["live"], ctx["findings"], borrower=ctx["borrower"], review=ctx["review"],
+                    horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup, basis=basis_for(ctx["feed"], setup),
+                    slots=ctx["slots"], model=ctx["m"], sens=None)
+    d = next(x for x, _ in fc.ordered() if x.stage == PENDING and x.borrower_role == "debtor")
+    os.environ["SLOPE_WALK_SHARDS"] = str(jobs * procs)
+    os.makedirs(out, exist_ok=True)
+    _fork(fc, d, procs, out, sys.stderr, ks=range(job * procs, job * procs + procs))
+
+
+if __name__ == "__main__":
+    shard(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]), sys.argv[5])

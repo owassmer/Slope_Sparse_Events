@@ -1,0 +1,43 @@
+name: walk
+
+# The 14 May dispute tree walked on GitHub runners (app/disputes/parallel.py `shard`): each job walks its parts of
+# the tree and uploads them; `slope analyze` merges them with SLOPE_WALK_PARTS.
+on:
+  push:
+    branches: [walk-run]
+
+env:
+  RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
+  JOBS: "20"  # the matrix below lists 0..JOBS-1
+  PROCS: "4"
+  SLOPE_WALK_CUT: "7"  # 1,429 units below the verdicts
+
+jobs:
+  shard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: true
+      max-parallel: 20
+      matrix:
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - run: nproc; free -g
+      - run: >
+          SLOPE_JEV_CACHE_ONLY=1 uv run python -m app.disputes.parallel $RUN_ID
+          ${{ matrix.job }} $JOBS $PROCS out 2> >(tee walk.log >&2)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: walk-${{ matrix.job }}
+          path: |
+            out/part*.pkl
+            walk.log
+          retention-days: 3
+          compression-level: 0
