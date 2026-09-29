@@ -703,11 +703,13 @@ class Forecaster:
         conjunctions of its answers per booked award (exhaustive over the answers). J1 asks the liability items;
         J1b asks, for each amount item (1(b), 1(d), 2(c)), whether it exceeds each J1b line above the total already
         established (`verdict_lines`; the first cut at nothing), in ascending order, each conditional on the band
-        established. The amount items book the midpoint of the total band they establish (the top band: the
-        claimant's amount); the items the jury finds with a claimed amount (3(a), 5(a)) add that amount (none where
-        small_claims_awarded is false). Nothing is asked once the total is above the top line, and exemplary damages
+        established. The walk branches on the total judgment, the sum of every amount entered (Owen's ruling, 29 Sep
+        2026: it is all later steps read). With no trade-secret or conspiracy amount the total is exact from the items
+        found, 3(a) and 5(a) at the amounts claimed (none where small_claims_awarded is false): one class each. With
+        one entered, the class is the total's J1b band, booked at its midpoint (the top band: the claimant's amount);
+        the small items move only the band, never the booking inside it. Nothing is asked once the total is above the top line, and exemplary damages
         (1(c), 1(d), at most twice 1(b)) only where they can move the total across a line. Each class is labelled
-        'no_award' or 'award:<booked>:<band low>:<band high|top>'; `verdict_asks` holds each amount question's item,
+        'no_award' or 'award:<booked>:<band low>:<band high|top>' (an exact class: low = high = booked); `verdict_asks` holds each amount question's item,
         threshold and the total established before it."""
         from app.analysis.events import pval
 
@@ -730,9 +732,11 @@ class Forecaster:
                 label = f"award:{lines['top_amount']}:{top}:top"
             elif amt + fixed > top:  # above the top line every award books the same cash: the top class
                 label = f"award:{lines['top_amount']}:{top}:top"
-            else:
+            elif amt == 0:  # no trade-secret or conspiracy amount: the total is exact from the items found
+                label = "no_award" if fixed == 0 else f"award:{fixed}:{fixed}:{fixed}"
+            else:  # an amount entered: the total judgment's band, booked at its midpoint (the ends: the sensitivity)
                 lo, hi = band(amt + fixed)
-                label = "no_award" if amt + fixed == 0 else f"award:{amt + fixed}:{lo}:{hi}"
+                label = f"award:{(lo + int(hi)) // 2}:{lo}:{hi}"
             out.setdefault(label, []).append(conj)
 
         def walk(q: str, trail: tuple, conj: list, amt: int, fixed: int, hi: dict) -> None:
