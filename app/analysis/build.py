@@ -21,6 +21,7 @@ from pathlib import Path
 from app.analysis.core import Analysis, EventModel, dates, stress
 from app.analysis.events import BANK, Basis, coupon_terms
 from app.analysis.setup import (
+    QUIET_DEFAULTS,
     Exposure,
     Setup,
     controls_from_json,
@@ -429,13 +430,15 @@ def write_csv(data: dict, out: Path) -> None:
 def setup_json(setup: Setup) -> dict:
     controls = {**controls_json(setup), "exposure": exposure_json(setup.exposure)}
     return {k: (controls[k] if k in controls else v.isoformat() if isinstance(v, date) else v)
-            for k, v in asdict(setup).items() if k != "exposure" or setup.exposure != Exposure()}
+            for k, v in asdict(setup).items() if (k != "exposure" or setup.exposure != Exposure())
+            and QUIET_DEFAULTS.get(k, object()) != v}
 
 
 def setup_from_json(d: dict) -> Setup:
     return Setup(**{k: (date.fromisoformat(v) if k in ("review", "horizon", "funding", "invoice_due") else
                         tuple(v) if k == "collateral_share" and v is not None else v) for k, v in d.items()
-                    if k not in ("need_days", "collection", "financing", "cost_plan", "exposure")}, **controls_from_json(d),
+                    if k not in ("need_days", "collection", "financing", "cost_plan", "exposure", *QUIET_DEFAULTS)},
+                 **controls_from_json(d),
                  exposure=exposure_from_json(d.get("exposure")))
 
 
