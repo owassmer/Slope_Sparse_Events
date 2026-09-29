@@ -8,7 +8,8 @@
     "{company} holds about {cash} of cash and owes {notes} on convertible notes. A final judgment above {threshold} left unpaid and unstayed for {days} days is a default under the notes, which lets the noteholders demand repayment. Its shares trade below the exchange's minimum bid price; the compliance deadline is {listing}."
   ],
   "labels": {
-    "principal_measure": "the claimed head-start measure of trade-secret unjust enrichment"
+    "principal_measure": "the claimed head-start measure of trade-secret unjust enrichment",
+    "bid_price_on_review_date": "$0.44, the closing price on 14 May 2024, against the $1.00 minimum bid"
   },
   "parameters": {
     "verdict_window": {
@@ -262,5 +263,267 @@
       }
     ],
     "central_note": "Settings every outcome shares: the bank feed's recent flows continue, no financing is booked, the cash floor is 30 days of operating outflows, and Slope collects each installment by automatic debit."
+  },
+  "source_attribution": {
+    "akts_2022_06_notes_8k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2022_06_notes_indenture": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_fy2023_10k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2023_10_27_8k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024_01_29_8k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024q3_10q": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024_05_13_8k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024_05_13_release": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "ded_21cv1417_d015_reply": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d047_reply": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d067_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d112_joint_statement": {
+      "author": "Qorvo and Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d152_claim_construction": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d313_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d487_reply": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d545_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d546_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d553_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d557_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d587_brief": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d590_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_docket_20240514": {
+      "author": "the Clerk of the District Court (docket)",
+      "status": "third-party record",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d001_complaint": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d133_amended_complaint": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d471_brief": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d476_brief": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d496_brief": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d508_reply": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d535_proposed_verdict": {
+      "author": "Qorvo",
+      "status": "proposal",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d543_pretrial_order": {
+      "author": "Qorvo and Akoustis (joint proposed order)",
+      "status": "proposal",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d543_1_exhibits": {
+      "author": "Qorvo and Akoustis (each side's statement)",
+      "status": "statement of intended proof",
+      "in_case_record": true
+    },
+    "akts_2024_05_13_s3": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2022_05_02_424b5": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024_01_29_424b5": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2024_05_13_call": {
+      "author": "Akoustis Technologies management (call transcript by Earnings Whispers)",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "ded_21cv1417_d580_verdict_form": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d550_order": {
+      "author": "U.S. District Court for the District of Delaware",
+      "status": "court ruling",
+      "in_case_record": true
+    },
+    "akts_2022_02_04_s3": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2022_05_02_atm_agreement": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2023_09_19_def14a": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2023_11_02_8k": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "ded_21cv1417_d565_limiting_instructions": {
+      "author": "Qorvo and Akoustis (stipulated)",
+      "status": "stipulation",
+      "in_case_record": true
+    },
+    "akts_2023_01_23_424b5": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "ded_21cv1417_d533_preliminary_instructions": {
+      "author": "Qorvo",
+      "status": "proposal",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d537_final_instructions": {
+      "author": "Qorvo and Akoustis (each side's proposals)",
+      "status": "proposal",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d539_witness_list": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d582_judicial_notice": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d585_exhibit_list": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d588_bench_memo": {
+      "author": "Qorvo",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "ded_21cv1417_d589_bench_memo": {
+      "author": "Akoustis",
+      "status": "party argument",
+      "in_case_record": true
+    },
+    "akts_fy2023_10k_ex21": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_daily_px_20240514": {
+      "author": "stockanalysis.com (Nasdaq trading data)",
+      "status": "third-party record",
+      "in_case_record": false
+    }
   }
 }

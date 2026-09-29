@@ -369,6 +369,19 @@ class Forecaster:
         # the case sets raise_capacity: the company's floor decision is financing_at_floor (4.1.0)
         self.raising = "value" in self.m["parameters"].get("raise_capacity", {})
 
+    def texts(self, node: str, d: DisputeInstance | None) -> dict:
+        """The node's question texts (residual question, actor, decision, branches, standard, record items,
+        situation): a pending claim reads them from the node's pending_money_claim block where it has one (contract
+        `templates.pending_money_claim.node_texts`), every other dispute from the node."""
+        s = self.spec[node]
+        if d is not None and d.stage == PENDING and "pending_money_claim" in s:
+            return {**s, **s["pending_money_claim"]}
+        return s
+
+    def event_forecast(self, n: Node) -> bool:
+        """Whether the question is one of the 14 May questions (profile event_forecast, QUESTIONS_20240514)."""
+        return registry_entry(n.question_id).get("profile") == "event_forecast"
+
     def ordered(self) -> list[tuple[DisputeInstance, None]]:
         """4.0.0 models each judgment's components and triggered instruments inside one dispute's chains, so
         disputes compose independently."""
@@ -383,7 +396,7 @@ class Forecaster:
              branches: tuple[str, ...] | None = None) -> str:
         k = self.key(d, node, *ctx)
         if k not in self.nodes:
-            s = self.spec[node]
+            s = self.texts(node, d)
             self.nodes[k] = Node(key=k, instance_id=d.instance_id, node=node, context="|".join(ctx), cls="",
                                  question_id=s["residual_question"], event=s["decision"],
                                  assumptions=tuple(assumptions), window=s["timing"],
@@ -676,7 +689,8 @@ class Forecaster:
         row = {"day": tr.day[-1], "cash": tr.cash[-1], "owed": tr.owed[-1], "collateral": tr.collateral[-1],
                "petition": tr.petition, "settle_offer": getattr(tr, "settle_offer", None),
                "stay_offer": getattr(tr, "stay_offer", None), "triggers": getattr(tr, "triggers", None),
-               "raise_offer": getattr(tr, "raise_offer", None), "sit": getattr(tr, "sit", None)}
+               "raise_offer": getattr(tr, "raise_offer", None), "sit": getattr(tr, "sit", None),
+               "marks": getattr(tr, "marks", None)}
         for k in keys:
             self.facts.setdefault(k, []).append(row)
 
@@ -692,7 +706,7 @@ class Forecaster:
         for k, i in late:
             if i in tr.stays:  # a stay's approval (daily processing): the security sized on the whole path
                 self._keep_late(k, steps[:i], {**tr.stays[i], "settle_offer": None, "raise_offer": None,
-                                               "sit": tr.situations.get(i)})
+                                               "sit": tr.situations.get(i), "marks": tr.marks})
                 continue
             info = tr.late[i]
             n = self.nodes[k]
@@ -702,7 +716,8 @@ class Forecaster:
                     self._raise_more.add(steps[:i])
             row = {"day": tr.day[i], "cash": tr.cash[i], "owed": tr.owed[i], "collateral": tr.collateral[i],
                    "petition": info["petition"], "settle_offer": None, "stay_offer": None,
-                   "triggers": info["triggers"], "raise_offer": info["raise_offer"], "sit": tr.situations.get(i)}
+                   "triggers": info["triggers"], "raise_offer": info["raise_offer"], "sit": tr.situations.get(i),
+                   "marks": tr.marks}
             self._keep_late(k, steps[:i], row)
 
     def _keep_late(self, k: str, prefix: tuple, row: dict) -> None:
@@ -1037,12 +1052,20 @@ class Forecaster:
 
     def state(self, n: Node) -> tuple[dict, tuple[str, ...], dict]:
         d = next(x for x in self.disputes if x.instance_id == n.instance_id)
-        return self.built(n, d, [c for c in n.context.split("|") if c], lambda: self.path_facts(n, d))
+        rows = self.facts.get(n.key, [])
+        return self.built(n, d, [c for c in n.context.split("|") if c], lambda: self.path_facts(n, d),
+                          (rows, [self.live(n, r) for r in rows]))
 
-    def built(self, n: Node, d: DisputeInstance, tags: list[str], facts) -> tuple[dict, tuple[str, ...], dict]:
+    def built(self, n: Node, d: DisputeInstance, tags: list[str], facts, rows: tuple = ([], [])
+              ) -> tuple[dict, tuple[str, ...], dict]:
         """A question's state: the case, the decision in its situation (`tags`), the standard, the record items and
         evidence routed to it, the path facts (`facts()`), and the conditions that hold. The forecast and the
-        ordinary view (`ordinary_state`) both build their questions here."""
+        ordinary view (`ordinary_state`) both build their questions here. A 14 May question (profile
+        event_forecast) is built from its rows (rows, live masks) by app/disputes/state14.py."""
+        if self.event_forecast(n):
+            from app.disputes import state14
+
+            return state14.build(self, n, d, tags, *rows, strict=getattr(self, "state_strict", True))
         s = self.spec[n.node]
         readings, read_from = self._readings(d, n.question_id)
         evidence, fids, record = self._evidence(d, n.node, read_from)
@@ -1067,8 +1090,10 @@ class Forecaster:
             dist = answer_distribution(n.key, n.branches, o)
             return Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
                             event=n.event, assumptions=n.assumptions, window=n.window, distribution=dist,
-                            confidence=o.confidence, finding_ids=fids, readings=readings, evidence=st["evidence"],
-                            observation_id=o.observation_id, path_facts=st["path_facts"])
+                            confidence=o.confidence, finding_ids=fids, readings=readings,
+                            evidence=st["evidence"] if "evidence" in st else [
+                                x for k in ("historical_evidence", "party_assertions", "court_findings") for x in st[k]],
+                            observation_id=o.observation_id, path_facts=st.get("path_facts", st.get("situation")))
 
         results = await asyncio.gather(*(one(n) for n in self.nodes.values()))
         return {j.key: j for j in results}
@@ -1935,7 +1960,11 @@ def ordinary_state(fc: Forecaster, n: Node) -> tuple[dict, tuple[str, ...], dict
     builder (the case, the record items and evidence routed to it, the standard), with the ordinary view's own path
     facts, a context without the dispute's branch conditions, and the situation (the event given no cash effect)
     among the conditions that hold (the node's assumptions)."""
-    return fc.built(n, fc.ordinary_dispute(), [c for c in n.context.split("|")[1:] if c], lambda: bank_facts(fc, n))
+    rows = [{"day": r[0], "cash": r[1], "owed": np.zeros_like(r[1]), "collateral": np.zeros_like(r[1]),
+             "petition": np.full_like(r[0], -1), "triggers": r[4] if len(r) > 4 else None,
+             "sit": r[5] if len(r) > 5 else None} for r in fc.bank_facts.get(n.key, [])]
+    return fc.built(n, fc.ordinary_dispute(), [c for c in n.context.split("|")[1:] if c], lambda: bank_facts(fc, n),
+                    (rows, [r["day"] < fc.days for r in rows]))
 
 
 def bank_facts(fc: Forecaster, n: Node) -> dict:
