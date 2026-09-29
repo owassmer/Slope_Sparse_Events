@@ -2,7 +2,7 @@
   "package": "Slope credit-event scenario research and design kit",
   "revision": "2",
   "status": "Research and design; not a built agent or lending application",
-  "primary_catalog_records": 93,
+  "primary_catalog_records": 102,
   "warning": "Build dated agent evidence stores. Do not expose this entire kit, outcomes or evaluator answers to investigator/reviewer runtimes.",
   "files": [
     {
@@ -276,9 +276,19 @@
       "sha256": "b37f5dc47fff9902256afa15f83eb67ad915ab8ca6a40eebe086e7193afa2584"
     },
     {
+      "path": "research/recent_cases/akoustis/akts_daily_px_20240514.html",
+      "bytes": 24520,
+      "sha256": "46c0ec4c7116174e4a5b49199de887e1150ed55bc250d8927ad5017664f11e3b"
+    },
+    {
       "path": "research/recent_cases/akoustis/akts_fy2023_10k.html",
       "bytes": 1335334,
       "sha256": "4d405945d9ae4f46abc1e62ea1d51e0773d202b1f883b21d1b81e33a8731db53"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_fy2023_10k_ex21.html",
+      "bytes": 1445,
+      "sha256": "540ce75d3babfc4d52e32ee119c66e8a92a11fc933e09fa85c12da05c14f3dff"
     },
     {
       "path": "research/recent_cases/akoustis/akts_fy2024_10k.html",
@@ -351,9 +361,24 @@
       "sha256": "38a342e0882d75e2212dc31b2be46213f198a535ccc1b2f30ce38a44681ec5a4"
     },
     {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d533_preliminary_instructions.pdf",
+      "bytes": 155678,
+      "sha256": "5f6b629a35bd3ad2b9634e1b459329876d88f4dfa166f3b0b0537bbe91869436"
+    },
+    {
       "path": "research/recent_cases/akoustis/ded_21cv1417_d535_proposed_verdict.pdf",
       "bytes": 189395,
       "sha256": "2f3d6a58a90a1b916b6f85d6f184d27fcb79a36370f8e7ee28257e2046c8f6f2"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d537_final_instructions.pdf",
+      "bytes": 461929,
+      "sha256": "08fa77a746643543818b1f79aa8c25e3c59e71c9cd64cf3c33ec0fb50bf9be46"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d539_witness_list.pdf",
+      "bytes": 147210,
+      "sha256": "443df17eeb9d2dec72082a950a4653550bdedb105b195887a65f204edfadacdf"
     },
     {
       "path": "research/recent_cases/akoustis/ded_21cv1417_d543_1_exhibits.pdf",
@@ -401,9 +426,29 @@
       "sha256": "58ac4822c64d32184adf5b9c9d6477a1101c6d982189dca6e042b5b044fb707e"
     },
     {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d582_judicial_notice.pdf",
+      "bytes": 186092,
+      "sha256": "ca31f42791eed58d897f187edddc043040573b88ff38befde0ed01c89e0ee600"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d585_exhibit_list.pdf",
+      "bytes": 399825,
+      "sha256": "09a3a1ed1dfea6852d0d318138c11e4d85958e6151218c5c71341650e61a5582"
+    },
+    {
       "path": "research/recent_cases/akoustis/ded_21cv1417_d587_brief.pdf",
       "bytes": 169357,
       "sha256": "17761677aca74645c1bf9c68cf8513657f10708668be24503e2564fed8450436"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d588_bench_memo.pdf",
+      "bytes": 154344,
+      "sha256": "1fa6cb99c7af4e0586eedb0aea03ed94f862a71088802e4cd201110090015fec"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d589_bench_memo.pdf",
+      "bytes": 216679,
+      "sha256": "6b835feb5bce396a0e3e7a9218e5cb8ddc0bba77d9661db171b7a163b47d1362"
     },
     {
       "path": "research/recent_cases/akoustis/ded_21cv1417_d590_order.pdf",
@@ -512,8 +557,8 @@
     },
     {
       "path": "research/recent_cases/akoustis/display.json",
-      "bytes": 17871,
-      "sha256": "275e2c5ca497643fa78beb81ba7d8267e73218a34c8861a79add59406e6ecfb0"
+      "bytes": 20347,
+      "sha256": "3994af885bd850820ae02bb9abe047b8b098c624064267e37dacac75eb87ea07"
     },
     {
       "path": "research/recent_cases/akoustis/qorvo_2024_05_20_8k.html",
@@ -662,8 +707,8 @@
     },
     {
       "path": "research/revision_v2/data/sources.json",
-      "bytes": 112529,
-      "sha256": "3f69f56551821ec42588d4e460c293cd21918ef7859141b7be9de29a9bc4f007"
+      "bytes": 124355,
+      "sha256": "f067861b59ec97d7fbecb7dbe9c1c2783140d93d28ea110f5247f746329d92a4"
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",

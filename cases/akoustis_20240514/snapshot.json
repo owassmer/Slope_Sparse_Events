@@ -256,6 +256,51 @@
       "title": "Akoustis Technologies prospectus supplement (424B5) of 19 Jan 2023, filed 23 Jan 2023: underwritten offering of common stock at $2.75 on shelf 333-262540",
       "document_kind": "sec_prospectus",
       "publisher": "SEC EDGAR"
+    },
+    "ded_21cv1417_d533_preliminary_instructions": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Qorvo's [proposed] preliminary jury instructions (D.I. 533)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d537_final_instructions": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), the parties' [proposed] final jury instructions, with each side's proposal on the disputed instructions (D.I. 537)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d539_witness_list": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), the Akoustis defendants' amended identification of trial witnesses (D.I. 539)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d582_judicial_notice": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), the Akoustis defendants' request for judicial notice of portions of the Aigner declaration, trial exhibit 18 (D.I. 582)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d585_exhibit_list": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), the Akoustis defendants' second amended trial exhibit list (D.I. 585)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d588_bench_memo": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), Qorvo's bench memorandum on the final jury instruction on civil conspiracy (D.I. 588)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "ded_21cv1417_d589_bench_memo": {
+      "title": "Qorvo v. Akoustis (D. Del. 1:21-cv-01417), the Akoustis defendants' bench memorandum on the jury instructions for civil conspiracy (D.I. 589)",
+      "document_kind": "court_filing",
+      "publisher": "U.S. District Court (PACER via RECAP)"
+    },
+    "akts_fy2023_10k_ex21": {
+      "title": "Akoustis Technologies Form 10-K for fiscal year ended June 30, 2023, Exhibit 21.1 (subsidiaries of the company)",
+      "document_kind": "sec_annual_report",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_daily_px_20240514": {
+      "title": "Akoustis Technologies (Nasdaq: AKTS) daily open, high, low, close and volume, 1 Jun 2023 - 14 May 2024",
+      "document_kind": "market_data",
+      "publisher": "stockanalysis.com"
     }
   }
 }
