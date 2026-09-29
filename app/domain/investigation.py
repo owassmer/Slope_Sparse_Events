@@ -139,6 +139,7 @@ class AtomicFinding(Frozen):
     subject_kind: SubjectKind = "other"
     subject: str = ""
     is_inference: bool = False  # the agent's own linkage of cited premises, labelled as such
+    speaker: str = ""  # whose statement the finding reports, as named in the cited section (host-checked)
     spans: tuple[SourceSpan, ...] = Field(min_length=1)  # every finding rests on verbatim snapshot text
     observation_ids: tuple[str, ...] = ()
     status: Literal["proposed", "accepted", "rejected"] = "proposed"

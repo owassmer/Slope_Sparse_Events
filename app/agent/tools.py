@@ -16,6 +16,7 @@ Host rules enforced here:
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import json
 import re
@@ -104,10 +105,31 @@ class RunContext:
     turns_used: int = 0
     max_turns: int | None = None
     accepted_order: list[str] = field(default_factory=list)
+    record_mode: bool = False  # the mission's submission is its record items (investigation.record_mode)
+    host_dependency: str | None = None
 
     @property
     def case_id(self) -> str:
         return self.inputs["case_id"]
+
+
+def _dependency(ctx: RunContext, args: dict) -> DecisionDependency:
+    """The named dependency; under a record-items mission, one host dependency when none is named."""
+    if args.get("dependency_id") or not ctx.record_mode:
+        return ctx.run.get("dependencies", args["dependency_id"])
+    if ctx.host_dependency is None:
+        dep = DecisionDependency(
+            dependency_id=ctx.run.new_id("dep"), target=ctx.inputs["baseline_profile"]["borrower"],
+            question="What does the admissible evidence state about the live dispute, the financing instruments it can "
+                     "trigger, and the parties whose actions shape the events the forecast asks about?",
+            affects="the record items of the forecast's questions")
+        ctx.run.put("dependency_recorded", dep)
+        ctx.host_dependency = dep.dependency_id
+    return ctx.run.get("dependencies", ctx.host_dependency)
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.replace("\u2019", "'").split()).casefold()
 
 
 def _obs_view(o: SemanticObservation) -> dict[str, Any]:
@@ -214,7 +236,7 @@ async def record_dependency(ctx: RunContext, args: dict) -> dict:
 
 
 async def search_evidence(ctx: RunContext, args: dict) -> dict:
-    dep = ctx.run.get("dependencies", args["dependency_id"])
+    dep = _dependency(ctx, args)
     limit = max(1, min(int(args.get("limit", DEFAULT_SEARCH_RESULTS)), MAX_SEARCH_RESULTS))
     try:
         hits = ctx.evidence.search(args["query"], source_ids=args.get("source_ids") or None, limit=limit)
@@ -311,7 +333,7 @@ async def judge(ctx: RunContext, args: dict) -> dict:
 
 
 async def propose_finding(ctx: RunContext, args: dict) -> dict:
-    ctx.run.get("dependencies", args["dependency_id"])
+    dep = _dependency(ctx, args)
     spans = []
     for c in args["citations"]:
         try:
@@ -325,7 +347,16 @@ async def propose_finding(ctx: RunContext, args: dict) -> dict:
             raise ToolError(f"{oid} is not a claim interpretation")
     if not spans:
         raise ToolError("A finding needs at least one verbatim citation")
-    finding = AtomicFinding(finding_id=ctx.run.new_id("fnd"), dependency_id=args["dependency_id"],
+    speaker = (args.get("speaker") or "").strip()
+    if speaker:  # the speaker's name must appear in a cited section (or the cited table with its context)
+        texts = [ctx.evidence.read_section(sid)["text"] for sid in dict.fromkeys(sp.section_id for sp in spans)]
+        for iid in dict.fromkeys(sp.item_id for sp in spans):
+            item = ctx.evidence.read(iid)
+            texts += [item.get(k) or "" for k in ("text", "context_before", "rendered", "context_after")]
+        if _norm(speaker) not in _norm(" ".join(texts)):
+            raise ToolError(f"Speaker {speaker!r} does not appear in the cited section "
+                            f"({', '.join(dict.fromkeys(sp.section_id for sp in spans))}); name the speaker as it does")
+    finding = AtomicFinding(finding_id=ctx.run.new_id("fnd"), dependency_id=dep.dependency_id, speaker=speaker,
                             proposition=args["proposition"], target=args["target"],
                             subject_kind=args.get("subject_kind", "other"), subject=args.get("subject", ""),
                             is_inference=bool(args.get("is_inference", False)), spans=tuple(spans), observation_ids=linked)
@@ -708,7 +739,7 @@ async def instantiate_dispute(ctx: RunContext, args: dict) -> dict:
     from app.disputes.rules import load_model
 
     model = load_model()
-    dep = ctx.run.get("dependencies", args["dependency_id"])
+    dep = _dependency(ctx, args)
     fids = tuple(dict.fromkeys(args.get("finding_ids") or []))
     findings = [ctx.run.graph["findings"].get(f) for f in fids]
     bad = [f for f, x in zip(fids, findings, strict=True) if x is None or x.status != "accepted"]
@@ -881,7 +912,7 @@ async def instantiate_financing(ctx: RunContext, args: dict) -> dict:
     """Compile one financing instrument whose terms a dispute can trigger (spec §7): the agent quotes the principal,
     the judgment-default, listing, repurchase and interest terms the chains cite; every figure and date is checked
     against the cited quotes (the same guards as instantiate_dispute). Code applies the terms."""
-    dep = ctx.run.get("dependencies", args["dependency_id"])
+    dep = _dependency(ctx, args)
     fids = tuple(dict.fromkeys(args.get("finding_ids") or []))
     findings = [ctx.run.graph["findings"].get(f) for f in fids]
     bad = [f for f, x in zip(fids, findings, strict=True) if x is None or x.status != "accepted"]
@@ -1008,7 +1039,8 @@ async def submit_packet(ctx: RunContext, args: dict) -> dict:
         if open_tasks:
             raise ToolError(f"Open reconciliation tasks: {open_tasks}. Resolve them with resolve_reconciliation.")
         escalated = await _check_cited_units(ctx, args.get("coverage_escalations") or [])
-        await _check_conclusion(ctx, args)
+        await _check_conclusion(ctx, {**args, "conclusion": args.get("conclusion") or args.get("summary")}
+                                if ctx.record_mode else args)
         _record_reading_list(ctx)
     summary = {k: args.get(k) for k in ("summary", "pivotal_unknowns", "supported_effect_ids", "conclusion")}
     disputes = _disputes(ctx, escalated)
@@ -1169,8 +1201,9 @@ async def _check_cited_units(ctx: RunContext, escalations: list[dict]) -> list[d
                            f"cited by {', '.join(v['finding_ids'])}. Text: {v['unit']['text'][:220]!r}" for k, v, o in failed)
         raise ToolError(f"{len(failed)} cited paragraphs or rows describe a payment, obligation, restriction, covenant, "
                         f"default term or earnings item that the findings citing them do not state:\n{detail}\nAdd the "
-                        "missing findings and resubmit, or resubmit with coverage_escalations [{observation_id, missing}] "
-                        "if you genuinely disagree (they go to the reviewer's checklist).")
+                        "missing findings and resubmit" + ("." if ctx.record_mode else
+                        ", or resubmit with coverage_escalations [{observation_id, missing}] "
+                        "if you genuinely disagree (they go to the reviewer's checklist)."))
     return list(esc_by_key.values())
 
 
@@ -1316,6 +1349,10 @@ async def _check_conclusion(ctx: RunContext, args: dict) -> None:
                    payload={"answer": obs.answer, "ambiguous": is_ambiguous(obs), "passed": ok, "conclusion_sha256": digest})
     if not ok:
         _dispose(ctx, [obs], "challenged_agent_draft", "conclusion check")
+        if ctx.record_mode:
+            raise ToolError(f"Summary check ({obs.observation_id}): {meaning('claims_supported', obs.answer)}. Revise the "
+                            "summary to what accepted findings support. If you disagree, resubmit the same summary with "
+                            "conclusion_reply_to_failed_check {observation_id, reason}.")
         raise ToolError(f"Conclusion check ({obs.observation_id}): {meaning('claims_supported', obs.answer)}. Revise the "
                         "conclusion to what accepted findings, validated effects and sensitivity results support. If you "
                         "disagree, resubmit the same conclusion with conclusion_reply_to_failed_check {observation_id, reason}.")
@@ -1494,6 +1531,30 @@ AGENT_ONLY_DESCRIPTIONS = {
 }
 
 
+DEPENDENCY_OPTIONAL = {"search_evidence", "propose_finding", "instantiate_dispute", "instantiate_financing"}
+
+
+def _record_mode_spec(name: str, desc: str, schema: dict) -> tuple[str, dict]:
+    """A record-items mission: dependency_id optional, propose_finding takes a speaker, submission is the summary."""
+    schema = copy.deepcopy(schema)
+    if name in DEPENDENCY_OPTIONAL:
+        schema["required"] = [r for r in schema["required"] if r != "dependency_id"]
+    if name == "search_evidence":
+        desc = desc.replace(" for one recorded dependency", "")
+    if name == "propose_finding":
+        desc = desc.replace(" for a dependency", "") + (" Give speaker when the finding reports a person's or party's "
+                                                        "statement; the name must appear in the cited section.")
+        schema["properties"]["speaker"] = S
+    if name == "submit_packet":
+        desc = ("Lock the investigation for review with a short summary of what the record establishes. Every paragraph "
+                "or table row your accepted findings cite is checked for payments, obligations, restrictions, covenants, "
+                "default terms and earnings items the findings do not state, and the summary is checked against accepted "
+                "findings. No lending action is taken.")
+        schema = obj({"summary": S, "conclusion_reply_to_failed_check": schema["properties"]["conclusion_reply_to_failed_check"]},
+                     ["summary"])
+    return desc, schema
+
+
 def build_server(ctx: RunContext, allowed: list[str]):
     """An in-process MCP server exposing only the allowed tools, each bound to this run."""
     names = {a.removeprefix("mcp__credit__") for a in allowed}
@@ -1503,6 +1564,8 @@ def build_server(ctx: RunContext, allowed: list[str]):
             continue
         if ctx.arm == "agent_only":
             desc = AGENT_ONLY_DESCRIPTIONS.get(name, desc)
+        if ctx.record_mode:
+            desc, schema = _record_mode_spec(name, desc, schema)
 
         async def call(args: dict, _h=handler, _n=name) -> dict:
             if ctx.submitted and _n != "submit_packet":
@@ -1510,7 +1573,9 @@ def build_server(ctx: RunContext, allowed: list[str]):
             try:
                 result = await _h(ctx, args)
                 if ctx.max_turns and ctx.max_turns - ctx.turns_used <= 20:
-                    result = {**result, "turn_budget": f"{max(0, ctx.max_turns - ctx.turns_used)} turns remain; propose effects, "
+                    left = max(0, ctx.max_turns - ctx.turns_used)
+                    result = {**result, "turn_budget": f"{left} turns remain; submit the packet before the run stops."
+                              if ctx.record_mode else f"{left} turns remain; propose effects, "
                                                        "record missing facts and submit the packet before the run stops."}
                 return {"content": [{"type": "text", "text": json.dumps(result, default=str)}]}
             except (ToolError, KeyError, ValueError) as e:
