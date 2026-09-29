@@ -969,7 +969,36 @@
           ],
           "residual_question": "forecast_execution_pending_motions",
           "situation": {},
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_execute_pre_ruling",
+            "actor": "{claimant}",
+            "decision": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment, and for its registration in another district, {interval}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frcp_62a",
+              "frcp_69a",
+              "usc28_1963",
+              "usc11_362",
+              "usc11_547"
+            ],
+            "record_items": [
+              "the company's assets and going-concern disclosures",
+              "the relief the claimant seeks, including a permanent injunction, and its filings on it",
+              "the parties' competitive relationship"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_entered_on",
+              "amount_owed",
+              "judgment_status",
+              "interval",
+              "available_cash"
+            ]
+          }
         },
         "stay_motion": {
           "actor": "judgment debtor",
@@ -1003,7 +1032,37 @@
             "appealed": "Rule 62(b): security for a stay pending appeal; the actor's own earlier act",
             "levied": "Rule 62(b): a stay takes effect when the court approves the security and stops further execution; a completed levy reduces the amount a stay protects"
           },
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_stay_motion",
+            "actor": "{company}",
+            "decision": "Does {company} move for a stay of execution by {motion_date}, offering {security_offered} as security?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frcp_62b",
+              "stay_reduced_security",
+              "bond_amount"
+            ],
+            "record_items": [
+              "the notes' judgment-default terms",
+              "the company's liquidity and going-concern disclosures"
+            ],
+            "situation": [
+              "judgment_amount",
+              "amount_owed",
+              "judgment_status",
+              "available_cash",
+              "operating_need_30_days",
+              "bond_required",
+              "collateral_required",
+              "security_offered",
+              "enforcement_dated",
+              "motion_date"
+            ]
+          }
         },
         "stay_approved": {
           "actor": "court",
@@ -1042,7 +1101,34 @@
           "timing_parameters": [
             "ruling_lag_days",
             "briefing_days_new_motion"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_stay_approved",
+            "actor": "court",
+            "decision": "Does the court grant {company}'s requested stay of execution on {security_offered}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frcp_62b",
+              "stay_reduced_security",
+              "bond_amount"
+            ],
+            "record_items": [
+              "the company's liquidity and going-concern disclosures"
+            ],
+            "situation": [
+              "judgment_amount",
+              "amount_owed",
+              "judgment_status",
+              "available_cash",
+              "operating_need_30_days",
+              "bond_required",
+              "collateral_required",
+              "security_offered"
+            ]
+          }
         },
         "registration_early": {
           "actor": "court",
@@ -1076,7 +1162,29 @@
           "timing_parameters": [
             "ruling_lag_days",
             "levy_lag_days"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_registration_early",
+            "actor": "court",
+            "decision": "Does the court grant {claimant}'s application to register the judgment in another district before the judgment is final?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "usc28_1963"
+            ],
+            "record_items": [
+              "where the company and its subsidiaries are organised and operate, and their properties",
+              "the company's cash and going-concern disclosures"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_entered_on",
+              "judgment_status",
+              "available_cash"
+            ]
+          }
         },
         "debtor_response": {
           "actor": "judgment debtor",
@@ -1220,7 +1328,35 @@
             "executing": "the actor's own earlier act",
             "levied": "the actor's own earlier act"
           },
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_enforce_after_final",
+            "actor": "{claimant}",
+            "decision": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment {interval}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "frcp_69a",
+              "usc28_1963",
+              "usc11_362",
+              "usc11_547"
+            ],
+            "record_items": [
+              "the company's assets and going-concern disclosures",
+              "the relief the claimant seeks, including a permanent injunction, and its filings on it",
+              "the parties' competitive relationship"
+            ],
+            "situation": [
+              "judgment_amount",
+              "judgment_entered_on",
+              "amount_owed",
+              "judgment_status",
+              "interval",
+              "available_cash"
+            ]
+          }
         },
         "settlement_offer": {
           "actor": "judgment debtor",
@@ -1255,7 +1391,38 @@
           },
           "timing_parameters": [
             "settlement_date_in_interval"
-          ]
+          ],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_settlement_offer",
+            "actor": "{company}",
+            "decision": "Does {company} offer {claimant} a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security, {interval}?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [],
+            "record_items": [
+              "the claimant's itemised claims",
+              "the company's going-concern and financing disclosures",
+              "the notes' judgment-default terms",
+              "the company's statements on settlement",
+              "the company's own claims against the claimant",
+              "the relief the claimant seeks, including a permanent injunction",
+              "the parties' competitive relationship"
+            ],
+            "situation": [
+              "interval",
+              "claimed_amounts",
+              "judgment_amount",
+              "judgment_standing",
+              "amount_owed",
+              "available_cash",
+              "operating_need_30_days",
+              "settlement_amount",
+              "installments",
+              "settlement_date"
+            ]
+          }
         },
         "settlement_accept": {
           "actor": "judgment creditor",
@@ -1288,7 +1455,37 @@
             "stay_moved": "Rule 62(b): the stay takes effect when the court approves the bond or other security; a pending stay motion does not suspend execution",
             "appealed": "an appeal puts the judgment at risk for both parties"
           },
-          "timing_parameters": []
+          "timing_parameters": [],
+          "pending_money_claim": {
+            "residual_question": "forecast_claim_settlement_accept",
+            "actor": "{claimant}",
+            "decision": "Does {claimant} accept, by {settlement_date}, {company}'s offer of a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security?",
+            "branches": [
+              "yes",
+              "no"
+            ],
+            "standard": [
+              "usc11_362"
+            ],
+            "record_items": [
+              "the company's going-concern and debt disclosures",
+              "the notes' terms",
+              "the relief the claimant seeks, including a permanent injunction, and its filings on it",
+              "the parties' competitive relationship"
+            ],
+            "situation": [
+              "interval",
+              "claimed_amounts",
+              "judgment_amount",
+              "judgment_standing",
+              "amount_owed",
+              "available_cash",
+              "operating_need_30_days",
+              "settlement_amount",
+              "installments",
+              "settlement_date"
+            ]
+          }
         }
       }
     },

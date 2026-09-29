@@ -280,7 +280,14 @@
             "forecast_post_trial_motions",
             "forecast_post_trial_ruling",
             "forecast_remittitur_elected",
-            "forecast_claim_appeal"
+            "forecast_claim_appeal",
+            "forecast_claim_settlement_offer",
+            "forecast_claim_settlement_accept",
+            "forecast_claim_execute_pre_ruling",
+            "forecast_claim_enforce_after_final",
+            "forecast_claim_registration_early",
+            "forecast_claim_stay_motion",
+            "forecast_claim_stay_approved"
           ]
         }
       },

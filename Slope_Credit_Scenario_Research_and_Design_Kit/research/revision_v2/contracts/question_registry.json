@@ -177,7 +177,14 @@
         "forecast_post_trial_motions",
         "forecast_post_trial_ruling",
         "forecast_remittitur_elected",
-        "forecast_claim_appeal"
+        "forecast_claim_appeal",
+        "forecast_claim_settlement_offer",
+        "forecast_claim_settlement_accept",
+        "forecast_claim_execute_pre_ruling",
+        "forecast_claim_enforce_after_final",
+        "forecast_claim_registration_early",
+        "forecast_claim_stay_motion",
+        "forecast_claim_stay_approved"
       ]
     }
   },
@@ -2243,6 +2250,209 @@
         "criteria": {
           "true": "{company} files a notice of appeal by {appeal_deadline}.",
           "false": "{company} files no notice of appeal by {appeal_deadline}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_settlement_offer",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {company} offer {claimant} a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security, {interval}?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "settlement_offer",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {company} offer {claimant} a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security, {interval}?",
+        "criteria": {
+          "true": "{company} offers {claimant} these terms {interval}.",
+          "false": "{company} does not offer these terms {interval}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_settlement_accept",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {claimant} accept, by {settlement_date}, {company}'s offer of a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security?",
+      "actor": "{claimant}",
+      "template": "pending_money_claim",
+      "node": "settlement_accept",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {claimant} accept, by {settlement_date}, {company}'s offer of a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security?",
+        "criteria": {
+          "true": "{claimant} accepts these terms by {settlement_date}.",
+          "false": "{claimant} does not accept these terms by {settlement_date}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_execute_pre_ruling",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment, and for its registration in another district, {interval}?",
+      "actor": "{claimant}",
+      "template": "pending_money_claim",
+      "node": "execute_pre_ruling",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment, and for its registration in another district, {interval}?",
+        "criteria": {
+          "true": "{claimant} applies for a writ of execution and for registration of the judgment in another district {interval}.",
+          "false": "{claimant} makes no application for a writ of execution {interval}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_enforce_after_final",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment {interval}?",
+      "actor": "{claimant}",
+      "template": "pending_money_claim",
+      "node": "enforce_after_final",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment {interval}?",
+        "criteria": {
+          "true": "{claimant} applies for a writ of execution {interval}.",
+          "false": "{claimant} makes no application for a writ of execution {interval}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_registration_early",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does the court grant {claimant}'s application to register the judgment in another district before the judgment is final?",
+      "actor": "court",
+      "template": "pending_money_claim",
+      "node": "registration_early",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does the court grant {claimant}'s application to register the judgment in another district before the judgment is final?",
+        "criteria": {
+          "true": "The court grants registration in another district before the judgment is final.",
+          "false": "The court does not grant registration before the judgment is final."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_stay_motion",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {company} move for a stay of execution by {motion_date}, offering {security_offered} as security?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "stay_motion",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {company} move for a stay of execution by {motion_date}, offering {security_offered} as security?",
+        "criteria": {
+          "true": "{company} moves for a stay of execution offering {security_offered} by {motion_date}.",
+          "false": "{company} makes no such motion by {motion_date}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_stay_approved",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does the court grant {company}'s requested stay of execution on {security_offered}?",
+      "actor": "court",
+      "template": "pending_money_claim",
+      "node": "stay_approved",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does the court grant {company}'s requested stay of execution on {security_offered}?",
+        "criteria": {
+          "true": "The court grants the stay on {security_offered}.",
+          "false": "The court does not grant the stay."
         }
       }
     }
