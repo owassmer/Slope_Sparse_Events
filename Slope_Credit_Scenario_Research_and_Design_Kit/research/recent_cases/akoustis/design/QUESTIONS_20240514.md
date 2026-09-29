@@ -34,7 +34,7 @@ This document owns the Jev questions of the pending-claim model for the 14 May 2
 
 **Shared instruction** (both profiles, `dispute_forecast` and `financing_forecast`):
 
-> Forecast the outcome specified in the question at the stated decision time, conditional on the supplied scenario. Treat the scenario's events and amounts as given. Use the supplied evidence available by the evidence cutoff, preserving each source's author, date and status. Apply the supplied legal or contractual provisions where relevant. Estimate the probabilities of the defined outcomes.
+> Forecast the outcome specified in the question at the stated decision time, conditional on the supplied situation. Treat the situation's events and amounts as given. Use the supplied evidence available by the evidence cutoff, preserving each source's author, date and status. Apply the supplied legal or contractual provisions where relevant. Estimate the probabilities of the defined outcomes.
 
 The state distinguishes five kinds of content: historical evidence, party assertions, court findings, events assumed on this path, and earlier readings of the record.
 
