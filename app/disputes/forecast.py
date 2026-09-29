@@ -1320,7 +1320,7 @@ class _Walk:
                       assumptions=(() if phase == "entry" else ("the judgment is enforceable, unstayed and unpaid",))
                       + when
                       + (("the company has moved for a stay, not yet approved",) if pending else ()), branches=branches)
-        late = self.pend and phase == "post"
+        late = self.pend and phase in ("post", "ripe")  # booked on its own day (events.py `waits`)
         for b in branches:
             kw = {"a4": "seek" if b == self.seek else "closed"}
             y = (s.add((self.resp, phase, b), (k, b), late=s.late + ((k, len(s.steps)),), **kw) if late
@@ -1382,8 +1382,25 @@ class _Walk:
                 classes[none] = classes.pop(filed) + classes[none]
         return classes
 
+    def reading(self) -> str:
+        """The §7.01(i) reading held on the path (QUESTIONS §3.1; parameter judgment_default_reading)."""
+        from app.analysis.events import pval
+
+        return pval(self.fc.m, "judgment_default_reading", self.fc.sens.get("judgment_default_reading", False))
+
     def ripe_i1(self, s: _S) -> None:
-        self.notes_petition(s, "I1", self.ruling)
+        """The judgment as entered (QUESTIONS §3.1 base): on the day the default becomes available the company
+        responds (D2), then the holders decide (H1). The response books on its own day (events.py `waits`)."""
+        after = lambda y: self.notes_petition(y, "I1", self.ruling)  # noqa: E731
+
+        def filed(y: _S) -> None:  # the walk goes on where the day does not arise on some trajectory
+            everywhere = (self.fc.trace(self.d, y.steps).petition >= 0).all()
+            self.emit(y, "petition") if everywhere else after(y)
+
+        if self.pend and self.reading() == "entered" and s.a4 == "seek" \
+                and self.arises(s, (self.resp, "ripe", self.quiet)):
+            return self.a4(s, "ripe", after, filed)
+        after(s)
 
 
     # the ruling and after
@@ -1492,7 +1509,8 @@ class _Walk:
     def ripe_post(self, s: _S) -> None:
         """After 'seek a sale or financing', the company responds again at the ripe default date."""
         after = lambda y: self.notes_petition(y, "post", lambda z: self.tail(z, "unresolved"))  # noqa: E731
-        if s.a4 == "seek" and self.arises(s, (self.resp, "ripe", self.quiet)):
+        if s.a4 == "seek" and not (self.pend and self.reading() == "entered") \
+                and self.arises(s, (self.resp, "ripe", self.quiet)):  # the entered reading asks it in ripe_i1
             return self.a4(s, "ripe", after, lambda y: self.tail(y, "petition"))
         after(s)
 

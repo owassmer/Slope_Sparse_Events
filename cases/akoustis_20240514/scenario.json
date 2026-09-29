@@ -83,6 +83,11 @@
     "ordinary_view": {
       "value": "same_forecast",
       "basis": "Spec §16.1 (orchestrator, 28 Sep 2026): ordinary operating risk is the same forecast with the event, including its legal costs, given no cash effect. The dispute ends on the review date at no cost, so its legal spend stops from then (the one dispute-end rule); operations, the line, the coupon, the cash-floor decisions and the listing chain with the notes' delisting route are the same as in the forecast."
+    },
+    "judgment_default_reading": {
+      "value": "entered",
+      "sensitivity": "post_ruling",
+      "basis": "QUESTIONS_20240514 §3.1. Base: the judgment as entered. The §7.01(i) default becomes available 60 days after the Rule 62(a) automatic stay of the judgment as entered ends, where the judgment remains unpaid and undischarged and execution is not effectively stayed throughout; a post-trial ruling does not restart the period, and where it changes the judgment the holders' decision is asked again on the changed judgment. Sensitivity: the post-trial ruling, 60 days from the order disposing of the last tolling motion on the surviving amount, with no earlier opportunity."
     }
   },
   "verdict_form": {
