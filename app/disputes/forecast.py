@@ -185,7 +185,7 @@ def _q(model: dict) -> dict[str, dict]:
 @dataclass(frozen=True)
 class _Prefix:
     """What the tree builder keeps of one path prefix: per step, the decision day and the path facts code computed at
-    it ([draws] each); the petition day per draw; and a fingerprint of the event cash, encumbrance and credit
+    it ([draws] each; the traced step's only: later steps read `day[-1]`); the petition day per draw; and a fingerprint of the event cash, encumbrance and credit
     capacity, so two branches merge only where all of them are identical on every trajectory."""
     day: list
     cash: list
@@ -216,7 +216,8 @@ class _Prefix:
             i = np.flatnonzero(flat)
             h.update(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes())
         h.update(np.ascontiguousarray(ev.petition).tobytes())
-        return cls(tr.day, tr.cash, tr.owed, tr.collateral, ev.petition.copy(), h.digest(),
+        last = slice(-1, None)  # later steps read only the traced step's own facts (`tr.day[-1]`)
+        return cls(tr.day[last], tr.cash[last], tr.owed[last], tr.collateral[last], ev.petition.copy(), h.digest(),
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
                    tr.triggers, getattr(tr, "raise_offer", None), getattr(tr, "reads", None),
                    (getattr(tr, "situations", None) or {}).get(len(tr.day) - 1),
@@ -365,6 +366,8 @@ class Forecaster:
         self._raise_open: set = set()
         self._raise_more: set = set()
         self.node_group: dict[str, int] = {}  # a grouped question's key -> the option group it is asked of
+        # traced prefixes, least recently used first: the tree is walked depth-first, so only the current path's
+        # prefixes and their siblings' probes are read again; each entry holds its step's question-state snapshot
         self._traces: dict = {}
         self.remitted: dict[str, tuple[int, int, int]] = {}  # C3 node key -> the remitted amount and its band
         self._sources: dict[str, str] = {}  # finding -> its source's title
@@ -418,11 +421,26 @@ class Forecaster:
         from app.analysis.events import event_trace
 
         key = (d.instance_id, steps)
-        if key not in self._traces:
+        hit = self._cached(key)
+        if hit is None:
             path = DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=())
-            self._traces[key] = _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens),
-                                            self.setup.cash_processing == "daily")
-        return self._traces[key]
+            hit = self._keep(key, _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens),
+                                             self.setup.cash_processing == "daily"))
+        return hit
+
+    TRACES = 512  # the prefixes kept (the tree's depth is under 60 steps, each with a few sibling probes)
+
+    def _cached(self, key) -> _Prefix | None:
+        hit = self._traces.pop(key, None)
+        if hit is not None:
+            self._traces[key] = hit  # most recently used last
+        return hit
+
+    def _keep(self, key, p: _Prefix) -> _Prefix:
+        if len(self._traces) >= self.TRACES:
+            self._traces.pop(next(iter(self._traces)))
+        self._traces[key] = p
+        return p
 
     def situation(self, d: DisputeInstance, steps: tuple, conds: list[str]) -> tuple[set[str], set[str]]:
         """Of the conditions an actor weighs, those holding at the decision on every trajectory where it is asked, and
@@ -454,10 +472,11 @@ class Forecaster:
         from app.analysis.events import BANK, bank_trace
 
         key = (BANK, steps)
-        if key not in self._traces:
-            self._traces[key] = _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m, self.draws,
-                                                      self.sens), self.setup.cash_processing == "daily")
-        return self._traces[key]
+        hit = self._cached(key)
+        if hit is None:
+            hit = self._keep(key, _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m, self.draws,
+                                                        self.sens), self.setup.cash_processing == "daily"))
+        return hit
 
     @property
     def ordinary(self) -> bool:

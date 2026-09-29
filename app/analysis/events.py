@@ -624,6 +624,8 @@ class Chain:
     # the daily processor's: the kinds sum to the cash, so the cash adds nothing
     DAILY_KEY = ("lock", "capacity", "petition", *(f"k:{k}" for k in KINDS), *(f"i:{k}" for k in OBLIGATIONS))
 
+    RUNS = 64  # engine runs kept, per event state: [draws, days] each; the current path's prefixes are reused
+
     def line_net(self) -> np.ndarray:
         from app.analysis.engine import run
 
@@ -635,7 +637,7 @@ class Chain:
             # the engine adds the existing line's history cash (Setup.exposure) to its opening itself
             opening = self.basis.opening - self.s.exposure.cash_cents
             tr = run(self.basis.line, opening, EventCash(ev.cash, ev.lock, ev.capacity, ev.petition))
-            if len(runs) >= 256:  # the tree is walked depth-first: recent prefixes are the ones reused
+            if len(runs) >= self.RUNS:  # the tree is walked depth-first: recent prefixes are the ones reused
                 runs.pop(next(iter(runs)))
             runs[key] = np.cumsum(tr.fundings - tr.collections, axis=1)
         return runs[key]
@@ -654,7 +656,7 @@ class Chain:
             opening = self.basis.opening - self.s.exposure.cash_cents
             tr = run(self.basis.line, opening, EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, ev.kinds,
                                                          ev.incurred), terms)
-            if len(runs) >= 256:
+            if len(runs) >= self.RUNS:
                 runs.pop(next(iter(runs)))
             runs[key] = (tr.cash, tr.processed.first_unpaid, tr.processed.nonpayment)
         return runs[key]
