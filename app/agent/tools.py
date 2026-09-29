@@ -1210,9 +1210,8 @@ async def _check_cited_units(ctx: RunContext, escalations: list[dict]) -> list[d
                            f"cited by {', '.join(v['finding_ids'])}. Text: {v['unit']['text'][:220]!r}" for k, v, o in failed)
         raise ToolError(f"{len(failed)} cited paragraphs or rows describe a payment, obligation, restriction, covenant, "
                         f"default term or earnings item that the findings citing them do not state:\n{detail}\nAdd the "
-                        "missing findings and resubmit" + ("." if ctx.record_mode else
-                        ", or resubmit with coverage_escalations [{observation_id, missing}] "
-                        "if you genuinely disagree (they go to the reviewer's checklist)."))
+                        "missing findings and resubmit, or resubmit with coverage_escalations [{observation_id, missing}] "
+                        "if you genuinely disagree (they go to the reviewer's checklist).")
     return list(esc_by_key.values())
 
 
@@ -1559,8 +1558,8 @@ def _record_mode_spec(name: str, desc: str, schema: dict) -> tuple[str, dict]:
                 "or table row your accepted findings cite is checked for payments, obligations, restrictions, covenants, "
                 "default terms and earnings items the findings do not state, and the summary is checked against accepted "
                 "findings. No lending action is taken.")
-        schema = obj({"summary": S, "conclusion_reply_to_failed_check": schema["properties"]["conclusion_reply_to_failed_check"]},
-                     ["summary"])
+        schema = obj({"summary": S, "conclusion_reply_to_failed_check": schema["properties"]["conclusion_reply_to_failed_check"],
+                      "coverage_escalations": schema["properties"]["coverage_escalations"]}, ["summary"])
     return desc, schema
 
 
