@@ -184,7 +184,12 @@
         "forecast_claim_enforce_after_final",
         "forecast_claim_registration_early",
         "forecast_claim_stay_motion",
-        "forecast_claim_stay_approved"
+        "forecast_claim_stay_approved",
+        "forecast_judgment_response",
+        "forecast_financing_at_floor",
+        "forecast_offering_closes",
+        "forecast_claim_petition_cash_out",
+        "forecast_claim_petition_on_notes"
       ]
     }
   },
@@ -2077,34 +2082,35 @@
     },
     {
       "id": "forecast_judgment_response",
-      "version": "4.1.0",
-      "profile": "dispute_forecast",
+      "version": "5.0.0",
+      "profile": "event_forecast",
       "primitive": "choice",
-      "question": "How does the judgment debtor respond to the entered money judgment: pay it, file for bankruptcy, or continue (operate and contest it, including seeking a sale or new financing)?",
-      "actor": "judgment debtor",
+      "question": "What does {company} do on {decision_date}, {occasion}: pay the judgment balance of {amount_owed} in full, initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or none of these?",
+      "actor": "{company}",
       "template": "pending_money_claim",
       "node": "judgment_response",
-      "asked_when": "at entry, on each levy day before the levy, and on a ripe judgment default after it continued",
       "state_fields": [
         "case",
         "question",
         "standard",
         "record_items",
-        "path_facts",
-        "assumptions",
-        "evidence",
-        "readings"
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The options are state.question.branches; paying in full is among them where the company's cash covers the amount owed.",
+        "instructions": "What does {company} do on {decision_date}, {occasion}: pay the judgment balance of {amount_owed} in full, initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or none of these?",
         "criteria": {
-          "pay": "pays the amount owed",
-          "file": "files for bankruptcy",
-          "continue": "continues operating and contests the judgment, which includes seeking a sale or new financing"
+          "pay": "{company} pays the judgment balance of {amount_owed} in full on {decision_date}.",
+          "initiate_offering": "{company} initiates an underwritten offering of its common stock on the stated terms on {decision_date}.",
+          "file": "{company} files a voluntary petition on {decision_date}.",
+          "none": "{company} does none of these on {decision_date}."
         },
         "criteria_from_host": true
-      },
-      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+      }
     },
     {
       "id": "forecast_listing_kept",
@@ -2137,34 +2143,34 @@
     },
     {
       "id": "forecast_financing_at_floor",
-      "version": "4.1.0",
-      "profile": "dispute_forecast",
+      "version": "5.0.0",
+      "profile": "event_forecast",
       "primitive": "choice",
-      "question": "When its available cash first falls below its 30-day operating need, does the company raise equity, file for bankruptcy, or continue operating?",
-      "actor": "borrower",
-      "template": "bankruptcy_effects",
+      "question": "On {decision_date}, when its available cash of {available_cash} falls below its operating need of {operating_need_30_days} for the next month, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
       "node": "financing_at_floor",
-      "asked_when": "the cash floor falls inside the analysis period and the case sets the equity the company can raise",
       "state_fields": [
         "case",
         "question",
         "standard",
         "record_items",
-        "path_facts",
-        "assumptions",
-        "evidence",
-        "readings"
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The options are state.question.branches; raising equity is among them where the company can raise a positive amount in its situation (state.path_facts.equity_raise_available).",
+        "instructions": "On {decision_date}, when its available cash of {available_cash} falls below its operating need of {operating_need_30_days} for the next month, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
         "criteria": {
-          "raise_equity": "raises equity under its existing programs, in the amount state.path_facts gives as available",
-          "file": "files for bankruptcy",
-          "continue": "keeps operating without raising equity or filing"
+          "initiate_offering": "{company} initiates an underwritten offering of its common stock on the stated terms on {decision_date}.",
+          "file": "{company} files a voluntary petition on {decision_date}.",
+          "neither": "{company} does neither on {decision_date}."
         },
         "criteria_from_host": true
-      },
-      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+      }
     },
     {
       "id": "forecast_verdict_amount",
@@ -2453,6 +2459,95 @@
         "criteria": {
           "true": "The court grants the stay on {security_offered}.",
           "false": "The court does not grant the stay."
+        }
+      }
+    },
+    {
+      "id": "forecast_offering_closes",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does the specified offering close by {close_date}, delivering {net_proceeds} net on the stated terms?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "offering_closes",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does the specified offering close by {close_date}, delivering {net_proceeds} net on the stated terms?",
+        "criteria": {
+          "true": "The offering closes by {close_date}, delivering {net_proceeds} net on the stated terms.",
+          "false": "The offering does not close by {close_date}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_petition_cash_out",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "choice",
+      "question": "On {decision_date}, the first day an obligation goes unpaid, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "petition_cash_out",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "On {decision_date}, the first day an obligation goes unpaid, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+        "criteria": {
+          "initiate_offering": "{company} initiates an underwritten offering of its common stock on the stated terms on {decision_date}.",
+          "file": "{company} files a voluntary petition on {decision_date}.",
+          "neither": "{company} does neither on {decision_date}."
+        },
+        "criteria_from_host": true
+      }
+    },
+    {
+      "id": "forecast_claim_petition_on_notes",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {company} file a voluntary petition on {decision_date}, the day the notes' principal and interest of {notes_balance_due} become due {notes_due_how}?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "petition_on_notes",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {company} file a voluntary petition on {decision_date}, the day the notes' principal and interest of {notes_balance_due} become due {notes_due_how}?",
+        "criteria": {
+          "true": "{company} files a voluntary petition on {decision_date}.",
+          "false": "{company} files no voluntary petition on {decision_date}."
         }
       }
     }

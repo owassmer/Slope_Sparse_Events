@@ -287,7 +287,12 @@
             "forecast_claim_enforce_after_final",
             "forecast_claim_registration_early",
             "forecast_claim_stay_motion",
-            "forecast_claim_stay_approved"
+            "forecast_claim_stay_approved",
+            "forecast_judgment_response",
+            "forecast_financing_at_floor",
+            "forecast_offering_closes",
+            "forecast_claim_petition_cash_out",
+            "forecast_claim_petition_on_notes"
           ]
         }
       },
