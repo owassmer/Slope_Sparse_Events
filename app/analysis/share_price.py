@@ -83,7 +83,20 @@ class Merton:
 
     def price(self, owed_cents) -> np.ndarray:
         """Cents per share at the amount owed (cents; scalar or array), as floats: the call at strike
-        notes + owed, per share. Vectorised over its distinct amounts."""
+        notes + owed, per share. A [draws, days] grid in one compiled pass (`k_owed.merton_grid`: a repeated row
+        copied, each run of one amount along a row priced once by `_prices`); `price_py` is the Python it
+        reproduces."""
+        a = np.asarray(owed_cents, dtype=np.int64)
+        if a.ndim != 2:
+            return self._price_flat(a)
+        from app.analysis import k_owed, shadow
+        fast = k_owed.merton_grid(np.ascontiguousarray(a), self.V, self.notes_cents, self.asset_vol, self.rate, self.T,
+                                  self.shares)
+        return shadow.check("merton_price", fast, self.price_py(owed_cents)) if shadow.ON else fast
+
+    def price_py(self, owed_cents) -> np.ndarray:
+        """`price` in Python (the reference of the compiled path): draws with the same row share one row of prices,
+        then each distinct amount is priced once."""
         a = np.asarray(owed_cents, dtype=np.int64)
         if a.ndim == 2:  # [draws, days]: draws with the same path of amounts share one row of prices
             first: dict[bytes, int] = {}  # a row's bytes -> the index of its first draw
