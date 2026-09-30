@@ -197,6 +197,13 @@ def answer_distribution(key: str, branches: tuple[str, ...], o: SemanticObservat
     return {k: probs.get(k, 0.0) / total for k in branches}
 
 
+def state_evidence(st: dict) -> list:
+    """The evidence a Jev state carries, for its Judgment: one list (20 Jun), or the 14 May state's three parts."""
+    if "evidence" in st:
+        return st["evidence"]
+    return [e for k in ("historical_evidence", "party_assertions", "court_findings") for e in st.get(k, ())]
+
+
 def load_registry() -> dict:
     from app.config import question_registry
 
@@ -1096,14 +1103,15 @@ class Forecaster:
                 return Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
                                 event=n.event, assumptions=n.assumptions, window=n.window,
                                 distribution=answer_distribution(n.key, n.branches, o), confidence=o.confidence,
-                                finding_ids=fids, readings=readings, evidence=st["evidence"],
-                                observation_id=o.observation_id, path_facts=st["path_facts"])
+                                finding_ids=fids, readings=readings, evidence=state_evidence(st),
+                                observation_id=o.observation_id,
+                                path_facts=st.get("path_facts", st.get("situation")))  # 14 May: the situation
             st = bank_state(self, n)
             o = await judge.forecast(n.question_id, st, (n.instance_id,), n.branches)
             return Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
                             event=n.event, assumptions=n.assumptions, window=n.window,
                             distribution=answer_distribution(n.key, n.branches, o), confidence=o.confidence,
-                            observation_id=o.observation_id, path_facts=st["path_facts"])
+                            observation_id=o.observation_id, path_facts=st.get("path_facts", st.get("situation")))
 
         results = await asyncio.gather(*(one(n) for n in self.bank_nodes.values()))
         return {j.key: j for j in results}
@@ -1989,8 +1997,7 @@ class Forecaster:
             return Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
                             event=n.event, assumptions=n.assumptions, window=n.window, distribution=dist,
                             confidence=o.confidence, finding_ids=fids, readings=readings,
-                            evidence=st["evidence"] if "evidence" in st else [
-                                x for k in ("historical_evidence", "party_assertions", "court_findings") for x in st[k]],
+                            evidence=state_evidence(st),
                             observation_id=o.observation_id, path_facts=st.get("path_facts", st.get("situation")))
 
         results = await asyncio.gather(*(one(n) for n in self.nodes.values() if n.key not in self.classed))

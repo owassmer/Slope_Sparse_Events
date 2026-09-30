@@ -360,7 +360,7 @@ def judge(run_id: str, states: str, control_file: str, count_only: bool = False)
     import collections
     import dataclasses
 
-    from app.disputes.forecast import Judgment, answer_distribution
+    from app.disputes.forecast import Judgment, answer_distribution, state_evidence
 
     t0 = time.time()
     got, errors, dead = {}, {}, set()
@@ -394,8 +394,7 @@ def judge(run_id: str, states: str, control_file: str, count_only: bool = False)
         return Judgment(key=k, instance_id=n.instance_id, node=n.node, question_id=n.question_id, event=n.event,
                         assumptions=n.assumptions, window=n.window, distribution=answer_distribution(k, n.branches, o),
                         confidence=o.confidence, finding_ids=fids, readings=x["readings"],
-                        evidence=st["evidence"] if "evidence" in st else [
-                            e for kk in ("historical_evidence", "party_assertions", "court_findings") for e in st[kk]],
+                        evidence=state_evidence(st),
                         observation_id=o.observation_id, path_facts=st.get("path_facts", st.get("situation")))
 
     async def every() -> list:

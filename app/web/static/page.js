@@ -11,6 +11,10 @@
   const W = await (await fetch("/static/words.json")).json();
   const S = { overrides: {}, sel: {}, event: D.event, bank: D.bank, assumption: "central", vm: null, compare: null, open: null, reveal: false, outcome: null, focus: null };
   window.__page = S;
+  // The tables page (app/analysis/tables_page.py): a tree too large to carry path by path. Every figure comes from
+  // the runners' tables under Jev's answers; a changed answer moves the figures and the series through the
+  // judgment's derivative atoms (exact: each path's probability is linear in the answer), one judgment at a time.
+  const TB = D.tables || null;
 
   // --- formatting -----------------------------------------------------------------------------------------------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -55,10 +59,28 @@
     }
     return out;
   }
-  const hasKey = (k) => k in D.paths.scalars;
   // a path's weight among all draws: p x the part of the draws it follows (a grouped question forks the path)
   const SH = D.paths.scalars.share || null, wt = (pr, i) => (SH ? pr[i] * SH[i] : pr[i]);
-  const expect = (probs, key) => { const x = D.paths.scalars[key]; if (!x) return null; let s = 0; for (let i = 0; i < P; i++) s += probs[i] * x[i]; return s; };
+  // the tables page: a figure under the answers `get` gives each shown judgment: Jev's figure plus each changed
+  // answer's derivative (page keys to the tables' scalars and series)
+  const SK = { funded: "drawn", clawback: "preference" }, SER = { due: "due_cum", past_due: "past_due" };
+  function tbExpect(get, key) {
+    if (key === "frozen_due") { const d = tbExpect(get, "due"), c = tbExpect(get, "collected"), p = tbExpect(get, "past_due"); return d === null ? null : d - c - p; }
+    if (key === "unpaid") { const d = tbExpect(get, "due"), c = tbExpect(get, "collected"); return d === null ? null : d - c; }
+    let v = TB.figures.full[key]; if (v === undefined || v === null) return null;
+    const sk = SK[key] || key, se = SER[key];
+    for (let i = 0; i < N; i++) {
+      const n = D.nodes[i], at = n.atoms; if (!at) continue;
+      const d = get(i), j = n.jev;
+      for (let a = 0; a < n.branches.length; a++) {
+        const dl = d[a] - j[a]; if (!dl) continue;
+        if (se) { const s = (n.series[n.branches[a]] || {})[se]; if (s) v += dl * s[s.length - 1]; }
+        else v += dl * ((at.d[n.branches[a]] || {})[sk] || 0);
+      }
+    }
+    return v;
+  }
+  const expect = (probs, key) => { if (TB) return tbExpect((i) => dist(i), key); const x = D.paths.scalars[key]; if (!x) return null; let s = 0; for (let i = 0; i < P; i++) s += probs[i] * x[i]; return s; };
   const BE = D.bank.edges || [];
   const bankProbs = (get) => BE.map((e) => { let p = 1; for (let j = 0; j < e.length; j += 2) p *= get(e[j])[e[j + 1]]; return p; });
   const bexpect = (bp, key) => {
@@ -281,6 +303,12 @@
   const bandLabel = (b) => (b.kind === "none" ? W.verdict.none : b.kind === "band" ? fill(W.verdict.band, { lo: money(b.lo), hi: money(b.hi) })
     : b.kind === "top" ? fill(W.verdict.top, { lo: money(b.lo) }) : b.label);
   function verdictGroups() {
+    if (TB) return TB.verdict_groups.map((g) => {  // the tables' outcome sums under Jev's answers
+      const b = g.row || {}, banded = V.banded && b.kind;
+      const label = g.k === -1 ? V.before : banded ? bandLabel(b) : b.label || "";
+      const text = banded ? (b.kind === "none" ? "" : fill(W.verdict.booked, { amount: money(b.booked) })) : b.text || "";
+      return { k: g.k, label, text, lo: b.booked ?? b.lo ?? null, hi: b.booked ?? b.hi ?? null, p: g.p, c: g.c, f: g.f, r: g.r, s: g.s, follows: g.follows };
+    }).filter((g) => g.p > 1e-9);
     const bs = V.branches || [], groups = [{ k: -1, label: V.before, lo: null, hi: null }, ...bs.map((b, k) => (V.banded
       ? { k, label: bandLabel(b), step: b.step, text: b.kind === "none" ? "" : fill(W.verdict.booked, { amount: money(b.booked) }), lo: b.booked, hi: b.booked }
       : { k, label: b.label, text: b.text, lo: b.lo, hi: b.hi })), { k: -2, label: W.resolve.other, lo: null, hi: null }];
@@ -301,6 +329,7 @@
     return `<p class="mute small">${esc(fill(W.verdict.note))}${lines ? ` ${esc(lines)}.` : ""}</p>`;
   }
   function follows(g) {
+    if (g.follows) return g.follows.map(([s, t]) => `<div>${esc(fill(W.resolve.of_outcome, { p: pct(s) }))} · ${esc(fill(t))}</div>`).join("");
     const top = [...g.seq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
     return top.map(([q, m]) => {
       const st = stepsOf(q).steps.filter((s) => s.base !== g.label && s.base !== g.step && s.base !== V.before);
@@ -320,7 +349,7 @@
   const CLS = D.classes;
   const CCOL = ["#e3a008", "#e0582a", "#9b1c1c", "#4d7c5a", "#6b7280", "#5b7aa8", "#cfd4da", "#b8955a"];
   const isFiled = (k) => /^Filed/.test(CLS[k]);
-  function classProbs() { const c = new Float64Array(CLS.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
+  function classProbs() { if (TB) return Float64Array.from(TB.grid); const c = new Float64Array(CLS.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
   function apportion(shares, total = 100) {  // largest remainder
     const tot = shares.reduce((a, b) => a + b, 0) || 1, raw = shares.map((s) => (total * s) / tot), n = raw.map(Math.floor);
     let left = total - n.reduce((a, b) => a + b, 0);
@@ -397,12 +426,19 @@
   });
   function nodeReach(i) {  // share of outcomes that meet node i: each path's probability is linear in the node's answer
     if (isBank(i)) return 1;
+    if (TB) return null;  // the tables carry no path masses per judgment
     const qs = D.nodes[i].branches.map((_, b) => pathProbs((k) => (k === i ? D.nodes[i].branches.map((__, c) => +(c === b)) : dist(k))));
     let r = 0; for (let p = 0; p < P; p++) { let lo = Infinity, hi = -Infinity; for (const q of qs) { if (q[p] < lo) lo = q[p]; if (q[p] > hi) hi = q[p]; } r += (hi - lo) * (SH ? SH[p] : 1); }
     return Math.min(1, r / qs.length);
   }
   function effOf(i, at = null) {  // collections and the filing probability at 0%, the current answer (or `at`) and 100% of the selected branch
     const b = selB(i), get = (x) => (k) => (k === i ? withBranch(i, b, x) : dist(k));
+    if (TB) {
+      const v = (g) => [tbExpect(g, "collected"), tbExpect(g, "petition_p")];
+      if (at) { const [c, f] = v((k) => (k === i ? at : dist(k))); return { at: c, fat: f }; }
+      const [c0, f0] = v(get(0)), [c1, f1] = v(get(1)), [c, f] = v((k) => dist(k));
+      return { lo: c0, hi: c1, at: c, flo: f0, fhi: f1, fat: f };
+    }
     if (at) { const g = (k) => (k === i ? at : dist(k)); if (isBank(i)) { const bp = bankProbs(g); return { at: bexpect(bp, "collected"), fat: bexpect(bp, "petition_p") }; }
       const pp = pathProbs(g); return { at: expect(pp, "collected"), fat: expect(pp, "petition_p") }; }
     const v = (x) => { if (isBank(i)) { const bp = bankProbs(get(x)); return [bexpect(bp, "collected"), bexpect(bp, "petition_p")]; }
@@ -454,7 +490,7 @@
     $(`${id}-jev`).textContent = n.key in S.overrides ? fill(J.jev_said, { p: pct(jevDist(i)[b]) }) : "";
     $(`${id}-bar`).innerHTML = d.map((p, k) => `<i style="width:${100 * p}%;background:${BCOL[k % 3]}"></i>`).join("");
     $(`${id}-slabs`).innerHTML = `<span>${esc(n.branches.map((x, k) => `${blabel(i, x)} ${pct(d[k])}`).join(" · "))}</span>`;
-    $(`${id}-reach`).textContent = fill(J.reach, { p: pct(nodeReach(i)) });
+    const reach = nodeReach(i); $(`${id}-reach`).textContent = reach === null ? "" : fill(J.reach, { p: pct(reach) });
     const ov = n.key in S.overrides, jv = ov ? effOf(i, jevDist(i)) : e;  // Jev's column at Jev's answer; the reader's beside it
     $(`${id}-h0`).textContent = "0%"; $(`${id}-h1`).textContent = "100%"; $(`${id}-of`).textContent = fill(J.of, { branch: bn }); $(`${id}-hj`).textContent = fill(J.at, { p: pct(jevDist(i)[b]) });
     $(`${id}-lo`).textContent = money(e.lo); $(`${id}-at`).textContent = money(jv.at); $(`${id}-hi`).textContent = money(e.hi);
@@ -495,7 +531,8 @@
   function tree() {
     const pp = D.paths.scalars.petition_p;
     const weigh = (t) => {
-      let m = 0, f = 0; for (const i of t.paths) { m += wt(probs, i); f += probs[i] * pp[i]; }
+      let m = 0, f = 0;
+      if (TB) { m = t.mass; f = t.filed; } else for (const i of t.paths) { m += wt(probs, i); f += probs[i] * pp[i]; }
       const node = { key: t.key, base: t.base, when: t.when, depth: t.depth, mass: m, filed: f, kids: [] };
       const mo = (k) => (k.base === "quiet" ? 98 : MON.indexOf(k.when) < 0 ? 97 : MON.indexOf(k.when));
       const kids = [...t.kids.values()].map(weigh).sort((a, b) => b.mass - a.mass), other = { key: "other", base: "other", when: "", depth: t.depth + 1, mass: 0, filed: 0, kids: [] };
@@ -505,9 +542,11 @@
       if (node.kids.length === 1 && node.kids[0].base === "quiet") node.kids = [];
       return node;
     };
-    const Tr = weigh(TRIE), share = (t, n) => { t.pct = n; if (t.kids.length) apportion(t.kids.map((k) => k.mass), n).forEach((v, j) => share(t.kids[j], v)); };
+    const Tr = weigh(TB ? TBTRIE : TRIE), share = (t, n) => { t.pct = n; if (t.kids.length) apportion(t.kids.map((k) => k.mass), n).forEach((v, j) => share(t.kids[j], v)); };
     share(Tr, 100); return Tr;
   }
+  // the tables page's prefix tree (tables_page.prefix_tree): the same node shape as TRIE, with its masses
+  const TBTRIE = TB ? (function conv(t, depth) { return { key: t.base || "root", base: t.base || "", when: t.when || "", depth, mass: t.mass, filed: t.filed, paths: [], kids: new Map((t.kids || []).filter((k) => depth < DEPTH).map((k) => [k.base, conv(k, depth + 1)])) }; })(TB.tree, 0) : null;
   const nodeLabel = (t) => (t.base === "quiet" ? W.resolve.nothing : t.base === "other" ? W.resolve.other : t.base);
   function wrap(text, max) { const out = [""]; for (const w of text.split(" ")) { const cur = last(out); if ((cur + " " + w).trim().length > max && cur) { if (out.length === 2) { out[1] += "…"; break; } out.push(w); } else out[out.length - 1] = (cur + " " + w).trim(); } return out; }
   function renderPaths(host) {
@@ -561,6 +600,17 @@
       bindCloseup(S.focus, "c");
     }
     updateCloseup(S.focus, "c"); renderPaths(sec.querySelector(".pt")); renderTornado(sec.querySelector(".tnd"));
+    if (TB) renderTypes(sec);
+  }
+  // the tables page: every judgment of one kind held to one answer (the tables' scalar settings: exact figures)
+  function renderTypes(sec) {
+    const J = W.judgment, T0 = TB.types, jev = TB.figures.full;
+    let host = sec.querySelector(".types");
+    if (!host) { sec.insertAdjacentHTML("beforeend", `<h4 class="sub">${esc(J.types)}</h4><p class="mute small">${esc(J.types_note)}</p><div class="types"></div>`); host = sec.querySelector(".types"); }
+    const name = (t) => fill(((W.decisions || {})[t.node] || {}).short || t.node.replace(/_/g, " "));
+    const rows = T0.map((t) => `<tr><td><b>${esc(name(t))}</b><span class="mute small"> · ${esc(fill(J.type_count, { n: t.count }))}</span></td><td>${money(jev.collected)} · ${pct(jev.petition_p)}</td>`
+      + `<td>${t.answers.map((a) => `<span class="ta"><b>${esc(fill(((W.decisions || {})[t.node] || {}).branches?.[a.answer] || a.answer.replace(/_/g, " ")))}</b> ${money(a.collected)} · ${pct(a.petition_p)}</span>`).join("")}</td></tr>`);
+    host.innerHTML = `<table class="at"><tr><th></th><th>${esc(fill(J.at, { p: "" })).trim()}</th><th>${esc(J.type_hundred)}</th></tr>${rows.join("")}</table>`;
   }
 
   // --- 5. one economic assumption -----------------------------------------------------------------------------------
@@ -601,7 +651,7 @@
   function revealMap(mm) {
     const out = [], A = W.actual;
     const vb = mm.verdict_band, bs = V.branches || [];
-    if (vb && V.banded) {
+    if (vb && V.banded && !TB) {
       const amt = vb.amount_cents, k = bs.findIndex((b) => (b.kind === "top" ? amt > b.lo : b.kind === "band" ? amt > b.lo && amt <= b.hi : b.kind === "none" && amt === 0));
       if (k >= 0) { let p = 0; for (let i = 0; i < P; i++) if (V.path[i] === k) p += wt(probs, i); out.push(fill(A.verdict, { amount: money(amt), band: bandLabel(bs[k]), p: pct(p) })); }
     }
@@ -635,8 +685,26 @@
   // --- any change: figures recomputed here, the series (and a variant's figures) from the server ---------------------
   let ctrl = null, deb = null;
   function renderSeries() { renderForecast(); renderResolve(); renderActual(); }
+  // the tables page: the collected, due, past-due and outstanding series under the changed answers, from the
+  // judgments' series atoms; the monthly rows follow from the series
+  function tbSeries() {
+    const ev = JSON.parse(JSON.stringify(D.event)), dly = ev.daily, MAP = { collected: "collected_mean", due_cum: "contractual", past_due: "past_due_mean", outstanding: "outstanding_mean" };
+    for (let i = 0; i < N; i++) {
+      const n = D.nodes[i]; if (!n.series) continue;
+      const d = dist(i), j = n.jev;
+      for (let a = 0; a < n.branches.length; a++) {
+        const dl = d[a] - j[a], s = n.series[n.branches[a]]; if (!dl || !s) continue;
+        for (const [k, key] of Object.entries(MAP)) { const v = s[k]; if (v && dly[key]) for (let t = 0; t < v.length; t++) dly[key][t] += dl * v[t]; }
+      }
+    }
+    for (const k of Object.values(MAP)) if (dly[k]) dly[k] = dly[k].map(Math.round);
+    const due = dly.contractual.map((v, t) => v - (t ? dly.contractual[t - 1] : 0)), coll = dly.collected_mean.map((v, t) => v - (t ? dly.collected_mean[t - 1] : 0));
+    for (const r of ev.monthly) { let d = 0, c = 0; D.dates.forEach((x, t) => { if (x.startsWith(r.month)) { d += due[t]; c += coll[t]; } }); r.due = Math.round(d); r.collected = Math.round(c); }
+    S.event = ev;
+  }
   function refreshSeries() {
     clearTimeout(deb);
+    if (TB) { tbSeries(); renderSeries(); return; }
     deb = setTimeout(async () => {
       if (ctrl) ctrl.abort(); ctrl = new AbortController();
       try {

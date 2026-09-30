@@ -123,7 +123,11 @@
     "of": "0% and 100% of the answer: {branch}",
     "first": "the form's first question",
     "yours": "Your value {p}",
-    "paths_filing": "Filing probability by {horizon} on this branch"
+    "paths_filing": "Filing probability by {horizon} on this branch",
+    "types": "Every judgment of one kind, set to one answer",
+    "types_note": "Each row holds every question of the kind named to one answer, the other kinds at Jev's answers. The figures are exact sums over the whole tree: expected collections and the filing probability by {horizon}.",
+    "type_count": "{n} questions",
+    "type_hundred": "100% of the answer named"
   },
   "assumption": {
     "pick": "Assumption",
