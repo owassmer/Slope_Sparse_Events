@@ -129,14 +129,16 @@ def control(folder: str, out: str) -> None:
            "remit_classes": set().union(*(h["remit_classes"] for h in heads)),
            "verdict_asks": asked("verdict_asks"), "classed": set().union(*(h.get("classed", ()) for h in heads))}
     os.makedirs(os.path.join(out, "paths"), exist_ok=True)
-    total, missing, cost = 0, set(), {}
+    os.makedirs(os.path.join(out, "walked"), exist_ok=True)
+    total, missing, cost, meta = 0, set(), {}, []
     for f in files:
         with open(f, "rb") as fh:
             p = pickle.load(fh)
         kept = []
-        for _ekey, kind, x, cond in sorted(p["events"], key=lambda e: e[0]):  # noqa: B007
+        for ekey, kind, x, cond in sorted(p["events"], key=lambda e: e[0]):
             if kind != "path" or not live(cond):
                 continue
+            meta.append((ekey, x[1], os.path.basename(f), len(kept)))
             w = x[0]
             for wid in x[2]:
                 for at, edge, qcls in edges.get(wid, ()):
@@ -150,10 +152,13 @@ def control(folder: str, out: str) -> None:
         total += len(kept)
         # each part's paths and its walk's seconds: the reduction balances its blocks by them (analysis/reduce.py)
         cost[os.path.basename(f)] = (len(kept), float(p.get("seconds", 0.0)))
-        with open(os.path.join(out, "paths", os.path.basename(f)), "wb") as fh:
+        with open(os.path.join(out, "walked", os.path.basename(f)), "wb") as fh:
             pickle.dump(kept, fh, protocol=pickle.HIGHEST_PROTOCOL)
         del p
-    ctl["paths"], ctl["part_cost"] = total, cost
+    merged = _merge(out, meta, {k: n.branches for k, n in nodes.items()})
+    for f, n in merged.items():  # the reduction balances its blocks by each part's paths after the merge
+        cost[f] = (n, cost[f][1])
+    ctl["walked"], ctl["paths"], ctl["part_cost"] = total, sum(merged.values()), cost
     import numpy as np  # the tree's per-day range of cumulative event cash on each path's draws (_Walk.emit)
     rngs = [h["ev_range"] for h in heads if h.get("ev_range") is not None]
     ctl["ev_range"] = (np.minimum.reduce([r[0] for r in rngs]), np.maximum.reduce([r[1] for r in rngs])) if rngs \
@@ -162,9 +167,54 @@ def control(folder: str, out: str) -> None:
         raise SystemExit(f"control: {len(missing)} questions the paths read were never logged, e.g. {sorted(missing)[:3]}")
     with open(os.path.join(out, "control.pkl"), "wb") as fh:
         pickle.dump(ctl, fh, protocol=pickle.HIGHEST_PROTOCOL)
-    print(f"{time.time() - t0:7.0f}s control: {len(files)} parts, {total} paths, {len(nodes)} questions "
+    print(f"{time.time() - t0:7.0f}s control: {len(files)} parts, {total} paths walked, {ctl['paths']} after the "
+          f"merge, {len(nodes)} questions "
           f"({len(ctl['classed'])} asked per class), raise re-offered at {len(raised_live)} prefixes",
           file=sys.stderr, flush=True)
+
+
+def _merge(out: str, meta: list, branches: dict) -> dict[str, int]:
+    """`forecast.merge_equivalent` over the whole tree, as `parallel.walk` applies it: the walked paths (out/walked;
+    meta: (event key, equivalence key, part, index) of each) in the single walk's order, paths with the same key one
+    path. merge_equivalent treats each key's group on its own, so each group is merged alone, its members in the
+    walk's order. Writes out/paths/<part>: each merged path in the part of its group's first member, in the walk's
+    order. Returns each part's count."""
+    from app.disputes.forecast import merge_equivalent
+
+    meta.sort(key=lambda m: m[0])
+    groups: dict = {}
+    for e, k, f, i in meta:
+        groups.setdefault(k, []).append((e, f, i))
+    home = {k: g[0][1] for k, g in groups.items()}  # the part of each group's first member
+    need: dict = {}  # members that live in another part than their group's home
+    for k, g in groups.items():
+        for _e, f, i in g:
+            if f != home[k]:
+                need.setdefault(f, set()).add(i)
+    away: dict = {}
+    for f, idx in need.items():
+        with open(os.path.join(out, "walked", f), "rb") as fh:
+            kept = pickle.load(fh)
+        away.update({(f, i): kept[i] for i in idx})
+    by_home: dict = {}
+    for k in groups:
+        by_home.setdefault(home[k], []).append(k)
+    counts = {}
+    for f in sorted({m[2] for m in meta}):
+        with open(os.path.join(out, "walked", f), "rb") as fh:
+            kept = pickle.load(fh)
+        rows = []
+        for k in by_home.get(f, ()):
+            g = groups[k]
+            members = [kept[i] if gf == f else away[(gf, i)] for _e, gf, i in g]
+            rows += [(g[0][0], q) for q in merge_equivalent(members, [k] * len(members), branches)]
+        rows.sort(key=lambda r: r[0])  # stable: a group's subgroups keep merge_equivalent's order
+        with open(os.path.join(out, "paths", f), "wb") as fh:
+            pickle.dump([q for _e, q in rows], fh, protocol=pickle.HIGHEST_PROTOCOL)
+        counts[f] = len(rows)
+    for f in counts:
+        os.remove(os.path.join(out, "walked", f))
+    return counts
 
 
 def forecaster(run_id: str, ctl: dict):
