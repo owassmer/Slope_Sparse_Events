@@ -4,6 +4,7 @@ fired is visible. Without the flag nothing here runs."""
 from __future__ import annotations
 
 import os
+from dataclasses import is_dataclass
 
 import numpy as np
 
@@ -30,8 +31,8 @@ def same(a, b) -> bool:
         return type(a) is type(b) and len(a) == len(b) and all(same(x, y) for x, y in zip(a, b, strict=True))
     if isinstance(a, (float, np.floating)) or isinstance(b, (float, np.floating)):
         return type(a) is type(b) and np.float64(a).tobytes() == np.float64(b).tobytes()  # type: ignore[arg-type]
-    if type(a) is type(b) and hasattr(a, "__dict__") and type(a).__eq__ is object.__eq__:  # a plain object: its state
-        return same(vars(a), vars(b))
+    if type(a) is type(b) and hasattr(a, "__dict__") and (type(a).__eq__ is object.__eq__ or is_dataclass(a)):
+        return same(vars(a), vars(b))  # a plain object or a dataclass (whose `==` compares arrays): its state
     return type(a) is type(b) and a == b
 
 
@@ -43,7 +44,7 @@ def where(a, b, at: str = "") -> str:
         return next((where(a[k], b[k], f"{at}[{k!r}]") for k in a if not same(a[k], b[k])), at)
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)) and len(a) == len(b):
         return next((where(x, y, f"{at}[{i}]") for i, (x, y) in enumerate(zip(a, b, strict=True)) if not same(x, y)), at)
-    if type(a) is type(b) and hasattr(a, "__dict__") and type(a).__eq__ is object.__eq__:
+    if type(a) is type(b) and hasattr(a, "__dict__") and (type(a).__eq__ is object.__eq__ or is_dataclass(a)):
         return where(vars(a), vars(b), at)
     return f"{at}: {type(a).__name__} {str(a)[:120]!r} vs {type(b).__name__} {str(b)[:120]!r}"
 

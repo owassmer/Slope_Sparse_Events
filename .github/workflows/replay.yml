@@ -5,11 +5,10 @@ name: replay
 # the paths. `slope analyze` reads the downloaded files with SLOPE_EVENT_CASH (app/analysis/core.py `event_store`).
 on:
   push:
-    branches: [replay-run]
+    branches: [replay-run, "replay-run-*"]  # replay-run-<variant>
 
 env:
   RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
-  WALK_RUN: "36655732235"
   JOBS: "20"
   PROCS: "4"
 
@@ -31,16 +30,23 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - run: uv run slope evidence build akoustis_20240514
+      - id: walk  # the latest successful walk of the same variant
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          echo "run=$(gh run list -R ${{ github.repository }} --workflow walk --status success -L 1
+          --branch walk-run${GITHUB_REF_NAME#replay-run} --json databaseId -q '.[0].databaseId')" >> $GITHUB_OUTPUT
       - uses: actions/download-artifact@v4
         with:
           pattern: walk-*
           path: parts
           merge-multiple: true
-          run-id: ${{ env.WALK_RUN }}
+          run-id: ${{ steps.walk.outputs.run }}
           github-token: ${{ github.token }}
       - run: ls parts | head; du -sh parts; nproc; free -g
       - run: >
-          SLOPE_JEV_CACHE_ONLY=1 uv run python -m app.disputes.parallel replay $RUN_ID parts
+          SLOPE_VARIANT=$(n=${GITHUB_REF_NAME#replay-run}; echo ${n#-}) SLOPE_JEV_CACHE_ONLY=1
+          uv run python -m app.disputes.parallel replay $RUN_ID parts
           ${{ matrix.job }} $JOBS $PROCS out 2> >(tee replay.log >&2)
       - uses: actions/upload-artifact@v4
         if: always()

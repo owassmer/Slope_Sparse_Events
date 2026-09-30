@@ -37,6 +37,7 @@ from app.domain.investigation import AtomicFinding, DisputeInstance, SemanticObs
 from app.domain.values import usd
 
 COMPOSITE = "="
+ROWS_OFF = __import__("os").environ.get("SLOPE_ROWS") == "0"  # `_Walk._rows`: every trace on every draw
 
 
 class ForecastJudge(Protocol):
@@ -210,7 +211,7 @@ def _q(model: dict) -> dict[str, dict]:
 _ROW_BLOBS: dict[bytes, bytes] = {}  # identical rows share one compressed blob
 
 
-_ROW_FILL = {"day": np.iinfo(np.int64).max // 4, "groups": -1}  # events.BIG; elsewhere 0 (a question never reads it)
+_ROW_FILL = {"day": 10**6, "groups": -1}  # day: events.BIG (asserted in pack_row); elsewhere 0 (never read)
 
 
 class _Kept:
@@ -226,6 +227,8 @@ def _keep(v, on: np.ndarray, n: int):
         return _Kept(v[on])
     if type(v) is dict:
         return {k: _keep(x, on, n) for k, x in v.items()}
+    if type(v) in (list, tuple):
+        return type(v)(_keep(x, on, n) for x in v)
     return v
 
 
@@ -236,17 +239,35 @@ def _whole(v, ix: np.ndarray, n: int, name: str = ""):
         return out
     if type(v) is dict:
         return {k: _whole(x, ix, n, k) for k, x in v.items()}
+    if type(v) in (list, tuple):
+        return type(v)(_whole(x, ix, n, name) for x in v)
     return v
 
 
 def pack_row(row: dict) -> bytes:
     """A recorded row as one compressed pickle, interned by content (identical rows are stored once). Only the
     trajectories where the question can be live are stored: its decision is dated (not BIG) and precedes any petition
-    (`Forecaster.live` reads no other); `unpack_row` restores the others as BIG days and zeros, which no read takes."""
+    (`Forecaster.live` reads no other); `unpack_row` restores the others as BIG days and zeros, which no read takes.
+    On those trajectories a trigger that never falls (BIG) is left out, as `_contract_dates` reads it, and option
+    groups asked of none of them are None, as `walk_groups` reads them: one stored form whatever the other
+    trajectories hold."""
+    from app.analysis.events import BIG
+
+    assert _ROW_FILL["day"] == BIG
     day, pet = row.get("day"), row.get("petition")
     if isinstance(day, np.ndarray) and isinstance(pet, np.ndarray):
         n = day.shape[0]
-        on = (day < _ROW_FILL["day"]) & ((pet < 0) | (day < pet))
+        on = (day < BIG) & ((pet < 0) | (day < pet))
+        trig, g = row.get("triggers"), row.get("groups")
+        if trig:
+            row = {**row, "triggers": {k: trig[k] for k in sorted(trig) if not (
+                isinstance(trig[k], np.ndarray) and trig[k].shape[:1] == (n,) and (trig[k][on] >= BIG).all())}}
+        if isinstance(g, np.ndarray) and g.shape[:1] == (n,) and not (g[on] >= 0).any():
+            row = {**row, "groups": None}
+        sit = row.get("sit")
+        if isinstance(sit, dict) and isinstance(sit.get("offerings"), list):  # never initiated here: absent
+            row = {**row, "sit": {**sit, "offerings": [o for o in sit["offerings"] if not (
+                isinstance(o[0], np.ndarray) and o[0].shape[:1] == (n,) and (o[0][on] >= BIG).all())]}}
         row = {"__ix__": np.flatnonzero(on).astype(np.int32), "__n__": n,
                **{k: _keep(v, on, n) for k, v in row.items()}}
     b = zlib.compress(pickle.dumps(row, protocol=pickle.HIGHEST_PROTOCOL), 1)
@@ -599,7 +620,7 @@ class Forecaster:
     # --- prefix traces (code timing and arithmetic, before any Jev answer) ----------------------------------------
 
     def trace(self, d: DisputeInstance, steps: tuple, full: bool = False, real: bool = False,
-              light: bool = False) -> _Prefix:
+              light: bool = False, rows: tuple | None = None) -> _Prefix:
         """The prefix's per-step decision days and path facts, its petition days and a fingerprint of its event cash.
         The dense [draws, days] arrays are dropped once fingerprinted: the tree has thousands of prefixes, and keeping
         each prefix's arrays held about 20 GB for the Akoustis tree. Settled only to the last step's decision day
@@ -607,53 +628,64 @@ class Forecaster:
         read of the event cash, the petition or marks after the decision day (the digest, a petition anywhere).
         A walk read may be served by a walked sibling's trace (`_served`); `real`: a recorded fact's, never served.
         `light`: a walk read's (`_Walk._raw`), without the facts only a recorded question reads (events.Chain.finish);
-        any other read never takes a light trace from the cache."""
-        from app.analysis.events import canon, event_chain, event_trace
+        any other read never takes a light trace from the cache. `rows`: per step, the trajectories the path follows
+        (`_Walk._rows`): a day-only trace is computed on them alone (events `_run`), off them as `masked` leaves it;
+        a full trace (the digest) is always the whole draws'."""
+        from app.analysis.events import _rows_key, canon, event_chain, event_trace
 
         steps = canon(steps)  # a grouped branch books its answer; the path's group is its mask (`_Walk._trace`)
+        if full or rows is None or not rows or rows[-1] is None or rows[-1].all():
+            rows = None
+        rk = None if rows is None else _rows_key(rows[-1])
 
         def compute():
             path = DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=())
-            t = event_trace(d, path, self.setup, self.m, self.draws, self.sens, day_only=not full, light=light)
-            return self._prefix(d.instance_id, steps, full, light, t)
+            t = event_trace(d, path, self.setup, self.m, self.draws, self.sens, day_only=not full, light=light,
+                            rows=rows)
+            return self._prefix(d.instance_id, steps, full, light, t, rk)
 
         return self._traced(d.instance_id, steps, full, real, compute,
-                            lambda st: event_chain(d, st, self.setup, self.m, self.draws, self.sens), light)
+                            lambda st: event_chain(d, st, self.setup, self.m, self.draws, self.sens), light, rk)
 
     OPEN_LIGHT = 16  # light day-only traces kept completable (each holds its finished chain)
 
-    def _prefix(self, ns, steps: tuple, full: bool, light: bool, t) -> _Prefix:
+    def _prefix(self, ns, steps: tuple, full: bool, light: bool, t, rk: bytes | None = None) -> _Prefix:
         """The trace `t` as a cached prefix; a light day-only one stays completable (`_traced`) for a while."""
         daily = self.setup.cash_processing == "daily"
         if light and not full:
             open_ = self.__dict__.setdefault("_open_light", {})
             if len(open_) >= self.OPEN_LIGHT:
                 open_.pop(next(iter(open_)))
-            open_[(ns, steps)] = lambda: (lambda w: None if w is None else _Prefix.of(w, daily, digest=False))(
+            open_[(ns, steps, rk)] = lambda: (lambda w: None if w is None else _Prefix.of(w, daily, digest=False))(
                 t.complete())
         return _Prefix.of(t, daily, digest=full, light=light)
 
-    def _traced(self, ns, steps: tuple, full: bool, real: bool, compute, chain, light: bool = False) -> _Prefix:
-        """A cached prefix trace (`_traces`), else a walked sibling's (`_served`), else computed; logged for the
-        siblings walked after it (`_logged`). A light trace answers only a light read; another read completes it
-        on its finished chain where that is still held (events.Chain.completed), else computes it whole."""
+    def _traced(self, ns, steps: tuple, full: bool, real: bool, compute, chain, light: bool = False,
+                rk: bytes | None = None) -> _Prefix:
+        """A cached prefix trace (`_traces`: per steps, one per row subset `rk`), else a walked sibling's
+        (`_served`), else computed; logged for the siblings walked after it (`_logged`). A light trace answers only a
+        light read; another read completes it on its finished chain where that is still held
+        (events.Chain.completed), else computes it whole."""
         key = (ns, "full") if full else ns
-        hit = self._traces.get(key, steps)
+        slot = self._traces.get(key, steps)
+        if slot is None:
+            slot = self._traces.put(key, steps, {})
+        hit = slot.get(rk)
         if hit is not None and real and hit.served:
             hit = None
         if hit is not None and hit.light and not light:
-            done = None if full else self.__dict__.get("_open_light", {}).pop((ns, steps), None)
+            done = None if full else self.__dict__.get("_open_light", {}).pop((ns, steps, rk), None)
             hit = done() if done is not None else None
             if hit is not None:
-                self._traces.put(key, steps, hit)
+                slot[rk] = hit
         if hit is None:
-            hit = None if real or not self.REUSE else self._served(ns, steps, full, chain)
+            hit = None if real or not self.REUSE or rk is not None else self._served(ns, steps, full, chain)
             if hit is None:
                 hit = compute()
                 self.reuse_stats["computed"] += 1
             else:
                 self.reuse_stats["served"] += 1
-            self._traces.put(key, steps, hit)
+            slot[rk] = hit
         if self.REUSE and not hit.served:
             self._logged(ns, steps, full, hit)
         return hit
@@ -1220,21 +1252,16 @@ class Forecaster:
 
     @staticmethod
     def late_key(k: str, prefix: tuple, row: dict) -> tuple:
-        """What `_keep_late` keeps a record once per: the node, the prefix and the record's digest."""
-        h = hashlib.blake2b(digest_size=16)
-        for f in ("day", "cash", "owed", "collateral", "petition", "raise_offer", "stay_offer"):
-            if row.get(f) is not None:
-                h.update(f.encode() + np.ascontiguousarray(row[f]).tobytes())
-        for name in sorted(row["triggers"]):
-            h.update(name.encode() + np.ascontiguousarray(row["triggers"][name]).tobytes())
-        return k, prefix, h.digest()
+        """What `_keep_late` keeps a record once per: the node, the prefix and the digest of the record as stored
+        (`pack_row`: what a question can read of it)."""
+        return k, prefix, hashlib.blake2b(pack_row(row), digest_size=16).digest()
 
     def _keep_late(self, k: str, prefix: tuple, row: dict) -> None:
         """Keep a whole path's record for a node once per distinct record at each prefix that asks it."""
         seen = self.late_key(k, prefix, row)
         if seen not in self._late_seen:
             self._late_seen.add(seen)
-            self.facts.setdefault(k, Rows()).append(row)
+            self.facts.setdefault(k, Rows()).append_blob(pack_row(row))
 
     def live(self, n: Node, row: dict) -> np.ndarray:
         """The trajectories where the question's situation holds: the decision falls inside the analysis period,
@@ -1811,8 +1838,21 @@ class _Walk:
     def _raw(self, steps, full: bool = False) -> _Prefix:
         """The prefix's trace on every trajectory, in this walk's view (the forecast's dispute; the ordinary view
         overrides it). Settled to the last step's decision day (`Forecaster.trace`) unless `full`. Light: the walk's
-        structure reads none of the facts only a recorded question reads (`_facts` computes those)."""
-        return self.fc.trace(self.d, steps, full, light=True)
+        structure reads none of the facts only a recorded question reads (`_facts` computes those). Day-only traces
+        are computed on the path's trajectories alone (`_rows`)."""
+        return self.fc.trace(self.d, steps, full, light=True, rows=None if full else self._rows(steps))
+
+    def _rows(self, steps) -> tuple:
+        """Per step, the trajectories the path follows after it (`mask_of` at each grouped step; None: every draw).
+        SLOPE_ROWS=0: None (every trace on every draw, the reference the row subsets are checked against)."""
+        if ROWS_OFF:
+            return None
+        out, m = [], None
+        for i, st in enumerate(steps):
+            if st[2].startswith("@"):
+                m = self.mask_of(steps[:i + 1])
+            out.append(m)
+        return tuple(out)
 
     def _trace(self, steps, full: bool = False) -> _Prefix:
         """The prefix's trace on the path's trajectories (`mask_of`, `masked`): every read the walk makes of it."""
@@ -1820,7 +1860,7 @@ class _Walk:
 
     def _facts(self, steps) -> _Prefix:
         """`_trace` for a recorded fact: computed, never a sibling's (`Forecaster._served`)."""
-        return masked(self.fc.trace(self.d, steps, real=True), self.mask_of(steps))
+        return masked(self.fc.trace(self.d, steps, real=True, rows=self._rows(steps)), self.mask_of(steps))
 
     # --- within-path grouping (Owen's ruling, 29 Sep 2026) ----------------------------------------------------------
     def quiet_of(self, node: str) -> str:
@@ -2752,9 +2792,9 @@ class _Walk:
 
         m = self.mask_of(s.steps)
         tr = None
-        if self.pend:  # the whole path's trace: its late facts and its equivalence key
+        if self.pend:  # the whole path's trace (on its trajectories): its late facts and its equivalence key
             tr = event_trace(self.d, DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome="", edges=()),
-                             self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens)
+                             self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens, rows=self._rows(s.steps))
             self.keys.append(self.equivalence(s, outcome, tr, m))
         if s.late:
             self.fc.record_late(self.d, s.steps, s.late, m, tr=tr)

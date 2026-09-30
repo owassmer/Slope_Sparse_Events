@@ -421,6 +421,19 @@ def load_parts(folder: str) -> list[dict]:
     return parts
 
 
+def _variant(ctx: dict) -> tuple:
+    """The setup and the chains' sensitivities of the economic-assumption variant SLOPE_VARIANT (app/analysis/
+    assumptions.py `declared`; unset or 'central': the run's own)."""
+    from app.analysis.assumptions import declared
+    from app.analysis.setup import setup_from_inputs
+
+    vid = os.environ.get("SLOPE_VARIANT") or "central"
+    if vid == "central":
+        return ctx["setup"], None
+    v = {x["id"]: x for x in declared(ctx["meta"]["snapshot_id"], ctx["inputs"], ctx["m"])}[vid]
+    return setup_from_inputs(ctx["inputs"], ctx["review"], v["scenario"]), (v["sens"] or None)
+
+
 def shard(run_id: str, job: int, jobs: int, procs: int, out: str) -> None:
     """One machine's share of the pending claim's walk: parts job*procs .. job*procs+procs-1 of jobs*procs, the
     Forecaster built as `build.judged_model` builds it."""
@@ -430,10 +443,10 @@ def shard(run_id: str, job: int, jobs: int, procs: int, out: str) -> None:
     from app.disputes.forecast import PENDING, Forecaster
 
     ctx = run_context(run_id, Path("runs/recorded"))
-    setup = ctx["setup"]
+    setup, sens = _variant(ctx)
     fc = Forecaster(ctx["live"], ctx["findings"], borrower=ctx["borrower"], review=ctx["review"],
                     horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup, basis=basis_for(ctx["feed"], setup),
-                    slots=ctx["slots"], model=ctx["m"], sens=None)
+                    slots=ctx["slots"], model=ctx["m"], sens=sens)
     d = next(x for x, _ in fc.ordered() if x.stage == PENDING and x.borrower_role == "debtor")
     os.environ["SLOPE_WALK_JOB"] = f"{job}/{jobs}"  # this machine's units, claimed by its processes as they free up
     os.makedirs(out, exist_ok=True)
@@ -497,11 +510,11 @@ def replay(run_id: str, parts: str, job: int, jobs: int, procs: int, out: str) -
 
     t0 = time.time()
     ctx = run_context(run_id, Path("runs/recorded"))
-    setup = ctx["setup"]
+    setup, sens = _variant(ctx)
     basis = basis_for(ctx["feed"], setup)
     fc = Forecaster(ctx["live"], ctx["findings"], borrower=ctx["borrower"], review=ctx["review"],
                     horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup, basis=basis,
-                    slots=ctx["slots"], model=ctx["m"], sens=None)
+                    slots=ctx["slots"], model=ctx["m"], sens=sens)
     d = next(x for x, _ in fc.ordered() if x.stage == PENDING and x.borrower_role == "debtor")
     os.environ["SLOPE_WALK_PARTS"] = parts
     paths = walk(fc, d, 1)

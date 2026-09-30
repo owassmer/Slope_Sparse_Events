@@ -136,6 +136,52 @@ class Draws:
         u = self.u(*key, "ruling_lag", adverse_high=False)
         return sample[np.minimum((u * len(sample)).astype(np.int64), len(sample) - 1)]
 
+    SUBS = 256  # row subsets kept (each with its engine runs)
+
+    def sub(self, rows: np.ndarray) -> SubDraws:
+        """These draws on the trajectories `rows` ([n] bool, a path's mask): the same uniforms, operating basis and
+        loan line on those rows only. One object per mask, so the chains on it share its engine runs (`Basis.runs`)."""
+        subs = self.__dict__.setdefault("_subs", {})
+        k = np.packbits(rows).tobytes()
+        s = subs.pop(k, None)
+        if s is None:
+            s = SubDraws(self, np.flatnonzero(rows))
+            if len(subs) >= self.SUBS:
+                subs.pop(next(iter(subs)))
+        subs[k] = s
+        return s
+
+
+class SubDraws(Draws):
+    """`Draws.sub`: the parent's draws on rows `idx`. Every trajectory's computation reads only its own row of the
+    draws and the basis, so a chain on these rows books exactly the parent chain's values on them (`Chain.sliced`)."""
+
+    def __init__(self, parent: Draws, idx: np.ndarray) -> None:
+        self.parent, self.idx = parent, idx
+        self.n, self.stress, self.cache, self.prefixes = len(idx), parent.stress, {}, None
+        self.basis = _rows_basis(parent.basis, idx)
+
+    def u(self, *key: str, adverse_high: bool | None = None) -> np.ndarray:
+        return self.parent.u(*key, adverse_high=adverse_high)[self.idx]
+
+
+def _rows_basis(b: Basis | None, idx: np.ndarray) -> Basis | None:
+    """The operating basis and the loan line on rows `idx`, with no engine runs yet."""
+    import dataclasses
+
+    if b is None:
+        return None
+    line = b.line
+    if line is not None:
+        ops = line.ops
+        ops = dataclasses.replace(ops, total=ops.total[idx], invoices=ops.invoices[idx],
+                                  by_category={k: v[idx] for k, v in ops.by_category.items()},
+                                  inflow=None if ops.inflow is None else ops.inflow[idx],
+                                  outflow=None if ops.outflow is None else ops.outflow[idx])
+        line = dataclasses.replace(line, ops=ops, limit=line.limit[idx], need=line.need[idx], routes=line.routes[idx])
+    return Basis(cash=b.cash[idx], need=b.need[idx], legal=b.legal[idx], line=line, opening=b.opening, runs={},
+                 inflow=None if b.inflow is None else b.inflow[idx])
+
 
 def pval(model: dict, key: str, sensitivity: bool | str = False):
     """The parameter's value: its base, its sensitivity (True), or the named sensitivity (a string)."""
@@ -1042,16 +1088,21 @@ class Chain:
             amt = np.where(day >= col(self.marks["settled"]), left, amt)
         return np.where(day >= col(self.V), amt, 0).astype(np.int64)
 
+    def _owed_key(self) -> tuple:
+        """What the amount owed reads (`owed_at`) besides the event cash: the judgment's amounts and dates, the
+        payments and levies, the settlement and the dispute's end."""
+        b = lambda x: None if x is None else np.asarray(x).tobytes()  # noqa: E731
+        return (self.entered, self.cls_amount, self.bps, b(self.__dict__.get("cls_fees")),
+                *(b(self.__dict__.get(k)) for k in ("F", "resolved", "V", "E_ix", "fee_day", "EI")),
+                tuple((b(t), b(a)) for t, a in self.takes), tuple((b(t), b(a)) for t, a in self.settlement_parts),
+                self.marks["settled"].tobytes())
+
     def _reprice(self) -> None:
         """Bump `_price_v` where what the share price reads has changed (the amount entered, the ruling, a payment
         or levy, the dispute's resolution, a settlement)."""
         if self.merton is None:
             return
-        b = lambda x: None if x is None else np.asarray(x).tobytes()  # noqa: E731
-        key = (self.entered, self.cls_amount, self.bps, b(self.__dict__.get("cls_fees")),
-               *(b(self.__dict__.get(k)) for k in ("F", "resolved", "V", "E_ix", "fee_day")),
-               tuple((b(t), b(a)) for t, a in self.takes), tuple((b(t), b(a)) for t, a in self.settlement_parts),
-               self.marks["settled"].tobytes())
+        key = self._owed_key()
         if key != self._price_key:  # what the price reads changed: `_price_v` moves only where the array does
             self._price_key = key
             close = float(self.m["parameters"]["atm_pace_bps"]["price_cents"])
@@ -1583,9 +1634,15 @@ class Chain:
     def restay(self, force: bool = False) -> None:
         """Daily processing: re-size every approved stay walked so far (`_size_stay`) once anything has been booked since
         the last re-sizing, so a step walked later but dated before an approval (a levy, a petition, a floor decision)
-        is in the balance its security is sized on. The processor is causal: one pass settles it."""
-        if not self.daily or not self.stays or self._restaying or (self._stay_cv == self._cv and not force):
+        is in the balance its security is sized on, and once what the amount owed reads has changed (a ruling walked
+        after the stay and dated before its approval moves the collateral without booking cash). The processor is
+        causal: one pass settles it."""
+        if not self.daily or not self.stays or self._restaying:
             return
+        key = self._owed_key()
+        if self._stay_cv == self._cv and self.__dict__.get("_stay_owed") == key and not force:
+            return
+        self._stay_owed = key
         self._restaying = True
         try:
             for st in self.stays.values():
@@ -2471,8 +2528,9 @@ class Chain:
         groups): the facts only a recorded question reads are left out (the triggers, the question-state snapshot,
         each stay's and each waiting step's facts, the booking days a view saw), each a pure read of the state the
         fields kept are computed from."""
-        if self.pending_levy is not None:  # the floor decisions dated up to the pending levy, and the levy
-            self.until(self.pending_levy + 1)
+        if self.pending_levy is not None:  # the floor decisions dated up to the pending levy, and the levy, on the
+            # trajectories with one pending (elsewhere nothing here: its decisions book below, to the step's own day)
+            self.until(np.where(self.pending_levy < BIG, self.pending_levy + 1, -1))
         self.flush_levy()
         self.restay()
         triggers = self.trigger_days()  # as of the last step: a floor decision dated after it is not in them
@@ -2575,6 +2633,50 @@ class Chain:
         new.ev = EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, dict(ev.kinds), dict(ev.incurred),
                            _copied(ev.proceeds))
         self._ev_own, new._ev_own = set(), set()
+        return new
+
+    # `sliced`: state per sale or per day (kept as it is), memos of the whole rows (dropped or reset: recomputed on the
+    # rows kept at their next read), and the inputs the rows come from (replaced by the row subset's)
+    SLICE_KEEP = frozenset({"d", "s", "m", "sens", "fin", "bookings", "merton", "_atm_memo", "_atm_cols"})
+    SLICE_DROP = frozenset({"_tau", "_out", "_offer_memo", "_shares_memo", "_ev_own"})
+    SLICE_RESET = {"_cum": None, "_keys": dict, "_hd": dict, "_price_key": None}
+
+    def sliced(self, sel: np.ndarray, dr: SubDraws) -> Chain:
+        """An independent copy of this chain on its rows `sel` (indices), on the row subset `dr` of its draws. Every
+        booking and read is per trajectory, so the copy's state on each row is this chain's, and it walks on as this
+        chain would on those rows (shadow check `rows_trace`)."""
+        n = self.n
+
+        def cut(v):
+            if isinstance(v, np.ndarray):
+                return v[sel] if v.ndim >= 1 and v.shape[0] == n else v
+            if isinstance(v, EventCash):
+                return EventCash(cut(v.cash), cut(v.lock), cut(v.capacity), cut(v.petition), cut(v.kinds),
+                                 cut(v.incurred), cut(v.proceeds))
+            if type(v) is dict:
+                return {k: cut(x) for k, x in v.items()}
+            if type(v) is list:
+                return [cut(x) for x in v]
+            if type(v) is tuple:
+                return tuple(cut(x) for x in v)
+            return v
+
+        new = Chain.__new__(Chain)
+        for k, v in self.__dict__.items():
+            if k in Chain.SLICE_DROP:
+                continue
+            if k in Chain.SLICE_RESET:
+                r = Chain.SLICE_RESET[k]
+                new.__dict__[k] = r() if callable(r) else r
+            elif k in Chain.SLICE_KEEP:
+                new.__dict__[k] = v
+            else:
+                new.__dict__[k] = cut(v)
+        new.dr, new.basis, new.n, new.rows, new._ev_own = dr, dr.basis, len(sel), np.arange(len(sel)), set()
+        if "_stay_owed" in self.__dict__:  # the stays current here are current there (`restay`)
+            new._stay_owed = new._owed_key() if self._stay_owed == self._owed_key() else None
+        if self._price_key is not None and self._price_key == self._owed_key():  # the price is current (`_reprice`)
+            new._price_key = new._owed_key()
         return new
 
     # --- exact subtree reuse (forecast.py `Forecaster._served`) ------------------------------------------------------
@@ -2838,49 +2940,170 @@ def _copied(v):
     return copy.deepcopy(v)
 
 
-def _advanced(make, steps, draws: Draws, key: tuple, inputs: tuple) -> tuple[Chain, Trace]:
+def _rows_key(m: np.ndarray | None) -> bytes | None:
+    return None if m is None else np.packbits(m).tobytes()
+
+
+def _advanced(make, steps, draws: Draws, key: tuple, inputs: tuple, rows: tuple | None = None) -> tuple[Chain, Trace]:
     """`make()` with `steps` advanced (not finished), resumed from the deepest prefix of `steps` already walked. A
     chain's state after k steps depends only on those k steps, so with `draws.prefixes` on (the tree builder and the
     analysis walk paths in depth-first order) each call walks only the steps after the prefix it shares with the
     previous call. The cache holds one stack of states per chain: the root (after the instrument's cash) and each
-    step of the last path."""
+    step of the last path.
+    rows: per step, the trajectories the path follows after it ([n] bool; None: every draw), narrowing only at a
+    grouped step. The chain after step i is on rows[i] alone (`Chain.sliced`); its own stack, whose entries also match
+    on their rows. Returns the chain on rows[-1] (all rows without `rows`)."""
     cache = draws.prefixes
     if cache is None:
         ch = make()
         ch.instrument_cash()
         tr = Trace(ch.ev)
-        for step in steps:
+        cur = None
+        for i, step in enumerate(steps):
+            if rows is not None and _rows_key(rows[i]) != _rows_key(cur):
+                ch, cur = ch.sliced(_rel(cur, rows[i]), draws.sub(rows[i])), rows[i]
             ch.advance(tr, *step)
         return ch, tr
-    entry = cache.get(key)
+    skey = key if rows is None else (*key, "rows")
+    entry = cache.get(skey)
     if entry is None or len(entry[0]) != len(inputs) or any(a is not b for a, b in zip(entry[0], inputs, strict=True)):
         root = make()
         root.instrument_cash()
-        entry = cache[key] = (inputs, [(None, root, None)])
+        entry = cache[skey] = (inputs, [(None, root, None, None)])
     stack = entry[1]
+    rk = [None] * len(steps) if rows is None else [_rows_key(m) for m in rows]
     k = 0
-    while k < len(steps) and k + 1 < len(stack) and stack[k + 1][0] == steps[k]:
+    while k < len(steps) and k + 1 < len(stack) and stack[k + 1][0] == steps[k] and stack[k + 1][2] == rk[k]:
         k += 1
     del stack[k + 1:]
-    ch = stack[k][1].clone()  # its per-step records (Chain.rec) travel with it
+    ch, cur = stack[k][1].clone(), stack[k][3]  # its per-step records (Chain.rec) travel with it
     tr = Trace(ch.ev)
-    for step in steps[k:]:
-        ch.advance(tr, *step)
-        stack.append((step, ch.clone(), None))
+    for i in range(k, len(steps)):
+        if rk[i] != _rows_key(cur):  # a grouped step: on to its group's rows
+            ch, cur = ch.sliced(_rel(cur, rows[i]), draws.sub(rows[i])), rows[i]
+        ch.advance(tr, *steps[i])
+        stack.append((steps[i], ch.clone(), rk[i], cur))
     return ch, tr
+
+
+def _rel(cur: np.ndarray | None, target: np.ndarray) -> np.ndarray:
+    """The rows `target` ([n] bool, inside `cur`) as indices among `cur`'s rows (None: every draw)."""
+    if cur is not None and (target & ~cur).any():
+        raise ValueError("a path's rows only narrow along it")
+    return np.flatnonzero(target if cur is None else target[cur])
+
+
+_WIDE_FILL = {"day": BIG, "marks": BIG, "triggers": BIG, "fired": BIG, "groups": -1, "reads": -1, "as_of": -1}
+
+
+def _widen(v, idx: np.ndarray, n: int, name: str = "", fill=0):
+    """A trace's value on rows `idx` as the whole draws' [n]: each per-row array placed on its rows, and elsewhere
+    what `forecast.masked` sets off a path's rows (decision day BIG, petition 0: nothing is read there)."""
+    m = len(idx)
+    fill = _WIDE_FILL.get(name, fill)
+    if isinstance(v, np.ndarray):
+        if v.ndim == 0 or v.shape[0] != m:
+            return v
+        out = np.full((n, *v.shape[1:]), None, dtype=object) if v.dtype == object else np.zeros((n, *v.shape[1:]),
+                                                                                                 dtype=v.dtype)
+        if fill != 0 and v.dtype != object and v.dtype.kind in "iuf":
+            out[...] = fill
+        out[idx] = v
+        return out
+    if isinstance(v, EventCash):
+        return EventCash(*(_widen(x, idx, n) for x in (v.cash, v.lock, v.capacity, v.petition)),
+                         *(None if x is None else {k: _widen(a, idx, n, name) for k, a in x.items()}
+                           for name, x in (("", v.kinds), ("", v.incurred), ("", v.proceeds))))
+    if type(v) is dict:
+        return {k: _widen(x, idx, n, k if isinstance(k, str) and k in _WIDE_FILL else name, fill)
+                for k, x in v.items()}
+    if type(v) is list:
+        return [_widen(x, idx, n, name, fill) for x in v]
+    if type(v) is tuple:
+        return tuple(_widen(x, idx, n, name, fill) for x in v)
+    return v
+
+
+def _trace_rows(tr: Trace, f) -> Trace:
+    """The trace with `f(value, field name)` applied to each field (the `complete` hook left off)."""
+    out = Trace.__new__(Trace)
+    out.__dict__.update({k: f(v, k) for k, v in tr.__dict__.items() if k != "complete"})
+    return out
+
+
+def _cut_trace(tr: Trace, idx: np.ndarray, n: int) -> Trace:
+    def cut(v):
+        if isinstance(v, np.ndarray):
+            return v[idx] if v.ndim >= 1 and v.shape[0] == n else v
+        if isinstance(v, EventCash):
+            return EventCash(*(cut(x) for x in (v.cash, v.lock, v.capacity, v.petition, v.kinds, v.incurred,
+                                                v.proceeds)))
+        if type(v) is dict:
+            return {k: cut(x) for k, x in v.items()}
+        if type(v) is list:
+            return [cut(x) for x in v]
+        if type(v) is tuple:
+            return tuple(cut(x) for x in v)
+        return v
+    return _trace_rows(tr, lambda v, k: cut(v))
 
 
 LIGHT_FIELDS = ("day", "cash", "owed", "collateral", "cause", "marks", "settle_offer", "stay_offer", "raise_offer",
                 "reads", "groups")  # what a light trace keeps (`Chain.finish`), with its event cash
 
 
-def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = False, light: bool = False) -> Trace:
-    """`make().run(steps)`, resumed from the prefix stack (`_advanced`); light: a walk read's trace (`finish`)."""
+def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = False, light: bool = False,
+         rows: tuple | None = None) -> Trace:
+    """`make().run(steps)`, resumed from the prefix stack (`_advanced`); light: a walk read's trace (`finish`).
+    rows: per step, the path's trajectories (`_advanced`): the trace is computed on rows[-1] alone and returned on
+    every draw, off those rows as `forecast.masked` leaves a path's trace (`_widen`)."""
+    from app.analysis import shadow
+
+    if rows is not None and (not rows or rows[-1] is None or rows[-1].all()):  # masks only narrow: every draw
+        rows = None
+    if rows is not None:
+        idx, n = np.flatnonzero(rows[-1]), draws.n
+        ch, sub = _advanced(make, steps, draws, key, inputs, rows)
+        sub = ch.finish(sub, day_only, light)
+
+        def wide(t: Trace) -> Trace:
+            return _trace_rows(t, lambda v, k: _widen(v, idx, n, k))
+        if shadow.ON:  # the rows' trace is the whole draws' trace on them, field for field
+            ref_ch, ref = _advanced(make, steps, draws, key, inputs)
+            ref = ref_ch.finish(ref, day_only, light)
+
+            def canon(x, name=""):  # a trigger that never falls, an offering never initiated (BIG): absent
+                if type(x) is dict:
+                    return {k: canon(y, k) for k, y in x.items()
+                            if not (name == "triggers" and isinstance(y, np.ndarray) and (y[idx] >= BIG).all())}
+                if name == "offerings" and type(x) is list:
+                    return [canon(y) for y in x if not (np.asarray(y[0])[idx] >= BIG).all()]
+                if type(x) in (list, tuple):
+                    return type(x)(canon(y, name) for y in x)
+                return x
+
+            def norm(t: Trace) -> dict:  # a step's option groups all -1 (asked on none of the rows) read as absent
+                v = dict(vars(wide(t)))
+                v["groups"] = {i: g for i, g in (v.get("groups") or {}).items() if (g[idx] >= 0).any()}
+                return canon(v)
+            a_, b_ = norm(sub), norm(_cut_trace(ref, idx, n))
+            import os
+            if not shadow.same(a_, b_) and os.environ.get("SLOPE_SHADOW_DUMP"):
+                import pickle as _p
+                with open(os.environ["SLOPE_SHADOW_DUMP"], "wb") as fh:
+                    _p.dump({"steps": steps, "rows": rows, "sub": a_, "ref": b_}, fh)
+            shadow.check("rows_trace", a_, b_)
+        out = wide(sub)
+        if light:
+            def complete() -> Trace | None:  # the light trace made whole on its own finished chain
+                whole = ch.completed(sub)
+                return None if whole is None else wide(whole)
+            out.complete = complete
+        return out
     ch, tr = _advanced(make, steps, draws, key, inputs)
     tr = ch.finish(tr, day_only, light)
     if not light:
         return tr
-    from app.analysis import shadow
 
     def reference() -> Trace:  # the same steps finished without light, from the prefix stack
         ref_ch, ref = _advanced(make, steps, draws, key, inputs)
@@ -2916,11 +3139,12 @@ def event_chain(d: DisputeInstance | None, steps, setup: Setup, model: dict, dra
 
 
 def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws,
-                sens: dict | None = None, day_only: bool = False, light: bool = False) -> Trace:
+                sens: dict | None = None, day_only: bool = False, light: bool = False,
+                rows: tuple | None = None) -> Trace:
     """The path's trace; day_only: settled only to its last step's decision day (`Chain._book_to_day`); light: a
-    walk read's (`Chain.finish`)."""
+    walk read's (`Chain.finish`); rows: per step, the trajectories the path follows (`_run`)."""
     return _run(lambda: Chain(d, setup, model, draws, sens), canon(path.steps), draws, (d.instance_id,),
-                (d, setup, model, sens), day_only, light)
+                (d, setup, model, sens), day_only, light, rows)
 
 
 GROUPED = (*RESPONSES, "cash_floor", "cash_out")  # questions asked per option group (Owen's ruling, 29 Sep 2026)
