@@ -384,7 +384,10 @@ def judge(run_id: str, states: str, control_file: str, count_only: bool = False)
     from app.analysis.build import VAR
 
     records: list = []
-    jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=True)
+    # the cap is a setting (SLOPE_JEV_CAP, dollars), never a blocker; the adapter reserves every in-flight request
+    # worst case, so the questions go in batches (SLOPE_JEV_BATCH) and the reserve stays a batch's
+    jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=True, spend_cap_usd=os.environ.get("SLOPE_JEV_CAP"))
+    batch = int(os.environ.get("SLOPE_JEV_BATCH", "200"))
     prof = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
 
     async def one(k: str) -> Judgment:
@@ -398,7 +401,12 @@ def judge(run_id: str, states: str, control_file: str, count_only: bool = False)
                         observation_id=o.observation_id, path_facts=st.get("path_facts", st.get("situation")))
 
     async def every() -> list:
-        return await asyncio.gather(*(one(k) for k in sorted(got)))
+        keys, out = sorted(got), []
+        for lo in range(0, len(keys), batch):
+            out += await asyncio.gather(*(one(k) for k in keys[lo:lo + batch]))
+            print(f"{time.time() - t0:7.0f}s judge: {len(out)}/{len(keys)} answered; Jev {jev.usage_summary()}",
+                  file=sys.stderr, flush=True)
+        return out
 
     js = asyncio.run(every())
     variant = os.environ.get("SLOPE_VARIANT", "")

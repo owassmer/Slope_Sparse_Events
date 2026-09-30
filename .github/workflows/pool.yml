@@ -40,6 +40,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: for r in ${{ steps.walk.outputs.runs }}; do gh run download -R ${{ github.repository }} $r -p 'control-j*' -D control/$r; done
       - run: du -sh control; free -g
+      - run: uv run python -m app.disputes.parallel spill control walk_roots.pkl  # the units no part walked (0: none)
+      - uses: actions/upload-artifact@v4  # a later wave's list (walk.yml WAVE), where any unit is left
+        with:
+          name: spill
+          path: walk_roots.pkl
+          retention-days: 3
       - run: >
           SLOPE_VARIANT=$(n=${GITHUB_REF_NAME#pool-run}; echo ${n#-})
           uv run python -m app.disputes.pool control control ctl 2> >(tee control.log >&2)
