@@ -108,7 +108,8 @@ def control(folder: str, out: str) -> None:
     assert len({h["clock"] for h in heads}) == 1 and len({h["nseg"] for h in heads}) == 1, "the tops differ"
     holds = _holds(reads)
     live = lambda cond: all(holds(c) for c in cond)  # noqa: E731
-    nodes = {}
+    assert len({tuple(h.get("top_nodes", {})) for h in heads}) == 1, "the questions before the walk differ"
+    nodes = dict(heads[0].get("top_nodes", {}))  # as `parallel.walk` starts: the Forecaster's before the walk
     for _ekey, k, n, cond in sorted(node_ev, key=lambda e: e[0]):
         if live(cond):
             nodes.setdefault(k, n)

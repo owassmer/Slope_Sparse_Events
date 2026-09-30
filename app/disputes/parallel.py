@@ -43,6 +43,7 @@ def _child(fc, d, k: int, run: str, log) -> None:
     import app.disputes.forecast as F
 
     t0 = time.time()
+    top_nodes = dict(fc.nodes)  # the questions before the walk (`walk` starts from them; they are never logged)
     st = {"seg": None, "clock": 0, "nseg": 0, "vdepth": 0, "roots": {}, "seq": 0, "mine": set(), "j": 0, "n": 0,
           "regions": [], "wstack": [], "local": False}
     events: list = []
@@ -243,7 +244,7 @@ def _child(fc, d, k: int, run: str, log) -> None:
     for i, (key_, kind, payload, cond) in enumerate(events):  # a path as it ends the walk
         if kind == "path":
             events[i] = (key_, "path", (W.out[payload[0]], W.keys[payload[0]], payload[1]), cond)
-    out = {"k": k, "events": events,
+    out = {"k": k, "events": events, "top_nodes": top_nodes,
            "clock": st["clock"], "nseg": st["nseg"], "raise_more": raise_more, "node_group": fc.node_group,
            "remitted": fc.remitted, "class_members": fc.class_members, "class_range": fc.class_range,
            "remit_classes": fc.remit_classes, "verdict_asks": getattr(fc, "verdict_asks", {}), "classed": fc.classed,

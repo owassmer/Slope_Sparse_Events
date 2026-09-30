@@ -649,7 +649,9 @@ class Analysis:
         - available cash: the bank-only cash, moved by the cumulative event cash (a first pass over the event cash
           alone) and by at most the line's own swing (funded less collected lies between -fee x F and the limit);
         - headroom at a due date, per month: that month's cash range, less the need and at most all owed, and owed
-          is at most (1 + fee) x principal outstanding <= (1 + fee) x the highest limit."""
+          is at most (1 + fee) x principal outstanding <= (1 + fee) x the highest limit;
+        - a line opened before the review adds what its history still owes (Setup.exposure) to collections and to
+          owed."""
         self._packed, self._packed_bytes = {}, 0
         lo_ev, hi_ev = self._event_range("bank", self.model.bank_combos)  # min and max: exact in any order
         for lo in range(0, len(self.model.combos), BATCH):
@@ -658,6 +660,10 @@ class Analysis:
             np.maximum(hi_ev, b, out=hi_ev)
             for i in range(lo, min(lo + BATCH, len(self.model.combos))):
                 self._tick("bins", i, len(self.model.combos))
+        return self._bins_from(lo_ev, hi_ev)
+
+    def _bins_from(self, lo_ev: np.ndarray, hi_ev: np.ndarray) -> dict[str, Bins]:
+        """`_bins` from the per-day range of cumulative event cash (the runners' reduction reads the walk's)."""
         fee = (self.setup.fee_bps + 1) / 10_000  # + 1 bp covers the half-up cent on each draw
         lim = np.maximum.accumulate(self.line.limit.max(axis=0).astype(np.float64)) + 10_000
         first_due = self.line.due_idx[:, 0]
@@ -667,10 +673,11 @@ class Analysis:
             prev = coll[int(repayable.max())] if repayable.size else 0.0
             coll[t] = (1 + fee) * lim[t] + prev if repayable.size else 0.0
             fund[t] = lim[t] + coll[t] / (1 + fee)
-        coll = np.maximum.accumulate(coll) + 10_000
+        opened = self.setup.exposure.owed_cents  # a line opened before the review: its installments still owed
+        coll = np.maximum.accumulate(coll) + opened + 10_000
         margin = lim + fund * fee + 10_000
         lo, hi = self.bank.cash.min(axis=0) + lo_ev - margin, self.bank.cash.max(axis=0) + hi_ev + margin
-        owed = (1 + fee) * float(lim.max()) + 10_000
+        owed = (1 + fee) * float(lim.max()) + opened + 10_000
         low = lo - self.line.need[:, :self.days].max(axis=0) - owed
         h_lo = np.array([low[self.month_of_day == k].min() for k in range(len(self.months))])
         h_hi = np.array([hi[self.month_of_day == k].max() for k in range(len(self.months))])
