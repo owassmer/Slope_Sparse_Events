@@ -124,6 +124,7 @@
     "first": "the form's first question",
     "yours": "Your value {p}",
     "paths_filing": "Filing probability by {horizon} on this branch",
+    "drag_one": "Change one judgment at a time. Changing another restores the previous one to Jev’s answer.",
     "types": "Every judgment of one kind, set to one answer",
     "types_note": "Each row holds every question of the kind named to one answer, the other kinds at Jev's answers. The figures are exact sums over the whole tree: expected collections and the filing probability by {horizon}.",
     "type_count": "{n} questions",

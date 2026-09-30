@@ -1,6 +1,6 @@
 {
   "snapshot_id": "akoustis_20240514",
-  "note": "Scenario parameters of the 14 May 2024 review for the pending-claim event model (dispute model 4.1.0; DECOMPOSITION_20240514.md §3, §5, §7.7). They overlay the contract's parameters of the same name for this case only (app/disputes/rules.py load_model). The operating reserve, financing and cost plan are the common model's (run_inputs.json common_model) and are read, not restated here. The central case books no exogenous financing: equity is raised only by the company's decision at the cash floor (raise_capacity); the common model's equity_injection scenario is a sensitivity only.",
+  "note": "The review date is 14 May 2024 and the forecast runs through 10 Nov 2024. Operating receipts and outflows continue at their recent rates. The company sells shares through its at-the-market program and may initiate underwritten offerings on the terms below.",
   "narrative": [
     "{company} designs and makes radio-frequency filters; its shares trade on Nasdaq.",
     "{claimant} sued {company} in federal court in Delaware on {commenced} for trade-secret misappropriation, patent infringement and related claims. The jury trial began on {trial_started}; on the review date it is still under way, and the company expects a verdict within days. Nothing is owed until a judgment is entered.",
@@ -26,7 +26,7 @@
     "lower_award_amount": {
       "value": "components_without_principal",
       "sensitivity": 999999900,
-      "basis": "Owen, O1 (27 Sep 2026): the lower J1 branch is liability without the head-start measure. Base: the claimant's own figures for a verdict that rejects that measure, patent USD 279,808 plus corrective advertising USD 1,146,604 = USD 1,426,412 (D.I. 543-1 Ex. A.2 ¶¶19, 42). The poaching USD 809,772 is a UDTPA claim, and D.I. 590 (14 May 2024) held the jury has no basis for compensable UDTPA damages, so it is excluded. The same USD 1,426,412 is the declared bound: where the agent's record leaves a counted component's amount unknown, the branch uses it, labelled as the bound. Sensitivity: USD 9,999,999, the most an award can be and stay below the notes' USD 10.0M threshold.",
+      "basis": "For liability without the head-start measure, the amount is patent damages of USD 279,808 plus corrective advertising of USD 1,146,604, totalling USD 1,426,412 (D.I. 543-1 Ex. A.2 ¶¶19, 42). The USD 809,772 for poaching is a UDTPA claim; D.I. 590 (14 May 2024) held that the jury has no basis for compensable UDTPA damages, so it is excluded. USD 1,426,412 also applies where a counted component's amount is unknown. Alternatively, the amount is USD 9,999,999, just below the notes' USD 10.0M threshold.",
       "bound": 142641200
     },
     "claimant_enhancements": {
@@ -38,7 +38,7 @@
       "value": "installments",
       "installments": 12,
       "sensitivity": "lump_sum",
-      "basis": "Owen, 28 Sep 2026. The settlement amount, the company's available cash above its 30-day operating need on the settlement date capped at the amount claimed or owed, bounds what can be paid (spec §16.3). Base: that amount in 12 equal monthly installments, the first on the settlement date. A distressed company does not pay out its runway at once. Installments due after 10 Nov 2024 fall outside the horizon. Sensitivity: the same amount as one lump sum on the settlement date."
+      "basis": "The settlement amount is the company's available cash above its 30-day operating need on the settlement date, capped at the amount claimed or owed. It is paid in 12 equal monthly installments, the first on the settlement date. Installments due after 10 Nov 2024 fall outside the horizon. Alternatively, the same amount is paid in one lump sum on the settlement date."
     },
     "coupon_cash_share": {
       "value": "shares_to_capacity",
@@ -62,15 +62,15 @@
     "chips_credit_cents": {
       "value": 0,
       "sensitivity": 0,
-      "basis": "The CHIPS tax credit is the common model's chips_itc_low scenario (run_inputs.json); the event chain books none, so it is never counted twice."
+      "basis": "CHIPS tax-credit receipts are included only in the alternative that adds them to operating cash receipts; no additional receipt is booked for the dispute."
     },
     "cash_facts": {
       "value": "engine_forward_run",
-      "basis": "Spec §16.4: the cash facts, 'pay' feasibility and the cash floor read the loan engine run forward on the prefix's event cash."
+      "basis": "Available cash includes receipts, obligations paid, financing proceeds, and payments on the loan and the dispute through the decision day. It determines whether a payment can be made and whether cash falls below operating need."
     },
     "ordinary_view": {
       "value": "same_forecast",
-      "basis": "Spec §16.1 (orchestrator, 28 Sep 2026): ordinary operating risk is the same forecast with the event, including its legal costs, given no cash effect. The dispute ends on the review date at no cost, so its legal spend stops from then (the one dispute-end rule); operations, the line, the coupon, the cash-floor decisions and the listing chain with the notes' delisting route are the same as in the forecast."
+      "basis": "Ordinary operating risk is the same forecast with the event, including its legal costs, given no cash effect. The dispute ends on the review date at no cost, so its legal spend stops from then; operations, the line, the coupon, the cash-floor decisions and the listing chain with the notes' delisting route are the same as in the forecast."
     },
     "share_ledger": {
       "value": 58957268,
@@ -79,24 +79,18 @@
       "reserved_conversion": 9341825,
       "reserved_options": 3031625,
       "coupon_shares": 5000000,
-      "basis": "QUESTIONS_20240514 §2.6 (Record, Arithmetic): authorized shares neither issued nor reserved, 175,000,000 authorized less 98,669,282 outstanding (8 May 2024), 9,341,825 reserved for conversion, 3,031,625 for options and the 5,000,000 registered for interest paid in shares = 58,957,268; an upper bound, because the equity-plan reserves are not stated (10-Q of 13 May 2024 cover and Note 16; resale S-3 of 13 May 2024). At-the-market sales and offerings draw on it; interest paid in shares draws on its own 5,000,000 (coupon_cash_share)."
+      "basis": "Authorized shares neither issued nor reserved, 175,000,000 authorized less 98,669,282 outstanding (8 May 2024), 9,341,825 reserved for conversion, 3,031,625 for options and the 5,000,000 registered for interest paid in shares = 58,957,268; an upper bound, because the equity-plan reserves are not stated (10-Q of 13 May 2024 cover and Note 16; resale S-3 of 13 May 2024). At-the-market sales and offerings draw on it; interest paid in shares draws on its own 5,000,000."
     },
     "atm_pace_bps": {
       "value": 2000,
-      "sensitivity": [
-        1000,
-        2500
-      ],
+      "sensitivity": [1000, 2500],
       "adv_cents": 33706943,
-      "adv_window": [
-        "2024-03-15",
-        "2024-05-14"
-      ],
+      "adv_window": ["2024-03-15", "2024-05-14"],
       "price_cents": 44,
       "commission_bps": 300,
       "first_sale": "2024-05-14",
       "t1_from": "2024-05-28",
-      "basis": "QUESTIONS_20240514 §2.6 (Scenario): the at-the-market program re-activated on 13 May 2024 sells from 14 May on each trading day while the stock is listed and no petition has been filed, at 20% of the average daily dollar volume from 15 Mar to 14 May 2024 (close x volume over the 42 trading days of akts_daily_px.csv: USD 337,069.43), at the day's share price (share_price), net of the agents' commission (up to 3%). Proceeds settle two business days after the sale for sales before 28 May 2024 and one business day after it from that date. Whole shares a day: the day's dollar pace over the 14 May close (USD 0.44). Sensitivities: 10% and 25% of that volume."
+      "basis": "The at-the-market program re-activated on 13 May 2024 sells from 14 May on each trading day while the stock is listed and no petition has been filed, at 20% of the average daily dollar volume from 15 Mar to 14 May 2024 (close x volume over the 42 trading days of akts_daily_px.csv: USD 337,069.43), at the day's share price, net of the agents' commission (up to 3%). Proceeds settle two business days after the sale for sales before 28 May 2024 and one business day after it from that date. Whole shares a day: the day's dollar pace over the 14 May close (USD 0.44). Sensitivities: 10% and 25% of that volume."
     },
     "offering_price": {
       "value": "january_discount",
@@ -105,17 +99,17 @@
       "january_price_cents": 50,
       "january_prior_close_cents_x1e4": 704600,
       "close_days": 5,
-      "basis": "QUESTIONS_20240514 §2.6, N1 (Scenario): an underwritten offering on the January 2024 terms. Gross USD 11.5M and net USD 10.4M after the underwriting discount and expenses (8-K of 29 Jan 2024). Price: the share price on the initiation day (share_price) less the January offering's discount to the prior close (USD 0.50 against USD 0.7046 on 24 Jan 2024, 29.0%). The shares are the gross over the price; where the share capacity binds, the gross is the shares available times the price and the net bears the costs in proportion. Close: as many days after initiation as January's launch (preliminary prospectus supplement, 24 Jan 2024) to close (29 Jan 2024): 5."
+      "basis": "An underwritten offering on the January 2024 terms. Gross USD 11.5M and net USD 10.4M after the underwriting discount and expenses (8-K of 29 Jan 2024). Price: the share price on the initiation day less the January offering's discount to the prior close (USD 0.50 against USD 0.7046 on 24 Jan 2024, 29.0%). The shares are the gross over the price; where the share capacity binds, the gross is the shares available times the price and the net bears the costs in proportion. Close: as many days after initiation as January's launch (preliminary prospectus supplement, 24 Jan 2024) to close (29 Jan 2024): 5."
     },
     "small_claims_awarded": {
       "value": true,
       "sensitivity": false,
-      "basis": "QUESTIONS_20240514 J1 (Scenario): a 'yes' to 5(a) books USD 279,808 and to 3(a) USD 1,146,604, the amounts the claimant claims (D.I. 543-1 Ex. A.2 ¶¶19, 42). Sensitivity: nothing awarded on those items."
+      "basis": "A 'yes' to 5(a) books USD 279,808 and to 3(a) USD 1,146,604, the amounts the claimant claims (D.I. 543-1 Ex. A.2 ¶¶19, 42). Sensitivity: nothing awarded on those items."
     },
     "judgment_default_reading": {
       "value": "entered",
       "sensitivity": "post_ruling",
-      "basis": "QUESTIONS_20240514 §3.1. Base: the judgment as entered. The §7.01(i) default becomes available 60 days after the Rule 62(a) automatic stay of the judgment as entered ends, where the judgment remains unpaid and undischarged and execution is not effectively stayed throughout; a post-trial ruling does not restart the period, and where it changes the judgment the holders' decision is asked again on the changed judgment. Sensitivity: the post-trial ruling, 60 days from the order disposing of the last tolling motion on the surviving amount, with no earlier opportunity."
+      "basis": "Base: the judgment as entered. The §7.01(i) default becomes available 60 days after the Rule 62(a) automatic stay of the judgment as entered ends, where the judgment remains unpaid and undischarged and execution is not effectively stayed throughout; a post-trial ruling does not restart the period, and where it changes the judgment the holders' decision is asked again on the changed judgment. Sensitivity: the post-trial ruling, 60 days from the order disposing of the last tolling motion on the surviving amount, with no earlier opportunity."
     },
     "share_price": {
       "value": "structural",
@@ -125,19 +119,19 @@
       "rate_bps": 516,
       "price_table": "research/recent_cases/akoustis/akts_daily_px_20240514.html",
       "horizon_years": 1,
-      "basis": "Scenario: after the verdict the share price is set by a structural (Merton) model. Equity is a call on the firm's value with a strike of the notes' face plus the judgment amount owed on the day (the amount as entered, or as the post-trial ruling leaves it, less amounts paid or levied; after a settlement, its installments not yet due), over the horizon. Calibrated (KMV) on data public by 14 May 2024: the firm's value and asset volatility solve equity value = the close x shares outstanding and equity volatility = N(d1) x asset volatility x firm value / equity value. Before the verdict the price is the 14 May close. close_cents: Record: the 14 May 2024 close, USD 0.44 (akts_daily_px_20240514). shares_outstanding: Record: shares outstanding on 8 May 2024 (10-Q of 13 May 2024, cover). notes_face_cents: Record: the convertible notes' principal, USD 44.0M. rate_bps: Record: the 1-year U.S. Treasury par yield on 14 May 2024, 5.16% (U.S. Treasury, Daily Treasury Par Yield Curve Rates, 2024; home.treasury.gov). price_table: Data: equity volatility, the annualised (x 252) sample standard deviation of the daily log returns of the closes over the 240 trading days of the table (1 Jun 2023 to 14 May 2024). horizon_years: Scenario: one year."
+      "basis": "After the verdict the share price is set by a structural (Merton) model. Equity is a call on the firm's value with a strike of the notes' face plus the judgment amount owed on the day (the amount as entered, or as the post-trial ruling leaves it, less amounts paid or levied; after a settlement, its installments not yet due), over the horizon. Calibrated (KMV) on data public by 14 May 2024: the firm's value and asset volatility solve equity value = the close x shares outstanding and equity volatility = N(d1) x asset volatility x firm value / equity value. Before the verdict the price is the 14 May close. close_cents: the 14 May 2024 close, USD 0.44 (akts_daily_px_20240514). shares_outstanding: shares outstanding on 8 May 2024 (10-Q of 13 May 2024, cover). notes_face_cents: the convertible notes' principal, USD 44.0M. rate_bps: the 1-year U.S. Treasury par yield on 14 May 2024, 5.16% (U.S. Treasury, Daily Treasury Par Yield Curve Rates, 2024; home.treasury.gov). price_table: equity volatility, the annualised (x 252) sample standard deviation of the daily log returns of the closes over the 240 trading days of the table (1 Jun 2023 to 14 May 2024). horizon_years: one year."
     },
     "offering_materiality": {
       "value": "covers_shortfall",
       "sensitivity": "any_proceeds",
-      "basis": "Scenario (Owen, 30 Sep 2026; QUESTIONS_20240514 §2.6, Initiation): the company initiates an underwritten offering only where its net proceeds on the stated terms (offering_price, at the share capacity left) would cover the shortfall between its available cash at the end of the decision day, less any levy served that day, and its operating need for the next month; where cash covers the need, any available offering. An offering that would not cover the shortfall is not among the question's answers, and the situation states its proceeds and the shortfall. Sensitivity: every available offering, whatever its proceeds (the rule before 30 Sep 2026)."
+      "basis": "The company initiates an underwritten offering only where its net proceeds, limited by the share capacity left, cover the shortfall of available cash below its operating need for the next month. Available cash is measured at the end of the decision day after any levy served that day. Where cash covers the need, any available offering can be initiated. Alternatively, any available offering can be initiated regardless of whether its proceeds cover the shortfall."
     },
     "offering_lockup": {
       "value": 90,
       "pricing_days": 1,
       "atm_carved_out": false,
       "quote": "For a period commencing on the date hereof and ending on the 90th day after the closing of the Offering (the “Lock-Up Period”), the Company agrees not to, directly or indirectly, without the prior written consent of the Representative, (1) offer for sale, sell, pledge or otherwise dispose of [...] any shares of Common Stock",
-      "basis": "Record: the underwriting agreement of 25 Jan 2024 with Roth Capital Partners (Exhibit 1.1 to the 8-K of 29 Jan 2024), §4(l) Company Lock-Up. The exceptions (A)-(H) cover the offered shares, employee plans, the notes' conversion and interest shares, the S-8, the TST acquisition shares and strategic issuances; none covers at-the-market sales, and the 424B5 of 29 Jan 2024 says the program may resume 'subject to any applicable lock-up restrictions in the Underwriting Agreement'. Applied to an offering on the path: the at-the-market sales pause from its pricing (the underwriting agreement's date, one day after launch as in January: 24 to 25 Jan 2024) to its close, and where it closes, through the 90th day after the close."
+      "basis": "The underwriting agreement of 25 Jan 2024 with Roth Capital Partners (Exhibit 1.1 to the 8-K of 29 Jan 2024), §4(l) Company Lock-Up. The exceptions (A)-(H) cover the offered shares, employee plans, the notes' conversion and interest shares, the S-8, the TST acquisition shares and strategic issuances; none covers at-the-market sales, and the 424B5 of 29 Jan 2024 says the program may resume 'subject to any applicable lock-up restrictions in the Underwriting Agreement'. Applied to an offering on the path: the at-the-market sales pause from its pricing (the underwriting agreement's date, one day after launch as in January: 24 to 25 Jan 2024) to its close, and where it closes, through the 90th day after the close."
     }
   },
   "verdict_form": {
@@ -265,10 +259,10 @@
         "why": "5(b) is an amount (inside the lower branch's bounded amount); willfulness only lets the court enhance patent damages later (35 U.S.C. §284), inside the same bound. Neither changes a verdict branch."
       }
     ],
-    "amounts": "QUESTIONS_20240514 §4.1 J1, J1b. The award is the sum of the items the jury finds: 3(a) books the corrective-advertising amount and 5(a) the patent amount Qorvo claims (D.I. 543-1 Ex. A.2 ¶¶19, 42: USD 1,146,604 and USD 279,808; nothing where the parameter small_claims_awarded is false); 3(a) and 5(a) are asked wherever the total stays below the J1b top line. The amount items 1(b), 1(d) and 2(c) are asked as thresholds on the total judgment's lines (Forecaster.verdict_lines: nothing, the reach line, the top line, one further cut in each band below the top line, and USD 10,000,000 wherever a band would straddle it), each conditional on the band established; a band below the top line books its midpoint and the band above it the claimant's amount (USD 67,526,412). 1(c) and 1(d) are asked only where exemplary damages (at most twice 1(b)) can move the total across a line."
+    "amounts": "The award is the sum of the items the jury finds: 3(a) books the corrective-advertising amount and 5(a) the patent amount Qorvo claims (D.I. 543-1 Ex. A.2 ¶¶19, 42: USD 1,146,604 and USD 279,808; nothing where the parameter small_claims_awarded is false); 3(a) and 5(a) are asked wherever the total stays below the J1b top line. The amount items 1(b), 1(d) and 2(c) are asked as thresholds on the total judgment's lines (nothing, the reach line, the top line, one further cut in each band below the top line, and USD 10,000,000 wherever a band would straddle it), each conditional on the band established; a band below the top line books its midpoint and the band above it the claimant's amount (USD 67,526,412). 1(c) and 1(d) are asked only where exemplary damages (at most twice 1(b)) can move the total across a line."
   },
   "assumption_variants": {
-    "note": "Economic sensitivities precomputed for the page (spec §16.6). Each changes one declared setting from the central case: a common-model scenario (run_inputs.json common_model.scenarios) or a parameter's declared sensitivity (above). Its basis is that setting's own. A question whose facts the change moves is asked again.",
+    "note": "Each alternative changes one setting from the central case. All other settings remain the same.",
     "central_label": "Central setting",
     "variants": [
       {
@@ -281,14 +275,12 @@
         "id": "equity_injection",
         "label": "Equity: $5.0M received on 14 Jun 2024, instead of none booked",
         "common_model": "equity_injection",
-        "note": "Changes the company's cash. Central: no financing is booked beyond the company's share sales on the market; any offering is the company's own decision. Alternative: $5.0M of new equity one month after the review. A scenario, not a fact of the record: the company was restarting its at-the-market share sales, which fix no amount or date."
+        "note": "Central: no financing is booked beyond the company's at-the-market sales and offerings it initiates. Alternative: $5.0M of new equity received on 14 Jun 2024."
       },
       {
         "id": "settlement_lump_sum",
         "label": "Settlement paid at once, instead of in 12 monthly installments",
-        "parameters": [
-          "settlement_payment"
-        ],
+        "parameters": ["settlement_payment"],
         "note": "Changes when a settlement's money leaves the company. Central: the settlement amount (the company's cash above its 30-day operating need, capped at the amount claimed) paid in 12 equal monthly installments, since a distressed company does not pay out its runway at once. Alternative: the same amount in one payment on the settlement date."
       },
       {
@@ -306,9 +298,7 @@
       {
         "id": "coupon_cash",
         "label": "June notes coupon paid in cash, instead of in shares",
-        "parameters": [
-          "coupon_cash_share"
-        ],
+        "parameters": ["coupon_cash_share"],
         "note": "Changes how the company pays the $1.32M notes coupon due 15 Jun 2024. Central: in shares, which the notes allow unless the company elects cash, and which its registered shares cover. Alternative: all in cash."
       },
       {

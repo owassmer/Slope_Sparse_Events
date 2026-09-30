@@ -435,8 +435,9 @@
     const b = selB(i), get = (x) => (k) => (k === i ? withBranch(i, b, x) : dist(k));
     if (TB) {
       const v = (g) => [tbExpect(g, "collected"), tbExpect(g, "petition_p")];
-      if (at) { const [c, f] = v((k) => (k === i ? at : dist(k))); return { at: c, fat: f }; }
-      const [c0, f0] = v(get(0)), [c1, f1] = v(get(1)), [c, f] = v((k) => dist(k));
+      const only = (d) => (k) => (k === i ? d : jevDist(k));
+      if (at) { const [c, f] = v(only(at)); return { at: c, fat: f }; }
+      const [c0, f0] = v(only(withBranch(i, b, 0))), [c1, f1] = v(only(withBranch(i, b, 1))), [c, f] = v(only(dist(i)));
       return { lo: c0, hi: c1, at: c, flo: f0, fhi: f1, fat: f };
     }
     if (at) { const g = (k) => (k === i ? at : dist(k)); if (isBank(i)) { const bp = bankProbs(g); return { at: bexpect(bp, "collected"), fat: bexpect(bp, "petition_p") }; }
@@ -474,7 +475,7 @@
       <h3>${esc(J.forecast)}</h3><div class="ans"><span id="${id}-blab"></span><span class="big" id="${id}-big"></span><span class="mute small" id="${id}-jev"></span></div>
       <div class="jbar" id="${id}-bar"></div><div class="slabs" id="${id}-slabs"></div>
       <div class="sw"><input type="range" id="${id}-slider" min="0" max="100" step="1" value="${Math.round(100 * dist(i)[b])}"><span class="jm" style="left:${100 * jevDist(i)[b]}%" title="Jev"></span></div>
-      <p class="mute small">${esc(J.drag)} <a href="#" id="${id}-reset"${n.key in S.overrides ? "" : " hidden"}>${esc(J.reset)}</a></p>
+      <p class="mute small">${esc(TB ? J.drag_one : J.drag)} <a href="#" id="${id}-reset"${n.key in S.overrides ? "" : " hidden"}>${esc(J.reset)}</a></p>
       <h3>${esc(J.effect)}</h3><p class="mute small" id="${id}-of"></p><table class="eff"><tr><th></th><th id="${id}-h0"></th><th class="j" id="${id}-hj"></th><th class="y" id="${id}-hy"></th><th id="${id}-h1"></th></tr>
         <tr><td>${esc(T("collected"))}</td><td id="${id}-lo"></td><td class="j" id="${id}-at"></td><td class="y" id="${id}-yat"></td><td id="${id}-hi"></td></tr>
         <tr><td>${esc(T("filing"))}</td><td id="${id}-flo"></td><td class="j" id="${id}-fat"></td><td class="y" id="${id}-yfat"></td><td id="${id}-fhi"></td></tr></table>
@@ -491,6 +492,7 @@
     $(`${id}-bar`).innerHTML = d.map((p, k) => `<i style="width:${100 * p}%;background:${BCOL[k % 3]}"></i>`).join("");
     $(`${id}-slabs`).innerHTML = `<span>${esc(n.branches.map((x, k) => `${blabel(i, x)} ${pct(d[k])}`).join(" · "))}</span>`;
     const reach = nodeReach(i); $(`${id}-reach`).textContent = reach === null ? "" : fill(J.reach, { p: pct(reach) });
+    $(`${id}-slider`).value = Math.round(100 * d[b]);
     const ov = n.key in S.overrides, jv = ov ? effOf(i, jevDist(i)) : e;  // Jev's column at Jev's answer; the reader's beside it
     $(`${id}-h0`).textContent = "0%"; $(`${id}-h1`).textContent = "100%"; $(`${id}-of`).textContent = fill(J.of, { branch: bn }); $(`${id}-hj`).textContent = fill(J.at, { p: pct(jevDist(i)[b]) });
     $(`${id}-lo`).textContent = money(e.lo); $(`${id}-at`).textContent = money(jv.at); $(`${id}-hi`).textContent = money(e.hi);
@@ -502,7 +504,15 @@
   function bindCloseup(i, id) {
     const n = D.nodes[i], sl = $(`${id}-slider`);
     sl.onpointerdown = () => { if (!(i in dragBase)) dragBase[i] = dist(i).slice(); };
-    sl.oninput = () => { if (!(i in dragBase)) dragBase[i] = dist(i).slice(); S.overrides[n.key] = withBranch(i, selB(i), sl.value / 100, dragBase[i]); onChange(false); };
+    sl.oninput = () => {
+      if (!(i in dragBase)) dragBase[i] = dist(i).slice();
+      const changed = withBranch(i, selB(i), sl.value / 100, dragBase[i]);
+      if (TB) {
+        S.overrides = { [n.key]: changed };
+        for (const k of Object.keys(dragBase)) if (+k !== i) delete dragBase[k];
+      } else S.overrides[n.key] = changed;
+      onChange(false);
+    };
     sl.onchange = () => { delete dragBase[i]; onChange(true); };
     $(`${id}-reset`).onclick = (ev) => { ev.preventDefault(); delete S.overrides[n.key]; delete dragBase[i]; onChange(true); rebuildCloseups(); };
   }

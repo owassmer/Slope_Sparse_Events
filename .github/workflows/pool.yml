@@ -10,7 +10,7 @@ on:
 
 env:
   RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
-  WALK_RUNS: "36772776245"  # the walk runs' ids, space separated (a later wave's too); empty: the latest successful walk
+  WALK_RUNS: "36781427817"  # the walk runs' ids, space separated (a later wave's too); empty: the latest successful walk
 
 jobs:
   control:

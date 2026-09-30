@@ -40,6 +40,8 @@ Commands: `uv sync`, `uv run slope ...` (`slope analyze --run <id>`), `uv run py
 5. **Owen merges.** Agents never merge PRs or push to `main`.
 
 ## Build posture
+Scenario declarations state their substance directly, with actual source citations where relevant. They contain no references to project decisions, people, internal specifications or drafting history, and no labels qualifying them as assumptions. Scenario assumptions and their rationales do not enter Jev's inputs; code applies their rules, and Jev receives the resulting concrete situation and sourced evidence.
+
 This is a concept demonstration for Russell. **Do not build provenance machinery, verification campaigns, review workflows, banners or hedging captions.** Existing isolation, source links and spans, accepted findings, caching, replay and the deterministic financial guards are enough; add a check only where it prevents a demonstrated financial or semantic failure. Tests protect financial correctness, probability composition and isolation, nothing more. This does not permit careless implementation: the economics, the probability arithmetic and the evidence-to-impact chain must be right, and the demo must be coherent and intuitive.
 
 ## Product judgment
