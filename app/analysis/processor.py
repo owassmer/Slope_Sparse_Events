@@ -132,10 +132,13 @@ def order_items(rows: np.ndarray, inc: np.ndarray, cls: np.ndarray, seq: np.ndar
     return np.lexsort((cls, np.where(slope, 0, inc), slope, pos, rows))
 
 
-def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tuple[int, int] | None = None) -> list:
+def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tuple[int, int] | None = None,
+              cash_only: bool = False) -> list:
     """`engine.run_many` under daily processing (module docstring). `nonpayment` (window days, unpaid share bps): the
     §3.3 terms the contract declares; None leaves `Processed.nonpayment` uncomputed (None). The day loop is compiled
-    (`_daily_kernel`), one trajectory at a time: every step is per trajectory and in integers."""
+    (`_daily_kernel`), one trajectory at a time: every step is per trajectory and in integers. `cash_only`: per path
+    only (cash, first_unpaid, nonpayment), exactly the arrays a full run's `tr.cash` and `tr.processed` carry, without
+    the logs' reordering or `_finish` (what the walk's Chain reads)."""
     from app.analysis.engine import _finish, _in_loop_order, _kernel_line
 
     s, n, days, b = line.setup, line.ops.draws, line.days, len(events)
@@ -151,6 +154,9 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
         s.collection == "debit", s.same_day_order == "operating_first", due0, book_d, book_a,
         np.int64(opening_cents + ex.cash_cents), np.int64(ex.principal_cents), np.int64(ex.owed_cents), b * nroutes,
         np.int64(w), np.int64(share))
+    if cash_only:
+        return [(cash[j * n:(j + 1) * n], first_unpaid[j * n:(j + 1) * n].copy(),
+                 None if nonpayment is None else nonpay[j * n:(j + 1) * n].copy()) for j in range(b)]
     hr, dr = _in_loop_order(hr, dr, days, routes.shape[2])
     res = []
     failed = failed.reshape(b, n)
@@ -168,13 +174,27 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
     return res
 
 
+_OPS_ROWS: dict[tuple, tuple] = {}  # (id(line), b) -> (weakref to the line, tiled inflow, tiled outflow): `_rows`
+
+
 def _rows(line, events: list[EventCash]) -> tuple:
     """`event_parts`, row-major [rows, days] (the kernel reads one trajectory's days in sequence): what posts before
     anything is paid (receipts less encumbrance changes), the levy, the operating outflow still to pay before draws,
-    the obligations [OBLIGATIONS, rows, days] and their incurred days [OBLIGATIONS, rows]."""
+    the obligations [OBLIGATIONS, rows, days] and their incurred days [OBLIGATIONS, rows]. The operating part (the
+    line's inflows and outflows tiled for b paths) depends only on the line: cached per line object and b."""
+    import weakref
+
     ops, days = line.ops, line.days
     if ops.inflow is None or ops.outflow is None:
         raise ValueError("daily cash processing needs the operating inflows and outflows apart (Operating.inflow)")
+    b = len(events)
+    hit = _OPS_ROWS.get((id(line), b))
+    if hit is None or hit[0]() is not line:
+        if len(_OPS_ROWS) >= 8:
+            _OPS_ROWS.clear()
+        hit = _OPS_ROWS[(id(line), b)] = (weakref.ref(line), np.tile(ops.inflow[:, :days], (b, 1)),
+                                          np.tile(-ops.outflow[:, :days], (b, 1)))
+    _, ops_in, ops_out = hit  # read-only here: every use below builds a new array
     split = [e.split() for e in events]
     parts = [p for p in split if p is not None]
     if len(parts) != len(split):
@@ -185,9 +205,8 @@ def _rows(line, events: list[EventCash]) -> tuple:
     obl = np.stack([-cat(lambda e, p, c=c: p[0][c]) for c in OBLIGATIONS])
     if (inflow < 0).any() or (levy < 0).any() or (obl < 0).any():
         raise ValueError("event cash of the wrong sign for its kind (a receipt paid out or an obligation received)")
-    b = len(events)
-    post = np.tile(ops.inflow[:, :days], (b, 1)) + inflow - cat(lambda e, p: e.lock)
-    out = np.tile(-ops.outflow[:, :days], (b, 1)) - cat(lambda e, p: p[0]["reduction"])
+    post = ops_in + inflow - cat(lambda e, p: e.lock)
+    out = ops_out - cat(lambda e, p: p[0]["reduction"])
     inc = np.stack([np.concatenate([p[1][c] for p in parts]) for c in OBLIGATIONS]).astype(np.int64, copy=False)
     return post, levy, out, obl, inc
 

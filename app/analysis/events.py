@@ -689,12 +689,17 @@ class Chain:
         if key in runs:
             runs[key] = runs.pop(key)
         else:
+            from app.analysis import shadow
+
             opening = self.basis.opening - self.s.exposure.cash_cents
-            tr = run(self.basis.line, opening, EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, ev.kinds,
-                                                         ev.incurred), terms)
+            e = EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, ev.kinds, ev.incurred)
+            got = run(self.basis.line, opening, e, terms, cash_only=True)  # only what the Chain reads
+            if shadow.ON:
+                tr = run(self.basis.line, opening, e, terms)
+                got = shadow.check("engine_cash", got, (tr.cash, tr.processed.first_unpaid, tr.processed.nonpayment))
             if len(runs) >= self.RUNS:
                 runs.pop(next(iter(runs)))
-            runs[key] = (tr.cash, tr.processed.first_unpaid, tr.processed.nonpayment)
+            runs[key] = got
         return runs[key]
 
     def nonpayment_terms(self) -> tuple[int, int]:
@@ -1144,11 +1149,58 @@ class Chain:
         """Book the at-the-market proceeds on the path's current state: sales stop on the day of a petition or a
         delisting, or once the ledger cannot cover a day's shares (a channel stops when it cannot cover the issuance).
         The proceeds booked before are replaced (receipts, `inflow`). Memoized on what it reads (`_eq_v`): with
-        those unchanged it books nothing new."""
+        those unchanged it books nothing new. The booking is compiled (`k_atm.atm_book`); `_atm_rebook_py` is the
+        Python it replaces, run beside it under the shadow switch."""
         if not self.equity or self.__dict__.get("_atm_v") == self._eq_key():
             return
         self._atm_v = self._eq_key()
         self._coupon_rebook()  # the coupon's shares are valued at the share price
+        from app.analysis import shadow
+        out = self._atm_rebook_fast()
+        if shadow.ON:
+            out = shadow.check("atm_rebook", out, self._atm_rebook_py())
+        ok, csold, new, cum, delta = out
+        self._atm_sold = ok  # [draws, sales]
+        self._atm_csold = csold
+        self._atm = new
+        self._atm_cum = cum
+        if delta.any():
+            self._evw("cash")[...] += delta
+            self._evw("k:inflow")[...] += delta
+            self._touch("cash", "k:inflow")
+
+    def _atm_rebook_fast(self) -> tuple:
+        """`_atm_rebook_py` compiled: (sold, cumulative sold, booking, its cumsum, change), writing no state."""
+        from app.analysis.k_atm import atm_book
+        sale, settle, q, _ = self._atm_schedule()
+        pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
+        stop = np.minimum(pet, self.delisted)
+        led = int(self.m["parameters"]["share_ledger"]["value"])
+        st = self._offer_stack()
+        if st is None:
+            init = close = shares = np.zeros((0, self.n), dtype=np.int64)
+            closed = np.zeros((0, self.n), dtype=bool)
+        else:
+            init, close, closed, shares = st
+        lock = self.m["parameters"].get("offering_lockup")
+        lock_on = bool(lock) and st is not None and not lock.get("atm_carved_out")
+        pricing_days, lock_value = (int(lock["pricing_days"]), int(lock["value"])) if lock_on else (0, 0)
+        j, days, start = self._atm_columns()
+        close_price = float(self.m["parameters"]["atm_pace_bps"]["price_cents"])
+        sp, use_close = np.zeros((1, 1)), True
+        if j.size and self.share_price is not None:  # as `share_price_on`: reprice, then read the array
+            self._reprice()
+            sp, use_close = self.share_price, False
+        comm = int(self.m["parameters"]["atm_pace_bps"]["commission_bps"])
+        have_old = self._atm is not None
+        old = self._atm if have_old else np.zeros((1, 1), dtype=np.int64)
+        return atm_book(sale, stop, np.int64(q), np.int64(led), init, close, closed, shares, lock_on, np.int64(BIG),
+                        np.int64(pricing_days), np.int64(lock_value), j, days, start, sp, use_close, close_price,
+                        self.N, np.int64(comm), old, have_old)
+
+    def _atm_rebook_py(self) -> tuple:
+        """The Python booking `_atm_rebook_fast` replaces (the shadow reference): (sold, cumulative sold, booking,
+        its cumsum, change against the booking before), writing no state."""
         sale, settle, q, _ = self._atm_schedule()
         pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
         stop = np.minimum(pet, self.delisted)
@@ -1158,8 +1210,7 @@ class Chain:
         k = np.cumsum(on, axis=1, dtype=np.int64)  # the sales made so far, this one included
         fail = on & (k * q + other > led)  # the ledger cannot cover the day's shares: the channel stops
         ok = on & ~np.logical_or.accumulate(fail, axis=1)
-        self._atm_sold = ok  # [draws, sales]
-        self._atm_csold = np.cumsum(ok, axis=1, dtype=np.int64)
+        csold = np.cumsum(ok, axis=1, dtype=np.int64)
         j, days, start = self._atm_columns()
         new = np.zeros((self.n, self.N), dtype=np.int64)
         if j.size:  # each settlement day's sales at the sale day's share price, net of commission, per trajectory
@@ -1169,12 +1220,7 @@ class Chain:
             new[:, days] = np.add.reduceat(np.where(ok[:, j], net, 0), start, axis=1)
         old = self._atm if self._atm is not None else np.zeros_like(new)
         delta = new - old
-        self._atm = new
-        self._atm_cum = np.cumsum(new, axis=1)
-        if delta.any():
-            self._evw("cash")[...] += delta
-            self._evw("k:inflow")[...] += delta
-            self._touch("cash", "k:inflow")
+        return ok, csold, new, np.cumsum(new, axis=1), delta
 
     def atm_to_date(self, day=None) -> np.ndarray:
         """Net at-the-market proceeds received (settled) by the day's end, in cents [draws]."""
