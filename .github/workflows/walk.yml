@@ -11,6 +11,8 @@ env:
   JOBS: "100"  # the matrix below lists 0..JOBS-1; 20 run at a time, the next starting as one ends
   PROCS: "4"
   SLOPE_WALK_CUT: "10"  # units 10 steps below the verdict: the heaviest depth-7 unit held 141,159 walked paths
+  SLOPE_WALK_MINUTES: "200"  # a process claims no new unit after this; the units left are walked by the next wave
+  WAVE: "0"  # a later wave: walk_roots.pkl (parallel.spill) lists its units; its parts are numbered past the first's
 
 jobs:
   shard:
@@ -32,14 +34,15 @@ jobs:
       - timeout-minutes: 330  # the step fails before the job's limit, so the finished parts still upload
         run: >
           SLOPE_VARIANT=$(n=${GITHUB_REF_NAME#walk-run}; echo ${n#-}) SLOPE_JEV_CACHE_ONLY=1
+          SLOPE_WALK_ROOTS=$([ "$WAVE" != "0" ] && echo walk_roots.pkl)
           uv run python -m app.disputes.parallel $RUN_ID
-          ${{ matrix.job }} $JOBS $PROCS out 2> >(tee walk.log >&2)
-      - if: always()
+          ${{ matrix.job }} $JOBS $PROCS out $((WAVE * JOBS * PROCS)) 2> >(tee walk.log >&2)
+      - if: always()  # a process the step's limit killed: its finished units, from its stream
         run: uv run python -m app.disputes.pool split out split 2> >(tee -a walk.log >&2)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: control-j${{ matrix.job }}
+          name: control-j${{ matrix.job }}-w${{ env.WAVE }}
           path: |
             split/control/
             walk.log

@@ -36,11 +36,13 @@ def _parts(folder: str) -> list[str]:
 def split(parts: str, out: str) -> None:
     """Each part as its control events (out/control/part<k>.pkl) and its rows by bucket (out/rows<b>/part<k>.pkl:
     [(event key, kind, question, late key, row, regions)])."""
+    from app.disputes import parallel
+
     t0 = time.time()
     os.makedirs(os.path.join(out, "control"), exist_ok=True)
-    for f in _parts(parts):
-        with open(f, "rb") as fh:
-            p = pickle.load(fh)
+    files = parallel.part_files(parts)  # a process that died: its stream's finished segments (parallel._restore)
+    for k in sorted(files):
+        p = parallel.read_part(files[k])
         ctrl, rows = [], [[] for _ in range(BUCKETS)]
         for ev in p["events"]:
             ekey, kind, x, cond = ev
@@ -52,7 +54,7 @@ def split(parts: str, out: str) -> None:
                 rows[bucket(x[0])].append((ekey, "late", x[0], x[1], x[2], cond))
             else:
                 ctrl.append(ev)
-        name = os.path.basename(f)
+        name = f"part{k}.pkl"
         with open(os.path.join(out, "control", name), "wb") as fh:
             pickle.dump({**p, "events": ctrl}, fh, protocol=pickle.HIGHEST_PROTOCOL)
         for b, r in enumerate(rows):
@@ -89,29 +91,35 @@ def control(folder: str, out: str) -> None:
     from app.disputes.forecast import atoms, class_entry, path_mask, qcls_best
 
     t0 = time.time()
-    files = _parts(folder)
-    want = int(os.environ.get("SLOPE_PARTS", "0"))  # the walk's jobs x processes: a tree missing a part is not built
-    have = {int(os.path.basename(f)[4:-4]) for f in files}
-    if want and have != set(range(want)):
-        missing = sorted(set(range(want)) - have)
-        raise SystemExit(f"control: {len(missing)} of {want} walk parts missing (jobs {sorted({k // 4 for k in missing})}); "
-                         f"walk them again")
+    files = parallel.part_files(folder)
+    if 0 not in files:
+        raise SystemExit("control: part 0 (the top's events) is missing; walk job 0 again")
     reads, node_ev, edge_ev, raised, heads = {}, [], [], [], []
-    for f in files:
-        with open(f, "rb") as fh:
-            p = pickle.load(fh)
+    for k in sorted(files):
+        p = parallel.read_part(files[k])
         for ekey, kind, x, cond in p["events"]:
             if kind == "read":
-                reads.setdefault(x[0], []).append(cond)
+                reads.setdefault(x[0], []).append((cond, ekey[1], k))
             elif kind == "node":
-                node_ev.append((ekey, x[0], x[1], cond))
+                node_ev.append((ekey, x[0], x[1], cond, k))
             elif kind == "edge":
-                edge_ev.append((ekey, x, cond))
+                edge_ev.append((ekey, x, cond, k))
             elif kind == "raise":
-                raised.append((x[0], cond))
-        heads.append({k: v for k, v in p.items() if k != "events"})
+                raised.append((x[0], cond, ekey[1], k))
+        heads.append({x: v for x, v in p.items() if x != "events"})
         del p
-    assert len({h["clock"] for h in heads}) == 1 and len({h["nseg"] for h in heads}) == 1, "the tops differ"
+    missing = parallel.missing_segments(heads)  # a tree missing a segment is not built
+    if missing:
+        raise SystemExit(f"control: {len(missing)} segments were never walked (e.g. {missing[:3]}); list them "
+                         f"(python -m app.disputes.parallel spill) and walk them in another wave")
+    owner = parallel.top_owner(heads)  # every part logs the top: one part's copy is taken
+
+    def top(at: int, k: int) -> bool:
+        return at == 1 and k != owner
+    reads = {w: [c for c, at, k in v if not top(at, k)] for w, v in reads.items()}
+    node_ev = [e[:4] for e in node_ev if not top(e[0][1], e[4])]
+    edge_ev = [e[:3] for e in edge_ev if not top(e[0][1], e[3])]
+    raised = [e[:2] for e in raised if not top(e[2], e[3])]
     holds = _holds(reads)
     live = lambda cond: all(holds(c) for c in cond)  # noqa: E731
     assert len({tuple(h.get("top_nodes", {})) for h in heads}) == 1, "the questions before the walk differ"
@@ -128,23 +136,23 @@ def control(folder: str, out: str) -> None:
 
     def asked(field):
         return {x: v for x, v in parallel._union(heads, field).items() if x in nodes}
-    ctl = {"nodes": nodes, "reads": reads, "raised": raised_live,
+    ctl = {"nodes": nodes, "reads": reads, "raised": raised_live, "top_owner": owner,
            "node_group": asked("node_group"), "remitted": asked("remitted"),
            "class_members": parallel._union(heads, "class_members"),
            "class_range": parallel._union(heads, "class_range"),
            "remit_classes": set().union(*(h["remit_classes"] for h in heads)),
-           "verdict_asks": asked("verdict_asks"), "classed": set().union(*(h.get("classed", ()) for h in heads))}
+           "verdict_asks": asked("verdict_asks"),
+           "classed": {x for x in set().union(*(h.get("classed", ()) for h in heads)) if x in nodes}}
     os.makedirs(os.path.join(out, "paths"), exist_ok=True)
     os.makedirs(os.path.join(out, "walked"), exist_ok=True)
     total, missing, cost, meta = 0, set(), {}, []
-    for f in files:
-        with open(f, "rb") as fh:
-            p = pickle.load(fh)
+    for k in sorted(files):
+        p, f = parallel.read_part(files[k]), f"part{k}.pkl"
         kept = []
         for ekey, kind, x, cond in sorted(p["events"], key=lambda e: e[0]):
-            if kind != "path" or not live(cond):
+            if kind != "path" or not live(cond) or top(ekey[1], k):
                 continue
-            meta.append((ekey, x[1], os.path.basename(f), len(kept)))
+            meta.append((ekey, x[1], f, len(kept)))
             w = x[0]
             for wid in x[2]:
                 for at, edge, qcls in edges.get(wid, ()):
@@ -157,8 +165,8 @@ def control(folder: str, out: str) -> None:
                 missing |= atoms(key) - nodes.keys()
         total += len(kept)
         # each part's paths and its walk's seconds: the reduction balances its blocks by them (analysis/reduce.py)
-        cost[os.path.basename(f)] = (len(kept), float(p.get("seconds", 0.0)))
-        with open(os.path.join(out, "walked", os.path.basename(f)), "wb") as fh:
+        cost[f] = (len(kept), float(p.get("seconds", 0.0)))
+        with open(os.path.join(out, "walked", f), "wb") as fh:
             pickle.dump(kept, fh, protocol=pickle.HIGHEST_PROTOCOL)
         del p
     merged = _merge(out, meta, {k: n.branches for k, n in nodes.items()})
@@ -249,10 +257,11 @@ def bucket_facts(folder: str, ctl: dict) -> dict:
     """A bucket's rows per question in the single walk's order, as `parallel.walk` keeps them."""
     from app.disputes.forecast import Rows
 
-    rows = []
+    rows, owner = [], ctl.get("top_owner", 0)
     for f in _parts(folder):
+        k = int(os.path.basename(f)[4:-4])
         with open(f, "rb") as fh:
-            rows += pickle.load(fh)
+            rows += [r for r in pickle.load(fh) if r[0][1] == 0 or k == owner]  # the top's rows from one part
     rows.sort(key=lambda r: r[0])
     holds, out, seen = _holds(ctl["reads"]), {}, set()
     for _ekey, kind, k, lk, b, cond in rows:
