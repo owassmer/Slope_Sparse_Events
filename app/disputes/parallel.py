@@ -170,8 +170,11 @@ def _child(fc, d, k: int, run: str, log) -> None:
             log_event("path", n0, tuple(st["wstack"]))
             st["n"] += 1
             if st["n"] % 1000 == 0:
+                from app.analysis.processor import PREFIX_STATS
+
                 print(f"{time.time() - t0:7.0f}s part {k}: paths {st['n']} nodes {len(fc.nodes)} "
-                      f"rss {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / RSS_GB:.2f} GB", file=log, flush=True)
+                      f"rss {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / RSS_GB:.2f} GB "
+                      f"prefix hits/misses {PREFIX_STATS[0]}/{PREFIX_STATS[1]}", file=log, flush=True)
         return out
     F._Walk.emit = emit_logged
 

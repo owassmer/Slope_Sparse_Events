@@ -50,7 +50,7 @@ def test_cash_only_matches_full_daily_outputs():
     ch = Chain(fx.pending(), s, fx.model(), Draws(b.cash.shape[0], basis=b), SENS)
     ev = ch.run(STEPS).events
     # Include a petition while arrears remain outstanding, and absence of nonpayment terms.
-    for petition in (None, 165):
+    for petition in (None, 165, 90, 75):
         if petition is not None:
             ev.petition[:] = petition
         for terms in (None, ch.nonpayment_terms()):
@@ -63,3 +63,36 @@ def test_cash_only_matches_full_daily_outputs():
                     assert actual is None
                 else:
                     np.testing.assert_array_equal(actual, want)
+
+
+def test_prefix_reuse_preserves_book_arrears_and_earlier_dated_changes(monkeypatch):
+    import numpy as np
+
+    from app.analysis import processor
+
+    b, s = fx.basis(), fx.setup()
+    ch = Chain(fx.pending(), s, fx.model(), Draws(b.cash.shape[0], basis=b), SENS)
+    ev = ch.run(STEPS).events
+    processor._PREFIX_RUNS.clear()
+    monkeypatch.setattr(processor, '_PREFIX_BYTES', 0)
+    monkeypatch.setenv('SLOPE_DAILY_PREFIX', '1')
+    kernel, starts = processor._daily_kernel, []
+
+    def observed(*args):
+        starts.append(args[-4])
+        return kernel(*args)
+
+    monkeypatch.setattr(processor, '_daily_kernel', observed)
+    opening, terms = b.opening - s.exposure.cash_cents, ch.nonpayment_terms()
+    for day, expected_start in ((None, 0), (150, b.line.days // 2), (30, 0)):
+        if day is not None:
+            ev.kinds['settlement'] = ev.kinds['settlement'].copy()
+            ev.cash = ev.cash.copy()
+            ev.kinds['settlement'][0, day] -= 100_000_000
+            ev.cash[0, day] -= 100_000_000
+        light = run(b.line, opening, ev, terms, cash_only=True)
+        assert starts[-1] == expected_start
+        full = run(b.line, opening, ev, terms)
+        for actual, expected in zip(light, (full.cash, full.processed.first_unpaid,
+                                           full.processed.nonpayment, full.processed.arrears), strict=True):
+            np.testing.assert_array_equal(actual, expected)

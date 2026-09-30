@@ -33,6 +33,9 @@ obligation nothing differs from `net`: every obligation is paid in full, so the 
 
 from __future__ import annotations
 
+import os
+import weakref
+from collections import OrderedDict
 from dataclasses import dataclass
 
 import numpy as np
@@ -132,6 +135,41 @@ def order_items(rows: np.ndarray, inc: np.ndarray, cls: np.ndarray, seq: np.ndar
     return np.lexsort((cls, np.where(slope, 0, inc), slope, pos, rows))
 
 
+# Checkpoints contain the entire debit/arrears state, not just cash. The key hashes all inputs before
+# the checkpoint and the obligation-incurrence metadata; later bookings can reuse that exact prefix.
+_PREFIX_RUNS: OrderedDict = OrderedDict()
+_PREFIX_BYTES = 0
+_PREFIX_LIMIT = 64 * 2**20
+PREFIX_STATS = [0, 0]  # hits, misses; reported with walk progress
+
+
+def _prefix_key(line, opening, terms, arrays, petition, day):
+    import xxhash
+
+    h = xxhash.xxh3_128()
+    for a in (*[v[..., :day] for v in arrays[:4]], arrays[4], np.minimum(petition, day)):
+        h.update(np.ascontiguousarray(a))
+    return id(line), opening, terms, day, h.digest()
+
+
+def _keep_prefix(key, line, checkpoints, cash, arrears):
+    global _PREFIX_BYTES
+    offsets = np.r_[0, np.cumsum([a.size for a in checkpoints])].astype(np.int64)
+    packed = np.concatenate(checkpoints)
+    value = (weakref.ref(line), (packed, offsets), cash.copy(), arrears.copy())
+    size = packed.nbytes + offsets.nbytes + value[2].nbytes + value[3].nbytes
+    if size > _PREFIX_LIMIT:
+        return
+    old = _PREFIX_RUNS.pop(key, None)
+    if old is not None:
+        _PREFIX_BYTES -= old[-1]
+    _PREFIX_RUNS[key] = (*value, size)
+    _PREFIX_BYTES += size
+    while _PREFIX_BYTES > _PREFIX_LIMIT:
+        _, removed = _PREFIX_RUNS.popitem(last=False)
+        _PREFIX_BYTES -= removed[-1]
+
+
 def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tuple[int, int] | None = None,
               cash_only: bool = False) -> list:
     """`engine.run_many` under daily processing (module docstring). `nonpayment` (window days, unpaid share bps): the
@@ -148,12 +186,29 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
                          ).astype(np.int64, copy=False)
     ex = s.exposure
     w, share = (int(nonpayment[0]), int(nonpayment[1])) if nonpayment is not None else (0, 0)
+    checkpoint_day = days // 2 if cash_only and b == 1 and os.environ.get("SLOPE_DAILY_PREFIX", "1") == "1" else 0
+    key = _prefix_key(line, opening_cents, (w, share), (post, levy, out, obl, inc), pet,
+                      checkpoint_day) if checkpoint_day else None
+    cached = _PREFIX_RUNS.get(key)
+    if cached is not None and cached[0]() is not line:
+        cached = None
+    if cached is not None:
+        _PREFIX_RUNS.move_to_end(key)
+    if checkpoint_day:
+        PREFIX_STATS[0 if cached is not None else 1] += 1
+    start = checkpoint_day if cached is not None else 0
+    resume = cached[1] if cached is not None else (np.empty(0, np.int64), np.empty(0, np.int64))
     (cash, collections, fundings, outstanding, due, funded, contract, collected, failed, arrears, first_unpaid, nonpay,
-     levy_unmet, hr, dr) = _daily_kernel(
+     levy_unmet, hr, dr, checkpoints) = _daily_kernel(
         post, levy, out, obl, inc, pet, need, limit, month_end, routes, due_idx, np.int64(s.fee_bps), s.installments,
         s.collection == "debit", s.same_day_order == "operating_first", due0, book_d, book_a,
         np.int64(opening_cents + ex.cash_cents), np.int64(ex.principal_cents), np.int64(ex.owed_cents), b * nroutes,
-        np.int64(w), np.int64(share), cash_only)
+        np.int64(w), np.int64(share), cash_only, start, checkpoint_day, resume[0], resume[1])
+    if start:
+        cash[:, :start] = cached[2]
+        arrears[:, :start] = cached[3]
+    elif checkpoint_day:
+        _keep_prefix(key, line, checkpoints, cash[:, :checkpoint_day], arrears[:, :checkpoint_day])
     if cash_only:  # with the arrears the same run computed (events.Chain._daily_run keeps them apart)
         return [(cash[j * n:(j + 1) * n], first_unpaid[j * n:(j + 1) * n].copy(),
                  None if nonpayment is None else nonpay[j * n:(j + 1) * n].copy(), arrears[j * n:(j + 1) * n])
@@ -228,7 +283,7 @@ def _book(d, a, i, e_amt, e_inc, e_next, head, last, ne):
 
 @njit(cache=True)
 def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes, due_idx, fee_bps, inst, debit,
-                  first_op, due0, book_d, book_a, opening, funded0, contract0, draw_cap, w, share, cash_only=False):
+                  first_op, due0, book_d, book_a, opening, funded0, contract0, draw_cap, w, share, cash_only, start, checkpoint_day, resume, resume_offsets):
     """`run_daily`'s day loop, compiled, one trajectory (row) at a time, each step as the vectorised loop took it:
     the day's scheduled items in `order_items` order, `pay_arrears` oldest first, §3.3 on the window (the still-unpaid
     arrears summed in float64 in queue order and truncated, as `np.bincount` with weights did). Row r reads draw r % n
@@ -281,6 +336,7 @@ def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes
     bc = np.zeros(NCLASS, np.int64)
     nh = 0
     nd = 0
+    checkpoints = [np.empty(0, np.int64) for _ in range(rn)]
     for r in range(rn):
         i = r % n
         for d in range(tail):
@@ -311,7 +367,57 @@ def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes
         np_day = BIG
         streak = 0
         pr = pet[r]
-        for t in range(days):
+        if start:
+            saved = resume[resume_offsets[r]:resume_offsets[r + 1]]
+            avail = saved[0]
+            owed = saved[1]
+            fu = saved[2]
+            co = saved[3]
+            cl = saved[4]
+            fl = saved[5]
+            lu = saved[6]
+            fu_day = saved[7]
+            np_day = saved[8]
+            streak = saved[9]
+            ne = saved[10]
+            npend = saved[11]
+            nq = saved[12]
+            off = 13
+            due[r][:tail] = saved[off:off + tail]
+            off += tail
+            head[:tail] = saved[off:off + tail]
+            off += tail
+            last[:tail] = saved[off:off + tail]
+            off += tail
+            e_amt[:ne] = saved[off:off + ne]
+            off += ne
+            e_inc[:ne] = saved[off:off + ne]
+            off += ne
+            e_next[:ne] = saved[off:off + ne]
+            off += ne
+            p_amt[:npend] = saved[off:off + npend]
+            off += npend
+            p_inc[:npend] = saved[off:off + npend]
+            off += npend
+            p_day[:npend] = saved[off:off + npend]
+            off += npend
+            q_c[:nq] = saved[off:off + nq]
+            off += nq
+            q_a[:nq] = saved[off:off + nq]
+            off += nq
+            q_d[:nq] = saved[off:off + nq]
+            off += nq
+            bc[:NCLASS] = saved[off:off + NCLASS]
+            off += NCLASS
+            fell[:start] = saved[off:off + start]
+            off += start
+            slope_due[:start] = saved[off:off + start]
+            off += start
+        for t in range(start, days):
+            if checkpoint_day and t == checkpoint_day and not start:
+                checkpoints[r] = np.concatenate((np.array((avail, owed, fu, co, cl, fl, lu, fu_day, np_day, streak, ne, npend, nq), dtype=np.int64),
+                                                  due[r][:tail], head[:tail], last[:tail], e_amt[:ne], e_inc[:ne], e_next[:ne], p_amt[:npend], p_inc[:npend], p_day[:npend], q_c[:nq], q_a[:nq], q_d[:nq], bc[:NCLASS], fell[:t], slope_due[:t]))
+
             live = t < pr
             if w > 0 and t >= w and streak >= w:  # §3.3 on the days t - w .. t - 1
                 dw = np.int64(0)
@@ -547,7 +653,7 @@ def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes
         first_unpaid[r] = fu_day
         nonpay[r] = np_day
     return (cash, collections, fundings, outstanding, due, funded, contract, collected, failed, arrears, first_unpaid,
-            nonpay, levy_unmet, (hr_r[:nh], hr_t[:nh], hr_v[:nh]), (dr_t[:nd], dr_k[:nd], dr_r[:nd], dr_a[:nd]))
+            nonpay, levy_unmet, (hr_r[:nh], hr_t[:nh], hr_v[:nh]), (dr_t[:nd], dr_k[:nd], dr_r[:nd], dr_a[:nd]), checkpoints)
 
 
 @njit(cache=True)

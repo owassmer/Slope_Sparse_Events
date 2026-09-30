@@ -161,9 +161,82 @@ def export_github(bucket, prefix, run, minutes):
         time.sleep(45)
 
 
+
+def fetch_group(s3, bucket, source, name, target):
+    target.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(suffix='.tgz') as f:
+        s3.download_file(bucket, f'{source}/{name}.tgz', f.name)
+        with tarfile.open(f.name) as tar:
+            tar.extractall(target, filter='data')
+
+
+def upload_group(s3, bucket, key, path):
+    with tempfile.NamedTemporaryFile(suffix='.tgz') as f:
+        with tarfile.open(fileobj=f, mode='w:gz', compresslevel=1) as tar:
+            tar.add(path, arcname='.')
+        f.flush()
+        s3.upload_file(f.name, bucket, key)
+
+
+def pool(bucket, prefix, slots):
+    """Pool exactly one selected attempt per shard; keep all large intermediates in AWS."""
+    s3 = boto3.client('s3')
+    selected = [read(s3, bucket, f'{prefix}/done/{j}.json') for j in range(100)]
+    if any(x is None for x in selected):
+        raise RuntimeError('pool requires all 100 shard outputs')
+    root = Path('/opt/slope-pool')
+    root.mkdir(exist_ok=True)
+    (root / 'selection.json').write_text(json.dumps(selected, indent=2))
+    s3.upload_file(str(root / 'selection.json'), bucket, f'{prefix}/pool/selection.json')
+    env = {**os.environ, 'SLOPE_JEV_CACHE_ONLY': '1', 'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1'}
+    env.pop('CLAUDE_CODE_OAUTH_TOKEN', None)
+
+    def download(name, target):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            futures = [ex.submit(fetch_group, s3, bucket, x['source'], name, target / str(x['job']))
+                       for x in selected]
+            for f in futures:
+                f.result()
+
+    download('control', root / 'control')
+    subprocess.run(['.venv/bin/python', '-m', 'app.disputes.parallel', 'spill',
+                    str(root / 'control'), str(root / 'walk_roots.pkl')], check=True, env=env)
+    import pickle
+    with (root / 'walk_roots.pkl').open('rb') as f:
+        missing = pickle.load(f)
+    if missing:
+        s3.upload_file(str(root / 'walk_roots.pkl'), bucket, f'{prefix}/pool/walk_roots.pkl')
+        raise RuntimeError(f'{len(missing)} segments require recovery; no partial model will be published')
+    subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'control',
+                    str(root / 'control'), str(root / 'ctl')], check=True, env=env)
+    with (root / 'ctl/control.pkl').open('rb') as f:
+        ctl = pickle.load(f)
+    if ctl['raised']:
+        raise RuntimeError(f"{len(ctl['raised'])} offering continuations require a further walk")
+    s3.upload_file(str(root / 'ctl/control.pkl'), bucket, f'{prefix}/pool/control.pkl')
+    upload_group(s3, bucket, f'{prefix}/pool/paths.tgz', root / 'ctl/paths')
+
+    def facts(b):
+        folder = root / f'rows{b}'
+        download(f'rows{b}', folder)
+        out = root / f'states{b}'
+        subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'facts', RUN, str(folder),
+                        str(root / 'ctl/control.pkl'), str(b), str(out)], check=True, env=env)
+        upload_group(s3, bucket, f'{prefix}/pool/states{b}.tgz', out)
+        shutil.rmtree(folder)
+        print(f'facts bucket {b} published', flush=True)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=slots) as ex:
+        futures = [ex.submit(facts, b) for b in range(16)]
+        for f in futures:
+            f.result()
+    create(s3, bucket, f'{prefix}/pool/ready.json',
+           {'finished': time.time(), 'paths': ctl['paths'], 'walked': ctl['walked'], 'nodes': len(ctl['nodes'])})
+
+
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
-    p.add_argument('mode', choices=['worker', 'export'])
+    p.add_argument('mode', choices=['worker', 'export', 'pool'])
     p.add_argument('bucket')
     p.add_argument('prefix')
     p.add_argument('--slots', type=int, default=1)
@@ -172,5 +245,7 @@ if __name__ == '__main__':
     a = p.parse_args()
     if a.mode == 'worker':
         worker(a.bucket, a.prefix, a.slots, a.minutes)
-    else:
+    elif a.mode == 'export':
         export_github(a.bucket, a.prefix, a.run, a.minutes)
+    else:
+        pool(a.bucket, a.prefix, a.slots)
