@@ -565,21 +565,15 @@ class _Prefix:
         """daily: the cash by kind and the incurred days are in the digest too (the processor orders by them); whole:
         every step's facts (the page's path sequence), not only the traced step's; digest: False for a day-only
         trace (its event cash after the decision day is not booked)."""
-        from app.analysis.events import KINDS, OBLIGATIONS
+        from app.analysis.events import KINDS, OBLIGATIONS, array_key
 
         ev = tr.events
-        h = None
+        d = None
         if digest:
-            h = hashlib.blake2b(digest_size=32)
             extra = [*(ev.kinds[k] for k in KINDS), *(ev.incurred[k] for k in OBLIGATIONS)] if daily else []
-            for a in (ev.cash, ev.lock, ev.capacity, *extra):  # sparse: each non-zero's flat index and value
-                flat = np.ascontiguousarray(a).ravel()
-                i = np.flatnonzero(flat)
-                h.update(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes())
-            h.update(np.ascontiguousarray(ev.petition).tobytes())
+            d = array_key(ev.cash, ev.lock, ev.capacity, *extra, ev.petition)
         last = slice(None) if whole else slice(-1, None)  # later steps read only the traced step's (`tr.day[-1]`)
-        return cls(tr.day[last], tr.cash[last], tr.owed[last], tr.collateral[last], ev.petition.copy(),
-                   None if h is None else h.digest(),
+        return cls(tr.day[last], tr.cash[last], tr.owed[last], tr.collateral[last], ev.petition.copy(), d,
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
                    tr.triggers, getattr(tr, "raise_offer", None), getattr(tr, "reads", None),
                    (getattr(tr, "situations", None) or {}).get(len(tr.day) - 1),
@@ -1595,7 +1589,9 @@ class Forecaster:
     def late_key(k: str, prefix: tuple, row: dict) -> tuple:
         """What `_keep_late` keeps a record once per: the node, the prefix and the digest of the record as stored
         (`pack_row`: what a question can read of it)."""
-        return k, prefix, hashlib.blake2b(pack_row(row), digest_size=16).digest()
+        import xxhash
+
+        return k, prefix, xxhash.xxh3_128_digest(pack_row(row))
 
     def _keep_late(self, k: str, prefix: tuple, row: dict) -> None:
         """Keep a whole path's record for a node once per distinct record at each prefix that asks it."""
@@ -2695,13 +2691,21 @@ class _Walk:
     def _same_after(self, s: _S, a: tuple, b: tuple, m: np.ndarray | None) -> bool:
         """Whether the steps a and b after the path book and read the same inside the horizon on its draws `m`: their
         whole traces' event cash and petitions (the digest), petition causes and marks, and their chains' state
-        (events.Chain.divergence, which also reads what a later question's situation reads)."""
+        (events.Chain.divergence, which also reads what a later question's situation reads). Each chain is taken
+        right after its branch's whole trace, which leaves the prefix stack at that branch (events._advanced): the
+        chain is a copy of the stack's top, never re-advanced. The digests (one comparison) go first."""
         from app.analysis.events import BIG, canon, event_chain
 
-        ta, tb = self._trace(s.steps + (a,), True), self._trace(s.steps + (b,), True)
+        on = np.ones(self.fc.draws.n, dtype=bool) if m is None else m
+        chain = lambda st: event_chain(self.d, canon(st), self.fc.setup, self.fc.m, self.fc.draws,  # noqa: E731
+                                       self.fc.sens, fin=None if self.d is not None else self.fin)
+        ta = self._trace(s.steps + (a,), True)
+        ca = chain(s.steps + (a,))
+        tb = self._trace(s.steps + (b,), True)
         if ta.digest is None or ta.digest != tb.digest:
             return False
-        on = np.ones(len(ta.petition), dtype=bool) if m is None else m
+        if not bool((ca.divergence(chain(s.steps + (b,)))[on] >= BIG).all()):
+            return False
         if (ta.cause is None) != (tb.cause is None) or (
                 ta.cause is not None and not np.array_equal(ta.cause[on], tb.cause[on])):
             return False
@@ -2710,10 +2714,7 @@ class _Walk:
             x, y = (np.broadcast_to(np.asarray(mm.get(k, BIG)), on.shape) for mm in (ma, mb))
             if not np.array_equal(np.where(x < self.N, x, BIG)[on], np.where(y < self.N, y, BIG)[on]):
                 return False
-        chain = lambda st: event_chain(self.d, canon(st), self.fc.setup, self.fc.m, self.fc.draws,  # noqa: E731
-                                       self.fc.sens, fin=None if self.d is not None else self.fin)
-        div = chain(s.steps + (a,)).divergence(chain(s.steps + (b,)))
-        return bool((div[on] >= BIG).all())
+        return True
 
     def unfiled(self, s: _S, node: str, ctx: str, classes: dict, pairs) -> dict:
         """A holders' petition that falls after the period on every trajectory books nothing: its class joins the
@@ -3321,9 +3322,11 @@ class _Walk:
         array the engine and the analysis read (the event cash by kind, encumbrance, credit capacity, incurred days,
         offering proceeds, petition day and cause, and the marks the outcome classes and offering closes read, inside
         the horizon), with its verdict class, post-trial ruling and outcome."""
+        import xxhash
+
         from app.analysis.events import BIG
 
-        ev, h = tr.events, hashlib.blake2b(digest_size=16)
+        ev, h = tr.events, xxhash.xxh3_128()
         named = [("cash", ev.cash), ("lock", ev.lock), ("capacity", ev.capacity), ("petition", ev.petition),
                  *((f"k:{k}", ev.kinds[k]) for k in sorted(ev.kinds)),
                  *((f"i:{k}", ev.incurred[k]) for k in sorted(ev.incurred)),

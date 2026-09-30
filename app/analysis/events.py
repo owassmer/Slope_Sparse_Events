@@ -16,6 +16,7 @@ at most one limit's worth, are left out of this pre-engine figure). Stress mode 
 from __future__ import annotations
 
 import copy
+import os
 import zlib
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -136,7 +137,9 @@ class Draws:
         u = self.u(*key, "ruling_lag", adverse_high=False)
         return sample[np.minimum((u * len(sample)).astype(np.int64), len(sample) - 1)]
 
-    SUBS = 256  # row subsets kept (each with its engine runs)
+    # row subsets kept, least recently used first, within this many bytes of copied basis (a subset on every draw
+    # copies ~32 MB: the invoices, the line's routes); their engine runs count against RUN_BYTES
+    SUB_BYTES = int(os.environ.get("SLOPE_SUB_MB", "512")) * 2**20
 
     def sub(self, rows: np.ndarray) -> SubDraws:
         """These draws on the trajectories `rows` ([n] bool, a path's mask): the same uniforms, operating basis and
@@ -146,8 +149,10 @@ class Draws:
         s = subs.pop(k, None)
         if s is None:
             s = SubDraws(self, np.flatnonzero(rows))
-            if len(subs) >= self.SUBS:
-                subs.pop(next(iter(subs)))
+            total = self.__dict__.get("_sub_bytes", 0) + s.nbytes
+            while subs and total > self.SUB_BYTES:
+                total -= subs.pop(next(iter(subs))).nbytes
+            self._sub_bytes = total
         subs[k] = s
         return s
 
@@ -160,9 +165,74 @@ class SubDraws(Draws):
         self.parent, self.idx = parent, idx
         self.n, self.stress, self.cache, self.prefixes = len(idx), parent.stress, {}, None
         self.basis = _rows_basis(parent.basis, idx)
+        self.nbytes = _basis_bytes(self.basis)
 
     def u(self, *key: str, adverse_high: bool | None = None) -> np.ndarray:
         return self.parent.u(*key, adverse_high=adverse_high)[self.idx]
+
+
+def array_key(*arrays, head: bytes = b"") -> bytes:
+    """A 128-bit content key of arrays (dtype, shape and bytes each; xxh3, a non-cryptographic hash: a cache and
+    equivalence key, never a security boundary). Equal contents give equal keys."""
+    import xxhash
+
+    h = xxhash.xxh3_128(head)
+    for a in arrays:
+        a = np.ascontiguousarray(a)
+        h.update(f"{a.dtype.str}{a.shape}".encode())
+        h.update(memoryview(a).cast("B") if a.size else b"")
+    return h.digest()
+
+
+def _basis_bytes(b: Basis | None) -> int:
+    """The bytes a basis holds in its arrays (the line's operating arrays included; not its engine runs)."""
+    if b is None:
+        return 0
+    arrs = [b.cash, b.need, b.legal, b.inflow]
+    line = b.line
+    if line is not None:
+        ops = line.ops
+        arrs += [ops.total, ops.invoices, ops.inflow, ops.outflow, *ops.by_category.values(),
+                 line.limit, line.need, line.routes]
+    return sum(a.nbytes for a in arrs if isinstance(a, np.ndarray))
+
+
+# Engine runs kept across every basis of the process (the whole draws' and each row subset's), least recently used
+# first, within this many bytes: the walk is depth first, so the recent runs are the ones reused.
+RUN_BYTES = int(os.environ.get("SLOPE_RUN_MB", "512")) * 2**20
+_RUN_LRU: dict = {}  # (id(runs), key) -> (runs, bytes)
+_RUN_TOTAL = [0]
+
+
+def _nbytes(v) -> int:
+    if isinstance(v, np.ndarray):
+        return v.nbytes
+    if isinstance(v, (tuple, list)):
+        return sum(_nbytes(x) for x in v)
+    return 0
+
+
+def runs_get(runs: dict, key):
+    """A kept engine run (None: not kept); a hit becomes the most recently used."""
+    got = runs.get(key)
+    if got is not None:
+        e = _RUN_LRU.pop((id(runs), key), None)
+        if e is not None:
+            _RUN_LRU[(id(runs), key)] = e
+    return got
+
+
+def runs_put(runs: dict, key, value) -> None:
+    """Keep an engine run in `runs` under the process's byte budget (RUN_BYTES), dropping the least recent runs."""
+    b = _nbytes(value)
+    runs[key] = value
+    _RUN_LRU[(id(runs), key)] = (runs, b)
+    _RUN_TOTAL[0] += b
+    while _RUN_TOTAL[0] > RUN_BYTES and len(_RUN_LRU) > 1:
+        (_, k), (owner, ob) = next(iter(_RUN_LRU.items()))
+        del _RUN_LRU[(id(owner), k)]
+        owner.pop(k, None)
+        _RUN_TOTAL[0] -= ob
 
 
 def _rows_basis(b: Basis | None, idx: np.ndarray) -> Basis | None:
@@ -659,28 +729,24 @@ class Chain:
         return next(((k,) for k, a in self._arrays() if a is arr), ())
 
     def _digest(self, name: str, a: np.ndarray) -> bytes:
-        """The array's content digest (its nonzero positions and values), rehashed only when its version moved."""
-        import hashlib
-
+        """The array's content digest (`array_key`), rehashed only when its version moved."""
         v, hit = self._av.get(name, 0), self._hd.get(name)
         if hit is not None and hit[0] == v:
             return hit[1]
-        flat = np.ascontiguousarray(a).ravel()
-        i = np.flatnonzero(flat)
-        d = hashlib.blake2b(np.int64(i.size).tobytes() + i.tobytes() + flat[i].tobytes(), digest_size=20).digest()
+        d = array_key(a)
         self._hd[name] = (v, d)
         return d
 
     def _run_key(self, which: str, names: tuple[str, ...], head: bytes = b"") -> bytes:
         """The engine run's cache key: a function of the named arrays' content only (equal states share one run),
         memoized on the event cash's version."""
-        import hashlib
+        import xxhash
 
         memo = self._keys.get(which)
         if memo is not None and memo[0] == self._cv:
             return memo[1]
         arrays = dict(self._arrays())
-        h = hashlib.blake2b(which.encode() + head, digest_size=20)
+        h = xxhash.xxh3_128(which.encode() + head)
         for k in names:
             h.update(self._digest(k, arrays[k]))
         self._keys[which] = (self._cv, h.digest())
@@ -706,23 +772,19 @@ class Chain:
     # the daily processor's: the kinds sum to the cash, so the cash adds nothing
     DAILY_KEY = ("lock", "capacity", "petition", *(f"k:{k}" for k in KINDS), *(f"i:{k}" for k in OBLIGATIONS))
 
-    RUNS = 64  # engine runs kept, per event state: [draws, days] each; the current path's prefixes are reused
-
     def line_net(self) -> np.ndarray:
         from app.analysis.engine import run
 
         ev, runs = self.ev, self.basis.runs
         key = self._run_key("net", self.NET_KEY)
-        if key in runs:  # least recently used first: a hit moves to the end
-            runs[key] = runs.pop(key)
-        else:
+        got = runs_get(runs, key)  # the process's runs, least recently used dropped first (RUN_BYTES)
+        if got is None:
             # the engine adds the existing line's history cash (Setup.exposure) to its opening itself
             opening = self.basis.opening - self.s.exposure.cash_cents
             tr = run(self.basis.line, opening, EventCash(ev.cash, ev.lock, ev.capacity, ev.petition))
-            if len(runs) >= self.RUNS:  # the tree is walked depth-first: recent prefixes are the ones reused
-                runs.pop(next(iter(runs)))
-            runs[key] = np.cumsum(tr.fundings - tr.collections, axis=1)
-        return runs[key]
+            got = np.cumsum(tr.fundings - tr.collections, axis=1)
+            runs_put(runs, key, got)
+        return got
 
     def processed(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Under daily processing: the engine's end-of-day available cash [draws, days], first unpaid day and §3.3
@@ -732,9 +794,8 @@ class Chain:
         ev, runs = self.ev, self.basis.runs
         terms = self.nonpayment_terms()
         key = self._run_key("daily", self.DAILY_KEY, np.array(terms, dtype=np.int64).tobytes())
-        if key in runs:
-            runs[key] = runs.pop(key)
-        else:
+        got = runs_get(runs, key)
+        if got is None:
             from app.analysis import shadow
 
             opening = self.basis.opening - self.s.exposure.cash_cents
@@ -743,10 +804,8 @@ class Chain:
             if shadow.ON:
                 tr = run(self.basis.line, opening, e, terms)
                 got = shadow.check("engine_cash", got, (tr.cash, tr.processed.first_unpaid, tr.processed.nonpayment))
-            if len(runs) >= self.RUNS:
-                runs.pop(next(iter(runs)))
-            runs[key] = got
-        return runs[key]
+            runs_put(runs, key, got)
+        return got
 
     def nonpayment_terms(self) -> tuple[int, int]:
         """§7.01(j)(v) general nonpayment (QUESTIONS §3.3): the window in days and the unpaid share in bps, as the

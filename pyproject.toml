@@ -25,6 +25,7 @@ dependencies = [
     "httpx2>=2.13,<3",
     "numpy>=2.5.3",
     "numba>=0.67.0",
+    "xxhash>=4.0.1",
 ]
 
 [dependency-groups]
