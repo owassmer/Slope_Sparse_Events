@@ -3159,6 +3159,14 @@ class _Walk:
             tr = event_trace(self.d, DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome="", edges=()),
                              self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens, rows=self._rows(s.steps))
             self.keys.append(self.equivalence(s, outcome, tr, m))
+            # the range of the path's cumulative event cash less encumbrance on its draws, per day (the analysis's
+            # histogram bins, core.Analysis._bins, read the tree's range: pool.control merges each process's)
+            cum = np.cumsum(tr.events.cash - tr.events.lock, axis=1)
+            cum = cum if m is None else cum[m]
+            if cum.size:
+                r = self.fc.__dict__.setdefault("ev_range", [np.zeros(self.N), np.zeros(self.N)])
+                np.minimum(r[0], cum.min(axis=0), out=r[0])
+                np.maximum(r[1], cum.max(axis=0), out=r[1])
         late = self.fc.record_late(self.d, s.steps, s.late, m, tr=tr) if s.late else {}
         self.out.append(DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome=outcome, edges=s.edges,
                                     mask=pack_mask(m), classes=self._classes_of(s.edges, s.steps, m, late or {})))

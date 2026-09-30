@@ -248,7 +248,7 @@ def _child(fc, d, k: int, run: str, log) -> None:
            "remitted": fc.remitted, "class_members": fc.class_members, "class_range": fc.class_range,
            "remit_classes": fc.remit_classes, "verdict_asks": getattr(fc, "verdict_asks", {}), "classed": fc.classed,
            "seconds": time.time() - t0, "rss": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / RSS_GB,
-           "walked": st["n"]}
+           "walked": st["n"], "ev_range": getattr(fc, "ev_range", None)}
     with open(os.path.join(run, f"part{k}.pkl"), "wb") as fh:
         pickle.dump(out, fh, protocol=pickle.HIGHEST_PROTOCOL)
     print(f"{time.time() - t0:7.0f}s part {k}: done, {st['n']} paths, {st['nseg']} segments", file=log, flush=True)

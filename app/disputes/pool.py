@@ -151,6 +151,10 @@ def control(folder: str, out: str) -> None:
             pickle.dump(kept, fh, protocol=pickle.HIGHEST_PROTOCOL)
         del p
     ctl["paths"] = total
+    import numpy as np  # the tree's per-day range of cumulative event cash on each path's draws (_Walk.emit)
+    rngs = [h["ev_range"] for h in heads if h.get("ev_range") is not None]
+    ctl["ev_range"] = (np.minimum.reduce([r[0] for r in rngs]), np.maximum.reduce([r[1] for r in rngs])) if rngs \
+        else None
     if missing and os.environ.get("SLOPE_POOL_ALLOW_MISSING") != "1":
         raise SystemExit(f"control: {len(missing)} questions the paths read were never logged, e.g. {sorted(missing)[:3]}")
     with open(os.path.join(out, "control.pkl"), "wb") as fh:
