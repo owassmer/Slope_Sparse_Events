@@ -777,7 +777,16 @@ class Chain:
         return cum[self.rows, t]
 
     def owed_at(self, day: np.ndarray, enforceable: bool = False) -> np.ndarray:
-        """The amount owed at the day; enforceable: an increase not yet out of its own Rule 62(a) stay is left out."""
+        """The amount owed at the day; enforceable: an increase not yet out of its own Rule 62(a) stay is left out.
+        Compiled (`k_owed.owed_at`); `owed_at_py` is the Python it reproduces, run where the kernel declines."""
+        from app.analysis import k_owed, shadow
+        fast = k_owed.owed_at(self, day, enforceable)
+        if fast is None:
+            return self.owed_at_py(day, enforceable)
+        return shadow.check("owed_at", fast, self.owed_at_py(day, enforceable)) if shadow.ON else fast
+
+    def owed_at_py(self, day: np.ndarray, enforceable: bool = False) -> np.ndarray:
+        """`owed_at` in Python (the reference of the compiled path)."""
         day = np.asarray(day)
         if self.d is None:
             return np.zeros(self.n, dtype=np.int64)
@@ -1004,6 +1013,15 @@ class Chain:
         return np.cumsum(g[:, :self.N], axis=1)
 
     def _price_owed_grid(self) -> np.ndarray:
+        """`price_owed` on every draw and day [draws, days], compiled in one pass (`k_owed.price_owed_grid`);
+        `_price_owed_grid_py` is the Python it reproduces, run where the kernel declines."""
+        from app.analysis import k_owed, shadow
+        fast = k_owed.price_owed_grid(self)
+        if fast is None:
+            return self._price_owed_grid_py()
+        return shadow.check("price_owed_grid", fast, self._price_owed_grid_py()) if shadow.ON else fast
+
+    def _price_owed_grid_py(self) -> np.ndarray:
         """`price_owed` on every draw and day [draws, days], with the takes and the settlement parts summed once
         (a take on or before the day is the take before it plus the day's own)."""
         if not self.pending or not self.entered:
