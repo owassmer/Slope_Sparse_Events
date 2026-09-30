@@ -225,6 +225,8 @@ class Situation:
         if entry >= BIG or amount == 0:
             return "none: no money judgment has been entered"
         band = self._g().at_rep("band_range", sit=True)
+        if band is not None and band[1] is None:  # the band above the top line (QUESTIONS J1b)
+            return f"an amount above {usd(int(band[0]))}"
         if band is not None and int(band[0]) != int(band[1]):
             return f"an amount between {usd(int(band[0]))} and {usd(int(band[1]))}"
         return usd(amount)
@@ -250,6 +252,8 @@ class Situation:
         got = next((self.labels[t] for t in self.tags if t in self.labels and t.startswith("I")), None)
         if got is None and "final" in self.tags:
             return "after the time to appeal has expired"
+        if got is None and "appealed" in self.tags:  # QUESTIONS C1: ruled, with an appeal pending
+            return "after the post-trial ruling, with an appeal pending"
         if got is None:
             raise Unbuilt(f"no interval among the context tags {self.tags}")
         return got
@@ -690,7 +694,8 @@ UNSTATED = {"entered", "pay", "nopay", "raise", "noraise", "after_seek", "seekin
             # the distress chain's question identities (worker A): the situation states the date, the offering
             # available or why not, and the notes' route
             "deadline", "determination", "offer", "nooffer", "nonpayment", "cash_out"}
-IDENTITY = re.compile(r"floor\d+|award.*")  # D7's k-th fall below the need; a verdict class (the situation states it)
+IDENTITY = re.compile(r"floor\d+|award.*|reduced.*|remit.*")  # D7's k-th fall; a verdict, ruling or remittitur class
+# (the situation states each: the judgment as entered, as the ruling left it, the remitted amount)
 
 
 def assumed_events(tags: list[str], labels: dict, claimant: str, strict: bool = True) -> list[str]:
@@ -716,7 +721,8 @@ def assumed_events(tags: list[str], labels: dict, claimant: str, strict: bool = 
 
 KIND_OF = {"court ruling": "court_findings", "party argument": "party_assertions",
            "statement of intended proof": "party_assertions", "proposal": "party_assertions",
-           "company disclosure": "historical_evidence", "third-party record": "historical_evidence"}
+           "company disclosure": "historical_evidence", "third-party record": "historical_evidence",
+           "stipulation": "court_findings"}  # the parties' stipulated instructions, given to the jury by the court
 CLOSED = {"verdict_finding": "the jury", "verdict_amount": "the jury", "post_trial_ruling": "the court",
           "stay_approved": "the court", "registration_early": "the court"}
 
