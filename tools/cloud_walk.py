@@ -82,6 +82,9 @@ def worker(bucket, prefix, slots, minutes):
 
     thread = threading.Thread(target=checkpoint, daemon=True)
     thread.start()
+    from cloud_logs import follow
+    threading.Thread(target=follow, args=(bucket, prefix), daemon=True).start()
+    print(f'worker resources: {len(os.sched_getaffinity(0))} CPUs, {slots} shard slots, 4 processes per shard', flush=True)
 
     def slot():
         # boto3 clients are thread safe; subprocesses keep the walk's monkey patches isolated.
