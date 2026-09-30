@@ -255,7 +255,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 #### D7 · Akoustis at its cash floor · `forecast_financing_at_floor`
 
 - **Event:** on a day available cash falls below the month's operating need, Akoustis initiates an underwritten offering, files a voluntary petition, or does neither.
-- **Asked:** at the first such day, and again at each later day cash falls below the need after having recovered above it.
+- **Asked:** at the first such day, and again where cash falls below the need after new money from an event on the path (an offering's close, or the release of a stay's security) brought it back to the need. Operating receipts and at-the-market sales are the situation the decision already weighed.
 - **Answers:** neither, nothing booked. At-the-market sales continue, and the next decision is at the first unpaid obligation (D8).
 - **Situation:** available cash, the month's operating need, at-the-market proceeds to date, the judgment's standing, the notes' status, the listing status, and the share capacity left. Where an offering is unavailable, the state says why: delisted, a petition filed, an offering pending, or no capacity.
 - **Record:** as D2; the company's stated plans.

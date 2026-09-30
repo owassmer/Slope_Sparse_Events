@@ -210,14 +210,55 @@ def _q(model: dict) -> dict[str, dict]:
 _ROW_BLOBS: dict[bytes, bytes] = {}  # identical rows share one compressed blob
 
 
+_ROW_FILL = {"day": np.iinfo(np.int64).max // 4, "groups": -1}  # events.BIG; elsewhere 0 (a question never reads it)
+
+
+class _Kept:
+    """A per-trajectory array of a recorded row, on the row's stored trajectories only (`pack_row`)."""
+    __slots__ = ("a",)
+
+    def __init__(self, a: np.ndarray) -> None:
+        self.a = a
+
+
+def _keep(v, on: np.ndarray, n: int):
+    if isinstance(v, np.ndarray) and v.ndim >= 1 and v.shape[0] == n:
+        return _Kept(v[on])
+    if type(v) is dict:
+        return {k: _keep(x, on, n) for k, x in v.items()}
+    return v
+
+
+def _whole(v, ix: np.ndarray, n: int, name: str = ""):
+    if isinstance(v, _Kept):
+        out = np.full((n, *v.a.shape[1:]), _ROW_FILL.get(name, 0) if v.a.dtype != object else None, dtype=v.a.dtype)
+        out[ix] = v.a
+        return out
+    if type(v) is dict:
+        return {k: _whole(x, ix, n, k) for k, x in v.items()}
+    return v
+
+
 def pack_row(row: dict) -> bytes:
-    """A recorded row as one compressed pickle, interned by content (identical rows are stored once)."""
+    """A recorded row as one compressed pickle, interned by content (identical rows are stored once). Only the
+    trajectories where the question can be live are stored: its decision is dated (not BIG) and precedes any petition
+    (`Forecaster.live` reads no other); `unpack_row` restores the others as BIG days and zeros, which no read takes."""
+    day, pet = row.get("day"), row.get("petition")
+    if isinstance(day, np.ndarray) and isinstance(pet, np.ndarray):
+        n = day.shape[0]
+        on = (day < _ROW_FILL["day"]) & ((pet < 0) | (day < pet))
+        row = {"__ix__": np.flatnonzero(on).astype(np.int32), "__n__": n,
+               **{k: _keep(v, on, n) for k, v in row.items()}}
     b = zlib.compress(pickle.dumps(row, protocol=pickle.HIGHEST_PROTOCOL), 1)
     return _ROW_BLOBS.setdefault(b, b)
 
 
 def unpack_row(b: bytes) -> dict:
-    return pickle.loads(zlib.decompress(b))
+    row = pickle.loads(zlib.decompress(b))
+    if "__ix__" not in row:
+        return row
+    ix, n = row.pop("__ix__"), row.pop("__n__")
+    return {k: _whole(v, ix, n, k) for k, v in row.items()}
 
 
 class Rows:

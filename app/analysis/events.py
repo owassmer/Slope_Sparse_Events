@@ -2196,6 +2196,18 @@ class Chain:
         down = (cum < floor) & (idx > rec[:, None])
         return np.where(down.any(axis=1), down.argmax(axis=1), BIG).astype(np.int64)
 
+    def _new_money_after(self, prev: np.ndarray) -> np.ndarray:
+        """The first day after `prev` that an event on the path brings cash in [draws] (BIG: none): an offering's
+        close, or the release of a stay's security. Operating receipts and at-the-market sales are the situation the
+        floor decision already weighed."""
+        out = np.full(self.n, BIG, dtype=np.int64)
+        for o in self._offers:
+            out = np.where(o["closed"] & (o["close"] > prev), np.minimum(out, o["close"]), out)
+        for st in self.stays.values():
+            if "held" in st:
+                out = np.where(st["held"] & (st["rel"] > prev), np.minimum(out, st["rel"]), out)
+        return out
+
     def distress_day(self, node: str, ctx: str) -> np.ndarray:
         """The day a distress step's decision falls on this path's cash as booked so far [draws] (BIG: none)."""
         if node == "cash_floor":
@@ -2203,7 +2215,10 @@ class Chain:
             if k == 1:
                 return self.tau()
             prev = self.floor_days.get(k - 1)
-            return self._fall_after(prev) if prev is not None else np.full(self.n, BIG, dtype=np.int64)
+            if prev is None:
+                return np.full(self.n, BIG, dtype=np.int64)
+            new = self._new_money_after(prev)  # a recovery counts only from new money (QUESTIONS §4.4 D7)
+            return np.where(new < BIG, self._fall_after(new - 1), BIG).astype(np.int64)
         if node == "cash_out":
             return self.cash_out()
         if node == "offering":
