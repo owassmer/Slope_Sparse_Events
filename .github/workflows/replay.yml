@@ -1,0 +1,53 @@
+name: replay
+
+# What `slope analyze` reads of each merged path's event cash, computed on runners (app/disputes/parallel.py `replay`)
+# from the parts of the walk run WALK_RUN: every job merges the parts as `slope analyze` does and traces its share of
+# the paths. `slope analyze` reads the downloaded files with SLOPE_EVENT_CASH (app/analysis/core.py `event_store`).
+on:
+  push:
+    branches: [replay-run]
+
+env:
+  RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
+  WALK_RUN: "36655732235"
+  JOBS: "20"
+  PROCS: "4"
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions:
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: walk-*
+          path: parts
+          merge-multiple: true
+          run-id: ${{ env.WALK_RUN }}
+          github-token: ${{ github.token }}
+      - run: ls parts | head; du -sh parts; nproc; free -g
+      - run: >
+          SLOPE_JEV_CACHE_ONLY=1 uv run python -m app.disputes.parallel replay $RUN_ID parts
+          ${{ matrix.job }} $JOBS $PROCS out 2> >(tee replay.log >&2)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: replay-${{ matrix.job }}
+          path: |
+            out/ev*.pkl
+            replay.log
+          retention-days: 3
+          compression-level: 0

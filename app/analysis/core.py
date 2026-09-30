@@ -276,7 +276,8 @@ class Reduction:
         self.min_cash[i], self.min_headroom[i], self.collected[i] = t.min_cash, t.min_headroom, t.collected
         if self.need is not None:
             below = t.cash < self.need
-            self.floor_day[i] = np.where(below.any(axis=1), below.argmax(axis=1), -1)
+            reached = below.any(axis=1) if mask is None else below.any(axis=1) & mask  # a draw off the path: weight 0
+            self.floor_day[i] = np.where(reached, below.argmax(axis=1), -1)
         cash, due, coll, fund, outs = on(t.cash), on(t.due), on(t.collections), on(t.fundings), on(t.outstanding)
         idx, pet = np.arange(self.days), on(t.petition)[:, None]
         by_day = (pet >= 0) & (pet <= idx)
@@ -443,6 +444,29 @@ BATCH = 8  # joint paths simulated together (engine.run_many)
 
 PACKED_BYTES = 256 * 2**20  # at most this much event cash kept (sparse) from the bin pass for the main pass
 
+_STORES: dict = {}
+
+
+def event_store(stress: bool) -> dict | None:
+    """(instance, steps) -> a path's event cash packed (`_pack`), as `event_trace` computes it on the analysis's draws
+    (stress: the adverse placement's), replayed on the runners (app/disputes/parallel.py `replay`) into the folder
+    SLOPE_EVENT_CASH. None where the variable is unset: every path is traced here."""
+    import os
+    import pickle
+    import zlib
+    from pathlib import Path
+
+    folder = os.environ.get("SLOPE_EVENT_CASH")
+    if not folder:
+        return None
+    if stress not in _STORES:
+        store: dict = {}
+        for f in sorted(Path(folder).rglob("ev*.pkl")):
+            part = pickle.loads(zlib.decompress(f.read_bytes()))
+            store.update(part["stress" if stress else "central"])
+        _STORES[stress] = store
+    return _STORES[stress]
+
 
 def _pack(ev: EventCash, kinds: bool = False) -> tuple:
     """A combo's event cash, sparse (most draws and days book nothing): flat index and value of each non-zero. kinds:
@@ -494,6 +518,29 @@ def _petition_at(line, t: Trajectories, petition: np.ndarray, peak: int) -> tupl
     np.add.at(contract, t.draw_rows[keep], booked[keep])
     window = (idx[None, :] >= pet[:, None] - PREFERENCE_DAYS) & before
     return contract - collected, (t.collections * window).sum(axis=1)
+
+
+def stress_rows(line, opening: int, setup: Setup, evs: list[EventCash]) -> list[dict]:
+    """Each path's event cash under adverse placement, run, and again with a petition on the day of its highest
+    expected outstanding balance (`Analysis._stress_rows`; the runners' replay computes the same)."""
+    if not evs:
+        return []
+    ts = run_many(line, opening, evs)
+    peaks = [int(np.argmax(t.outstanding.mean(axis=0))) for t in ts]
+    pts = [_petition_at(line, t, ev.petition, peak) for t, ev, peak in zip(ts, evs, peaks, strict=True)]
+    return [_stress_row(setup, t, pt, peak) for t, pt, peak in zip(ts, pts, peaks, strict=True)]
+
+
+def _stress_row(setup: Setup, t: Trajectories, pt: tuple[np.ndarray, np.ndarray], peak: int) -> dict:
+    stayed, preference = pt  # with a petition at the peak (_petition_at)
+    return {"min_cash_p5_cents": float(np.quantile(t.min_cash, 0.05)),
+            "min_cash_p50_cents": float(np.quantile(t.min_cash, 0.5)),
+            "uncollected_maturity_cents": float((t.stayed + t.uncollected).mean()),
+            "stayed_claim_cents": float(t.stayed.mean()), "lender_pv_cents": float(t.lender_pv.mean()),
+            "petition_at_peak": {"day": (setup.review + timedelta(days=peak + 1)).isoformat(),
+                                 "stayed_claim_mean_cents": float(stayed.mean()),
+                                 "stayed_claim_p95_cents": float(np.quantile(stayed, 0.95)),
+                                 "preference_exposed_mean_cents": float(preference.mean())}}
 
 
 class Analysis:
@@ -551,6 +598,7 @@ class Analysis:
             self.ops, self.line.need, self.opening + setup.exposure.cash_cents, line=self.line))  # cash incl. the line's history
         self._draws.prefixes = {}  # the combos run depth-first: each walks only the steps after the shared prefix
         self._cache: dict = {}
+        self._store = event_store(stress)  # each path's event cash, replayed on the runners (parallel.replay)
         self._packed: dict = {}  # (kind, index) -> the bin pass's event cash, sparse, for the main pass
         self._shared = len(model.order) > 1
         self.instrument = next((f for d in model.disputes.values() for f in d.financing if f.status != "superseded"),
@@ -566,6 +614,11 @@ class Analysis:
         Each combo's event cash is kept, sparse, for the main pass (within PACKED_BYTES)."""
         lo_ev, hi_ev = np.zeros(self.days), np.zeros(self.days)
         for i, c in enumerate(combos, lo):
+            got = self._store.get((c[0].instance_id, c[0].steps)) if self._store and len(c) == 1 else None
+            if got is not None:  # replayed: the range over every draw, measured on the runner
+                np.minimum(lo_ev, got[1], out=lo_ev)
+                np.maximum(hi_ev, got[2], out=hi_ev)
+                continue
             ev = self.event_cash(c)
             if self._packed_bytes < PACKED_BYTES:
                 self._packed[(kind, i)] = pk = _pack(ev, self.setup.cash_processing == "daily")
@@ -622,6 +675,8 @@ class Analysis:
         for p in combo:
             key = (p.instance_id, p.steps)
             e = self._cache.get(key)
+            if e is None and self._store and not self._draws.stress and (got := self._store.get(key)) is not None:
+                e = _unpack(got[0], DRAWS, self.days)  # replayed on the runners: on the path's own draws (mask)
             if e is None and p.instance_id == BANK:
                 e = bank_trace(self.instrument, p.steps, self.setup, self.m, self._draws, self.sens).events
             elif e is None:
@@ -637,23 +692,12 @@ class Analysis:
 
     def _stress_rows(self, combos: list[tuple[DisputePath, ...]]) -> list[dict]:
         """Each path under adverse placement, and again with a petition on the day of its highest expected
-        outstanding balance."""
-        evs = [self.event_cash(c) for c in combos]
-        ts = run_many(self.line, self.opening, evs)
-        peaks = [int(np.argmax(t.outstanding.mean(axis=0))) for t in ts]
-        pts = [_petition_at(self.line, t, ev.petition, peak) for t, ev, peak in zip(ts, evs, peaks, strict=True)]
-        return [self._stress_row(t, pt, peak) for t, pt, peak in zip(ts, pts, peaks, strict=True)]
-
-    def _stress_row(self, t: Trajectories, pt: tuple[np.ndarray, np.ndarray], peak: int) -> dict:
-        stayed, preference = pt  # with a petition at the peak (_petition_at)
-        return {"min_cash_p5_cents": float(np.quantile(t.min_cash, 0.05)),
-                "min_cash_p50_cents": float(np.quantile(t.min_cash, 0.5)),
-                "uncollected_maturity_cents": float((t.stayed + t.uncollected).mean()),
-                "stayed_claim_cents": float(t.stayed.mean()), "lender_pv_cents": float(t.lender_pv.mean()),
-                "petition_at_peak": {"day": (self.setup.review + timedelta(days=peak + 1)).isoformat(),
-                                     "stayed_claim_mean_cents": float(stayed.mean()),
-                                     "stayed_claim_p95_cents": float(np.quantile(stayed, 0.95)),
-                                     "preference_exposed_mean_cents": float(preference.mean())}}
+        outstanding balance. A path replayed on the runners brings its row (`stress_rows`, the same computation)."""
+        got = [self._store.get((c[0].instance_id, c[0].steps)) if self._store and len(c) == 1 else None
+               for c in combos]
+        todo = [c for c, g in zip(combos, got, strict=True) if g is None]
+        fresh = iter(stress_rows(self.line, self.opening, self.setup, [self.event_cash(c) for c in todo]))
+        return [g if g is not None else next(fresh) for g in got]
 
     # --- summaries ---------------------------------------------------------------------------------
 

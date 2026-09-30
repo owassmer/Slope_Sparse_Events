@@ -22,6 +22,7 @@ import resource
 import sys
 import tempfile
 import time
+import zlib
 from dataclasses import replace
 
 RSS_GB = 2**30 if sys.platform == "darwin" else 2**20  # ru_maxrss: bytes on macOS, KB on Linux
@@ -439,5 +440,101 @@ def shard(run_id: str, job: int, jobs: int, procs: int, out: str) -> None:
     _fork(fc, d, procs, out, sys.stderr, ks=range(job * procs, job * procs + procs))
 
 
+def replay_block(d, feed, setup, m: dict, sens: dict, basis, paths: list) -> dict:
+    """What `core.Analysis` reads of each path's event cash, for `paths`, each traced in their order on fresh draws as
+    the analysis builds them (`core.event_store`):
+    - central, on its own draws: the event cash on the draws the path follows (`path_mask`; elsewhere zero, where
+      every central figure weighs it zero), packed, and the per-day range of its cumulative event cash less
+      encumbrance over every draw (the histograms' span, `Analysis._event_range`);
+    - stress, on the adverse placement's draws: its row (`core.stress_rows`)."""
+    import numpy as np
+
+    from app.analysis import operating
+    from app.analysis.core import _pack, stress_rows
+    from app.analysis.engine import prepare
+    from app.analysis.events import BIG, Draws, EventCash, event_trace
+    from app.analysis.setup import DRAWS
+    from app.disputes.forecast import path_mask
+
+    daily = setup.cash_processing == "daily"
+    line = prepare(setup, operating.simulate_for(feed, setup))
+    central, stress = {}, {}
+    draws = Draws(DRAWS, basis=basis)
+    draws.prefixes = {}
+    for p in paths:
+        ev = event_trace(d, p, setup, m, draws, sens).events
+        cum = np.cumsum(ev.cash - ev.lock, axis=1)
+        rng = (np.minimum(cum.min(axis=0), 0), np.maximum(cum.max(axis=0), 0))
+        mk = path_mask(p, DRAWS)
+        if mk is not None:  # new arrays: the chain's are shared read-only (copy-on-write)
+            on2 = mk[:, None]
+
+            def keep(a, off=0, on2=on2):
+                return np.where(on2 if a.ndim == 2 else on2[:, 0], a, off).astype(a.dtype)
+            ev = EventCash(keep(ev.cash), keep(ev.lock), keep(ev.capacity), keep(ev.petition, -1),
+                           None if ev.kinds is None else {k: keep(a) for k, a in ev.kinds.items()},
+                           None if ev.incurred is None else {k: keep(a, BIG) for k, a in ev.incurred.items()},
+                           None if ev.proceeds is None else {k: keep(a) for k, a in ev.proceeds.items()})
+        central[(p.instance_id, p.steps)] = (_pack(ev, daily), *rng)
+    draws = Draws(DRAWS, stress=True, basis=basis)
+    draws.prefixes = {}
+    for p in paths:
+        ev = event_trace(d, p, setup, m, draws, sens).events
+        stress[(p.instance_id, p.steps)] = stress_rows(line, feed.available_cents, setup, [ev])[0]
+    return {"central": central, "stress": stress}
+
+
+def replay(run_id: str, parts: str, job: int, jobs: int, procs: int, out: str) -> None:
+    """The analysis's event cash for this machine's share of the merged paths, on runners: the parts in `parts` merged
+    as `slope analyze` merges them (`walk`), the paths split into jobs*procs contiguous blocks (depth-first order, so
+    each process's traces resume from shared prefixes), each path traced as `core.Analysis.event_cash` traces it, on
+    the analysis's draws and on the adverse placement's (`core.stress`). Written to out/ev<block>.pkl, which
+    `core.event_store` reads (SLOPE_EVENT_CASH)."""
+    from pathlib import Path
+
+    from app.analysis.build import basis_for, run_context
+    from app.disputes.forecast import PENDING, Forecaster
+
+    t0 = time.time()
+    ctx = run_context(run_id, Path("runs/recorded"))
+    setup = ctx["setup"]
+    basis = basis_for(ctx["feed"], setup)
+    fc = Forecaster(ctx["live"], ctx["findings"], borrower=ctx["borrower"], review=ctx["review"],
+                    horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup, basis=basis,
+                    slots=ctx["slots"], model=ctx["m"], sens=None)
+    d = next(x for x, _ in fc.ordered() if x.stage == PENDING and x.borrower_role == "debtor")
+    os.environ["SLOPE_WALK_PARTS"] = parts
+    paths = walk(fc, d, 1)
+    n, blocks = len(paths), jobs * procs
+    print(f"{time.time() - t0:7.0f}s replay: {n} merged paths", file=sys.stderr, flush=True)
+    os.makedirs(out, exist_ok=True)
+    pids = []
+    for b in range(job * procs, job * procs + procs):
+        pid = os.fork()
+        if pid:
+            pids.append(pid)
+            continue
+        code = 1
+        try:
+            mine = paths[b * n // blocks:(b + 1) * n // blocks]
+            res = replay_block(d, ctx["feed"], setup, fc.m, fc.sens, basis, mine)
+            with open(os.path.join(out, f"ev{b}.pkl"), "wb") as fh:  # zlib: the arrays are mostly small integers
+                fh.write(zlib.compress(pickle.dumps(res, protocol=pickle.HIGHEST_PROTOCOL), 1))
+            print(f"{time.time() - t0:7.0f}s replay block {b}: {len(mine)} paths", file=sys.stderr, flush=True)
+            code = 0
+        except BaseException:  # noqa: BLE001 (reported to the parent through the exit code and the log)
+            import traceback
+
+            traceback.print_exc()
+        finally:
+            os._exit(code)
+    failed = [p for p in pids if os.waitpid(p, 0)[1] != 0]
+    if failed:
+        raise SystemExit(f"replay: {len(failed)} processes failed")
+
+
 if __name__ == "__main__":
-    shard(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]), sys.argv[5])
+    if sys.argv[1] == "replay":
+        replay(sys.argv[2], sys.argv[3], int(sys.argv[4]), int(sys.argv[5]), int(sys.argv[6]), sys.argv[7])
+    else:
+        shard(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]), sys.argv[5])
