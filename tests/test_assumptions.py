@@ -18,6 +18,14 @@ from app.disputes.rules import load_model
 SNAP = "akoustis_20240514"
 RUN = ROOT / "runs" / "recorded" / "akoustis_20240514-agent_plus_jev-20260928T052641Z"
 REVIEW = date(2024, 5, 14)
+# Knobs retired since this run was recorded on 28 September 2026. Their own
+# saved metadata is the historical contract; today's declarations cannot
+# retrospectively rename or remove a saved result.
+RETIRED_CHANGES = {
+    "raise_capacity_no_judgment_low": {"scenario": "central", "sens": {"raise_capacity": True}},
+    "raise_after_judgment_available": {"scenario": "central", "sens": {"raise_capacity_after_adverse_judgment": True}},
+    "lower_award_high": {"scenario": "central", "sens": {"lower_award_amount": True}},
+}
 
 
 def _inputs() -> dict:
@@ -77,9 +85,22 @@ def test_the_central_entry_equals_the_runs_page() -> None:
 
 @pytest.mark.skipif(not (RUN / "assumptions.json").exists(), reason="the lead run's assumptions")
 def test_each_saved_variant_records_only_its_knob() -> None:
-    saved = {v["id"]: v for v in json.loads((RUN / "assumptions.json").read_text())["variants"]}
-    for v in declared(SNAP, _inputs(), load_model(SNAP)):
-        assert saved[v["id"]]["change"] == {"scenario": v["scenario"], "sens": v["sens"]}
+    # A recorded run contains the variants declared when it was made. New
+    # declarations do not retrospectively add results to that saved run.
+    saved = json.loads((RUN / "assumptions.json").read_text())["variants"]
+    ids = [v["id"] for v in saved]
+    assert ids and ids[0] == "central" and len(ids) == len(set(ids))
+    if (RUN / "page.json").exists():
+        page = json.loads((RUN / "page.json").read_text())
+        assert ids == [v["id"] for v in page["assumptions"]]
+    current = {v["id"]: v for v in declared(SNAP, _inputs(), load_model(SNAP))}
+    for v in saved:
+        if v["id"] in current:
+            d = current[v["id"]]
+            expected = {"scenario": d["scenario"], "sens": d["sens"]}
+        else:
+            expected = RETIRED_CHANGES[v["id"]]
+        assert v["change"] == expected, v["id"]
 
 
 @pytest.mark.skipif(not (RUN / "page.json").exists(), reason="the lead run's page")

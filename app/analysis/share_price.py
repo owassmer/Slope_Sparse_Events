@@ -13,6 +13,7 @@ from functools import lru_cache
 import numpy as np
 from numba import njit
 
+from app.analysis.native import native_function
 from app.config import KIT
 
 ROW = re.compile(r"<tr><td>(\d{4}-\d\d-\d\d)</td><td>[\d.]+</td><td>[\d.]+</td><td>[\d.]+</td><td>([\d.]+)</td>")
@@ -36,6 +37,15 @@ def _prices(owed, V, notes, s, rate, T, shares):
     return out
 
 
+_prices_numba = _prices
+
+
+def _prices(owed, V, notes, s, rate, T, shares):
+    kernel = native_function("prices")
+    return (kernel(owed, V, notes, s, rate, T, shares) if kernel is not None
+            else _prices_numba(owed, V, notes, s, rate, T, shares))
+
+
 def closes(table: str) -> list[float]:
     """The closes of the kit's daily price table, in date order."""
     rows = ROW.findall((KIT / table).read_text())
@@ -44,6 +54,12 @@ def closes(table: str) -> list[float]:
 
 def equity_vol(px: list[float]) -> float:
     """Annualised (x 252) sample standard deviation of the daily log returns."""
+    kernel = native_function("equity_vol")
+    return kernel(px) if kernel is not None else equity_vol_py(px)
+
+
+def equity_vol_py(px: list[float]) -> float:
+    """Independent Python reference for the native sample-volatility calculation."""
     r = [math.log(px[i] / px[i - 1]) for i in range(1, len(px))]
     m = sum(r) / len(r)
     return math.sqrt(sum((a - m) ** 2 for a in r) / (len(r) - 1) * 252)
@@ -62,6 +78,11 @@ class Merton:
 
     def call(self, V: float, K: float, s: float) -> tuple[float, float]:
         """Black-Scholes call value on V at strike K (cents) and N(d1)."""
+        kernel = native_function("merton_call")
+        return kernel(V, K, s, self.rate, self.T) if kernel is not None else self.call_py(V, K, s)
+
+    def call_py(self, V: float, K: float, s: float) -> tuple[float, float]:
+        """Original scalar Black-Scholes computation, retained as the reference."""
         sq = s * math.sqrt(self.T)
         d1 = (math.log(V / K) + (self.rate + s * s / 2) * self.T) / sq
         return V * _n(d1) - K * math.exp(-self.rate * self.T) * _n(d1 - sq), _n(d1)
@@ -69,10 +90,18 @@ class Merton:
     def calibrated(self) -> Merton:
         """Solve V and the asset volatility (KMV): E(V, s) = E0 and equity vol x E0 = N(d1) x s x V (Newton on V
         with the volatility fixed point, to machine precision)."""
+        kernel = native_function("merton_calibrate")
+        if kernel is not None:
+            V, s = kernel(self.shares, self.close_cents, self.notes_cents, self.rate, self.T, self.equity_vol)
+            return Merton(**{**self.__dict__, "V": V, "asset_vol": s})
+        return self.calibrated_py()
+
+    def calibrated_py(self) -> Merton:
+        """Original fixed-point/Newton calibration, independent of native functions."""
         E0, K, sE = self.shares * self.close_cents, self.notes_cents, self.equity_vol
         V, s = E0 + K, sE * E0 / (E0 + K)
         for _ in range(10_000):
-            e, nd1 = self.call(V, K, s)
+            e, nd1 = self.call_py(V, K, s)
             V2 = V + (E0 - e) / max(nd1, 1e-9)
             s2 = sE * E0 / (nd1 * V2)
             if abs(V2 - V) < 1e-9 * V and abs(s2 - s) < 1e-15:
@@ -87,9 +116,10 @@ class Merton:
         copied, each run of one amount along a row priced once by `_prices`); `price_py` is the Python it
         reproduces."""
         a = np.asarray(owed_cents, dtype=np.int64)
-        if a.ndim != 2:
-            return self._price_flat(a)
         from app.analysis import k_owed, shadow
+        if a.ndim != 2:
+            fast = self._price_flat(a)
+            return shadow.check("merton_price", fast, self.price_py(owed_cents)) if shadow.ON else fast
         fast = k_owed.merton_grid(np.ascontiguousarray(a), self.V, self.notes_cents, self.asset_vol, self.rate, self.T,
                                   self.shares)
         return shadow.check("merton_price", fast, self.price_py(owed_cents)) if shadow.ON else fast
@@ -103,14 +133,15 @@ class Merton:
             rep = np.fromiter((first.setdefault(r.tobytes(), i) for i, r in enumerate(a)), dtype=np.int64,
                               count=len(a))
             if len(first) == len(a):
-                return self._price_flat(a)
+                return self._price_flat(a, reference=True)
             reps = np.fromiter(first.values(), dtype=np.int64, count=len(first))  # increasing
-            return self._price_flat(a[reps])[np.searchsorted(reps, rep)]
-        return self._price_flat(a)
+            return self._price_flat(a[reps], reference=True)[np.searchsorted(reps, rep)]
+        return self._price_flat(a, reference=True)
 
-    def _price_flat(self, a: np.ndarray) -> np.ndarray:
+    def _price_flat(self, a: np.ndarray, *, reference: bool = False) -> np.ndarray:
         u, inv = np.unique(a, return_inverse=True)
-        vals = _prices(u, self.V, self.notes_cents, self.asset_vol, self.rate, self.T, self.shares)
+        kernel = _prices_numba if reference else _prices
+        vals = kernel(u, self.V, self.notes_cents, self.asset_vol, self.rate, self.T, self.shares)
         return vals[inv].reshape(a.shape)
 
     def _price1(self, owed: int) -> float:

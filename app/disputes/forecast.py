@@ -32,6 +32,7 @@ from typing import Protocol
 
 import numpy as np
 
+from app.analysis.native import native_function
 from app.disputes.rules import load_model
 from app.domain.investigation import AtomicFinding, DisputeInstance, SemanticObservation
 from app.domain.values import usd
@@ -122,6 +123,9 @@ def fmt(d: date) -> str:
 
 def composite(conjunctions: list[list[tuple[str, str]]]) -> str:
     """A composite edge: P(yes) = sum over disjoint conjunctions of the product of their (node, branch) answers."""
+    native = native_function("walk_composite")
+    if native is not None:
+        return native(conjunctions)
     return COMPOSITE + json.dumps([[list(a) for a in c] for c in conjunctions], separators=(",", ":"))
 
 
@@ -320,6 +324,10 @@ def situation_class(row: dict, live: np.ndarray | None = None) -> np.ndarray | N
     why it is unavailable) and whether cash covers the amount owed, as one tag. '' where the question is not live on
     the trajectory (`live`: the question's own rule, `Forecaster.live`; else dated before the horizon's end and any
     petition); None where the row has no question-state snapshot (a 20 Jun question)."""
+    native = native_function("walk_situation_class")
+    if native is not None:
+        classes = native(row, live)
+        return None if classes is None else np.asarray(classes, dtype=object)
     from app.analysis.events import BIG
 
     s, day = row.get("sit"), row.get("day")
@@ -356,6 +364,9 @@ def group_classes(cls: np.ndarray | None, groups: np.ndarray) -> np.ndarray:
     """A grouped question's classes (Owen's ruling on within-path grouping, 29 Sep 2026, carried per draw as
     QUESTIONS §1 Grouping carries situations): each draw where it is asked (groups >= 0) in its situation class and
     its option group ('.g<group>'), so each class is one question with the group's own answers."""
+    native = native_function("walk_group_classes")
+    if native is not None:
+        return np.asarray(native(None if cls is None else cls.tolist(), groups.tolist()), dtype=object)
     out = np.full(len(groups), "", dtype=object)
     j = np.flatnonzero(groups >= 0)
     if j.size:
@@ -384,6 +395,10 @@ def qcls_best(entries, steps: tuple) -> np.ndarray | None:
 
 def class_entry(k: str, cls: np.ndarray, mask: np.ndarray | None) -> tuple:
     """A path's `classes` entry for question k from its per-draw classes, on the draws the path follows."""
+    native = native_function("walk_class_entry")
+    if native is not None:
+        key, tags, codes = native(k, cls.tolist(), None if mask is None else mask.tolist())
+        return key, tuple(tags), None if codes is None else bytes(codes)
     c = cls if mask is None else cls[mask]
     tags = tuple(sorted({x for x in c if x}))
     if len(tags) == 1 and all(c):  # one class, live on every draw
@@ -418,6 +433,9 @@ def expand_classes(paths: list, known, n: int, dead=frozenset(), first: dict | N
     same result, and one class for all of the question's branches keeps each draw's answers summing to one. A class
     live on no path of the tree (`dead`: the facts found no live trajectory for it) is read the same way, everywhere.
     n: the draws."""
+    native = native_function("walk_expand_classes")
+    if native is not None:
+        return [_from_native_path(p) for p in native([_to_native_path(p) for p in paths], list(known), n, list(dead), first)]
     if first is None:
         first = class_firsts(known, dead)
     out = []
@@ -496,6 +514,70 @@ def unpack_row(b: bytes) -> dict:
         return row
     ix, n = row.pop("__ix__"), row.pop("__n__")
     return {k: _whole(v, ix, n, k) for k, v in row.items()}
+
+
+def record_digest(row: dict) -> bytes:
+    """Typed contents of a stored question record, independent of object aliases.
+
+    Pickle preserves shared references. Hashing its bytes made two identical
+    records at one prefix look different when workers' caches happened to reuse
+    different array objects. The stored row's values, including dtype, shape,
+    float bits, sequence type and dictionary order, define the record instead.
+    ``pack_row`` still owns the live-row filtering and canonical empty fields.
+    """
+    import xxhash
+
+    h = xxhash.xxh3_128()
+
+    def framed(data: bytes) -> None:
+        h.update(str(len(data)).encode() + b":" + data)
+
+    def visit(v) -> None:
+        if isinstance(v, np.ndarray):
+            h.update(b"array")
+            framed(v.dtype.str.encode())
+            framed(repr(v.shape).encode())
+            if v.dtype.hasobject:
+                for x in v.ravel().tolist():
+                    visit(x)
+            else:
+                framed(np.ascontiguousarray(v).tobytes())
+        elif isinstance(v, dict):
+            h.update(b"dict")
+            framed(str(len(v)).encode())
+            for k, value in v.items():
+                visit(k)
+                visit(value)
+        elif isinstance(v, (list, tuple)):
+            h.update(b"list" if isinstance(v, list) else b"tuple")
+            framed(str(len(v)).encode())
+            for value in v:
+                visit(value)
+        elif isinstance(v, np.generic):
+            h.update(b"numpy")
+            framed(v.dtype.str.encode())
+            framed(v.tobytes())
+        elif isinstance(v, float):
+            h.update(b"float")
+            framed(np.float64(v).tobytes())
+        elif isinstance(v, bool):
+            h.update(b"true" if v else b"false")
+        elif isinstance(v, int):
+            h.update(b"int")
+            framed(str(v).encode())
+        elif isinstance(v, str):
+            h.update(b"str")
+            framed(v.encode())
+        elif isinstance(v, bytes):
+            h.update(b"bytes")
+            framed(v)
+        elif v is None:
+            h.update(b"none")
+        else:
+            raise TypeError(f"unsupported question-record value {type(v).__name__}")
+
+    visit(unpack_row(pack_row(row)))
+    return h.digest()
 
 
 class _Lazy(Mapping):
@@ -995,15 +1077,21 @@ class Forecaster:
                 if x is None:
                     x = e["x"][(c, steps[j])] = self._divergence(steps[:j], c, steps[j], chain)
                 div, wait = x
-                if wait:  # the waiting step's own booking day in the walked trace (N1's answer books from the close)
-                    f = (v.fired or {}).get(j, BIG)
-                    lag = int(self.m["parameters"]["offering_price"]["close_days"]) if steps[j][0] == "offering" else 0
-                    div = np.minimum(div, np.where(f < BIG, f + lag, BIG))
-                if full:
-                    ok = bool((div >= BIG).all())
+                native = native_function("walk_cache_valid")
+                if native is not None:
+                    fired = (v.fired or {}).get(j, BIG) if wait else None
+                    lag = int(self.m["parameters"]["offering_price"]["close_days"]) if wait and steps[j][0] == "offering" else 0
+                    ok = native(v, div, full, self.days, fired, lag)
                 else:
-                    t = v.day[-1]
-                    ok = v.as_of is not None and bool(np.where(t < self.days, v.as_of < div, div >= BIG).all())
+                    if wait:  # the waiting step's own booking day in the walked trace (N1's answer books from the close)
+                        f = (v.fired or {}).get(j, BIG)
+                        lag = int(self.m["parameters"]["offering_price"]["close_days"]) if steps[j][0] == "offering" else 0
+                        div = np.minimum(div, np.where(f < BIG, f + lag, BIG))
+                    if full:
+                        ok = bool((div >= BIG).all())
+                    else:
+                        t = v.day[-1]
+                        ok = v.as_of is not None and bool(np.where(t < self.days, v.as_of < div, div >= BIG).all())
                 if ok:
                     return replace(v, served=True)
         return None
@@ -1030,6 +1118,9 @@ class Forecaster:
         """Of the conditions an actor weighs, those holding at the decision on every trajectory where it is asked, and
         those holding on none. A condition holding on some trajectories only stays unstated. tr: the prefix on the
         path's trajectories (`masked`)."""
+        native = native_function("walk_fc_situation")
+        if native is not None:
+            return native(self, d, steps, conds, tr)
         tr = tr if tr is not None else self.trace(d, steps)
         if not conds or tr.marks is None:
             return set(), set(conds)
@@ -1044,6 +1135,9 @@ class Forecaster:
     def arises(self, d: DisputeInstance, steps: tuple, step: tuple) -> bool:
         """Whether the decision can fall inside the horizon on some trajectory of the path (else its window is
         closed and it is not asked)."""
+        native = native_function("walk_fc_arises")
+        if native is not None:
+            return native(self, d, steps, step)
         tr = self.trace(d, steps + (step,))
         return bool((tr.day[-1] < self.days).any())
 
@@ -1091,7 +1185,10 @@ class Forecaster:
 
     def bank_paths(self) -> list[DisputePath]:
         """The bank view's paths (none without the operating draws)."""
-        return _BankWalk(self).run() if self.draws is not None else []
+        if self.draws is None:
+            return []
+        native = native_function("walk_bank")
+        return native(self) if native is not None else _BankWalk(self).run()
 
     async def judge_bank(self, judge: ForecastJudge) -> dict[str, Judgment]:
         async def one(n: Node) -> Judgment:
@@ -1125,6 +1222,9 @@ class Forecaster:
     def pay_possible(self, d: DisputeInstance, steps: tuple, step: tuple) -> bool:
         """Arithmetic: 'pay' stays unless the amount owed exceeds available cash on every trajectory of the path at
         the decision date."""
+        native = native_function("walk_pay_possible")
+        if native is not None:
+            return native(self, d, steps, step)
         tr = self.trace(d, steps + (step,))
         inside = tr.day[-1] < self.days
         return bool((inside & (tr.cash[-1] >= tr.owed[-1]) & (tr.owed[-1] > 0)).any())
@@ -1160,6 +1260,9 @@ class Forecaster:
         most cash any trajectory holds, so pay, a self-funded bond, the levy and the settlement bound are identical;
         an increase over the entered judgment is its own class because its second writ, on the increase once enforceable, can move cash).
         tests/test_chains.py checks every merged class is cash- and date-identical; Jev is told the class's range."""
+        native = native_function("walk_ruling_classes")
+        if native is not None:
+            return native(self, d)
         from app.analysis.events import ruling_amounts
 
         k = self.merits(d)
@@ -1233,6 +1336,9 @@ class Forecaster:
         - cuts: nothing, one further cut in each band below the top line (its midpoint), the reach and top lines, and
           the notes' threshold wherever a band would straddle it.
         Returns the lines and the bands, each band with the amount it books (the top band: the claimant's amount)."""
+        native = native_function("walk_verdict_lines")
+        if native is not None:
+            return native(self, d, inflows)
         from app.analysis.events import BIG, Chain, Trace, pending_template, verdict_amount
 
         key = (d.instance_id, None if inflows is None else hash(np.asarray(inflows).tobytes()))
@@ -1286,6 +1392,9 @@ class Forecaster:
         initiated the day the last closes, on the Chain's own terms and ledger (January's gross, or the shares left
         times the price), until no capacity is left or the next would close after the horizon. This bounds every
         path's offering proceeds by each day: a later occasion only finds fewer shares left and closes later."""
+        native = native_function("walk_equity_inflows")
+        if native is not None:
+            return native(self, d)
         from app.analysis.events import BIG, Chain
 
         if "value" not in self.m["parameters"].get("share_ledger", {}):
@@ -1324,6 +1433,9 @@ class Forecaster:
         (1(c), 1(d), at most twice 1(b)) only where they can move the total across a line. Each class is labelled
         'no_award' or 'award:<booked>:<band low>:<band high|top>' (an exact class: low = high = booked); `verdict_asks` holds each amount question's item,
         threshold and the total established before it."""
+        native = native_function("walk_verdict_classes")
+        if native is not None:
+            return native(self, d)
         from app.analysis.events import pval
 
         form, lines = self.m["case_verdict_form"], self.verdict_lines(d, self.equity_inflows(d))
@@ -1446,7 +1558,8 @@ class Forecaster:
         if d.borrower_role != "debtor" or d.stage not in ("post_trial", "judgment_entered", "enforcement",
                                                            "appeal_filed", "appeal_pending", PENDING):
             return [DisputePath(instance_id=d.instance_id, steps=(), outcome="outside_chains", edges=())]
-        W = _Walk(self, d)
+        walker = native_function("NativeWalk") or _Walk
+        W = walker(self, d)
         if not W.pend:
             return W.run()
         while True:  # a pending claim: walk again where a whole path shows equity the floor's prefix did not
@@ -1460,7 +1573,7 @@ class Forecaster:
                 return merge_equivalent(out, W.keys, {k: n.branches for k, n in self.nodes.items()})
             self._raise_open |= more
             self.nodes, self.facts, self._late_seen, self.classed, self._qcls, self._qcanon = kept
-            W = _Walk(self, d)
+            W = walker(self, d)
 
     def all_paths(self) -> dict[str, dict[str, list[DisputePath]]]:
         return {d.instance_id: {"": self.paths(d)} for d, _ in self.ordered()}
@@ -1605,8 +1718,13 @@ class Forecaster:
                       "triggers": info["triggers"], "raise_offer": info["raise_offer"], "sit": tr.situations.get(i),
                       "marks": tr.marks, "groups": tr.groups.get(i)})
             if n.node == "financing_at_floor" and "noraise" in n.context.split("|"):
-                pet = np.where(row["petition"] < 0, np.iinfo(np.int64).max, row["petition"])
-                if ((row["day"] < self.days) & (row["day"] < pet) & (info["raise_offer"] > 0)).any():
+                native = native_function("walk_raise_available")
+                if native is not None:
+                    available = native(row, info["raise_offer"], self.days)
+                else:
+                    pet = np.where(row["petition"] < 0, np.iinfo(np.int64).max, row["petition"])
+                    available = ((row["day"] < self.days) & (row["day"] < pet) & (info["raise_offer"] > 0)).any()
+                if available:
                     self._raise_more.add(steps[:i])
             # once per history and situation class: the decision day's facts, not the future's
             got = self._split((k,), as_of(row), lambda key, r, i=i: self._keep_late(key, steps[:i], r),
@@ -1619,9 +1737,7 @@ class Forecaster:
     def late_key(k: str, prefix: tuple, row: dict) -> tuple:
         """What `_keep_late` keeps a record once per: the node, the prefix and the digest of the record as stored
         (`pack_row`: what a question can read of it)."""
-        import xxhash
-
-        return k, prefix, xxhash.xxh3_128_digest(pack_row(row))
+        return k, prefix, record_digest(row)
 
     def _keep_late(self, k: str, prefix: tuple, row: dict) -> None:
         """Keep a whole path's record for a node once per distinct record at each prefix that asks it."""
@@ -1633,6 +1749,9 @@ class Forecaster:
     def live(self, n: Node, row: dict) -> np.ndarray:
         """The trajectories where the question's situation holds: the decision falls inside the analysis period,
         before any petition, and (for a question about an unpaid judgment) an amount is still owed."""
+        native = native_function("walk_live")
+        if native is not None:
+            return native(self, n, row)
         day = row["day"]
         pet = np.where(row["petition"] < 0, np.iinfo(np.int64).max, row["petition"])
         ok = (day < self.days) & (day < pet)  # a path's rows outside its mask are not taken (`masked`)
@@ -2087,6 +2206,9 @@ def merge_equivalent(paths: list[DisputePath], keys: list, branches: dict) -> li
     groups: dict = {}
     for i, k in enumerate(keys):
         groups.setdefault(k, []).append(i)
+    native = native_function("walk_merge")
+    if native is not None:
+        return [_from_native_path(p) for p in native([_to_native_path(p) for p in paths], list(groups.values()), branches)]
     out = []
     for i, k in enumerate(keys):
         if groups[k][0] != i:
@@ -2229,6 +2351,9 @@ class _Walk:
         return tuple(out)
 
     def situation(self, s: _S, probe, name: str, ctx) -> tuple[str, ...]:
+        native = native_function("walk_situation")
+        if native is not None:
+            return tuple(native(self, s, probe, name, ctx))
         conds = list(self.fc.spec[name].get("situation", []))
         if not conds:
             return ()
@@ -2242,6 +2367,9 @@ class _Walk:
         return out
 
     def _tags(self, s: _S, conds: list, ctx, tr: _Prefix, at) -> tuple[str, ...]:
+        native = native_function("walk_tags")
+        if native is not None:
+            return tuple(native(self, s, conds, ctx, tr, at))
         held, never = self.fc.situation(self.d, s.steps + at, conds, tr=tr)
         out = []
         for c in conds:
@@ -2275,6 +2403,9 @@ class _Walk:
     def _rows(self, steps) -> tuple:
         """Per step, the trajectories the path follows after it (`mask_of` at each grouped step; None: every draw).
         SLOPE_ROWS=0: None (every trace on every draw, the reference the row subsets are checked against)."""
+        native = native_function("walk_rows")
+        if native is not None:
+            return native(self, steps)
         if ROWS_OFF:
             return None
         out, m = [], None
@@ -2303,6 +2434,9 @@ class _Walk:
     def walk_groups(self, steps) -> np.ndarray:
         """Per trajectory, the option group (events.Chain.option_group) the last step is asked of, or -1 where it is
         not asked: outside the horizon, after a petition, or not in the question's situation."""
+        native = native_function("walk_groups")
+        if native is not None:
+            return native(self, steps)
         tr = self._raw(steps)
         if tr.groups is None:
             return np.full(len(tr.petition), -1, dtype=np.int8)
@@ -2314,6 +2448,9 @@ class _Walk:
         """The trajectories the path follows (None: every draw): at each grouped step ('@<group>=<answer>'), those of
         the group it took, among its parent's. The groups are measured on the parent prefix with the question's probe,
         so a step's children partition its parent's trajectories."""
+        native = native_function("walk_mask")
+        if native is not None:
+            return native(self, steps)
         from app.analysis.events import step_group
 
         steps = tuple(steps)
@@ -2335,6 +2472,9 @@ class _Walk:
 
     def inside(self, steps) -> bool:
         """Whether the last step's decision falls inside the horizon, before any petition, on some trajectory."""
+        native = native_function("walk_inside")
+        if native is not None:
+            return native(self, steps)
         tr = self._trace(steps)
         t = tr.day[-1]
         pet = np.where(tr.petition < 0, np.iinfo(np.int64).max, tr.petition)
@@ -2343,6 +2483,9 @@ class _Walk:
     def arises(self, s: _S, step) -> bool:
         """Whether the decision falls inside the horizon on some trajectory; for a pending claim (4.1.0), whose cash
         floor may be asked first, also before any petition (`inside`)."""
+        native = native_function("walk_arises")
+        if native is not None:
+            return native(self, s, step)
         return self.inside(s.steps + (step,)) if self.pend else self.fc.arises(self.d, s.steps, step)
 
     def take(self, s: _S, step, edge, keys=(), **kw) -> _S:
@@ -2410,6 +2553,9 @@ class _Walk:
         return self.out
 
     def _entered_class(self) -> str:
+        native = native_function("walk_entered_class")
+        if native is not None:
+            return native(self)
         from app.analysis.events import entered_cents
 
         total = entered_cents(self.d)
@@ -2475,6 +2621,9 @@ class _Walk:
         execution opens books nothing inside it: the stay (D4, J3) is approved, and its security locked, only on or
         after the horizon's end or a petition, and so is the levy an early registration (J4) would bring (so no
         levy-day response either)."""
+        native = native_function("walk_q1_opens_nothing")
+        if native is not None:
+            return native(self, s, yes)
         from app.analysis.events import BIG, pval
 
         q = self._trace(s.steps + (yes,), True)  # the petition after the execution day bounds them
@@ -2573,6 +2722,9 @@ class _Walk:
     def group_codes(self, steps) -> np.ndarray:
         """Per trajectory, the option group the last step (a probe) is asked of on the path's trajectories (-1: not
         asked, or not on the path)."""
+        native = native_function("walk_group_codes")
+        if native is not None:
+            return native(self, steps)
         g = self.walk_groups(steps)
         m = self.mask_of(steps)
         return g if m is None else np.where(m, g, -1).astype(np.int8)
@@ -2580,6 +2732,9 @@ class _Walk:
     def option_groups(self, steps) -> list[int]:
         """The option groups (events.Chain.option_group) among the path's trajectories where the last step (a probe)
         falls, -1 for those where it is not asked."""
+        native = native_function("walk_option_groups")
+        if native is not None:
+            return native(self, steps)
         g = self.walk_groups(steps)
         m = self.mask_of(steps)
         return sorted({int(x) for x in (g if m is None else g[m])})
@@ -2729,6 +2884,9 @@ class _Walk:
         chains one step past the shared prefix (events.Chain.divergence: what later questions read); only where they
         agree the two traces booked to the horizon: their event cash and petitions (the digest; it also catches a
         waiting step's branch, which books on its own day), petition causes and marks."""
+        native = native_function("walk_same_after")
+        if native is not None:
+            return native(self, s, a, b, m)
         from app.analysis.events import BIG, canon, event_chain
 
         if self.d is None:  # the ordinary view (a handful of paths): on every draw
@@ -2838,6 +2996,9 @@ class _Walk:
     def reduced_band(self, s: _S) -> tuple[int, int, int] | None:
         """The band below the award's on the path (J1b lines), as (low, high, booked midpoint); None where the award
         is in the lowest positive band or no award was booked by band."""
+        native = native_function("walk_reduced_band")
+        if native is not None:
+            return native(self, s)
         label = next((st[2] for st in s.steps if st[0] == "verdict"), "")
         if not label.startswith("award:"):
             return None
@@ -2900,6 +3061,9 @@ class _Walk:
         self.settle(s, "I3", self.enforce)
 
     def levy_first(self, s: _S) -> bool:
+        native = native_function("walk_levy_first")
+        if native is not None:
+            return native(self, s)
         levy = s.steps + (("enforce", "post", "levy"),)
         lv = self._trace(levy + ((self.resp, "post", self.quiet),)).day[-1]
         w = self._trace(s.steps + (("settle", "I3", "no"),)).day[-1]
@@ -3131,6 +3295,9 @@ class _Walk:
         horizon before any petition, a declaration would take effect (delisting + holder_notice_lag_days) only on or
         after the horizon's end. Everything it brings is dated from then (the notes due, D9's and H3's petitions, the
         coupon it replaces), so it books nothing inside the horizon, and no later question can read it."""
+        native = native_function("walk_declared_after")
+        if native is not None:
+            return native(self, s, probe)
         from app.analysis.events import BIG, pval
 
         tr = self._trace(s.steps + (probe,))
@@ -3251,6 +3418,9 @@ class _Walk:
     def _closes_after(self, s: _S, occasion: str) -> bool:
         """Whether, on every trajectory of the path, the offering initiated at `occasion` closes (initiation +
         close_days, events.Chain.offering_terms) on or after the horizon's end or a petition."""
+        native = native_function("walk_closes_after")
+        if native is not None:
+            return native(self, s, occasion)
         from app.analysis.events import BIG
 
         tr = self._trace(s.steps + (("offering", occasion, "no"),), True)  # a petition before the close
@@ -3351,12 +3521,16 @@ class _Walk:
             self.keys.append(self.equivalence(s, outcome, tr, m))
             # the range of the path's cumulative event cash less encumbrance on its draws, per day (the analysis's
             # histogram bins, core.Analysis._bins, read the tree's range: pool.control merges each process's)
-            cum = np.cumsum(tr.events.cash - tr.events.lock, axis=1)
-            cum = cum if m is None or tr.rows is not None else cum[m]  # on the rows already (events.Trace.rows)
-            if cum.size:
-                r = self.fc.__dict__.setdefault("ev_range", [np.zeros(self.N), np.zeros(self.N)])
-                np.minimum(r[0], cum.min(axis=0), out=r[0])
-                np.maximum(r[1], cum.max(axis=0), out=r[1])
+            native = native_function("walk_event_range")
+            if native is not None:
+                native(self.fc, tr, m)
+            else:
+                cum = np.cumsum(tr.events.cash - tr.events.lock, axis=1)
+                cum = cum if m is None or tr.rows is not None else cum[m]  # on the rows already (events.Trace.rows)
+                if cum.size:
+                    r = self.fc.__dict__.setdefault("ev_range", [np.zeros(self.N), np.zeros(self.N)])
+                    np.minimum(r[0], cum.min(axis=0), out=r[0])
+                    np.maximum(r[1], cum.max(axis=0), out=r[1])
         late = self.fc.record_late(self.d, s.steps, s.late, m, tr=tr) if s.late else {}
         self.out.append(DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome=outcome, edges=s.edges,
                                     mask=pack_mask(m), classes=self._classes_of(s.edges, s.steps, m, late or {})))
@@ -3366,6 +3540,9 @@ class _Walk:
         array the engine and the analysis read (the event cash by kind, encumbrance, credit capacity, incurred days,
         offering proceeds, petition day and cause, and the marks the outcome classes and offering closes read, inside
         the horizon), with its verdict class, post-trial ruling and outcome."""
+        native = native_function("walk_equivalence")
+        if native is not None:
+            return native(self, s, outcome, tr, m)
         import xxhash
 
         from app.analysis.events import BIG
@@ -3399,6 +3576,9 @@ class _BankWalk:
         self.seen: set = set()  # (node key, prefix[, record digest]) whose facts are kept
 
     def inside(self, steps: tuple) -> bool:
+        native = native_function("walk_bank_inside")
+        if native is not None:
+            return native(self, steps)
         t = self.fc.bank_trace(steps).day[-1]
         return bool((t < self.fc.days).any())
 
@@ -3523,6 +3703,12 @@ class _OrdinaryWalk(_Walk):
                 if (k, s.steps[:i], h.digest()) not in self.seen:
                     self.seen.add((k, s.steps[:i], h.digest()))
                     self.row(k, tr, i, late, sit=tr.situations.get(i), mask=m)
+        native = native_function("walk_ordinary_expand")
+        if native is not None:
+            for edges in native(s.edges):
+                self.out.append(DisputePath(instance_id=self.bank, steps=s.steps, outcome=outcome,
+                                           edges=tuple(tuple(e) for e in edges), mask=pack_mask(m)))
+            return
         options = []
         for key, branch in s.edges:
             if key.startswith(COMPOSITE):
@@ -3614,3 +3800,14 @@ def Chain_(fc: Forecaster, d: DisputeInstance):
 
 def _listing_dates(fc: Forecaster, d: DisputeInstance) -> dict[str, int]:
     return Chain_(fc, d).listing_dates()
+
+
+def _to_native_path(p: DisputePath) -> tuple:
+    return (p.instance_id, p.steps, p.outcome, p.edges, p.cls, p.mask, p.classes)
+
+
+def _from_native_path(p) -> DisputePath:
+    instance, steps, outcome, edges, cls, mask, classes = p
+    return DisputePath(instance, tuple(tuple(s) for s in steps), outcome, tuple(tuple(e) for e in edges), cls,
+                       None if mask is None else bytes(mask),
+                       tuple((k, tuple(tags), None if codes is None else bytes(codes)) for k, tags, codes in classes))

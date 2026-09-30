@@ -1,4 +1,4 @@
-"""Compiled kernel of `Chain._atm_rebook` (events.py): the at-the-market booking on the path's current state, one pass
+"""Rust kernel and retained Numba reference for `Chain._atm_rebook` (events.py): at-the-market booking, one pass
 per draw over the sales. It reproduces the Python it replaces operation for operation (`Chain._atm_rebook_py`, with
 `_lockup` and the two-dimensional branch of `_offer_shares_on`): int64 shares and cents, the sale's gross as the
 float64 product q x share price rounded half to even, the commission by floor division."""
@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 from numba import njit
+
+from app.analysis.native import native_function
 
 
 @njit(cache=True)
@@ -79,3 +81,12 @@ def atm_book(sale, stop, q, led, init, close, closed, shares, lock_on, big, pric
             cum[r, t] = run
             delta[r, t] = new[r, t] - old[r, t] if have_old else new[r, t]
     return sold, csold, new, cum, delta
+
+
+atm_book_numba = atm_book
+
+
+def atm_book(*args):
+    """Rust production kernel, with the original Numba function as the reference backend."""
+    kernel = native_function("atm_book")
+    return kernel(*args) if kernel is not None else atm_book_numba(*args)

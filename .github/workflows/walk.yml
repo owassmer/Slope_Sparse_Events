@@ -7,6 +7,7 @@ on:
     branches: [walk-run, "walk-run-*"]  # walk-run-<variant>: an economic-assumption variant
 
 env:
+  SLOPE_EXECUTION_BACKEND: rust
   RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
   JOBS: "100"  # the matrix below lists 0..JOBS-1; 20 run at a time, the next starting as one ends
   PROCS: "4"
@@ -28,7 +29,14 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
       - run: uv sync --locked
+      - run: uv run --no-sync python scripts/build_native.py
       - run: uv run slope evidence build akoustis_20240514
       - run: nproc; free -g; df -h /
       - timeout-minutes: 330  # the step fails before the job's limit, so the finished parts still upload

@@ -23,6 +23,8 @@ from datetime import date, timedelta
 
 import numpy as np
 
+from app.analysis.native import backend as _execution_backend
+from app.analysis.native import native_function as _native_function
 from app.analysis.setup import SEED, Setup
 from app.disputes.forecast import DisputePath
 from app.domain.investigation import DisputeInstance
@@ -61,6 +63,11 @@ class EventCash:
 
     @classmethod
     def zeros(cls, draws: int, days: int, kinds: bool = False) -> EventCash:
+        from app.analysis.native import native_function
+
+        native = native_function("event_cash_zeros")
+        if native is not None:
+            return cls(*native(draws, days, kinds))
         z = np.zeros((draws, days), dtype=np.int64)
         return cls(z.copy(), z.copy(), z.copy(), np.full(draws, -1, dtype=np.int64),
                    {k: z.copy() for k in KINDS} if kinds else None,
@@ -68,6 +75,11 @@ class EventCash:
 
     def split(self) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]] | None:
         """The kinds and incurred days, zeros where no cash is booked at all; None where cash is unclassified."""
+        from app.analysis.native import native_function
+
+        native = native_function("event_cash_split")
+        if native is not None:
+            return native(self)
         if self.kinds is not None:
             return self.kinds, self.incurred
         if self.cash.any():
@@ -77,6 +89,11 @@ class EventCash:
                 {k: np.full(n, BIG, dtype=np.int64) for k in OBLIGATIONS})
 
     def __add__(self, other: EventCash) -> EventCash:
+        from app.analysis.native import native_function
+
+        native = native_function("event_cash_add")
+        if native is not None:
+            return EventCash(*native(self, other))
         a, b = self.petition, other.petition  # the earliest petition on the trajectory
         petition = np.where(a < 0, b, np.where(b < 0, a, np.minimum(a, b)))
         kinds = incurred = None
@@ -2718,7 +2735,7 @@ class Chain:
         arrays are shared copy-on-write: both chains mark them read-only and copy one before writing it (`_evw`);
         the petition and incurred days, replaced on every change, are shared as they are. The other [draws, days]
         state (`REPLACED`) is only ever replaced, so it is shared too."""
-        new = Chain.__new__(Chain)
+        new = type(self).__new__(type(self))
         ev = self.ev
         rec_late = [a for lst in self.rec for a in lst] + [a for e in self.late.values() for a in e.values()]
         for a in (ev.cash, ev.lock, ev.capacity, ev.petition, *ev.kinds.values(), *ev.incurred.values(),
@@ -2759,7 +2776,7 @@ class Chain:
                 return tuple(cut(x) for x in v)
             return v
 
-        new = Chain.__new__(Chain)
+        new = type(self).__new__(type(self))
         for k, v in self.__dict__.items():
             if k in Chain.SLICE_DROP:
                 continue
@@ -3310,3 +3327,36 @@ def bank_trace(fin, steps, setup: Setup, model: dict, draws: Draws, sens: dict |
 def event_cash(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws) -> EventCash:
     """The analysis entry point (app/analysis/core.py): the path's event cash on the shared draws."""
     return event_trace(d, path, setup, model, draws).events
+
+
+# The oracle stays explicit; production transitions run in the Rust owner. Keep
+# this at the end so the facade can import the complete module during loading.
+PythonChain = Chain
+
+
+def _native_domain(original, export):
+    from functools import wraps
+
+    @wraps(original)
+    def run(*args, **kwargs):
+        native = _native_function(export)
+        return native(*args, **kwargs) if native is not None else original(*args, **kwargs)
+
+    return run
+
+
+for _domain_name, _domain_export in (
+    ("pval", "parameter_value"),
+    ("entered_cents", "entered_cents"),
+    ("verdict_basis", "verdict_basis"),
+    ("verdict_amount", "verdict_amount"),
+    ("settlement_terms", "settlement_terms"),
+    ("prejudgment_interest_cents", "prejudgment_interest_cents"),
+    ("ruling_amounts", "ruling_amounts"),
+):
+    globals()[_domain_name] = _native_domain(globals()[_domain_name], _domain_export)
+
+if _execution_backend() == "rust":
+    from app.analysis.rust_chain import make_chain
+
+    Chain = make_chain(PythonChain)

@@ -246,7 +246,10 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash], nonpayment
     pet = np.concatenate([np.where((e.petition >= 0) & (e.petition < days), e.petition, days) for e in events]
                          ).astype(np.int64, copy=False)
     ex = s.exposure
-    (cash, collections, fundings, outstanding, due, funded, contract, collected, failed, hr, dr) = _net_kernel(
+    from app.analysis.native import native_function
+
+    (cash, collections, fundings, outstanding, due, funded, contract, collected, failed, hr, dr) = (
+        native_function("net_kernel") or _net_kernel)(
         base, pet, need, limit, month_end, routes, due_idx, np.int64(s.fee_bps), s.installments,
         s.collection == "debit", due0, book_d, book_a, np.int64(opening_cents + ex.cash_cents),
         np.int64(ex.principal_cents), np.int64(ex.owed_cents), b * nroutes)
@@ -300,8 +303,11 @@ def _in_loop_order(hr: tuple, dr: tuple, days: int, slots: int) -> tuple:
     """The kernels emit headroom and draw entries row by row; the day loop over stacked rows emitted them by day, then
     (draws) slot, then row. Returns (rows, values, days) and (rows, days, amounts) in that order."""
     (hr_r, hr_t, hr_v), (dr_t, dr_k, dr_r, dr_a) = hr, dr
-    o = _stable_buckets(hr_t, days)  # rows ascending within a bucket: the kernels emit row by row
-    p = _stable_buckets(dr_t * slots + dr_k, days * slots)
+    from app.analysis.native import native_function
+
+    bucket_order = native_function("stable_buckets") or _stable_buckets
+    o = bucket_order(hr_t, days)  # rows ascending within a bucket: the kernels emit row by row
+    p = bucket_order(dr_t * slots + dr_k, days * slots)
     return (hr_r[o], hr_v[o], hr_t[o]), (dr_r[p], dr_t[p], dr_a[p])
 
 

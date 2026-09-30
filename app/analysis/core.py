@@ -47,6 +47,7 @@ from app.analysis.events import (
     bank_trace,
     event_trace,
 )
+from app.analysis.native import native_function
 from app.analysis.processor import ARREARS
 from app.analysis.setup import DRAWS, Setup
 from app.analysis.stats import expectation, weighted_quantiles
@@ -126,6 +127,16 @@ class EventModel:
         _, _, pairs, ref = enc
         dist = self._dist(overrides)
         vals = np.array([dist[k][b] for k, b in pairs] + [1.0], dtype=np.float64)
+        native = native_function("edge_products")
+        if native is not None:
+            out = native(ref, vals)
+            from app.analysis import shadow
+            if shadow.ON:
+                expected = np.ones(len(combos))
+                for j in range(ref.shape[1]):
+                    expected *= vals[ref[:, j]]
+                shadow.check("native_edge_products", out, expected)
+            return out
         out = np.ones(len(combos))
         for j in range(ref.shape[1]):
             out *= vals[ref[:, j]]
@@ -184,6 +195,16 @@ class Bins:
 
     def flat(self, x: np.ndarray, rows: np.ndarray | None = None) -> np.ndarray:
         """Flat bin index (row x n + bin) of values x: [draws, days] with one row per day, or 1-D with `rows`."""
+        native = native_function("bins_flat")
+        if native is not None:
+            out = native(np.asarray(x, dtype=np.float64), self.lo, self.width, self.n,
+                         None if rows is None else np.asarray(rows, dtype=np.int64).ravel())
+            from app.analysis import shadow
+            if shadow.ON:
+                r = np.arange(x.shape[1])[None, :] if rows is None else rows
+                j = np.clip(((x - self.lo[r]) / self.width[r]).astype(np.int64), 0, self.n - 1)
+                shadow.check("native_bins_flat", out, (j + r * self.n).ravel())
+            return out
         if rows is None:
             rows = np.arange(x.shape[1])[None, :]
         j = np.clip(((x - self.lo[rows]) / self.width[rows]).astype(np.int64), 0, self.n - 1)
@@ -192,6 +213,16 @@ class Bins:
     def quantiles(self, h: np.ndarray, qs: tuple[float, ...]) -> np.ndarray:
         """[len(qs), days] from weighted counts h [days, n] (each day summing to one): the midpoint of the first bin
         whose cumulative weight reaches q, so within half a bin of the exact weighted quantile."""
+        native = native_function("histogram_quantiles")
+        if native is not None:
+            out = native(h, self.lo, self.width, list(qs))
+            from app.analysis import shadow
+            if shadow.ON:
+                cum = np.cumsum(h, axis=1)
+                ref = np.stack([self.lo[:len(h)] + (np.argmax(cum >= q - 1e-12, axis=1) + 0.5)
+                                * self.width[:len(h)] for q in qs])
+                shadow.check("native_histogram_quantiles", out, ref)
+            return out
         cum = np.cumsum(h, axis=1)
         return np.stack([self.lo[:len(h)] + (np.argmax(cum >= q - 1e-12, axis=1) + 0.5) * self.width[:len(h)]
                          for q in qs])
@@ -215,6 +246,17 @@ class Counts:
         self._cnt: list[np.ndarray] = []
 
     def add(self, flat: np.ndarray) -> None:
+        native = native_function("sparse_counts")
+        if native is not None:
+            idx, cnt = native(flat, self.rows * self.bins)
+            from app.analysis import shadow
+            if shadow.ON:
+                c = np.bincount(flat, minlength=self.rows * self.bins)
+                ref = np.flatnonzero(c)
+                shadow.check("native_sparse_counts", (idx, cnt), (ref.astype(np.int32), c[ref].astype(np.uint32)))
+            self._idx.append(idx)
+            self._cnt.append(cnt)
+            return
         c = np.bincount(flat, minlength=self.rows * self.bins)
         idx = np.flatnonzero(c)
         self._idx.append(idx.astype(np.int32))
@@ -229,6 +271,17 @@ class Counts:
     def weighted(self, probs: np.ndarray, normalise: bool = True) -> np.ndarray:
         """[rows, bins] probability-weighted counts, each row normalised to one unless asked not to (an empty row
         stays zero)."""
+        native = native_function("weighted_counts")
+        if native is not None:
+            out = native(self.idx, self.cnt, self.lens, np.asarray(probs, dtype=np.float64), self.rows, self.bins,
+                         normalise)
+            from app.analysis import shadow
+            if shadow.ON:
+                w = np.repeat(np.asarray(probs, dtype=np.float64), self.lens) * self.cnt
+                h = np.bincount(self.idx, weights=w, minlength=self.rows * self.bins).reshape(self.rows, self.bins)
+                ref = h / np.maximum(h.sum(axis=1, keepdims=True), 1e-300) if normalise else h
+                shadow.check("native_weighted_counts", out, ref)
+            return out
         w = np.repeat(np.asarray(probs, dtype=np.float64), self.lens) * self.cnt
         h = np.bincount(self.idx, weights=w, minlength=self.rows * self.bins).reshape(self.rows, self.bins)
         return h / np.maximum(h.sum(axis=1, keepdims=True), 1e-300) if normalise else h

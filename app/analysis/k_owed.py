@@ -1,4 +1,4 @@
-"""Compiled kernels for the amount owed and the share price (`Chain.owed_at`, `Chain._price_owed_grid`,
+"""Rust kernels for the amount owed and share price, with retained Numba references (`Chain.owed_at`, `Chain._price_owed_grid`,
 `Merton.price` on a [draws, days] grid). Each reproduces the Python it replaces operation for
 operation: int64 cents; the §1961 interest in float64 as `interest_1961` computes it (the scalar coefficient
 principal * bps / 10_000 computed in Python by the caller, exactly as the expression does, then per element
@@ -12,7 +12,8 @@ from numba import njit
 from numba.core import types
 from numba.typed import Dict
 
-from app.analysis.share_price import _prices
+from app.analysis.native import native_function
+from app.analysis.share_price import _prices_numba as _prices
 
 
 @njit(cache=True)
@@ -157,6 +158,27 @@ def merton_grid(a, V, notes, s, rate, T, shares):
     return out
 
 
+# Keep the independently compiled reference available for byte-level differential checks.
+owed_kernel_numba = owed_kernel
+grid_kernel_numba = grid_kernel
+merton_grid_numba = merton_grid
+
+
+def owed_kernel(*args):
+    kernel = native_function("owed_kernel")
+    return kernel(*args) if kernel is not None else owed_kernel_numba(*args)
+
+
+def grid_kernel(*args):
+    kernel = native_function("grid_kernel")
+    return kernel(*args) if kernel is not None else grid_kernel_numba(*args)
+
+
+def merton_grid(*args):
+    kernel = native_function("merton_grid")
+    return kernel(*args) if kernel is not None else merton_grid_numba(*args)
+
+
 # --- the Python side: the chain's inputs as the kernels' arguments (None: run the Python) ---------------------------
 
 def _int(x) -> bool:
@@ -293,4 +315,3 @@ def price_owed_grid(ch):
     settled = ch.per_draw(ch.marks["settled"]) if has_settle else resolved
     return grid_kernel(N, has_j, E_ix, entered, ce, cz, has_cls, cls, base, cb, cinc, fees, F, fee_day, resolved, V,
                        TT, TA, has_settle, ST, SA, settled)
-

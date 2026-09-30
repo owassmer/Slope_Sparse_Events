@@ -140,6 +140,7 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
     only (cash, first_unpaid, nonpayment, arrears), exactly the arrays a full run's `tr.cash` and `tr.processed`
     carry, without the logs' reordering or `_finish` (what the walk's Chain reads)."""
     from app.analysis.engine import _finish, _in_loop_order, _kernel_line
+    from app.analysis.native import native_function
 
     s, n, days, b = line.setup, line.ops.draws, line.days, len(events)
     need, limit, month_end, routes, due_idx, due0, book_d, book_a, nroutes = _kernel_line(line)
@@ -148,12 +149,17 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
                          ).astype(np.int64, copy=False)
     ex = s.exposure
     w, share = (int(nonpayment[0]), int(nonpayment[1])) if nonpayment is not None else (0, 0)
-    (cash, collections, fundings, outstanding, due, funded, contract, collected, failed, arrears, first_unpaid, nonpay,
-     levy_unmet, hr, dr) = _daily_kernel(
+    args = (
         post, levy, out, obl, inc, pet, need, limit, month_end, routes, due_idx, np.int64(s.fee_bps), s.installments,
         s.collection == "debit", s.same_day_order == "operating_first", due0, book_d, book_a,
         np.int64(opening_cents + ex.cash_cents), np.int64(ex.principal_cents), np.int64(ex.owed_cents), b * nroutes,
         np.int64(w), np.int64(share))
+    native_cash = native_function("daily_cash_kernel") if cash_only else None
+    if native_cash is not None:
+        cash, first_unpaid, nonpay, arrears = native_cash(*args)
+    else:
+        (cash, collections, fundings, outstanding, due, funded, contract, collected, failed, arrears, first_unpaid,
+         nonpay, levy_unmet, hr, dr) = (native_function("daily_kernel") or _daily_kernel)(*args)
     if cash_only:  # with the arrears the same run computed (events.Chain._daily_run keeps them apart)
         return [(cash[j * n:(j + 1) * n], first_unpaid[j * n:(j + 1) * n].copy(),
                  None if nonpayment is None else nonpay[j * n:(j + 1) * n].copy(), arrears[j * n:(j + 1) * n])

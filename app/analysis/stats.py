@@ -4,10 +4,23 @@ from __future__ import annotations
 
 import numpy as np
 
+from app.analysis.native import native_function
+
 
 def weighted_quantiles(values: np.ndarray, weights: np.ndarray, qs: tuple[float, ...]) -> np.ndarray:
     """Quantiles of `values` [n] or per column of `values` [n, days] under `weights` [n] (summing to one): the smallest
     value whose cumulative weight reaches q. Returns [len(qs)] or [len(qs), days]."""
+    native = native_function("weighted_quantiles")
+    if native is not None:
+        out = native(np.asarray(values, dtype=np.float64), np.asarray(weights, dtype=np.float64), list(qs))
+        from app.analysis import shadow
+        if shadow.ON:
+            shadow.check("native_weighted_quantiles", out, weighted_quantiles_python(values, weights, qs))
+        return out
+    return weighted_quantiles_python(values, weights, qs)
+
+
+def weighted_quantiles_python(values: np.ndarray, weights: np.ndarray, qs: tuple[float, ...]) -> np.ndarray:
     v = values if values.ndim == 2 else values[:, None]
     order = np.argsort(v, axis=0, kind="stable")
     sorted_v = np.take_along_axis(v, order, axis=0)

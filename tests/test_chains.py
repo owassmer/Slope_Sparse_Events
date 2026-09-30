@@ -10,7 +10,7 @@ import pytest
 from akoustis_fixture import CLOSE, REVIEW, SETUP, basis, judgment
 
 from app.analysis.engine import prepare, run
-from app.analysis.events import Chain, Draws, prejudgment_interest_cents, ruling_amounts
+from app.analysis.events import Chain, Draws, PythonChain, prejudgment_interest_cents, ruling_amounts
 from app.disputes.forecast import (
     Forecaster,
     Judgment,
@@ -641,7 +641,9 @@ def test_settlement_stay_and_contract_date_facts_state_what_the_chain_computes(f
         fc.facts = saved
 
 
-class _Court(Chain):
+# Observe reference virtual calls independently of the native forecast facts.
+# Rust transitions call native methods directly rather than Python overrides.
+class _Court(PythonChain):
     """The chain as it books each court ruling: the stay's approval day with the cash that day before the security is
     locked and the reduced security offered, and the early registration order with the cash that day (the levy
     follows the order by levy_lag_days)."""
