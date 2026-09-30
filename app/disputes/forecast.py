@@ -244,6 +244,64 @@ def _whole(v, ix: np.ndarray, n: int, name: str = ""):
     return v
 
 
+# A question's facts as of its decision day (QUESTIONS_20240514 §1 Two dates: the state holds only events reached on
+# the path before the decision date). A recorded row is read off a trace that can hold events dated after the
+# decision on a trajectory: a later-walked step, or the whole path for a state-triggered decision. Those events have
+# not happened there. Scheduled dates (the post-trial ruling's, the entry, the judgment default's availability, the
+# holders' route) are terms known at the decision and stay; an outcome dated after the decision is removed.
+OUTCOME_DAYS = ("delisted", "stayed_from", "notes_due_day", "nonpayment_day", "first_unpaid")
+OUTCOME_TRIGGERS = {"holders_petition_earliest": ("marks", "notes_due"), "repurchase_due": ("sit", "delisted")}
+
+
+def as_of(row: dict) -> dict:
+    """The row as of its decision day on each trajectory (`OUTCOME_DAYS`): an outcome dated after the decision day
+    reads as not having happened (BIG; a petition -1; the marks BIG), an offering initiated after it is not there
+    and one closing after it has not closed, and a trigger that exists only because of such an outcome is absent."""
+    from app.analysis.events import BIG
+
+    day = row.get("day")
+    if not isinstance(day, np.ndarray):
+        return row
+    n = day.shape[0]
+    per = lambda v: isinstance(v, np.ndarray) and v.shape[:1] == (n,)  # noqa: E731
+    later = lambda v: np.asarray(v) > day  # noqa: E731
+    out = dict(row)
+    marks, sit = row.get("marks") or {}, row.get("sit") or {}
+    if per(row.get("petition")):
+        out["petition"] = np.where(later(row["petition"]), -1, row["petition"]).astype(row["petition"].dtype)
+    if marks:
+        out["marks"] = {k: np.where(later(v), BIG, v).astype(v.dtype) if per(v) else v for k, v in marks.items()}
+    trig = row.get("triggers")
+    if trig:
+        t2 = dict(trig)
+        for name, (where, what) in OUTCOME_TRIGGERS.items():
+            src = (marks if where == "marks" else sit).get(what)
+            if name in t2 and per(t2[name]) and per(src):
+                t2[name] = np.where(later(src), BIG, t2[name]).astype(t2[name].dtype)
+        out["triggers"] = t2
+    if sit:
+        s2 = dict(sit)
+        for k in OUTCOME_DAYS:
+            if per(sit.get(k)):
+                s2[k] = np.where(later(sit[k]), BIG, sit[k]).astype(sit[k].dtype)
+        if per(sit.get("notes_due_how")) and per(sit.get("notes_due_day")):
+            s2["notes_due_how"] = np.where(later(sit["notes_due_day"]), "", sit["notes_due_how"])
+        if per(sit.get("route_days")) and per(sit.get("notes_due_day")):  # the route applies once the notes are due
+            s2["route_days"] = np.where(later(sit["notes_due_day"]), -1, sit["route_days"]).astype(
+                sit["route_days"].dtype)
+        if isinstance(sit.get("offerings"), list):
+            offs = []
+            for o in sit["offerings"]:
+                init, close, closed = (np.broadcast_to(np.asarray(x), (n,)) for x in o)
+                gone = init > day
+                offs.append((np.where(gone, BIG, init).astype(np.asarray(o[0]).dtype),
+                             np.where(gone, BIG, close).astype(np.asarray(o[1]).dtype),
+                             np.asarray(closed, dtype=bool) & ~gone & (close <= day)))
+            s2["offerings"] = offs
+        out["sit"] = s2
+    return out
+
+
 def pack_row(row: dict) -> bytes:
     """A recorded row as one compressed pickle, interned by content (identical rows are stored once). Only the
     trajectories where the question can be live are stored: its decision is dated (not BIG) and precedes any petition
@@ -1212,7 +1270,7 @@ class Forecaster:
                "stay_offer": getattr(tr, "stay_offer", None), "triggers": getattr(tr, "triggers", None),
                "raise_offer": getattr(tr, "raise_offer", None), "sit": getattr(tr, "sit", None),
                "marks": getattr(tr, "marks", None), "groups": getattr(tr, "groups", None)}
-        b = pack_row(row)
+        b = pack_row(as_of(row))  # as of the decision day: a later-walked step dated after it has not happened
         for k in keys:
             self.facts.setdefault(k, Rows()).append_blob(b)
 
@@ -1235,8 +1293,8 @@ class Forecaster:
                              self.m, self.draws, self.sens)
         for k, i in late:
             if i in tr.stays:  # a stay's approval (daily processing): the security sized on the whole path
-                self._keep_late(k, steps[:i], on({**tr.stays[i], "settle_offer": None, "raise_offer": None,
-                                                  "sit": tr.situations.get(i), "marks": tr.marks}))
+                self._keep_late(k, steps[:i], as_of(on({**tr.stays[i], "settle_offer": None, "raise_offer": None,
+                                                        "sit": tr.situations.get(i), "marks": tr.marks})))
                 continue
             info = tr.late[i]
             n = self.nodes[k]
@@ -1248,7 +1306,7 @@ class Forecaster:
                 pet = np.where(row["petition"] < 0, np.iinfo(np.int64).max, row["petition"])
                 if ((row["day"] < self.days) & (row["day"] < pet) & (info["raise_offer"] > 0)).any():
                     self._raise_more.add(steps[:i])
-            self._keep_late(k, steps[:i], row)
+            self._keep_late(k, steps[:i], as_of(row))  # once per history: the decision day's facts, not the future's
 
     @staticmethod
     def late_key(k: str, prefix: tuple, row: dict) -> tuple:
