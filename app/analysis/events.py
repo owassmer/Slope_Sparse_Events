@@ -2098,7 +2098,14 @@ class Chain:
                 # response on the levy day, still waiting, precedes it
                 self.flush_levy(~(self.next_floor() < self.pending_levy) & ~self.response_waiting())
         self.restay()  # what was booked since (a levy, a floor decision) is in a walked stay's security
-        before = self.balance_state(copy=True) if self.daily else (self.cum(),)
+        if self.daily:  # the state before the step, shared: a later write to one of its arrays copies it first (`_evw`)
+            own = self.__dict__.get("_ev_own")
+            if own is None:  # a chain never cloned owns its arrays: from here it copies each before its first write
+                own = self._ev_own = set()
+            own.difference_update(("k:inflow", "lock", "k:levy"))
+            before = self.balance_state()  # `cum` is replaced, never written in place
+        else:
+            before = (self.cum(),)
         self._grp = None
         day = self.step(node, ctx, branch)
         self._atm_rebook()  # a verdict, a ruling or an election changes the amount owed the share price reads
@@ -2423,10 +2430,14 @@ class Chain:
         step's decision day."""
         return self.stays[i]["approval"] if i in self.stays else self.rec[0][i]
 
-    def finish(self, tr: Trace, day_only: bool = False) -> Trace:
+    def finish(self, tr: Trace, day_only: bool = False, light: bool = False) -> Trace:
         """The end of `run`: the pending levy, the waiting floor decisions, the petition's stay of the feed's cash,
-        and the path's marks. day_only: the waiting decisions only up to the last step's day (`_book_to_day`), and
-        the question-state snapshot of the last step only."""
+        and the path's marks. day_only: the waiting decisions only up to the last step's decision day
+        (`_book_to_day`), and the question-state snapshot of the last step only. light: a walk read's trace (the
+        walk's structure reads only the days, cash, amounts owed, collateral, petition, marks, offers, reads and
+        groups): the facts only a recorded question reads are left out (the triggers, the question-state snapshot,
+        each stay's and each waiting step's facts, the booking days a view saw), each a pure read of the state the
+        fields kept are computed from."""
         if self.pending_levy is not None:  # the floor decisions dated up to the pending levy, and the levy
             self.until(self.pending_levy + 1)
         self.flush_levy()
@@ -2438,15 +2449,15 @@ class Chain:
         else:
             self.upto(None, every=True)
         self.restay()
-        if not day_only:
+        if not day_only and not light:
             for st in self.stays.values():  # a stay not approved: its security sized on the whole path, for its facts
                 if not st["approved"]:
                     self._size_stay(st, read=False)
-        tr.stays = {} if day_only else {
+        tr.stays = {} if day_only or light else {
             i: {k: st[k] for k in ("day", "cash", "owed", "collateral", "stay_offer", "petition", "triggers")}
             for i, st in self.stays.items()}
         tr.day, tr.cash, tr.owed, tr.collateral = (list(x) for x in self.rec)
-        tr.late = {i: dict(v) for i, v in self.late.items()}
+        tr.late = {}  # set with the snapshot (`_snapshot_tail`)
         if self.late and max(self.late) == len(self.rec[0]) - 1:  # the path ends at a floor: its equity available
             self.raise_offer = self.late[max(self.late)]["raise_offer"]
         pet = self.ev.petition
@@ -2479,14 +2490,35 @@ class Chain:
         tr.settle_offer, tr.stay_offer, tr.raise_offer = self.settle_offer, self.stay_offer, self.raise_offer
         tr.reads = self.reads
         tr.triggers = triggers
+        tr.groups = {i: g.copy() for i, g in self.grec.items()}
+        self._finished = (day_only, light)
+        if light:
+            tr.situations, tr.fired, tr.as_of = {}, {}, None
+            return tr
+        return self._snapshot_tail(tr, day_only)
+
+    def _snapshot_tail(self, tr: Trace, day_only: bool) -> Trace:
+        """The end of `finish` a light trace leaves out, on the finished chain: each waiting step's facts, the
+        question-state snapshot, the booking days a view saw and the day read through (`as_of`)."""
+        tr.late = {i: dict(v) for i, v in self.late.items()}
         tr.situations = ({len(tr.day) - 1: self.c_situation(self._snapshot_day(len(tr.day) - 1))} if day_only
                          and (self.pending or self.ordinary) else self.c_situations(tr))  # the question-state snapshot
-        tr.groups = {i: g.copy() for i, g in self.grec.items()}
         vf = self.__dict__.get("_vfired", {})  # each waiting step's booking day, here or in a view (BIG: neither)
         tr.fired = {i: np.minimum(tr.day[i], vf.get(i, BIG)) for i in tr.late}
         # a day-only trace: per draw, the last day whose state it reads (what it booked through, a cash read's day)
         tr.as_of = np.maximum(self._booked_to, self.reads) if day_only else None
         return tr
+
+    def completed(self, tr: Trace) -> Trace | None:
+        """A light day-only trace of this finished chain made whole (`_snapshot_tail`), exactly as `finish` without
+        light would have ended it: nothing of what a light finish leaves out is read by what it keeps. Once only;
+        None where the light finish also left out a stay's facts (a whole path: `finish` sizes an unapproved stay
+        before the petition's zeroing, so it cannot be completed afterwards)."""
+        done = self.__dict__.get("_finished")
+        if done is None or done != (True, True):
+            return None
+        self._finished = (True, False)
+        return self._snapshot_tail(tr, True)
 
     SHARED = frozenset({"d", "s", "m", "dr", "basis", "sens", "fin", "rows", "bookings", "merton"})  # read-only inputs, never copied
 
@@ -2805,10 +2837,39 @@ def _advanced(make, steps, draws: Draws, key: tuple, inputs: tuple) -> tuple[Cha
     return ch, tr
 
 
-def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = False) -> Trace:
-    """`make().run(steps)`, resumed from the prefix stack (`_advanced`)."""
+LIGHT_FIELDS = ("day", "cash", "owed", "collateral", "cause", "marks", "settle_offer", "stay_offer", "raise_offer",
+                "reads", "groups")  # what a light trace keeps (`Chain.finish`), with its event cash
+
+
+def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = False, light: bool = False) -> Trace:
+    """`make().run(steps)`, resumed from the prefix stack (`_advanced`); light: a walk read's trace (`finish`)."""
     ch, tr = _advanced(make, steps, draws, key, inputs)
-    return ch.finish(tr, day_only)
+    tr = ch.finish(tr, day_only, light)
+    if not light:
+        return tr
+    from app.analysis import shadow
+
+    def reference() -> Trace:  # the same steps finished without light, from the prefix stack
+        ref_ch, ref = _advanced(make, steps, draws, key, inputs)
+        return ref_ch.finish(ref, day_only)
+
+    def fields(t: Trace, extra: tuple = ()) -> tuple:
+        e = t.events
+        return ([getattr(t, f) for f in (*LIGHT_FIELDS, "triggers", *extra)],
+                [e.cash, e.lock, e.capacity, e.petition, e.kinds, e.incurred, e.proceeds])
+
+    if shadow.ON:  # every field the light trace keeps equals the full trace's
+        shadow.check("light_trace", fields(tr), fields(reference()))
+
+    def complete() -> Trace | None:  # the light trace made whole on its own finished chain (`Chain.completed`)
+        whole = ch.completed(tr)
+        if whole is not None and shadow.ON:
+            full = ("stays", "late", "situations", "fired", "as_of")
+            shadow.check("completed_trace", fields(whole, full), fields(reference(), full))
+        return whole
+
+    tr.complete = complete
+    return tr
 
 
 def event_chain(d: DisputeInstance | None, steps, setup: Setup, model: dict, draws: Draws, sens: dict | None = None,
@@ -2822,10 +2883,11 @@ def event_chain(d: DisputeInstance | None, steps, setup: Setup, model: dict, dra
 
 
 def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws,
-                sens: dict | None = None, day_only: bool = False) -> Trace:
-    """The path's trace; day_only: settled only to its last step's decision day (`Chain._book_to_day`)."""
+                sens: dict | None = None, day_only: bool = False, light: bool = False) -> Trace:
+    """The path's trace; day_only: settled only to its last step's decision day (`Chain._book_to_day`); light: a
+    walk read's (`Chain.finish`)."""
     return _run(lambda: Chain(d, setup, model, draws, sens), canon(path.steps), draws, (d.instance_id,),
-                (d, setup, model, sens), day_only)
+                (d, setup, model, sens), day_only, light)
 
 
 GROUPED = (*RESPONSES, "cash_floor", "cash_out")  # questions asked per option group (Owen's ruling, 29 Sep 2026)
@@ -2861,10 +2923,10 @@ def answers_levy(node: str, ctx: str) -> bool:
 
 
 def bank_trace(fin, steps, setup: Setup, model: dict, draws: Draws, sens: dict | None = None,
-               day_only: bool = False) -> Trace:
+               day_only: bool = False, light: bool = False) -> Trace:
     """The bank view's chain: the borrower's instrument `fin` (common input; None: none) and its distress steps."""
     return _run(lambda: Chain(None, setup, model, draws, sens, fin=fin), canon(steps), draws, (BANK,),
-                (fin, setup, model, sens), day_only)
+                (fin, setup, model, sens), day_only, light)
 
 
 def event_cash(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws) -> EventCash:

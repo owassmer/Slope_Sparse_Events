@@ -8,7 +8,7 @@ on:
 
 env:
   RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
-  JOBS: "20"  # the matrix below lists 0..JOBS-1
+  JOBS: "100"  # the matrix below lists 0..JOBS-1; 20 run at a time, the next starting as one ends
   PROCS: "4"
   SLOPE_WALK_CUT: "7"  # 1,429 units below the verdicts
 
@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       max-parallel: 20
       matrix:
-        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

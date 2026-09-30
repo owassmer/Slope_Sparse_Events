@@ -25,7 +25,9 @@ def same(a, b) -> bool:
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
         return type(a) is type(b) and len(a) == len(b) and all(same(x, y) for x, y in zip(a, b, strict=True))
     if isinstance(a, (float, np.floating)) or isinstance(b, (float, np.floating)):
-        return type(a) is type(b) and np.float64(a).tobytes() == np.float64(b).tobytes()
+        return type(a) is type(b) and np.float64(a).tobytes() == np.float64(b).tobytes()  # type: ignore[arg-type]
+    if type(a) is type(b) and hasattr(a, "__dict__") and type(a).__eq__ is object.__eq__:  # a plain object: its state
+        return same(vars(a), vars(b))
     return type(a) is type(b) and a == b
 
 

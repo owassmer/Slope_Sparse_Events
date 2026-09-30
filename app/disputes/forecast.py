@@ -273,9 +273,10 @@ class _Prefix:
     as_of: np.ndarray | None = None  # a day-only trace: per draw, the last day whose state it reads
     fired: dict | None = None  # each waiting step's booking day (index -> [draws]; BIG: not booked)
     served: bool = False  # a sibling's trace served for the walk's structure (`Forecaster._served`), not for facts
+    light: bool = False  # a walk read's trace (events.Chain.finish light): no triggers, snapshot or fired days
 
     @classmethod
-    def of(cls, tr, daily: bool = False, whole: bool = False, digest: bool = True) -> _Prefix:
+    def of(cls, tr, daily: bool = False, whole: bool = False, digest: bool = True, light: bool = False) -> _Prefix:
         """daily: the cash by kind and the incurred days are in the digest too (the processor orders by them); whole:
         every step's facts (the page's path sequence), not only the traced step's; digest: False for a day-only
         trace (its event cash after the decision day is not booked)."""
@@ -298,7 +299,7 @@ class _Prefix:
                    tr.triggers, getattr(tr, "raise_offer", None), getattr(tr, "reads", None),
                    (getattr(tr, "situations", None) or {}).get(len(tr.day) - 1),
                    (getattr(tr, "groups", None) or {}).get(len(tr.day) - 1), getattr(tr, "as_of", None),
-                   getattr(tr, "fired", None))
+                   getattr(tr, "fired", None), light=light)
 
 
 class _DepthCache:
@@ -556,32 +557,54 @@ class Forecaster:
 
     # --- prefix traces (code timing and arithmetic, before any Jev answer) ----------------------------------------
 
-    def trace(self, d: DisputeInstance, steps: tuple, full: bool = False, real: bool = False) -> _Prefix:
+    def trace(self, d: DisputeInstance, steps: tuple, full: bool = False, real: bool = False,
+              light: bool = False) -> _Prefix:
         """The prefix's per-step decision days and path facts, its petition days and a fingerprint of its event cash.
         The dense [draws, days] arrays are dropped once fingerprinted: the tree has thousands of prefixes, and keeping
         each prefix's arrays held about 20 GB for the Akoustis tree. Settled only to the last step's decision day
         (events.Chain._book_to_day: every read as of that day equals the whole path's; no digest) unless `full`: a
         read of the event cash, the petition or marks after the decision day (the digest, a petition anywhere).
-        A walk read may be served by a walked sibling's trace (`_served`); `real`: a recorded fact's, never served."""
+        A walk read may be served by a walked sibling's trace (`_served`); `real`: a recorded fact's, never served.
+        `light`: a walk read's (`_Walk._raw`), without the facts only a recorded question reads (events.Chain.finish);
+        any other read never takes a light trace from the cache."""
         from app.analysis.events import canon, event_chain, event_trace
 
         steps = canon(steps)  # a grouped branch books its answer; the path's group is its mask (`_Walk._trace`)
 
         def compute():
             path = DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=())
-            return _Prefix.of(event_trace(d, path, self.setup, self.m, self.draws, self.sens, day_only=not full),
-                              self.setup.cash_processing == "daily", digest=full)
+            t = event_trace(d, path, self.setup, self.m, self.draws, self.sens, day_only=not full, light=light)
+            return self._prefix(d.instance_id, steps, full, light, t)
 
         return self._traced(d.instance_id, steps, full, real, compute,
-                            lambda st: event_chain(d, st, self.setup, self.m, self.draws, self.sens))
+                            lambda st: event_chain(d, st, self.setup, self.m, self.draws, self.sens), light)
 
-    def _traced(self, ns, steps: tuple, full: bool, real: bool, compute, chain) -> _Prefix:
+    OPEN_LIGHT = 16  # light day-only traces kept completable (each holds its finished chain)
+
+    def _prefix(self, ns, steps: tuple, full: bool, light: bool, t) -> _Prefix:
+        """The trace `t` as a cached prefix; a light day-only one stays completable (`_traced`) for a while."""
+        daily = self.setup.cash_processing == "daily"
+        if light and not full:
+            open_ = self.__dict__.setdefault("_open_light", {})
+            if len(open_) >= self.OPEN_LIGHT:
+                open_.pop(next(iter(open_)))
+            open_[(ns, steps)] = lambda: (lambda w: None if w is None else _Prefix.of(w, daily, digest=False))(
+                t.complete())
+        return _Prefix.of(t, daily, digest=full, light=light)
+
+    def _traced(self, ns, steps: tuple, full: bool, real: bool, compute, chain, light: bool = False) -> _Prefix:
         """A cached prefix trace (`_traces`), else a walked sibling's (`_served`), else computed; logged for the
-        siblings walked after it (`_logged`)."""
+        siblings walked after it (`_logged`). A light trace answers only a light read; another read completes it
+        on its finished chain where that is still held (events.Chain.completed), else computes it whole."""
         key = (ns, "full") if full else ns
         hit = self._traces.get(key, steps)
         if hit is not None and real and hit.served:
             hit = None
+        if hit is not None and hit.light and not light:
+            done = None if full else self.__dict__.get("_open_light", {}).pop((ns, steps), None)
+            hit = done() if done is not None else None
+            if hit is not None:
+                self._traces.put(key, steps, hit)
         if hit is None:
             hit = None if real or not self.REUSE else self._served(ns, steps, full, chain)
             if hit is None:
@@ -701,19 +724,20 @@ class Forecaster:
         """The borrower's instrument whose terms are a common input to both views (the notes' coupon), or None."""
         return next((f for d in self.disputes for f in d.financing if f.status != "superseded"), None)
 
-    def bank_trace(self, steps: tuple, full: bool = False, real: bool = False) -> _Prefix:
+    def bank_trace(self, steps: tuple, full: bool = False, real: bool = False, light: bool = False) -> _Prefix:
         """The bank (ordinary) view's prefix, settled to its decision day unless `full` (as `trace`)."""
         from app.analysis.events import BANK, bank_trace, canon, event_chain
 
         steps = canon(steps)
 
         def compute():
-            return _Prefix.of(bank_trace(self.instrument(), steps, self.setup, self.m, self.draws, self.sens,
-                                         day_only=not full), self.setup.cash_processing == "daily", digest=full)
+            t = bank_trace(self.instrument(), steps, self.setup, self.m, self.draws, self.sens, day_only=not full,
+                           light=light)
+            return self._prefix(BANK, steps, full, light, t)
 
         return self._traced(BANK, steps, full, real, compute,
                             lambda st: event_chain(None, st, self.setup, self.m, self.draws, self.sens,
-                                                   fin=self.instrument()))
+                                                   fin=self.instrument()), light)
 
     @property
     def ordinary(self) -> bool:
@@ -1745,8 +1769,9 @@ class _Walk:
 
     def _raw(self, steps, full: bool = False) -> _Prefix:
         """The prefix's trace on every trajectory, in this walk's view (the forecast's dispute; the ordinary view
-        overrides it). Settled to the last step's decision day (`Forecaster.trace`) unless `full`."""
-        return self.fc.trace(self.d, steps, full)
+        overrides it). Settled to the last step's decision day (`Forecaster.trace`) unless `full`. Light: the walk's
+        structure reads none of the facts only a recorded question reads (`_facts` computes those)."""
+        return self.fc.trace(self.d, steps, full, light=True)
 
     def _trace(self, steps, full: bool = False) -> _Prefix:
         """The prefix's trace on the path's trajectories (`mask_of`, `masked`): every read the walk makes of it."""
@@ -2791,7 +2816,7 @@ class _OrdinaryWalk(_Walk):
         return self.out
 
     def _raw(self, steps, full: bool = False) -> _Prefix:
-        return self.fc.bank_trace(tuple(steps), full)
+        return self.fc.bank_trace(tuple(steps), full, light=True)
 
     def _facts(self, steps) -> _Prefix:
         return masked(self.fc.bank_trace(tuple(steps), real=True), self.mask_of(steps))

@@ -24,6 +24,7 @@ import tempfile
 import time
 from dataclasses import replace
 
+RSS_GB = 2**30 if sys.platform == "darwin" else 2**20  # ru_maxrss: bytes on macOS, KB on Linux
 CUT = int(os.environ.get("SLOPE_WALK_CUT", "4"))  # a unit starts this many steps below the verdict
 STARTS = ("emit", "_end")  # walks that always start a unit
 
@@ -139,7 +140,7 @@ def _child(fc, d, k: int, run: str, log) -> None:
             st["n"] += 1
             if st["n"] % 1000 == 0:
                 print(f"{time.time() - t0:7.0f}s part {k}: paths {st['n']} nodes {len(fc.nodes)} "
-                      f"rss {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 2**30:.2f} GB", file=log, flush=True)
+                      f"rss {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / RSS_GB:.2f} GB", file=log, flush=True)
         return out
     F._Walk.emit = emit_logged
 
@@ -242,7 +243,7 @@ def _child(fc, d, k: int, run: str, log) -> None:
            "clock": st["clock"], "nseg": st["nseg"], "raise_more": raise_more, "node_group": fc.node_group,
            "remitted": fc.remitted, "class_members": fc.class_members, "class_range": fc.class_range,
            "remit_classes": fc.remit_classes, "verdict_asks": getattr(fc, "verdict_asks", {}),
-           "seconds": time.time() - t0, "rss": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 2**30,
+           "seconds": time.time() - t0, "rss": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / RSS_GB,
            "walked": st["n"]}
     with open(os.path.join(run, f"part{k}.pkl"), "wb") as fh:
         pickle.dump(out, fh, protocol=pickle.HIGHEST_PROTOCOL)
@@ -252,6 +253,9 @@ def _child(fc, d, k: int, run: str, log) -> None:
 def _fork(fc, d, procs: int, run: str, log, ks=None) -> list[dict] | None:
     """Walk in `procs` forked processes (ks: their part numbers, default 0..procs-1); their results in process order
     (ks given: written to run/part<k>.pkl only)."""
+    import gc
+
+    gc.freeze()  # the shared heap built before the fork is never scanned again (and its pages stay shared)
     pids = []
     sys.stdout.flush()
     sys.stderr.flush()
