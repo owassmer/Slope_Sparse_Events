@@ -129,7 +129,7 @@ def control(folder: str, out: str) -> None:
            "remit_classes": set().union(*(h["remit_classes"] for h in heads)),
            "verdict_asks": asked("verdict_asks"), "classed": set().union(*(h.get("classed", ()) for h in heads))}
     os.makedirs(os.path.join(out, "paths"), exist_ok=True)
-    total, missing = 0, set()
+    total, missing, cost = 0, set(), {}
     for f in files:
         with open(f, "rb") as fh:
             p = pickle.load(fh)
@@ -148,10 +148,12 @@ def control(folder: str, out: str) -> None:
             for key, _ in w.edges:  # every question a path reads is a merged question
                 missing |= atoms(key) - nodes.keys()
         total += len(kept)
+        # each part's paths and its walk's seconds: the reduction balances its blocks by them (analysis/reduce.py)
+        cost[os.path.basename(f)] = (len(kept), float(p.get("seconds", 0.0)))
         with open(os.path.join(out, "paths", os.path.basename(f)), "wb") as fh:
             pickle.dump(kept, fh, protocol=pickle.HIGHEST_PROTOCOL)
         del p
-    ctl["paths"] = total
+    ctl["paths"], ctl["part_cost"] = total, cost
     import numpy as np  # the tree's per-day range of cumulative event cash on each path's draws (_Walk.emit)
     rngs = [h["ev_range"] for h in heads if h.get("ev_range") is not None]
     ctl["ev_range"] = (np.minimum.reduce([r[0] for r in rngs]), np.maximum.reduce([r[1] for r in rngs])) if rngs \

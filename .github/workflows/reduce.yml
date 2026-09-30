@@ -1,0 +1,91 @@
+name: reduce
+
+# The analysis of the 14 May tree on GitHub runners (app/analysis/reduce.py): control's merged paths (the latest
+# successful pool run of the same branch suffix) reduced block by block into tables under Jev's answers
+# (runs/recorded/<run>/tree_answers[-<variant>].json), then merged. Runs on a push to reduce-run (reduce-run-<variant>).
+on:
+  push:
+    branches: [reduce-run, "reduce-run-*"]
+
+env:
+  RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
+  JOBS: "50"  # the matrix below lists 0..JOBS-1
+  PROCS: "4"
+
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      pool: ${{ steps.pool.outputs.run }}
+    steps:
+      - id: pool
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          echo "run=$(gh run list -R ${{ github.repository }} --workflow pool --status success -L 1
+          --branch pool-run${GITHUB_REF_NAME#reduce-run} --json databaseId -q '.[0].databaseId')" >> $GITHUB_OUTPUT
+  reduce:
+    needs: find
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions:
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - uses: actions/download-artifact@v4
+        with:
+          name: ctl
+          path: ctlart
+          run-id: ${{ needs.find.outputs.pool }}
+          github-token: ${{ github.token }}
+      - run: du -sh ctlart; nproc; free -g
+      - run: >
+          V=$(n=${GITHUB_REF_NAME#reduce-run}; echo ${n#-});
+          SLOPE_VARIANT=$V SLOPE_JEV_CACHE_ONLY=1
+          uv run python -m app.analysis.reduce job $RUN_ID ctlart/ctl
+          runs/recorded/$RUN_ID/tree_answers${V:+-$V}.json ${{ matrix.job }} $JOBS $PROCS red
+          2> >(tee reduce.log >&2)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: red-${{ matrix.job }}
+          path: |
+            red/
+            reduce.log
+          retention-days: 3
+          compression-level: 1
+  merge:
+    needs: reduce
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: red-*
+          path: red
+      - run: du -sh red; free -g
+      - run: uv run python -m app.analysis.reduce merge red tables 2> >(tee merge.log >&2)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tables
+          path: |
+            tables/
+            merge.log
+          retention-days: 7

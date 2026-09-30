@@ -20,6 +20,11 @@ once and the loan engine run once; each group adds its draws' values times its p
 from __future__ import annotations
 
 import heapq
+import json
+import os
+import pickle
+import sys
+import time
 from collections import defaultdict
 
 import numpy as np
@@ -203,16 +208,22 @@ class Tables:
         self.groups += other.groups
         return self
 
-    def __getstate__(self) -> dict:  # defaultdicts with lambdas do not pickle
+    def __getstate__(self) -> dict:  # defaultdicts with lambdas do not pickle; the fine histograms go sparse
         s = dict(self.__dict__)
         for k in ("means", "lo_means", "trie", "outcomes"):
             s[k] = dict(s[k])
+        s["fine"] = {k: (nz := np.flatnonzero(v.any(axis=0)), v[:, nz]) for k, v in self.fine.items()}
         return s
 
     def __setstate__(self, s: dict) -> None:
         F, L = len(s["full"]), len(s["scalar"])
         for k, size in (("means", F), ("lo_means", L), ("trie", 3), ("outcomes", 3)):
             s[k] = defaultdict(lambda size=size: np.zeros(size), s[k])
+        fine = {}
+        for k, (nz, v) in s["fine"].items():
+            fine[k] = np.zeros((F, FINE))
+            fine[k][:, nz] = v
+        s["fine"] = fine
         self.__dict__.update(s)
 
     # --- the figures ------------------------------------------------------------------------------------------------
@@ -433,3 +444,141 @@ def reduce_paths(a, paths: list, full: list, scalar: list, known, dead, tables: 
                 stress_out.append((p.steps, p.outcome, row))
             tables.add(p, t, ev, groups, row)
     return tables
+
+
+# --- the runner job -------------------------------------------------------------------------------------------------
+
+def settings_for(answers: dict[str, dict[str, float]], nodes: dict) -> tuple[list, list, list, list]:
+    """The settings the tables carry, from Jev's answer to every question asked (`answers`: key -> distribution):
+    full: Jev's, and every residual neutral (attribution step 2, `forecast.neutral_map`'s rule); scalar: each question
+    type (a node name) held to each of its answers, every other question at Jev's (`core.judgment_sensitivity`'s
+    0% / 100%, per type: every situation of it at once). Composites follow from their parts (forecast.Dist)."""
+    from app.disputes.forecast import Dist
+
+    neutral = {k: {b: 1 / len(v) for b in v} for k, v in answers.items()}
+    by_type: dict = defaultdict(list)
+    for k in answers:
+        by_type[nodes[k].node].append(k)
+    s_names, s_dists = [], []
+    for t in sorted(by_type):
+        for a in dict.fromkeys(b for k in by_type[t] for b in answers[k]):
+            s_names.append(f"{t}={a}")
+            s_dists.append(Dist({**answers, **{k: {b: float(b == a) for b in answers[k]}
+                                               for k in by_type[t] if a in answers[k]}}))
+    return ["jev", "neutral"], [Dist(answers), Dist(neutral)], s_names, s_dists
+
+
+def _blocks(cost: dict, n: int) -> list[list[tuple[str, int, int]]]:
+    """n contiguous blocks of the paths (the parts in control's order, each path costing its part's walk seconds per
+    path), of about equal cost: each block a list of (part, first, end)."""
+    items = [(f, c, max(sec, 1e-3) / c) for f, (c, sec) in sorted(cost.items()) if c]
+    total = sum(c * per for _, c, per in items)
+    out: list = [[] for _ in range(n)]
+    acc, b = 0.0, 0
+    for f, c, per in items:
+        i = 0
+        while i < c:
+            room = (b + 1) * total / n - acc
+            take = c - i if b == n - 1 else min(c - i, max(1, int(round(room / per))))
+            out[b].append((f, i, i + take))
+            acc += take * per
+            i += take
+            if acc >= (b + 1) * total / n - 1e-9 and b < n - 1:
+                b += 1
+    return out
+
+
+def job(run_id: str, ctl_dir: str, answers_file: str, job_i: int, jobs: int, procs: int, out: str) -> None:
+    """This machine's blocks job*procs .. +procs of jobs*procs: each in a forked process, its paths reduced
+    (`reduce_paths`, with stress rows) into out/tab<block>.pkl and out/stress<block>.pkl."""
+    from app.analysis.build import run_context
+    from app.disputes.forecast import PENDING, Forecaster
+    from app.disputes.parallel import _variant
+
+    t0 = time.time()
+    with open(os.path.join(ctl_dir, "control.pkl"), "rb") as fh:
+        ctl = pickle.load(fh)
+    with open(answers_file) as fh:
+        ans = json.load(fh)
+    from pathlib import Path
+
+    ctx = run_context(run_id, Path("runs/recorded"))
+    setup, sens = _variant(ctx)
+    fc = Forecaster(ctx["live"], ctx["findings"], borrower=ctx["borrower"], review=ctx["review"],
+                    horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup, slots=ctx["slots"], model=ctx["m"],
+                    sens=sens)
+    d = next(x for x, _ in fc.ordered() if x.stage == PENDING and x.borrower_role == "debtor")
+    a = prepared(ctx["feed"], setup, d, ctx["m"], sens)
+    sa = prepared(ctx["feed"], setup, d, ctx["m"], sens, stress=True)
+    f_names, full, s_names, scal = settings_for(ans["answers"], ctl["nodes"])
+    known, dead = set(ctl["nodes"]), frozenset(ans.get("dead", ()))
+    blocks = _blocks(ctl["part_cost"], jobs * procs)
+    os.makedirs(out, exist_ok=True)
+    print(f"{time.time() - t0:7.0f}s reduce job {job_i}: {len(full)} full and {len(scal)} scalar settings",
+          file=sys.stderr, flush=True)
+    pids = []
+    for k in range(job_i * procs, job_i * procs + procs):
+        pid = os.fork()
+        if pid == 0:
+            code = 1
+            try:
+                paths = []
+                for f, lo, hi in blocks[k]:
+                    with open(os.path.join(ctl_dir, "paths", f), "rb") as fh:
+                        paths += pickle.load(fh)[lo:hi]
+                tab = make_tables(a, f_names, s_names, ctl["ev_range"])
+                rows: list = []
+                reduce_paths(a, paths, full, scal, known, dead, tab, stress_a=sa, stress_out=rows)
+                with open(os.path.join(out, f"tab{k}.pkl"), "wb") as fh:
+                    pickle.dump(tab, fh, protocol=pickle.HIGHEST_PROTOCOL)
+                with open(os.path.join(out, f"stress{k}.pkl"), "wb") as fh:
+                    pickle.dump(rows, fh, protocol=pickle.HIGHEST_PROTOCOL)
+                print(f"{time.time() - t0:7.0f}s block {k}: {len(paths)} paths, {tab.groups} groups, "
+                      f"clipped {tab.clipped}", file=sys.stderr, flush=True)
+                code = 0
+            except BaseException as e:  # noqa: BLE001 (reported through the exit code and the log)
+                import traceback
+                print(f"block {k} failed: {e!r}\n{traceback.format_exc()}", file=sys.stderr, flush=True)
+            finally:
+                os._exit(code)
+        pids.append(pid)
+    bad = [k for k, pid in enumerate(pids) if os.waitpid(pid, 0)[1] != 0]
+    if bad:
+        raise SystemExit(f"reduce: block(s) {bad} of job {job_i} failed")
+
+
+def merge(folder: str, out: str) -> None:
+    """Every block's tables (folder/**/tab*.pkl) merged into out/tables.pkl; every stress row into out/stress.pkl."""
+    from pathlib import Path
+
+    t0 = time.time()
+    tab, rows, n = None, [], 0
+    for f in sorted(Path(folder).rglob("tab*.pkl")):
+        with open(f, "rb") as fh:
+            t = pickle.load(fh)
+        tab = t if tab is None else tab.merge(t)
+        n += 1
+    for f in sorted(Path(folder).rglob("stress*.pkl")):
+        with open(f, "rb") as fh:
+            rows += pickle.load(fh)
+    if tab is None:
+        raise SystemExit("merge: no tables")
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "tables.pkl"), "wb") as fh:
+        pickle.dump(tab, fh, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(os.path.join(out, "stress.pkl"), "wb") as fh:
+        pickle.dump(rows, fh, protocol=pickle.HIGHEST_PROTOCOL)
+    print(f"{time.time() - t0:7.0f}s merge: {n} blocks, {tab.paths} paths, {tab.groups} groups, {len(rows)} stress "
+          f"rows, clipped {tab.clipped}", file=sys.stderr, flush=True)
+    if tab.clipped:
+        raise SystemExit(f"merge: {tab.clipped} values fell outside their bins")
+
+
+if __name__ == "__main__":
+    cmd = sys.argv[1]
+    if cmd == "job":
+        job(sys.argv[2], sys.argv[3], sys.argv[4], int(sys.argv[5]), int(sys.argv[6]), int(sys.argv[7]), sys.argv[8])
+    elif cmd == "merge":
+        merge(sys.argv[2], sys.argv[3])
+    else:
+        raise SystemExit(f"unknown command {cmd}")
