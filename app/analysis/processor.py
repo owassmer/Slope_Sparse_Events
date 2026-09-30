@@ -153,7 +153,7 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
         post, levy, out, obl, inc, pet, need, limit, month_end, routes, due_idx, np.int64(s.fee_bps), s.installments,
         s.collection == "debit", s.same_day_order == "operating_first", due0, book_d, book_a,
         np.int64(opening_cents + ex.cash_cents), np.int64(ex.principal_cents), np.int64(ex.owed_cents), b * nroutes,
-        np.int64(w), np.int64(share))
+        np.int64(w), np.int64(share), cash_only)
     if cash_only:  # with the arrears the same run computed (events.Chain._daily_run keeps them apart)
         return [(cash[j * n:(j + 1) * n], first_unpaid[j * n:(j + 1) * n].copy(),
                  None if nonpayment is None else nonpay[j * n:(j + 1) * n].copy(), arrears[j * n:(j + 1) * n])
@@ -228,7 +228,7 @@ def _book(d, a, i, e_amt, e_inc, e_next, head, last, ne):
 
 @njit(cache=True)
 def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes, due_idx, fee_bps, inst, debit,
-                  first_op, due0, book_d, book_a, opening, funded0, contract0, draw_cap, w, share):
+                  first_op, due0, book_d, book_a, opening, funded0, contract0, draw_cap, w, share, cash_only=False):
     """`run_daily`'s day loop, compiled, one trajectory (row) at a time, each step as the vectorised loop took it:
     the day's scheduled items in `order_items` order, `pay_arrears` oldest first, §3.3 on the window (the still-unpaid
     arrears summed in float64 in queue order and truncated, as `np.bincount` with weights did). Row r reads draw r % n
@@ -236,9 +236,9 @@ def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes
     rn, days = post.shape
     n, tail, nslot, nobl = need.shape[0], due0.shape[0], routes.shape[2], obl.shape[0]
     cash = np.empty((rn, days), np.int64)
-    collections = np.zeros((rn, days), np.int64)
-    fundings = np.zeros((rn, days), np.int64)
-    outstanding = np.empty((rn, days), np.int64)
+    collections = np.zeros((0, 0) if cash_only else (rn, days), np.int64)
+    fundings = np.zeros((0, 0) if cash_only else (rn, days), np.int64)
+    outstanding = np.empty((0, 0) if cash_only else (rn, days), np.int64)
     due = np.empty((rn, tail), np.int64)
     arrears = np.empty((rn, days, NCLASS), np.int64)
     funded = np.empty(rn, np.int64)
@@ -248,13 +248,13 @@ def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes
     first_unpaid = np.full(rn, BIG, np.int64)
     nonpay = np.full(rn, BIG, np.int64)
     levy_unmet = np.zeros(rn, np.int64)
-    hr_r = np.empty(rn * days, np.int64)
-    hr_t = np.empty(rn * days, np.int64)
-    hr_v = np.empty(rn * days, np.int64)
-    dr_t = np.empty(draw_cap, np.int64)
-    dr_k = np.empty(draw_cap, np.int64)
-    dr_r = np.empty(draw_cap, np.int64)
-    dr_a = np.empty(draw_cap, np.int64)
+    hr_r = np.empty(0 if cash_only else rn * days, np.int64)
+    hr_t = np.empty(0 if cash_only else rn * days, np.int64)
+    hr_v = np.empty(0 if cash_only else rn * days, np.int64)
+    dr_t = np.empty(0 if cash_only else draw_cap, np.int64)
+    dr_k = np.empty(0 if cash_only else draw_cap, np.int64)
+    dr_r = np.empty(0 if cash_only else draw_cap, np.int64)
+    dr_a = np.empty(0 if cash_only else draw_cap, np.int64)
     cap = book_d.shape[0] + days * nslot * inst  # book entries a row can hold
     e_amt = np.empty(cap, np.int64)
     e_inc = np.empty(cap, np.int64)
@@ -344,7 +344,7 @@ def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes
             lu += lv - take
             avail -= take
             falls_due = sd > 0
-            if falls_due:
+            if falls_due and not cash_only:
                 hr_r[nh] = r
                 hr_t[nh] = t
                 hr_v[nh] = avail - need[i, t] - owed
@@ -451,7 +451,8 @@ def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes
                     unpaid = True
                 owed -= coll
                 cl += coll
-                collections[r, t] = coll
+                if not cash_only:
+                    collections[r, t] = coll
             g = out[r, t]  # the day's operating payments the borrower owes, less the invoices Slope pays
             if live and owed == 0:
                 routed = np.int64(0)
@@ -473,12 +474,13 @@ def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes
                     fu += amt
                     co += total
                     routed += amt
-                    fundings[r, t] += amt
-                    dr_t[nd] = t
-                    dr_k[nd] = k
-                    dr_r[nd] = r
-                    dr_a[nd] = amt
-                    nd += 1
+                    if not cash_only:
+                        fundings[r, t] += amt
+                        dr_t[nd] = t
+                        dr_k[nd] = k
+                        dr_r[nd] = r
+                        dr_a[nd] = amt
+                        nd += 1
                 g = g - routed
             if first_op:
                 x = a0 if a0 > 0 else np.int64(0)
@@ -535,7 +537,8 @@ def _daily_kernel(post, levy, out, obl, inc, pet, need, limit, month_end, routes
             if unpaid and fu_day == BIG:
                 fu_day = t
             cash[r, t] = avail
-            outstanding[r, t] = fu - (cl * fu // co if co > 0 else 0)
+            if not cash_only:
+                outstanding[r, t] = fu - (cl * fu // co if co > 0 else 0)
         funded[r] = fu
         contract[r] = co
         collected[r] = cl

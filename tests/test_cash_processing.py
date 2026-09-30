@@ -41,3 +41,25 @@ def test_arrears_the_first_unpaid_day_and_the_nonpayment_day_equal_a_hand_comput
         assert p.arrears[ROW, t].tolist() == want, t
         assert tr.cash[ROW, t] == cash, t
     assert (tr.cash >= 0).all() and (ch.cum() == tr.cash).all()  # never negative; the Chain's cash is the engine's
+
+
+def test_cash_only_matches_full_daily_outputs():
+    import numpy as np
+
+    b, s = fx.basis(), fx.setup()
+    ch = Chain(fx.pending(), s, fx.model(), Draws(b.cash.shape[0], basis=b), SENS)
+    ev = ch.run(STEPS).events
+    # Include a petition while arrears remain outstanding, and absence of nonpayment terms.
+    for petition in (None, 165):
+        if petition is not None:
+            ev.petition[:] = petition
+        for terms in (None, ch.nonpayment_terms()):
+            full = run(b.line, b.opening - s.exposure.cash_cents, ev, terms)
+            light = run(b.line, b.opening - s.exposure.cash_cents, ev, terms, cash_only=True)
+            expected = (full.cash, full.processed.first_unpaid, full.processed.nonpayment,
+                        full.processed.arrears)
+            for actual, want in zip(light, expected, strict=True):
+                if want is None:
+                    assert actual is None
+                else:
+                    np.testing.assert_array_equal(actual, want)
