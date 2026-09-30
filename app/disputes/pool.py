@@ -249,6 +249,71 @@ def facts(run_id: str, folder: str, control_file: str, b: int, out: str, check: 
           file=sys.stderr, flush=True)
 
 
+def judge(run_id: str, states: str, control_file: str, count_only: bool = False) -> None:
+    """Jev's answer to every question the facts stage built (states/**/states*.json.gz), asked on this machine as
+    `Forecaster.judge` asks (DisputeProfile.forecast; Jev's cache first). Writes runs/recorded/<run>/
+    tree_answers[-<variant>].json (each question's distribution, and the classes live on no path: the reduction's
+    input) and tree_judgments[-<variant>].json.gz (each Judgment, for the page). A question whose state did not build
+    stops it. count_only: the questions by type, nothing asked."""
+    import asyncio
+    import collections
+    import dataclasses
+
+    from app.disputes.forecast import Judgment, answer_distribution
+
+    t0 = time.time()
+    got, errors, dead = {}, {}, set()
+    for f in sorted(glob.glob(os.path.join(states, "**", "states*.json.gz"), recursive=True)):
+        with gzip.open(f, "rt") as fh:
+            x = json.load(fh)
+        got.update(x["states"])
+        errors.update(x["errors"])
+        dead |= set(x.get("never_live", ()))
+    if errors:
+        raise SystemExit(f"judge: {len(errors)} question states did not build, e.g. {next(iter(errors.items()))}")
+    with open(control_file, "rb") as fh:
+        nodes = pickle.load(fh)["nodes"]
+    by_type = collections.Counter(nodes[k].node for k in got)
+    print(f"{time.time() - t0:7.0f}s judge: {len(got)} questions, {len(dead)} classes live on no path; by type "
+          f"{dict(sorted(by_type.items()))}", file=sys.stderr, flush=True)
+    if count_only:
+        return
+    from app.agent.jev import JevAdapter
+    from app.agent.jev_profiles import DisputeProfile
+    from app.analysis.build import VAR
+
+    records: list = []
+    jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=True)
+    prof = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
+
+    async def one(k: str) -> Judgment:
+        n, x = nodes[k], got[k]
+        st, fids = x["state"], tuple(x["fids"])
+        o = await prof.forecast(n.question_id, st, (n.instance_id, *fids), n.branches)
+        return Judgment(key=k, instance_id=n.instance_id, node=n.node, question_id=n.question_id, event=n.event,
+                        assumptions=n.assumptions, window=n.window, distribution=answer_distribution(k, n.branches, o),
+                        confidence=o.confidence, finding_ids=fids, readings=x["readings"],
+                        evidence=st["evidence"] if "evidence" in st else [
+                            e for kk in ("historical_evidence", "party_assertions", "court_findings") for e in st[kk]],
+                        observation_id=o.observation_id, path_facts=st.get("path_facts", st.get("situation")))
+
+    async def every() -> list:
+        return await asyncio.gather(*(one(k) for k in sorted(got)))
+
+    js = asyncio.run(every())
+    variant = os.environ.get("SLOPE_VARIANT", "")
+    out = Path("runs/recorded") / run_id
+    suffix = f"-{variant}" if variant else ""
+    (out / f"tree_answers{suffix}.json").write_text(json.dumps(
+        {"answers": {j.key: j.distribution for j in js}, "dead": sorted(dead)}, sort_keys=True) + "\n")
+    text = json.dumps([dataclasses.asdict(j) for j in js], default=str, sort_keys=True) + "\n"
+    (out / f"tree_judgments{suffix}.json.gz").write_bytes(gzip.compress(text.encode(), mtime=0))
+    scratch = VAR / "analysis" / run_id
+    scratch.mkdir(parents=True, exist_ok=True)
+    (scratch / f"tree_jev_records{suffix}.jsonl").write_text("\n".join(json.dumps(r, default=str) for r in records))
+    print(f"{time.time() - t0:7.0f}s judge: {len(js)} answers; Jev {jev.usage_summary()}", file=sys.stderr, flush=True)
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1]
     if cmd == "split":
@@ -258,5 +323,7 @@ if __name__ == "__main__":
     elif cmd == "facts":
         facts(sys.argv[2], sys.argv[3], sys.argv[4], int(sys.argv[5]), sys.argv[6],
               check=os.environ.get("SLOPE_POOL_CHECK") == "1")
+    elif cmd == "judge":
+        judge(sys.argv[2], sys.argv[3], sys.argv[4], count_only=os.environ.get("SLOPE_JUDGE_COUNT") == "1")
     else:
         raise SystemExit(f"unknown stage {cmd!r}")
