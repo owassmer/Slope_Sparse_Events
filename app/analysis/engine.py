@@ -197,8 +197,10 @@ def with_petition(events: EventCash, day: np.ndarray | int) -> EventCash:
     return events + p
 
 
-def run(line: Line, opening_cents: int, events: EventCash, nonpayment: tuple[int, int] | None = None) -> Trajectories:
-    return run_many(line, opening_cents, [events], nonpayment)[0]
+def run(line: Line, opening_cents: int, events: EventCash, nonpayment: tuple[int, int] | None = None,
+        cash_only: bool = False) -> Trajectories | tuple:
+    """One path. `cash_only` (daily processing only): (cash, first_unpaid, nonpayment) instead of the Trajectories."""
+    return run_many(line, opening_cents, [events], nonpayment, cash_only)[0]
 
 
 def _tiled(line: Line, b: int) -> tuple:
@@ -224,16 +226,19 @@ def _tiled(line: Line, b: int) -> tuple:
     return cache[b]
 
 
-def run_many(line: Line, opening_cents: int, events: list[EventCash], nonpayment: tuple[int, int] | None = None
-             ) -> list[Trajectories]:
+def run_many(line: Line, opening_cents: int, events: list[EventCash], nonpayment: tuple[int, int] | None = None,
+             cash_only: bool = False) -> list:
     """`run` for several joint paths at once: their draws are stacked through the day loop, day-major so each day's
     values are contiguous (every operation in the loop is per trajectory and in integers, so each path's rows are
     exactly what it computes alone), then each path is finished on its own rows. Under cash_processing = daily the
-    daily processor runs instead (app/analysis/processor.py; `nonpayment`: the §3.3 terms, window days and share bps)."""
+    daily processor runs instead (app/analysis/processor.py; `nonpayment`: the §3.3 terms, window days and share bps;
+    `cash_only`: per path (cash, first_unpaid, nonpayment) only, `run_daily`)."""
     if line.setup.cash_processing == "daily":
         from app.analysis.processor import run_daily
 
-        return run_daily(line, opening_cents, events, nonpayment)
+        return run_daily(line, opening_cents, events, nonpayment, cash_only)
+    if cash_only:
+        raise ValueError("cash_only is the daily processor's mode (cash_processing = daily)")
     s, n, days, b = line.setup, line.ops.draws, line.days, len(events)
     need, limit, month_end, routes, due_idx, due0, book_d, book_a, nroutes = _kernel_line(line)
     base = np.concatenate([line.ops.total[:, :days] + e.cash - e.lock for e in events]).astype(np.int64, copy=False)

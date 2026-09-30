@@ -689,12 +689,17 @@ class Chain:
         if key in runs:
             runs[key] = runs.pop(key)
         else:
+            from app.analysis import shadow
+
             opening = self.basis.opening - self.s.exposure.cash_cents
-            tr = run(self.basis.line, opening, EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, ev.kinds,
-                                                         ev.incurred), terms)
+            e = EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, ev.kinds, ev.incurred)
+            got = run(self.basis.line, opening, e, terms, cash_only=True)  # only what the Chain reads
+            if shadow.ON:
+                tr = run(self.basis.line, opening, e, terms)
+                got = shadow.check("engine_cash", got, (tr.cash, tr.processed.first_unpaid, tr.processed.nonpayment))
             if len(runs) >= self.RUNS:
                 runs.pop(next(iter(runs)))
-            runs[key] = (tr.cash, tr.processed.first_unpaid, tr.processed.nonpayment)
+            runs[key] = got
         return runs[key]
 
     def nonpayment_terms(self) -> tuple[int, int]:
