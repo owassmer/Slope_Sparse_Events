@@ -200,7 +200,9 @@ def _child(fc, d, k: int, run: str, log) -> None:
     def edge_after(self, i0, at, edge):  # a split watch's: applied in `walk` to the paths emitted under it
         if st["local"]:
             return single_edge(self, i0, at, edge)
-        log_event("edge", st["regions"][-1], at, edge)
+        qcls = {k: list(self.fc._qcanon.get(k, ()) or self.fc._qcls.get(k, ())) for k in sorted(F.atoms(edge[0]))
+                if self.fc._classified(k)}
+        log_event("edge", st["regions"][-1], at, edge, qcls)
 
     F._Walk._watched, F._Walk._edge_after = watched, edge_after
     for name in ("node", "_reads", "situation"):
@@ -225,9 +227,10 @@ def _child(fc, d, k: int, run: str, log) -> None:
         return key
 
     def record_logged(self, keys, tr):
-        n0 = {x: len(self.facts.get(x, ())) for x in keys}
-        record(self, keys, tr)
-        log_event("rec", tuple(keys), self.facts[keys[0]].blob(n0[keys[0]]) if keys else None)
+        out = record(self, keys, tr)  # per question and situation class: its key and the row kept
+        for key, b in out:
+            log_event("rec", (key,), b)
+        return out
 
     def keep_logged(self, key, prefix, row):  # every process logs it; `walk` keeps the first of each late key
         lk = self.late_key(key, prefix, row)
@@ -243,7 +246,7 @@ def _child(fc, d, k: int, run: str, log) -> None:
     out = {"k": k, "events": events,
            "clock": st["clock"], "nseg": st["nseg"], "raise_more": raise_more, "node_group": fc.node_group,
            "remitted": fc.remitted, "class_members": fc.class_members, "class_range": fc.class_range,
-           "remit_classes": fc.remit_classes, "verdict_asks": getattr(fc, "verdict_asks", {}),
+           "remit_classes": fc.remit_classes, "verdict_asks": getattr(fc, "verdict_asks", {}), "classed": fc.classed,
            "seconds": time.time() - t0, "rss": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / RSS_GB,
            "walked": st["n"]}
     with open(os.path.join(run, f"part{k}.pkl"), "wb") as fh:
@@ -334,7 +337,7 @@ def walk(fc, d, procs: int, log=sys.stderr):
     Forecaster's nodes, facts and walk dictionaries set as the single walk leaves them."""
     import shutil
 
-    from app.disputes.forecast import _ROW_BLOBS, Rows, merge_equivalent
+    from app.disputes.forecast import _ROW_BLOBS, Rows, class_entry, merge_equivalent, path_mask, qcls_best
 
     t0 = time.time()
     saved = os.environ.get("SLOPE_WALK_PARTS")  # the parts the shards walked (GitHub Actions: app/disputes/parallel.py)
@@ -375,10 +378,13 @@ def walk(fc, d, procs: int, log=sys.stderr):
                 under.setdefault(wid, []).append(len(walked))
             walked.append([x[0], x[1]])
         elif kind == "edge":  # the question asked: its edge on the no-event branch's paths (`_Walk._edge_after`)
-            wid, at, edge = x
+            wid, at, edge, qcls = x if len(x) > 3 else (*x, {})
             for i in under.get(wid, ()):
                 w = walked[i]
-                w[0] = replace(w[0], edges=w[0].edges[:at] + (edge,) + w[0].edges[at:])
+                have = {c[0] for c in w[0].classes}
+                add = tuple(class_entry(k, cls, path_mask(w[0], fc.draws.n)) for k, entries in qcls.items()
+                            if k not in have and (cls := qcls_best(entries, w[0].steps)) is not None)
+                w[0] = replace(w[0], edges=w[0].edges[:at] + (edge,) + w[0].edges[at:], classes=w[0].classes + add)
     pre, keys = [w[0] for w in walked], [w[1] for w in walked]
     fc.nodes, fc.facts, fc._late_seen = nodes, facts, seen
 
@@ -390,6 +396,7 @@ def walk(fc, d, procs: int, log=sys.stderr):
     fc.class_range.update(_union(parts, "class_range"))
     fc.verdict_asks = {**getattr(fc, "verdict_asks", {}), **asked("verdict_asks")}
     fc.remit_classes |= set().union(*(p["remit_classes"] for p in parts))
+    fc.classed |= set().union(*(p.get("classed", ()) for p in parts))
     out = merge_equivalent(pre, keys, {x: n.branches for x, n in fc.nodes.items()})
     fc.walk_stats = {"walked": len(pre), "paths": len(out), "nodes": len(fc.nodes), "seconds": time.time() - t0,
                      "processes": [(p["k"], p["walked"], round(p["seconds"]), round(p["rss"], 2)) for p in parts]}

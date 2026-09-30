@@ -37,6 +37,7 @@ from app.domain.investigation import AtomicFinding, DisputeInstance, SemanticObs
 from app.domain.values import usd
 
 COMPOSITE = "="
+CLASS_TAG = "#"  # a question's situation class in its key (`situation_class`)
 ROWS_OFF = __import__("os").environ.get("SLOPE_ROWS") == "0"  # `_Walk._rows`: every trace on every draw
 
 
@@ -91,6 +92,9 @@ class DisputePath:
     # option group forks the path once per (group, answer), each child on its group's trajectories (Owen's ruling on
     # within-path grouping, 29 Sep 2026); its probability is the product of its edges, and each draw's paths weigh 1
     mask: bytes | None = None
+    # per classed question on the path (`Forecaster.class_key`): (question key, its class tags, and per draw the path
+    # follows, the index of its tag, int8 bytes; -1 where the question is not live there; None: one tag throughout)
+    classes: tuple = ()
 
 
 def pack_mask(m: np.ndarray | None) -> bytes | None:
@@ -299,6 +303,115 @@ def as_of(row: dict) -> dict:
                              np.asarray(closed, dtype=bool) & ~gone & (close <= day)))
             s2["offerings"] = offs
         out["sit"] = s2
+    return out
+
+
+def situation_class(row: dict) -> np.ndarray | None:
+    """Per trajectory, the question's situation class as of its decision day (QUESTIONS_20240514 §1 Grouping: a
+    difference in legal status, available actions or ability to pay splits the group; each dimension is a fact the
+    state gives): the judgment's band and standing, the notes' status, the listing, the offering's availability (or
+    why it is unavailable) and whether cash covers the amount owed, as one tag. '' where the question is not live on
+    the trajectory; None where the row has no question-state snapshot (a 20 Jun question)."""
+    from app.analysis.events import BIG
+
+    s, day = row.get("sit"), row.get("day")
+    if not isinstance(s, dict) or not isinstance(day, np.ndarray):
+        return None
+    n = day.shape[0]
+    pet = np.where(row["petition"] < 0, BIG, row["petition"])
+    live = np.flatnonzero((day < BIG) & (day < pet))
+
+    def arr(k, fill):
+        v = s.get(k)
+        return v if isinstance(v, np.ndarray) and v.shape[:1] == (n,) else np.full(n, fill)
+    band = s.get("band")
+    band = "-" if band is None or not isinstance(band, str) else band
+    standing = arr("standing", "none")
+    due, avail, dl, npd = (arr(k, BIG) for k in ("notes_due_day", "default_available", "delisted", "nonpayment_day"))
+    notes = np.where(due <= day, "due", np.where((avail <= day) | (dl <= day) | (npd <= day), "default", "current"))
+    listing = arr("listing", "listed")
+    pending, ledger = arr("offering_pending", False).astype(bool), arr("ledger", 1)
+    offer = np.where(listing == "delisted", "delisted", np.where(pet <= day, "petition", np.where(
+        pending, "pending", np.where(ledger <= 0, "nocapacity", "available"))))
+    pay = np.where((row["owed"] > 0) & (row["cash"] >= row["owed"]), "pay", "nopay")
+    out = np.full(n, "", dtype=object)
+    for j in live:
+        out[j] = f"{CLASS_TAG}{band}.{standing[j]}.{notes[j]}.{listing[j]}.{offer[j]}.{pay[j]}"
+    return out
+
+
+def qcls_best(entries, steps: tuple) -> np.ndarray | None:
+    """Of a question's recorded classes [(prefix, classes)], the record whose prefix the path `steps` shares
+    furthest (the latest of equals)."""
+    best, bl = None, -1
+    for at, cls in entries:
+        n = 0
+        if at is not None:
+            while n < min(len(at), len(steps)) and at[n] == steps[n]:
+                n += 1
+        if n >= bl:
+            best, bl = cls, n
+    return best
+
+
+def class_entry(k: str, cls: np.ndarray, mask: np.ndarray | None) -> tuple:
+    """A path's `classes` entry for question k from its per-draw classes, on the draws the path follows."""
+    c = cls if mask is None else cls[mask]
+    tags = tuple(sorted({x for x in c if x}))
+    if len(tags) == 1 and all(c):  # one class, live on every draw
+        return k, tags, None
+    return k, tags, np.array([tags.index(x) if x else -1 for x in c], dtype=np.int8).tobytes()
+
+
+def _rewrite(key: str, to: dict) -> str:
+    """A node or composite key with its question keys replaced (`to`: key -> class key)."""
+    if not key.startswith(COMPOSITE):
+        return to.get(key, key)
+    return composite([[(to.get(k, k), b) for k, b in c] for c in _conjunctions(key)])
+
+
+def expand_classes(paths: list, known, n: int) -> list:
+    """Each path split by its trajectories' question classes (`DisputePath.classes`): one path per combination of
+    classes its draws fall in, on those draws, each question key replaced by its class's. A draw where a question is
+    not live reads the question's first class asked anywhere (`known`: node keys), on every path: its answer books
+    nothing inside the horizon there, so any class gives the same result, and one class for all of the question's
+    branches keeps each draw's answers summing to one. n: the draws."""
+    first = {}
+    for k in sorted(known):
+        if "|" + CLASS_TAG in k:
+            first.setdefault(k.split("|" + CLASS_TAG)[0], k)
+    out = []
+    for p in paths:
+        if not p.classes:
+            out.append(p)
+            continue
+        m = path_mask(p, n)
+        on = np.arange(n) if m is None else np.flatnonzero(m)
+        cols, fixed = [], {}
+        for k, tags, codes in p.classes:
+            if not tags:
+                if k in first:
+                    fixed[k] = first[k]
+            elif codes is None:
+                fixed[k] = f"{k}|{tags[0]}"
+            else:
+                c = np.frombuffer(codes, dtype=np.int8).astype(np.int64)
+                if (c < 0).any():  # not live on these draws: the question's first class anywhere
+                    t0 = first[k].split("|")[-1]
+                    tags = tags if t0 in tags else (*tags, t0)
+                    c = np.where(c < 0, tags.index(t0), c)
+                cols.append((k, tags, c))
+        if not cols:
+            out.append(replace(p, edges=tuple((_rewrite(e, fixed), b) for e, b in p.edges), classes=()))
+            continue
+        uniq, inv = np.unique(np.stack([c for *_, c in cols], axis=1), axis=0, return_inverse=True)
+        inv = np.asarray(inv).ravel()
+        for u in range(len(uniq)):
+            sm = np.zeros(n, dtype=bool)
+            sm[on[inv == u]] = True
+            to = {**fixed, **{k: f"{k}|{tags[int(c)]}" for (k, tags, _), c in zip(cols, uniq[u], strict=True)}}
+            out.append(replace(p, edges=tuple((_rewrite(e, to), b) for e, b in p.edges), mask=pack_mask(sm),
+                               classes=()))
     return out
 
 
@@ -622,6 +735,14 @@ class Forecaster:
         self._raise_open: set = set()
         self._raise_more: set = set()
         self.node_group: dict[str, int] = {}  # a grouped question's key -> the option group it is asked of
+        # QUESTIONS §1 Grouping, per trajectory: the questions asked in more than one situation class (each class its
+        # own question, `class_key`), and per question the classes recorded at each prefix (`_qcls_get`)
+        self.classed: set[str] = set()
+        self._qcls: dict[str, list] = {}
+        # per question, its class per draw as asked (`_Walk.node`: on the branch that books nothing, the state before
+        # the decision), at each prefix of the current path: what every branch's paths and rows read
+        self._qcanon: dict[str, list] = {}
+        self._rec_at: tuple | None = None
         # traced prefixes: the tree is walked depth-first, so the current path's prefixes stay on a stack and only
         # sibling probes share a small LRU (`_DepthCache`); each entry holds its step's question-state snapshot
         self._traces = _DepthCache(self.SIBLINGS)
@@ -1248,34 +1369,119 @@ class Forecaster:
         if not W.pend:
             return W.run()
         while True:  # a pending claim: walk again where a whole path shows equity the floor's prefix did not
-            kept = dict(self.nodes), {k: v.copy() for k, v in self.facts.items()}, set(self._late_seen)
+            kept = (dict(self.nodes), {k: v.copy() for k, v in self.facts.items()}, set(self._late_seen),
+                    set(self.classed), {k: list(v) for k, v in self._qcls.items()},
+                    {k: list(v) for k, v in self._qcanon.items()})
             self._raise_more = set()
             out = W.run()
             more = self._raise_more - self._raise_open
             if not more:  # QUESTIONS §1 Depth: financially equivalent paths are one path
                 return merge_equivalent(out, W.keys, {k: n.branches for k, n in self.nodes.items()})
             self._raise_open |= more
-            self.nodes, self.facts, self._late_seen = kept
+            self.nodes, self.facts, self._late_seen, self.classed, self._qcls, self._qcanon = kept
             W = _Walk(self, d)
 
     def all_paths(self) -> dict[str, dict[str, list[DisputePath]]]:
         return {d.instance_id: {"": self.paths(d)} for d, _ in self.ordered()}
 
-    def record(self, keys, tr) -> None:
+    CLASSES = __import__("os").environ.get("SLOPE_CLASSES") != "0"  # 0: every question pools its situations
+
+    def _classified(self, k: str) -> bool:
+        """Whether question k is asked per situation class: a 14 May question with cash facts."""
+        memo = self.__dict__.setdefault("_cq", {})
+        if k not in memo:
+            n = self.nodes.get(k)
+            d = None if n is None else next((x for x in self.disputes if x.instance_id == n.instance_id), None)
+            memo[k] = bool(self.CLASSES and d is not None and d.stage == PENDING and CLASS_TAG not in k
+                           and self.event_forecast(n) and n.question_id not in self.no_cash)
+        return memo[k]
+
+    def class_key(self, k: str, tag: str) -> str:
+        """Question k in situation class `tag`: its own question (created through `node`, as the walk creates one)."""
+        n = self.nodes[k]
+        d = next(x for x in self.disputes if x.instance_id == n.instance_id)
+        self.classed.add(k)
+        return self.node(d, n.node, *[c for c in n.context.split("|") if c], tag, assumptions=n.assumptions,
+                         branches=n.branches)
+
+    def _split(self, keys, row: dict, keep, cls: np.ndarray | None = None) -> np.ndarray | None:
+        """The row kept (`keep(key, row)`) under each class of its questions, on that class's trajectories: the
+        classes the questions were asked in (`cls`), else the row's own; returns them (None: not classed, the row is
+        kept whole)."""
+        from app.analysis.events import BIG
+
+        if not any(self._classified(k) for k in keys):
+            cls = None
+        elif cls is None:
+            cls = situation_class(row)
+        if cls is None:
+            for k in keys:
+                keep(k, row)
+            return None
+        for t in sorted({x for x in cls if x}):
+            part = {**row, "day": np.where(cls == t, row["day"], BIG)}
+            for k in keys:
+                keep(self.class_key(k, t), part)
+        return cls
+
+    def _qcls_put(self, k: str, at: tuple | None, cls: np.ndarray) -> None:
+        """Question k's classes recorded at the prefix `at` (its trace's steps); entries off the current path (a
+        finished sibling) are dropped."""
+        lst = self._qcls.setdefault(k, [])
+        if at is not None:
+            lst[:] = [e for e in lst if e[0] is not None and at[:len(e[0]) - 1] == e[0][:-1]]
+        lst.append((at, cls))
+
+    def canon_put(self, k: str, prefix: tuple, cls: np.ndarray) -> None:
+        """Question k's classes as asked at `prefix`; entries off the current path are dropped."""
+        lst = self._qcanon.setdefault(k, [])
+        lst[:] = [e for e in lst if prefix[:len(e[0])] == e[0] and e[0] != prefix]
+        lst.append((prefix, cls))
+
+    def canon_get(self, k: str, steps: tuple) -> np.ndarray | None:
+        """Question k's classes as asked on the path `steps`: the entry at its longest prefix."""
+        best = None
+        for prefix, cls in self._qcanon.get(k, ()):
+            if steps[:len(prefix)] == prefix and (best is None or len(prefix) >= len(best[0])):
+                best = (prefix, cls)
+        return None if best is None else best[1]
+
+    def row_of(self, tr) -> dict:
+        """A question's recorded facts from its prefix trace (`record`)."""
+        return {"day": tr.day[-1], "cash": tr.cash[-1], "owed": tr.owed[-1], "collateral": tr.collateral[-1],
+                "petition": tr.petition, "settle_offer": getattr(tr, "settle_offer", None),
+                "stay_offer": getattr(tr, "stay_offer", None), "triggers": getattr(tr, "triggers", None),
+                "raise_offer": getattr(tr, "raise_offer", None), "sit": getattr(tr, "sit", None),
+                "marks": getattr(tr, "marks", None), "groups": getattr(tr, "groups", None)}
+
+    def _qcls_get(self, k: str, steps: tuple) -> np.ndarray | None:
+        """Question k's classes as recorded on the path `steps`: the record whose prefix it shares furthest."""
+        return qcls_best(self._qcls.get(k, ()), steps)
+
+    def record(self, keys, tr) -> list:
         """Keep, for each node the step asks, the facts code computed at the decision on every trajectory: its day,
         cash, amount owed and bond collateral, the petition day, and (where the chain computes them) the settlement
         offer, the reduced-security proposal and the dated contract triggers."""
-        row = {"day": tr.day[-1], "cash": tr.cash[-1], "owed": tr.owed[-1], "collateral": tr.collateral[-1],
-               "petition": tr.petition, "settle_offer": getattr(tr, "settle_offer", None),
-               "stay_offer": getattr(tr, "stay_offer", None), "triggers": getattr(tr, "triggers", None),
-               "raise_offer": getattr(tr, "raise_offer", None), "sit": getattr(tr, "sit", None),
-               "marks": getattr(tr, "marks", None), "groups": getattr(tr, "groups", None)}
-        b = pack_row(as_of(row))  # as of the decision day: a later-walked step dated after it has not happened
-        for k in keys:
+        row = self.row_of(tr)
+        out = []
+
+        def keep(k, r):
+            b = pack_row(r)
             self.facts.setdefault(k, Rows()).append_blob(b)
+            out.append((k, b))
+        # as of the decision day (a later-walked step dated after it has not happened), per situation class
+        asked = self.canon_get(keys[0], self._rec_at) if keys and self._rec_at is not None else None
+        cls = self._split(keys, as_of(row), keep, asked)
+        if cls is not None and asked is None:
+            quiet = self._rec_at and self._rec_at[-1][2].split("=")[-1] in ("", "no", "none", "neither")
+            for k in keys:
+                self._qcls_put(k, self._rec_at, cls)
+                if quiet:  # asked without its situation probe: the branch that books nothing is the state before it
+                    self.canon_put(k, self._rec_at[:-1], cls)
+        return out
 
     def record_late(self, d: DisputeInstance, steps: tuple, late: tuple, mask: np.ndarray | None = None,
-                    tr=None) -> None:
+                    tr=None) -> dict:
         """The facts of the state-triggered decisions on a whole path (the cash floor, cash exhaustion): the engine
         books each on its own day on every trajectory, after the steps dated before it wherever the walk put them
         (events.py `upto`), so its day and cash are known only once the path is. Kept once per distinct record at each
@@ -1291,10 +1497,14 @@ class Forecaster:
         if tr is None:
             tr = event_trace(d, DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=()), self.setup,
                              self.m, self.draws, self.sens)
+        classes: dict = {}
         for k, i in late:
             if i in tr.stays:  # a stay's approval (daily processing): the security sized on the whole path
-                self._keep_late(k, steps[:i], as_of(on({**tr.stays[i], "settle_offer": None, "raise_offer": None,
-                                                        "sit": tr.situations.get(i), "marks": tr.marks})))
+                got = self._split((k,), as_of(on({**tr.stays[i], "settle_offer": None, "raise_offer": None,
+                                                  "sit": tr.situations.get(i), "marks": tr.marks})),
+                                  lambda key, r, i=i: self._keep_late(key, steps[:i], r), self.canon_get(k, steps))
+                if got is not None:
+                    classes[k] = got
                 continue
             info = tr.late[i]
             n = self.nodes[k]
@@ -1306,7 +1516,12 @@ class Forecaster:
                 pet = np.where(row["petition"] < 0, np.iinfo(np.int64).max, row["petition"])
                 if ((row["day"] < self.days) & (row["day"] < pet) & (info["raise_offer"] > 0)).any():
                     self._raise_more.add(steps[:i])
-            self._keep_late(k, steps[:i], as_of(row))  # once per history: the decision day's facts, not the future's
+            # once per history and situation class: the decision day's facts, not the future's
+            got = self._split((k,), as_of(row), lambda key, r, i=i: self._keep_late(key, steps[:i], r),
+                              self.canon_get(k, steps))
+            if got is not None:
+                classes[k] = got
+        return classes
 
     @staticmethod
     def late_key(k: str, prefix: tuple, row: dict) -> tuple:
@@ -1650,7 +1865,8 @@ class Forecaster:
     def state(self, n: Node) -> tuple[dict, tuple[str, ...], dict]:
         d = next(x for x in self.disputes if x.instance_id == n.instance_id)
         rows = list(self.facts.get(n.key, ()))
-        return self.built(n, d, [c for c in n.context.split("|") if c], lambda: self.path_facts(n, d),
+        return self.built(n, d, [c for c in n.context.split("|") if c and not c.startswith(CLASS_TAG)],
+                          lambda: self.path_facts(n, d),
                           (rows, [self.live(n, r) for r in rows]))
 
     def built(self, n: Node, d: DisputeInstance, tags: list[str], facts, rows: tuple = ([], [])
@@ -1692,7 +1908,7 @@ class Forecaster:
                                 x for k in ("historical_evidence", "party_assertions", "court_findings") for x in st[k]],
                             observation_id=o.observation_id, path_facts=st.get("path_facts", st.get("situation")))
 
-        results = await asyncio.gather(*(one(n) for n in self.nodes.values()))
+        results = await asyncio.gather(*(one(n) for n in self.nodes.values() if n.key not in self.classed))
         return {j.key: j for j in results}
 
 
@@ -1775,35 +1991,56 @@ def merge_equivalent(paths: list[DisputePath], keys: list, branches: dict) -> li
     carries, and one composite edge whose conjunctions are the rest of each member's edges (disjoint: the members
     are distinct paths of one tree), so its probability is the members' sum by the chain rule (`Dist.__missing__`).
     It keeps the first member's steps and outcome (the page's path text)."""
-    from collections import Counter
-
     groups: dict = {}
     for i, k in enumerate(keys):
         groups.setdefault(k, []).append(i)
     out = []
     for i, k in enumerate(keys):
-        g = groups[k]
-        if g[0] != i:
+        if groups[k][0] != i:
             continue
-        if len(g) == 1:
-            out.append(paths[i])
-            continue
-        common = Counter(paths[g[0]].edges)
-        for j in g[1:]:
-            common &= Counter(paths[j].edges)
-        keep, left = [], Counter(common)
-        for e in paths[g[0]].edges:
-            if left[e] > 0:
-                keep.append(e)
-                left[e] -= 1
-        conj = []
-        for j in g:
-            rest = list((Counter(paths[j].edges) - common).elements())
-            if not rest:
-                raise ValueError("a merged path's edges are a subset of another member's: the members are not disjoint")
-            conj += _expand(rest, branches)
-        out.append(replace(paths[g[0]], edges=(*keep, (composite(conj), "yes"))))
+        for g in _class_compatible(paths, groups[k]):
+            out.append(_merged(paths, g, branches))
     return out
+
+
+def _class_compatible(paths: list[DisputePath], g: list[int]) -> list[list[int]]:
+    """The members of one equivalence group split where they record different classes of a question they share
+    (`DisputePath.classes`): only those merge (a merged path's probability reads each question's class per draw)."""
+    out: list[tuple[dict, list[int]]] = []
+    for j in g:
+        cj = {k: (t, c) for k, t, c in paths[j].classes}
+        for seen, members in out:
+            if all(seen[k] == v for k, v in cj.items() if k in seen):
+                seen.update(cj)
+                members.append(j)
+                break
+        else:
+            out.append((dict(cj), [j]))
+    return [m for _, m in out]
+
+
+def _merged(paths: list[DisputePath], g: list[int], branches: dict) -> DisputePath:
+    from collections import Counter
+
+    if len(g) == 1:
+        return paths[g[0]]
+    common = Counter(paths[g[0]].edges)
+    for j in g[1:]:
+        common &= Counter(paths[j].edges)
+    keep, left = [], Counter(common)
+    for e in paths[g[0]].edges:
+        if left[e] > 0:
+            keep.append(e)
+            left[e] -= 1
+    conj = []
+    for j in g:
+        rest = list((Counter(paths[j].edges) - common).elements())
+        if not rest:
+            raise ValueError("a merged path's edges are a subset of another member's: the members are not disjoint")
+        conj += _expand(rest, branches)
+    classes = {k: (k, t, c) for j in g for k, t, c in paths[j].classes}
+    return replace(paths[g[0]], edges=(*keep, (composite(conj), "yes")),
+                   classes=tuple(classes[k] for k in sorted(classes)))
 
 
 class _Walk:
@@ -1832,7 +2069,14 @@ class _Walk:
         for w in self._watch:  # a later question that reads the watched event directly
             w.read |= name in w.nodes
         tags = self.situation(s, probe, name, ctx) if s is not None else ()
-        return self.fc.node(self.d, name, *ctx, *tags, assumptions=assumptions, branches=branches)
+        k = self.fc.node(self.d, name, *ctx, *tags, assumptions=assumptions, branches=branches)
+        if s is not None and probe is not None and self.fc._classified(k) \
+                and not any(e[0] == s.steps for e in self.fc._qcanon.get(k, ())):
+            # QUESTIONS §1 Grouping: each draw's class as the question is asked, on the branch that books nothing (the
+            # state before the decision); every branch's paths and rows read it (`Forecaster.canon_get`)
+            at = probe if isinstance(probe[0], tuple) else (probe,)
+            self.fc.canon_put(k, s.steps, situation_class(as_of(self.fc.row_of(self._facts(s.steps + at)))))
+        return k
 
     def _reads(self, walk: str) -> None:
         """A later question asked where the walk's structure depends on a watched event (`_Watch.walks`)."""
@@ -1854,7 +2098,25 @@ class _Walk:
         """Give the paths emitted since `i0` the edge `edge` at position `at` (the question's own place on them)."""
         for i in range(i0, len(self.out)):
             p = self.out[i]
-            self.out[i] = replace(p, edges=p.edges[:at] + (edge,) + p.edges[at:])
+            self.out[i] = replace(p, edges=p.edges[:at] + (edge,) + p.edges[at:],
+                                  classes=p.classes + self._classes_of((edge,), p.steps, path_mask(p, self.fc.draws.n),
+                                                                       {}, {c[0] for c in p.classes}))
+
+    def _classes_of(self, edges, steps, mask, late: dict, have=frozenset()) -> tuple:
+        """The `DisputePath.classes` entries of the classed questions among `edges` on the path `steps` (on its draws
+        `mask`), each from the question's own record (`late`: a state-triggered question's, from the whole path)."""
+        out, seen = [], set(have)
+        for key, _ in edges:
+            for k in sorted(atoms(key)):
+                if k in seen or not self.fc._classified(k):
+                    continue
+                seen.add(k)
+                cls = self.fc.canon_get(k, steps)
+                if cls is None:
+                    cls = late[k] if k in late else self.fc._qcls_get(k, steps)
+                if cls is not None:
+                    out.append(class_entry(k, cls, mask))
+        return tuple(out)
 
     def situation(self, s: _S, probe, name: str, ctx) -> tuple[str, ...]:
         conds = list(self.fc.spec[name].get("situation", []))
@@ -1918,6 +2180,7 @@ class _Walk:
 
     def _facts(self, steps) -> _Prefix:
         """`_trace` for a recorded fact: computed, never a sibling's (`Forecaster._served`)."""
+        self.fc._rec_at = tuple(steps)  # the prefix the facts are recorded at (`Forecaster._qcls_put`)
         return masked(self.fc.trace(self.d, steps, real=True, rows=self._rows(steps)), self.mask_of(steps))
 
     # --- within-path grouping (Owen's ruling, 29 Sep 2026) ----------------------------------------------------------
@@ -2854,10 +3117,9 @@ class _Walk:
             tr = event_trace(self.d, DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome="", edges=()),
                              self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens, rows=self._rows(s.steps))
             self.keys.append(self.equivalence(s, outcome, tr, m))
-        if s.late:
-            self.fc.record_late(self.d, s.steps, s.late, m, tr=tr)
+        late = self.fc.record_late(self.d, s.steps, s.late, m, tr=tr) if s.late else {}
         self.out.append(DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome=outcome, edges=s.edges,
-                                    mask=pack_mask(m)))
+                                    mask=pack_mask(m), classes=self._classes_of(s.edges, s.steps, m, late or {})))
 
     def equivalence(self, s: _S, outcome: str, tr, m: np.ndarray | None) -> tuple:
         """The path's financial-equivalence key (QUESTIONS §1 Depth; `merge_equivalent`): its draws, and on them every

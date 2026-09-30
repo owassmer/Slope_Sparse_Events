@@ -86,6 +86,13 @@ class EventModel:
     bank_judgments: dict[str, Judgment] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if any(p.classes for v in self.per.values() for ps in v.values() for p in ps):
+            from app.disputes.forecast import (
+                expand_classes,  # QUESTIONS §1 Grouping: each draw's own questions
+            )
+
+            known = set(self.judgments)
+            self.per = {i: {k: expand_classes(ps, known, DRAWS) for k, ps in v.items()} for i, v in self.per.items()}
         if not self.combos:
             self.combos = joint_paths(self.per, self.order) if self.order else self.bank_combos
 
