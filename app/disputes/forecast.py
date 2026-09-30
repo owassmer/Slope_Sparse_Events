@@ -336,8 +336,11 @@ def situation_class(row: dict, live: np.ndarray | None = None) -> np.ndarray | N
         pending, "pending", np.where(ledger <= 0, "nocapacity", "available"))))
     pay = np.where((row["owed"] > 0) & (row["cash"] >= row["owed"]), "pay", "nopay")
     out = np.full(n, "", dtype=object)
-    for j in live:
-        out[j] = f"{CLASS_TAG}{band}.{standing[j]}.{notes[j]}.{listing[j]}.{offer[j]}.{pay[j]}"
+    if live.size:
+        tag = np.full(live.size, f"{CLASS_TAG}{band}")
+        for part in (standing, notes, listing, offer, pay):
+            tag = np.strings.add(np.strings.add(tag, "."), np.asarray(part)[live].astype(str))
+        out[live] = tag.astype(object)
     return out
 
 
@@ -346,9 +349,14 @@ def group_classes(cls: np.ndarray | None, groups: np.ndarray) -> np.ndarray:
     QUESTIONS §1 Grouping carries situations): each draw where it is asked (groups >= 0) in its situation class and
     its option group ('.g<group>'), so each class is one question with the group's own answers."""
     out = np.full(len(groups), "", dtype=object)
-    for j in np.flatnonzero(groups >= 0):
-        base = cls[j] if cls is not None and cls[j] else f"{CLASS_TAG}-"
-        out[j] = f"{base}.g{int(groups[j])}"
+    j = np.flatnonzero(groups >= 0)
+    if j.size:
+        base = np.full(j.size, f"{CLASS_TAG}-", dtype=object)
+        if cls is not None:
+            c = cls[j]
+            base = np.where(c != "", c, base)
+        tag = np.strings.add(np.strings.add(base.astype(str), ".g"), groups[j].astype(np.int64).astype(str))
+        out[j] = tag.astype(object)
     return out
 
 
@@ -846,7 +854,7 @@ class Forecaster:
     # --- prefix traces (code timing and arithmetic, before any Jev answer) ----------------------------------------
 
     def trace(self, d: DisputeInstance, steps: tuple, full: bool = False, real: bool = False,
-              light: bool = False, rows: tuple | None = None) -> _Prefix:
+              light: bool = False, rows: tuple | None = None, full_rows: bool = False) -> _Prefix:
         """The prefix's per-step decision days and path facts, its petition days and a fingerprint of its event cash.
         The dense [draws, days] arrays are dropped once fingerprinted: the tree has thousands of prefixes, and keeping
         each prefix's arrays held about 20 GB for the Akoustis tree. Settled only to the last step's decision day
@@ -860,8 +868,8 @@ class Forecaster:
         from app.analysis.events import _rows_key, canon, event_chain, event_trace
 
         steps = canon(steps)  # a grouped branch books its answer; the path's group is its mask (`_Walk._trace`)
-        if full or rows is None or not rows or rows[-1] is None or rows[-1].all():
-            rows = None
+        if (full and not full_rows) or rows is None or not rows or rows[-1] is None or rows[-1].all():
+            rows = None  # full_rows: a whole trace on the path's rows (its digest reads those rows only)
         rk = None if rows is None else _rows_key(rows[-1])
 
         def compute():
@@ -2689,22 +2697,31 @@ class _Walk:
         return classes
 
     def _same_after(self, s: _S, a: tuple, b: tuple, m: np.ndarray | None) -> bool:
-        """Whether the steps a and b after the path book and read the same inside the horizon on its draws `m`: their
-        whole traces' event cash and petitions (the digest), petition causes and marks, and their chains' state
-        (events.Chain.divergence, which also reads what a later question's situation reads). Each chain is taken
-        right after its branch's whole trace, which leaves the prefix stack at that branch (events._advanced): the
-        chain is a copy of the stack's top, never re-advanced. The digests (one comparison) go first."""
+        """Whether the steps a and b after the path book and read the same inside the horizon on its draws `m`, on
+        those draws alone (the path's rows, `_rows`: every trajectory's computation reads only its own row). First the
+        chains one step past the shared prefix (events.Chain.divergence: what later questions read); only where they
+        agree the two traces booked to the horizon: their event cash and petitions (the digest; it also catches a
+        waiting step's branch, which books on its own day), petition causes and marks."""
         from app.analysis.events import BIG, canon, event_chain
 
+        if self.d is None:  # the ordinary view (a handful of paths): on every draw
+            rows_a = rows_b = None
+        else:
+            rows_a, rows_b = self._rows(s.steps + (a,)), self._rows(s.steps + (b,))
+        chain = lambda st, r: event_chain(self.d, canon(st), self.fc.setup, self.fc.m, self.fc.draws,  # noqa: E731
+                                          self.fc.sens, fin=None if self.d is not None else self.fin, rows=r)
+        ca = chain(s.steps + (a,), rows_a)
+        div = ca.divergence(chain(s.steps + (b,), rows_b))
         on = np.ones(self.fc.draws.n, dtype=bool) if m is None else m
-        chain = lambda st: event_chain(self.d, canon(st), self.fc.setup, self.fc.m, self.fc.draws,  # noqa: E731
-                                       self.fc.sens, fin=None if self.d is not None else self.fin)
-        ta = self._trace(s.steps + (a,), True)
-        ca = chain(s.steps + (a,))
-        tb = self._trace(s.steps + (b,), True)
-        if ta.digest is None or ta.digest != tb.digest:
+        if not bool(((div if len(div) != len(on) else div[on]) >= BIG).all()):  # a chain on rows is on m already
             return False
-        if not bool((ca.divergence(chain(s.steps + (b,)))[on] >= BIG).all()):
+        if self.d is None:
+            ta, tb = self._trace(s.steps + (a,), True), self._trace(s.steps + (b,), True)
+        else:
+            whole = lambda st, r: masked(self.fc.trace(self.d, st, True, rows=r, full_rows=True),  # noqa: E731
+                                         self.mask_of(st))
+            ta, tb = whole(s.steps + (a,), rows_a), whole(s.steps + (b,), rows_b)
+        if ta.digest is None or ta.digest != tb.digest:
             return False
         if (ta.cause is None) != (tb.cause is None) or (
                 ta.cause is not None and not np.array_equal(ta.cause[on], tb.cause[on])):

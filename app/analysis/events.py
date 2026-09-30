@@ -3188,13 +3188,16 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
 
 
 def event_chain(d: DisputeInstance | None, steps, setup: Setup, model: dict, draws: Draws, sens: dict | None = None,
-                fin=None) -> Chain:
-    """The chain after the steps (canonical), not finished: the dispute's (d) or the bank view's (d None, `fin`)."""
+                fin=None, rows: tuple | None = None) -> Chain:
+    """The chain after the steps (canonical), not finished: the dispute's (d) or the bank view's (d None, `fin`).
+    rows: per step, the path's trajectories (`_advanced`): the chain on rows[-1] alone."""
+    if rows is not None and (not rows or rows[-1] is None or rows[-1].all()):
+        rows = None
     if d is None:
         return _advanced(lambda: Chain(None, setup, model, draws, sens, fin=fin), steps, draws, (BANK,),
-                         (fin, setup, model, sens))[0]
+                         (fin, setup, model, sens), rows)[0]
     return _advanced(lambda: Chain(d, setup, model, draws, sens), steps, draws, (d.instance_id,),
-                     (d, setup, model, sens))[0]
+                     (d, setup, model, sens), rows)[0]
 
 
 def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws,
