@@ -390,19 +390,28 @@ def _rewrite(key: str, to: dict) -> str:
     return composite([[(to.get(k, k), b) for k, b in c] for c in _conjunctions(key)])
 
 
-def expand_classes(paths: list, known, n: int, dead=frozenset()) -> list:
-    """Each path split by its trajectories' question classes (`DisputePath.classes`): one path per combination of
-    classes its draws fall in, on those draws, each question key replaced by its class's. A draw where a question is
-    not live reads the question's first class asked anywhere (`known`: node keys), on every path: its answer books
-    nothing inside the horizon there, so any class gives the same result, and one class for all of the question's
-    branches keeps each draw's answers summing to one. A class live on no path of the tree (`dead`: the facts
-    found no live trajectory for it) is read the same way, everywhere. n: the draws."""
+def class_firsts(known, dead=frozenset()) -> dict:
+    """Per classed question, the first class asked anywhere (`expand_classes`: what a draw the question is not live
+    on reads; a dead class is passed over where a live one exists)."""
     first = {}
     for k in sorted(known):  # a question live on no path at all reads its first class (it moves no figure either)
         if "|" + CLASS_TAG in k:
             base = k.split("|" + CLASS_TAG)[0]
             if k not in dead or first.get(base, k) in dead:
                 first[base] = k if base not in first or first[base] in dead else first[base]
+    return first
+
+
+def expand_classes(paths: list, known, n: int, dead=frozenset(), first: dict | None = None) -> list:
+    """Each path split by its trajectories' question classes (`DisputePath.classes`): one path per combination of
+    classes its draws fall in, on those draws, each question key replaced by its class's. A draw where a question is
+    not live reads the question's first class asked anywhere (`known`: node keys; `first`: `class_firsts`, computed
+    here when not given), on every path: its answer books nothing inside the horizon there, so any class gives the
+    same result, and one class for all of the question's branches keeps each draw's answers summing to one. A class
+    live on no path of the tree (`dead`: the facts found no live trajectory for it) is read the same way, everywhere.
+    n: the draws."""
+    if first is None:
+        first = class_firsts(known, dead)
     out = []
     for p in paths:
         if not p.classes:
@@ -575,13 +584,18 @@ class _Prefix:
         trace (its event cash after the decision day is not booked)."""
         from app.analysis.events import KINDS, OBLIGATIONS, array_key
 
-        ev = tr.events
+        ev, rows = tr.events, getattr(tr, "rows", None)
         d = None
         if digest:
             extra = [*(ev.kinds[k] for k in KINDS), *(ev.incurred[k] for k in OBLIGATIONS)] if daily else []
-            d = array_key(ev.cash, ev.lock, ev.capacity, *extra, ev.petition)
+            d = array_key(*(() if rows is None else (rows,)), ev.cash, ev.lock, ev.capacity, *extra, ev.petition)
+        if rows is None:
+            petition = ev.petition.copy()
+        else:  # the event cash is on the path's rows: its petition on every draw, 0 off them (`masked`)
+            petition = np.zeros(len(tr.day[-1]), dtype=ev.petition.dtype)
+            petition[rows] = ev.petition
         last = slice(None) if whole else slice(-1, None)  # later steps read only the traced step's (`tr.day[-1]`)
-        return cls(tr.day[last], tr.cash[last], tr.owed[last], tr.collateral[last], ev.petition.copy(), d,
+        return cls(tr.day[last], tr.cash[last], tr.owed[last], tr.collateral[last], petition, d,
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
                    tr.triggers, getattr(tr, "raise_offer", None), getattr(tr, "reads", None),
                    (getattr(tr, "situations", None) or {}).get(len(tr.day) - 1),
@@ -3325,7 +3339,7 @@ class _Walk:
             # the range of the path's cumulative event cash less encumbrance on its draws, per day (the analysis's
             # histogram bins, core.Analysis._bins, read the tree's range: pool.control merges each process's)
             cum = np.cumsum(tr.events.cash - tr.events.lock, axis=1)
-            cum = cum if m is None else cum[m]
+            cum = cum if m is None or tr.rows is not None else cum[m]  # on the rows already (events.Trace.rows)
             if cum.size:
                 r = self.fc.__dict__.setdefault("ev_range", [np.zeros(self.N), np.zeros(self.N)])
                 np.minimum(r[0], cum.min(axis=0), out=r[0])
@@ -3344,15 +3358,17 @@ class _Walk:
         from app.analysis.events import BIG
 
         ev, h = tr.events, xxhash.xxh3_128()
-        named = [("cash", ev.cash), ("lock", ev.lock), ("capacity", ev.capacity), ("petition", ev.petition),
-                 *((f"k:{k}", ev.kinds[k]) for k in sorted(ev.kinds)),
-                 *((f"i:{k}", ev.incurred[k]) for k in sorted(ev.incurred)),
-                 *((f"p:{k}", v) for k, v in sorted((ev.proceeds or {}).items())),
-                 *((("cause", tr.cause),) if tr.cause is not None else ()),
-                 *((f"m:{k}", np.where(tr.marks[k] < self.N, tr.marks[k], BIG))
+        on_rows = getattr(tr, "rows", None) is not None  # the event cash on the path's rows already (events.Trace)
+        named = [("cash", ev.cash, on_rows), ("lock", ev.lock, on_rows), ("capacity", ev.capacity, on_rows),
+                 ("petition", ev.petition, on_rows),
+                 *((f"k:{k}", ev.kinds[k], on_rows) for k in sorted(ev.kinds)),
+                 *((f"i:{k}", ev.incurred[k], on_rows) for k in sorted(ev.incurred)),
+                 *((f"p:{k}", v, on_rows) for k, v in sorted((ev.proceeds or {}).items())),
+                 *((("cause", tr.cause, False),) if tr.cause is not None else ()),
+                 *((f"m:{k}", np.where(tr.marks[k] < self.N, tr.marks[k], BIG), False)
                    for k in ("stayed", "ruled", "paid", "settled", "raised") if tr.marks and k in tr.marks)]
-        for name, a in named:
-            a = np.ascontiguousarray(a if m is None else np.asarray(a)[m])
+        for name, a, cut in named:
+            a = np.ascontiguousarray(a if m is None or cut else np.asarray(a)[m])
             h.update(name.encode() + str(a.shape).encode() + str(a.dtype).encode() + a.tobytes())
         verdict = next((x[2] for x in s.steps if x[0] == "verdict"), "")
         ruling = next((x[2] for x in s.steps if x[0] == "post_trial_ruling"), "")

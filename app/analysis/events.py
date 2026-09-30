@@ -537,6 +537,9 @@ class Trace:
     stays: dict = field(default_factory=dict)
     situations: dict = field(default_factory=dict)  # worker C: step index -> Chain.c_situation
     groups: dict = field(default_factory=dict)  # a grouped step's index -> its option group per draw (-1: not asked)
+    # a trace computed on a path's trajectories alone (`_run` rows): their indices among the draws. Every per-step
+    # field is on every draw (off the rows as `forecast.masked` leaves them); the event cash stays on the rows.
+    rows: np.ndarray | None = None
 
 
 class Chain:
@@ -3126,8 +3129,9 @@ LIGHT_FIELDS = ("day", "cash", "owed", "collateral", "cause", "marks", "settle_o
 def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = False, light: bool = False,
          rows: tuple | None = None) -> Trace:
     """`make().run(steps)`, resumed from the prefix stack (`_advanced`); light: a walk read's trace (`finish`).
-    rows: per step, the path's trajectories (`_advanced`): the trace is computed on rows[-1] alone and returned on
-    every draw, off those rows as `forecast.masked` leaves a path's trace (`_widen`)."""
+    rows: per step, the path's trajectories (`_advanced`): the trace is computed on rows[-1] alone; its per-step
+    fields are returned on every draw, off those rows as `forecast.masked` leaves a path's trace (`_widen`), and its
+    event cash on the rows (`Trace.rows`: nothing reads it elsewhere)."""
     from app.analysis import shadow
 
     if rows is not None and (not rows or rows[-1] is None or rows[-1].all()):  # masks only narrow: every draw
@@ -3138,7 +3142,9 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
         sub = ch.finish(sub, day_only, light)
 
         def wide(t: Trace) -> Trace:
-            return _trace_rows(t, lambda v, k: _widen(v, idx, n, k))
+            w = _trace_rows(t, lambda v, k: v if k == "events" else _widen(v, idx, n, k))
+            w.rows = idx
+            return w
         if shadow.ON:  # the rows' trace is the whole draws' trace on them, field for field
             ref_ch, ref = _advanced(make, steps, draws, key, inputs)
             ref = ref_ch.finish(ref, day_only, light)
@@ -3156,6 +3162,7 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
             def norm(t: Trace) -> dict:  # a step's option groups all -1 (asked on none of the rows) read as absent
                 v = dict(vars(wide(t)))
                 v["groups"] = {i: g for i, g in (v.get("groups") or {}).items() if (g[idx] >= 0).any()}
+                v.pop("rows", None)
                 return canon(v)
             a_, b_ = norm(sub), norm(_cut_trace(ref, idx, n))
             import os
