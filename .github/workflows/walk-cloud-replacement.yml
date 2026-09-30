@@ -1,0 +1,27 @@
+name: walk-cloud-replacement
+on:
+  push:
+    branches: [walk-cloud-replacement]
+env:
+  AWS_REGION: us-east-1
+  BUCKET: slope-walk-381492272971-20260930
+  PREFIX: walk-36781427817
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::381492272971:role/slope-walk-20260930-github
+          aws-region: us-east-1
+          role-duration-seconds: 21600
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - run: uv run --with boto3 python tools/cloud_walk.py worker "$BUCKET" "$PREFIX" --minutes 300
