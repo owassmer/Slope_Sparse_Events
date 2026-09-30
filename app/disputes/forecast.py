@@ -25,7 +25,7 @@ import json
 import math
 import pickle
 import zlib
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
 from typing import Protocol
@@ -306,12 +306,13 @@ def as_of(row: dict) -> dict:
     return out
 
 
-def situation_class(row: dict) -> np.ndarray | None:
+def situation_class(row: dict, live: np.ndarray | None = None) -> np.ndarray | None:
     """Per trajectory, the question's situation class as of its decision day (QUESTIONS_20240514 §1 Grouping: a
     difference in legal status, available actions or ability to pay splits the group; each dimension is a fact the
     state gives): the judgment's band and standing, the notes' status, the listing, the offering's availability (or
     why it is unavailable) and whether cash covers the amount owed, as one tag. '' where the question is not live on
-    the trajectory; None where the row has no question-state snapshot (a 20 Jun question)."""
+    the trajectory (`live`: the question's own rule, `Forecaster.live`; else dated before the horizon's end and any
+    petition); None where the row has no question-state snapshot (a 20 Jun question)."""
     from app.analysis.events import BIG
 
     s, day = row.get("sit"), row.get("day")
@@ -319,7 +320,7 @@ def situation_class(row: dict) -> np.ndarray | None:
         return None
     n = day.shape[0]
     pet = np.where(row["petition"] < 0, BIG, row["petition"])
-    live = np.flatnonzero((day < BIG) & (day < pet))
+    live = np.flatnonzero((day < BIG) & (day < pet) if live is None else live)
 
     def arr(k, fill):
         v = s.get(k)
@@ -370,16 +371,19 @@ def _rewrite(key: str, to: dict) -> str:
     return composite([[(to.get(k, k), b) for k, b in c] for c in _conjunctions(key)])
 
 
-def expand_classes(paths: list, known, n: int) -> list:
+def expand_classes(paths: list, known, n: int, dead=frozenset()) -> list:
     """Each path split by its trajectories' question classes (`DisputePath.classes`): one path per combination of
     classes its draws fall in, on those draws, each question key replaced by its class's. A draw where a question is
     not live reads the question's first class asked anywhere (`known`: node keys), on every path: its answer books
     nothing inside the horizon there, so any class gives the same result, and one class for all of the question's
-    branches keeps each draw's answers summing to one. n: the draws."""
+    branches keeps each draw's answers summing to one. A class live on no path of the tree (`dead`: the facts
+    found no live trajectory for it) is read the same way, everywhere. n: the draws."""
     first = {}
-    for k in sorted(known):
+    for k in sorted(known):  # a question live on no path at all reads its first class (it moves no figure either)
         if "|" + CLASS_TAG in k:
-            first.setdefault(k.split("|" + CLASS_TAG)[0], k)
+            base = k.split("|" + CLASS_TAG)[0]
+            if k not in dead or first.get(base, k) in dead:
+                first[base] = k if base not in first or first[base] in dead else first[base]
     out = []
     for p in paths:
         if not p.classes:
@@ -389,6 +393,11 @@ def expand_classes(paths: list, known, n: int) -> list:
         on = np.arange(n) if m is None else np.flatnonzero(m)
         cols, fixed = [], {}
         for k, tags, codes in p.classes:
+            if dead and any(f"{k}|{t}" in dead for t in tags):  # a dead class reads as a draw not live
+                c = (np.full(len(np.flatnonzero(path_mask(p, n))) if p.mask is not None else n, 0, dtype=np.int64)
+                     if codes is None else np.frombuffer(codes, dtype=np.int8).astype(np.int64))
+                c = np.where(np.isin(c, [i for i, t in enumerate(tags) if f"{k}|{t}" in dead]), -1, c)
+                codes = c.astype(np.int8).tobytes()
             if not tags:
                 if k in first:
                     fixed[k] = first[k]
@@ -453,10 +462,42 @@ def unpack_row(b: bytes) -> dict:
     return {k: _whole(v, ix, n, k) for k, v in row.items()}
 
 
+class _Lazy(Mapping):
+    """A stored row (`pack_row`) read field by field: each per-trajectory array is widened to every draw only when
+    read (`unpack_row` widens them all at once); nested dicts likewise. The same values, a row's memory at its stored
+    trajectories' size (a question pooled from tens of thousands of rows)."""
+    __slots__ = ("_c", "_ix", "_n")
+
+    def __init__(self, c: dict, ix, n: int) -> None:
+        self._c, self._ix, self._n = c, ix, n
+
+    def __getitem__(self, k):
+        v = self._c[k]
+        if type(v) is dict:
+            return _Lazy(v, self._ix, self._n)
+        return _whole(v, self._ix, self._n, k)
+
+    def __iter__(self):
+        return iter(self._c)
+
+    def __len__(self) -> int:
+        return len(self._c)
+
+
+def lazy_row(b: bytes):
+    row = pickle.loads(zlib.decompress(b))
+    if "__ix__" not in row:
+        return row
+    ix, n = row.pop("__ix__"), row.pop("__n__")
+    return _Lazy(row, ix, n)
+
+
 class Rows:
-    """A node's recorded rows, stored compressed; iterating or indexing yields the rows as recorded."""
+    """A node's recorded rows, stored compressed; iterating or indexing yields the rows as recorded (LAZY: read field
+    by field, `_Lazy`)."""
 
     __slots__ = ("_b",)
+    LAZY: bool = False
 
     def __init__(self, blobs=()):
         self._b = list(blobs)
@@ -477,10 +518,10 @@ class Rows:
         return len(self._b)
 
     def __iter__(self):
-        return (unpack_row(b) for b in self._b)
+        return ((lazy_row if self.LAZY else unpack_row)(b) for b in self._b)
 
     def __getitem__(self, i):
-        return unpack_row(self._b[i])
+        return (lazy_row if self.LAZY else unpack_row)(self._b[i])
 
 
 @dataclass(frozen=True)
@@ -1413,7 +1454,7 @@ class Forecaster:
         if not any(self._classified(k) for k in keys):
             cls = None
         elif cls is None:
-            cls = situation_class(row)
+            cls = situation_class(row, self.live(self.nodes[keys[0]], row))
         if cls is None:
             for k in keys:
                 keep(k, row)
@@ -2075,7 +2116,8 @@ class _Walk:
             # QUESTIONS §1 Grouping: each draw's class as the question is asked, on the branch that books nothing (the
             # state before the decision); every branch's paths and rows read it (`Forecaster.canon_get`)
             at = probe if isinstance(probe[0], tuple) else (probe,)
-            self.fc.canon_put(k, s.steps, situation_class(as_of(self.fc.row_of(self._facts(s.steps + at)))))
+            row = as_of(self.fc.row_of(self._facts(s.steps + at)))
+            self.fc.canon_put(k, s.steps, situation_class(row, self.fc.live(self.fc.nodes[k], row)))
         return k
 
     def _reads(self, walk: str) -> None:

@@ -1,7 +1,7 @@
 name: walk
 
-# The 14 May dispute tree walked on GitHub runners (app/disputes/parallel.py `shard`): each job walks its parts of
-# the tree and uploads them; `slope analyze` merges them with SLOPE_WALK_PARTS.
+# The 14 May dispute tree walked on GitHub runners (app/disputes/parallel.py `shard`), each job's parts split for the
+# pool stages (app/disputes/pool.py `split`): its control events and its rows in 16 buckets by question.
 on:
   push:
     branches: [walk-run, "walk-run-*"]  # walk-run-<variant>: an economic-assumption variant
@@ -28,17 +28,113 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - run: uv run slope evidence build akoustis_20240514
-      - run: nproc; free -g
+      - run: nproc; free -g; df -h /
       - run: >
           SLOPE_VARIANT=$(n=${GITHUB_REF_NAME#walk-run}; echo ${n#-}) SLOPE_JEV_CACHE_ONLY=1
           uv run python -m app.disputes.parallel $RUN_ID
           ${{ matrix.job }} $JOBS $PROCS out 2> >(tee walk.log >&2)
+      - run: uv run python -m app.disputes.pool split out split 2> >(tee -a walk.log >&2)
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: walk-${{ matrix.job }}
+          name: control-j${{ matrix.job }}
           path: |
-            out/part*.pkl
+            split/control/
             walk.log
           retention-days: 3
-          compression-level: 0
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b0-j${{ matrix.job }}
+          path: split/rows0/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b1-j${{ matrix.job }}
+          path: split/rows1/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b2-j${{ matrix.job }}
+          path: split/rows2/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b3-j${{ matrix.job }}
+          path: split/rows3/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b4-j${{ matrix.job }}
+          path: split/rows4/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b5-j${{ matrix.job }}
+          path: split/rows5/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b6-j${{ matrix.job }}
+          path: split/rows6/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b7-j${{ matrix.job }}
+          path: split/rows7/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b8-j${{ matrix.job }}
+          path: split/rows8/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b9-j${{ matrix.job }}
+          path: split/rows9/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b10-j${{ matrix.job }}
+          path: split/rows10/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b11-j${{ matrix.job }}
+          path: split/rows11/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b12-j${{ matrix.job }}
+          path: split/rows12/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b13-j${{ matrix.job }}
+          path: split/rows13/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b14-j${{ matrix.job }}
+          path: split/rows14/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rows-b15-j${{ matrix.job }}
+          path: split/rows15/
+          retention-days: 3
+          compression-level: 1

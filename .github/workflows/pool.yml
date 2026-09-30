@@ -1,0 +1,93 @@
+name: pool
+
+# The walk's parts carried to Jev (app/disputes/pool.py): control merges every job's control events (the watched
+# regions, the questions, the paths with their watch edges); facts builds each bucket's questions' Jev states. Runs on
+# a push to pool-run (pool-run-<variant>), from the latest successful walk of the same branch suffix.
+on:
+  push:
+    branches: [pool-run, "pool-run-*"]
+
+env:
+  RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
+
+jobs:
+  control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      walk: ${{ steps.walk.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - id: walk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          echo "run=$(gh run list -R ${{ github.repository }} --workflow walk --status success -L 1
+          --branch walk-run${GITHUB_REF_NAME#pool-run} --json databaseId -q '.[0].databaseId')" >> $GITHUB_OUTPUT
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: control-j*
+          path: control
+          merge-multiple: true
+          run-id: ${{ steps.walk.outputs.run }}
+          github-token: ${{ github.token }}
+      - run: du -sh control; free -g
+      - run: >
+          SLOPE_VARIANT=$(n=${GITHUB_REF_NAME#pool-run}; echo ${n#-})
+          uv run python -m app.disputes.pool control control ctl 2> >(tee control.log >&2)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ctl
+          path: |
+            ctl/
+            control.log
+          retention-days: 3
+          compression-level: 1
+  facts:
+    needs: control
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions:
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bucket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rows-b${{ matrix.bucket }}-j*
+          path: rows
+          merge-multiple: false
+          run-id: ${{ needs.control.outputs.walk }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ctl
+          path: ctlart
+      - run: du -sh rows ctlart; free -g
+      - run: >
+          SLOPE_VARIANT=$(n=${GITHUB_REF_NAME#pool-run}; echo ${n#-}) SLOPE_JEV_CACHE_ONLY=1
+          uv run python -m app.disputes.pool facts $RUN_ID rows ctlart/ctl/control.pkl ${{ matrix.bucket }} states
+          2> >(tee facts.log >&2)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: states-${{ matrix.bucket }}
+          path: |
+            states/
+            facts.log
+          retention-days: 3
