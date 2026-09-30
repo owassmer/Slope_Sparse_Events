@@ -1060,6 +1060,9 @@ class Forecaster:
     async def judge_bank(self, judge: ForecastJudge) -> dict[str, Judgment]:
         async def one(n: Node) -> Judgment:
             if self.ordinary:  # the forecast's own question, on the ordinary view's facts
+                if len(tags := ordinary_classes(self, n)) > 1:  # QUESTIONS §1 Grouping: one situation per question
+                    raise NotImplementedError(f"the ordinary view's {n.key} pools {len(tags)} situation classes "
+                                              f"({sorted(tags)[:3]}); its walk does not split questions by class")
                 st, fids, readings = ordinary_state(self, n)
                 o = await judge.forecast(n.question_id, st, (n.instance_id, *fids), n.branches)
                 return Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
@@ -3367,6 +3370,17 @@ def ordinary_state(fc: Forecaster, n: Node) -> tuple[dict, tuple[str, ...], dict
              "sit": r[5] if len(r) > 5 else None} for r in fc.bank_facts.get(n.key, [])]
     return fc.built(n, fc.ordinary_dispute(), [c for c in n.context.split("|")[1:] if c], lambda: bank_facts(fc, n),
                     (rows, [r["day"] < fc.days for r in rows]))
+
+
+def ordinary_classes(fc: Forecaster, n: Node) -> set[str]:
+    """The situation classes (`situation_class`, as of each decision day) the ordinary view's question pools."""
+    tags: set[str] = set()
+    for r in fc.bank_facts.get(n.key, []):
+        row = {"day": r[0], "cash": r[1], "owed": np.zeros_like(r[1]), "petition": np.full_like(r[0], -1),
+               "triggers": r[4] if len(r) > 4 else None, "sit": r[5] if len(r) > 5 else None}
+        c = situation_class(as_of(row), r[0] < fc.days)
+        tags |= set() if c is None else {x for x in c if x}
+    return tags
 
 
 def bank_facts(fc: Forecaster, n: Node) -> dict:
