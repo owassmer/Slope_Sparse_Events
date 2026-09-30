@@ -769,8 +769,8 @@ class Chain:
         return c
 
     NET_KEY = ("cash", "lock", "capacity", "petition")  # what the net engine reads
-    # the daily processor's: the kinds sum to the cash, so the cash adds nothing
-    DAILY_KEY = ("lock", "capacity", "petition", *(f"k:{k}" for k in KINDS), *(f"i:{k}" for k in OBLIGATIONS))
+    # the daily processor's: the kinds sum to the cash, so the cash adds nothing; it never reads the credit capacity
+    DAILY_KEY = ("lock", "petition", *(f"k:{k}" for k in KINDS), *(f"i:{k}" for k in OBLIGATIONS))
 
     def line_net(self) -> np.ndarray:
         from app.analysis.engine import run
@@ -789,22 +789,33 @@ class Chain:
     def processed(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Under daily processing: the engine's end-of-day available cash [draws, days], first unpaid day and §3.3
         day [draws] (BIG: none) on this event cash, from the run cached per event state (as `line_net`)."""
-        from app.analysis.engine import run
-
-        ev, runs = self.ev, self.basis.runs
         terms = self.nonpayment_terms()
         key = self._run_key("daily", self.DAILY_KEY, np.array(terms, dtype=np.int64).tobytes())
-        got = runs_get(runs, key)
+        got = runs_get(self.basis.runs, key)
         if got is None:
-            from app.analysis import shadow
+            got = self._daily_run(key, terms)[:3]
+        return got
 
-            opening = self.basis.opening - self.s.exposure.cash_cents
-            e = EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, ev.kinds, ev.incurred)
-            got = run(self.basis.line, opening, e, terms, cash_only=True)  # only what the Chain reads
-            if shadow.ON:
-                tr = run(self.basis.line, opening, e, terms)
-                got = shadow.check("engine_cash", got, (tr.cash, tr.processed.first_unpaid, tr.processed.nonpayment))
-            runs_put(runs, key, got)
+    def _daily_run(self, key: bytes, terms: tuple[int, int]) -> tuple:
+        """One daily run of this event state: what the Chain reads (cash, first unpaid day, §3.3 day) kept in the
+        process's runs under `key`, and the arrears the same run computed kept for `_arrears` (never a run of its
+        own)."""
+        from app.analysis.engine import run
+
+        ev = self.ev
+        opening = self.basis.opening - self.s.exposure.cash_cents
+        e = EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, ev.kinds, ev.incurred)
+        got = run(self.basis.line, opening, e, terms, cash_only=True)  # only what the Chain reads
+        from app.analysis import shadow
+        if shadow.ON:
+            tr = run(self.basis.line, opening, e, terms)
+            got = shadow.check("engine_cash", got, (tr.cash, tr.processed.first_unpaid, tr.processed.nonpayment,
+                                                    tr.processed.arrears))
+        runs_put(self.basis.runs, key, got[:3])
+        arrears = self.basis.__dict__.setdefault("arrears_runs", {})
+        if len(arrears) >= 4:  # the few states a question reads (the full array is too large for the runs' budget)
+            arrears.pop(next(iter(arrears)))
+        arrears[key] = got[3]
         return got
 
     def nonpayment_terms(self) -> tuple[int, int]:
@@ -1519,23 +1530,16 @@ class Chain:
         return {c: np.where((day >= 0) & (day < self.N), arr[self.rows, t, i], 0) for i, c in enumerate(ARREARS)}
 
     def _arrears(self) -> np.ndarray:
-        """The processor's arrears [draws, days, ARREARS] on this event cash: a run of its own, cached for the few
-        states a question reads (the full array is too large for the per-prefix cache `processed` keeps)."""
-        from app.analysis.engine import run
-
+        """The processor's arrears [draws, days, ARREARS] on this event cash, from the run `processed` made of the
+        state (`_daily_run` keeps the arrears of the last few states: a question reads a few)."""
         if not self.daily:
             raise ValueError("arrears are the daily cash processor's (cash_processing = daily)")
         runs = self.basis.__dict__.setdefault("arrears_runs", {})
         # the event state's content, as `processed` keys it (a version is not unique across clones of one state)
-        key = self._run_key("daily", self.DAILY_KEY, np.array(self.nonpayment_terms(), dtype=np.int64).tobytes())
+        terms = self.nonpayment_terms()
+        key = self._run_key("daily", self.DAILY_KEY, np.array(terms, dtype=np.int64).tobytes())
         if key not in runs:
-            ev = self.ev
-            opening = self.basis.opening - self.s.exposure.cash_cents
-            tr = run(self.basis.line, opening, EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, ev.kinds,
-                                                         ev.incurred), self.nonpayment_terms())
-            if len(runs) >= 4:
-                runs.pop(next(iter(runs)))
-            runs[key] = tr.processed.arrears
+            self._daily_run(key, terms)
         return runs[key]
 
     @property

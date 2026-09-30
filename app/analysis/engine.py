@@ -199,7 +199,8 @@ def with_petition(events: EventCash, day: np.ndarray | int) -> EventCash:
 
 def run(line: Line, opening_cents: int, events: EventCash, nonpayment: tuple[int, int] | None = None,
         cash_only: bool = False) -> Trajectories | tuple:
-    """One path. `cash_only` (daily processing only): (cash, first_unpaid, nonpayment) instead of the Trajectories."""
+    """One path. `cash_only` (daily processing only): (cash, first_unpaid, nonpayment, arrears) instead of the
+    Trajectories."""
     return run_many(line, opening_cents, [events], nonpayment, cash_only)[0]
 
 

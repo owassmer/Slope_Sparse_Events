@@ -137,8 +137,8 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
     """`engine.run_many` under daily processing (module docstring). `nonpayment` (window days, unpaid share bps): the
     §3.3 terms the contract declares; None leaves `Processed.nonpayment` uncomputed (None). The day loop is compiled
     (`_daily_kernel`), one trajectory at a time: every step is per trajectory and in integers. `cash_only`: per path
-    only (cash, first_unpaid, nonpayment), exactly the arrays a full run's `tr.cash` and `tr.processed` carry, without
-    the logs' reordering or `_finish` (what the walk's Chain reads)."""
+    only (cash, first_unpaid, nonpayment, arrears), exactly the arrays a full run's `tr.cash` and `tr.processed`
+    carry, without the logs' reordering or `_finish` (what the walk's Chain reads)."""
     from app.analysis.engine import _finish, _in_loop_order, _kernel_line
 
     s, n, days, b = line.setup, line.ops.draws, line.days, len(events)
@@ -154,9 +154,10 @@ def run_daily(line, opening_cents: int, events: list[EventCash], nonpayment: tup
         s.collection == "debit", s.same_day_order == "operating_first", due0, book_d, book_a,
         np.int64(opening_cents + ex.cash_cents), np.int64(ex.principal_cents), np.int64(ex.owed_cents), b * nroutes,
         np.int64(w), np.int64(share))
-    if cash_only:
+    if cash_only:  # with the arrears the same run computed (events.Chain._daily_run keeps them apart)
         return [(cash[j * n:(j + 1) * n], first_unpaid[j * n:(j + 1) * n].copy(),
-                 None if nonpayment is None else nonpay[j * n:(j + 1) * n].copy()) for j in range(b)]
+                 None if nonpayment is None else nonpay[j * n:(j + 1) * n].copy(), arrears[j * n:(j + 1) * n])
+                for j in range(b)]
     hr, dr = _in_loop_order(hr, dr, days, routes.shape[2])
     res = []
     failed = failed.reshape(b, n)
