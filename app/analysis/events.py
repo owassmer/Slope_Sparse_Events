@@ -1550,21 +1550,7 @@ class Chain:
         self._stay_cv = self._cv
 
     def bond_collateral(self, approval: np.ndarray) -> np.ndarray:
-        """The bond (the path judgment plus §1961 interest over the appeal) times the collateral share. Compiled
-        after `owed_at` (`k_owed.bond_collateral`); `bond_collateral_py` is the Python it reproduces."""
-        from app.analysis import k_owed, shadow
-        years = self.p("bond_forward_interest_years")
-        owed = self.owed_at(approval)
-        share = (self.s.collateral_share[0] if self.s.collateral_share else
-                 (self.m["parameters"]["bond_collateral_share_bps"]["lower"] if self.sens.get("bond_collateral_share_bps")
-                  else self.m["parameters"]["bond_collateral_share_bps"]["value"]) / 10_000)
-        fast = k_owed.bond_collateral(self, owed, years, share)
-        if fast is None:
-            return self.bond_collateral_py(approval)
-        return shadow.check("bond_collateral", fast, self.bond_collateral_py(approval)) if shadow.ON else fast
-
-    def bond_collateral_py(self, approval: np.ndarray) -> np.ndarray:
-        """`bond_collateral` in Python (the reference of the compiled path)."""
+        """The bond (the path judgment plus §1961 interest over the appeal) times the collateral share."""
         years = self.p("bond_forward_interest_years")
         owed = self.owed_at(approval)
         bond = owed + np.rint(owed * self.bps / 10_000 * years).astype(np.int64)

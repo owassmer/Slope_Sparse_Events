@@ -1,5 +1,5 @@
 """Compiled kernels for the amount owed and the share price (`Chain.owed_at`, `Chain._price_owed_grid`,
-`Chain.bond_collateral`, `Merton.price` on a [draws, days] grid). Each reproduces the Python it replaces operation for
+`Merton.price` on a [draws, days] grid). Each reproduces the Python it replaces operation for
 operation: int64 cents; the §1961 interest in float64 as `interest_1961` computes it (the scalar coefficient
 principal * bps / 10_000 computed in Python by the caller, exactly as the expression does, then per element
 x max(since, 0) / 365, the two terms added, rint half to even, truncated to int64); no fastmath. Each Python-side
@@ -116,17 +116,6 @@ def grid_kernel(N, has_j, E_ix, entered, ce, cz, has_cls, cls, base, cb, cinc, f
             if has_settle and d >= settled[j]:
                 amt = total - ts
             out[j, d] = amt if d >= V[j] else 0
-    return out
-
-
-@njit(cache=True)
-def bond_kernel(owed, bps, years, share):
-    """`Chain.bond_collateral` after `owed_at`: owed + rint(owed * bps / 10_000 * years), then rint(bond * share)."""
-    out = np.empty(owed.shape[0], dtype=np.int64)
-    for i in range(owed.shape[0]):
-        o = owed[i]
-        b = o + np.int64(np.rint(np.float64(o * bps) / 10000.0 * years))
-        out[i] = np.int64(np.rint(np.float64(b) * share))
     return out
 
 
@@ -305,10 +294,3 @@ def price_owed_grid(ch):
     return grid_kernel(N, has_j, E_ix, entered, ce, cz, has_cls, cls, base, cb, cinc, fees, F, fee_day, resolved, V,
                        TT, TA, has_settle, ST, SA, settled)
 
-
-def bond_collateral(ch, owed, years, share):
-    """`Chain.bond_collateral_py`'s arithmetic after `owed_at` (None: run the Python)."""
-    if (not _int(ch.bps) or not isinstance(years, (int, float)) or isinstance(years, bool)
-            or not isinstance(share, float) or not isinstance(owed, np.ndarray) or owed.dtype != np.int64):
-        return None
-    return bond_kernel(owed.ravel(), int(ch.bps), float(years), float(share)).reshape(owed.shape)
