@@ -11,6 +11,7 @@ import json
 import os
 import pickle
 import shutil
+import signal
 import subprocess
 import tarfile
 import tempfile
@@ -59,10 +60,69 @@ def publish(s3, bucket, prefix, job, attempt, split, log):
     print(f'published shard {job}: {dest}', flush=True)
 
 
-def worker(bucket, prefix, slots, minutes):
+def run_process(command, env, log, stop):
+    # Kill the forked walker as well as its parent when its time budget expires.
+    with subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT,
+                          start_new_session=True) as process:
+        try:
+            code = process.wait(timeout=max(1, stop - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            raise
+        if code:
+            raise subprocess.CalledProcessError(code, command)
+
+
+class WalkCores:
+    """Share runner cores across shards; reserve another shard only when a core frees up."""
+
+    def __init__(self, cores, stop):
+        self.cores, self.stop = cores, stop
+        self.pending = 0
+        self.condition = threading.Condition()
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=cores)
+
+    def reserve(self):
+        with self.condition:
+            while self.pending >= self.cores:
+                remaining = self.stop - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self.condition.wait(timeout=remaining)
+            if time.monotonic() >= self.stop:
+                return False
+            self.pending += 4
+            return True
+
+    def release(self, count=1):
+        with self.condition:
+            self.pending -= count
+            self.condition.notify_all()
+
+    def run(self, command, env, log):
+        try:
+            run_process(command, env, log, self.stop)
+        finally:
+            self.release()
+
+    def walk(self, job, jobs, base, out, env, log):
+        # Keep the original four part numbers and shared O_EXCL unit claims. Each
+        # invocation runs one child, so its core is reusable before the shard ends.
+        futures = [self.executor.submit(self.run,
+                   ['.venv/bin/python', '-m', 'app.disputes.parallel', RUN,
+                    str(job), str(jobs), '1', str(out), str(base + 3 * job + child)], env, log)
+                   for child in range(4)]
+        concurrent.futures.wait(futures)
+        for future in futures:
+            future.result()
+
+
+def worker(bucket, prefix, slots, minutes, cores=0):
     s3 = boto3.client('s3')
     config = read(s3, bucket, f'{prefix}/config.json')
     stop = time.monotonic() + 60 * minutes
+    cpu = WalkCores(cores, stop) if cores else None
     checkpoint_stop = threading.Event()
     active = {}
     active_lock = threading.Lock()
@@ -84,30 +144,38 @@ def worker(bucket, prefix, slots, minutes):
     thread.start()
     from cloud_logs import follow
     threading.Thread(target=follow, args=(bucket, prefix), daemon=True).start()
-    print(f'worker resources: {len(os.sched_getaffinity(0))} CPUs, {slots} shard slots, 4 processes per shard', flush=True)
+    print(f'worker resources: {len(os.sched_getaffinity(0))} CPUs, {slots} shard slots, '
+          f'{cores or slots * 4} walk processes; shared cores={bool(cpu)}', flush=True)
 
     def slot():
         # boto3 clients are thread safe; subprocesses keep the walk's monkey patches isolated.
         for job in config['jobs']:
             if time.monotonic() >= stop:
                 break
-            if read(s3, bucket, f'{prefix}/done/{job}.json'):
+            if read(s3, bucket, f'{prefix}/done/{job}.json') or read(s3, bucket, f'{prefix}/claims/{job}.json'):
                 continue
+            if cpu and not cpu.reserve():
+                break
             attempt = uuid.uuid4().hex
             if not create(s3, bucket, f'{prefix}/claims/{job}.json',
-                          {'attempt': attempt, 'started': time.time(), 'host': os.uname().nodename}):
+                          {'attempt': attempt, 'started': time.time(), 'host': os.uname().nodename,
+                           'github_run': os.environ.get('GITHUB_RUN_ID')}):
+                if cpu:
+                    cpu.release(4)
                 continue
             work = Path(tempfile.mkdtemp(prefix=f'walk-{job}-'))
             with active_lock:
                 active[attempt] = (job, work)
             print(f'start shard {job}: {attempt}', flush=True)
+            submitted = False
             try:
                 env = {**os.environ, 'SLOPE_JEV_CACHE_ONLY': '1', 'SLOPE_WALK_CUT': '10',
                        'SLOPE_WALK_MINUTES': '0', 'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1'}
                 env.pop('CLAUDE_CODE_OAUTH_TOKEN', None)
                 log = work / 'walk.log'
                 job_index, jobs, base = job, 100, 0
-                recovery = config.get('recoveries', {}).get(str(job))
+                current = read(s3, bucket, f'{prefix}/config.json')
+                recovery = current.get('recoveries', {}).get(str(job))
                 if recovery:
                     out = work / 'out'
                     out.mkdir()
@@ -146,10 +214,13 @@ def worker(bucket, prefix, slots, minutes):
                     job_index, jobs = 0, 1
                     base = (largest // 400 + 1) * 400 + job * 4
                     print(f'recover shard {job}: {len(restored)} segments saved, {len(remaining)} remain', flush=True)
-                with log.open('wb') as fh:
-                    subprocess.run(['.venv/bin/python', '-m', 'app.disputes.parallel', RUN,
-                                    str(job_index), str(jobs), '4', str(work / 'out'), str(base)], env=env, stdout=fh,
-                                   stderr=subprocess.STDOUT, check=True, timeout=max(60, stop-time.monotonic()))
+                with log.open('ab') as fh:
+                    submitted = True
+                    if cpu:
+                        cpu.walk(job_index, jobs, base, work / 'out', env, fh)
+                    else:
+                        run_process(['.venv/bin/python', '-m', 'app.disputes.parallel', RUN,
+                                     str(job_index), str(jobs), '4', str(work / 'out'), str(base)], env, fh, stop)
                     subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'split',
                                     str(work / 'out'), str(work / 'split')], env=env, stdout=fh,
                                    stderr=subprocess.STDOUT, check=True)
@@ -162,15 +233,21 @@ def worker(bucket, prefix, slots, minutes):
                 s3.delete_object(Bucket=bucket, Key=f'{prefix}/claims/{job}.json')
                 raise
             finally:
+                if cpu and not submitted:
+                    cpu.release(4)
                 with active_lock:
                     active.pop(attempt, None)
                 shutil.rmtree(work)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=slots) as ex:
-        futures = [ex.submit(slot) for _ in range(slots)]
-        for f in futures:
-            f.result()
-    checkpoint_stop.set()
-    thread.join()
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=slots) as ex:
+            futures = [ex.submit(slot) for _ in range(slots)]
+            for f in futures:
+                f.result()
+    finally:
+        if cpu:
+            cpu.executor.shutdown(wait=True)
+        checkpoint_stop.set()
+        thread.join()
 
 
 def export_github(bucket, prefix, run, minutes):
@@ -284,10 +361,11 @@ if __name__ == '__main__':
     p.add_argument('prefix')
     p.add_argument('--slots', type=int, default=1)
     p.add_argument('--minutes', type=int, default=300)
+    p.add_argument('--cores', type=int, default=0, help='share this many cores across active shards')
     p.add_argument('--run', default='36781427817')
     a = p.parse_args()
     if a.mode == 'worker':
-        worker(a.bucket, a.prefix, a.slots, a.minutes)
+        worker(a.bucket, a.prefix, a.slots, a.minutes, a.cores)
     elif a.mode == 'export':
         export_github(a.bucket, a.prefix, a.run, a.minutes)
     else:
