@@ -376,9 +376,10 @@ def test_7b_the_floor_books_the_same_cash_wherever_it_is_walked(tree):
 
 
 def test_7c_an_offering_is_offered_wherever_the_whole_path_makes_it_available(tree):
-    """Only impossibility removes a branch: a financing question (D7, D8) asked without 'initiate_offering' is one
-    where no offering is available at the decision on any trajectory of any path through it (listed, no petition,
-    none pending, shares left), whatever is walked after it."""
+    """Only the model's own rules remove a branch: a financing question (D7, D8) asked without 'initiate_offering' is
+    one where no offering the company would initiate exists at the decision on any trajectory of any path through it
+    (listed, no petition, none pending, shares left, and its proceeds covering the shortfall: QUESTIONS §2.6,
+    Initiation), whatever is walked after it."""
     _, _, paths, _ = tree
     seen = 0
     for p in paths:

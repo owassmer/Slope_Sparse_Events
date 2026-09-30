@@ -80,6 +80,8 @@ One of four types, each with its terms: full bond collateral (the amount); reduc
 
 **Underwritten offerings (N1, Scenario).** An offering is available while the stock is listed, no petition has been filed, no other offering is pending, and capacity covers it. Its terms: gross proceeds of the January 2024 offering ($11.5M), its issuance costs (net $10.4M), and a price of the share price on the initiation day less the January offering's discount to the prior close. The shares are the gross proceeds over the price. Where capacity binds, the gross proceeds are the shares available times the price, and the net proceeds bear the same costs in proportion. There is no fixed count of offerings per path.
 
+**Initiation (Scenario, 30 Sep 2026).** The company initiates an offering only where its net proceeds on the stated terms would cover the shortfall between its available cash at the end of the decision day, less any levy served that day, and its operating need for the next month; where cash covers the need, any available offering. An offering that would not cover the shortfall is not among the question's answers, and the situation states its proceeds and the shortfall. Sensitivity: every available offering, whatever its proceeds.
+
 **Lock-up (Record).** The January underwriting agreement's company lock-up runs from the agreement's date (pricing, one day after launch) to the 90th day after the closing; its exceptions do not cover at-the-market sales. An offering on the path carries the same lock-up: at-the-market sales pause from its pricing to its close, and where it closes, through the 90th day after the close.
 
 ---
@@ -245,7 +247,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
   - initiate an underwritten offering (N1 follows);
   - file a voluntary petition;
   - none of these on that day.
-- **Grouping:** "pay" is offered only to a group whose available cash covers the balance on every trajectory; groups split on that. "Initiate an offering" is offered where an offering is available (§2.6).
+- **Grouping:** "pay" is offered only to a group whose available cash covers the balance on every trajectory; groups split on that. "Initiate an offering" is offered where an offering is available and the company would initiate it (§2.6, Initiation); groups split on that too.
 - **After "none":** later questions state that Akoustis did not pay, raise or file on that day. No state of seeking a sale or financing exists. A sale of the company is not modelled.
 - **Situation:** the judgment and its standing; the company's cash; the offerings available and the share capacity left; the notes' status; the listing status.
 - **Record:** the offering channels (the shelf, the at-the-market program, the January 2024 offering); the notes' judgment-default terms; the listing deficiency; the company's going-concern, bankruptcy and liquidity statements; its statements on the trial.
@@ -257,7 +259,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Event:** on a day available cash falls below the month's operating need, Akoustis initiates an underwritten offering, files a voluntary petition, or does neither.
 - **Asked:** at the first such day, and again where cash falls below the need after new money from an event on the path (an offering's close, or the release of a stay's security) brought it back to the need. Operating receipts and at-the-market sales are the situation the decision already weighed.
 - **Answers:** neither, nothing booked. At-the-market sales continue, and the next decision is at the first unpaid obligation (D8).
-- **Situation:** available cash, the month's operating need, at-the-market proceeds to date, the judgment's standing, the notes' status, the listing status, and the share capacity left. Where an offering is unavailable, the state says why: delisted, a petition filed, an offering pending, or no capacity.
+- **Situation:** available cash, the month's operating need, at-the-market proceeds to date, the judgment's standing, the notes' status, the listing status, and the share capacity left. Where an offering is unavailable, the state says why: delisted, a petition filed, an offering pending, no capacity, or proceeds short of the shortfall (§2.6, Initiation).
 - **Record:** as D2; the company's stated plans.
 - **Build:** change. The raise becomes an initiation followed by N1; the fixed raise amount and its 30-day inflow retire.
 
@@ -274,7 +276,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 #### D8 · Akoustis files when it cannot pay an obligation · `forecast_petition_cash_out`
 
-- **Event:** on the first day an obligation goes unpaid (§2.2), Akoustis files a voluntary petition, initiates an underwritten offering where one is available (§2.6; N1 follows), or does neither.
+- **Event:** on the first day an obligation goes unpaid (§2.2), Akoustis files a voluntary petition, initiates an underwritten offering where one is available and it would initiate it (§2.6, Initiation; N1 follows), or does neither.
 - **Answers:** neither, no petition and no offering that day; nothing more.
 - **Situation:** it did not file at the cash floor; the available cash; the obligation unpaid that day, its amount and class; existing arrears; the notes' status; the judgment's standing.
 - **Record:** as D7; the notes' general-nonpayment terms (§7.01(j), §7.02).

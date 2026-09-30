@@ -339,8 +339,9 @@ def situation_class(row: dict, live: np.ndarray | None = None) -> np.ndarray | N
     notes = np.where(due <= day, "due", np.where((avail <= day) | (dl <= day) | (npd <= day), "default", "current"))
     listing = arr("listing", "listed")
     pending, ledger = arr("offering_pending", False).astype(bool), arr("ledger", 1)
+    net = arr("offer_available", 1)  # the offering the company would initiate (0: its proceeds short of the shortfall)
     offer = np.where(listing == "delisted", "delisted", np.where(pet <= day, "petition", np.where(
-        pending, "pending", np.where(ledger <= 0, "nocapacity", "available"))))
+        pending, "pending", np.where(ledger <= 0, "nocapacity", np.where(net <= 0, "insufficient", "available")))))
     pay = np.where((row["owed"] > 0) & (row["cash"] >= row["owed"]), "pay", "nopay")
     out = np.full(n, "", dtype=object)
     if live.size:

@@ -578,6 +578,14 @@ class Situation:
             return "unavailable: another offering is pending"
         if int(self._g().at_rep("ledger", sit=True)) <= 0:
             return "unavailable: no share capacity is left"
+        try:  # the case's initiation rule (QUESTIONS §2.6): the proceeds against the shortfall they must cover
+            net, short = (int(self._g().at_rep(k, sit=True)) for k in ("offer_available", "offer_shortfall"))
+        except KeyError:  # a record without the rule's figures: the offering is among the answers
+            net, short = 1, 0
+        if net <= 0 and short > 0:
+            return (f"unavailable: an offering on the stated terms would raise {usd(self._terms()['net'])} net, short "
+                    f"of the {usd(short)} by which the company's available cash at the end of the day falls below "
+                    f"its operating need for the next month")
         return "not applicable: an offering is available"
 
     def _offerings(self):

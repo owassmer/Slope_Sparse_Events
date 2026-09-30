@@ -1435,13 +1435,37 @@ class Chain:
                 & ~self.offering_pending_on(day) & (self.ledger_left(day) > 0))
 
     def offer_available(self, day) -> np.ndarray:
-        """The net proceeds of the offering the company could initiate on the day, before the day's decision is
-        booked [draws] (0: none available, or no equity model). D2's 'initiate an offering' is offered where it is
-        positive on some trajectory (QUESTIONS §4.4 D2), as D7's and D8's are (`decide_distress`)."""
+        """The net proceeds of the offering the company would initiate on the day, before the day's decision is
+        booked [draws] (0: none, or no equity model): an offering available under §2.6 (`offering_available`) whose
+        net proceeds, under the case's initiation rule (parameter offering_materiality: covers_shortfall), cover the
+        shortfall the decision faces (`offer_shortfall`; any_proceeds: every available offering). D2's 'initiate an
+        offering' is offered where it is positive on some trajectory (QUESTIONS §4.4 D2), as D7's and D8's are
+        (`decide_distress`); elsewhere the situation states the proceeds and the shortfall (state14)."""
         day = self.per_draw(day)
         if not self.equity:
             return np.zeros(self.n, dtype=np.int64)
-        return np.where((day < self.N) & self.offering_available(day), self.offering_terms(day)["net"], 0).astype(np.int64)
+        net = np.where((day < self.N) & self.offering_available(day), self.offering_terms(day)["net"], 0).astype(np.int64)
+        if self.initiation_rule() == "covers_shortfall":
+            net = np.where(net >= self.offer_shortfall(day), net, 0)
+        return net
+
+    def initiation_rule(self) -> str:
+        """Which available offerings the company initiates (case parameter offering_materiality, QUESTIONS §2.6):
+        covers_shortfall, or any_proceeds where the case declares no rule."""
+        return str(self.p("offering_materiality")) if "offering_materiality" in self.m["parameters"] else "any_proceeds"
+
+    def offer_shortfall(self, day) -> np.ndarray:
+        """The shortfall an offering must cover to be initiated (QUESTIONS §2.6, Initiation) [draws]: the operating
+        need for the next month less available cash at the end of the day, less the levy served that day where one is
+        pending (the response on a levy day is asked before the levy books); 0 where cash covers the need."""
+        day = self.per_draw(day)
+        t = np.clip(day, 0, self.N - 1)
+        cash = self.cash_at(t)
+        if self.pending_levy is not None and self.d is not None:
+            on = (self.pending_levy == day) & self.live(day) & (day < self.stayed_from) & (day < self.N)
+            reach = self.processing_balance(day) if self.daily else cash
+            cash = cash - np.where(on, np.minimum(self.owed_at(day, enforceable=True), np.maximum(reach, 0)), 0)
+        return np.maximum(self.basis.need[self.rows, t] - cash, 0).astype(np.int64)
 
     def option_group(self, node: str, day) -> np.ndarray:
         """Per trajectory, the answers a question offers on its day, before its booking (Owen's ruling on within-path
@@ -2375,7 +2399,7 @@ class Chain:
             k = int(ctx)
             self.floor_days[k] = np.where(on, t, self.floor_days.get(k, np.full(self.n, BIG, dtype=np.int64)))
         occasion = f"floor{ctx}" if node == "cash_floor" else "cash_out"
-        amt = np.where(on & self.offering_available(t), self.offering_terms(t)["net"], 0).astype(np.int64)
+        amt = np.where(on, self.offer_available(t), 0).astype(np.int64)  # the offering the company would initiate
         self.respond(DISTRESS_BOOKINGS[branch], t, cause="cash_floor", occasion=occasion)
         return amt
 
@@ -2940,6 +2964,8 @@ class Chain:
                  "offering_terms": ("offering_terms", day), "share_price": ("share_price_on", day),
                  "offering_pending": ("offering_pending_on", day) if hasattr(self, "offering_pending_on")
                  else ("offering_pending",),
+                 # the offering the company would initiate (0: none) and the shortfall it must cover (§2.6, Initiation)
+                 "offer_available": ("offer_available", day), "offer_shortfall": ("offer_shortfall", day),
                  "offerings": ("offerings",), "notes_due_day": ("notes_due_day",), "notes_due_how": ("notes_due_how",),
                  "arrears": ("arrears_by_class", day), "first_unpaid": ("first_unpaid",),
                  "nonpayment_day": ("nonpayment_day",)}

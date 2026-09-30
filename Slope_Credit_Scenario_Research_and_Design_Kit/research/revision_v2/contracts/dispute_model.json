@@ -2376,6 +2376,7 @@
               "available_cash",
               "operating_need_30_days",
               "offering_terms",
+              "offering_unavailable_reason",
               "share_capacity_left",
               "notes_status",
               "listing_status",
