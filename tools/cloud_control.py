@@ -40,7 +40,7 @@ uv run --with boto3 python tools/cloud_walk.py {work}
                     'DeleteOnTermination': True, 'Encrypted': True}}],
                 TagSpecifications=[{'ResourceType': 'instance', 'Tags': [
                     {'Key': 'Name', 'Value': 'slope-walk-20260930'}, {'Key': 'Stage', 'Value': mode}]}])
-    if mode == 'worker':
+    if mode == 'worker' and config.get('spot', False):
         args['InstanceMarketOptions'] = {'MarketType': 'spot', 'SpotOptions': {
             'SpotInstanceType': 'one-time', 'InstanceInterruptionBehavior': 'terminate'}}
     result = ec2.run_instances(**args)

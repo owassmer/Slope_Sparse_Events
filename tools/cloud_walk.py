@@ -9,6 +9,7 @@ import argparse
 import concurrent.futures
 import json
 import os
+import pickle
 import shutil
 import subprocess
 import tarfile
@@ -102,9 +103,49 @@ def worker(bucket, prefix, slots, minutes):
                        'SLOPE_WALK_MINUTES': '0', 'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1'}
                 env.pop('CLAUDE_CODE_OAUTH_TOKEN', None)
                 log = work / 'walk.log'
+                job_index, jobs, base = job, 100, 0
+                recovery = config.get('recoveries', {}).get(str(job))
+                if recovery:
+                    out = work / 'out'
+                    out.mkdir()
+                    restored = set()
+                    largest = -1
+                    for obj in s3.list_objects_v2(Bucket=bucket, Prefix=recovery + '/').get('Contents', []):
+                        name = Path(obj['Key']).name
+                        if not name.startswith('part') or not name.endswith('.stream') or not obj['Size']:
+                            continue
+                        target = out / name
+                        s3.download_file(bucket, obj['Key'], str(target))
+                        with target.open('rb') as src:
+                            try:
+                                pickle.load(src)  # stream header
+                            except (EOFError, pickle.UnpicklingError):
+                                target.unlink()
+                                continue
+                            while True:
+                                try:
+                                    record = pickle.load(src)
+                                    restored.update(record['done'])
+                                except (EOFError, pickle.UnpicklingError):
+                                    break
+                        largest = max(largest, int(target.stem[4:]))
+                    template = read(s3, bucket, f'{prefix}/done/8.json')
+                    if template is None:
+                        raise RuntimeError('recovery needs the completed shard 8 topology')
+                    fetch_group(s3, bucket, template['source'], 'control', work / 'topology')
+                    with next((work / 'topology').glob('part*.pkl')).open('rb') as src:
+                        topology = pickle.load(src)
+                    expected = {(clock, 0, number) for number, clock, owner in topology['segs'] if owner % 100 == job}
+                    remaining = sorted(expected - restored)
+                    roots = work / 'roots.pkl'
+                    roots.write_bytes(pickle.dumps(remaining))
+                    env['SLOPE_WALK_ROOTS'] = str(roots)
+                    job_index, jobs = 0, 1
+                    base = (largest // 400 + 1) * 400 + job * 4
+                    print(f'recover shard {job}: {len(restored)} segments saved, {len(remaining)} remain', flush=True)
                 with log.open('wb') as fh:
                     subprocess.run(['.venv/bin/python', '-m', 'app.disputes.parallel', RUN,
-                                    str(job), '100', '4', str(work / 'out')], env=env, stdout=fh,
+                                    str(job_index), str(jobs), '4', str(work / 'out'), str(base)], env=env, stdout=fh,
                                    stderr=subprocess.STDOUT, check=True, timeout=max(60, stop-time.monotonic()))
                     subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'split',
                                     str(work / 'out'), str(work / 'split')], env=env, stdout=fh,
@@ -201,7 +242,6 @@ def pool(bucket, prefix, slots):
     download('control', root / 'control')
     subprocess.run(['.venv/bin/python', '-m', 'app.disputes.parallel', 'spill',
                     str(root / 'control'), str(root / 'walk_roots.pkl')], check=True, env=env)
-    import pickle
     with (root / 'walk_roots.pkl').open('rb') as f:
         missing = pickle.load(f)
     if missing:
