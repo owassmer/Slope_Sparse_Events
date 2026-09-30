@@ -91,6 +91,7 @@ class Tables:
         verdict = next((s[2] for s in p.steps if s[0] == "verdict"), "")
         ruling = next((s[2] for s in p.steps if s[0] == "post_trial_ruling"), "")
         self.paths += 1
+        all_due, all_coll = np.cumsum(t.due, axis=1), np.cumsum(t.collections, axis=1)  # per row: once per path
         for mask, P, PL, atoms in groups:
             self.groups += 1
             on = (lambda a: a) if mask is None else (lambda a, m=mask: a[m])  # noqa: E731
@@ -99,11 +100,11 @@ class Tables:
             for i, k in enumerate(self.skeys):
                 self.means[k] += P * s_vals[i]
                 self.lo_means[k] += PL * s_vals[i]
-            cash, due, coll, fund, outs = on(t.cash), on(t.due), on(t.collections), on(t.fundings), on(t.outstanding)
+            cash, coll, fund, outs = on(t.cash), on(t.collections), on(t.fundings), on(t.outstanding)
             idx, pet = np.arange(self.days), on(t.petition)[:, None]
             by_day = (pet >= 0) & (pet <= idx)
             window = (pet >= 0) & (idx >= pet - PREFERENCE_DAYS) & (idx < pet)
-            cum_due, cum_coll = np.cumsum(due, axis=1), np.cumsum(coll, axis=1)
+            cum_due, cum_coll = on(all_due), on(all_coll)
             fs = fund.sum(axis=0)
             d = {"cash": cash.sum(axis=0),
                  "backup": (cash + np.maximum(self.facility_cents - on(t.capacity), 0)).sum(axis=0),
@@ -363,12 +364,19 @@ def atoms_derivative(edges, D) -> list[tuple[str, str, float]]:
             raise ValueError(f"a path reads {sorted(seen & ks)[0]} twice: its probability is not linear in it")
         seen |= ks
     vals = [D[k][b] for k, b in edges]
+    # the other edges' product as prefix times suffix products (linear in the edges; a zero edge makes every other
+    # edge's product zero exactly as the term-by-term product did)
+    before, after, acc = [1.0] * (len(vals) + 1), [1.0] * (len(vals) + 1), 1.0
+    for i, v in enumerate(vals):
+        acc *= v
+        before[i + 1] = acc
+    acc = 1.0
+    for i in range(len(vals) - 1, -1, -1):
+        acc *= vals[i]
+        after[i] = acc
     out: dict = defaultdict(float)
     for i, (key, b) in enumerate(edges):
-        rest = 1.0
-        for j, v in enumerate(vals):
-            if j != i:
-                rest *= v
+        rest = before[i] * after[i + 1]
         if rest == 0.0:
             continue
         if not key.startswith(COMPOSITE):
@@ -424,14 +432,17 @@ def reduce_paths(a, paths: list, full: list, scalar: list, known, dead, tables: 
     every row appended to `stress_out`. `on_child(child, t, ev, mask)`: each group's path, for checks."""
     from app.analysis.core import BATCH, run_many
     from app.analysis.setup import DRAWS
-    from app.disputes.forecast import expand_classes, path_mask, path_probability
+    from app.disputes.forecast import class_firsts, expand_classes, path_mask, path_probability
 
+    first = class_firsts(known, dead)  # once: the same for every path
     for lo in range(0, len(paths), BATCH):
         chunk = paths[lo:lo + BATCH]
         evs = [a.event_cash((p,)) for p in chunk]
-        for p, t, ev in zip(chunk, run_many(a.line, a.opening, evs), evs, strict=True):
+        # the chunk's stress rows in one engine run (each row is computed alone in the kernel)
+        rows = stress_a._stress_rows([(p,) for p in chunk]) if stress_a is not None else [None] * len(chunk)
+        for p, t, ev, row in zip(chunk, run_many(a.line, a.opening, evs), evs, rows, strict=True):
             groups = []
-            for c in expand_classes([p], known, DRAWS, dead):
+            for c in expand_classes([p], known, DRAWS, dead, first):
                 mk = path_mask(c, DRAWS)
                 mk = None if mk is not None and mk.all() else mk
                 groups.append((mk, np.array([path_probability(c.edges, D) for D in full]),
@@ -439,7 +450,6 @@ def reduce_paths(a, paths: list, full: list, scalar: list, known, dead, tables: 
                                atoms_derivative(c.edges, full[0])))
                 if on_child is not None:
                     on_child(c, t, ev, mk)
-            row = stress_a._stress_rows([(p,)])[0] if stress_a is not None else None
             if row is not None and stress_out is not None:
                 stress_out.append((p.steps, p.outcome, row))
             tables.add(p, t, ev, groups, row)
@@ -522,10 +532,11 @@ def job(run_id: str, ctl_dir: str, answers_file: str, job_i: int, jobs: int, pro
         if pid == 0:
             code = 1
             try:
+                from app.disputes.pool import read_paths
+
                 paths = []
-                for f, lo, hi in blocks[k]:
-                    with open(os.path.join(ctl_dir, "paths", f), "rb") as fh:
-                        paths += pickle.load(fh)[lo:hi]
+                for f, lo, hi in blocks[k]:  # the block's range alone (pool.write_paths indexes each part)
+                    paths += read_paths(os.path.join(ctl_dir, "paths", f), lo, hi)
                 tab = make_tables(a, f_names, s_names, ctl["ev_range"])
                 rows: list = []
                 reduce_paths(a, paths, full, scal, known, dead, tab, stress_a=sa, stress_out=rows)

@@ -1478,10 +1478,9 @@ class Forecaster:
         d = next(x for x in self.disputes if x.instance_id == n.instance_id)
         self.classed.add(k)
         branches = n.branches
-        if k in self.grouped:  # the group's own answers, in the question's order
-            code = int(tag.rsplit(".g", 1)[1])
-            offered = group_branches(n.node, code)
-            branches = tuple(b for b in n.branches if b in offered)
+        if k in self.grouped:  # the group's own answers (Owen's ruling, 29 Sep 2026: each class is one question with
+            code = int(tag.rsplit(".g", 1)[1])  # the group's own answers), whatever prefix first created the question
+            branches = group_branches(n.node, code)
         key = self.node(d, n.node, *[c for c in n.context.split("|") if c], tag, assumptions=n.assumptions,
                         branches=branches)
         if k in self.grouped:
@@ -2159,6 +2158,12 @@ class _Walk:
         for w in self._watch:  # a later question that reads the watched event directly
             w.read |= name in w.nodes
         tags = self.situation(s, probe, name, ctx) if s is not None else ()
+        if groups is not None:
+            from app.analysis.events import group_branches
+
+            # a grouped question: every answer it offers any group (`branches` as given: this prefix's groups'
+            # answers, the path's edges); each class node carries its group's own (`Forecaster.class_key`)
+            branches = group_branches(name, 3)
         k = self.fc.node(self.d, name, *ctx, *tags, assumptions=assumptions, branches=branches)
         if groups is not None:
             self.fc.grouped.add(k)

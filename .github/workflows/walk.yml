@@ -51,112 +51,112 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b0-j${{ matrix.job }}
+          name: rows-b0-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows0/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b1-j${{ matrix.job }}
+          name: rows-b1-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows1/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b2-j${{ matrix.job }}
+          name: rows-b2-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows2/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b3-j${{ matrix.job }}
+          name: rows-b3-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows3/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b4-j${{ matrix.job }}
+          name: rows-b4-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows4/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b5-j${{ matrix.job }}
+          name: rows-b5-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows5/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b6-j${{ matrix.job }}
+          name: rows-b6-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows6/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b7-j${{ matrix.job }}
+          name: rows-b7-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows7/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b8-j${{ matrix.job }}
+          name: rows-b8-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows8/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b9-j${{ matrix.job }}
+          name: rows-b9-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows9/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b10-j${{ matrix.job }}
+          name: rows-b10-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows10/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b11-j${{ matrix.job }}
+          name: rows-b11-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows11/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b12-j${{ matrix.job }}
+          name: rows-b12-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows12/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b13-j${{ matrix.job }}
+          name: rows-b13-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows13/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b14-j${{ matrix.job }}
+          name: rows-b14-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows14/
           retention-days: 3
           compression-level: 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rows-b15-j${{ matrix.job }}
+          name: rows-b15-j${{ matrix.job }}-w${{ env.WAVE }}
           path: split/rows15/
           retention-days: 3
           compression-level: 1

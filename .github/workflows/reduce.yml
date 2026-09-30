@@ -1,8 +1,9 @@
 name: reduce
 
-# The analysis of the 14 May tree on GitHub runners (app/analysis/reduce.py): control's merged paths (the latest
-# successful pool run of the same branch suffix) reduced block by block into tables under Jev's answers
-# (runs/recorded/<run>/tree_answers[-<variant>].json), then merged. Runs on a push to reduce-run (reduce-run-<variant>).
+# The analysis of the 14 May tree on GitHub runners (app/analysis/reduce.py): control's merged paths (the pool run
+# POOL_RUN; empty: the latest successful pool run of the same branch suffix) reduced block by block into tables under
+# Jev's answers (runs/recorded/<run>/tree_answers[-<variant>].json), then merged. Runs on a push to reduce-run
+# (reduce-run-<variant>).
 on:
   push:
     branches: [reduce-run, "reduce-run-*"]
@@ -11,6 +12,7 @@ env:
   RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
   JOBS: "50"  # the matrix below lists 0..JOBS-1
   PROCS: "4"
+  POOL_RUN: ""  # the pool run's id; empty: the latest successful pool run
 
 jobs:
   find:
@@ -23,9 +25,12 @@ jobs:
       - id: pool
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          echo "run=$(gh run list -R ${{ github.repository }} --workflow pool --status success -L 1
-          --branch pool-run${GITHUB_REF_NAME#reduce-run} --json databaseId -q '.[0].databaseId')" >> $GITHUB_OUTPUT
+        run: |
+          run="$POOL_RUN"
+          if [ -z "$run" ]; then
+            run=$(gh run list -R ${{ github.repository }} --workflow pool --status success -L 1 --branch pool-run${GITHUB_REF_NAME#reduce-run} --json databaseId -q '.[0].databaseId')
+          fi
+          echo "run=$run" >> $GITHUB_OUTPUT
   reduce:
     needs: find
     runs-on: ubuntu-latest
@@ -47,8 +52,14 @@ jobs:
       - run: uv run slope evidence build akoustis_20240514
       - uses: actions/download-artifact@v4
         with:
-          name: ctl
+          name: ctl-control
           path: ctlart
+          run-id: ${{ needs.find.outputs.pool }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ctl-paths
+          path: ctlart/ctl/paths
           run-id: ${{ needs.find.outputs.pool }}
           github-token: ${{ github.token }}
       - run: du -sh ctlart; nproc; free -g

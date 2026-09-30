@@ -40,9 +40,9 @@ def split(parts: str, out: str) -> None:
 
     t0 = time.time()
     os.makedirs(os.path.join(out, "control"), exist_ok=True)
-    files = parallel.part_files(parts)  # a process that died: its stream's finished segments (parallel._restore)
-    for k in sorted(files):
-        p = parallel.read_part(files[k])
+    files = parallel.part_files(parts)  # a process that died: its stream's finished units (parallel._restore)
+    for pk in sorted(files):
+        p = parallel.read_part(files[pk])
         ctrl, rows = [], [[] for _ in range(BUCKETS)]
         for ev in p["events"]:
             ekey, kind, x, cond = ev
@@ -54,7 +54,7 @@ def split(parts: str, out: str) -> None:
                 rows[bucket(x[0])].append((ekey, "late", x[0], x[1], x[2], cond))
             else:
                 ctrl.append(ev)
-        name = f"part{k}.pkl"
+        name = f"part{pk}.pkl"
         with open(os.path.join(out, "control", name), "wb") as fh:
             pickle.dump({**p, "events": ctrl}, fh, protocol=pickle.HIGHEST_PROTOCOL)
         for b, r in enumerate(rows):
@@ -223,12 +223,48 @@ def _merge(out: str, meta: list, branches: dict) -> dict[str, int]:
             members = [kept[i] if gf == f else away[(gf, i)] for _e, gf, i in g]
             rows += [(g[0][0], q) for q in merge_equivalent(members, [k] * len(members), branches)]
         rows.sort(key=lambda r: r[0])  # stable: a group's subgroups keep merge_equivalent's order
-        with open(os.path.join(out, "paths", f), "wb") as fh:
-            pickle.dump([q for _e, q in rows], fh, protocol=pickle.HIGHEST_PROTOCOL)
+        write_paths(os.path.join(out, "paths", f), [q for _e, q in rows])
         counts[f] = len(rows)
     for f in counts:
         os.remove(os.path.join(out, "walked", f))
     return counts
+
+
+def write_paths(path: str, paths: list) -> None:
+    """A part's merged paths, each pickled on its own, with an index of their byte offsets (`<path>.idx`) so a
+    reduction block reads only its range (`read_paths`)."""
+    import struct
+
+    offsets = []
+    with open(path, "wb") as fh:
+        for q in paths:
+            offsets.append(fh.tell())
+            pickle.dump(q, fh, protocol=pickle.HIGHEST_PROTOCOL)
+        offsets.append(fh.tell())
+    with open(path + ".idx", "wb") as fh:
+        fh.write(struct.pack(f"<{len(offsets)}Q", *offsets))
+
+
+def read_paths(path: str, lo: int = 0, hi: int | None = None) -> list:
+    """Paths lo..hi of a part written by `write_paths` (a file without an index: one pickled list)."""
+    import struct
+
+    if not os.path.exists(path + ".idx"):
+        with open(path, "rb") as fh:
+            return pickle.load(fh)[lo:hi]
+    with open(path + ".idx", "rb") as fh:
+        raw = fh.read()
+    offsets = struct.unpack(f"<{len(raw) // 8}Q", raw)
+    n = len(offsets) - 1
+    lo, hi = max(lo, 0), n if hi is None else min(hi, n)
+    if lo >= hi:
+        return []
+    out = []
+    with open(path, "rb") as fh:
+        fh.seek(offsets[lo])
+        for _ in range(hi - lo):
+            out.append(pickle.load(fh))
+    return out
 
 
 def forecaster(run_id: str, ctl: dict):
