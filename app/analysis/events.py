@@ -2674,6 +2674,12 @@ class Chain:
 
     # [draws, days] state only ever replaced, never written in place: a clone shares it
     REPLACED = frozenset({"_cum", "_tau", "_out", "share_price", "_atm", "_atm_cum", "_atm_csold", "_atm_sold"})
+    # cache keys, only ever reassigned (tuples of bytes and scalars): a clone shares them
+    KEYS = frozenset({"_price_key", "_stay_owed"})
+    # containers whose arrays are only ever replaced (np.where into a new array), never written in place: a clone
+    # copies the containers and shares the arrays (`clone` marks them read-only); memo dicts of immutable values
+    CONTAINERS = {"rec": lambda v: tuple(list(x) for x in v), "late": lambda v: {i: dict(e) for i, e in v.items()},
+                  "_hd": dict, "_keys": dict}
     EV_WRITTEN = ("cash", "lock", "capacity")  # with `k:<kind>`: the event-cash arrays written in place (`_evw`)
 
     def clone(self) -> Chain:
@@ -2683,11 +2689,13 @@ class Chain:
         state (`REPLACED`) is only ever replaced, so it is shared too."""
         new = Chain.__new__(Chain)
         ev = self.ev
+        rec_late = [a for lst in self.rec for a in lst] + [a for e in self.late.values() for a in e.values()]
         for a in (ev.cash, ev.lock, ev.capacity, ev.petition, *ev.kinds.values(), *ev.incurred.values(),
-                  *(self.__dict__.get(k) for k in Chain.REPLACED)):
+                  *(self.__dict__.get(k) for k in Chain.REPLACED), *rec_late):
             if isinstance(a, np.ndarray):  # a write that bypasses `_evw` fails instead of changing the other chain
                 a.flags.writeable = False
-        new.__dict__.update({k: v if k in Chain.SHARED or k in Chain.REPLACED else _copied(v)
+        new.__dict__.update({k: v if k in Chain.SHARED or k in Chain.REPLACED or k in Chain.KEYS
+                             else Chain.CONTAINERS[k](v) if k in Chain.CONTAINERS else _copied(v)
                              for k, v in self.__dict__.items() if k not in ("ev", "_ev_own")})
         new.ev = EventCash(ev.cash, ev.lock, ev.capacity, ev.petition, dict(ev.kinds), dict(ev.incurred),
                            _copied(ev.proceeds))
