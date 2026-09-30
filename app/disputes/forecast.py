@@ -341,6 +341,17 @@ def situation_class(row: dict, live: np.ndarray | None = None) -> np.ndarray | N
     return out
 
 
+def group_classes(cls: np.ndarray | None, groups: np.ndarray) -> np.ndarray:
+    """A grouped question's classes (Owen's ruling on within-path grouping, 29 Sep 2026, carried per draw as
+    QUESTIONS §1 Grouping carries situations): each draw where it is asked (groups >= 0) in its situation class and
+    its option group ('.g<group>'), so each class is one question with the group's own answers."""
+    out = np.full(len(groups), "", dtype=object)
+    for j in np.flatnonzero(groups >= 0):
+        base = cls[j] if cls is not None and cls[j] else f"{CLASS_TAG}-"
+        out[j] = f"{base}.g{int(groups[j])}"
+    return out
+
+
 def qcls_best(entries, steps: tuple) -> np.ndarray | None:
     """Of a question's recorded classes [(prefix, classes)], the record whose prefix the path `steps` shares
     furthest (the latest of equals)."""
@@ -779,6 +790,7 @@ class Forecaster:
         # QUESTIONS §1 Grouping, per trajectory: the questions asked in more than one situation class (each class its
         # own question, `class_key`), and per question the classes recorded at each prefix (`_qcls_get`)
         self.classed: set[str] = set()
+        self.grouped: set[str] = set()  # questions asked per option group, each draw in its group's class
         self._qcls: dict[str, list] = {}
         # per question, its class per draw as asked (`_Walk.node`: on the branch that books nothing, the state before
         # the decision), at each prefix of the current path: what every branch's paths and rows read
@@ -1433,6 +1445,8 @@ class Forecaster:
     def _classified(self, k: str) -> bool:
         """Whether question k is asked per situation class: a 14 May question with cash facts."""
         memo = self.__dict__.setdefault("_cq", {})
+        if k in self.grouped:
+            return True
         if k not in memo:
             n = self.nodes.get(k)
             d = None if n is None else next((x for x in self.disputes if x.instance_id == n.instance_id), None)
@@ -1442,11 +1456,21 @@ class Forecaster:
 
     def class_key(self, k: str, tag: str) -> str:
         """Question k in situation class `tag`: its own question (created through `node`, as the walk creates one)."""
+        from app.analysis.events import group_branches
+
         n = self.nodes[k]
         d = next(x for x in self.disputes if x.instance_id == n.instance_id)
         self.classed.add(k)
-        return self.node(d, n.node, *[c for c in n.context.split("|") if c], tag, assumptions=n.assumptions,
-                         branches=n.branches)
+        branches = n.branches
+        if k in self.grouped:  # the group's own answers, in the question's order
+            code = int(tag.rsplit(".g", 1)[1])
+            offered = group_branches(n.node, code)
+            branches = tuple(b for b in n.branches if b in offered)
+        key = self.node(d, n.node, *[c for c in n.context.split("|") if c], tag, assumptions=n.assumptions,
+                        branches=branches)
+        if k in self.grouped:
+            self.node_group[key] = code
+        return key
 
     def _split(self, keys, row: dict, keep, cls: np.ndarray | None = None) -> np.ndarray | None:
         """The row kept (`keep(key, row)`) under each class of its questions, on that class's trajectories: the
@@ -2088,6 +2112,9 @@ def _merged(paths: list[DisputePath], g: list[int], branches: dict) -> DisputePa
 
 
 class _Walk:
+    # the grouped decisions forked per option group (the reference the per-draw classes are checked against)
+    GROUP_FORK = __import__("os").environ.get("SLOPE_GROUP_FORK") == "1"
+
     def __init__(self, fc: Forecaster, d: DisputeInstance) -> None:
         self.fc, self.d, self.out = fc, d, []
         self._masks = _DepthCache(fc.SIBLINGS)  # a prefix ending in a grouped step -> its trajectories (`mask_of`)
@@ -2107,20 +2134,27 @@ class _Walk:
                                       "that branch only when the principal exceeds cash on every trajectory")
 
     # helpers
-    def node(self, name, *ctx, s: _S | None = None, probe=None, assumptions=(), branches=None):
+    def node(self, name, *ctx, s: _S | None = None, probe=None, assumptions=(), branches=None, groups=None):
         """The question in its situation: the context tags given, plus the conditions its actor weighs (the model
-        node's `situation`) that hold at the decision on every trajectory."""
+        node's `situation`) that hold at the decision on every trajectory. groups: per draw, the option group it is
+        asked of (-1: not asked): a grouped question, each draw in its group's class (`group_classes`)."""
         for w in self._watch:  # a later question that reads the watched event directly
             w.read |= name in w.nodes
         tags = self.situation(s, probe, name, ctx) if s is not None else ()
         k = self.fc.node(self.d, name, *ctx, *tags, assumptions=assumptions, branches=branches)
+        if groups is not None:
+            self.fc.grouped.add(k)
         if s is not None and probe is not None and self.fc._classified(k) \
                 and not any(e[0] == s.steps for e in self.fc._qcanon.get(k, ())):
             # QUESTIONS §1 Grouping: each draw's class as the question is asked, on the branch that books nothing (the
             # state before the decision); every branch's paths and rows read it (`Forecaster.canon_get`)
             at = probe if isinstance(probe[0], tuple) else (probe,)
             row = as_of(self.fc.row_of(self._facts(s.steps + at)))
-            self.fc.canon_put(k, s.steps, situation_class(row, self.fc.live(self.fc.nodes[k], row)))
+            if groups is not None:
+                cls = group_classes(situation_class(row, groups >= 0), groups)
+            else:
+                cls = situation_class(row, self.fc.live(self.fc.nodes[k], row))
+            self.fc.canon_put(k, s.steps, cls)
         return k
 
     def _reads(self, walk: str) -> None:
@@ -2259,7 +2293,7 @@ class _Walk:
         m = self._masks.get(None, key)
         if m is None:
             node, ctx, branch = steps[j]
-            g = self.walk_groups(steps[:j] + ((node, ctx, self.quiet_of(node)),)) == step_group(branch)
+            g = np.isin(self.walk_groups(steps[:j] + ((node, ctx, self.quiet_of(node)),)), step_group(branch))
             parent = self.mask_of(steps[:j])
             m = self._masks.put(None, key, g if parent is None else parent & g)
         return m
@@ -2505,6 +2539,13 @@ class _Walk:
             else:
                 then(y)
 
+    def group_codes(self, steps) -> np.ndarray:
+        """Per trajectory, the option group the last step (a probe) is asked of on the path's trajectories (-1: not
+        asked, or not on the path)."""
+        g = self.walk_groups(steps)
+        m = self.mask_of(steps)
+        return g if m is None else np.where(m, g, -1).astype(np.int8)
+
     def option_groups(self, steps) -> list[int]:
         """The option groups (events.Chain.option_group) among the path's trajectories where the last step (a probe)
         falls, -1 for those where it is not asked."""
@@ -2535,6 +2576,36 @@ class _Walk:
         late = phase in ("post", "ripe")  # booked on its own day (events.py `waits`)
         filed = lambda z: self.tail(z, "petition")  # noqa: E731
         paid = lambda z: self.tail(z, "paid")  # noqa: E731
+
+        def go(y: _S, b: str) -> None:
+            if b == "initiate_offering":  # N1 follows (QUESTIONS §4.4 N1), then the path as after 'none'
+                self.offer(y, phase, then)
+            elif b == "none":
+                then(y)
+            elif b == "pay":
+                self.settle(y, "I3", paid) if i3 else paid(y)
+            else:
+                self.settle(y, "I3", filed) if i3 else filed(y)
+
+        if not self.GROUP_FORK:  # one question; each answer's path on the draws whose group offers it
+            from app.analysis.events import group_branches, group_label
+
+            g = self.group_codes(s.steps + (probe,))
+            m = self.mask_of(s.steps)
+            if ((g < 0) & (True if m is None else m)).any():  # not asked there: they go on as they stood
+                then(s.add((self.resp, phase, f"@-1={self.quiet}"), None))
+            live = sorted({int(x) for x in g[g >= 0]})
+            full = tuple(b for b in ("pay", "initiate_offering", "file", "none")
+                         if any(b in group_branches(self.resp, c) for c in live))
+            k = self.node(self.resp, phase, s.cls, after, *(("stay_pending",) if pending else ()), s=s, probe=probe,
+                          assumptions=assumed, branches=full, groups=g)
+            for b in full:
+                step = (self.resp, phase, group_label([c for c in live if b in group_branches(self.resp, c)], b))
+                kw = {"a4": "seek" if b in self.again else "closed",
+                      "resp": "offer" if b == "initiate_offering" else "none" if b == "none" else s.resp}
+                go(s.add(step, (k, b), late=s.late + ((k, len(s.steps)),), **kw) if late
+                   else self.take(s, step, (k, b), (k,), **kw), b)
+            return
         for c in codes:
             if c < 0:  # not asked on these trajectories: they go on as they stood
                 then(s.add((self.resp, phase, f"@-1={self.quiet}"), None))
@@ -2589,8 +2660,9 @@ class _Walk:
         # a pending claim's default books on its own day (events.py `waits`): its facts come from each whole path
         take = ((lambda st, e, **kw: s.add(st, e, late=s.late + ((h1, len(s.steps)),), **kw)) if self.pend
                 else (lambda st, e, **kw: self.take(s, st, e, (h1,), **kw)))
-        for branch, parts in self.unfiled(s, "judgment_default", phase, classes,
-                                          (("holders_file", "accelerated"),)).items():
+        classes = self.unfiled(s, "judgment_default", phase, classes, (("holders_file", "accelerated"),))
+        classes = self.joined(s, "judgment_default", phase, classes, (("yes", "holders_file"),))
+        for branch, parts in classes.items():
             y = take(("judgment_default", phase, branch), (composite(parts), "yes"), notes_due=True)
             if branch != "accelerated" and (self._trace(y.steps, True).petition >= 0).all():
                 self.floor(y, "petition")  # a petition on every trajectory
@@ -2603,6 +2675,45 @@ class _Walk:
         trajectories where the notes fell due: the issuer on the day they fall due, the holders once §7.06 allows."""
         for k, steps in at:
             self.fc.record((k,), self._facts(s.steps + steps))
+
+    def joined(self, s: _S, node: str, ctx: str, classes: dict, sets) -> dict:
+        """QUESTIONS §1 Depth at the fork: of the branches in each of `sets` (branches the walk continues the same way,
+        with the same path state), those that book and read the same inside the horizon on the path's draws
+        (`_same_after`) are one branch: its conjunctions are theirs together, its label the first's."""
+        m = self.mask_of(s.steps)
+        for names in sets:
+            keep: list = []
+            for c in [c for c in names if c in classes]:
+                for k in keep:
+                    if self._same_after(s, (node, ctx, k), (node, ctx, c), m):
+                        classes[k] = classes[k] + classes.pop(c)
+                        break
+                else:
+                    keep.append(c)
+        return classes
+
+    def _same_after(self, s: _S, a: tuple, b: tuple, m: np.ndarray | None) -> bool:
+        """Whether the steps a and b after the path book and read the same inside the horizon on its draws `m`: their
+        whole traces' event cash and petitions (the digest), petition causes and marks, and their chains' state
+        (events.Chain.divergence, which also reads what a later question's situation reads)."""
+        from app.analysis.events import BIG, canon, event_chain
+
+        ta, tb = self._trace(s.steps + (a,), True), self._trace(s.steps + (b,), True)
+        if ta.digest is None or ta.digest != tb.digest:
+            return False
+        on = np.ones(len(ta.petition), dtype=bool) if m is None else m
+        if (ta.cause is None) != (tb.cause is None) or (
+                ta.cause is not None and not np.array_equal(ta.cause[on], tb.cause[on])):
+            return False
+        ma, mb = ta.marks or {}, tb.marks or {}
+        for k in set(ma) | set(mb):
+            x, y = (np.broadcast_to(np.asarray(mm.get(k, BIG)), on.shape) for mm in (ma, mb))
+            if not np.array_equal(np.where(x < self.N, x, BIG)[on], np.where(y < self.N, y, BIG)[on]):
+                return False
+        chain = lambda st: event_chain(self.d, canon(st), self.fc.setup, self.fc.m, self.fc.draws,  # noqa: E731
+                                       self.fc.sens, fin=None if self.d is not None else self.fin)
+        div = chain(s.steps + (a,)).divergence(chain(s.steps + (b,)))
+        return bool((div[on] >= BIG).all())
 
     def unfiled(self, s: _S, node: str, ctx: str, classes: dict, pairs) -> dict:
         """A holders' petition that falls after the period on every trajectory books nothing: its class joins the
@@ -2890,6 +3001,8 @@ class _Walk:
         self.notes_facts(s, facts)
         classes = self.unfiled(s, "delisting_notes", dc, classes, (("petition_delist_holders", "accelerated"),
                                                                    ("petition_repurchase_holders", "repurchase_unpaid")))
+        classes = self.joined(s, "delisting_notes", dc, classes, (("petition_delist", "petition_delist_holders"),
+                                                                  ("petition_repurchase", "petition_repurchase_holders")))
         for c, parts in classes.items():
             y = self.take(s, ("delisting_notes", dc, c), (composite(parts), "yes"), (h2,),
                           notes_due=c != "none")
@@ -2914,6 +3027,8 @@ class _Walk:
         dates = self._listing_dates()
         classes = {"compliant": [[(d6a, "yes")]], "hearing": [[(d6a, "no"), (d6b, "yes")]],
                    "suspended": [[(d6a, "no"), (d6b, "no")]]}
+        to_distress = ("compliant", "hearing") + (() if dates["delisted_suspension"] < self.N else ("suspended",))
+        classes = self.joined(s, "listing", "", classes, (to_distress,))
         for c, parts in classes.items():
             y = s.add(("listing", "", c), (composite(parts), "yes"))
             if c == "suspended" and dates["delisted_suspension"] < self.N:
@@ -2961,6 +3076,7 @@ class _Walk:
             classes = {"petition_delist": classes["petition_delist"],
                        "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
                        "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]], "none": classes["none"]}
+        classes = self.joined(s, "delisting_notes", dc, classes, (("petition_delist", "petition_delist_holders"),))
         for c, parts in classes.items():
             self.distress(s.add(("delisting_notes", dc, c), (composite(parts), "yes"), notes_due=c != "none"),
                           "petition" if c.startswith("petition") else outcome)
@@ -3031,6 +3147,31 @@ class _Walk:
         q, qctx = (("financing_at_floor", f"floor{ctx}") if node == "cash_floor"
                    else ("petition_cash_out", "cash_exhausted"))
         occasion, kw = (f"floor{ctx}", {"k": s.k + 1}) if node == "cash_floor" else ("cash_out", {"out": "done"})
+
+        def go(y: _S, b: str) -> None:
+            if b == "initiate_offering":  # N1, then the loop
+                self.offer(y, occasion, lambda z: nxt(z, outcome))
+            elif b == "neither":
+                nxt(y, outcome)
+            else:
+                self._end(y, "petition", then)
+
+        if not self.GROUP_FORK:  # one question; each answer's path on the draws whose group offers it
+            from app.analysis.events import group_branches, group_label
+
+            g = self.group_codes(s.steps + (c,))
+            m = self.mask_of(s.steps)
+            if ((g < 0) & (True if m is None else m)).any():  # not asked there (outside the horizon, after a petition)
+                nxt(s.add((node, ctx, "@-1=neither"), None, **kw), outcome)
+            live = sorted({int(x) for x in g[g >= 0]})
+            full = tuple(b for b in ("initiate_offering", "file", "neither")
+                         if any(b in group_branches(node, x) for x in live))
+            k = self.node(q, qctx, s=s, probe=c, branches=full, groups=g)
+            late = s.late + ((k, len(s.steps)),)
+            for b in full:
+                step = (node, ctx, group_label([x for x in live if b in group_branches(node, x)], b))
+                go(s.add(step, (k, b), late=late, **kw), b)
+            return
         for code in codes:
             if code < 0:  # not asked on these trajectories (outside the horizon or after a petition): the loop
                 nxt(s.add((node, ctx, "@-1=neither"), None, **kw), outcome)
@@ -3087,6 +3228,7 @@ class _Walk:
         late = s.late + ((a5, len(s.steps)), (h3, len(s.steps)))
         classes = {"petition": [[(a5, "yes")]], "holders_file": [[(a5, "no"), (h3, "yes")]],
                    "due": [[(a5, "no"), (h3, "no")]]}
+        classes = self.joined(s, "nonpayment", "", classes, (("petition", "holders_file"),))
         for b, parts in classes.items():
             y = s.add(("nonpayment", "", b), (composite(parts), "yes"), late=late, np="done", notes_due=True)
             nxt(y, "petition" if b != "due" else outcome)
@@ -3252,6 +3394,8 @@ class _OrdinaryWalk(_Walk):
     date at no cost). Its questions are the forecast's node types with a context free of dispute-branch tags and the
     view's situation among their assumptions; their facts go to `fc.bank_facts`. page.js `bankProbs` reads plain
     node edges only, so each path's composite edges are emitted as one path per conjunction (the same probability)."""
+
+    GROUP_FORK = True  # the ordinary view keys its questions by group: it has no per-draw classes
 
     def __init__(self, fc: Forecaster) -> None:
         from app.analysis.events import BANK

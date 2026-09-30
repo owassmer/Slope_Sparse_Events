@@ -3157,9 +3157,23 @@ def plain(branch: str) -> str:
     return branch.split("=", 1)[1] if branch.startswith("@") else branch
 
 
-def step_group(branch: str) -> int | None:
-    """The option group a grouped step's branch names (None: not grouped)."""
-    return int(branch[1:].split("=", 1)[0]) if branch.startswith("@") else None
+def step_group(branch: str) -> tuple[int, ...] | None:
+    """The option groups a grouped step's branch names ('@<g>[,<g>...]=<answer>'; None: not grouped): the path follows
+    the trajectories in any of them."""
+    return tuple(int(x) for x in branch[1:].split("=", 1)[0].split(",")) if branch.startswith("@") else None
+
+
+def group_branches(node: str, code: int) -> tuple[str, ...]:
+    """The answers a grouped question offers an option group (Chain.option_group): payment where the balance can be
+    paid (the response), an offering where one is available, then filing and the branch that books nothing."""
+    if node in RESPONSES:
+        return (("pay",) if code & 1 else ()) + (("initiate_offering",) if code & 2 else ()) + ("file", "none")
+    return (("initiate_offering",) if code & 2 else ()) + ("file", "neither")
+
+
+def group_label(codes, branch: str) -> str:
+    """A grouped step's branch: the groups whose trajectories the path follows, and the answer."""
+    return "@" + ",".join(str(int(c)) for c in codes) + "=" + branch
 
 
 def canon(steps) -> tuple:

@@ -40,7 +40,7 @@ jobs:
           github-token: ${{ github.token }}
       - run: du -sh control; free -g
       - run: >
-          SLOPE_VARIANT=$(n=${GITHUB_REF_NAME#pool-run}; echo ${n#-})
+          SLOPE_VARIANT=$(n=${GITHUB_REF_NAME#pool-run}; echo ${n#-}) SLOPE_PARTS=400
           uv run python -m app.disputes.pool control control ctl 2> >(tee control.log >&2)
       - uses: actions/upload-artifact@v4
         with:

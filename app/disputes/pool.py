@@ -90,6 +90,12 @@ def control(folder: str, out: str) -> None:
 
     t0 = time.time()
     files = _parts(folder)
+    want = int(os.environ.get("SLOPE_PARTS", "0"))  # the walk's jobs x processes: a tree missing a part is not built
+    have = {int(os.path.basename(f)[4:-4]) for f in files}
+    if want and have != set(range(want)):
+        missing = sorted(set(range(want)) - have)
+        raise SystemExit(f"control: {len(missing)} of {want} walk parts missing (jobs {sorted({k // 4 for k in missing})}); "
+                         f"walk them again")
     reads, node_ev, edge_ev, raised, heads = {}, [], [], [], []
     for f in files:
         with open(f, "rb") as fh:
