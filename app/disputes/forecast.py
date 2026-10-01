@@ -2200,7 +2200,7 @@ class _Walk:
         """Pending notes decisions read their completed, before-action path."""
         from app.disputes.notes import NAMES
 
-        return self.pend and self.fc.nodes[key].node in NAMES
+        return self.d is not None and self.pend and self.fc.nodes[key].node in NAMES
 
     def _reads(self, walk: str) -> None:
         """A later question asked where the walk's structure depends on a watched event (`_Watch.walks`)."""
@@ -3135,7 +3135,7 @@ class _Walk:
             classes = {"petition_delist": classes["petition_delist"],
                        "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
                        "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]], "none": classes["none"]}
-        if not self.pend:
+        if not self.pend or self.d is None:
             classes = self.joined(s, "delisting_notes", dc, classes, (("petition_delist", "petition_delist_holders"),))
         for c, parts in classes.items():
             self.distress(s.add(("delisting_notes", dc, c), (composite(parts), "yes"), notes_due=c != "none"),

@@ -102,3 +102,26 @@ def test_notes_filing_continuations_survive_prefix_petition_shortcut(case, monke
     path: DisputePath = w.out[-1]
     holder = next(c for c in path.classes if fc.nodes[c[0]].node == 'holders_involuntary')
     assert holder[1]
+
+
+def test_completed_notes_classes_conserve_probability_on_each_draw(case, monkeypatch):
+    from app.disputes.forecast import expand_classes, path_mask, path_probability
+
+    fc, d, w, _ = case
+    s = _S(steps=STEPS[:ORIGIN], cls='reduced1695000300')
+    monkeypatch.setattr(w, 'first', lambda *args: False)
+    forks = []
+    w.notes_petition(s, 'ruling', forks.append)
+    for fork in forks:
+        w.emit(replace(fork, steps=fork.steps + STEPS[ORIGIN + 1:]), 'unresolved')
+    paths = expand_classes(w.out, fc.nodes, fc.draws.n)
+    rng = np.random.default_rng(21)
+    expected = w.mask_of(STEPS)
+    for _ in range(10):
+        dist = Dist({k: dict(zip(n.branches, rng.dirichlet(np.ones(len(n.branches))), strict=True))
+                     for k, n in fc.nodes.items()})
+        cover = np.zeros(fc.draws.n)
+        for path in paths:
+            mask = path_mask(path, fc.draws.n)
+            cover += path_probability(path.edges, dist) * (1 if mask is None else mask)
+        np.testing.assert_allclose(cover, expected.astype(float), atol=1e-12)
