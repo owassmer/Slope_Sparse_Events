@@ -35,7 +35,7 @@ def test_refined_walk_preserves_paths_questions_and_financial_rows(tmp_path, mon
     for i in range(4):
         monkeypatch.setenv('SLOPE_WALK_REFINE', f'{i}/4/2')
         fc, d = context()
-        parallel._fork(fc, d, 1, str(refined), sys.stderr, ks=[100 + i])
+        parallel._fork(fc, d, 1, str(refined), sys.stderr, ks=[i])
     monkeypatch.delenv('SLOPE_WALK_REFINE')
     monkeypatch.delenv('SLOPE_WALK_ROOTS')
     parts = parallel.load_parts(str(refined))
@@ -53,3 +53,17 @@ def test_refined_walk_preserves_paths_questions_and_financial_rows(tmp_path, mon
         results.append((paths, fc.nodes, {k: list(v) for k, v in fc.facts.items()}))
     assert len(results[0][0]) > 1000  # includes grouped paths and watched questions
     assert parallel._same(*results)
+
+    # The global pool preserves the same order, watch edges and equivalence groups across worker counts.
+    from app.disputes import pool
+    split = tmp_path / 'split'
+    pool.split(str(refined), str(split))
+    controls, pooled_paths = [], []
+    for workers in (1, 2):
+        monkeypatch.setenv('SLOPE_POOL_PROCESSES', str(workers))
+        out = tmp_path / f'pool{workers}'
+        pool.control(str(split / 'control'), str(out))
+        controls.append(pickle.loads((out / 'control.pkl').read_bytes()))
+        pooled_paths.append({f.name: pool.read_paths(str(f)) for f in (out / 'paths').glob('*.pkl')})
+    assert parallel._same(controls[0], controls[1])
+    assert parallel._same(pooled_paths[0], pooled_paths[1])

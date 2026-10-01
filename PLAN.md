@@ -179,3 +179,18 @@ Adapter review fixes: validate extracted downloads against their contents, inclu
 
 
 Pool execution verified: global coverage passed with zero missing segments. The worker is now in `merge_paths_and_questions`; the source control archive set occupies approximately 17 GiB unpacked. The preliminary inventory/coverage result is saved as `pool/walk-inventory.json` in the personal bucket. The independent review verified c810a30's source/destination separation, coverage/readiness gates, pinned checkpoints and saved-path invalidation, with no remaining scoped blocker. Exact retained-path/question counts and final pool readiness remain pending.
+
+## Pool compute expansion — 2026-10-01 UTC
+
+Owen requested maximum useful parallelism across GitHub and AWS. Live py-spy sampling located the stalled single-core control pass at the per-edge `atoms(key) - nodes.keys()` check. Direct dictionary membership preserves the missing-question check without scanning the full question universe on every edge. Path extraction now runs per part across the existing instance's 16 cores; equivalence merging runs by each group's owning part after the same global ordering and watch resolution.
+
+Question-state construction is partitioned only after each original bucket's rows have been globally ordered and deduplicated. There are 96 independent whole-question partitions: 80 on 40 GitHub runners (each uses its available cores), and 16 on AWS (four concurrent processes each using four cores). AWS prepares each original bucket once; GitHub receives compact prepared row bundles through scoped signed object URLs, with no AWS credentials or live Jev calls. The original walk and the verified, downloaded control inputs are retained. All new outputs live in the personal account under `pool/fleet-v2/`; the coordinator combines exact disjoint question sets into the existing 16-bucket output contract and retains final global coverage checks.
+
+- [x] Implement direct question lookup and multicore path processing.
+- [x] Implement distributed question-state preparation, workers and exact coverage assembly.
+- [x] Independent scoped review: no changed financial/probability semantics found; fix zero-path adoption rejection and prepared-marker reuse.
+- [x] Pass 13 focused checks, including serial/parallel equivalence on the 50-day fixture (1,410 retained paths, 1,344 nodes), exact ordered question-row partitioning, coverage and saved-pool reuse.
+- [ ] Deploy the revised live fleet.
+- [ ] Verify actual AWS core usage, GitHub runner activity, memory, saved partition progress and final readiness.
+
+Existing six-hour instance termination backstop remains; no additional EC2 instance is required. Full live pool completion and the financial deliverable are still outstanding.

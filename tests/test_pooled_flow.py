@@ -145,3 +145,11 @@ def test_changed_paths_invalidate_reductions_and_missing_paths_fail(saved_pool):
     path.unlink()
     with pytest.raises(ValueError, match='path file is missing'):
         pooled.build('r', root, directory, processes=1, progress=lambda _: None)
+
+
+def test_zero_path_parts_do_not_require_path_files(saved_pool):
+    directory, root, calls, _ = saved_pool
+    ctl = directory / 'ctl/control.pkl'
+    ctl.write_bytes(pickle.dumps({'part_cost': {'part0.pkl': (1, 1), 'part1.pkl': (0, 1)}}))
+    pooled.build('r', root, directory, processes=1, progress=lambda _: None)
+    assert calls['judge'] == 1

@@ -132,8 +132,8 @@ def build(run_id: str, root: Path, directory: Path | str, *, processes: int, pro
         with control.open('rb') as stream:
             import pickle
             ctl = pickle.load(stream)
-        for name in ctl.get('part_cost', {}):
-            if not (paths / name).is_file():
+        for name, (count, _seconds) in ctl.get('part_cost', {}).items():
+            if count and not (paths / name).is_file():
                 raise ValueError(f'Saved pool path file is missing: {name}')
         inputs = {'paths': {str(p.relative_to(paths)): digest(p) for p in sorted(paths.rglob('*')) if p.is_file()},
                   'control': digest(control), 'binding': digest(directory / 'binding.json'),

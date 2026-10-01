@@ -15,6 +15,7 @@ import glob
 import gzip
 import hashlib
 import json
+import multiprocessing
 import os
 import pickle
 import sys
@@ -86,9 +87,7 @@ def control(folder: str, out: str) -> None:
     single walk's order) and each watch's edges; pass 2 writes the paths. Every path under a watch precedes its edge in
     the single walk's order (the edge is logged when the watch's no-event branch is done), so a path takes each of
     its watches' edges, in their order."""
-    from app.analysis.setup import DRAWS
     from app.disputes import parallel
-    from app.disputes.forecast import atoms, class_entry, path_mask, qcls_best
 
     t0 = time.time()
     files = parallel.part_files(folder)
@@ -145,30 +144,17 @@ def control(folder: str, out: str) -> None:
            "classed": {x for x in set().union(*(h.get("classed", ()) for h in heads)) if x in nodes}}
     os.makedirs(os.path.join(out, "paths"), exist_ok=True)
     os.makedirs(os.path.join(out, "walked"), exist_ok=True)
+    global _PATH_CONTEXT
+    _PATH_CONTEXT = (reads, nodes, edges, owner, out)
     total, missing, cost, meta = 0, set(), {}, []
-    for k in sorted(files):
-        p, f = parallel.read_part(files[k]), f"part{k}.pkl"
-        kept = []
-        for ekey, kind, x, cond in sorted(p["events"], key=lambda e: e[0]):
-            if kind != "path" or not live(cond) or top(ekey[1], k):
-                continue
-            meta.append((ekey, x[1], f, len(kept)))
-            w = x[0]
-            for wid in x[2]:
-                for at, edge, qcls in edges.get(wid, ()):
-                    have = {c[0] for c in w.classes}
-                    add = tuple(class_entry(k, cls, path_mask(w, DRAWS)) for k, entries in qcls.items()
-                                if k not in have and (cls := qcls_best(entries, w.steps)) is not None)
-                    w = replace(w, edges=w.edges[:at] + (edge,) + w.edges[at:], classes=w.classes + add)
-            kept.append(w)
-            for key, _ in w.edges:  # every question a path reads is a merged question
-                missing |= atoms(key) - nodes.keys()
-        total += len(kept)
-        # each part's paths and its walk's seconds: the reduction balances its blocks by them (analysis/reduce.py)
-        cost[f] = (len(kept), float(p.get("seconds", 0.0)))
-        with open(os.path.join(out, "walked", f), "wb") as fh:
-            pickle.dump(kept, fh, protocol=pickle.HIGHEST_PROTOCOL)
-        del p
+    for k, part_meta, absent, count, seconds in _map_parts(_path_part, sorted(files.items())):
+        f = f"part{k}.pkl"
+        total += count
+        missing.update(absent)
+        cost[f] = (count, seconds)
+        meta.extend(part_meta)
+        print(f"control paths: {len(cost)}/{len(files)} parts, {total} paths", file=sys.stderr, flush=True)
+    _PATH_CONTEXT = None
     merged = _merge(out, meta, {k: n.branches for k, n in nodes.items()})
     for f, n in merged.items():  # the reduction balances its blocks by each part's paths after the merge
         cost[f] = (n, cost[f][1])
@@ -195,8 +181,6 @@ def _merge(out: str, meta: list, branches: dict) -> dict[str, int]:
     path. merge_equivalent treats each key's group on its own, so each group is merged alone, its members in the
     walk's order. Writes out/paths/<part>: each merged path in the part of its group's first member, in the walk's
     order. Returns each part's count."""
-    from app.disputes.forecast import merge_equivalent
-
     meta.sort(key=lambda m: m[0])
     groups: dict = {}
     for e, k, f, i in meta:
@@ -215,21 +199,73 @@ def _merge(out: str, meta: list, branches: dict) -> dict[str, int]:
     by_home: dict = {}
     for k in groups:
         by_home.setdefault(home[k], []).append(k)
-    counts = {}
-    for f in sorted({m[2] for m in meta}):
-        with open(os.path.join(out, "walked", f), "rb") as fh:
-            kept = pickle.load(fh)
-        rows = []
-        for k in by_home.get(f, ()):
-            g = groups[k]
-            members = [kept[i] if gf == f else away[(gf, i)] for _e, gf, i in g]
-            rows += [(g[0][0], q) for q in merge_equivalent(members, [k] * len(members), branches)]
-        rows.sort(key=lambda r: r[0])  # stable: a group's subgroups keep merge_equivalent's order
-        write_paths(os.path.join(out, "paths", f), [q for _e, q in rows])
-        counts[f] = len(rows)
+    global _MERGE_CONTEXT
+    _MERGE_CONTEXT = (out, groups, by_home, away, branches)
+    counts = dict(_map_parts(_merge_home, sorted({m[2] for m in meta})))
+    _MERGE_CONTEXT = None
     for f in counts:
         os.remove(os.path.join(out, "walked", f))
     return counts
+
+
+_PATH_CONTEXT = None
+_MERGE_CONTEXT = None
+
+
+def _map_parts(fn, jobs):
+    workers = max(1, int(os.environ.get("SLOPE_POOL_PROCESSES", "1")))
+    if workers == 1:
+        yield from map(fn, jobs)
+    else:
+        # Global read-only tables are inherited, not serialized for every part. Linux runners use fork.
+        with multiprocessing.get_context("fork").Pool(workers) as workers_pool:
+            yield from workers_pool.imap_unordered(fn, jobs, chunksize=1)
+
+
+def _path_part(item):
+    from app.analysis.setup import DRAWS
+    from app.disputes import parallel
+    from app.disputes.forecast import atoms, class_entry, path_mask, qcls_best
+
+    reads, nodes, edges, owner, out = _PATH_CONTEXT
+    holds = _holds(reads)
+    k, file = item
+    p, f = parallel.read_part(file), f"part{k}.pkl"
+    kept, meta, missing = [], [], set()
+    for ekey, kind, x, cond in sorted(p["events"], key=lambda e: e[0]):
+        if kind != "path" or not all(holds(c) for c in cond) or (ekey[1] == 1 and k != owner):
+            continue
+        meta.append((ekey, x[1], f, len(kept)))
+        w = x[0]
+        for wid in x[2]:
+            for at, edge, qcls in edges.get(wid, ()):
+                have = {c[0] for c in w.classes}
+                add = tuple(class_entry(key, cls, path_mask(w, DRAWS)) for key, entries in qcls.items()
+                            if key not in have and (cls := qcls_best(entries, w.steps)) is not None)
+                w = replace(w, edges=w.edges[:at] + (edge,) + w.edges[at:], classes=w.classes + add)
+        kept.append(w)
+        for key, _ in w.edges:
+            # Subtracting dict_keys scans every node for every edge; membership is exact and constant-time.
+            missing.update(atom for atom in atoms(key) if atom not in nodes)
+    with open(os.path.join(out, "walked", f), "wb") as fh:
+        pickle.dump(kept, fh, protocol=pickle.HIGHEST_PROTOCOL)
+    return k, meta, missing, len(kept), float(p.get("seconds", 0.0))
+
+
+def _merge_home(f):
+    from app.disputes.forecast import merge_equivalent
+
+    out, groups, by_home, away, branches = _MERGE_CONTEXT
+    with open(os.path.join(out, "walked", f), "rb") as fh:
+        kept = pickle.load(fh)
+    rows = []
+    for k in by_home.get(f, ()):
+        g = groups[k]
+        members = [kept[i] if gf == f else away[(gf, i)] for _e, gf, i in g]
+        rows += [(g[0][0], q) for q in merge_equivalent(members, [k] * len(members), branches)]
+    rows.sort(key=lambda r: r[0])
+    write_paths(os.path.join(out, "paths", f), [q for _e, q in rows])
+    return f, len(rows)
 
 
 def write_paths(path: str, paths: list) -> None:
@@ -317,15 +353,24 @@ def facts(run_id: str, folder: str, control_file: str, b: int, out: str, check: 
     """Bucket b's questions' Jev states (the state, its findings, its readings), from its rows (`folder`: every
     split's rows<b>), written to out/states<b>.json.gz. check: each state also built from rows widened at once
     (`forecast.unpack_row`) and compared."""
-    from app.disputes.forecast import CLASS_TAG, Rows
-
     t0 = time.time()
     with open(control_file, "rb") as fh:
         ctl = pickle.load(fh)
     fc = forecaster(run_id, ctl)
     fc.facts = bucket_facts(folder, ctl)
-    states, errors, differ, never = {}, {}, [], []
     mine = sorted(k for k in fc.nodes if bucket(k) == b and k not in fc.classed)
+    result = question_states(fc, mine, check)
+    os.makedirs(out, exist_ok=True)
+    with gzip.open(os.path.join(out, f"states{b}.json.gz"), "wt") as fh:
+        json.dump(result, fh, default=str)
+    print(f"{time.time() - t0:7.0f}s facts bucket {b}: {len(mine)} questions, "
+          f"{len(result['states'])} states, {len(result['errors'])} errors", file=sys.stderr, flush=True)
+
+
+def question_states(fc, mine, check=False):
+    from app.disputes.forecast import CLASS_TAG, Rows
+
+    states, errors, differ, never = {}, {}, [], []
     for k in mine:
         if CLASS_TAG in k and not any(fc.live(fc.nodes[k], r).any() for r in fc.facts.get(k, ())):
             never.append(k)  # a class live on no path: its answer moves no figure (`forecast.expand_classes`)
@@ -343,13 +388,7 @@ def facts(run_id: str, folder: str, control_file: str, b: int, out: str, check: 
             errors[k] = f"{type(e).__name__}: {e}"
         finally:
             Rows.LAZY = False
-    os.makedirs(out, exist_ok=True)
-    with gzip.open(os.path.join(out, f"states{b}.json.gz"), "wt") as fh:
-        json.dump({"states": states, "errors": errors, "differ": differ, "never_live": never}, fh, default=str)
-    print(f"{time.time() - t0:7.0f}s facts bucket {b}: {len(mine)} questions, {len(states)} states, "
-          f"{len(errors)} errors, {len(never)} classes never live"
-          + (f", {len(differ)} differ from the eager build" if check else ""),
-          file=sys.stderr, flush=True)
+    return {"states": states, "errors": errors, "differ": differ, "never_live": never}
 
 
 def judge(run_id: str, states: str, control_file: str, count_only: bool = False,

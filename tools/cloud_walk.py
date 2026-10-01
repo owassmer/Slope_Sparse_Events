@@ -350,10 +350,13 @@ def pool(bucket, prefix, slots, *, source_bucket=None, source_s3=None):
             fetch_group(s3, bucket, f'{prefix}/pool', 'paths', root / 'ctl/paths')
         else:
             progress('download_control', shards=100)
-            download('control', root / 'control')
+            # This root is already bound to the exact selected archives above.
+            if not (root / 'walk_roots.pkl').exists() or not (root / 'control').exists():
+                download('control', root / 'control')
             progress('verify_segment_coverage')
-            subprocess.run(['.venv/bin/python', '-m', 'app.disputes.parallel', 'spill',
-                            str(root / 'control'), str(root / 'walk_roots.pkl')], check=True, env=env)
+            if not (root / 'walk_roots.pkl').exists():
+                subprocess.run(['.venv/bin/python', '-m', 'app.disputes.parallel', 'spill',
+                                str(root / 'control'), str(root / 'walk_roots.pkl')], check=True, env=env)
             with (root / 'walk_roots.pkl').open('rb') as f:
                 missing = pickle.load(f)
             if missing:
@@ -400,10 +403,14 @@ def pool(bucket, prefix, slots, *, source_bucket=None, source_s3=None):
             print(f'facts bucket {b} published', flush=True)
 
         progress('build_question_states', buckets=16, concurrent_buckets=slots)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=slots) as ex:
-            futures = [ex.submit(facts, b) for b in range(16)]
-            for f in futures:
-                f.result()
+        if os.environ.get('SLOPE_POOL_FLEET') == '1':
+            from pool_fleet import coordinate
+            coordinate(s3, bucket, prefix, root, download, env)
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=slots) as ex:
+                futures = [ex.submit(facts, b) for b in range(16)]
+                for f in futures:
+                    f.result()
         progress('verify_question_coverage')
         subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'judge', RUN, str(root),
                         str(root / 'ctl/control.pkl')], check=True, env={**env, 'SLOPE_JUDGE_COUNT': '1'})
