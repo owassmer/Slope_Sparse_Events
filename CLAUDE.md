@@ -32,6 +32,10 @@ Layout: `app/{domain,evidence,agent,disputes,analysis,finance,decisions,web}`, `
 
 Commands: `uv sync`, `uv run slope ...` (`slope analyze --run <id>`), `uv run pytest`, `uv run ruff check .`
 
+## Active work plan
+
+Read `PLAN.md` when resuming work. Maintain its checklist after substantive changes, distinguishing implementation from live validation and delivery. It tracks the repeatable-flow realignment and outstanding production work; the governing specifications above still define financial and evidence correctness.
+
 ## Delivery workflow
 1. **Implement in an isolated worktree** on a branch off the relevant PR head or the latest `main`.
 2. **Commit and push, then open or update the PR**, stating the step's exit condition from spec §9 and how it was met.
