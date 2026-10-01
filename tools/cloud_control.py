@@ -53,6 +53,10 @@ def watch(config, revision):
     s3 = boto3.client('s3', region_name='us-east-1')
     ec2 = boto3.client('ec2', region_name='us-east-1')
     bucket, prefix = config['bucket'], config['prefix']
+    queue = read(s3, bucket, f'{prefix}/config.json')
+    original = set(range(100)) - set(queue['jobs'])
+    retired_key = f'{prefix}/drain/original-retired.json'
+    original_retired = read(s3, bucket, retired_key) is not None
     previous = None
     recoveries = 0
     hosts = {}
@@ -63,6 +67,16 @@ def watch(config, revision):
             if len(done) != previous:
                 print(time.strftime('%Y-%m-%d %H:%M:%S'), f'completed {len(done)}/100', flush=True)
                 previous = len(done)
+            if not original_retired and original and original <= done:
+                run = '36781427817'
+                status = subprocess.check_output(
+                    ['gh', 'run', 'view', run, '-R', 'owassmer/Slope_Sparse_Events',
+                     '--json', 'status', '--jq', '.status'], text=True).strip()
+                if status != 'completed':
+                    subprocess.run(['gh', 'run', 'cancel', run, '-R', 'owassmer/Slope_Sparse_Events'], check=True)
+                create(s3, bucket, retired_key, {'run': run, 'saved_shards': sorted(original), 'time': time.time()})
+                original_retired = True
+                print('Original shards saved; retired the original workflow and its queued duplicates.', flush=True)
             if done == set(range(100)):
                 # An idempotent EC2 launch token prevents an uncertain response from starting a second pool VM.
                 marker = read(s3, bucket, f'{prefix}/pool/launch.json')
