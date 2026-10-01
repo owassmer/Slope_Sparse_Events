@@ -62,6 +62,30 @@ def test_filing_answer_does_not_change_its_own_question_facts(case):
     assert actual.petition[7] == 168
 
 
+
+def test_later_listing_answer_does_not_reweight_earlier_notes_facts(case):
+    fc, d, w, _ = case
+    key = fc.node(d, 'petition_on_notes', 'judgment_ruling')
+    mask = w.mask_of(STEPS)
+    first = notes.record(fc, d, STEPS, key, mask)
+    assert (first != '').any()
+    seen = set(fc._late_seen)
+    # Both listing answers occur after this issuer decision. They must not
+    # change its class or count its history twice in the representative facts.
+    hearing = STEPS[:-1] + (('listing', '', 'hearing'),)
+    second = notes.record(fc, d, hearing, key, mask)
+    np.testing.assert_array_equal(first, second)
+    assert fc._late_seen == seen
+
+
+def test_strong_join_retains_distinct_pending_filing_continuations(case):
+    _fc, _d, w, _key = case
+    s = _S(steps=STEPS[:ORIGIN], cls='reduced1695000300')
+    classes = {'yes': [[('issuer', 'yes')]], 'holders_file': [[('holders', 'yes')]]}
+    result = w.joined(s, 'judgment_default', 'ruling', classes,
+                      (('yes', 'holders_file'),))
+    assert set(result) == {'yes', 'holders_file'}
+
 def test_prompt_uses_actual_context_and_classes_override_stale_prefix(case):
     fc, d, w, key = case
     mask = w.mask_of(STEPS)
@@ -224,3 +248,38 @@ def test_saved_history_rebuild_preserves_cash_path_and_replaces_notes_classes(ca
         meta = pickle.load(stream)
     assert key in meta['classed']
     assert all(k in meta['nodes'] for k, _late, _blob in rows)
+
+
+def test_equal_finished_prefixes_can_hide_distinct_holder_continuations(case):
+    fc, d, w, _ = case
+    # Original raw event (10494, 0, 5020, 753) merged these alternatives.
+    steps = (
+        ('settle', 'I0', 'no'),
+        ('verdict', 'I0', 'award:2672665250:2535110300:2810220200'),
+        ('judgment_response', 'entry', '@2=initiate_offering'),
+        ('offering', 'entry', 'no'),
+        ('post_trial_motions', '', 'yes'),
+        ('settle', 'I1', 'no'),
+        ('execute_pre_ruling', 'I1', 'yes'),
+        ('cash_floor', '1', '@2=file'),
+        ('stay', 'I1', 'yes'),
+        ('registration_early', 'I1', 'yes'),
+        ('judgment_response', 'ripe', '@2=initiate_offering'),
+        ('offering', 'ripe', 'no'),
+        ('judgment_default', 'I1', 'no'),
+        ('post_trial_ruling', '', 'reduced:2397555350:2260000400:2535110300'),
+        ('judgment_default', 'ruling', 'accelerated'),
+        ('settle', 'I2', 'yes'),
+        ('listing', '', 'compliant'),
+    )
+    origin = 14
+    filed = steps[:origin] + (('judgment_default', 'ruling', 'holders_file'),) + steps[origin + 1:]
+    assert w._trace(steps[:origin + 1], True).digest == w._trace(filed[:origin + 1], True).digest
+    mask = w.mask_of(steps)
+    np.testing.assert_array_equal(mask, w.mask_of(filed))
+    quiet = fc.trace(d, steps, full=True, real=True)
+    holders = fc.trace(d, filed, full=True, real=True)
+    changed = np.flatnonzero(mask & (quiet.petition != holders.petition))
+    assert changed.tolist() == [122, 193, 408]
+    np.testing.assert_array_equal(quiet.petition[changed], [168, 164, 164])
+    np.testing.assert_array_equal(holders.petition[changed], [163, 163, 163])

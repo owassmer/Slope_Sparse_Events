@@ -1,6 +1,6 @@
 # Repeatable event-analysis flow: plan and todo list
 
-Updated: 2026-10-01. Owner: Codex, working with Owen. Current focus: adopt the now-complete 100-shard walk into the repeatable pool → Jev → financial reduction → page flow. Live end-to-end validation remains outstanding.
+Updated: 2026-10-01. Owner: Codex, working with Owen. Current focus: reconcile the notes repair and recover the necessary continuations while preserving the completed 100-shard walk; see the final section before any dispatch. Live end-to-end validation remains outstanding.
 
 ## Objective and reason for the realignment
 
@@ -257,18 +257,35 @@ The next distributed operation rebuilds notes decision rows and per-path questio
 
 First bounded continuation wave: the210 original affected history prefixes map to exactly210 corrected segments, with zero unmatched prefixes, out of8144 corrected top-level segments. `SLOPE_WALK_PREFIXES` selects those histories by their actual steps rather than obsolete segment numbers. A real50-day walk regression compares the selected raw paths, financial-equivalence keys and watch identities to the corresponding subtrees of the complete walk; it passes and preserves the complete segment topology while marking only selected segments done. Replacement outputs remain separate until coverage and integration pass. This wave addresses the demonstrated failing question; it is not a claim that all other affected continuations are repaired.
 
-## Complete repair scope and redundant rebuild retirement — 2026-10-01 17:40 UTC
+## Repair reconciliation — current instructions, 2026-10-01
 
-The complete 100-source continuation scan includes judgment filing branches, quiet representatives containing merged holders filing, ripe-response filing, and delisting issuer/holder filing alternatives. Strict unique root identity comparison selects 2,109 reusable corrected segments and 6,035 replacements. The first 210-prefix wave is included; the remaining 5,825 roots are disjoint. Every reused segment has scanned path records. Focused independent review found no dispatch blocker; adoption must still remap ordering, replace top events, recompute global watches, and rebuild complete state coverage.
+This section supersedes the repair dispatch/adoption instructions above. Compute is paused. GitHub repair runs 36897600258, 36898639339 and 36900757978 were cancelled; personal AWS worker i-0d1ad1d0761e877d8 was stopped with disk preserved. Do not restart the old replacement manifest. No new Jev forecast or financial result has been produced.
 
-Only 31,897 original raw path records belong to the reusable segments. Broad rebuild run36897600258 was cancelled because it was also rebuilding 4,294,953 records whose replacement walks will generate fresh facts. Completed artifacts were preserved; sampled artifacts prove actual progress (worker4:7,064 paths/25,412 rows; worker37:3,789 paths/11,920 rows). Lack of completed jobs was not evidence of a deadlock. Progress was too coarse and the inherited60-minute timeout inappropriate. Rebuild now supports exact reusable-root filtering and prints every100 paths; the workflow allows time for artifact preservation.
+The earlier 2,109 reusable / 6,035 replacement segment plan and its 99.3% raw-path replacement implication are withdrawn as a statement of necessary repair. They came from broad filing exposure flags, strict whole-root identity and an overbroad code change. They do not measure invalid cash paths. The complete original walk remains preserved. The scope scan is an exposure inventory only.
 
-The original210-prefix repair36898639339 is starting as GitHub capacity frees. Full remainder uses40 GitHub workers and4 additional four-core shares on personal AWS, with disjoint assignments. Owen explicitly authorizes AWS acceleration while GitHub remains primary. Temporary full-scope worker i-0235ced9b979d185b completed all100 sources and terminated automatically. No production ready marker or financial result is claimed.
+### What the reconciliation establishes
 
-- [x] Complete all-source continuation scope, including delisting merges.
-- [x] Bind unique reusable roots and all corrected replacement roots; independent focused check passes.
-- [x] Stop redundant broad fact replay; preserve its published output.
-- [ ] Finish 210-prefix first wave and remaining5,825 replacements; recover/split unfinished segments as needed.
-- [ ] Rebuild notes facts/classes for the31,897 reusable raw histories.
-- [ ] Assemble corrected top events, remapped reused streams and exactly-once replacements; recompute watches and all affected rows.
-- [ ] Validate per-draw probability composition and exact question-state coverage, then run Jev and financial reduction through the coordinator.
+Connor's original messages 795972–796011 approve facts as of the decision, once per history, and six-dimensional per-draw question classes without extra path forks. Message 796104 requires each answer to use the same before-action class. Message 797704 explicitly rejects an apparently redundant offering merge after checking its cash lock; exact continuation-state joins remain valid. These constraints govern the repair as well.
+
+- The reduced-award band correction changes question facts, not booked cash or walk topology.
+- In the production-derived notes fixture, draw 7's unfinished history predicts a cash-floor petition on day 164. An I2 settlement walked later occurs on day 108 and averts it. Holders may then decide on day 168. The quiet completed path has no petition; the holders-file path petitions on day 168. Premature termination and prefix-only facts are demonstrated failures.
+- `ripe` is an existing phase for the judgment-default availability date. The repair changes its filing continuation, not the date or the contractual scenario. An earlier-dated set-aside ruling removes an unfinished path's predicted filing on eight retained draws in the regression.
+- Restore both stronger `joined` checks: they compare unfinished continuation state as well as completed financial traces. Pending judgment branches retain distinct waiting actions and fail this equality check. No demonstrated defect justifies disabling the delisting check.
+- Keep the pending restriction on digest-only `unfiled` for now: equality of a finished prefix alone does not prove future continuation equivalence. A separate original raw event (10494, 0, 5020, 753) demonstrates an erroneous merge: the finished prefix digests are equal, but after I2 settlement the quiet path petitions on days 168/164/164 and the holder alternative on day 163 for draws 122/193/408. Their draw masks agree. This is a counterexample to prefix-digest equivalence, not a count of all affected histories.
+- Keep completed, before-own-action notes facts with dated context. Existing `_keep_late` deduplication remains. A discriminating check changes the later listing answer and confirms the earlier issuer class and recorded-history count are unchanged. The fixed-suffix sibling probability test passes; it does not establish global probability conservation across all regenerated continuations.
+
+The local rollback restores the two `joined` calls. Seventeen focused notes, scope and pool tests pass. No event-engine timing, source evidence, question registry or scenario assumption was changed by this rollback. Notes class membership and rendered decision facts do change under the preceding chronology repair; they must be validated before Jev consumes them.
+
+### Recovery work, in order
+
+- [x] Reconcile the defect with original Connor decisions and concrete chronology.
+- [x] Withdraw unjustified stronger-join exclusions; preserve history deduplication and per-draw classes.
+- [x] Withdraw whole-root exposure counts as the required replacement scope.
+- [ ] Locate actual premature termination and unsafe digest-only merge sites in raw saved histories. Distinguish facts-only changes from missing continuations. Do not infer invalidity from a filing label alone.
+- [ ] Capture exact walk state, continuation and watches by targeted prefix replay. Steps alone omit necessary walk flags. Select nonoverlapping affected prefixes; establish reliable provenance for removing their old descendant events and facts.
+- [ ] Present measured replacement/reuse scope before relaunching distributed compute. The original 210 prefixes and 5,825 remainder are not established minimal repair units.
+- [ ] Resume only the necessary continuations, replacing their corresponding old descendants and composite alternatives. Preserve incoming probability and draw masks; verify descendant probability mass equals incoming mass per draw.
+- [ ] Refresh affected notes facts/classes from complete histories, deduplicate globally and recompute watch coverage. Validate exact question-state coverage and probability conservation across the assembled result.
+- [ ] Finish pooling → Jev → lender cash-flow reduction → inspected analysis page through the repeatable invocation. Russell's work sample and follow-up remain the delivery priority.
+
+GitHub is primary compute; personal AWS can accelerate when justified. No recovery estimate is established yet. Do not describe this reconciliation or the passing local regressions as completed production repair.

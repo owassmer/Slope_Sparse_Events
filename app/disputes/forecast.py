@@ -2709,7 +2709,7 @@ class _Walk:
                 else (lambda st, e, **kw: self.take(s, st, e, (h1,), **kw)))
         if not self.pend:
             classes = self.unfiled(s, "judgment_default", phase, classes, (("holders_file", "accelerated"),))
-            classes = self.joined(s, "judgment_default", phase, classes, (("yes", "holders_file"),))
+        classes = self.joined(s, "judgment_default", phase, classes, (("yes", "holders_file"),))
         for branch, parts in classes.items():
             y = take(("judgment_default", phase, branch), (composite(parts), "yes"), notes_due=True)
             if not self.pend and branch != "accelerated" and (self._trace(y.steps, True).petition >= 0).all():
@@ -3132,8 +3132,7 @@ class _Walk:
             classes = {"petition_delist": classes["petition_delist"],
                        "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
                        "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]], "none": classes["none"]}
-        if not self.pend or self.d is None:
-            classes = self.joined(s, "delisting_notes", dc, classes, (("petition_delist", "petition_delist_holders"),))
+        classes = self.joined(s, "delisting_notes", dc, classes, (("petition_delist", "petition_delist_holders"),))
         for c, parts in classes.items():
             self.distress(s.add(("delisting_notes", dc, c), (composite(parts), "yes"), notes_due=c != "none"),
                           "petition" if c.startswith("petition") else outcome)
