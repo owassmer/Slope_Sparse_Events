@@ -363,19 +363,20 @@ def pool(bucket, prefix, slots, *, source_bucket=None, source_s3=None):
                 f.result()
 
     try:
+        checkpoint = root / 'control-local-ready.json'
+        local_control = root / 'ctl/control.pkl'
+        identity = hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest()
+        resume = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
+        local_ready = (resume.get('inputs') == identity and local_control.exists()
+                       and resume.get('control') == hashlib.sha256(local_control.read_bytes()).hexdigest()
+                       and resume.get('paths') == path_fingerprints(root / 'ctl/paths'))
         if read(s3, bucket, f'{prefix}/pool/control-ready.json'):
             progress('restore_control')
             (root / 'ctl').mkdir(exist_ok=True)
-            s3.download_file(bucket, f'{prefix}/pool/control.pkl', str(root / 'ctl/control.pkl'))
-            fetch_group(s3, bucket, f'{prefix}/pool', 'paths', root / 'ctl/paths')
+            if not local_ready:
+                s3.download_file(bucket, f'{prefix}/pool/control.pkl', str(root / 'ctl/control.pkl'))
+                fetch_group(s3, bucket, f'{prefix}/pool', 'paths', root / 'ctl/paths')
         else:
-            checkpoint = root / 'control-local-ready.json'
-            local_control = root / 'ctl/control.pkl'
-            identity = hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest()
-            resume = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
-            local_ready = (resume.get('inputs') == identity and local_control.exists()
-                           and resume.get('control') == hashlib.sha256(local_control.read_bytes()).hexdigest()
-                           and resume.get('paths') == path_fingerprints(root / 'ctl/paths'))
             if not local_ready:
                 progress('download_control', shards=100)
                 # This root is already bound to the exact selected archives above.

@@ -634,8 +634,10 @@ class Situation:
         return usd(self._band()[1])
 
     def _band(self):
-        v = self._g().at_rep("band_range", sit=True)
-        return int(v[0]), int(v[1])
+        band = self.fc.reduced_band(self.d, self._entered()[1])
+        if band is None:
+            raise Unbuilt("this award has no lower positive judgment band")
+        return band[:2]
 
     def verdict_amount(self):
         return self.judgment_amount()
@@ -828,7 +830,10 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     entry = registry_entry(n.question_id)
     labels = {**fc.m.get("case_labels", {}), **(fc.labels(d) if d.stage == PENDING else {})}
     g = Group.of(rows, eligible(fc, n, rows, masks)) if rows else None
-    sit = Situation(fc, n, d, g, tags, labels).fill(t["situation_keys"], strict)
+    keys = t["situation_keys"]
+    if n.node == "post_trial_ruling" and "reduced" not in n.branches:
+        keys = [k for k in keys if k not in ("reduced_low", "reduced_high")]
+    sit = Situation(fc, n, d, g, tags, labels).fill(keys, strict)
     values = {"company": fc.borrower, "claimant": d.counterparty,  # the question names the representative's figures
               **{k: RANGE.sub("", v) if isinstance(v, str) else json.dumps(v) for k, v in sit.items()}}
     crit = entry["prompt"]["criteria"]

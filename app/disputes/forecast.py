@@ -1275,6 +1275,14 @@ class Forecaster:
         memo[key] = out
         return out
 
+    def reduced_band(self, d: DisputeInstance, entered: int) -> tuple[int, int, int] | None:
+        """J2's surviving band and booked midpoint, below the original award's J1b band."""
+        if entered <= 0:
+            return None
+        bands = [b for b in self.verdict_lines(d, self.equity_inflows(d))["bands"] if b[1] > 0]
+        at = next(i for i, (lo, hi, _) in enumerate(bands) if lo < entered <= hi)
+        return bands[at - 1] if at > 0 else None
+
     def equity_inflows(self, d: DisputeInstance) -> np.ndarray | None:
         """The integration point for the J1b top line: [draws, days] cumulative net equity proceeds the channels can
         deliver by each day at their most (QUESTIONS §2.6: at-the-market sales from the review date and offerings
@@ -2842,9 +2850,7 @@ class _Walk:
         if not label.startswith("award:"):
             return None
         total = int(label.split(":")[1])
-        bands = [b for b in self.fc.verdict_lines(self.d, self.fc.equity_inflows(self.d))["bands"] if b[1] > 0]
-        at = next(i for i, (lo, hi, _) in enumerate(bands) if lo < total <= hi)
-        return bands[at - 1] if at > 0 else None
+        return self.fc.reduced_band(self.d, total)
 
     def post(self, s: _S) -> None:
         self.settle(s, "I2", self.appeal)

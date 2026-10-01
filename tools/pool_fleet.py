@@ -25,6 +25,12 @@ PARTITIONS = 6
 _FC = None
 
 
+
+def state_version():
+    root = Path(__file__).resolve().parents[1]
+    return hashlib.sha256(b''.join((root / 'app/disputes' / name).read_bytes()
+                                   for name in ('state14.py', 'forecast.py', 'pool.py'))).hexdigest()[:16]
+
 def partition(key):
     return int(hashlib.blake2b(key.encode(), digest_size=8).hexdigest(), 16) % PARTITIONS
 
@@ -91,33 +97,37 @@ def build(run, ctl_file, bundle, out, cores):
 
 def manifest(s3, bucket, prefix, identity):
     base = f'{prefix}/pool/fleet-v2'
+    outputs = f'{base}/outputs/{state_version()}'
 
     def url(operation, key):
         return s3.generate_presigned_url(operation, Params={'Bucket': bucket, 'Key': key}, ExpiresIn=21600)
 
-    value = {'identity': identity, 'run': 'akoustis_20240514-agent_plus_jev-20260929T052558Z',
+    value = {'identity': identity, 'state_version': state_version(), 'run': 'akoustis_20240514-agent_plus_jev-20260929T052558Z',
              'control': url('get_object', f'{prefix}/pool/control.pkl'), 'tasks': []}
     for b in range(16):
         for p in range(5):
             value['tasks'].append({'bucket': b, 'partition': p,
                                   'input': url('get_object', f'{base}/inputs/{b}-{p}.pkl.gz'),
-                                  'output': url('put_object', f'{base}/outputs/{b}-{p}.json.gz'),
-                                  'log': url('put_object', f'{base}/logs/{b}-{p}.log')})
-    key = f'{base}/manifest.json'
+                                  'output': url('put_object', f'{outputs}/{b}-{p}.json.gz'),
+                                  'existing': url('get_object', f'{outputs}/{b}-{p}.json.gz'),
+                                  'log': url('put_object', f'{base}/logs/{state_version()}/{b}-{p}.log')})
+    key = f'{base}/manifest-{state_version()}.json'
     s3.put_object(Bucket=bucket, Key=key, Body=json.dumps(value).encode())
     # This pointer stays in private S3 and is passed through a masked GitHub secret by the launcher.
     s3.put_object(Bucket=bucket, Key=f'{base}/manifest-url.txt', Body=url('get_object', key).encode())
 
 
-def fetch(url, path, wait=False):
+def fetch(url, path, wait=False, missing_ok=False):
     deadline = time.monotonic() + (18000 if wait else 120)
     while True:
         try:
             with urllib.request.urlopen(url, timeout=120) as response, open(path, 'wb') as fh:
                 import shutil
                 shutil.copyfileobj(response, fh)
-            return
+            return True
         except urllib.error.HTTPError as error:
+            if error.code == 404 and missing_ok:
+                return False
             retry = error.code in (429, 500, 502, 503, 504) or (error.code == 404 and wait)
             if not retry or time.monotonic() >= deadline:
                 raise RuntimeError(f'input download failed: HTTP {error.code}') from None
@@ -144,9 +154,14 @@ def put(url, data):
 def github(worker):
     fetch(os.environ['POOL_MANIFEST_URL'], 'fleet-manifest.json')
     info = json.loads(Path('fleet-manifest.json').read_text())
+    if info['state_version'] != state_version():
+        raise RuntimeError('worker question-state code differs from coordinator')
     fetch(info['control'], 'fleet-control.pkl', wait=True)
     for task in info['tasks'][worker::40]:
         tag = f'{task["bucket"]}-{task["partition"]}'
+        if fetch(task['existing'], f'{tag}.json.gz', missing_ok=True):
+            print(f'reusing completed question partition {tag}', flush=True)
+            continue
         print(f'waiting for question partition {tag}', flush=True)
         fetch(task['input'], f'{tag}.pkl.gz', wait=True)
         log = Path(f'{tag}.log')
@@ -169,11 +184,20 @@ def coordinate(s3, bucket, prefix, root, download, env):
     from app.analysis.pooled import save
 
     base = f'{prefix}/pool/fleet-v2'
+    outputs = f'{base}/outputs/{state_version()}'
     ctl_file = root / 'ctl/control.pkl'
     run = 'akoustis_20240514-agent_plus_jev-20260929T052558Z'
     done = set()
 
     def one_bucket(b):
+        from botocore.exceptions import ClientError
+
+        try:
+            s3.head_object(Bucket=bucket, Key=f'{outputs}/{b}-5.json.gz')
+            return b
+        except ClientError as error:
+            if error.response['Error']['Code'] not in ('404', 'NoSuchKey'):
+                raise
         folder, bundles = root / f'rows{b}', root / 'fleet-inputs'
         if read(s3, bucket, f'{base}/prepared/{b}.json') is None:
             download(f'rows{b}', folder)
@@ -193,7 +217,7 @@ def coordinate(s3, bucket, prefix, root, download, env):
         output = root / f'fleet-{b}-5.json.gz'
         subprocess.run(['.venv/bin/python', __file__, 'build', run, str(ctl_file), str(bundles / f'{b}-5.pkl.gz'),
                         str(output), '4'], env=env, check=True)
-        s3.upload_file(str(output), bucket, f'{base}/outputs/{b}-5.json.gz')
+        s3.upload_file(str(output), bucket, f'{outputs}/{b}-5.json.gz')
         for p in range(6):
             (bundles / f'{b}-{p}.pkl.gz').unlink(missing_ok=True)
         return b
@@ -201,7 +225,7 @@ def coordinate(s3, bucket, prefix, root, download, env):
     def collect(b):
         values = []
         for p in range(6):
-            obj = s3.get_object(Bucket=bucket, Key=f'{base}/outputs/{b}-{p}.json.gz')
+            obj = s3.get_object(Bucket=bucket, Key=f'{outputs}/{b}-{p}.json.gz')
             values.append(json.loads(gzip.decompress(obj['Body'].read())))
         result = combine(values)
         with ctl_file.open('rb') as fh:
@@ -226,10 +250,10 @@ def coordinate(s3, bucket, prefix, root, download, env):
                 if future.done():
                     future.result()
             keys = set()
-            for page in s3.get_paginator('list_objects_v2').paginate(Bucket=bucket, Prefix=f'{base}/outputs/'):
+            for page in s3.get_paginator('list_objects_v2').paginate(Bucket=bucket, Prefix=f'{outputs}/'):
                 keys.update(x['Key'] for x in page.get('Contents', []))
             for b in range(16):
-                if b not in done and all(f'{base}/outputs/{b}-{p}.json.gz' in keys for p in range(6)):
+                if b not in done and all(f'{outputs}/{b}-{p}.json.gz' in keys for p in range(6)):
                     collect(b)
                     done.add(b)
             progress = {'stage': 'build_question_states', 'time': time.time(), 'partitions': len(keys),
