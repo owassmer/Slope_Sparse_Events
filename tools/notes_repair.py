@@ -12,6 +12,7 @@ import os
 import pickle
 import sys
 import tarfile
+import time
 from pathlib import Path
 
 from app.disputes import parallel, pool
@@ -21,6 +22,7 @@ from tools.pool_fleet import fetch, put
 KEY = 'dispute_002:holders_involuntary|judgment_ruling|motions_pending'
 _CTL = None
 _FC = None
+_REUSE = None
 
 
 def rebuild(path):
@@ -44,6 +46,7 @@ def rebuild(path):
     dest = Path('var/notes-repair/rebuilt')
     dest.mkdir(parents=True, exist_ok=True)
     paths = rows = 0
+    started = time.monotonic()
     pending_rows = []
 
     def keep(key, prefix, row):
@@ -52,7 +55,7 @@ def rebuild(path):
     fc._keep_late = keep
     with gzip.open(dest / f'part{number}.pkl.gz', 'wb', compresslevel=1) as output:
         for ekey, kind, value, cond in part['events']:
-            if kind != 'path':
+            if kind != 'path' or (_REUSE is not None and ekey[:3] not in _REUSE):
                 continue
             p, equivalence, watches = value
             keys = sorted({k for edge, _ in p.edges for k in atoms(edge)
@@ -69,6 +72,9 @@ def rebuild(path):
             pickle.dump((ekey, (changed, equivalence, watches), tuple(pending_rows), cond), output, protocol=5)
             paths += 1
             rows += len(pending_rows)
+            if paths % 100 == 0:
+                print({'part': number, 'paths': paths, 'rows': rows,
+                       'seconds': round(time.monotonic() - started, 1)}, flush=True)
     new_nodes = {k: n for k, n in fc.nodes.items() if k not in before}
     with gzip.open(dest / f'part{number}-nodes.pkl.gz', 'wb', compresslevel=1) as output:
         pickle.dump({'nodes': new_nodes, 'classed': fc.classed - _CTL['classed']}, output, protocol=5)
@@ -157,6 +163,8 @@ def github(worker):
     root.mkdir(parents=True, exist_ok=True)
     fetch(os.environ['NOTES_REPAIR_MANIFEST_URL'], root / 'manifest.json')
     manifest = json.loads((root / 'manifest.json').read_text())
+    global _REUSE
+    _REUSE = {tuple(key) for key in manifest['reuse']} if 'reuse' in manifest else None
     task = manifest['tasks'][worker]
     fetch(manifest['control'], root / 'control.pkl')
     global _CTL
