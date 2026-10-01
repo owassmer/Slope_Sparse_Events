@@ -62,6 +62,10 @@ def _child(fc, d, k: int, run: str, log) -> None:
     t0 = time.time()
     top_nodes = dict(fc.nodes)  # the questions before the walk (`walk` starts from them; they are never logged)
     listed = _listed()
+    selected_prefixes = None
+    if os.environ.get('SLOPE_WALK_PREFIXES'):
+        with open(os.environ['SLOPE_WALK_PREFIXES'], 'rb') as source:
+            selected_prefixes = tuple(pickle.load(source))
     refinement = os.environ.get("SLOPE_WALK_REFINE")
     partition, partitions, depth = map(int, refinement.split("/")) if refinement else (0, 1, 0)
     if refinement and (listed is None or not 0 <= partition < partitions or depth < 1):
@@ -120,7 +124,9 @@ def _child(fc, d, k: int, run: str, log) -> None:
             return None
         seq = st["seq"]
         st["seq"] += 1
-        mine = listed is None and share(seq) and not (WALL_S and time.time() - t0 > WALL_S) and claim(steps)
+        selected = selected_prefixes is None or any(
+            steps[:len(prefix)] == prefix or prefix[:len(steps)] == steps for prefix in selected_prefixes)
+        mine = selected and listed is None and share(seq) and not (WALL_S and time.time() - t0 > WALL_S) and claim(steps)
         r = st["roots"][steps] = (seq, mine)
         return r
 

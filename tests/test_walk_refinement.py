@@ -67,3 +67,36 @@ def test_refined_walk_preserves_paths_questions_and_financial_rows(tmp_path, mon
         pooled_paths.append({f.name: pool.read_paths(str(f)) for f in (out / 'paths').glob('*.pkl')})
     assert parallel._same(controls[0], controls[1])
     assert parallel._same(pooled_paths[0], pooled_paths[1])
+
+
+def test_history_prefix_selection_preserves_the_selected_subtrees(tmp_path, monkeypatch):
+    monkeypatch.setattr(parallel, 'CUT', 2)
+    setup = replace(fx.setup(), horizon=fx.REVIEW + timedelta(days=50))
+    basis = basis_for(load_feed(fx.SNAP), setup)
+
+    def context():
+        d = fx.pending().model_copy(update={'status': 'interpreted'})
+        fc = Forecaster([d], {}, borrower='B', review=fx.REVIEW, horizon=setup.horizon,
+                        hydrate=lambda f: {}, model=fx.model(), setup=setup, basis=basis)
+        return fc, d
+
+    whole, selected = tmp_path / 'all', tmp_path / 'selected'
+    whole.mkdir()
+    selected.mkdir()
+    fc, d = context()
+    parallel._fork(fc, d, 1, str(whole), sys.stderr)
+    all_part = parallel.load_parts(str(whole))[0]
+    paths = [value for _, kind, value, _ in all_part['events'] if kind == 'path']
+    prefix = next(p.steps[:2] for p, _, _ in paths if len(p.steps) > 2 and p.steps[1][0] == 'verdict')
+    selector = tmp_path / 'prefixes.pkl'
+    selector.write_bytes(pickle.dumps([prefix]))
+    monkeypatch.setenv('SLOPE_WALK_PREFIXES', str(selector))
+    fc, d = context()
+    parallel._fork(fc, d, 1, str(selected), sys.stderr)
+    part = parallel.load_parts(str(selected))[0]
+    actual = [value for _, kind, value, _ in part['events'] if kind == 'path']
+    expected = [value for value in paths if value[0].steps[:len(prefix)] == prefix]
+    assert expected and len(expected) < len(paths)
+    assert parallel._same(actual, expected)
+    assert part['segs'] == all_part['segs']
+    assert 0 < len(part['done']) < len(all_part['done'])
