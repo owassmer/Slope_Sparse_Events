@@ -62,6 +62,12 @@ def _child(fc, d, k: int, run: str, log) -> None:
     t0 = time.time()
     top_nodes = dict(fc.nodes)  # the questions before the walk (`walk` starts from them; they are never logged)
     listed = _listed()
+    refinement = os.environ.get("SLOPE_WALK_REFINE")
+    partition, partitions, depth = map(int, refinement.split("/")) if refinement else (0, 1, 0)
+    if refinement and (listed is None or not 0 <= partition < partitions or depth < 1):
+        raise ValueError("refinement requires selected roots, a valid partition and positive depth")
+    parent = None
+    inner_segs, inner_done, subdivisions = [], [], {}
     st = {"seg": None, "clock": 0, "nseg": 0, "vdepth": 0, "roots": {}, "seq": 0, "j": 0, "n": 0,
           "regions": [], "wstack": [], "local": False, "W": None}
     events: list = []
@@ -110,7 +116,7 @@ def _child(fc, d, k: int, run: str, log) -> None:
             r = st["roots"].get(steps[:L])
             if r is not None:
                 return r
-        if not starts or (len(steps) - st["vdepth"] < CUT and name not in STARTS):
+        if not starts or (len(steps) - st["vdepth"] < (depth if parent else CUT) and name not in STARTS):
             return None
         seq = st["seq"]
         st["seq"] += 1
@@ -123,8 +129,14 @@ def _child(fc, d, k: int, run: str, log) -> None:
         process) and whether this process walks it: the unit's claimer in the first wave; in a later wave, the
         segment listed for it (its share, claimed)."""
         key = (st["clock"], 0, st["nseg"])
-        segs.append((st["nseg"], st["clock"], r[0]))
+        if parent is None:
+            segs.append((st["nseg"], st["clock"], r[0]))
         st["nseg"] += 1
+        if parent is not None:
+            inner_segs.append(key)
+            return parent + key, (st["nseg"] - 1) % partitions == partition
+        if refinement:
+            return key, key in listed
         if listed is None:
             return key, r[1]
         return key, key in listed and share(listed[key]) and claim(key)
@@ -132,11 +144,34 @@ def _child(fc, d, k: int, run: str, log) -> None:
     def log_event(kind, *payload) -> None:
         cond = tuple(st["regions"])
         if st["seg"] is None:
-            events.append(((st["clock"], 1, 0, 0), kind, payload, cond))
+            if parent is None or partition == 0:
+                events.append(((parent or ()) + (st["clock"], 1, 0, 0), kind, payload, cond))
             st["clock"] += 1
         else:
             events.append((st["seg"] + (st["j"],), kind, payload, cond))
             st["j"] += 1
+
+    def refined(key, f, self, s, a, kw):
+        nonlocal parent, once_top, once_unit, inner_segs, inner_done
+        saved = {x: st[x] for x in ("clock", "nseg", "roots", "seq", "vdepth", "j", "local")}
+        saved_once = once_top, once_unit
+        parent, inner_segs, inner_done = key, [], []
+        once_top, once_unit = once_top.copy(), set()
+        st.update(clock=0, nseg=0, roots={}, seq=0, vdepth=len(s.steps), j=0)
+        # The original continuation is entered once; its deeper continuations use the
+        # same speculative-watch machinery as the original tree's shared prefix.
+        try:
+            result = f(self, s, *a, **kw)
+            subdivisions[key] = {"segments": tuple(inner_segs), "done": tuple(inner_done),
+                                 "partition": partition, "partitions": partitions, "depth": depth}
+            print(f"refined {key}: partition {partition}/{partitions}, "
+                  f"{len(inner_done)}/{len(inner_segs)} children", file=log, flush=True)
+        finally:
+            parent = None
+            once_top, once_unit = saved_once
+            st.update(saved)
+        flush()
+        return result
 
     def wrap(name, f):
         ann = inspect.signature(f).return_annotation
@@ -152,13 +187,18 @@ def _child(fc, d, k: int, run: str, log) -> None:
             key, mine = segment(r)
             if not mine:
                 return None  # another process's, or a later wave's
+            if refinement and parent is None:
+                return refined(key, f, self, s, a, kw)
             st["seg"], st["j"] = key, 0
             try:
                 return f(self, s, *a, **kw)
             finally:
                 st["seg"] = None
-                done.append(key)
-                flush()
+                if parent is not None:
+                    inner_done.append(key[len(parent):])
+                else:
+                    done.append(key)
+                    flush()
         return w
 
     emit = F._Walk.emit
@@ -313,7 +353,7 @@ def _child(fc, d, k: int, run: str, log) -> None:
         lists = {"events": events, "done": done, "segs": segs}
         rec = {x: lst[at[x]:] for x, lst in lists.items()}
         rec.update(added(), clock=st["clock"], ev_range=getattr(fc, "ev_range", None), walked=st["n"],
-                   seconds=time.time() - t0)
+                   seconds=time.time() - t0, subdivisions=dict(subdivisions))
         for x, lst in lists.items():
             at[x] = len(lst)
         pickle.dump(rec, stream, protocol=pickle.HIGHEST_PROTOCOL)
@@ -328,7 +368,7 @@ def _child(fc, d, k: int, run: str, log) -> None:
            **{x: set(getattr(fc, x, ())) for x in SETS},
            "seconds": time.time() - t0, "rss": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / RSS_GB,
            "walked": st["n"], "ev_range": getattr(fc, "ev_range", None), "segs": segs, "done": done, "job": job,
-           "complete": True}
+           "complete": True, "subdivisions": subdivisions}
     with open(os.path.join(run, f"part{k}.pkl"), "wb") as fh:
         pickle.dump(out, fh, protocol=pickle.HIGHEST_PROTOCOL)
     print(f"{time.time() - t0:7.0f}s part {k}: done, {st['n']} paths, {st['nseg']} segments, {len(done)} walked",
@@ -561,7 +601,9 @@ def _restore(path: str) -> dict:
     out = {"k": head["k"], "top_nodes": head["top_nodes"], "job": head.get("job"), "events": [], "clock": None,
            "nseg": None, "segs": [], "done": [], "seconds": 0.0, "rss": 0.0, "walked": 0, "ev_range": None,
            "complete": False, **{x: {} for x in FIELDS}, **{x: set() for x in SETS}}
+    out["subdivisions"] = {}
     for r in recs[1:]:
+        out["subdivisions"].update(r.get("subdivisions", {}))
         for x in ("events", "segs", "done"):
             out[x] += r[x]
         for x in FIELDS:
@@ -591,6 +633,25 @@ def missing_segments(parts: list[dict]) -> list[tuple]:
     assert len({tuple(p["segs"]) for p in full}) == 1, "the segments differ"
     every = {(clock, 0, n) for n, clock, _seq in full[0]["segs"]}
     done = set().union(*(p["done"] for p in parts))
+    refined = {}
+    for p in parts:
+        for key, sub in p.get("subdivisions", {}).items():
+            refined.setdefault(key, []).append(sub)
+    for key, subs in refined.items():
+        if key in done:
+            raise RuntimeError(f"segment {key} has both whole and subdivided results")
+        first = subs[0]
+        if any((s["segments"], s["partitions"], s["depth"]) !=
+               (first["segments"], first["partitions"], first["depth"]) for s in subs):
+            raise RuntimeError(f"subdivision topology differs for {key}")
+        indexes = [s["partition"] for s in subs]
+        children = [c for s in subs for c in s["done"]]
+        if len(set(indexes)) != len(indexes) or len(set(children)) != len(children):
+            raise RuntimeError(f"duplicate subdivision for {key}")
+        if set(indexes) == set(range(first["partitions"])):
+            if set(children) != set(first["segments"]):
+                raise RuntimeError(f"subdivision coverage differs for {key}")
+            done.add(key)
     return sorted(every - done)
 
 
