@@ -34,4 +34,7 @@ def weighted_quantiles_python(values: np.ndarray, weights: np.ndarray, qs: tuple
 
 def expectation(per_path_means: np.ndarray, probs: np.ndarray) -> float:
     """E[x] = sum over paths of P(path) x mean over draws."""
+    native = native_function("analysis_expectation")
+    if native is not None:
+        return native(per_path_means, probs)
     return float(per_path_means @ probs)

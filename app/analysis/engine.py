@@ -59,6 +59,11 @@ def installment_amounts(amount: np.ndarray, fee_bps: int, n: int) -> np.ndarray:
     """[len(amount), n] installments in whole cents: total = amount + fee (half up), n equal parts (half up), the
     remainder on the last. Identical to `SlopeOffer.schedule`."""
     amount = np.asarray(amount, dtype=np.int64)
+    from app.analysis.native import native_function
+
+    native = native_function("analysis_installments")
+    if native is not None:
+        return native(amount, fee_bps, n)
     total = amount + (2 * amount * fee_bps + 10_000) // 20_000
     base = (2 * total + n) // (2 * n)
     out = np.repeat(base[:, None], n, axis=1)
@@ -123,6 +128,11 @@ class Trajectories:
     @property
     def fees(self) -> np.ndarray:
         """Fees on everything owed from the review date: new draws' fees plus the opening installments' fee share."""
+        from app.analysis.native import native_function
+
+        native = native_function("analysis_fees")
+        if native is not None:
+            return native(self)
         return self.contractual - self.drawn - self.opening_principal
 
 

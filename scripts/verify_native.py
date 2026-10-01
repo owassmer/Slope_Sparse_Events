@@ -543,16 +543,30 @@ def worker(args):
     native_calls = {}
     resolve = native.native_function
 
-    def audited_resolve(name):
-        function = resolve(name)
-        if function is None:
-            return None
-
-        def audited_call(*a, **kw):
+    def audited_function(name, function):
+        @wraps(function)
+        def call(*a, **kw):
             native_calls[name] = native_calls.get(name, 0) + 1
             return function(*a, **kw)
 
-        return audited_call
+        return call
+
+    # Rust controllers also call exported numerical primitives directly. Wrap
+    # the actual extension functions so those calls count once too; constructors
+    # remain types and are witnessed through the selector below.
+    exported = set()
+    if selected == "rust":
+        import inspect
+
+        extension = native._extension()
+        for name, function in tuple(vars(extension).items()):
+            if inspect.isbuiltin(function):
+                setattr(extension, name, audited_function(name, function))
+                exported.add(name)
+
+    def audited_resolve(name):
+        function = resolve(name)
+        return function if function is None or name in exported else audited_function(name, function)
 
     # Install before importing the engine modules, including ``from ... import
     # native_function`` consumers. Counts represent actual calls, not lookups.

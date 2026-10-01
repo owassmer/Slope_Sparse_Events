@@ -1,6 +1,10 @@
 """Native event transitions reject oracle fallback and preserve their arrays."""
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import textwrap
 from datetime import date, timedelta
 from types import SimpleNamespace
 
@@ -224,3 +228,40 @@ def test_native_owed_queries_borrow_readonly_strided_inputs_without_mutation():
     assert actual.tobytes() == expected.tobytes()
     for key, value in before.items():
         assert s[key].tobytes() == value.tobytes() and not s[key].flags.writeable
+
+
+def test_virtual_financial_days_and_invalid_cash_state_fail_in_an_isolated_process():
+    # A virtual array has one real cell. The address-space limit makes any
+    # accidental attempt to materialize its exabyte shape fail harmlessly in
+    # this child, and disabled core files keep allocator aborts contained.
+    script = textwrap.dedent("""
+        import resource
+        import numpy as np
+        from app import _native
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        resource.setrlimit(resource.RLIMIT_AS, (1 << 30, 1 << 30))
+        huge = 1 << 59
+        one = np.array([0], dtype=np.int64)
+        def rejects(state, method, *args):
+            try:
+                _native.NativeChain(state).call(method, *args)
+            except (ValueError, MemoryError):
+                return
+            raise AssertionError((state, method))
+        rejects({'n': 1, 'pending': False}, 'price_owed', np.broadcast_to(one, (huge,)))
+        rejects({'n': 1, 'pending': False}, 'price_owed', np.broadcast_to(one, (1, 1, huge)))
+        rejects({'n': 1, 'pending': False}, 'price_owed', np.broadcast_to(one, (1, huge)))
+        rejects({'n': 1}, 'owed_at', np.broadcast_to(one, (huge, 1)), False)
+        rejects({'n': 1, 'pending': True}, 'taken_before', np.broadcast_to(one, (huge, 1)))
+        rejects({'n': 1 << 63}, 'decide_floor', '', '', 0)
+        rejects({'n': huge}, 'decide_floor', '', '', np.broadcast_to(one, (huge,)))
+        # An already matching virtual vector is a zero-allocation view, as in
+        # Python. Scalar broadcasting needs a real buffer and must fail safely.
+        virtual = np.broadcast_to(one, (huge,))
+        assert _native.NativeChain({'n': huge}).call('per_draw', virtual) is virtual
+        for dtype in (np.int64, np.int8, np.int32, np.bool_, np.float64):
+            rejects({'n': huge}, 'per_draw', 0, dtype)
+    """)
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
+                            timeout=20, env={**os.environ, "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1"})
+    assert result.returncode == 0, result.stdout + result.stderr

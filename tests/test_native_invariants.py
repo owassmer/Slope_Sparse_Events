@@ -120,9 +120,11 @@ def test_native_core_exactly_matches_reference(scenario, tmp_path):
         assert {"bins_flat", "sparse_counts", "weighted_counts", "histogram_quantiles", "weighted_quantiles"} <= (
             set(native["metadata"]["native_calls"]))
     elif scenario == "analysis":
-        assert {"NativeWalk", "NativeChain.advance", "NativeChain.finish", "daily_kernel", "bins_flat",
+        assert {"NativeWalk", "NativeChain.advance", "NativeChain.finish", "daily_kernel", "bins_flat", "walk_reach",
                 "sparse_counts", "weighted_counts", "weighted_quantiles", "walk_verdict_classes",
-                "walk_verdict_lines", "walk_equity_inflows"} <= set(native["metadata"]["native_calls"])
+                "walk_verdict_lines", "walk_equity_inflows", "analysis_reduce_add", "analysis_metrics",
+                "analysis_daily", "analysis_first_floor", "analysis_bins_from", "analysis_event_range",
+                "analysis_quantile", "probability_dist_missing"} <= set(native["metadata"]["native_calls"])
     assert verification.difference(reference["result"], native["result"]) is None
 
 
@@ -135,7 +137,7 @@ def test_complete_case_tree_and_parallel_reconstruction_match_reference(tmp_path
         candidate = verification.capture("walk", backend, processes=processes, work=tmp_path)
         assert candidate["metadata"]["backend"] == backend
         if backend == "rust" and processes == 1:
-            assert {"NativeWalk", "walk_bank", "walk_merge", "walk_expand_classes", "edge_products"} <= (
+            assert {"NativeWalk", "walk_bank", "walk_merge", "walk_expand_classes", "edge_products", "walk_reach"} <= (
                 set(candidate["metadata"]["native_calls"]))
         assert verification.difference(reference["result"], candidate["result"]) is None
 

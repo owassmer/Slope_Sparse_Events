@@ -143,6 +143,12 @@ class Dist(dict):
     """Node key -> branch distribution; composite keys are computed on demand by the chain rule."""
 
     def __missing__(self, key: str) -> dict[str, float]:
+        native = native_function("probability_dist_missing")
+        if native is not None:
+            return native(self, key)
+        return self._missing_py(key)
+
+    def _missing_py(self, key: str) -> dict[str, float]:
         if not key.startswith(COMPOSITE):
             raise KeyError(key)
         p = sum(math.prod(self[k][b] for k, b in c) for c in _conjunctions(key))
@@ -151,11 +157,18 @@ class Dist(dict):
         return v
 
 
-def path_probability(edges: tuple[tuple[str, str], ...], dist: dict[str, dict[str, float]]) -> float:
+def _path_probability_py(edges: tuple[tuple[str, str], ...], dist: dict[str, dict[str, float]]) -> float:
     p = 1.0
     for key, branch in edges:
         p *= dist[key][branch]
     return p
+
+
+def path_probability(edges: tuple[tuple[str, str], ...], dist: dict[str, dict[str, float]]) -> float:
+    native = native_function("probability_path")
+    if native is not None:
+        return native(edges, dist)
+    return _path_probability_py(edges, dist)
 
 
 def joint_paths(per: dict[str, dict[str, list[DisputePath]]], order: list) -> list[tuple[DisputePath, ...]]:
@@ -881,7 +894,10 @@ class Forecaster:
         self.draws = Draws(basis.cash.shape[0], basis=basis) if basis is not None else None
         if self.draws is not None:
             self.draws.prefixes = {}  # the tree is walked depth-first: each trace resumes from its prefix
-        self.reach = int(basis.cash.max()) if basis is not None else None  # no trajectory holds more cash than this
+        self.reach = None  # no trajectory holds more cash than this
+        if basis is not None:
+            native = native_function("walk_reach")
+            self.reach = native(basis.cash) if native is not None else int(basis.cash.max())
         self.class_members: dict[str, list[tuple[int, int]]] = {}  # ruling class -> (total, fees) of each outcome
         self.class_range: dict[str, tuple[int, int]] = {}  # merged amount class label -> (min, max) judgment
         self.remit_classes: set[str] = set()  # amount class labels whose outcomes are all remitted and accepted
@@ -3806,8 +3822,15 @@ def _to_native_path(p: DisputePath) -> tuple:
     return (p.instance_id, p.steps, p.outcome, p.edges, p.cls, p.mask, p.classes)
 
 
+def _native_tuples(rows) -> tuple:
+    """Retain immutable history/edge prefixes; normalize list producers at the wire boundary."""
+    if type(rows) is tuple and all(type(row) is tuple for row in rows):
+        return rows
+    return tuple(tuple(row) for row in rows)
+
+
 def _from_native_path(p) -> DisputePath:
     instance, steps, outcome, edges, cls, mask, classes = p
-    return DisputePath(instance, tuple(tuple(s) for s in steps), outcome, tuple(tuple(e) for e in edges), cls,
+    return DisputePath(instance, _native_tuples(steps), outcome, _native_tuples(edges), cls,
                        None if mask is None else bytes(mask),
                        tuple((k, tuple(tags), None if codes is None else bytes(codes)) for k, tags, codes in classes))

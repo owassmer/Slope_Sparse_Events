@@ -1,126 +1,153 @@
-//! Exact deterministic path algebra. Inputs are converted once to typed Rust
-//! records; masks, class partitioning and probability expressions run natively.
+//! Exact deterministic path algebra. Histories stay shared Python references;
+//! only the current group's edge and class controls are represented as native IDs.
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyModule, PyString, PyTuple};
+use pyo3::types::{PyDict, PyList, PyModule, PySet, PyString, PyTuple};
 use pyo3::IntoPyObjectExt;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 pub(super) type Edge = (String, String);
 pub(super) type Step = (String, String, String);
 type Class = (String, Vec<String>, Option<Vec<u8>>);
-type Path = (
-    String,
-    Vec<Step>,
-    String,
-    Vec<Edge>,
-    String,
-    Option<Vec<u8>>,
-    Vec<Class>,
-);
 pub(super) type Conjunctions = Vec<Vec<Edge>>;
+type EdgeId = (usize, usize);
+type IdConjunctions = Vec<Vec<EdgeId>>;
 
-/// One conversion owns one intern table. Returned paths share immutable Python
-/// strings and prefix items; dropping the table releases every temporary owner.
-/// No process-wide interning or retained global memo is involved.
-struct PythonPaths<'py> {
+/// Bucket keys reuse CPython's cached string hash. Exact comparison resolves
+/// collisions, and each entry retains an immutable Python string rather than a
+/// second owned copy of its potentially very large composite payload.
+#[derive(Default)]
+struct TextPool<'py> {
+    strings: Vec<Bound<'py, PyString>>,
+    buckets: HashMap<isize, Vec<usize>>,
+}
+impl<'py> TextPool<'py> {
+    fn intern(&mut self, value: Bound<'py, PyString>) -> PyResult<usize> {
+        // String subclasses can override hash/equality; the previous typed
+        // extraction compared their text. Keep that contract without invoking
+        // an arbitrary subclass equality callback in the native algebra.
+        let hash = if value.is_exact_instance_of::<PyString>() {
+            value.hash()?
+        } else {
+            PyString::new(value.py(), value.to_str()?).hash()?
+        };
+        if let Some(bucket) = self.buckets.get(&hash) {
+            for &id in bucket {
+                if self.string(id)?.is(&value) || self.text(id)? == value.to_str()? {
+                    return Ok(id);
+                }
+            }
+        }
+        let id = self.strings.len();
+        self.strings.push(value);
+        self.buckets.entry(hash).or_default().push(id);
+        Ok(id)
+    }
+    fn new_string(&mut self, py: Python<'py>, value: &str) -> PyResult<usize> {
+        self.intern(PyString::new(py, value))
+    }
+    fn string(&self, id: usize) -> PyResult<&Bound<'py, PyString>> {
+        self.strings
+            .get(id)
+            .ok_or_else(|| PyValueError::new_err("invalid native string ID"))
+    }
+    fn text(&self, id: usize) -> PyResult<&str> {
+        self.string(id)?.to_str()
+    }
+}
+
+struct WireEdge<'py> {
+    row: Bound<'py, PyAny>,
+    id: EdgeId,
+}
+struct WireClass<'py> {
+    row: Bound<'py, PyAny>,
+    key: usize,
+    tags: Vec<usize>,
+    codes: Option<Vec<u8>>,
+}
+#[derive(Clone, PartialEq, Eq)]
+struct ClassSignature {
+    tags: Vec<usize>,
+    codes: Option<Vec<u8>>,
+}
+struct WirePath<'py> {
+    row: Bound<'py, PyTuple>,
+    edges: Vec<WireEdge<'py>>,
+    classes: Vec<WireClass<'py>>,
+}
+fn wire_path<'py>(row: Bound<'py, PyAny>, pool: &mut TextPool<'py>) -> PyResult<WirePath<'py>> {
+    let row = row.cast_into::<PyTuple>()?;
+    if row.len() != 7 {
+        return Err(PyValueError::new_err("path must have seven fields"));
+    }
+    // History fields are never traversed or copied: the original path keeps
+    // them alive, and every output retains their original immutable prefixes.
+    for ix in [0, 2, 4] {
+        row.get_item(ix)?.cast::<PyString>()?;
+    }
+    let mut edges = Vec::new();
+    for item in row.get_item(3)?.try_iter()? {
+        let item = item?;
+        if item.len()? != 2 {
+            return Err(PyValueError::new_err("edge must have two fields"));
+        }
+        let key = pool.intern(item.get_item(0)?.cast_into::<PyString>()?)?;
+        let branch = pool.intern(item.get_item(1)?.cast_into::<PyString>()?)?;
+        edges.push(WireEdge {
+            row: item,
+            id: (key, branch),
+        });
+    }
+    let mut classes = Vec::new();
+    for item in row.get_item(6)?.try_iter()? {
+        let item = item?;
+        if item.len()? != 3 {
+            return Err(PyValueError::new_err("class must have three fields"));
+        }
+        let key = pool.intern(item.get_item(0)?.cast_into::<PyString>()?)?;
+        let mut tags = Vec::new();
+        for tag in item.get_item(1)?.try_iter()? {
+            tags.push(pool.intern(tag?.cast_into::<PyString>()?)?);
+        }
+        let codes = item.get_item(2)?.extract::<Option<Vec<u8>>>()?;
+        classes.push(WireClass {
+            row: item,
+            key,
+            tags,
+            codes,
+        });
+    }
+    Ok(WirePath {
+        row,
+        edges,
+        classes,
+    })
+}
+fn wire_output<'py>(
     py: Python<'py>,
-    strings: HashMap<String, Py<PyString>>,
-    steps: HashMap<Step, Py<PyAny>>,
-    edges: HashMap<Edge, Py<PyAny>>,
-}
-impl<'py> PythonPaths<'py> {
-    fn new(py: Python<'py>) -> Self {
-        Self {
-            py,
-            strings: HashMap::new(),
-            steps: HashMap::new(),
-            edges: HashMap::new(),
-        }
-    }
-    fn string(&mut self, value: &str) -> Py<PyAny> {
-        if let Some(item) = self.strings.get(value) {
-            return item.clone_ref(self.py).into_any();
-        }
-        let item = PyString::new(self.py, value).unbind();
-        self.strings.insert(value.into(), item.clone_ref(self.py));
-        item.into_any()
-    }
-    fn step(&mut self, value: &Step) -> PyResult<Py<PyAny>> {
-        if let Some(item) = self.steps.get(value) {
-            return Ok(item.clone_ref(self.py));
-        }
-        let items = [
-            self.string(&value.0),
-            self.string(&value.1),
-            self.string(&value.2),
-        ];
-        let item = PyTuple::new(self.py, items)?.into_any().unbind();
-        self.steps.insert(value.clone(), item.clone_ref(self.py));
-        Ok(item)
-    }
-    fn edge(&mut self, value: &Edge) -> PyResult<Py<PyAny>> {
-        if let Some(item) = self.edges.get(value) {
-            return Ok(item.clone_ref(self.py));
-        }
-        let items = [self.string(&value.0), self.string(&value.1)];
-        let item = PyTuple::new(self.py, items)?.into_any().unbind();
-        self.edges.insert(value.clone(), item.clone_ref(self.py));
-        Ok(item)
-    }
-    fn path(&mut self, value: &Path) -> PyResult<Py<PyAny>> {
-        let instance = self.string(&value.0);
-        let steps = PyList::new(
-            self.py,
-            value
-                .1
-                .iter()
-                .map(|s| self.step(s))
-                .collect::<PyResult<Vec<_>>>()?,
-        )?;
-        let outcome = self.string(&value.2);
-        let edges = PyList::new(
-            self.py,
-            value
-                .3
-                .iter()
-                .map(|e| self.edge(e))
-                .collect::<PyResult<Vec<_>>>()?,
-        )?;
-        let class = self.string(&value.4);
-        let mask = value.5.clone().into_py_any(self.py)?;
-        let mut classes = Vec::with_capacity(value.6.len());
-        for (key, tags, codes) in &value.6 {
-            let key = self.string(key);
-            let tags = PyList::new(
-                self.py,
-                tags.iter().map(|t| self.string(t)).collect::<Vec<_>>(),
-            )?;
-            classes.push((key, tags, codes.clone()).into_py_any(self.py)?);
-        }
-        (
-            instance,
-            steps,
-            outcome,
-            edges,
-            class,
+    path: &WirePath<'py>,
+    edges: Bound<'py, PyList>,
+    mask: Bound<'py, PyAny>,
+    classes: Bound<'py, PyList>,
+) -> PyResult<Bound<'py, PyTuple>> {
+    PyTuple::new(
+        py,
+        [
+            path.row.get_item(0)?,
+            path.row.get_item(1)?,
+            path.row.get_item(2)?,
+            edges.into_any(),
+            path.row.get_item(4)?,
             mask,
-            PyList::new(self.py, classes)?,
-        )
-            .into_py_any(self.py)
-    }
-}
-fn paths_to_python(py: Python<'_>, paths: Vec<Path>) -> PyResult<Py<PyAny>> {
-    let mut intern = PythonPaths::new(py);
-    let output = PyList::empty(py);
-    for path in paths {
-        output.append(intern.path(&path)?)?;
-    }
-    Ok(output.into_any().unbind())
+            classes.into_any(),
+        ],
+    )
 }
 
-fn ascii_json_string(value: &str) -> String {
-    let mut out = String::from("\"");
+fn push_ascii_json_string(out: &mut String, value: &str) {
+    use std::fmt::Write;
+    out.push('"');
     for c in value.chars() {
         match c {
             '"' => out.push_str("\\\""),
@@ -133,12 +160,16 @@ fn ascii_json_string(value: &str) -> String {
             c if (' '..='~').contains(&c) => out.push(c),
             c => {
                 for u in c.encode_utf16(&mut [0; 2]) {
-                    out.push_str(&format!("\\u{u:04x}"));
+                    let _ = write!(out, "\\u{u:04x}");
                 }
             }
         }
     }
     out.push('"');
+}
+fn ascii_json_string(value: &str) -> String {
+    let mut out = String::new();
+    push_ascii_json_string(&mut out, value);
     out
 }
 pub(super) fn encode(parts: &[Vec<Edge>]) -> String {
@@ -219,69 +250,199 @@ fn expand(edges: &[Edge], branches: &HashMap<String, Vec<String>>) -> PyResult<C
     }
     Ok(out)
 }
-fn counts(edges: &[Edge]) -> HashMap<Edge, usize> {
+fn id_counts(edges: &[WireEdge<'_>]) -> HashMap<EdgeId, usize> {
     let mut out = HashMap::new();
     for e in edges {
-        *out.entry(e.clone()).or_default() += 1;
+        *out.entry(e.id).or_default() += 1;
     }
     out
 }
-fn merge_group(
-    paths: &[Path],
-    group: &[usize],
-    branches: &HashMap<String, Vec<String>>,
-) -> PyResult<Path> {
-    let first = &paths[group[0]];
-    if group.len() == 1 {
-        return Ok(first.clone());
+fn id_parse(
+    key: usize,
+    pool: &mut TextPool<'_>,
+    cache: &mut HashMap<usize, IdConjunctions>,
+) -> PyResult<IdConjunctions> {
+    if let Some(parts) = cache.get(&key) {
+        return Ok(parts.clone());
     }
-    let mut common = counts(&first.3);
-    for &j in &group[1..] {
-        let c = counts(&paths[j].3);
-        common.retain(|k, v| {
-            *v = (*v).min(*c.get(k).unwrap_or(&0));
-            *v > 0
+    let parsed = parse(pool.text(key)?)?;
+    let py = pool.string(key)?.py();
+    let mut parts = Vec::with_capacity(parsed.len());
+    for conjunction in parsed {
+        let mut row = Vec::with_capacity(conjunction.len());
+        for (key, branch) in conjunction {
+            row.push((pool.new_string(py, &key)?, pool.new_string(py, &branch)?));
+        }
+        parts.push(row);
+    }
+    cache.insert(key, parts.clone());
+    Ok(parts)
+}
+fn id_complement<'py>(
+    parts: &[Vec<EdgeId>],
+    pool: &mut TextPool<'py>,
+    branches: &Bound<'py, PyDict>,
+) -> PyResult<IdConjunctions> {
+    if parts.is_empty() {
+        return Ok(vec![vec![]]);
+    }
+    if parts.iter().any(Vec::is_empty) {
+        return Ok(vec![]);
+    }
+    let key = parts[0][0].0;
+    let options = branches.get_item(pool.string(key)?)?.ok_or_else(|| {
+        PyValueError::new_err(format!(
+            "missing branches for {}",
+            pool.text(key).unwrap_or("<invalid>")
+        ))
+    })?;
+    let mut out = Vec::new();
+    for branch in options.try_iter()? {
+        let branch = pool.intern(branch?.cast_into::<PyString>()?)?;
+        let mut rest = Vec::new();
+        for conjunction in parts {
+            let chosen = conjunction.iter().rev().find(|e| e.0 == key).map(|e| e.1);
+            if chosen.is_none() || chosen == Some(branch) {
+                rest.push(conjunction.iter().filter(|e| e.0 != key).copied().collect());
+            }
+        }
+        if rest.is_empty() {
+            out.push(vec![(key, branch)]);
+        } else {
+            for tail in id_complement(&rest, pool, branches)? {
+                let mut row = vec![(key, branch)];
+                row.extend(tail);
+                out.push(row);
+            }
+        }
+    }
+    Ok(out)
+}
+fn id_expand<'py>(
+    edges: &[EdgeId],
+    pool: &mut TextPool<'py>,
+    cache: &mut HashMap<usize, IdConjunctions>,
+    branches: &Bound<'py, PyDict>,
+) -> PyResult<IdConjunctions> {
+    let mut out = vec![vec![]];
+    for &(key, branch) in edges {
+        let options = if pool.text(key)?.starts_with('=') {
+            let parts = id_parse(key, pool, cache)?;
+            if pool.text(branch)? == "yes" {
+                parts
+            } else {
+                id_complement(&parts, pool, branches)?
+            }
+        } else {
+            vec![vec![(key, branch)]]
+        };
+        let mut next = Vec::new();
+        for prefix in &out {
+            for option in &options {
+                let mut row = Vec::with_capacity(prefix.len() + option.len());
+                row.extend_from_slice(prefix);
+                row.extend_from_slice(option);
+                next.push(row);
+            }
+        }
+        out = next;
+    }
+    Ok(out)
+}
+fn encode_ids(parts: &[Vec<EdgeId>], pool: &TextPool<'_>) -> PyResult<String> {
+    let mut out = String::from("=[");
+    for (i, conjunction) in parts.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push('[');
+        for (j, &(key, branch)) in conjunction.iter().enumerate() {
+            if j > 0 {
+                out.push(',');
+            }
+            out.push('[');
+            push_ascii_json_string(&mut out, pool.text(key)?);
+            out.push(',');
+            push_ascii_json_string(&mut out, pool.text(branch)?);
+            out.push(']');
+        }
+        out.push(']');
+    }
+    out.push(']');
+    Ok(out)
+}
+fn merged_group<'py>(
+    py: Python<'py>,
+    paths: &[WirePath<'py>],
+    members: &[usize],
+    pool: &mut TextPool<'py>,
+    generated: &mut TextPool<'py>,
+    branches: &Bound<'py, PyDict>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let first = &paths[members[0]];
+    if members.len() == 1 {
+        return Ok(first.row.clone().into_any());
+    }
+    let mut common = id_counts(&first.edges);
+    for &j in &members[1..] {
+        let counts = id_counts(&paths[j].edges);
+        common.retain(|key, count| {
+            *count = (*count).min(counts.get(key).copied().unwrap_or(0));
+            *count > 0
         });
     }
+    let edges = PyList::empty(py);
     let mut left = common.clone();
-    let mut keep = Vec::new();
-    for e in &first.3 {
-        if let Some(v) = left.get_mut(e) {
-            if *v > 0 {
-                keep.push(e.clone());
-                *v -= 1;
+    for edge in &first.edges {
+        if let Some(n) = left.get_mut(&edge.id) {
+            if *n > 0 {
+                edges.append(&edge.row)?;
+                *n -= 1;
             }
         }
     }
     let mut conjunctions = Vec::new();
-    let mut classes = BTreeMap::new();
-    for &j in group {
+    let mut cache = HashMap::new();
+    let mut classes = HashMap::new();
+    for &j in members {
+        let path = &paths[j];
         let mut seen = BTreeSet::new();
-        let ct = counts(&paths[j].3);
+        let counts = id_counts(&path.edges);
         let mut rest = Vec::new();
-        for e in &paths[j].3 {
-            if seen.insert(e.clone()) {
-                let n = ct[e] - common.get(e).copied().unwrap_or(0);
-                for _ in 0..n {
-                    rest.push(e.clone());
-                }
+        // Counter subtraction follows first occurrence, including repetitions.
+        for edge in &path.edges {
+            if seen.insert(edge.id) {
+                let n = counts.get(&edge.id).copied().unwrap_or(0)
+                    - common.get(&edge.id).copied().unwrap_or(0);
+                rest.extend(std::iter::repeat_n(edge.id, n));
             }
         }
         if rest.is_empty() {
-            return Err(PyValueError::new_err(
-                "a merged path's edges are a subset of another member's: the members are not disjoint",
-            ));
+            return Err(PyValueError::new_err("a merged path's edges are a subset of another member's: the members are not disjoint"));
         }
-        conjunctions.extend(expand(&rest, branches)?);
-        for c in &paths[j].6 {
-            classes.insert(c.0.clone(), c.clone());
+        conjunctions.extend(id_expand(&rest, pool, &mut cache, branches)?);
+        for class in &path.classes {
+            classes.insert(class.key, class.row.clone());
         }
     }
-    keep.push((encode(&conjunctions), "yes".into()));
-    let mut out = first.clone();
-    out.3 = keep;
-    out.6 = classes.into_values().collect();
-    Ok(out)
+    let encoded = encode_ids(&conjunctions, pool)?;
+    let key = generated.new_string(py, &encoded)?;
+    edges.append(PyTuple::new(
+        py,
+        [
+            generated.string(key)?.as_any().clone(),
+            PyString::new(py, "yes").into_any(),
+        ],
+    )?)?;
+    let mut class_keys = classes.keys().copied().collect::<Vec<_>>();
+    // IDs encode encounter order, never Python's lexical class order.
+    let mut keyed = class_keys
+        .drain(..)
+        .map(|id| Ok((pool.text(id)?, id)))
+        .collect::<PyResult<Vec<_>>>()?;
+    keyed.sort_by(|a, b| a.0.cmp(b.0));
+    let class_rows = PyList::new(py, keyed.into_iter().map(|(_, id)| &classes[&id]))?;
+    Ok(wire_output(py, first, edges, first.row.get_item(5)?, class_rows)?.into_any())
 }
 #[pyfunction]
 fn walk_composite(parts: Conjunctions) -> String {
@@ -299,40 +460,62 @@ fn walk_complement(
     complement(&parts, &branches)
 }
 #[pyfunction]
-fn walk_merge(
-    py: Python<'_>,
-    paths: Vec<Path>,
+fn walk_merge<'py>(
+    py: Python<'py>,
+    paths: &Bound<'py, PyAny>,
     groups: Vec<Vec<usize>>,
-    branches: HashMap<String, Vec<String>>,
+    branches: &Bound<'py, PyDict>,
 ) -> PyResult<Py<PyAny>> {
-    let mut out = Vec::new();
-    for g in groups {
-        if g.is_empty() || g.iter().any(|&j| j >= paths.len()) {
+    let count = paths.len()?;
+    let out = PyList::empty(py);
+    let mut generated = TextPool::default();
+    for group in groups {
+        if group.is_empty() || group.iter().any(|&j| j >= count) {
             return Err(PyValueError::new_err("invalid path group"));
         }
-        let mut compatible: Vec<(HashMap<String, Class>, Vec<usize>)> = Vec::new();
-        for j in g {
-            let classes: HashMap<_, _> = paths[j]
-                .6
+        let mut pool = TextPool::default();
+        let mut current = Vec::with_capacity(group.len());
+        let mut compatible: Vec<(HashMap<usize, ClassSignature>, Vec<usize>)> = Vec::new();
+        for index in group {
+            let path = wire_path(paths.get_item(index)?, &mut pool)?;
+            let signatures: HashMap<_, _> = path
+                .classes
                 .iter()
-                .map(|c| (c.0.clone(), c.clone()))
+                .map(|c| {
+                    (
+                        c.key,
+                        ClassSignature {
+                            tags: c.tags.clone(),
+                            codes: c.codes.clone(),
+                        },
+                    )
+                })
                 .collect();
+            let j = current.len();
+            current.push(path);
             if let Some((seen, members)) = compatible.iter_mut().find(|(seen, _)| {
-                classes
+                signatures
                     .iter()
                     .all(|(k, c)| seen.get(k).is_none_or(|s| s == c))
             }) {
-                seen.extend(classes);
+                seen.extend(signatures);
                 members.push(j);
             } else {
-                compatible.push((classes, vec![j]));
+                compatible.push((signatures, vec![j]));
             }
         }
         for (_, members) in compatible {
-            out.push(merge_group(&paths, &members, &branches)?);
+            out.append(merged_group(
+                py,
+                &current,
+                &members,
+                &mut pool,
+                &mut generated,
+                branches,
+            )?)?;
         }
     }
-    paths_to_python(py, out)
+    Ok(out.into_any().unbind())
 }
 fn unpack(mask: Option<&[u8]>, n: usize) -> PyResult<Vec<bool>> {
     match mask {
@@ -356,122 +539,195 @@ fn pack(mask: &[bool]) -> Vec<u8> {
     }
     out
 }
-fn rewrite(key: &str, to: &HashMap<String, String>) -> PyResult<String> {
-    if !key.starts_with('=') {
-        return Ok(to.get(key).cloned().unwrap_or_else(|| key.into()));
-    }
-    let mut parts = parse(key)?;
-    for c in &mut parts {
-        for (k, _) in c {
-            if let Some(v) = to.get(k) {
-                *k = v.clone();
+fn joined_class<'py>(
+    py: Python<'py>,
+    key: usize,
+    tag: usize,
+    pool: &mut TextPool<'py>,
+    generated: &mut TextPool<'py>,
+) -> PyResult<usize> {
+    let joined = format!("{}|{}", pool.text(key)?, pool.text(tag)?);
+    let id = generated.new_string(py, &joined)?;
+    pool.intern(generated.string(id)?.clone())
+}
+fn rewritten_edges<'py>(
+    py: Python<'py>,
+    path: &WirePath<'py>,
+    to: &HashMap<usize, usize>,
+    pool: &mut TextPool<'py>,
+    generated: &mut TextPool<'py>,
+    cache: &mut HashMap<usize, IdConjunctions>,
+) -> PyResult<Bound<'py, PyList>> {
+    let out = PyList::empty(py);
+    for edge in &path.edges {
+        let key = edge.id.0;
+        let replaced = if pool.text(key)?.starts_with('=') {
+            let mut parts = id_parse(key, pool, cache)?;
+            for conjunction in &mut parts {
+                for atom in conjunction {
+                    if let Some(&v) = to.get(&atom.0) {
+                        atom.0 = v;
+                    }
+                }
             }
+            let encoded = encode_ids(&parts, pool)?;
+            let id = generated.new_string(py, &encoded)?;
+            pool.intern(generated.string(id)?.clone())?
+        } else {
+            to.get(&key).copied().unwrap_or(key)
+        };
+        if replaced == key {
+            out.append(&edge.row)?;
+        } else {
+            out.append(PyTuple::new(
+                py,
+                [
+                    pool.string(replaced)?.as_any().clone(),
+                    edge.row.get_item(1)?,
+                ],
+            )?)?;
         }
     }
-    Ok(encode(&parts))
+    Ok(out)
 }
 #[pyfunction]
 #[pyo3(signature=(paths, known, n, dead, first=None))]
-fn walk_expand_classes(
-    py: Python<'_>,
-    paths: Vec<Path>,
-    known: Vec<String>,
+fn walk_expand_classes<'py>(
+    py: Python<'py>,
+    paths: &Bound<'py, PyAny>,
+    known: &Bound<'py, PyAny>,
     n: usize,
-    dead: Vec<String>,
-    first: Option<HashMap<String, String>>,
+    dead: &Bound<'py, PyAny>,
+    first: Option<&Bound<'py, PyDict>>,
 ) -> PyResult<Py<PyAny>> {
-    let dead: BTreeSet<_> = dead.into_iter().collect();
-    let mut known = known;
-    known.sort();
-    let supplied = first.is_some();
-    let mut first: HashMap<String, String> = first.unwrap_or_default();
-    if !supplied {
-        for k in known {
-            if let Some((base, _)) = k.split_once("|#") {
-                let old = first.get(base);
-                let old_dead = old.is_none_or(|s| dead.contains(s));
-                if (!dead.contains(&k) || old_dead) && old_dead {
-                    first.insert(base.into(), k);
+    let dead_set = PySet::empty(py)?;
+    for key in dead.try_iter()? {
+        dead_set.add(key?.cast::<PyString>()?)?;
+    }
+    let computed;
+    let first = if let Some(first) = first {
+        first
+    } else {
+        computed = PyDict::new(py);
+        let mut pool = TextPool::default();
+        for key in known.try_iter()? {
+            pool.intern(key?.cast_into::<PyString>()?)?;
+        }
+        let mut sorted = (0..pool.strings.len())
+            .map(|id| Ok((pool.text(id)?, id)))
+            .collect::<PyResult<Vec<_>>>()?;
+        sorted.sort_by(|a, b| a.0.cmp(b.0));
+        for (key, id) in sorted {
+            if let Some((base, _)) = key.split_once("|#") {
+                let base = PyString::new(py, base);
+                let old = computed.get_item(&base)?;
+                let old_dead = match &old {
+                    Some(value) => dead_set.contains(value)?,
+                    None => true,
+                };
+                if old_dead {
+                    computed.set_item(base, pool.string(id)?)?;
                 }
             }
         }
-    }
-    let mut out = Vec::new();
-    for p in paths {
-        if p.6.is_empty() {
-            out.push(p);
+        &computed
+    };
+    let out = PyList::empty(py);
+    // This pool owns only strings actually created for output. Original strings
+    // are retained by the input or a current-path pool, never copied wholesale.
+    let mut generated = TextPool::default();
+    for item in paths.try_iter()? {
+        let mut pool = TextPool::default();
+        let path = wire_path(item?, &mut pool)?;
+        if path.classes.is_empty() {
+            out.append(&path.row)?;
             continue;
         }
-        let mask = unpack(p.5.as_deref(), n)?;
-        let on: Vec<_> = mask
+        let bytes = path.row.get_item(5)?.extract::<Option<Vec<u8>>>()?;
+        let mask = unpack(bytes.as_deref(), n)?;
+        let on = mask
             .iter()
             .enumerate()
             .filter_map(|(i, &v)| v.then_some(i))
-            .collect();
+            .collect::<Vec<_>>();
         let mut fixed = HashMap::new();
-        let mut cols: Vec<(String, Vec<String>, Vec<i64>)> = Vec::new();
-        for (k, tags, codes) in &p.6 {
-            let mut tags = tags.clone();
-            let mut codes = codes
+        let mut cols = Vec::new();
+        for class in &path.classes {
+            let key = class.key;
+            let mut tags = class.tags.clone();
+            let mut codes = class
+                .codes
                 .as_ref()
                 .map(|a| a.iter().map(|&x| i64::from(x as i8)).collect::<Vec<_>>());
-            if tags.iter().any(|t| dead.contains(&format!("{k}|{t}"))) {
+            let mut dead_tags = Vec::with_capacity(tags.len());
+            for &tag in &tags {
+                let joined = format!("{}|{}", pool.text(key)?, pool.text(tag)?);
+                dead_tags.push(dead_set.contains(PyString::new(py, &joined))?);
+            }
+            if dead_tags.iter().any(|&v| v) {
                 let mut c = codes.unwrap_or_else(|| vec![0; on.len()]);
                 for x in &mut c {
-                    if *x >= 0
-                        && tags
-                            .get(*x as usize)
-                            .is_some_and(|t| dead.contains(&format!("{k}|{t}")))
-                    {
+                    if *x >= 0 && dead_tags.get(*x as usize).copied().unwrap_or(false) {
                         *x = -1;
                     }
                 }
                 codes = Some(c);
             }
             if tags.is_empty() {
-                if let Some(v) = first.get(k) {
-                    fixed.insert(k.clone(), v.clone());
+                if let Some(value) = first.get_item(pool.string(key)?)? {
+                    fixed.insert(key, pool.intern(value.cast_into::<PyString>()?)?);
                 }
             } else if codes.is_none() {
-                fixed.insert(k.clone(), format!("{k}|{}", tags[0]));
+                fixed.insert(
+                    key,
+                    joined_class(py, key, tags[0], &mut pool, &mut generated)?,
+                );
             } else {
-                let mut c = codes.ok_or_else(|| PyValueError::new_err("missing class codes"))?;
-                if c.len() != on.len() {
+                let mut codes =
+                    codes.ok_or_else(|| PyValueError::new_err("missing class codes"))?;
+                if codes.len() != on.len() {
                     return Err(PyValueError::new_err(
                         "class code length differs from path draws",
                     ));
                 }
-                if c.iter().any(|&x| x < 0) {
-                    let first = first.get(k).ok_or_else(|| {
-                        PyValueError::new_err(format!("missing first class for {k}"))
+                if codes.iter().any(|&v| v < 0) {
+                    let first_value = first.get_item(pool.string(key)?)?.ok_or_else(|| {
+                        PyValueError::new_err(format!(
+                            "missing first class for {}",
+                            pool.text(key).unwrap_or("<invalid>")
+                        ))
                     })?;
-                    let t = first.rsplit('|').next().unwrap_or("");
-                    let ix = match tags.iter().position(|v| v == t) {
-                        Some(i) => i,
-                        None => {
-                            tags.push(t.into());
-                            tags.len() - 1
-                        }
+                    let first_value = first_value.cast_into::<PyString>()?;
+                    let tag = first_value.to_str()?.rsplit('|').next().unwrap_or("");
+                    let tag = pool.new_string(py, tag)?;
+                    let ix = if let Some(ix) = tags.iter().position(|&v| v == tag) {
+                        ix
+                    } else {
+                        tags.push(tag);
+                        tags.len() - 1
                     };
-                    for x in &mut c {
-                        if *x < 0 {
-                            *x = ix as i64;
+                    for v in &mut codes {
+                        if *v < 0 {
+                            *v = ix as i64;
                         }
                     }
                 }
-                if c.iter().any(|&x| x < 0 || x as usize >= tags.len()) {
+                if codes.iter().any(|&v| v < 0 || v as usize >= tags.len()) {
                     return Err(PyValueError::new_err("invalid class index"));
                 }
-                cols.push((k.clone(), tags, c));
+                cols.push((key, tags, codes));
             }
         }
+        let mut cache = HashMap::new();
         if cols.is_empty() {
-            let mut p = p;
-            for (k, _) in &mut p.3 {
-                *k = rewrite(k, &fixed)?;
-            }
-            p.6.clear();
-            out.push(p);
+            let edges = rewritten_edges(py, &path, &fixed, &mut pool, &mut generated, &mut cache)?;
+            out.append(wire_output(
+                py,
+                &path,
+                edges,
+                path.row.get_item(5)?,
+                PyList::empty(py),
+            )?)?;
             continue;
         }
         let mut groups: BTreeMap<Vec<i64>, Vec<usize>> = BTreeMap::new();
@@ -483,23 +739,28 @@ fn walk_expand_classes(
         }
         for (combo, draws) in groups {
             let mut to = fixed.clone();
-            for ((k, tags, _), ix) in cols.iter().zip(combo) {
-                to.insert(k.clone(), format!("{k}|{}", tags[ix as usize]));
+            for ((key, tags, _), ix) in cols.iter().zip(combo) {
+                to.insert(
+                    *key,
+                    joined_class(py, *key, tags[ix as usize], &mut pool, &mut generated)?,
+                );
             }
-            let mut child = p.clone();
-            for (k, _) in &mut child.3 {
-                *k = rewrite(k, &to)?;
-            }
-            let mut m = vec![false; n];
+            let edges = rewritten_edges(py, &path, &to, &mut pool, &mut generated, &mut cache)?;
+            let mut mask = vec![false; n];
             for i in draws {
-                m[i] = true;
+                mask[i] = true;
             }
-            child.5 = Some(pack(&m));
-            child.6.clear();
-            out.push(child);
+            let packed = pack(&mask).into_py_any(py)?;
+            out.append(wire_output(
+                py,
+                &path,
+                edges,
+                packed.into_bound(py),
+                PyList::empty(py),
+            )?)?;
         }
     }
-    paths_to_python(py, out)
+    Ok(out.into_any().unbind())
 }
 #[pyfunction]
 fn walk_class_entry(key: String, cls: Vec<String>, mask: Option<Vec<bool>>) -> PyResult<Class> {

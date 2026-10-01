@@ -58,14 +58,14 @@ def make_chain(reference):
         if name.startswith("__"):
             continue
         if isinstance(original, property):
-            setattr(RustChain, name, property(_method(name, original.fget)))
+            setattr(RustChain, name, property(_method(name, original.fget, RustChain)))
         elif inspect.isfunction(original):
-            setattr(RustChain, name, _method(name, original))
+            setattr(RustChain, name, _method(name, original, RustChain))
     globals()["RustChain"] = RustChain
     return RustChain
 
 
-def _method(name, original):
+def _method(name, original, base):
     signature = inspect.signature(original)
     parameters = tuple(signature.parameters.values())[1:]
 
@@ -83,7 +83,9 @@ def _method(name, original):
             else:
                 arguments.append(value)
         result = self._native_chain.call(name, *arguments)
-        return type(self)._from_state(result) if name in ("clone", "sliced", "seen_at") else result
+        if name in ("clone", "sliced", "seen_at"):
+            return self if result is self.__dict__ else base._from_state(result)
+        return result
 
     return call
 

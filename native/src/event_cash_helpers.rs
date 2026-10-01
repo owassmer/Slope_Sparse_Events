@@ -2,6 +2,7 @@
 //! Calls made through `NativeChain::invoke` stay inside Rust semantic dispatch.
 use crate::cash::{self, LineInput};
 use crate::events::{NativeChain, BIG};
+use crate::price::{checked_shape, filled_vec};
 use ndarray::{Array1, Array2, Array3};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3, PyArrayMethods};
 use pyo3::exceptions::PyValueError;
@@ -24,10 +25,10 @@ fn optional<'py>(args: &Bound<'py, PyTuple>, i: usize) -> Option<Bound<'py, PyAn
     args.get_item(i).ok().filter(|x| !x.is_none())
 }
 fn n(chain: &NativeChain, py: Python<'_>) -> PyResult<usize> {
-    chain.get(py, "n")?.extract()
+    chain.n(py)
 }
 fn days(chain: &NativeChain, py: Python<'_>) -> PyResult<usize> {
-    chain.get(py, "N")?.extract()
+    chain.days(py)
 }
 fn flag(chain: &NativeChain, py: Python<'_>, key: &str) -> PyResult<bool> {
     chain.get(py, key)?.is_truthy()
@@ -43,16 +44,22 @@ fn per_draw(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
 ) -> PyResult<Array1<i64>> {
+    let count = n(chain, py)?;
     if let Ok(v) = value.extract::<i64>() {
-        return Ok(Array1::from_elem(n(chain, py)?, v));
+        return Ok(Array1::from_vec(filled_vec(count, v)?));
     }
-    let arr = value.cast::<PyArray1<i64>>()?.readonly();
-    if arr.len()? != n(chain, py)? {
+    let arr = value.cast::<PyArray1<i64>>()?.try_readonly()?;
+    if arr.len()? != count {
         return Err(PyValueError::new_err(
             "dated decision must match draw count",
         ));
     }
-    Ok(arr.as_array().to_owned())
+    checked_shape::<i64>(count, 1)?;
+    let mut values = filled_vec(count, 0)?;
+    for (target, value) in values.iter_mut().zip(arr.as_array()) {
+        *target = *value;
+    }
+    Ok(Array1::from_vec(values))
 }
 fn call(chain: &NativeChain, py: Python<'_>, method: &str, values: Vec<Obj>) -> ResultObj {
     chain.invoke(py, method, &PyTuple::new(py, values)?)

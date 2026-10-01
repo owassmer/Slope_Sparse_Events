@@ -1,8 +1,11 @@
 //! Native event-booking, timeline, and financial state queries.
 use crate::events::{NativeChain, BIG};
-use crate::price::round_int;
+use crate::price::{checked_shape, filled_vec, round_int};
 use ndarray::{Array1, Array2, ArrayD, ArrayView1};
-use numpy::{IntoPyArray, PyArray1, PyArray2, PyArrayDyn, PyArrayMethods, PyReadonlyArray1};
+use numpy::{
+    IntoPyArray, PyArray1, PyArray2, PyArrayDyn, PyArrayMethods, PyReadonlyArray1,
+    PyUntypedArrayMethods,
+};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyInt, PyList, PySet, PyString, PyTuple};
@@ -438,24 +441,24 @@ fn owed(
     gross: bool,
 ) -> ResultObj {
     let n = c.n(py)?;
-    let owner = Owed::of(c, py)?;
-    let state = owner.view();
     let owned;
     let borrowed;
-    let day = if let Ok(arr) = arg.cast::<PyArrayDyn<i64>>() {
-        borrowed = arr.try_readonly()?;
-        borrowed.as_array()
-    } else {
-        owned = c.per_draw(py, arg)?.into_dyn();
-        owned.view()
+    let day = match arg.cast::<PyArrayDyn<i64>>() {
+        Ok(arr) if !arr.shape().is_empty() => {
+            checked_owed_shape(arr.shape(), n)?;
+            borrowed = arr.try_readonly()?;
+            borrowed.as_array()
+        }
+        _ => {
+            owned = c.per_draw(py, arg)?.into_dyn();
+            owned.view()
+        }
     };
-    if day.ndim() == 0 || day.shape()[day.ndim() - 1] != n {
-        return Err(PyValueError::new_err(
-            "Owed days must end in draw dimension",
-        ));
-    }
+    checked_owed_shape(day.shape(), n)?;
+    let mut out = zeros_for_days(day.raw_dim(), day.len())?;
+    let owner = Owed::of(c, py)?;
+    let state = owner.view();
     let zero = c.get(py, "d")?.is_none();
-    let mut out = ArrayD::<i64>::zeros(day.raw_dim());
     for (i, (d, v)) in day.iter().zip(out.iter_mut()).enumerate() {
         *v = if zero {
             0
@@ -466,6 +469,38 @@ fn owed(
         };
     }
     Ok(out.into_pyarray(py).into_any().unbind())
+}
+
+fn checked_days_shape(shape: &[usize]) -> PyResult<()> {
+    let mut metadata = 1usize;
+    for axis in shape {
+        metadata = checked_shape::<i64>(metadata, (*axis).max(1))?;
+    }
+    Ok(())
+}
+
+fn checked_owed_shape(shape: &[usize], draws: usize) -> PyResult<()> {
+    if shape.is_empty() || shape[shape.len() - 1] != draws {
+        return Err(PyValueError::new_err(
+            "Owed days must end in draw dimension",
+        ));
+    }
+    checked_days_shape(shape)
+}
+
+fn checked_price_shape(shape: &[usize], draws: usize) -> PyResult<()> {
+    if shape.len() != 1 && shape.len() != 2 {
+        return Err(PyValueError::new_err("Price owed day rank"));
+    }
+    if shape[0] != draws {
+        return Err(PyValueError::new_err("Price owed draw shape"));
+    }
+    checked_days_shape(shape)
+}
+
+fn zeros_for_days(shape: ndarray::IxDyn, len: usize) -> PyResult<ArrayD<i64>> {
+    ArrayD::from_shape_vec(shape, filled_vec(len, 0)?)
+        .map_err(|error| PyValueError::new_err(format!("Invalid financial day shape: {error}")))
 }
 fn mark(
     c: &NativeChain,
@@ -832,12 +867,25 @@ pub(crate) fn dispatch(
             if !c.flag(py, "pending")? {
                 return Ok(c.get(py, "taken")?.unbind());
             }
-            let day = args.get_item(0)?;
-            let day = day.cast::<PyArrayDyn<i64>>()?.readonly();
-            let day = day.as_array();
+            let n = c.n(py)?;
+            let argument = args.get_item(0)?;
+            let owned;
+            let borrowed;
+            let day = match argument.cast::<PyArrayDyn<i64>>() {
+                Ok(array) if !array.shape().is_empty() => {
+                    checked_owed_shape(array.shape(), n)?;
+                    borrowed = array.try_readonly()?;
+                    borrowed.as_array()
+                }
+                _ => {
+                    owned = c.per_draw(py, &argument)?.into_dyn();
+                    owned.view()
+                }
+            };
+            checked_owed_shape(day.shape(), n)?;
+            let mut out = zeros_for_days(day.raw_dim(), day.len())?;
             let owner = Owed::of(c, py)?;
             let state = owner.view();
-            let mut out = ArrayD::zeros(day.raw_dim());
             for (i, (d, v)) in day.iter().zip(out.iter_mut()).enumerate() {
                 let r = i % state.n;
                 *v = state
@@ -1094,23 +1142,26 @@ pub(crate) fn dispatch(
         }
         "price_owed" => {
             let n = c.n(py)?;
-            let day = args.get_item(0)?;
-            let day = if let Ok(a) = day.cast::<PyArrayDyn<i64>>() {
-                a.readonly().as_array().to_owned()
-            } else {
-                c.per_draw(py, &day)?.into_dyn()
+            let argument = args.get_item(0)?;
+            let owned;
+            let borrowed;
+            let day = match argument.cast::<PyArrayDyn<i64>>() {
+                Ok(a) if !a.shape().is_empty() => {
+                    checked_price_shape(a.shape(), n)?;
+                    borrowed = a.try_readonly()?;
+                    borrowed.as_array()
+                }
+                _ => {
+                    owned = c.per_draw(py, &argument)?.into_dyn();
+                    owned.view()
+                }
             };
-            let mut out = ArrayD::<i64>::zeros(day.raw_dim());
+            checked_price_shape(day.shape(), n)?;
+            let mut out = zeros_for_days(day.raw_dim(), day.len())?;
             if !c.flag(py, "pending")? || c.int(py, "entered")? == 0 {
                 return Ok(out.into_pyarray(py).into_any().unbind());
             }
-            if day.ndim() != 1 && day.ndim() != 2 {
-                return Err(PyValueError::new_err("Price owed day rank"));
-            }
             let k = if day.ndim() == 2 { day.shape()[1] } else { 1 };
-            if day.shape()[0] != n {
-                return Err(PyValueError::new_err("Price owed draw shape"));
-            }
             let owner = Owed::of(c, py)?;
             let state = owner.view();
             let v = c.a1(py, "V")?;

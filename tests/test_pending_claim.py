@@ -6,7 +6,7 @@ import akoustis_20240514_fixture as fx
 import numpy as np
 import pytest
 
-from app.analysis.events import Chain, Draws
+from app.analysis.events import Chain, Draws, PythonChain
 
 
 def chain(sens=None, d=None):
@@ -245,14 +245,22 @@ def test_5_claimant_branch_is_cash_and_date_identical_under_its_enhancements(tre
 
 def test_6_coupon_base_shares_sensitivity_cash():
     from datetime import date
+    from decimal import Decimal
 
     base, _ = run(())
     cash, _ = run((), {"coupon_cash_share": True})
     day = base.ix(date(2024, 6, 17))
     coupon = lambda ev: ev.kinds["notes_interest"]  # noqa: E731  the at-the-market receipts are cash too (§2.6)
-    assert (coupon(base.ev)[:, day] == 0).all()
+    # At the unchanged 44-cent price, §16.02(c) values each whole share at
+    # 95% of that price. The fractional-share remainder is paid in cash.
+    value = Decimal("44") * Decimal("0.95")
+    shares = int(Decimal(132_000_000) // value)
+    residual = 132_000_000 - round(shares * value)
+    assert shares == 3_157_894 and residual == 31
+    assert (coupon(base.ev)[:, day] == -residual).all()
+    assert (coupon(base.ev).sum(axis=1) == -residual).all()
     assert (coupon(cash.ev)[:, day] == -132_000_000).all() and (coupon(cash.ev).sum(axis=1) == -132_000_000).all()
-    assert (cash.ev.cash - base.ev.cash == coupon(cash.ev)).all()  # the coupon is the only difference
+    assert (cash.ev.cash - base.ev.cash == coupon(cash.ev) - coupon(base.ev)).all()
     filed, tr = run((("verdict", "I0", "claimant_theory"), ("judgment_response", "entry", "file")),
                     {"coupon_cash_share": True})
     early = (tr.events.petition >= 0) & (tr.events.petition <= day)
@@ -273,7 +281,9 @@ def test_7_cash_facts_equal_the_engine_on_every_trajectory(tree):
     def snap(ev):
         return ev.cash.copy(), ev.lock.copy(), ev.kinds["inflow"].copy(), ev.kinds["levy"].copy()
 
-    class Rec(Chain):
+    # Observe intermediate Python bookings; the selected engine supplies the
+    # actual trace checked against those observations below.
+    class Rec(PythonChain):
         def step(self, node, ctx, branch):  # the walk's own step (probes are plain Chain copies)
             if not self.waits(node, ctx):
                 self.snaps[len(self.snaps)] = snap(self.ev)
@@ -294,7 +304,11 @@ def test_7_cash_facts_equal_the_engine_on_every_trajectory(tree):
     for p in floor_first + _sample(paths, lambda p: True, 12):
         ch = Rec(fx.pending(), s, fx.model(), Draws(b.cash.shape[0], basis=b), None)
         ch.snaps, ch.fired = {}, []
-        tr = ch.run(p.steps)
+        observed = ch.run(p.steps)
+        tr = observed if Chain is PythonChain else Chain(
+            fx.pending(), s, fx.model(), Draws(b.cash.shape[0], basis=b), None).run(p.steps)
+        assert np.array_equal(tr.day, observed.day)
+        assert np.array_equal(tr.events.petition, observed.events.petition)
         ev = tr.events
         eng = engine_run(b.line, b.opening - s.exposure.cash_cents,
                          EventCash(ev.cash.copy(), ev.lock.copy(), ev.capacity.copy(), ev.petition.copy(), ev.kinds,
@@ -429,15 +443,17 @@ def test_7e_owed_facts_count_only_what_is_taken_before_the_decision(tree):
     in it); and a pre-ruling judgment default does not ripen on a judgment set aside before its ripe date."""
     from app.analysis.events import BIG
 
-    class Rec(Chain):
+    # Native transitions do not call Python observer hooks. Record payments in
+    # the reference and check the selected engine's dated liability facts.
+    class Rec(PythonChain):
         def _take(self, day):
             t0 = self.taken.copy()
             super()._take(day)
             self.log.append((np.asarray(day).copy(), self.taken - t0))
 
-        def respond(self, booking, day, cause="enforcement"):
+        def respond(self, booking, day, cause="enforcement", occasion=""):
             t0 = self.taken.copy()
-            super().respond(booking, day, cause)
+            super().respond(booking, day, cause, occasion=occasion)
             self.log.append((np.asarray(day).copy(), self.taken - t0))
 
     _, _, paths, _ = tree
@@ -450,7 +466,11 @@ def test_7e_owed_facts_count_only_what_is_taken_before_the_decision(tree):
     for p in levied + aside:
         ch = Rec(fx.pending(), fx.setup(), fx.model(), Draws(b.cash.shape[0], basis=b), None)
         ch.log = []
-        tr = ch.run(p.steps)
+        observed = ch.run(p.steps)
+        tr = observed if Chain is PythonChain else Chain(
+            fx.pending(), fx.setup(), fx.model(), Draws(b.cash.shape[0], basis=b), None).run(p.steps)
+        assert np.array_equal(tr.day, observed.day)
+        assert np.array_equal(tr.events.petition, observed.events.petition)
         pet = np.where(tr.events.petition < 0, BIG, tr.events.petition)
         takes = ch.takes
         for j, x in enumerate(p.steps):

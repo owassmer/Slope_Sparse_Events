@@ -1,8 +1,9 @@
-//! Dated event state. The buffers live in Rust and are shared copy-on-write.
+//! Native dated event semantics and the standalone Rust-owned EventLedger.
 //!
-//! NumPy snapshots are immutable views whose base object owns an Arc. A snapshot
-//! therefore remains valid after a sibling writes, slices, or drops its state.
-//! Dated bookings retain their exact int64 arithmetic and occurrence order.
+//! EventLedger buffers share storage copy-on-write; immutable NumPy snapshots
+//! retain their Arc owner after sibling writes, slices, or state destruction.
+//! NativeChain runs state transitions in Rust over its PyDict/NumPy records.
+//! Dated bookings retain exact int64 arithmetic and occurrence order.
 
 use ndarray::{Array1, Array2};
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2};
@@ -593,10 +594,14 @@ impl NativeChain {
             return event_vector(n, v);
         }
         if let Ok(a) = value.cast::<PyArray1<i64>>() {
-            let read = a.readonly();
+            let read = a.try_readonly()?;
             let v = read.as_array();
             if v.len() == n {
-                return Ok(v.to_owned());
+                let mut out = event_vector(n, 0)?;
+                for (target, value) in out.iter_mut().zip(v) {
+                    *target = *value;
+                }
+                return Ok(out);
             }
             if v.len() == 1 {
                 return event_vector(n, v[0]);
@@ -728,21 +733,29 @@ impl NativeChain {
                 let dtype = a.getattr("dtype")?.getattr("str")?.extract::<String>()?;
                 let n = self.n(py)?;
                 let result = match dtype.as_str() {
-                    "<i8" | "=i8" => Array1::from_elem(n, item.extract::<i64>()?)
+                    "<i8" | "=i8" => {
+                        Array1::from_vec(crate::price::filled_vec(n, item.extract::<i64>()?)?)
+                            .into_pyarray(py)
+                            .into_any()
+                    }
+                    "|i1" => Array1::from_vec(crate::price::filled_vec(n, item.extract::<i8>()?)?)
                         .into_pyarray(py)
                         .into_any(),
-                    "|i1" => Array1::from_elem(n, item.extract::<i8>()?)
-                        .into_pyarray(py)
-                        .into_any(),
-                    "<i4" | "=i4" => Array1::from_elem(n, item.extract::<i32>()?)
-                        .into_pyarray(py)
-                        .into_any(),
-                    "|b1" => Array1::from_elem(n, item.extract::<bool>()?)
-                        .into_pyarray(py)
-                        .into_any(),
-                    "<f8" | "=f8" => Array1::from_elem(n, item.extract::<f64>()?)
-                        .into_pyarray(py)
-                        .into_any(),
+                    "<i4" | "=i4" => {
+                        Array1::from_vec(crate::price::filled_vec(n, item.extract::<i32>()?)?)
+                            .into_pyarray(py)
+                            .into_any()
+                    }
+                    "|b1" => {
+                        Array1::from_vec(crate::price::filled_vec(n, item.extract::<bool>()?)?)
+                            .into_pyarray(py)
+                            .into_any()
+                    }
+                    "<f8" | "=f8" => {
+                        Array1::from_vec(crate::price::filled_vec(n, item.extract::<f64>()?)?)
+                            .into_pyarray(py)
+                            .into_any()
+                    }
                     _ => {
                         return Err(PyValueError::new_err(format!(
                             "Unsupported native per-draw dtype {dtype:?}"

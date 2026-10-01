@@ -2735,7 +2735,7 @@ class Chain:
         arrays are shared copy-on-write: both chains mark them read-only and copy one before writing it (`_evw`);
         the petition and incurred days, replaced on every change, are shared as they are. The other [draws, days]
         state (`REPLACED`) is only ever replaced, so it is shared too."""
-        new = type(self).__new__(type(self))
+        new = PythonChain.__new__(PythonChain)
         ev = self.ev
         rec_late = [a for lst in self.rec for a in lst] + [a for e in self.late.values() for a in e.values()]
         for a in (ev.cash, ev.lock, ev.capacity, ev.petition, *ev.kinds.values(), *ev.incurred.values(),
@@ -2776,7 +2776,7 @@ class Chain:
                 return tuple(cut(x) for x in v)
             return v
 
-        new = type(self).__new__(type(self))
+        new = PythonChain.__new__(PythonChain)
         for k, v in self.__dict__.items():
             if k in Chain.SLICE_DROP:
                 continue

@@ -5,28 +5,71 @@ from dataclasses import replace
 from datetime import timedelta
 
 import akoustis_20240514_fixture as fx
+import akoustis_fixture as recorded_fx
 import numpy as np
 import pytest
 
 from app import _native
-from app.analysis import events, operating
+from app.analysis import operating
 from app.analysis.engine import prepare
-from app.analysis.events import BIG, Basis, Draws, PythonChain, SubDraws
+from app.analysis.events import BIG, Basis, Draws, PythonChain, SubDraws, Trace
 from app.analysis.setup import SEED
 from app.finance.bank import load_feed
 
 
 @pytest.fixture
-def reference_chain(monkeypatch):
-    # Original clone constructs through the module's Chain name; keep its type
-    # on this oracle-only fixture while exercising NativeChain directly.
-    monkeypatch.setattr(events, "Chain", PythonChain)
+def reference_chain():
     s = replace(fx.setup(), horizon=fx.REVIEW + timedelta(days=180))
     feed = load_feed(fx.SNAP)
     ops = operating.simulate(feed, 180 + s.need_days, 4, SEED, s.variability, s.cost_plan, s.financing)
     line = prepare(s, ops)
     basis = Basis.of(ops, line.need, feed.available_cents + s.exposure.cash_cents, line)
     return PythonChain(fx.pending(), s, fx.model(), Draws(4, basis=basis))
+
+
+@pytest.mark.parametrize("pending", [False, True])
+@pytest.mark.parametrize("value", [-1, 0, 90])
+def test_zero_dimensional_financial_days_match_scalar_broadcasting(reference_chain, monkeypatch, pending, value):
+    monkeypatch.setenv("SLOPE_EXECUTION_BACKEND", "python")
+    if pending:
+        ch = reference_chain
+        ch.step("verdict", "I0", "claimant_theory")
+        ch.takes = [(np.array([0, 20, 50, 100], dtype=np.int64),
+                     np.array([10, 20, 30, 40], dtype=np.int64))]
+    else:
+        ch = PythonChain(recorded_fx.judgment(), reference_chain.s, reference_chain.m, reference_chain.dr)
+        ch.taken = np.array([10, 20, 30, 40], dtype=np.int64)
+    day = np.array(value, dtype=np.int64)
+    day.flags.writeable = False
+    owner = _native.NativeChain(ch.__dict__)
+    for method, reference in (("price_owed", ch.price_owed), ("owed_at", ch.owed_at_py),
+                              ("taken_before", ch.taken_before)):
+        expected = reference(day)
+        assert expected.tobytes() == reference(value).tobytes()
+        actual = owner.call(method, day)
+        scalar = owner.call(method, value)
+        assert actual.dtype == expected.dtype and actual.shape == expected.shape == (ch.n,)
+        assert actual.tobytes() == expected.tobytes() == scalar.tobytes()
+    assert day.shape == () and day.item() == value and not day.flags.writeable
+
+
+@pytest.mark.parametrize("backend", ["python", "rust"])
+def test_observer_probes_return_base_chains_and_unmodified_views_keep_identity(reference_chain, backend):
+    from app.analysis.rust_chain import RustChain
+
+    base = PythonChain if backend == "python" else RustChain
+
+    class Observer(base):
+        pass
+
+    ref = reference_chain
+    ch = Observer(ref.d, ref.s, ref.m, ref.dr)
+    assert ch.seen_at(np.zeros(ch.n, dtype=np.int64)) is ch
+    assert type(ch.clone()) is base
+    sel = np.array([3, 0, 3], dtype=np.int64)
+    assert type(ch.sliced(sel, SubDraws(ch.dr, sel))) is base
+    ch.advance(Trace(ch.ev), "cash_floor", "1", "file")
+    assert type(ch.seen_at(np.full(ch.n, -1, dtype=np.int64))) is base
 
 
 def test_native_clone_isolates_mutable_records_and_shares_readonly_numerical_inputs(reference_chain):

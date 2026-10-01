@@ -1,12 +1,87 @@
 //! Native trajectory-mask and question-situation operations for the walk façade.
 use super::walk::Step;
-use numpy::{IntoPyArray, PyReadonlyArray1};
+use numpy::{IntoPyArray, PyReadonlyArray1, PyReadonlyArrayDyn};
+use pyo3::basic::CompareOp;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule, PyTuple};
 use pyo3::IntoPyObjectExt;
 use std::collections::BTreeSet;
 const BIG: i64 = 1_000_000;
+
+fn reach_max<T>(py: Python<'_>, cash: PyReadonlyArrayDyn<'_, T>) -> PyResult<Py<PyAny>>
+where
+    T: numpy::Element + Copy + PartialOrd,
+    for<'a> T: IntoPyObject<'a>,
+{
+    let view = cash.as_array();
+    let mut values = view.iter().copied();
+    let first = values.next().ok_or_else(|| {
+        PyValueError::new_err(
+            "zero-size array to reduction operation maximum which has no identity",
+        )
+    })?;
+    let maximum = values.fold(first, |a, b| {
+        // NumPy maximum propagates NaN. Conversion to int below retains the
+        // reference's ValueError for NaN and OverflowError for infinities.
+        if a.partial_cmp(&a).is_none() || b <= a {
+            a
+        } else {
+            b
+        }
+    });
+    Ok(maximum
+        .into_py_any(py)?
+        .bind(py)
+        .call_method0("__int__")?
+        .unbind())
+}
+
+#[pyfunction]
+fn walk_reach(py: Python<'_>, cash: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    macro_rules! numeric {
+        ($($kind:ty),+ $(,)?) => {
+            $(if let Ok(array) = cash.extract::<PyReadonlyArrayDyn<'_, $kind>>() {
+                return reach_max(py, array);
+            })+
+        };
+    }
+    numeric!(i64, i32, i16, i8, u64, u32, u16, u8, bool, f64, f32);
+    if cash.is_instance(&py.import("numpy")?.getattr("ndarray")?)?
+        && cash
+            .getattr("dtype")?
+            .getattr("kind")?
+            .extract::<String>()?
+            == "f"
+    {
+        // Float16 and platform longdouble have no Rust NumPy Element binding.
+        // Keep their scalar comparison/conversion protocol rather than casting
+        // away precision; the maximum reduction's control loop remains native.
+        let flat = cash.getattr("flat")?;
+        let mut values = flat.try_iter()?;
+        let mut maximum = values.next().transpose()?.ok_or_else(|| {
+            PyValueError::new_err(
+                "zero-size array to reduction operation maximum which has no identity",
+            )
+        })?;
+        for value in values {
+            let value = value?;
+            if maximum.rich_compare(&maximum, CompareOp::Ne)?.is_truthy()? {
+                continue;
+            }
+            if value.rich_compare(&value, CompareOp::Ne)?.is_truthy()?
+                || value.rich_compare(&maximum, CompareOp::Gt)?.is_truthy()?
+            {
+                maximum = value;
+            }
+        }
+        return Ok(maximum.call_method0("__int__")?.unbind());
+    }
+    Err(PyValueError::new_err(
+        "reach cash must be a numeric NumPy array",
+    ))
+}
+
 /// Borrow compact date columns without widening or copying their buffers.
 enum Dates<'py> {
     I32(PyReadonlyArray1<'py, i32>),
@@ -1393,6 +1468,7 @@ fn walk_live<'py>(
     Ok(out.into_pyarray(py).into_any().unbind())
 }
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(walk_reach, m)?)?;
     m.add_function(wrap_pyfunction!(walk_rows, m)?)?;
     m.add_function(wrap_pyfunction!(walk_groups, m)?)?;
     m.add_function(wrap_pyfunction!(walk_mask, m)?)?;

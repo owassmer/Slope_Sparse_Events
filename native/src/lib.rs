@@ -9,6 +9,7 @@
 
 use pyo3::prelude::*;
 
+mod analysis;
 mod atm;
 mod cash;
 mod event_cash_helpers;
@@ -20,7 +21,9 @@ mod events;
 mod events_free;
 mod owed;
 mod price;
+mod probability;
 mod reduction;
+mod tables;
 mod walk;
 mod walk_classes;
 mod walk_queries;
@@ -31,12 +34,15 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add("__backend__", "rust")?;
     atm::register(m)?;
+    analysis::register(m)?;
     cash::register(m)?;
     events::register(m)?;
     events_free::register(m)?;
     owed::register(m)?;
     price::register(m)?;
+    probability::register(m)?;
     reduction::register(m)?;
+    tables::register(m)?;
     walk::register(m)?;
     walk_classes::register(m)?;
     walk_queries::register(m)?;

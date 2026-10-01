@@ -34,6 +34,9 @@ The native modules cover:
   obligations, share issuance and structural share prices.
 - `reduction`: ordered probability products, sparse histograms and weighted
   distributions and quantiles.
+- `analysis`, `tables`, `probability`: per-path and sharded financial reductions,
+  first-floor timing, stress calculations, bin bounds, composite probabilities
+  and exact single-question sensitivity derivatives.
 
 Python retains configuration, keyed draw generation, memo caches, stored fact
 records, Jev, application orchestration and parallel scheduling. NativeChain
@@ -42,9 +45,15 @@ share immutable inputs and replace-only arrays; mutable records are independent,
 and shared event buffers copy on their first write. The separate EventLedger
 type has Rust-owned buffers; it is not NativeChain's storage representation.
 Calls borrow NumPy inputs for their duration: callers must keep those buffers
-unchanged through all aliases and threads until the call returns. Native numeric
-outputs own their buffers; shared branch event buffers follow the copy-on-write
+unchanged through all aliases and threads until the call returns. Returned arrays
+retain their buffer owners; shared branch event buffers follow the copy-on-write
 rules above. Independent numerical work may release the GIL.
+
+Rust controls financial reduction decisions and accumulation. Compiled NumPy
+ufuncs, array reductions and the installed BLAS remain numerical primitives
+where their dtype, integer overflow and floating reduction order are part of
+the reference contract. Production execution does not call the retained Python
+probability or financial-reduction implementations.
 
 Financial integer arithmetic, half-even rounding, keyed trajectory identity,
 question distinctions and record order must match the reference. Floating-point

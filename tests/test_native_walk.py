@@ -19,6 +19,51 @@ def with_backend(monkeypatch, value):
     monkeypatch.setenv("SLOPE_EXECUTION_BACKEND", value)
 
 
+@pytest.mark.parametrize("cash", [
+    np.array([[1, -2, 9007199254740993], [-3, 4, 0]], dtype=np.int64)[:, ::2],
+    np.array([[0, np.iinfo(np.uint64).max]], dtype=np.uint64),
+    np.array([[True, False]], dtype=np.bool_),
+    np.array([[-3.75, 4.875, -0.0]], dtype=np.float64),
+    np.array([[-2.5, 1.25]], dtype=np.float32),
+    np.array([[-2.5, 1.25]], dtype=np.float16),
+    np.array([np.longdouble("9223372036854775809"), np.longdouble(1)]),
+])
+def test_native_reach_bound_preserves_integer_precision_and_float_truncation(cash):
+    assert extension().walk_reach(cash) == int(cash.max())
+
+
+@pytest.mark.parametrize("cash,error", [
+    (np.empty((2, 0), dtype=np.int64), ValueError),
+    (np.array([[3.0, np.nan, 4.0]], dtype=np.float64), ValueError),
+    (np.array([[3.0, np.inf]], dtype=np.float64), OverflowError),
+])
+def test_native_reach_bound_retains_empty_and_nonfinite_errors(cash, error):
+    for compute in (lambda: extension().walk_reach(cash), lambda: int(cash.max())):
+        with pytest.raises(error):
+            compute()
+
+
+def test_selected_rust_forecaster_uses_native_reach_bound(monkeypatch):
+    from datetime import date
+    from types import SimpleNamespace
+
+    native = extension()
+    seen = []
+    original = native.walk_reach
+
+    def observed(cash):
+        seen.append(cash)
+        return original(cash)
+
+    monkeypatch.setattr(native, "walk_reach", observed)
+    with_backend(monkeypatch, "rust")
+    cash = np.array([[1, 13], [-4, 7]], dtype=np.int64)
+    fc = F.Forecaster([], {}, borrower="A", review=date(2024, 5, 14), horizon=date(2024, 5, 15),
+                      hydrate=lambda _: {}, model={"templates": {}, "parameters": {}},
+                      basis=SimpleNamespace(cash=cash))
+    assert fc.reach == 13 and len(seen) == 1 and seen[0] is cash
+
+
 def test_composite_unicode_is_python_json_byte_identical():
     native = extension()
     parts = [[("mérite\x7f 😀", "はい\n"), ("\\\"node", "no")], []]
@@ -508,14 +553,17 @@ def test_native_path_conversion_shares_large_repeated_prefix_objects(monkeypatch
     with_backend(monkeypatch, "python")
     name = "node_" + "x" * 60_000
     key = F.composite([[(name, "yes")]])
-    paths = [F.DisputePath("d", ((name, "phase", "no"),), "unresolved", ((key, "yes"),)) for _ in range(100)]
+    steps, edges = ((name, "phase", "no"),), ((key, "yes"),)
+    paths = [F.DisputePath("d", steps, "unresolved", edges) for _ in range(100)]
     wire = [F._to_native_path(p) for p in paths]
     outputs = (native.walk_merge(wire, [[i] for i in range(100)], {}),
                native.walk_expand_classes(wire, [], 1, []))
     for rows in outputs:
         first_step, first_edge = rows[0][1][0], rows[0][3][0]
         assert all(row[1][0] is first_step and row[3][0] is first_edge for row in rows)
-        assert [F._from_native_path(row) for row in rows] == paths
+        converted = [F._from_native_path(row) for row in rows]
+        assert converted == paths
+        assert all(path.steps is steps and path.edges is edges for path in converted)
         todo, seen, retained = [rows], set(), 0
         while todo:
             obj = todo.pop()
@@ -526,3 +574,92 @@ def test_native_path_conversion_shares_large_repeated_prefix_objects(monkeypatch
             if isinstance(obj, (list, tuple)):
                 todo.extend(obj)
         assert retained < 200_000
+
+
+@pytest.mark.parametrize("operation", ["merge", "expand"])
+def test_native_path_algebra_keeps_shared_long_prefixes_under_address_space_bound(operation):
+    """A bounded child catches full-tree string extraction before it can exhaust the test runner."""
+    import os
+    import subprocess
+    import sys
+    import textwrap
+    from pathlib import Path
+
+    code = textwrap.dedent(r'''
+        import gc
+        import json
+        import resource
+        import sys
+        from app import _native
+        from app.disputes.forecast import _from_native_path
+
+        operation = sys.argv[1]
+        name = "shared_" + "x" * 1_000_000
+        history = ((name, name, "yes"),) * 24
+        common_key = "=" + json.dumps([[(name, "yes"), ("q", "yes")]], separators=(",", ":"))
+        common_edge = (common_key, "yes")
+        classes = (("q", ("#a", "#b"), bytes([0, 1])),)
+        count = 128
+        rows = [("d", history, "unresolved", (common_edge, ("answer", "yes" if i % 2 == 0 else "no")),
+                 "claimed", None, classes) for i in range(count)]
+        gc.collect()
+        with open("/proc/self/status") as status:
+            memory = {line.split(":", 1)[0]: int(line.split()[1]) for line in status
+                      if line.startswith(("VmSize:", "VmHWM:"))}
+        before = memory["VmHWM"]
+        vmsize = memory["VmSize"] * 1024
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        resource.setrlimit(resource.RLIMIT_AS, (vmsize + 128 * 1024**2,) * 2)
+        if operation == "merge":
+            output = _native.walk_merge(rows, [[0, 1], *[[i] for i in range(2, count)]], {})
+            assert len(output) == count - 1
+            assert output[0][3][0] is common_edge
+            assert output[0][3][-1] == ('=[[["answer","yes"]],[["answer","no"]]]', "yes")
+            assert all(output[i - 1] is rows[i] for i in range(2, count))
+        else:
+            output = _native.walk_expand_classes(rows, ["q|#a", "q|#b"], 2, [])
+            assert len(output) == count * 2
+            assert output[0][5] == b"\x80" and output[1][5] == b"@"
+            keys = ["=" + json.dumps([[(name, "yes"), ("q|" + tag, "yes")]], separators=(",", ":"))
+                    for tag in ("#a", "#b")]
+            for i, row in enumerate(output):
+                assert row[3][0][0] == keys[i % 2] and not row[6]
+                assert row[3][0][0] is output[i % 2][3][0][0]
+        assert all(row[1] is history for row in output)
+        converted = [_from_native_path(row) for row in output]
+        assert all(path.steps is history for path in converted)
+        with open("/proc/self/status") as status:
+            peak_delta_kib = next(int(line.split()[1]) for line in status if line.startswith("VmHWM:")) - before
+        assert peak_delta_kib < 64 * 1024, peak_delta_kib
+        print(json.dumps({"operation": operation, "peak_delta_kib": peak_delta_kib, "rows": len(output)}))
+    ''')
+    result = subprocess.run([sys.executable, "-c", code, operation],
+                            cwd=Path(__file__).resolve().parents[1], env=os.environ.copy(),
+                            text=True, capture_output=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout)["operation"] == operation
+
+
+def test_native_merge_class_sort_uses_text_and_composite_no_keeps_last_duplicate_key(monkeypatch):
+    native = extension()
+    with_backend(monkeypatch, "python")
+    classes = (("😀", ("#z",), None), ("é", ("#a",), None), ("a", ("#first",), None))
+    composite = F.composite([[('q', 'no'), ('q', 'yes'), ('r', 'yes')]])
+    paths = [F.DisputePath("d", (), "same", ((composite, "no"),), classes=classes),
+             F.DisputePath("d", (), "same", ((composite, "yes"),), classes=classes)]
+    branches = {"q": ("yes", "no"), "r": ("yes", "no")}
+    reference = F.merge_equivalent(paths, [0, 0], branches)
+    actual = [F._from_native_path(row) for row in native.walk_merge([F._to_native_path(p) for p in paths], [[0, 1]], branches)]
+    assert actual == reference
+    assert [c[0] for c in actual[0].classes] == ["a", "é", "😀"]
+
+
+def test_native_path_adapter_keeps_tuple_prefixes_and_normalizes_lists():
+    steps, edges = (("node", "phase", "yes"),), (("q", "no"),)
+    wire = ("d", steps, "same", edges, "claimed", None, ())
+    path = F._from_native_path(wire)
+    assert path.steps is steps and path.edges is edges
+    lists = ("d", [list(step) for step in steps], "same", [list(edge) for edge in edges], "claimed", None, [])
+    assert F._from_native_path(lists) == path
+    assert type(F._from_native_path(lists).steps) is tuple
+    assert all(type(row) is tuple for row in F._from_native_path(lists).steps)

@@ -1,4 +1,8 @@
 """Byte-exact contracts for ordered products, sparse counts, and quantiles."""
+import os
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 
@@ -77,6 +81,38 @@ def test_stable_quantiles_match_ties_zero_weights_nan_and_noncontiguous_views(tw
                 weighted_quantiles_python(values, weights, qs))
 
 
+def test_quantile_ties_keep_original_signed_zero_and_nan_payload_order():
+    bits = np.array([0x7FF8000000000001, 0x8000000000000000, 0x0000000000000000,
+                     0x7FF8000000000002, 0x4000000000000000, 0x4000000000000000], dtype=np.uint64)
+    values = bits.view(np.float64)
+    weights = np.array([0.1, 0.2, 0.3, 0.1, 0.2, 0.1])
+    qs = (0.0, 0.15, 0.4, 0.5, 0.6, 0.9, 1.0)
+    assert same(_native.weighted_quantiles(values, weights, list(qs)),
+                weighted_quantiles_python(values, weights, qs))
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64, np.longdouble])
+def test_quantile_ndarray_inputs_keep_scalar_threshold_arithmetic(dtype):
+    if dtype is np.longdouble:
+        q = np.nextafter(dtype(0.5) + dtype(1e-12), dtype(1.0))
+        first = 0.5
+    else:
+        q = dtype(0.5)
+        first = 0.5 - 5e-13
+    qs = np.array([q], dtype=dtype)
+    values = np.array([10.0, 20.0])
+    weights = np.array([first, 1.0 - first])
+    for quantiles in (qs, list(qs)):
+        expected = weighted_quantiles_python(values, weights, quantiles)
+        assert same(_native.weighted_quantiles(values, weights, quantiles), expected)
+        cum = np.cumsum(weights)
+        hist_expected = np.array([[10.0 + (np.argmax(cum >= q - 1e-12) + 0.5) * 10.0]])
+        assert same(_native.histogram_quantiles(weights.reshape(1, 2), np.array([10.0]), np.array([10.0]),
+                                               quantiles), hist_expected)
+    if dtype is np.float32 or (dtype is np.longdouble and np.finfo(dtype).nmant > 52):
+        assert expected.tolist() == [20.0]
+
+
 def test_native_reduction_rejects_invalid_indices():
     with pytest.raises(ValueError):
         _native.edge_products(np.array([[2]], dtype=np.int64), np.ones(2))
@@ -92,3 +128,42 @@ def test_weighted_counts_normalization_preserves_nan_rows():
     expected = np.bincount(idx, weights=probabilities, minlength=4).reshape(2, 2)
     expected /= np.maximum(expected.sum(axis=1, keepdims=True), 1e-300)
     assert same(_native.weighted_counts(idx, counts, lengths, probabilities, 2, 2, True), expected)
+
+
+@pytest.mark.parametrize("case", ["bins", "edges", "histogram", "weighted", "histogram_qs", "weighted_qs",
+                                 "sparse", "weighted_counts"])
+def test_virtual_arrays_reject_impossible_allocations_without_process_abort(case):
+    # Broadcasting creates metadata only. Isolation and a memory ceiling keep
+    # an allocation-guard regression from aborting the pytest worker or host.
+    code = """
+import resource
+import sys
+import numpy as np
+from app import _native
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+resource.setrlimit(resource.RLIMIT_AS, (2 << 30, 2 << 30))
+huge = 1 << 59
+f = np.ones(1, dtype=np.float64)
+i = np.zeros(1, dtype=np.int64)
+vf = np.broadcast_to(f, (huge,))
+calls = {
+ 'bins': lambda: _native.bins_flat(np.broadcast_to(f.reshape(1, 1), (huge, 1)), f, f, 2, None),
+ 'edges': lambda: _native.edge_products(np.broadcast_to(i.reshape(1, 1), (huge, 1)), f),
+ 'histogram': lambda: _native.histogram_quantiles(np.broadcast_to(f.reshape(1, 1), (1, huge)), f, f, [0.5]),
+ 'weighted': lambda: _native.weighted_quantiles(vf, vf, [0.5]),
+ 'histogram_qs': lambda: _native.histogram_quantiles(f.reshape(1, 1), f, f, vf),
+ 'weighted_qs': lambda: _native.weighted_quantiles(f, f, vf),
+ 'sparse': lambda: _native.sparse_counts(np.empty(0, dtype=np.int64), huge),
+ 'weighted_counts': lambda: _native.weighted_counts(np.empty(0, dtype=np.int32), np.empty(0, dtype=np.uint32),
+                                                   np.empty(0, dtype=np.int64), np.empty(0), huge, 1, False),
+}
+try:
+    calls[sys.argv[1]]()
+except ValueError:
+    pass
+else:
+    raise AssertionError('impossible allocation was accepted')
+"""
+    result = subprocess.run([sys.executable, "-c", code, case], capture_output=True, text=True, timeout=15,
+                            env={**os.environ, "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1"})
+    assert result.returncode == 0, (result.returncode, result.stdout, result.stderr)

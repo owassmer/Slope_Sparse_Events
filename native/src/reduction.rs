@@ -1,14 +1,18 @@
 //! Ordered probability products and exact sparse histogram/statistical operations.
-use numpy::{IntoPyArray, PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArrayDyn};
-use pyo3::exceptions::PyValueError;
+use numpy::{
+    IntoPyArray, PyArray1, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArrayDyn,
+    PyUntypedArray,
+};
+use pyo3::basic::CompareOp;
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::types::{PyFloat, PySequence, PyString};
 
 fn cells(rows: usize, columns: usize) -> PyResult<usize> {
-    rows.checked_mul(columns)
-        .ok_or_else(|| PyValueError::new_err("array dimensions overflow"))
+    crate::price::checked_shape::<f64>(rows, columns)
 }
 
-fn filled<T: Clone>(length: usize, value: T) -> PyResult<Vec<T>> {
+fn reserved<T>(length: usize) -> PyResult<Vec<T>> {
     if length
         .checked_mul(std::mem::size_of::<T>())
         .is_none_or(|bytes| bytes > isize::MAX as usize)
@@ -20,8 +24,101 @@ fn filled<T: Clone>(length: usize, value: T) -> PyResult<Vec<T>> {
     let mut out = Vec::new();
     out.try_reserve_exact(length)
         .map_err(|e| PyValueError::new_err(format!("array allocation failed: {e}")))?;
+    Ok(out)
+}
+
+fn filled<T: Clone>(length: usize, value: T) -> PyResult<Vec<T>> {
+    let mut out = reserved(length)?;
     out.resize(length, value);
     Ok(out)
+}
+
+enum Threshold<'py> {
+    Float(f64),
+    Extended(Bound<'py, PyAny>),
+}
+
+fn quantiles<'py>(py: Python<'py>, values: &Bound<'py, PyAny>) -> PyResult<Vec<Threshold<'py>>> {
+    if values.is_instance_of::<PyString>() {
+        return Err(PyTypeError::new_err("Can't extract `str` to `Vec`"));
+    }
+    // ndarray implements Python's sequence protocol but is not registered
+    // with the Sequence ABC used by PyO3's safe cast. Keep its accepted input
+    // behavior without falling back to PyO3's infallible Vec conversion.
+    let length = if values.is_instance_of::<PyUntypedArray>() {
+        values.len()?
+    } else {
+        values.cast::<PySequence>()?.len()?
+    };
+    let mut out = reserved(length)?;
+    let numpy = py.import("numpy")?;
+    let float16 = numpy.getattr("float16")?;
+    let float32 = numpy.getattr("float32")?;
+    let float64 = numpy.getattr("float64")?;
+    for value in values.try_iter()? {
+        out.try_reserve(1)
+            .map_err(|e| PyValueError::new_err(format!("array allocation failed: {e}")))?;
+        let value = value?;
+        if value.is_exact_instance_of::<PyFloat>() {
+            out.push(Threshold::Float(value.extract::<f64>()? - 1e-12));
+        } else {
+            // The subtraction must happen before any promotion: NumPy's
+            // float32 q minus a weak Python epsilon remains float32.
+            let value = value.sub(1e-12)?;
+            if value.is_exact_instance_of::<PyFloat>()
+                || value.is_instance(&float16)?
+                || value.is_instance(&float32)?
+                || value.is_instance(&float64)?
+            {
+                out.push(Threshold::Float(value.extract()?));
+            } else {
+                out.push(Threshold::Extended(value));
+            }
+        }
+    }
+    Ok(out)
+}
+
+enum Cumulative<'py> {
+    Rust(Vec<f64>),
+    Host(Bound<'py, PyArray1<f64>>),
+}
+impl<'py> Cumulative<'py> {
+    fn new(py: Python<'py>, values: Vec<f64>, thresholds: &[Threshold<'py>]) -> Self {
+        if thresholds
+            .iter()
+            .any(|q| matches!(q, Threshold::Extended(_)))
+        {
+            // NumPy owns the already native buffer; there is no copy.
+            Self::Host(values.into_pyarray(py))
+        } else {
+            Self::Rust(values)
+        }
+    }
+    fn first(&self, q: &Threshold<'py>) -> PyResult<usize> {
+        match (self, q) {
+            (Self::Rust(values), Threshold::Float(q)) => {
+                Ok(values.iter().position(|&v| v >= *q).unwrap_or(0))
+            }
+            (Self::Host(values), Threshold::Float(q)) => Ok(values
+                .readonly()
+                .as_array()
+                .iter()
+                .position(|&v| v >= *q)
+                .unwrap_or(0)),
+            (Self::Host(values), Threshold::Extended(q)) => {
+                // Extended scalars promote the comparison itself. The host
+                // operation is NumPy's compiled comparison; first-hit control
+                // and output construction remain Rust.
+                let comparisons = values.as_any().rich_compare(q, CompareOp::Ge)?;
+                let comparisons = comparisons.cast::<PyArray1<bool>>()?.readonly();
+                Ok(comparisons.as_array().iter().position(|&v| v).unwrap_or(0))
+            }
+            (Self::Rust(_), Threshold::Extended(_)) => Err(PyValueError::new_err(
+                "extended threshold requires a comparison buffer",
+            )),
+        }
+    }
 }
 
 #[pyfunction]
@@ -77,7 +174,7 @@ fn bins_flat<'py>(
     if shape.len() == 1 && rr.is_none() {
         return Err(PyValueError::new_err("one-dimensional values require rows"));
     }
-    let mut out = Vec::with_capacity(x.len());
+    let mut out = reserved(x.len())?;
     for (i, &v) in x.iter().enumerate() {
         let row = match rr {
             Some(ref r) => r[if r.len() == x.len() { i } else { i % ncol }],
@@ -125,6 +222,10 @@ fn sparse_counts<'py>(
     let mut cnt = Vec::new();
     for (j, n) in c.into_iter().enumerate() {
         if n > 0 {
+            idx.try_reserve(1)
+                .map_err(|e| PyValueError::new_err(format!("array allocation failed: {e}")))?;
+            cnt.try_reserve(1)
+                .map_err(|e| PyValueError::new_err(format!("array allocation failed: {e}")))?;
             idx.push(j as i32);
             cnt.push(n as u32);
         }
@@ -229,8 +330,9 @@ fn histogram_quantiles<'py>(
     hist: PyReadonlyArray2<'py, f64>,
     lo: PyReadonlyArray1<'py, f64>,
     width: PyReadonlyArray1<'py, f64>,
-    qs: Vec<f64>,
+    qs: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, numpy::PyArray2<f64>>> {
+    let qs = quantiles(py, qs)?;
     let h = hist.as_array();
     let a = lo.as_array();
     let w = width.as_array();
@@ -239,14 +341,15 @@ fn histogram_quantiles<'py>(
     }
     let mut out = filled(cells(qs.len(), h.nrows())?, 0.0)?;
     for r in 0..h.nrows() {
-        let mut cum = Vec::with_capacity(h.ncols());
+        let mut cum = reserved(h.ncols())?;
         let mut s = 0.0;
         for &v in h.row(r) {
             s += v;
             cum.push(s);
         }
-        for (i, &q) in qs.iter().enumerate() {
-            let k = cum.iter().position(|&v| v >= q - 1e-12).unwrap_or(0);
+        let cum = Cumulative::new(py, cum, &qs);
+        for (i, q) in qs.iter().enumerate() {
+            let k = cum.first(q)?;
             out[i * h.nrows() + r] = a[r] + (k as f64 + 0.5) * w[r];
         }
     }
@@ -260,8 +363,9 @@ fn weighted_quantiles<'py>(
     py: Python<'py>,
     values: PyReadonlyArrayDyn<'py, f64>,
     weights: PyReadonlyArray1<'py, f64>,
-    qs: Vec<f64>,
+    qs: &Bound<'py, PyAny>,
 ) -> PyResult<Py<PyAny>> {
+    let qs = quantiles(py, qs)?;
     let x = values.as_array();
     let w = weights.as_array();
     let dims = x.ndim();
@@ -284,11 +388,14 @@ fn weighted_quantiles<'py>(
                 x[ndarray::IxDyn(&[r])]
             }
         };
-        let mut order: Vec<usize> = (0..rows).collect();
-        order.sort_by(|&a, &b| {
+        let mut order = reserved(rows)?;
+        order.extend(0..rows);
+        // Explicit original-index ties preserve the previous stable ordering,
+        // including NaNs and signed zeros, without sort's extra allocation.
+        order.sort_unstable_by(|&a, &b| {
             let aa = get(a);
             let bb = get(b);
-            if aa.is_nan() {
+            let ordering = if aa.is_nan() {
                 if bb.is_nan() {
                     std::cmp::Ordering::Equal
                 } else {
@@ -298,16 +405,18 @@ fn weighted_quantiles<'py>(
                 std::cmp::Ordering::Less
             } else {
                 aa.partial_cmp(&bb).unwrap_or(std::cmp::Ordering::Equal)
-            }
+            };
+            ordering.then_with(|| a.cmp(&b))
         });
-        let mut cum = Vec::with_capacity(rows);
+        let mut cum = reserved(rows)?;
         let mut s = 0.0;
         for &r in &order {
             s += w[r];
             cum.push(s);
         }
-        for (i, &q) in qs.iter().enumerate() {
-            let k = cum.iter().position(|&v| v >= q - 1e-12).unwrap_or(0);
+        let cum = Cumulative::new(py, cum, &qs);
+        for (i, q) in qs.iter().enumerate() {
+            let k = cum.first(q)?;
             out[i * cols + c] = get(order[k]);
         }
     }
