@@ -192,3 +192,35 @@ def test_active_draw_replay_matches_full_replay_cash_and_dates(case):
             for key, value in full[section].items():
                 if isinstance(value, np.ndarray) and value.shape == (fc.draws.n,):
                     np.testing.assert_array_equal(selected[section][key][mask], value[mask], err_msg=key)
+
+
+def test_saved_history_rebuild_preserves_cash_path_and_replaces_notes_classes(case, tmp_path, monkeypatch):
+    import gzip
+    import pickle
+
+    from app.disputes.forecast import class_entry, pack_mask
+    from tools import notes_repair
+
+    fc, d, w, key = case
+    mask = w.mask_of(STEPS)
+    stale = class_entry(key, np.full(fc.draws.n, '', dtype=object), mask)
+    p = DisputePath(instance_id=d.instance_id, steps=STEPS, outcome='settled', edges=((key, 'no'),),
+                    mask=pack_mask(mask), classes=(stale,))
+    ekey, equivalence, watches, cond = (12, 0, 3, 9), (b'original cash key',), (), ()
+    source = tmp_path / 'part0.pkl'
+    source.write_bytes(pickle.dumps({'events': [(ekey, 'path', (p, equivalence, watches), cond)]}))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(notes_repair, '_FC', fc)
+    monkeypatch.setattr(notes_repair, '_CTL', {'classed': set()})
+    report = notes_repair.rebuild(source)
+    assert report['paths'] == 1 and report['rows'] > 0 and report['complete']
+    folder = tmp_path / 'var/notes-repair/rebuilt'
+    with gzip.open(folder / 'part0.pkl.gz', 'rb') as stream:
+        at, (fixed, eq, watch), rows, conditional = pickle.load(stream)
+    assert (at, eq, watch, conditional) == (ekey, equivalence, watches, cond)
+    assert (fixed.steps, fixed.edges, fixed.mask, fixed.outcome) == (p.steps, p.edges, p.mask, p.outcome)
+    assert fixed.classes != p.classes
+    with gzip.open(folder / 'part0-nodes.pkl.gz', 'rb') as stream:
+        meta = pickle.load(stream)
+    assert key in meta['classed']
+    assert all(k in meta['nodes'] for k, _late, _blob in rows)

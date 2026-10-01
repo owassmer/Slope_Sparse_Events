@@ -23,6 +23,60 @@ _CTL = None
 _FC = None
 
 
+def rebuild(path):
+    """Rebuild notes rows/classes from saved histories; do not enumerate paths."""
+    from dataclasses import replace
+
+    from app.disputes import notes
+    from app.disputes.forecast import class_entry, pack_row, path_mask
+
+    global _FC
+    if _FC is None:
+        _FC = pool.forecaster('akoustis_20240514-agent_plus_jev-20260929T052558Z', _CTL)
+    fc = _FC
+    part = parallel.read_part(str(path))
+    for _key, kind, value, _cond in part['events']:
+        if kind == 'node':
+            fc.nodes.setdefault(value[0], value[1])
+    before = set(fc.nodes)
+    disputes = {d.instance_id: d for d in fc.disputes}
+    number = int(path.stem[4:])
+    dest = Path('var/notes-repair/rebuilt')
+    dest.mkdir(parents=True, exist_ok=True)
+    paths = rows = 0
+    pending_rows = []
+
+    def keep(key, prefix, row):
+        pending_rows.append((key, fc.late_key(key, prefix, row), pack_row(row)))
+
+    fc._keep_late = keep
+    with gzip.open(dest / f'part{number}.pkl.gz', 'wb', compresslevel=1) as output:
+        for ekey, kind, value, cond in part['events']:
+            if kind != 'path':
+                continue
+            p, equivalence, watches = value
+            keys = sorted({k for edge, _ in p.edges for k in atoms(edge)
+                           if k in fc.nodes and fc.nodes[k].node in notes.NAMES})
+            if not keys:
+                continue
+            pending_rows.clear()
+            mask = path_mask(p, fc.draws.n)
+            classes = [c for c in p.classes if c[0] not in keys]
+            for key in keys:
+                cls = notes.record(fc, disputes[p.instance_id], p.steps, key, mask)
+                classes.append(class_entry(key, cls, mask))
+            changed = replace(p, classes=tuple(classes))
+            pickle.dump((ekey, (changed, equivalence, watches), tuple(pending_rows), cond), output, protocol=5)
+            paths += 1
+            rows += len(pending_rows)
+    new_nodes = {k: n for k, n in fc.nodes.items() if k not in before}
+    with gzip.open(dest / f'part{number}-nodes.pkl.gz', 'wb', compresslevel=1) as output:
+        pickle.dump({'nodes': new_nodes, 'classed': fc.classed - _CTL['classed']}, output, protocol=5)
+    result = {'part': number, 'paths': paths, 'rows': rows, 'new_nodes': len(new_nodes), 'complete': True}
+    (dest / f'part{number}.json').write_text(json.dumps(result))
+    return result
+
+
 def scope(path):
     """Locate changed continuations, including questions hidden by old local merges."""
     from collections import defaultdict
@@ -137,6 +191,16 @@ def github(worker):
         for group in downloads.map(source, task['sources']):
             files.extend(group)
     results = []
+    if manifest.get('mode') == 'rebuild':
+        with multiprocessing.get_context('fork').Pool(os.cpu_count()) as workers:
+            for result in workers.imap_unordered(rebuild, files):
+                results.append(result)
+                print(result, flush=True)
+        report = {'worker': worker, 'cores': os.cpu_count(), 'parts': results,
+                  'paths': sum(r['paths'] for r in results), 'rows': sum(r['rows'] for r in results)}
+        (root / 'rebuilt' / 'report.json').write_text(json.dumps(report))
+        print({k: v for k, v in report.items() if k != 'parts'}, flush=True)
+        return
     with multiprocessing.get_context('fork').Pool(os.cpu_count()) as workers:
         for result in workers.imap_unordered(scope if manifest.get('mode') == 'scope' else extract, files):
             results.append(result)
