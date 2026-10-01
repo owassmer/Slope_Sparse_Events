@@ -31,7 +31,7 @@ Entry point: `uv run slope analyze-case <dated-case>`.
 - [x] Report stage progress and write `flow.json` beside the recorded investigation once it exists.
 - [x] Return existing page and financial-artifact locations; document the command and its present limits.
 - [x] Pass eight coordinator checks using stubbed provider/analysis boundaries, plus 21 focused financial checks. CLI help and Ruff pass.
-- [ ] Exercise the connected invocation with real component handoffs through an inspectable financial result; distinguish fixture validation from a live-provider run.
+- [x] Exercise the connected invocation with real component handoffs through an inspectable financial result. `tests/test_pipeline_engine.py` runs a bounded June case through the real evidence snapshot, locked record, event walk, question interface, financial engine, artifact writers and viewer route. Agent submission and external Jev responses are fixtures; this is not live-provider validation.
 - [ ] Complete and inspect a live invocation, including its page, financial artifacts, Jev judgments and investigation links.
 
 Implementation: `app/pipeline.py`, `app/cli.py`, progress callbacks in `app/analysis/build.py`; commit `356043b`, PR [#21](https://github.com/owassmer/Slope_Sparse_Events/pull/21).
@@ -49,6 +49,21 @@ Implementation: `app/pipeline.py`, `app/cli.py`, progress callbacks in `app/anal
 - [ ] Report missing evidence, unsupported mechanisms and provider/budget failures clearly, without treating them as financial conclusions.
 
 Acceptance: interrupt and resume a run with its completed work preserved, then reach the page without manual stage handoffs. Keep this bounded: extend the current run/artifact machinery before introducing a new orchestration framework.
+
+### Concrete production handoff
+
+Adopt the existing May investigation and S3 walk under its current run ID. Do not run another investigation or enumerate the tree again. Extend the coordinator to select the saved execution path, retaining heavy path data on AWS; the local disk cannot hold the production pool.
+
+| Handoff | Existing implementation | Work required |
+| --- | --- | --- |
+| Saved walk → pool | `tools/cloud_control.py`, `tools/cloud_walk.py pool` | Retain the controller's complete-shard selection and coverage checks. Bind the selected run, recorded inputs and model revision before adoption; `pool/ready.json` alone currently contains only completion/count metadata. |
+| Pool → judgments | `app/disputes/pool.py judge` | Transfer the control and 16 question-state buckets, validate complete question coverage, then use the existing Jev cache and budget controls. Coverage must exclude classed parent nodes and explicitly account for never-live classes. |
+| Judgments → financial reduction | `app/analysis/reduce.py` | Feed the selected pool and answers into reduction on remote compute. The existing GitHub reduction workflow expects GitHub pool artifacts, so it cannot consume this S3 pool unchanged. Check every assigned reduction block before merging. |
+| Reduction → inspected page | `app/analysis/tables_page.py` | Use merged financial tables, stress tables and the same judgments to build the page. This writer currently produces page JSON, not the local analysis path's CSV/analysis artifact set; implement and verify the intended output contract before marking the invocation complete. |
+| Interrupted stage → resume | Existing recorded run, caches and saved artifacts | Reuse a stage only with matching inputs and complete outputs. Persist stage outcomes through the coordinator and prevent simultaneous invocations from duplicating paid work. |
+
+- [x] Close the pooled question-coverage gap before live provider calls: reject missing/unexpected states, live/dead contradictions and conflicting duplicate states. `tests/test_pool_coverage.py` covers the failure cases and the valid classed-parent/never-live case.
+- [ ] Implement the above adoption path and exercise it against the production outputs. This table is an implementation plan, not a claim that the stages are already connected.
 
 ## 3. Reassess the expensive computational representation
 
@@ -84,7 +99,7 @@ Run: `akoustis_20240514-agent_plus_jev-20260929T052558Z`.
 - [ ] Complete production judgments, reduction and page inspection through the coordinated handoff work above.
 - [ ] Stop redundant attempts and idle paid resources when their work is no longer needed; retain the final outputs and remove task-specific temporary resources appropriately.
 
-Last verified in this conversation: **66/100 shards saved**. This is a historical checkpoint, not a live counter or percentage of runtime. Refresh from S3 `done/` and the job APIs when reporting current progress.
+Last verified on 2026-09-30 at approximately 21:10 EDT: **70/100 shards saved**, controller process alive. This is a historical checkpoint, not a live counter or percentage of runtime. Refresh from S3 `done/` and the job APIs when reporting current progress.
 
 Operational pointers:
 
@@ -101,4 +116,4 @@ Operational pointers:
 
 Read this plan when resuming the project. Update the same checklist after substantive work or changed decisions, linking implementation and validation evidence. Mark an item complete only when its stated outcome is demonstrated. Keep transient job counts explicitly dated or labelled as last verified. Preserve unresolved work across turns and distinguish implementation, fixture checks, live validation and delivery.
 
-Next priority: finish validating step 1 and make a concrete handoff plan for adopting the current production outputs into step 2. Continue necessary run recovery, but do not allow infrastructure tuning to displace the repeatable flow again.
+Next priority: implement the production adoption path above, then finish live validation of step 1 through the resulting page. Continue necessary run recovery, but do not allow infrastructure tuning to displace the repeatable flow again.

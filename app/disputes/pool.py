@@ -367,13 +367,24 @@ def judge(run_id: str, states: str, control_file: str, count_only: bool = False)
     for f in sorted(glob.glob(os.path.join(states, "**", "states*.json.gz"), recursive=True)):
         with gzip.open(f, "rt") as fh:
             x = json.load(fh)
+        for k, value in x["states"].items():
+            if k in got and got[k] != value:
+                raise SystemExit(f"judge: conflicting question state {k!r} in {f}")
         got.update(x["states"])
         errors.update(x["errors"])
         dead |= set(x.get("never_live", ()))
     if errors:
         raise SystemExit(f"judge: {len(errors)} question states did not build, e.g. {next(iter(errors.items()))}")
     with open(control_file, "rb") as fh:
-        nodes = pickle.load(fh)["nodes"]
+        ctl = pickle.load(fh)
+    nodes = ctl["nodes"]
+    expected = set(nodes) - set(ctl["classed"])
+    present = set(got) | dead
+    missing, extra, overlap = expected - present, present - expected, set(got) & dead
+    if missing or extra or overlap:
+        raise SystemExit(f"judge: incomplete or inconsistent question coverage: "
+                         f"{len(missing)} missing, {len(extra)} unexpected, {len(overlap)} both live and dead; "
+                         f"examples: {sorted(missing | extra | overlap)[:5]}")
     by_type = collections.Counter(nodes[k].node for k in got)
     print(f"{time.time() - t0:7.0f}s judge: {len(got)} questions, {len(dead)} classes live on no path; by type "
           f"{dict(sorted(by_type.items()))}", file=sys.stderr, flush=True)
