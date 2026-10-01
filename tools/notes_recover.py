@@ -126,6 +126,15 @@ def main(worker):
     if sorted(i for task in manifest['tasks'] for i in task['units']) != list(range(len(_PLAN['units']))):
         raise ValueError('Recovery assignments do not cover the exact plan once')
     assigned = manifest['tasks'][worker]['units']
+    if retry_file := os.environ.get('NOTES_RECOVERY_RETRY_FILE'):
+        retry = json.loads(Path(retry_file).read_text())
+        selected = [i for task in retry['tasks'] for i in task]
+        if (retry['plan_sha256'] != manifest['plan_sha256']
+                or sorted(selected) != sorted(set(retry['failed_units']))
+                or any(i < 0 or i >= len(_PLAN['units']) for i in selected)):
+            raise ValueError('Retry assignments differ from the failed units or original plan')
+        assigned = retry['tasks'][worker]
+    print({'worker': worker, 'assigned': assigned, 'processes': os.cpu_count()}, flush=True)
     reports = []
     with multiprocessing.get_context('fork').Pool(os.cpu_count(), maxtasksperchild=30) as workers:
         for report in workers.imap_unordered(one, assigned):

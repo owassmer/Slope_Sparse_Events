@@ -3311,7 +3311,13 @@ class _Walk:
         return True
 
     def _end(self, s: _S, outcome: str, then) -> None:
-        self.emit(s, outcome) if then is None else then(s)
+        if then is not None:
+            return then(s)
+        if self.fc.equity and outcome == "petition":
+            for candidate in self._candidates(s):
+                if self.inside(s.steps + (candidate,)):
+                    return self.ask_distress(s, candidate, outcome, None)
+        self.emit(s, outcome)
 
     def floor(self, s: _S, outcome: str, then=None) -> None:
         """The first day available cash falls below the 30-day operating need: the company files or keeps operating;

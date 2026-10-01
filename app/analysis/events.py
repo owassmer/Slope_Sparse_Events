@@ -2682,7 +2682,7 @@ class Chain:
         """The end of `finish` a light trace leaves out, on the finished chain: each waiting step's facts, the
         question-state snapshot, the booking days a view saw and the day read through (`as_of`)."""
         tr.late = {i: dict(v) for i, v in self.late.items()}
-        tr.situations = ({len(tr.day) - 1: self.c_situation(self._snapshot_day(len(tr.day) - 1))} if day_only
+        tr.situations = ({len(tr.day) - 1: self.c_situation(tr.day[-1])} if day_only
                          and (self.pending or self.ordinary) else self.c_situations(tr))  # the question-state snapshot
         vf = self.__dict__.get("_vfired", {})  # each waiting step's booking day, here or in a view (BIG: neither)
         tr.fired = {i: np.minimum(tr.day[i], vf.get(i, BIG)) for i in tr.late}

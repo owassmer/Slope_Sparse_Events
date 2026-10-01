@@ -1,7 +1,7 @@
 name: notes-recovery
 on:
   push:
-    branches: [notes-recovery]
+    branches: [notes-recovery, notes-recovery-retry]
 permissions:
   contents: read
 jobs:
@@ -17,6 +17,7 @@ jobs:
       OMP_NUM_THREADS: '1'
       SLOPE_JEV_CACHE_ONLY: '1'
       PYTHONPATH: .
+      NOTES_RECOVERY_RETRY_FILE: ${{ github.ref_name == 'notes-recovery-retry' && 'tools/notes-recovery-retry.json' || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
