@@ -37,8 +37,9 @@ def decision_row(fc, d, steps: tuple, index: int, actor: str, mask=None) -> tupl
     quiet = 'due' if node == 'nonpayment' else 'accelerated'
     counterfactual = steps[:index] + ((node, context, quiet),) + steps[index + 1:]
     probe = counterfactual + (('notes_due_date', actor, ''),)
+    rows = None if mask is None else tuple(mask for _ in probe)
     trace = event_trace(d, DisputePath(instance_id=d.instance_id, steps=probe, outcome='', edges=()),
-                        fc.setup, fc.m, fc.draws, fc.sens, day_only=True)
+                        fc.setup, fc.m, fc.draws, fc.sens, day_only=True, rows=rows)
     tr = _Prefix.of(trace, digest=False)
     row = as_of(fc.row_of(tr))
     # fired includes speculative views; only the completed path's booking counts.
@@ -78,12 +79,14 @@ def record(fc, d, steps: tuple, key: str, mask=None):
     context = np.full(len(live), '', dtype=object)
     ruling = next((s[2] for s in steps if s[0] == 'post_trial_ruling'), '')
     verdict = next((s[2] for s in steps if s[0] == 'verdict'), '')
-    label = 'reduced' + ruling.split(':')[1] if ruling.startswith('reduced:') else (
-        'set_aside' if ruling == 'set_aside' else
-        'award' + verdict.split(':')[1] if verdict.startswith('award:') else 'entered')
+    verdict_label = 'award' + verdict.split(':')[1] if verdict.startswith('award:') else verdict or 'claimed'
     walk = _Walk(fc, d)
     for tag in sorted(set(cls[live])):
         selected = cls == tag
+        label = verdict_label
+        if (tr.marks['ruled'][selected] <= row['day'][selected]).all():
+            label = ('reduced' + ruling.split(':')[1] if ruling.startswith('reduced:') else
+                     'set_aside' if ruling == 'set_aside' else verdict_label)
         state = replace(tr, day=[np.where(selected, row['day'], BIG)])
         tags = walk._tags(_S(steps=steps, cls=label), conds, (n.context.split('|')[0],), state, ())
         context[selected] = '|'.join((n.context.split('|')[0], *tags))

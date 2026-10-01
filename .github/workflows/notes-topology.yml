@@ -25,5 +25,10 @@ jobs:
       - run: uv sync --locked
       - run: uv run slope evidence build akoustis_20240514
       - run: uv run python tools/notes_topology.py ${{ matrix.version }}
-        env:
-          NOTES_TOPOLOGY_MANIFEST_URL: ${{ secrets.NOTES_TOPOLOGY_MANIFEST_URL }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: notes-topology-${{ matrix.version }}
+          path: var/notes-topology/calls.pkl.gz
+          if-no-files-found: error
+          retention-days: 1

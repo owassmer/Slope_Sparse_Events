@@ -144,3 +144,51 @@ def test_ripe_filing_continues_to_an_earlier_ruling(case, monkeypatch):
     filed = next(s for s in continued if s.steps[-1][:2] == ('judgment_response', 'ripe')
                  and s.steps[-1][2].endswith('=file'))
     assert w.mask_of(filed.steps)[mask].all()
+
+
+def test_unfired_judgment_question_cannot_borrow_a_later_delisting_default(case):
+    fc, d, _w, key = case
+    steps = (('verdict', 'I0', 'no_award'), ('judgment_default', 'ruling', 'accelerated'),
+             ('listing', '', 'suspended'), ('delisting_notes', 'delisted_suspension', 'accelerated'))
+    generic = fc.trace(d, steps + (('notes_due_date', 'issuer', ''),), real=True)
+    assert (generic.day[-1] < fc.days).any()
+    row, _ = notes.decision_row(fc, d, steps, 1, 'issuer')
+    assert not (row['day'] < fc.days).any()
+    assert not fc.live(fc.nodes[key], row).any()
+
+
+def test_directly_dated_delisting_origin_has_valid_before_filing_facts(case):
+    fc, d, _w, _key = case
+    steps = (('verdict', 'I0', 'no_award'), ('listing', '', 'suspended'),
+             ('delisting_notes', 'delisted_suspension', 'petition_delist'))
+    row, _ = notes.decision_row(fc, d, steps, 2, 'issuer')
+    key = fc.node(d, 'petition_on_notes', 'delisting_delisted_suspension')
+    live = fc.live(fc.nodes[key], row)
+    assert live.any()
+    np.testing.assert_array_equal(row['day'][live], row['sit']['notes_due_day'][live])
+    assert (row['petition'][live] < 0).all()
+
+
+def test_no_award_notes_context_does_not_invent_pending_motions(case):
+    fc, d, _w, _key = case
+    steps = (('verdict', 'I0', 'no_award'), ('listing', '', 'suspended'),
+             ('delisting_notes', 'delisted_suspension', 'accelerated'))
+    key = fc.node(d, 'petition_on_notes', 'delisting_delisted_suspension')
+    cls = notes.record(fc, d, steps, key)
+    for tag in set(cls) - {''}:
+        state, _, _ = fc.state(fc.nodes[fc.class_key(key, tag)])
+        assert 'motions are pending' not in ' '.join(state['assumed_events'])
+
+
+def test_active_draw_replay_matches_full_replay_cash_and_dates(case):
+    fc, d, w, _key = case
+    mask = w.mask_of(STEPS)
+    for actor in ('issuer', 'holders'):
+        full, _ = notes.decision_row(fc, d, STEPS, ORIGIN, actor)
+        selected, _ = notes.decision_row(fc, d, STEPS, ORIGIN, actor, mask)
+        for key in ('day', 'cash', 'owed', 'petition', 'collateral'):
+            np.testing.assert_array_equal(selected[key][mask], full[key][mask], err_msg=key)
+        for section in ('sit', 'marks', 'triggers'):
+            for key, value in full[section].items():
+                if isinstance(value, np.ndarray) and value.shape == (fc.draws.n,):
+                    np.testing.assert_array_equal(selected[section][key][mask], value[mask], err_msg=key)
