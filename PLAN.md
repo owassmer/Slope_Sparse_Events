@@ -190,7 +190,10 @@ Question-state construction is partitioned only after each original bucket's row
 - [x] Implement distributed question-state preparation, workers and exact coverage assembly.
 - [x] Independent scoped review: no changed financial/probability semantics found; fix zero-path adoption rejection and prepared-marker reuse.
 - [x] Pass 13 focused checks, including serial/parallel equivalence on the 50-day fixture (1,410 retained paths, 1,344 nodes), exact ordered question-row partitioning, coverage and saved-pool reuse.
-- [ ] Deploy the revised live fleet.
+- [x] Deploy revision 9cccdda to existing AWS instance i-07454d2f7582ce015 and GitHub workflow [36824836030](https://github.com/owassmer/Slope_Sparse_Events/actions/runs/36824836030).
 - [ ] Verify actual AWS core usage, GitHub runner activity, memory, saved partition progress and final readiness.
 
 Existing six-hour instance termination backstop remains; no additional EC2 instance is required. Full live pool completion and the financial deliverable are still outstanding.
+
+
+Live deployment check: all 16 AWS path workers were observed at 87–99% CPU each. The new pass processed 40/578 parts (200,022 paths) within its first few minutes, versus the replaced pass's 51 parts after over an hour. At that check 39 GitHub jobs had started and one remained queued; state workers wait for the complete control output and their prepared question bundles. This demonstrates active parallel path execution, not completed question-state processing. The old single-core process was retired; the existing instance and downloaded inputs were reused. Both the instance shutdown backstop and scoped source read session were renewed for six hours during the switch. No new EC2 instance was launched.
