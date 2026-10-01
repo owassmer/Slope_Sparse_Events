@@ -8,7 +8,13 @@ A proof of concept for sparse-event credit analysis. An agent researches a rare 
 ```sh
 uv sync
 uv run slope --help
-uv run slope analyze --run <run_id>     # the analysis and its page for a recorded run
+uv run slope analyze-case akoustis_20240514  # evidence → agent + Jev → engine → page
+uv run slope analyze-case akoustis_20240514 --run <run_id>  # reuse a ready investigation
+uv run slope analyze --run <run_id>     # analysis only for a recorded run
 uv run slope viewer                     # read-only viewer at http://127.0.0.1:8000
 uv run pytest
 ```
+
+`analyze-case` uses the dated case’s configured evidence, baseline and financing inputs. It verifies the evidence snapshot, runs the agent-plus-Jev investigation, checks its locked record, obtains the engine’s conditional Jev forecasts, calculates financial outcomes, and writes the existing analysis page and CSVs. It reports each stage and writes `flow.json` beside the recorded run once that run exists. An incomplete investigation, changed evidence or failed forecast stops the invocation with a nonzero exit status.
+
+This first coordinator uses the existing local analysis engine. It does not yet adopt distributed walk outputs or resume an interrupted analysis; `--run` reuses the investigation and runs analysis again. It does not make the current Akoustis tree cheaper to compute. Fresh investigations and uncached Jev questions use the existing configured provider budgets. Start `slope viewer` to open the returned page route.

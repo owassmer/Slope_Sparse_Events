@@ -17,6 +17,7 @@ import re
 import resource
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import date
 from functools import lru_cache
@@ -262,13 +263,14 @@ def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh:
     return out
 
 
-def build(run_id: str, root: Path, refresh: bool = False) -> dict:
+def build(run_id: str, root: Path, refresh: bool = False, *,
+          progress: Callable[[str], None] | None = None) -> dict:
     """The run's analysis, page and Jev exchange log, written beside it."""
     from app.agent import jev as jev_module
 
     jev_module.EXCHANGE_LOG = exchanges = []  # the run's Jev requests and responses, written beside it
     try:
-        return _build(run_id, root, refresh, exchanges)
+        return _build(run_id, root, refresh, exchanges, progress or (lambda stage: None))
     finally:
         jev_module.EXCHANGE_LOG = None
 
@@ -312,7 +314,8 @@ def walk_processes(snapshot_id: str) -> int:
     return int(env) if env else WALK_PROCESSES.get(snapshot_id, 1)
 
 
-def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None = None) -> tuple[Forecaster, EventModel]:
+def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None = None, *,
+                 progress: Callable[[str], None] | None = None) -> tuple[Forecaster, EventModel]:
     """The tree for `setup` (and the chains' parameter sensitivities `sens`), with Jev's answer to every question.
     A question whose facts are unchanged is answered from Jev's cache; one whose facts changed is asked again."""
     from app.agent.jev_profiles import DisputeProfile
@@ -321,6 +324,8 @@ def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None 
                     horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup,
                     basis=basis_for(ctx["feed"], setup),  # path facts are simulated before Jev is asked
                     slots=ctx["slots"], model=ctx["m"], sens=sens)
+    if progress:
+        progress("event_situations")
     procs = walk_processes(ctx["meta"]["snapshot_id"])
     if procs > 1:  # the pending claim's tree on a subtree queue (app/disputes/parallel.py): the single walk's result
         from app.disputes import parallel
@@ -334,6 +339,8 @@ def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None 
     async def ask_both() -> tuple[dict, dict]:  # one event loop: the adapter's HTTP client is bound to it
         return (await fc.judge(judge) if fc.nodes else {}), (await fc.judge_bank(judge) if fc.bank_nodes else {})
 
+    if progress:
+        progress("jev_forecasts")
     judgments, bank_judgments = asyncio.run(ask_both())
     model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered(),
                        neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments)
@@ -356,18 +363,21 @@ def _progress_log():
     return tick
 
 
-def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dict:
+def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict],
+           progress: Callable[[str], None]) -> dict:
     from app.agent.jev import JevAdapter
 
+    progress("engine_context")
     ctx = run_context(run_id, root, refresh)
     meta, setup, borrower, feed, m = ctx["meta"], ctx["setup"], ctx["borrower"], ctx["feed"], ctx["m"]
     records: list = []
     jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
-    fc, model = judged_model(ctx, setup, jev, records)
+    fc, model = judged_model(ctx, setup, jev, records, progress=progress)
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in ctx["live"] if d.status not in ("interpreted", "resolved")]
     say(f"tree: {len(model.combos)} paths, {len(model.bank_paths)} ordinary paths, {len(fc.nodes)} dispute "
         f"nodes, {len(fc.bank_nodes)} ordinary nodes; walk {getattr(fc, 'walk_stats', {})}; Jev {jev.usage_summary()}")
+    progress("financial_analysis")
     t_a = time.time()
     a = Analysis(feed, setup, model, dispute_model=m, progress=_progress_log())
     say(f"analysis: {time.time() - t_a:.0f} s")
@@ -384,6 +394,7 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dic
     write_csv(data, out)
     scratch = VAR / "analysis" / run_id
     scratch.mkdir(parents=True, exist_ok=True)
+    progress("page")
     state = run_page(a, model, fc, borrower=borrower, snapshot_id=meta["snapshot_id"], stress_rows=data["stress"])
     (out / "page.json").write_text(json.dumps(state["payload"], default=str) + "\n")
     save_page_state(run_id, state)

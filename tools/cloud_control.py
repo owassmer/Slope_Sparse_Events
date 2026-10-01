@@ -54,7 +54,7 @@ def watch(config, revision):
     ec2 = boto3.client('ec2', region_name='us-east-1')
     bucket, prefix = config['bucket'], config['prefix']
     queue = read(s3, bucket, f'{prefix}/config.json')
-    original = set(range(100)) - set(queue['jobs'])
+    original = set(queue.get('original_jobs', set(range(100)) - set(queue['jobs'])))
     retired_key = f'{prefix}/drain/original-retired.json'
     original_retired = read(s3, bucket, retired_key) is not None
     previous = None
