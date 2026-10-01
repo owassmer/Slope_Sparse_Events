@@ -147,3 +147,6 @@ Validation: six focused tests passed, including a 50-day May fixture with 1,410 
 - [x] Prepare immutable checkpoint bases and disjoint GitHub/AWS partitions.
 - [ ] Verify live subdivision completion and aggregate coverage; retire redundant original attempts safely.
 - [ ] Complete production pool → judgments → financial reduction → inspected page under the repeatable-flow coordinator.
+
+
+Deployment verification: all nine preparation jobs succeeded. GitHub claimed 120 distinct partitions; AWS claimed 12 concurrently, with its remaining assigned partitions queued locally. SSM verified 15 CPU-bound walker processes on the personal instance (12 refined + 3 original). Live parent subdivisions report 29, 32, and 39 children. The first refined partition, 73-3, completed and published its archives and completion marker; no new workflow job failures were present at that check. A separate real pool.split/control comparison also matched unsplit paths, questions, classes and cumulative event-cash ranges. Review rechecked all three operational fixes with no remaining scoped blocker. Full production assembly is still pending; expired claims are reclaimable by a retry invocation, but workers do not themselves schedule a new invocation.
