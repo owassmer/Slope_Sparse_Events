@@ -23,6 +23,27 @@ _CTL = None
 _FC = None
 
 
+def scope(path):
+    """Locate changed continuations, including questions hidden by old local merges."""
+    from collections import defaultdict
+
+    part = parallel.read_part(str(path))
+    segments = defaultdict(lambda: {'paths': 0, 'notes': 0, 'ripe_filing': 0})
+    total = 0
+    for ekey, kind, value, _cond in part['events']:
+        if ekey[1] != 0 or kind != 'path':
+            continue
+        p = value[0]
+        row = segments[ekey[:3]]
+        row['paths'] += 1
+        total += 1
+        row['notes'] += int(any(s[0] in ('judgment_default', 'delisting_notes', 'nonpayment') for s in p.steps))
+        row['ripe_filing'] += int(any(s[0] == 'judgment_response' and s[1] == 'ripe'
+                                     and s[2].split('=')[-1] == 'file' for s in p.steps))
+    return {'part': int(path.stem[4:]), 'paths': total,
+            'segments': [(key, value) for key, value in sorted(segments.items())]}
+
+
 def validate(path):
     """Replay the failed question on original histories, before either answer books."""
     from app.disputes import notes
@@ -117,17 +138,18 @@ def github(worker):
             files.extend(group)
     results = []
     with multiprocessing.get_context('fork').Pool(os.cpu_count()) as workers:
-        for result in workers.imap_unordered(extract, files):
+        for result in workers.imap_unordered(scope if manifest.get('mode') == 'scope' else extract, files):
             results.append(result)
-            print({k: v for k, v in result.items() if k != 'file'}, flush=True)
+            print({k: v for k, v in result.items() if k not in ('file', 'segments')}, flush=True)
     report = {'worker': worker, 'cores': os.cpu_count(), 'parts': results,
-              'paths': sum(r['paths'] for r in results), 'affected': sum(r['affected'] for r in results)}
+              'paths': sum(r['paths'] for r in results), 'affected': sum(r.get('affected', 0) for r in results)}
     (root / 'report.json').write_text(json.dumps(report))
     output = root / 'result.tgz'
     with tarfile.open(output, 'w:gz', compresslevel=1) as tar:
         tar.add(root / 'report.json', arcname='report.json')
         for result in results:
-            tar.add(result['file'], arcname=Path(result['file']).name)
+            if 'file' in result:
+                tar.add(result['file'], arcname=Path(result['file']).name)
     put(task['output'], output.read_bytes())
     print({k: v for k, v in report.items() if k != 'parts'}, flush=True)
 
