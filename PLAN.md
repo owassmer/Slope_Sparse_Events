@@ -1,6 +1,6 @@
 # Repeatable event-analysis flow: plan and todo list
 
-Updated: 2026-09-30. Owner: Codex, working with Owen. Current focus: establish and validate the connected flow (step 1). Later steps below are planned work, not completed capabilities.
+Updated: 2026-10-01. Owner: Codex, working with Owen. Current focus: adopt the now-complete 100-shard walk into the repeatable pool → Jev → financial reduction → page flow. Live end-to-end validation remains outstanding.
 
 ## Objective and reason for the realignment
 
@@ -95,7 +95,8 @@ Run: `akoustis_20240514-agent_plus_jev-20260929T052558Z`.
 - [x] Start replacement attempts for original shards 25 and 26 while retaining their original attempts. Canonical selection accepts one complete result per shard.
 - [x] Verify all eleven replacement workers have claimed their work and are computing.
 - [x] Restore the controller after the connection interruption; preserve the original shard assignment when the recovery queue expands.
-- [ ] Finish all shards and verify complete coverage before accepting the pooled output.
+- [x] Finish and save all 100 shards (2026-10-01 UTC).
+- [ ] Verify global coverage and question-state completeness before accepting the pooled output.
 - [ ] Complete production judgments, reduction and page inspection through the coordinated handoff work above.
 - [ ] Stop redundant attempts and idle paid resources when their work is no longer needed; retain the final outputs and remove task-specific temporary resources appropriately.
 
@@ -145,8 +146,19 @@ Validation: six focused tests passed, including a 50-day May fixture with 1,410 
 
 - [x] Implement and deploy subdivision preserving saved segments.
 - [x] Prepare immutable checkpoint bases and disjoint GitHub/AWS partitions.
-- [ ] Verify live subdivision completion and aggregate coverage; retire redundant original attempts safely.
+- [x] Finish the remaining shard results and retire redundant walk attempts; shards 32/71 passed subdivision coverage during assembly, while shard 76 completed through its original attempt. Global pool coverage remains a separate pending check.
 - [ ] Complete production pool → judgments → financial reduction → inspected page under the repeatable-flow coordinator.
 
 
 Deployment verification: all nine preparation jobs succeeded. GitHub claimed 120 distinct partitions; AWS claimed 12 concurrently, with its remaining assigned partitions queued locally. SSM verified 15 CPU-bound walker processes on the personal instance (12 refined + 3 original). Live parent subdivisions report 29, 32, and 39 children. The first refined partition, 73-3, completed and published its archives and completion marker; no new workflow job failures were present at that check. A separate real pool.split/control comparison also matched unsplit paths, questions, classes and cumulative event-cash ranges. Review rechecked all three operational fixes with no remaining scoped blocker. Full production assembly is still pending; expired claims are reclaimable by a retry invocation, but workers do not themselves schedule a new invocation.
+
+
+## Walk complete — 2026-10-01 UTC
+
+All 100 canonical shard completion markers are present in the original bucket, with no missing shard IDs. Shard 76's original GitHub attempt finished and published all 17 data archives plus its log at 04:51:39 UTC, before another subdivision was launched. Its still-running refinement partition became redundant. No further split was needed or deployed.
+
+The GitHub workflow's all-workers dependency unnecessarily held ready assemblies behind that partition. Shards 32 and 71 were instead assembled on the existing personal AWS instance from all 24 saved partitions each; both passed the original-segment and subdivision coverage checks, uploaded their 17 archives, and published canonical completion. The completion log is in `s3://slope-walk-462947327980-20261001/walk-36781427817/boot/assembly-complete.log`. Existing S3 results remain intact. Global pooling, Jev forecasts, financial reduction and the final page have NOT yet completed.
+
+Compute cleanup: GitHub runs 36811398163 and 36798387748 were intentionally cancelled to stop redundant attempts; fleet 36793444620 had already succeeded. All original AWS walk process groups were killed after their replacement outputs were saved. The personal instance i-055c5f6ee1e0b8caf resumes its shutdown trap after successful assembly and is terminating automatically. The two stopped company-account walk instances i-0e4b0a03a57c5f734 and i-08c4d2ae17f6bbb80 were terminated, with their delete-on-termination worker volumes. S3 storage still exists in both accounts and still incurs storage charges; final-output migration and temporary-object cleanup remain outstanding.
+
+Next: finish the uncommitted pooled coordinator, consolidate the selected production outputs in the intended account, and execute coverage-checked pooling → Jev → reduction → inspected page. Do not restart the walk or the old company-account controller.
