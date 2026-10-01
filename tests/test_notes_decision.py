@@ -125,3 +125,22 @@ def test_completed_notes_classes_conserve_probability_on_each_draw(case, monkeyp
             mask = path_mask(path, fc.draws.n)
             cover += path_probability(path.edges, dist) * (1 if mask is None else mask)
         np.testing.assert_allclose(cover, expected.astype(float), atol=1e-12)
+
+
+def test_ripe_filing_continues_to_an_earlier_ruling(case, monkeypatch):
+    fc, d, w, _ = case
+    prefix = STEPS[:14] + (('judgment_response', 'ripe', '@2=file'),)
+    before = fc.trace(d, prefix, full=True, real=True)
+    after = fc.trace(d, prefix + (('post_trial_ruling', '', 'set_aside'),), full=True, real=True)
+    mask = w.mask_of(prefix)
+    assert (before.petition[mask] >= 0).all()
+    assert ((after.petition < 0) & mask).sum() == 8
+    continued = []
+    monkeypatch.setattr(w, 'first', lambda *args: False)
+    monkeypatch.setattr(w, 'notes_petition', lambda s, *args: continued.append(s))
+    monkeypatch.setattr(w, 'offer', lambda s, phase, then: then(s))
+    monkeypatch.setattr(w, 'tail', lambda *args: pytest.fail('ripe filing skipped its ruling'))
+    w.ripe_i1(_S(steps=STEPS[:14], cls='award2397555350', a4='seek'))
+    filed = next(s for s in continued if s.steps[-1][:2] == ('judgment_response', 'ripe')
+                 and s.steps[-1][2].endswith('=file'))
+    assert w.mask_of(filed.steps)[mask].all()

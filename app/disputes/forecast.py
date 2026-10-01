@@ -2620,7 +2620,8 @@ class _Walk:
         assumed = ((() if phase == "entry" else ("the judgment is enforceable, unstayed and unpaid",)) + when
                    + (("the company has moved for a stay, not yet approved",) if pending else ()))
         late = phase in ("post", "ripe")  # booked on its own day (events.py `waits`)
-        filed = lambda z: self.tail(z, "petition")  # noqa: E731
+        # At the ripe date the caller still owes the earlier-dated ruling chain.
+        filed = on_file if phase == "ripe" else lambda z: self.tail(z, "petition")
         paid = lambda z: self.tail(z, "paid")  # noqa: E731
 
         def go(y: _S, b: str) -> None:
@@ -2796,13 +2797,9 @@ class _Walk:
         responds (D2), then the holders decide (H1). The response books on its own day (events.py `waits`)."""
         after = lambda y: self.notes_petition(y, "I1", self.ruling)  # noqa: E731
 
-        def filed(y: _S) -> None:  # the walk goes on where the day does not arise on some trajectory
-            everywhere = (self._trace(y.steps, True).petition >= 0).all()
-            self.emit(y, "petition") if everywhere else after(y)
-
         if self.pend and self.reading() == "entered" and s.a4 == "seek" \
                 and self.arises(s, (self.resp, "ripe", self.quiet)):
-            return self.a4(s, "ripe", after, filed)
+            return self.a4(s, "ripe", after, after)
         after(s)
 
 
