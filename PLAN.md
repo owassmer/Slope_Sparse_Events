@@ -96,7 +96,8 @@ Run: `akoustis_20240514-agent_plus_jev-20260929T052558Z`.
 - [x] Verify all eleven replacement workers have claimed their work and are computing.
 - [x] Restore the controller after the connection interruption; preserve the original shard assignment when the recovery queue expands.
 - [x] Finish and save all 100 shards (2026-10-01 UTC).
-- [ ] Verify global coverage and question-state completeness before accepting the pooled output.
+- [x] Verify global segment coverage: 6,573 original segments, zero missing, 578 saved parts (138 restored); 6,571 whole segments plus two completely covered by subdivisions.
+- [ ] Verify question-state completeness before accepting the pooled output.
 - [ ] Complete production judgments, reduction and page inspection through the coordinated handoff work above.
 - [ ] Stop redundant attempts and idle paid resources when their work is no longer needed; retain the final outputs and remove task-specific temporary resources appropriately.
 
@@ -175,3 +176,6 @@ Commit c810a30 reads the immutable selected archives from the old bucket through
 The original walk used revision 9940c61; subsequent saved-worker pins changed scheduling and verified processor optimizations. Recorded investigation, contracts, bank baseline, run inputs, forecast/event rules are unchanged. Scenario JSON changes are note/basis prose and the verdict-form explanatory amounts paragraph; numeric/timing settings are unchanged. Current production binding was successfully validated against the real locked run before pooling. Source data remains in the old account until retained outputs and any required migration are settled.
 
 Adapter review fixes: validate extracted downloads against their contents, include actual path files and dispute replay code in reduction identity, reject missing paths, and enforce question-state coverage before publishing a pool. Eighteen focused checks pass. Production pool completion remains pending.
+
+
+Pool execution verified: global coverage passed with zero missing segments. The worker is now in `merge_paths_and_questions`; the source control archive set occupies approximately 17 GiB unpacked. The preliminary inventory/coverage result is saved as `pool/walk-inventory.json` in the personal bucket. The independent review verified c810a30's source/destination separation, coverage/readiness gates, pinned checkpoints and saved-path invalidation, with no remaining scoped blocker. Exact retained-path/question counts and final pool readiness remain pending.
