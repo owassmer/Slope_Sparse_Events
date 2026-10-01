@@ -36,7 +36,7 @@ Entry point: `uv run slope analyze-case <dated-case>`.
 
 Implementation: `app/pipeline.py`, `app/cli.py`, progress callbacks in `app/analysis/build.py`; commit `356043b`, PR [#21](https://github.com/owassmer/Slope_Sparse_Events/pull/21).
 
-**Current limit:** this is a local coordinator over the existing engine. It still builds the existing tree. It does not yet consume distributed walk outputs, resume interrupted analysis, or demonstrate practical end-to-end Akoustis execution. Do not mark step 1 fully validated based on the coordinator tests alone.
+**Current limit:** the coordinator now has local and saved-pool paths. The saved-pool adapter (commit `c810a30`) binds inputs, verifies coverage, hashes path inputs, and resumes forecasts/reduction batches; 18 focused checks pass. Production pooling is running, but practical end-to-end Akoustis execution and the resulting page are not yet validated. Do not mark step 1 complete based on fixture checks alone.
 
 ## 2. Make execution and recovery belong to the invocation
 
@@ -162,3 +162,16 @@ The GitHub workflow's all-workers dependency unnecessarily held ready assemblies
 Compute cleanup: GitHub runs 36811398163 and 36798387748 were intentionally cancelled to stop redundant attempts; fleet 36793444620 had already succeeded. All original AWS walk process groups were killed after their replacement outputs were saved. The personal instance i-055c5f6ee1e0b8caf resumes its shutdown trap after successful assembly and is terminating automatically. The two stopped company-account walk instances i-0e4b0a03a57c5f734 and i-08c4d2ae17f6bbb80 were terminated, with their delete-on-termination worker volumes. S3 storage still exists in both accounts and still incurs storage charges; final-output migration and temporary-object cleanup remain outstanding.
 
 Next: finish the uncommitted pooled coordinator, consolidate the selected production outputs in the intended account, and execute coverage-checked pooling → Jev → reduction → inspected page. Do not restart the walk or the old company-account controller.
+
+
+## Production pooling launched — 2026-10-01 UTC
+
+Canonical inventory: 100 selected shards, all 1,700 required data archives present and nonempty, 68,193,079,339 compressed bytes (63.5 GiB), including 1,306,707,737 control bytes. The topology recorded by the workers has 6,573 original segments; global coverage is checked again during pooling. Shards 32 and 71 use assembled refinements; the other canonical results are whole-shard completions. Retained paths and question counts come from the global pool, not a sum of duplicated worker logs.
+
+Pooling instance i-07454d2f7582ce015, account 462947327980/profile slope, us-east-2: r7a.4xlarge, 16 vCPUs, 128 GiB RAM, 300 GiB temporary gp3. Spot quoted $0.2765/hour but organization policy p-x78f7zf6 explicitly denied the Spot launch; the permitted on-demand launch uses the previously verified $1.2172/hour compute rate. Storage and transfer are extra. Six-hour shutdown backstop and automatic termination on completion/failure.
+
+Commit c810a30 reads the immutable selected archives from the old bucket through a six-hour S3-read-only delegated session; writes all pool outputs, stage checkpoints, input bindings and live logs to the personal bucket. It does not first duplicate 63.5 GiB of raw inputs. Destination: `s3://slope-walk-462947327980-20261001/walk-36781427817/pool/`. Watch `progress.json`, `resources.json`, `live.log`, `walk-summary.json`, `control-ready.json`, `states*-ready.json`, and finally `ready.json`. Four question buckets run concurrently. The readiness marker requires exact question-state coverage and no state-building errors, with no Jev calls during pooling. Saved selection/binding mismatches are rejected before reusing checkpoints.
+
+The original walk used revision 9940c61; subsequent saved-worker pins changed scheduling and verified processor optimizations. Recorded investigation, contracts, bank baseline, run inputs, forecast/event rules are unchanged. Scenario JSON changes are note/basis prose and the verdict-form explanatory amounts paragraph; numeric/timing settings are unchanged. Current production binding was successfully validated against the real locked run before pooling. Source data remains in the old account until retained outputs and any required migration are settled.
+
+Adapter review fixes: validate extracted downloads against their contents, include actual path files and dispute replay code in reduction identity, reject missing paths, and enforce question-state coverage before publishing a pool. Eighteen focused checks pass. Production pool completion remains pending.
