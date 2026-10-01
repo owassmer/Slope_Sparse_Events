@@ -2183,7 +2183,7 @@ class _Walk:
         k = self.fc.node(self.d, name, *ctx, *tags, assumptions=assumptions, branches=branches)
         if groups is not None:
             self.fc.grouped.add(k)
-        if s is not None and probe is not None and self.fc._classified(k) \
+        if s is not None and probe is not None and self.fc._classified(k) and not self.deferred_notes(k) \
                 and not any(e[0] == s.steps for e in self.fc._qcanon.get(k, ())):
             # QUESTIONS §1 Grouping: each draw's class as the question is asked, on the branch that books nothing (the
             # state before the decision); every branch's paths and rows read it (`Forecaster.canon_get`)
@@ -2195,6 +2195,12 @@ class _Walk:
                 cls = situation_class(row, self.fc.live(self.fc.nodes[k], row))
             self.fc.canon_put(k, s.steps, cls)
         return k
+
+    def deferred_notes(self, key: str) -> bool:
+        """Pending notes decisions read their completed, before-action path."""
+        from app.disputes.notes import NAMES
+
+        return self.pend and self.fc.nodes[key].node in NAMES
 
     def _reads(self, walk: str) -> None:
         """A later question asked where the walk's structure depends on a watched event (`_Watch.walks`)."""
@@ -2229,7 +2235,7 @@ class _Walk:
                 if k in seen or not self.fc._classified(k):
                     continue
                 seen.add(k)
-                cls = self.fc.canon_get(k, steps)
+                cls = late.get(k) if self.deferred_notes(k) else self.fc.canon_get(k, steps)
                 if cls is None:
                     cls = late[k] if k in late else self.fc._qcls_get(k, steps)
                 if cls is not None:
@@ -2339,7 +2345,8 @@ class _Walk:
 
     def rec(self, k: str, steps) -> None:
         """Record a question's facts from the prefix `steps` (its last step is the question's own day)."""
-        self.fc.record((k,), self._facts(steps))
+        if not self.deferred_notes(k):
+            self.fc.record((k,), self._facts(steps))
 
     def inside(self, steps) -> bool:
         """Whether the last step's decision falls inside the horizon, before any petition, on some trajectory."""
@@ -2699,11 +2706,12 @@ class _Walk:
         # a pending claim's default books on its own day (events.py `waits`): its facts come from each whole path
         take = ((lambda st, e, **kw: s.add(st, e, late=s.late + ((h1, len(s.steps)),), **kw)) if self.pend
                 else (lambda st, e, **kw: self.take(s, st, e, (h1,), **kw)))
-        classes = self.unfiled(s, "judgment_default", phase, classes, (("holders_file", "accelerated"),))
-        classes = self.joined(s, "judgment_default", phase, classes, (("yes", "holders_file"),))
+        if not self.pend:
+            classes = self.unfiled(s, "judgment_default", phase, classes, (("holders_file", "accelerated"),))
+            classes = self.joined(s, "judgment_default", phase, classes, (("yes", "holders_file"),))
         for branch, parts in classes.items():
             y = take(("judgment_default", phase, branch), (composite(parts), "yes"), notes_due=True)
-            if branch != "accelerated" and (self._trace(y.steps, True).petition >= 0).all():
+            if not self.pend and branch != "accelerated" and (self._trace(y.steps, True).petition >= 0).all():
                 self.floor(y, "petition")  # a petition on every trajectory
             else:
                 then(y)
@@ -2713,7 +2721,7 @@ class _Walk:
         """The petition questions on notes due and unpaid get the facts of the day each actor may file, on the
         trajectories where the notes fell due: the issuer on the day they fall due, the holders once §7.06 allows."""
         for k, steps in at:
-            self.fc.record((k,), self._facts(s.steps + steps))
+            self.rec(k, s.steps + steps)
 
     def joined(self, s: _S, node: str, ctx: str, classes: dict, sets) -> dict:
         """QUESTIONS §1 Depth at the fork: of the branches in each of `sets` (branches the walk continues the same way,
@@ -3127,7 +3135,8 @@ class _Walk:
             classes = {"petition_delist": classes["petition_delist"],
                        "petition_delist_holders": [[(h2, "accelerate"), (a5, "no"), (h3, "yes")]],
                        "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]], "none": classes["none"]}
-        classes = self.joined(s, "delisting_notes", dc, classes, (("petition_delist", "petition_delist_holders"),))
+        if not self.pend:
+            classes = self.joined(s, "delisting_notes", dc, classes, (("petition_delist", "petition_delist_holders"),))
         for c, parts in classes.items():
             self.distress(s.add(("delisting_notes", dc, c), (composite(parts), "yes"), notes_due=c != "none"),
                           "petition" if c.startswith("petition") else outcome)
@@ -3363,7 +3372,13 @@ class _Walk:
                 r = self.fc.__dict__.setdefault("ev_range", [np.zeros(self.N), np.zeros(self.N)])
                 np.minimum(r[0], cum.min(axis=0), out=r[0])
                 np.maximum(r[1], cum.max(axis=0), out=r[1])
-        late = self.fc.record_late(self.d, s.steps, s.late, m, tr=tr) if s.late else {}
+        pending = tuple((k, i) for k, i in s.late if not self.deferred_notes(k))
+        late = self.fc.record_late(self.d, s.steps, pending, m, tr=tr) if pending else {}
+        if self.pend:
+            from app.disputes.notes import record
+
+            for k in sorted({k for edge, _ in s.edges for k in atoms(edge) if self.deferred_notes(k)}):
+                late[k] = record(self.fc, self.d, s.steps, k, m)
         self.out.append(DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome=outcome, edges=s.edges,
                                     mask=pack_mask(m), classes=self._classes_of(s.edges, s.steps, m, late or {})))
 

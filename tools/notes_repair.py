@@ -20,6 +20,36 @@ from tools.pool_fleet import fetch, put
 
 KEY = 'dispute_002:holders_involuntary|judgment_ruling|motions_pending'
 _CTL = None
+_FC = None
+
+
+def validate(path):
+    """Replay the failed question on original histories, before either answer books."""
+    from app.disputes import notes
+    from app.disputes.forecast import path_mask
+
+    global _FC
+    if _FC is None:
+        _FC = pool.forecaster('akoustis_20240514-agent_plus_jev-20260929T052558Z', _CTL)
+    fc = _FC
+    d = next(d for d in fc.disputes if d.instance_id == fc.nodes[KEY].instance_id)
+    count = live = draws = 0
+    classes, segments = set(), set()
+    with gzip.open(path, 'rb') as stream:
+        rows = pickle.load(stream)
+    for ekey, (p, _eq, _watch) in rows:
+        cls = notes.record(fc, d, p.steps, KEY, path_mask(p, fc.draws.n))
+        on = cls != ''
+        count += 1
+        live += int(on.any())
+        draws += int(on.sum())
+        classes.update(cls[on])
+        segments.add(ekey[:3])
+        # These are validation rows, never production pool inputs.
+        fc.facts.clear()
+        fc._late_seen.clear()
+    return {'part': path.name, 'paths': count, 'live_paths': live, 'live_draws': draws,
+            'classes': sorted(classes), 'segments': sorted(segments)}
 
 
 def extract(path):
@@ -57,6 +87,19 @@ def github(worker):
     global _CTL
     with (root / 'control.pkl').open('rb') as stream:
         _CTL = pickle.load(stream)
+
+    if manifest.get('mode') == 'validate':
+        archive = root / 'raw.tgz'
+        fetch(task['input'], archive)
+        with tarfile.open(archive) as tar:
+            tar.extractall(root / 'raw', filter='data')
+        with multiprocessing.get_context('fork').Pool(os.cpu_count()) as workers:
+            results = list(workers.imap_unordered(validate, (root / 'raw').glob('*.pkl.gz')))
+        report = {'worker': worker, 'cores': os.cpu_count(), 'parts': results,
+                  **{k: sum(r[k] for r in results) for k in ('paths', 'live_paths', 'live_draws')}}
+        put(task['output'], json.dumps(report).encode())
+        print({k: v for k, v in report.items() if k != 'parts'}, flush=True)
+        return
 
     def source(item):
         archive = root / f"source-{item['job']}.tgz"

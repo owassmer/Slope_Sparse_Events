@@ -223,3 +223,18 @@ The remaining partition 4-2 rejects `dispute_002:holders_involuntary|judgment_ru
 - [x] Rescue the healthy task stranded behind the failed task onto available AWS cores.
 - [ ] Correct the remaining no-cash-state dependency and complete exact 96-partition coverage.
 - [ ] Publish final pool readiness, then run judgments and financial reduction through the repeatable invocation.
+
+## Notes decision correction — GitHub-first recovery
+
+The missing state is a live question, not an unused dependency. Original control recovery on GitHub run 36890822835 completed 40/40 workers (160 cores), inspecting 4,326,830 original paths and preserving 37,190 affected histories across 210 original segments. Later-walked settlement decisions can occur before the holders' filing date and remove the prefix's assumed prior filing. The original prefix facts and early termination therefore cannot be reused as authoritative.
+
+- [x] Recover original histories, including those lost behind globally merged representatives.
+- [x] Reproduce the defect in a deterministic fixture: prefix has no live holders decision; completed path has a decision on draw 7, day 168, after acceleration on day 108.
+- [x] Implement complete-path, before-own-action notes rows with actual trigger-date binding and actual semantic context; bypass pending notes prefix classes and local merges; continue issuer and holders branches through remaining dated decisions.
+- [x] Pass four targeted regressions and 17 focused checks in total, including question facts invariant to their own answer and notes-fork probability conservation.
+- [ ] Validate all 37,190 recovered histories on 40 GitHub runners, four processes per runner. Validation outputs are separate from production pool inputs.
+- [ ] Confirm segment topology and the full affected population, regenerate missing continuations, and rebuild affected classes/states, including previously successful ones.
+- [ ] Resolve the independently flagged ripe-response early-termination shortcut with a concrete regression.
+- [ ] Complete exact pooled question coverage, then judgments, financial reduction and page delivery.
+
+The temporary repair instance i-0ec1292733be502cc was terminated after its artifacts were saved. Use GitHub capacity first; no new paid AWS compute is authorized by this recovery plan. The saved 95/96 state partitions are not proof of correctness under changed notes classes; no production ready marker or Jev call has been issued.

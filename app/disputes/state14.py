@@ -830,6 +830,14 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     entry = registry_entry(n.question_id)
     labels = {**fc.m.get("case_labels", {}), **(fc.labels(d) if d.stage == PENDING else {})}
     g = Group.of(rows, eligible(fc, n, rows, masks)) if rows else None
+    if rows and any('note_context' in row for row in rows):
+        if not all('note_context' in row for row in rows):
+            raise Unbuilt('mixed prefix and complete-path notes facts')
+        if g is not None:
+            contexts = set(g.field('note_context'))
+            if len(contexts) != 1:
+                raise Unbuilt('notes class mixes decision-time contexts')
+            tags = str(g.at_rep('note_context')).split('|')
     keys = t["situation_keys"]
     if n.node == "post_trial_ruling" and "reduced" not in n.branches:
         keys = [k for k in keys if k not in ("reduced_low", "reduced_high")]
