@@ -291,16 +291,36 @@ def fetch_group(s3, bucket, source, name, target):
             tar.extractall(target, filter='data')
 
 
-def upload_group(s3, bucket, key, path):
+def upload_group(s3, bucket, key, path, processes=4):
     with tempfile.NamedTemporaryFile(suffix='.tgz') as f:
-        with tarfile.open(fileobj=f, mode='w:gz', compresslevel=1) as tar:
-            tar.add(path, arcname='.')
+        if shutil.which('pigz'):
+            # Stream tar through parallel gzip; preserve the same archive layout and compression level.
+            with subprocess.Popen(['tar', '-cf', '-', '-C', str(path), '.'], stdout=subprocess.PIPE) as tar:
+                with subprocess.Popen(['pigz', '-1', '-p', str(processes)], stdin=tar.stdout, stdout=f) as gz:
+                    tar.stdout.close()
+                    if gz.wait() or tar.wait():
+                        raise RuntimeError('parallel archive compression failed')
+        else:
+            with tarfile.open(fileobj=f, mode='w:gz', compresslevel=1) as tar:
+                tar.add(path, arcname='.')
         f.flush()
         s3.upload_file(f.name, bucket, key)
 
 
+
+def path_fingerprints(folder):
+    import hashlib
+
+    def digest(path):
+        with path.open('rb') as stream:
+            return str(path.relative_to(folder)), hashlib.file_digest(stream, 'sha256').hexdigest()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as workers:
+        return dict(workers.map(digest, sorted(p for p in folder.rglob('*') if p.is_file())))
+
 def pool(bucket, prefix, slots, *, source_bucket=None, source_s3=None):
     """Pool one canonical result per shard, checkpointing stages in the destination account."""
+    import hashlib
     from collections import Counter
 
     from app.analysis.pooled import binding, save
@@ -349,22 +369,35 @@ def pool(bucket, prefix, slots, *, source_bucket=None, source_s3=None):
             s3.download_file(bucket, f'{prefix}/pool/control.pkl', str(root / 'ctl/control.pkl'))
             fetch_group(s3, bucket, f'{prefix}/pool', 'paths', root / 'ctl/paths')
         else:
-            progress('download_control', shards=100)
-            # This root is already bound to the exact selected archives above.
-            if not (root / 'walk_roots.pkl').exists() or not (root / 'control').exists():
-                download('control', root / 'control')
-            progress('verify_segment_coverage')
-            if not (root / 'walk_roots.pkl').exists():
-                subprocess.run(['.venv/bin/python', '-m', 'app.disputes.parallel', 'spill',
-                                str(root / 'control'), str(root / 'walk_roots.pkl')], check=True, env=env)
-            with (root / 'walk_roots.pkl').open('rb') as f:
-                missing = pickle.load(f)
-            if missing:
-                s3.upload_file(str(root / 'walk_roots.pkl'), bucket, f'{prefix}/pool/walk_roots.pkl')
-                raise RuntimeError(f'{len(missing)} segments require recovery; no partial model will be published')
-            progress('merge_paths_and_questions')
-            subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'control',
-                            str(root / 'control'), str(root / 'ctl')], check=True, env=env)
+            checkpoint = root / 'control-local-ready.json'
+            local_control = root / 'ctl/control.pkl'
+            identity = hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest()
+            resume = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
+            local_ready = (resume.get('inputs') == identity and local_control.exists()
+                           and resume.get('control') == hashlib.sha256(local_control.read_bytes()).hexdigest()
+                           and resume.get('paths') == path_fingerprints(root / 'ctl/paths'))
+            if not local_ready:
+                progress('download_control', shards=100)
+                # This root is already bound to the exact selected archives above.
+                if not (root / 'walk_roots.pkl').exists() or not (root / 'control').exists():
+                    download('control', root / 'control')
+                progress('verify_segment_coverage')
+                if not (root / 'walk_roots.pkl').exists():
+                    subprocess.run(['.venv/bin/python', '-m', 'app.disputes.parallel', 'spill',
+                                    str(root / 'control'), str(root / 'walk_roots.pkl')], check=True, env=env)
+                with (root / 'walk_roots.pkl').open('rb') as f:
+                    missing = pickle.load(f)
+                if missing:
+                    s3.upload_file(str(root / 'walk_roots.pkl'), bucket, f'{prefix}/pool/walk_roots.pkl')
+                    raise RuntimeError(f'{len(missing)} segments require recovery; no partial model will be published')
+                progress('merge_paths_and_questions')
+                subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'control',
+                                str(root / 'control'), str(root / 'ctl')], check=True, env=env)
+                save(checkpoint, {'inputs': identity,
+                                  'control': hashlib.sha256(local_control.read_bytes()).hexdigest(),
+                                  'paths': path_fingerprints(root / 'ctl/paths')})
+            else:
+                progress('resume_completed_control')
             with (root / 'ctl/control.pkl').open('rb') as f:
                 ctl = pickle.load(f)
             summary = {k: ctl[k] for k in ('walked', 'paths', 'segments', 'parts')}
@@ -377,7 +410,7 @@ def pool(bucket, prefix, slots, *, source_bucket=None, source_s3=None):
             if ctl['raised']:
                 raise RuntimeError(f"{len(ctl['raised'])} offering continuations require a further walk")
             s3.upload_file(str(root / 'ctl/control.pkl'), bucket, f'{prefix}/pool/control.pkl')
-            upload_group(s3, bucket, f'{prefix}/pool/paths.tgz', root / 'ctl/paths')
+            upload_group(s3, bucket, f'{prefix}/pool/paths.tgz', root / 'ctl/paths', processes=16)
             create(s3, bucket, f'{prefix}/pool/control-ready.json', summary)
             shutil.rmtree(root / 'control')
         with (root / 'ctl/control.pkl').open('rb') as f:
