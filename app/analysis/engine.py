@@ -59,6 +59,11 @@ def installment_amounts(amount: np.ndarray, fee_bps: int, n: int) -> np.ndarray:
     """[len(amount), n] installments in whole cents: total = amount + fee (half up), n equal parts (half up), the
     remainder on the last. Identical to `SlopeOffer.schedule`."""
     amount = np.asarray(amount, dtype=np.int64)
+    from app.analysis.native import native_function
+
+    native = native_function("analysis_installments")
+    if native is not None:
+        return native(amount, fee_bps, n)
     total = amount + (2 * amount * fee_bps + 10_000) // 20_000
     base = (2 * total + n) // (2 * n)
     out = np.repeat(base[:, None], n, axis=1)
@@ -123,6 +128,11 @@ class Trajectories:
     @property
     def fees(self) -> np.ndarray:
         """Fees on everything owed from the review date: new draws' fees plus the opening installments' fee share."""
+        from app.analysis.native import native_function
+
+        native = native_function("analysis_fees")
+        if native is not None:
+            return native(self)
         return self.contractual - self.drawn - self.opening_principal
 
 
@@ -246,7 +256,10 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash], nonpayment
     pet = np.concatenate([np.where((e.petition >= 0) & (e.petition < days), e.petition, days) for e in events]
                          ).astype(np.int64, copy=False)
     ex = s.exposure
-    (cash, collections, fundings, outstanding, due, funded, contract, collected, failed, hr, dr) = _net_kernel(
+    from app.analysis.native import native_function
+
+    (cash, collections, fundings, outstanding, due, funded, contract, collected, failed, hr, dr) = (
+        native_function("net_kernel") or _net_kernel)(
         base, pet, need, limit, month_end, routes, due_idx, np.int64(s.fee_bps), s.installments,
         s.collection == "debit", due0, book_d, book_a, np.int64(opening_cents + ex.cash_cents),
         np.int64(ex.principal_cents), np.int64(ex.owed_cents), b * nroutes)
@@ -300,8 +313,11 @@ def _in_loop_order(hr: tuple, dr: tuple, days: int, slots: int) -> tuple:
     """The kernels emit headroom and draw entries row by row; the day loop over stacked rows emitted them by day, then
     (draws) slot, then row. Returns (rows, values, days) and (rows, days, amounts) in that order."""
     (hr_r, hr_t, hr_v), (dr_t, dr_k, dr_r, dr_a) = hr, dr
-    o = _stable_buckets(hr_t, days)  # rows ascending within a bucket: the kernels emit row by row
-    p = _stable_buckets(dr_t * slots + dr_k, days * slots)
+    from app.analysis.native import native_function
+
+    bucket_order = native_function("stable_buckets") or _stable_buckets
+    o = bucket_order(hr_t, days)  # rows ascending within a bucket: the kernels emit row by row
+    p = bucket_order(dr_t * slots + dr_k, days * slots)
     return (hr_r[o], hr_v[o], hr_t[o]), (dr_r[p], dr_t[p], dr_a[p])
 
 

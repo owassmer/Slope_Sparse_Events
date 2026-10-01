@@ -37,6 +37,7 @@ from app.analysis.core import (
     PROCEEDS,
     _scalars,
 )
+from app.analysis.native import native_function
 
 FINE = 1 << 20
 SERIES = ("collected", "due_cum", "past_due", "outstanding")
@@ -45,6 +46,9 @@ STRESS_KEEP = 500
 
 
 def _fine(lo: float, hi: float) -> tuple[float, float]:
+    native = native_function("tables_fine")
+    if native is not None:
+        return native(lo, hi)
     lo = float(np.floor(lo))
     return lo, max((float(np.ceil(hi)) + 1 - lo) / FINE, 1.0)
 
@@ -80,6 +84,9 @@ class Tables:
     def add(self, p, t, ev, groups: list, stress_row: dict | None = None) -> None:
         """Path p's trajectories `t` (run on its event cash `ev`) under its groups [(draws mask or None, full probs
         [F], scalar probs [L], derivative atoms [(question, answer, dP)])]."""
+        native = native_function("tables_add")
+        if native is not None:
+            return native(self, p, t, ev, groups, stress_row)
         n = self.draws
         sc = _scalars(t)
         if ev is not None and ev.proceeds is not None:
@@ -174,6 +181,9 @@ class Tables:
 
     # --- merge ------------------------------------------------------------------------------------------------------
     def merge(self, other: Tables) -> Tables:
+        native = native_function("tables_merge")
+        if native is not None:
+            return native(self, other)
         for k, v in other.means.items():
             self.means[k] += v
         for k, v in other.lo_means.items():
@@ -229,6 +239,9 @@ class Tables:
 
     # --- the figures ------------------------------------------------------------------------------------------------
     def _fine_q(self, name: str, i: int, qs) -> np.ndarray | None:
+        native = native_function("tables_fine_q")
+        if native is not None:
+            return native(self, name, i, qs)
         h = self.fine[name][i]
         tot = h.sum()
         if tot <= 0:
@@ -238,10 +251,16 @@ class Tables:
         return np.array([lo + (np.argmax(cum >= q - 1e-12) + 0.5) * width for q in qs])
 
     def expected(self, i: int = 0) -> dict[str, float]:
+        native = native_function("tables_expected")
+        if native is not None:
+            return native(self, i)
         return {k: float(v[i]) for k, v in self.means.items()}
 
     def metrics(self, i: int = 0) -> dict:
         """`core.Reduction.metrics` under full setting i."""
+        native = native_function("tables_metrics")
+        if native is not None:
+            return native(self, i)
         from app.analysis.core import QS
 
         e = self.expected(i)
@@ -282,6 +301,9 @@ class Tables:
         }
 
     def first_floor(self, i: int = 0) -> dict:
+        native = native_function("tables_first_floor")
+        if native is not None:
+            return native(self, i)
         h = self.floor[i]
         w = h / h.sum()
         share = float(w[:self.days].sum())
@@ -291,6 +313,9 @@ class Tables:
     def daily(self, i: int, limit: np.ndarray) -> dict:
         """`core.Reduction.daily` under full setting i (the collected total's horizon quantiles from the fine
         histogram)."""
+        native = native_function("tables_daily")
+        if native is not None:
+            return native(self, i, limit)
         from app.analysis.core import QS
 
         E = {k: v[i] / self.draws for k, v in self.per_day.items()}
@@ -324,6 +349,9 @@ class Tables:
     def override(self, question: str, dist: dict, base: dict) -> dict[str, float]:
         """The expected scalars with one question's answers set to `dist` (base: Jev's), all else Jev's: exact, the
         path probabilities being linear in each question's answer."""
+        native = native_function("tables_override")
+        if native is not None:
+            return native(self, question, dist, base)
         assert self.skeys is not None
         e = np.array([self.means[k][0] for k in self.skeys])
         for ans, p in dist.items():
@@ -336,12 +364,22 @@ class Tables:
 # --- probabilities of a path's groups -------------------------------------------------------------------------------
 
 def edge_prob(key: str, branch: str, dist) -> float:
+    native = native_function("probability_edge")
+    if native is not None:
+        return native(key, branch, dist)
     return dist[key][branch]
 
 
 def group_probs(edges, dists: list) -> np.ndarray:
     """The path probability of `edges` under each setting in `dists` (forecast.Dist objects), as
     `forecast.path_probability` computes it."""
+    native = native_function("probability_groups")
+    if native is not None:
+        return native(edges, dists)
+    return group_probs_py(edges, dists)
+
+
+def group_probs_py(edges, dists: list) -> np.ndarray:
     out = np.ones(len(dists))
     for i, D in enumerate(dists):
         p = 1.0
@@ -355,6 +393,13 @@ def atoms_derivative(edges, D) -> list[tuple[str, str, float]]:
     """For each (question, answer) the path's edges read, d P(path) / d p(question, answer) under setting D: the other
     edges' product times the edge's own derivative (a composite: the sum over its conjunctions holding that answer of
     the other atoms' product)."""
+    native = native_function("probability_derivative")
+    if native is not None:
+        return native(edges, D)
+    return atoms_derivative_py(edges, D)
+
+
+def atoms_derivative_py(edges, D) -> list[tuple[str, str, float]]:
     from app.disputes.forecast import COMPOSITE, _conjunctions
 
     seen: set = set()
@@ -400,6 +445,9 @@ def atoms_derivative(edges, D) -> list[tuple[str, str, float]]:
 def fine_ranges(bins: dict) -> dict:
     """The fine histograms' spans, from the bins (the lowest cash lies in the cash bins' span, the horizon's collected
     total in the collected bins', the lowest headroom in the headroom bins')."""
+    native = native_function("tables_fine_ranges")
+    if native is not None:
+        return native(bins)
     def top(b):
         return float((b.lo + b.n * b.width).max())
     return {"min_cash": _fine(float(bins["cash"].lo.min()), top(bins["cash"])),
@@ -435,6 +483,7 @@ def reduce_paths(a, paths: list, full: list, scalar: list, known, dead, tables: 
     from app.disputes.forecast import class_firsts, expand_classes, path_mask, path_probability
 
     first = class_firsts(known, dead)  # once: the same for every path
+    probabilities = native_function("probability_groups")
     for lo in range(0, len(paths), BATCH):
         chunk = paths[lo:lo + BATCH]
         evs = [a.event_cash((p,)) for p in chunk]
@@ -445,9 +494,13 @@ def reduce_paths(a, paths: list, full: list, scalar: list, known, dead, tables: 
             for c in expand_classes([p], known, DRAWS, dead, first):
                 mk = path_mask(c, DRAWS)
                 mk = None if mk is not None and mk.all() else mk
-                groups.append((mk, np.array([path_probability(c.edges, D) for D in full]),
-                               np.array([path_probability(c.edges, D) for D in scalar]),
-                               atoms_derivative(c.edges, full[0])))
+                if probabilities is None:
+                    full_p = np.array([path_probability(c.edges, D) for D in full])
+                    scalar_p = np.array([path_probability(c.edges, D) for D in scalar])
+                else:
+                    full_p = probabilities(c.edges, full, True)
+                    scalar_p = probabilities(c.edges, scalar, True)
+                groups.append((mk, full_p, scalar_p, atoms_derivative(c.edges, full[0])))
                 if on_child is not None:
                     on_child(c, t, ev, mk)
             if row is not None and stress_out is not None:

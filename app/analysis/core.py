@@ -47,6 +47,7 @@ from app.analysis.events import (
     bank_trace,
     event_trace,
 )
+from app.analysis.native import native_function
 from app.analysis.processor import ARREARS
 from app.analysis.setup import DRAWS, Setup
 from app.analysis.stats import expectation, weighted_quantiles
@@ -126,6 +127,16 @@ class EventModel:
         _, _, pairs, ref = enc
         dist = self._dist(overrides)
         vals = np.array([dist[k][b] for k, b in pairs] + [1.0], dtype=np.float64)
+        native = native_function("edge_products")
+        if native is not None:
+            out = native(ref, vals)
+            from app.analysis import shadow
+            if shadow.ON:
+                expected = np.ones(len(combos))
+                for j in range(ref.shape[1]):
+                    expected *= vals[ref[:, j]]
+                shadow.check("native_edge_products", out, expected)
+            return out
         out = np.ones(len(combos))
         for j in range(ref.shape[1]):
             out *= vals[ref[:, j]]
@@ -145,6 +156,9 @@ def path_label(p: DisputePath) -> str:
 
 
 def _scalars(t: Trajectories) -> dict[str, np.ndarray]:
+    native = native_function("analysis_scalars")
+    if native is not None:
+        return native(t)
     out = {k: getattr(t, k) for k in SCALARS}
     out["fees"] = t.fees
     out["petition_p"] = (t.petition >= 0).astype(np.float64)
@@ -179,11 +193,24 @@ class Bins:
 
     @classmethod
     def spanning(cls, lo: np.ndarray, hi: np.ndarray, n: int) -> Bins:
+        native = native_function("analysis_bins_spanning")
+        if native is not None:
+            return cls(*native(lo, hi, n), n)
         lo = np.floor(lo).astype(np.float64)
         return cls(lo, np.maximum((np.ceil(hi) + 1 - lo) / n, 1.0), n)
 
     def flat(self, x: np.ndarray, rows: np.ndarray | None = None) -> np.ndarray:
         """Flat bin index (row x n + bin) of values x: [draws, days] with one row per day, or 1-D with `rows`."""
+        native = native_function("bins_flat")
+        if native is not None:
+            out = native(np.asarray(x, dtype=np.float64), self.lo, self.width, self.n,
+                         None if rows is None else np.asarray(rows, dtype=np.int64).ravel())
+            from app.analysis import shadow
+            if shadow.ON:
+                r = np.arange(x.shape[1])[None, :] if rows is None else rows
+                j = np.clip(((x - self.lo[r]) / self.width[r]).astype(np.int64), 0, self.n - 1)
+                shadow.check("native_bins_flat", out, (j + r * self.n).ravel())
+            return out
         if rows is None:
             rows = np.arange(x.shape[1])[None, :]
         j = np.clip(((x - self.lo[rows]) / self.width[rows]).astype(np.int64), 0, self.n - 1)
@@ -192,6 +219,16 @@ class Bins:
     def quantiles(self, h: np.ndarray, qs: tuple[float, ...]) -> np.ndarray:
         """[len(qs), days] from weighted counts h [days, n] (each day summing to one): the midpoint of the first bin
         whose cumulative weight reaches q, so within half a bin of the exact weighted quantile."""
+        native = native_function("histogram_quantiles")
+        if native is not None:
+            out = native(h, self.lo, self.width, list(qs))
+            from app.analysis import shadow
+            if shadow.ON:
+                cum = np.cumsum(h, axis=1)
+                ref = np.stack([self.lo[:len(h)] + (np.argmax(cum >= q - 1e-12, axis=1) + 0.5)
+                                * self.width[:len(h)] for q in qs])
+                shadow.check("native_histogram_quantiles", out, ref)
+            return out
         cum = np.cumsum(h, axis=1)
         return np.stack([self.lo[:len(h)] + (np.argmax(cum >= q - 1e-12, axis=1) + 0.5) * self.width[:len(h)]
                          for q in qs])
@@ -200,6 +237,9 @@ class Bins:
     def pooled_quantiles(self, h: np.ndarray, qs: tuple[float, ...]) -> np.ndarray:
         """Quantiles over all rows together from weighted counts h [rows, n] (rows with their own bins): each bin
         at its midpoint, so within half of its row's bin width of the exact quantile."""
+        native = native_function("analysis_pooled_quantiles")
+        if native is not None:
+            return native(self, h, qs)
         mids = self.lo[:len(h), None] + (np.arange(self.n) + 0.5) * self.width[:len(h), None]
         keep = h.ravel() > 0
         return weighted_quantiles(mids.ravel()[keep], h.ravel()[keep] / h.sum(), qs)
@@ -215,6 +255,17 @@ class Counts:
         self._cnt: list[np.ndarray] = []
 
     def add(self, flat: np.ndarray) -> None:
+        native = native_function("sparse_counts")
+        if native is not None:
+            idx, cnt = native(flat, self.rows * self.bins)
+            from app.analysis import shadow
+            if shadow.ON:
+                c = np.bincount(flat, minlength=self.rows * self.bins)
+                ref = np.flatnonzero(c)
+                shadow.check("native_sparse_counts", (idx, cnt), (ref.astype(np.int32), c[ref].astype(np.uint32)))
+            self._idx.append(idx)
+            self._cnt.append(cnt)
+            return
         c = np.bincount(flat, minlength=self.rows * self.bins)
         idx = np.flatnonzero(c)
         self._idx.append(idx.astype(np.int32))
@@ -229,6 +280,17 @@ class Counts:
     def weighted(self, probs: np.ndarray, normalise: bool = True) -> np.ndarray:
         """[rows, bins] probability-weighted counts, each row normalised to one unless asked not to (an empty row
         stays zero)."""
+        native = native_function("weighted_counts")
+        if native is not None:
+            out = native(self.idx, self.cnt, self.lens, np.asarray(probs, dtype=np.float64), self.rows, self.bins,
+                         normalise)
+            from app.analysis import shadow
+            if shadow.ON:
+                w = np.repeat(np.asarray(probs, dtype=np.float64), self.lens) * self.cnt
+                h = np.bincount(self.idx, weights=w, minlength=self.rows * self.bins).reshape(self.rows, self.bins)
+                ref = h / np.maximum(h.sum(axis=1, keepdims=True), 1e-300) if normalise else h
+                shadow.check("native_weighted_counts", out, ref)
+            return out
         w = np.repeat(np.asarray(probs, dtype=np.float64), self.lens) * self.cnt
         h = np.bincount(self.idx, weights=w, minlength=self.rows * self.bins).reshape(self.rows, self.bins)
         return h / np.maximum(h.sum(axis=1, keepdims=True), 1e-300) if normalise else h
@@ -269,6 +331,9 @@ class Reduction:
         """Reduce path i's trajectories `t`, run on the event cash `ev` (its equity proceeds, where it books any), on
         the draws it follows (`mask`; None: every draw). Its scalars and per-day figures are sums over those draws
         divided by the number of draws (so p x scalar is its share of the expectation), its histograms count them."""
+        native = native_function("analysis_reduce_add")
+        if native is not None:
+            return native(self, i, t, ev, mask)
         if mask is not None and mask.all():
             mask = None
         on = (lambda a: a) if mask is None else (lambda a: a[mask])  # noqa: E731
@@ -316,6 +381,9 @@ class Reduction:
 
     def draw_weights(self, probs: np.ndarray) -> np.ndarray:
         """Each (path, draw)'s weight, [paths, draws]: p/n on the draws the path follows, else 0."""
+        native = native_function("analysis_draw_weights")
+        if native is not None:
+            return native(self, probs)
         w = np.asarray(probs, dtype=np.float64)[:, None] / self.draws
         return w * self.mask if self.masked else np.broadcast_to(w, (len(w), self.draws))
 
@@ -340,6 +408,9 @@ class Reduction:
         return {k: expectation(v, probs) for k, v in self.means.items()}
 
     def metrics(self, probs: np.ndarray) -> dict:
+        native = native_function("analysis_metrics")
+        if native is not None:
+            return native(self, probs)
         probs = np.asarray(probs, dtype=np.float64)
         e = self.expected(probs)
         live = probs > 0  # a zero-weight trajectory never moves a weighted quantile
@@ -387,6 +458,9 @@ class Reduction:
     def first_floor(self, probs: np.ndarray) -> dict:
         """When available cash first falls below the operating need, over the probability-weighted draws: the share
         that reaches it in the period and the median day (None where under half do)."""
+        native = native_function("analysis_first_floor")
+        if native is not None:
+            return native(self, probs)
         probs = np.asarray(probs, dtype=np.float64)
         if self.masked:
             w = self.draw_weights(probs).ravel()
@@ -404,6 +478,9 @@ class Reduction:
 
     def collected_quantiles(self, probs: np.ndarray) -> np.ndarray:
         """P5 / P50 / P95 of collected at the horizon, exact from each trajectory's total."""
+        native = native_function("analysis_collected_quantiles")
+        if native is not None:
+            return native(self, probs)
         probs = np.asarray(probs, dtype=np.float64)
         live = probs > 0
         if self.masked:
@@ -416,6 +493,9 @@ class Reduction:
     def daily(self, probs: np.ndarray, collected_q: bool = True) -> dict:
         """The daily series under `probs`. `collected_q=False` skips the collected quantiles (the page's reweight
         does not show them, and the exact horizon quantile sorts every draw)."""
+        native = native_function("analysis_daily")
+        if native is not None:
+            return native(self, probs, collected_q)
         probs = np.asarray(probs, dtype=np.float64)
         E = {k: (probs @ v) / self.draws for k, v in self.per_day.items()}
         cq = self.bins["cash"].quantiles(self.counts["cash"].weighted(probs), QS)
@@ -514,6 +594,9 @@ def _petition_at(line, t: Trajectories, petition: np.ndarray, peak: int) -> tupl
     and `peak`; before that day the two runs are the same trajectory, and from it on nothing is collected or drawn, so
     the stayed claim is the contract booked less collected before it and the preference window's collections are
     t's (all integer cents)."""
+    native = native_function("analysis_petition_at")
+    if native is not None:
+        return native(line, t, petition, peak)
     days = line.days
     pet = np.minimum(np.where((petition >= 0) & (petition < days), petition, days), peak)
     idx = np.arange(days)
@@ -533,12 +616,16 @@ def stress_rows(line, opening: int, setup: Setup, evs: list[EventCash]) -> list[
     if not evs:
         return []
     ts = run_many(line, opening, evs)
-    peaks = [int(np.argmax(t.outstanding.mean(axis=0))) for t in ts]
+    native = native_function("analysis_peak_day")
+    peaks = [native(t.outstanding) if native is not None else int(np.argmax(t.outstanding.mean(axis=0))) for t in ts]
     pts = [_petition_at(line, t, ev.petition, peak) for t, ev, peak in zip(ts, evs, peaks, strict=True)]
     return [_stress_row(setup, t, pt, peak) for t, pt, peak in zip(ts, pts, peaks, strict=True)]
 
 
 def _stress_row(setup: Setup, t: Trajectories, pt: tuple[np.ndarray, np.ndarray], peak: int) -> dict:
+    native = native_function("analysis_stress_row")
+    if native is not None:
+        return native(setup, t, pt, peak)
     stayed, preference = pt  # with a petition at the peak (_petition_at)
     return {"min_cash_p5_cents": float(np.quantile(t.min_cash, 0.05)),
             "min_cash_p50_cents": float(np.quantile(t.min_cash, 0.5)),
@@ -620,19 +707,27 @@ class Analysis:
         """Per day, the lowest and highest cumulative event cash (less encumbrance) over the combos' draws (and 0).
         Each combo's event cash is kept, sparse, for the main pass (within PACKED_BYTES)."""
         lo_ev, hi_ev = np.zeros(self.days), np.zeros(self.days)
+        native = native_function("analysis_event_range")
+        merge = native_function("analysis_merge_range")
         for i, c in enumerate(combos, lo):
             got = self._store.get((c[0].instance_id, c[0].steps)) if self._store and len(c) == 1 else None
             if got is not None:  # replayed: the range over every draw, measured on the runner
-                np.minimum(lo_ev, got[1], out=lo_ev)
-                np.maximum(hi_ev, got[2], out=hi_ev)
+                if merge is not None:
+                    merge(lo_ev, hi_ev, got[1], got[2])
+                else:
+                    np.minimum(lo_ev, got[1], out=lo_ev)
+                    np.maximum(hi_ev, got[2], out=hi_ev)
                 continue
             ev = self.event_cash(c)
             if self._packed_bytes < PACKED_BYTES:
                 self._packed[(kind, i)] = pk = _pack(ev, self.setup.cash_processing == "daily")
                 self._packed_bytes += sum(x.nbytes for x in (*pk[0], *(pk[1] or {}).values())) + 400
-            cum = np.cumsum(ev.cash - ev.lock, axis=1)
-            np.minimum(lo_ev, cum.min(axis=0), out=lo_ev)
-            np.maximum(hi_ev, cum.max(axis=0), out=hi_ev)
+            if native is not None:
+                native(lo_ev, hi_ev, ev.cash, ev.lock)
+            else:
+                cum = np.cumsum(ev.cash - ev.lock, axis=1)
+                np.minimum(lo_ev, cum.min(axis=0), out=lo_ev)
+                np.maximum(hi_ev, cum.max(axis=0), out=hi_ev)
         return lo_ev, hi_ev
 
     def _events(self, kind: str, i: int, combo: tuple[DisputePath, ...]) -> EventCash:
@@ -653,17 +748,24 @@ class Analysis:
         - a line opened before the review adds what its history still owes (Setup.exposure) to collections and to
           owed."""
         self._packed, self._packed_bytes = {}, 0
+        merge = native_function("analysis_merge_range")
         lo_ev, hi_ev = self._event_range("bank", self.model.bank_combos)  # min and max: exact in any order
         for lo in range(0, len(self.model.combos), BATCH):
             a, b = self._event_range("path", self.model.combos[lo:lo + BATCH], lo)
-            np.minimum(lo_ev, a, out=lo_ev)
-            np.maximum(hi_ev, b, out=hi_ev)
+            if merge is not None:
+                merge(lo_ev, hi_ev, a, b)
+            else:
+                np.minimum(lo_ev, a, out=lo_ev)
+                np.maximum(hi_ev, b, out=hi_ev)
             for i in range(lo, min(lo + BATCH, len(self.model.combos))):
                 self._tick("bins", i, len(self.model.combos))
         return self._bins_from(lo_ev, hi_ev)
 
     def _bins_from(self, lo_ev: np.ndarray, hi_ev: np.ndarray) -> dict[str, Bins]:
         """`_bins` from the per-day range of cumulative event cash (the runners' reduction reads the walk's)."""
+        native = native_function("analysis_bins_from")
+        if native is not None:
+            return native(self, lo_ev, hi_ev)
         fee = (self.setup.fee_bps + 1) / 10_000  # + 1 bp covers the half-up cent on each draw
         lim = np.maximum.accumulate(self.line.limit.max(axis=0).astype(np.float64)) + 10_000
         first_due = self.line.due_idx[:, 0]
@@ -749,13 +851,14 @@ class Analysis:
 
     def scenarios(self, overrides: dict | None = None) -> list[dict]:
         probs = self.model.probs(overrides)
+        quantile = native_function("analysis_quantile") or np.quantile
         rows = []
         for i, combo in enumerate(self.model.combos):
             m = {k: float(v[i]) for k, v in self.means.items()}
             rows.append({"index": i, "probability": float(probs[i]),
                          "paths": [{"dispute": p.instance_id, "outcome": p.outcome, "label": path_label(p)} for p in combo],
                          "min_cash_mean_cents": m["min_cash"],
-                         "min_cash_p5_cents": float(np.quantile(self.r.min_cash[i][self.r.mask[i]], 0.05)),
+                         "min_cash_p5_cents": float(quantile(self.r.min_cash[i][self.r.mask[i]], 0.05)),
                          "lender_pv_cents": m["lender_pv"], "dollar_days": m["dollar_days"],
                          "collected_cents": m["collected"], "stayed_claim_cents": m["stayed"],
                          "preference_exposed_cents": m["preference"], "petition_p": m["petition_p"],

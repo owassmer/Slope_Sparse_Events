@@ -9,6 +9,7 @@ on:
     branches: [reduce-run, "reduce-run-*"]
 
 env:
+  SLOPE_EXECUTION_BACKEND: rust
   RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
   JOBS: "50"  # the matrix below lists 0..JOBS-1
   PROCS: "4"
@@ -48,7 +49,14 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
       - run: uv sync --locked
+      - run: uv run --no-sync python scripts/build_native.py
       - run: uv run slope evidence build akoustis_20240514
       - uses: actions/download-artifact@v4
         with:
@@ -86,7 +94,14 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
       - run: uv sync --locked
+      - run: uv run --no-sync python scripts/build_native.py
       - uses: actions/download-artifact@v4
         with:
           pattern: red-*

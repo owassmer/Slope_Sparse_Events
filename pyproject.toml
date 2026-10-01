@@ -32,14 +32,19 @@ dependencies = [
 dev = [
     "pytest>=8.3",
     "ruff>=0.8",
+    "maturin==1.12.6",
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["maturin==1.12.6"]
+build-backend = "maturin"
 
-[tool.hatch.build.targets.wheel]
-packages = ["app"]
+[tool.maturin]
+manifest-path = "native/Cargo.toml"
+python-source = "."
+module-name = "app._native"
+bindings = "pyo3"
+features = ["extension-module"]
 
 [project.scripts]
 slope = "app.cli:main"

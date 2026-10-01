@@ -58,12 +58,17 @@ def _child(fc, d, k: int, run: str, log) -> None:
     """Process k's walk (after fork): logs events, appends each finished unit to run/part<k>.stream and writes the
     whole to run/part<k>.pkl."""
     import app.disputes.forecast as F
+    from app.analysis.native import native_function
 
     t0 = time.time()
     top_nodes = dict(fc.nodes)  # the questions before the walk (`walk` starts from them; they are never logged)
     listed = _listed()
     st = {"seg": None, "clock": 0, "nseg": 0, "vdepth": 0, "roots": {}, "seq": 0, "j": 0, "n": 0,
           "regions": [], "wstack": [], "local": False, "W": None}
+    native_starts = {
+        name: name in STARTS or inspect.signature(fn).return_annotation in ("None", None)
+        for name, fn in vars(F._Walk).items() if inspect.isfunction(fn)
+    }
     events: list = []
     segs: list = []  # every unit: (number, top clock at its start, unit seq); the same in every process
     done: list = []  # the units walked whole here
@@ -316,8 +321,58 @@ def _child(fc, d, k: int, run: str, log) -> None:
         pickle.dump(rec, stream, protocol=pickle.HIGHEST_PROTOCOL)
         stream.flush()
 
-    W = st["W"] = F._Walk(fc, d)
-    W.run()
+    native_walk = native_function("NativeWalk")
+    if native_walk is None:
+        W = st["W"] = F._Walk(fc, d)
+    else:
+        driver = native_walk(fc, d)
+        W = st["W"] = driver.reference
+
+        def native_enter(self, name, s):
+            """The Rust continuation enters the same streamed worker unit."""
+            if name == "verdict":
+                st["vdepth"] = len(s.steps) + 1
+            token = {"segment": None, "regions": len(st["regions"]) if name in ("q1", "appeal") else None}
+            if st["seg"] is not None:
+                return token
+            r = resolve(name, s, native_starts.get(name, True))
+            if r is None:
+                return token
+            key, mine = segment(r)
+            if not mine:
+                return False
+            st["seg"], st["j"] = key, 0
+            token["segment"] = key
+            return token
+
+        def native_exit(self, name, s, token):
+            if token["regions"] is not None:
+                del st["regions"][token["regions"]:]
+            if token["segment"] is not None:
+                st["seg"] = None
+                done.append(token["segment"])
+                flush()
+
+        def native_watch_begin(self, s, no, w):
+            st["local"] = st["seg"] is not None
+            w._native_local = st["local"]
+            if not st["local"]:
+                w.wid = (no, s.steps)
+                st["wstack"].append(w.wid)
+
+        def native_watch_end(self, s, no, w):
+            st["local"] = w._native_local
+            if st["local"]:
+                return w.read
+            st["wstack"].pop()
+            st["regions"].append(w.wid)
+            return True
+
+        F._Walk._native_enter = native_enter
+        F._Walk._native_exit = native_exit
+        F._Walk._native_watch_begin = native_watch_begin
+        F._Walk._native_watch_end = native_watch_end
+    (W if native_walk is None else driver).run()
     flush()  # the top's events after the last unit
     stream.close()
     out = {"k": k, "events": events, "top_nodes": top_nodes, "clock": st["clock"], "nseg": st["nseg"],
@@ -429,7 +484,16 @@ def walk(fc, d, procs: int, log=sys.stderr):
     the single walk leaves them."""
     import shutil
 
-    from app.disputes.forecast import _ROW_BLOBS, Rows, class_entry, merge_equivalent, path_mask, qcls_best
+    from app.disputes.forecast import (
+        _ROW_BLOBS,
+        Rows,
+        class_entry,
+        merge_equivalent,
+        path_mask,
+        qcls_best,
+        record_digest,
+        unpack_row,
+    )
 
     t0 = time.time()
     saved = os.environ.get("SLOPE_WALK_PARTS")  # the parts the shards walked (GitHub Actions: app/disputes/parallel.py)
@@ -478,8 +542,12 @@ def walk(fc, d, procs: int, log=sys.stderr):
             for key in x[0]:
                 facts.setdefault(key, Rows()).append_blob(_ROW_BLOBS.setdefault(x[1], x[1]))
         elif kind == "late":
-            if x[1] not in seen:
-                seen.add(x[1])
+            # Parts written by earlier versions used pickle-graph digests. The
+            # same stored record can have different aliases across workers;
+            # retain one occurrence per question, prefix and typed contents.
+            identity = (x[0], x[1][1], record_digest(unpack_row(x[2])))
+            if identity not in seen:
+                seen.add(identity)
                 facts.setdefault(x[0], Rows()).append_blob(_ROW_BLOBS.setdefault(x[2], x[2]))
         elif kind == "path":
             for wid in x[2]:

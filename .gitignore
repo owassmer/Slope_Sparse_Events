@@ -1,11 +1,14 @@
 .DS_Store
 __pycache__/
 *.pyc
-.venv/
+.venv
 .ruff_cache/
 .pytest_cache/
 .env
 .env.*
+target/
+*.so
+*.pyd
 
 # Generated per-snapshot evidence stores and run workspaces (rebuildable from the kit)
 var/

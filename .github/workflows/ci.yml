@@ -12,13 +12,31 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [rust, python]
+    env:
+      SLOPE_EXECUTION_BACKEND: ${{ matrix.backend }}
+      PYO3_PYTHON: ${{ github.workspace }}/.venv/bin/python
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
       - run: uv sync --locked
+      - run: uv run --no-sync python scripts/build_native.py
+      - run: cargo fmt --manifest-path native/Cargo.toml -- --check
+      - run: cargo test --manifest-path native/Cargo.toml --locked
+      - run: cargo clippy --manifest-path native/Cargo.toml --locked -- -D warnings
       - run: uv run ruff check .
-      # Essential financial/isolation tests only; exit code 5 = no tests collected yet
-      - run: uv run pytest || [ $? -eq 5 ]
+      - name: Execution suite (${{ matrix.backend }})
+        run: uv run pytest
