@@ -299,59 +299,120 @@ def upload_group(s3, bucket, key, path):
         s3.upload_file(f.name, bucket, key)
 
 
-def pool(bucket, prefix, slots):
-    """Pool exactly one selected attempt per shard; keep all large intermediates in AWS."""
+def pool(bucket, prefix, slots, *, source_bucket=None, source_s3=None):
+    """Pool one canonical result per shard, checkpointing stages in the destination account."""
+    from collections import Counter
+
+    from app.analysis.pooled import binding, save
+    from app.config import RECORDED
+
     s3 = boto3.client('s3')
-    selected = [read(s3, bucket, f'{prefix}/done/{j}.json') for j in range(100)]
+    source_s3 = source_s3 or s3
+    source_bucket = source_bucket or bucket
+    selected = [read(source_s3, source_bucket, f'{prefix}/done/{j}.json') for j in range(100)]
     if any(x is None for x in selected):
         raise RuntimeError('pool requires all 100 shard outputs')
     root = Path('/opt/slope-pool')
     root.mkdir(exist_ok=True)
-    (root / 'selection.json').write_text(json.dumps(selected, indent=2))
-    s3.upload_file(str(root / 'selection.json'), bucket, f'{prefix}/pool/selection.json')
+    inputs = {'source_bucket': source_bucket, 'selected': selected, 'binding': binding(RUN, RECORDED)}
+    input_key = f'{prefix}/pool/inputs.json'
+    create(s3, bucket, input_key, inputs)
+    if read(s3, bucket, input_key) != inputs:
+        raise RuntimeError('pool destination belongs to a different shard selection or input binding')
+    local_inputs = root / 'inputs.json'
+    if local_inputs.exists() and json.loads(local_inputs.read_text()) != inputs:
+        raise RuntimeError('local pool belongs to a different shard selection or input binding')
+    save(local_inputs, inputs)
+    save(root / 'selection.json', selected)
+    save(root / 'binding.json', inputs['binding'])
+    for name in ('selection.json', 'binding.json'):
+        s3.upload_file(str(root / name), bucket, f'{prefix}/pool/{name}')
     env = {**os.environ, 'SLOPE_JEV_CACHE_ONLY': '1', 'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1'}
     env.pop('CLAUDE_CODE_OAUTH_TOKEN', None)
 
+    def progress(stage, **details):
+        value = {'stage': stage, 'time': time.time(), **details}
+        s3.put_object(Bucket=bucket, Key=f'{prefix}/pool/progress.json', Body=json.dumps(value).encode())
+        print(json.dumps(value), flush=True)
+
     def download(name, target):
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-            futures = [ex.submit(fetch_group, s3, bucket, x['source'], name, target / str(x['job']))
+            futures = [ex.submit(fetch_group, source_s3, source_bucket, x['source'], name, target / str(x['job']))
                        for x in selected]
             for f in futures:
                 f.result()
 
-    download('control', root / 'control')
-    subprocess.run(['.venv/bin/python', '-m', 'app.disputes.parallel', 'spill',
-                    str(root / 'control'), str(root / 'walk_roots.pkl')], check=True, env=env)
-    with (root / 'walk_roots.pkl').open('rb') as f:
-        missing = pickle.load(f)
-    if missing:
-        s3.upload_file(str(root / 'walk_roots.pkl'), bucket, f'{prefix}/pool/walk_roots.pkl')
-        raise RuntimeError(f'{len(missing)} segments require recovery; no partial model will be published')
-    subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'control',
-                    str(root / 'control'), str(root / 'ctl')], check=True, env=env)
-    with (root / 'ctl/control.pkl').open('rb') as f:
-        ctl = pickle.load(f)
-    if ctl['raised']:
-        raise RuntimeError(f"{len(ctl['raised'])} offering continuations require a further walk")
-    s3.upload_file(str(root / 'ctl/control.pkl'), bucket, f'{prefix}/pool/control.pkl')
-    upload_group(s3, bucket, f'{prefix}/pool/paths.tgz', root / 'ctl/paths')
+    try:
+        if read(s3, bucket, f'{prefix}/pool/control-ready.json'):
+            progress('restore_control')
+            (root / 'ctl').mkdir(exist_ok=True)
+            s3.download_file(bucket, f'{prefix}/pool/control.pkl', str(root / 'ctl/control.pkl'))
+            fetch_group(s3, bucket, f'{prefix}/pool', 'paths', root / 'ctl/paths')
+        else:
+            progress('download_control', shards=100)
+            download('control', root / 'control')
+            progress('verify_segment_coverage')
+            subprocess.run(['.venv/bin/python', '-m', 'app.disputes.parallel', 'spill',
+                            str(root / 'control'), str(root / 'walk_roots.pkl')], check=True, env=env)
+            with (root / 'walk_roots.pkl').open('rb') as f:
+                missing = pickle.load(f)
+            if missing:
+                s3.upload_file(str(root / 'walk_roots.pkl'), bucket, f'{prefix}/pool/walk_roots.pkl')
+                raise RuntimeError(f'{len(missing)} segments require recovery; no partial model will be published')
+            progress('merge_paths_and_questions')
+            subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'control',
+                            str(root / 'control'), str(root / 'ctl')], check=True, env=env)
+            with (root / 'ctl/control.pkl').open('rb') as f:
+                ctl = pickle.load(f)
+            summary = {k: ctl[k] for k in ('walked', 'paths', 'segments', 'parts')}
+            summary.update(shards=100, missing_segments=0, question_nodes=len(ctl['nodes']),
+                           classed_parent_nodes=len(ctl['classed']),
+                           question_types=dict(Counter(n.node for n in ctl['nodes'].values())),
+                           offering_continuations=len(ctl['raised']))
+            save(root / 'walk-summary.json', summary)
+            s3.upload_file(str(root / 'walk-summary.json'), bucket, f'{prefix}/pool/walk-summary.json')
+            if ctl['raised']:
+                raise RuntimeError(f"{len(ctl['raised'])} offering continuations require a further walk")
+            s3.upload_file(str(root / 'ctl/control.pkl'), bucket, f'{prefix}/pool/control.pkl')
+            upload_group(s3, bucket, f'{prefix}/pool/paths.tgz', root / 'ctl/paths')
+            create(s3, bucket, f'{prefix}/pool/control-ready.json', summary)
+            shutil.rmtree(root / 'control')
+        with (root / 'ctl/control.pkl').open('rb') as f:
+            ctl = pickle.load(f)
 
-    def facts(b):
-        folder = root / f'rows{b}'
-        download(f'rows{b}', folder)
-        out = root / f'states{b}'
-        subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'facts', RUN, str(folder),
-                        str(root / 'ctl/control.pkl'), str(b), str(out)], check=True, env=env)
-        upload_group(s3, bucket, f'{prefix}/pool/states{b}.tgz', out)
-        shutil.rmtree(folder)
-        print(f'facts bucket {b} published', flush=True)
+        def facts(b):
+            out = root / f'states{b}'
+            if read(s3, bucket, f'{prefix}/pool/states{b}-ready.json'):
+                fetch_group(s3, bucket, f'{prefix}/pool', f'states{b}', out)
+                return
+            folder = root / f'rows{b}'
+            download(f'rows{b}', folder)
+            subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'facts', RUN, str(folder),
+                            str(root / 'ctl/control.pkl'), str(b), str(out)], check=True, env=env)
+            upload_group(s3, bucket, f'{prefix}/pool/states{b}.tgz', out)
+            import gzip
+            with gzip.open(out / f'states{b}.json.gz', 'rt') as f:
+                states = json.load(f)
+            if states['errors'] or states.get('differ'):
+                raise RuntimeError(f'facts bucket {b} contains failed or inconsistent question states')
+            create(s3, bucket, f'{prefix}/pool/states{b}-ready.json', {'finished': time.time()})
+            shutil.rmtree(folder)
+            print(f'facts bucket {b} published', flush=True)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=slots) as ex:
-        futures = [ex.submit(facts, b) for b in range(16)]
-        for f in futures:
-            f.result()
-    create(s3, bucket, f'{prefix}/pool/ready.json',
-           {'finished': time.time(), 'paths': ctl['paths'], 'walked': ctl['walked'], 'nodes': len(ctl['nodes'])})
+        progress('build_question_states', buckets=16, concurrent_buckets=slots)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=slots) as ex:
+            futures = [ex.submit(facts, b) for b in range(16)]
+            for f in futures:
+                f.result()
+        progress('verify_question_coverage')
+        subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'judge', RUN, str(root),
+                        str(root / 'ctl/control.pkl')], check=True, env={**env, 'SLOPE_JUDGE_COUNT': '1'})
+        create(s3, bucket, f'{prefix}/pool/ready.json',
+               {'finished': time.time(), 'paths': ctl['paths'], 'walked': ctl['walked'], 'nodes': len(ctl['nodes'])})
+        progress('complete', paths=ctl['paths'], nodes=len(ctl['nodes']))
+    except BaseException as error:
+        progress('failed', error=str(error))
+        raise
 
 
 if __name__ == '__main__':

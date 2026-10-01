@@ -173,6 +173,8 @@ def control(folder: str, out: str) -> None:
     for f, n in merged.items():  # the reduction balances its blocks by each part's paths after the merge
         cost[f] = (n, cost[f][1])
     ctl["walked"], ctl["paths"], ctl["part_cost"] = total, sum(merged.values()), cost
+    ctl["segments"] = next(h["nseg"] for h in heads if h.get("complete", True))
+    ctl["parts"] = len(files)
     import numpy as np  # the tree's per-day range of cumulative event cash on each path's draws (_Walk.emit)
     rngs = [h["ev_range"] for h in heads if h.get("ev_range") is not None]
     ctl["ev_range"] = (np.minimum.reduce([r[0] for r in rngs]), np.maximum.reduce([r[1] for r in rngs])) if rngs \
@@ -267,13 +269,13 @@ def read_paths(path: str, lo: int = 0, hi: int | None = None) -> list:
     return out
 
 
-def forecaster(run_id: str, ctl: dict):
+def forecaster(run_id: str, ctl: dict, root: Path = Path("runs/recorded")):
     """The run's Forecaster as the walk built it (parallel.shard), with the merged questions and dictionaries."""
     from app.analysis.build import basis_for, run_context
     from app.disputes.forecast import Forecaster
     from app.disputes.parallel import _variant
 
-    ctx = run_context(run_id, Path("runs/recorded"))
+    ctx = run_context(run_id, root)
     setup, sens = _variant(ctx)
     fc = Forecaster(ctx["live"], ctx["findings"], borrower=ctx["borrower"], review=ctx["review"],
                     horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup, basis=basis_for(ctx["feed"], setup),
@@ -350,7 +352,8 @@ def facts(run_id: str, folder: str, control_file: str, b: int, out: str, check: 
           file=sys.stderr, flush=True)
 
 
-def judge(run_id: str, states: str, control_file: str, count_only: bool = False) -> None:
+def judge(run_id: str, states: str, control_file: str, count_only: bool = False,
+          *, root: Path = Path("runs/recorded")) -> None:
     """Jev's answer to every question the facts stage built (states/**/states*.json.gz), asked on this machine as
     `Forecaster.judge` asks (DisputeProfile.forecast; Jev's cache first). Writes runs/recorded/<run>/
     tree_answers[-<variant>].json (each question's distribution, and the classes live on no path: the reduction's
@@ -421,7 +424,7 @@ def judge(run_id: str, states: str, control_file: str, count_only: bool = False)
 
     js = asyncio.run(every())
     variant = os.environ.get("SLOPE_VARIANT", "")
-    out = Path("runs/recorded") / run_id
+    out = root / run_id
     suffix = f"-{variant}" if variant else ""
     (out / f"tree_answers{suffix}.json").write_text(json.dumps(
         {"answers": {j.key: j.distribution for j in js}, "dead": sorted(dead)}, sort_keys=True) + "\n")

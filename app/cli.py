@@ -104,13 +104,16 @@ def jev_check_cases() -> None:
 
 @cli.command("analyze-case")
 def analyze_case(snapshot: str = typer.Argument(..., help="Dated case ID; uses its configured evidence, baseline and financing."),
-                 run: str | None = typer.Option(None, help="Reuse this completed agent-plus-Jev investigation.")) -> None:
+                 run: str | None = typer.Option(None, help="Reuse this completed agent-plus-Jev investigation."),
+                 pool: str | None = typer.Option(None, help="Saved pool directory or s3://bucket/prefix/pool; requires --run. Execute on the host that will reduce the paths."),
+                 processes: int = typer.Option(4, min=1, help="CPU processes for saved-pool reduction.")) -> None:
     """Run evidence → investigation → Jev forecasts → financial analysis → page locally."""
     from app.pipeline import FlowError
     from app.pipeline import analyze_case as execute
 
     try:
-        result = execute(snapshot, run_id=run, progress=lambda stage: typer.echo(f"stage: {stage}"))
+        result = execute(snapshot, run_id=run, pool_dir=pool, processes=processes,
+                         progress=lambda stage: typer.echo(f"stage: {stage}"))
     except FlowError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc

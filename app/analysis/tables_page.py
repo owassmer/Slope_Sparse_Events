@@ -315,7 +315,7 @@ def judgment_section(tab: Tables, answers: dict, judgments: dict, nodes: dict, f
 # --- the page -------------------------------------------------------------------------------------------------------
 
 def build(run_id: str, tables: str, control: str, stress: str | None = None, variant: str = "",
-          answers_file: str | None = None, judgments_file: str | None = None) -> dict:
+          answers_file: str | None = None, judgments_file: str | None = None, *, root: Path | None = None) -> dict:
     """page.json for a run from the runner pipeline's outputs (the module docstring)."""
     from app.analysis.build import run_context
     from app.analysis.page import (
@@ -339,8 +339,9 @@ def build(run_id: str, tables: str, control: str, stress: str | None = None, var
     from app.disputes.parallel import _variant
 
     t0 = time.time()
-    run_dir = RECORDED / run_id
-    ctx = run_context(run_id, RECORDED)
+    root = root if root is not None else RECORDED
+    run_dir = root / run_id
+    ctx = run_context(run_id, root)
     setup, _sens = _variant(ctx)
     m, borrower, snapshot_id = ctx["m"], ctx["borrower"], ctx["meta"]["snapshot_id"]
     with open(control, "rb") as fh:
@@ -356,7 +357,7 @@ def build(run_id: str, tables: str, control: str, stress: str | None = None, var
         judgments = load_judgments(Path(judgments_file).parent, variant)[1] if judgments_file else {}
     else:
         answers, judgments = load_judgments(run_dir, variant)
-    fc = pool.forecaster(run_id, ctl)
+    fc = pool.forecaster(run_id, ctl, root)
     d = next(x for x, _ in fc.ordered() if x.stage == PENDING and x.borrower_role == "debtor")
     a, model = bank_view(ctx, setup, fc, run_id)
     ranges, links, names = dict(fc.class_range), source_links(snapshot_id), parties(borrower, d)

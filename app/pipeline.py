@@ -1,13 +1,14 @@
 """One invocation of the existing investigation, Jev forecast, engine and page flow.
 
-This coordinates the local execution path. It does not resume an interrupted tree or
-adopt distributed walk artifacts; those remain separate execution concerns.
+This coordinates local execution, or continues a saved pool on the machine holding its paths.
+Launching remote compute and transferring distributed artifacts remain separate execution concerns.
 """
 from __future__ import annotations
 
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 
 from app.agent.investigation import investigate
 from app.agent.run_store import RunStore
@@ -22,10 +23,13 @@ class FlowError(RuntimeError):
 
 
 def analyze_case(snapshot_id: str, *, run_id: str | None = None,
+                 pool_dir: Path | str | None = None, processes: int = 4,
                  progress: Callable[[str], None] = print) -> dict:
     """Use a dated case's configured inputs, or an explicitly selected ready investigation."""
     if snapshot_id not in SNAPSHOTS:
         raise FlowError(f"Unknown dated case {snapshot_id!r}; choose from {', '.join(SNAPSHOTS)}")
+    if pool_dir is not None and run_id is None:
+        raise FlowError('Adopting a saved pool requires --run')
     if run_id is not None and (not run_id or '/' in run_id or '\\' in run_id or '..' in run_id):
         raise FlowError('Invalid recorded run ID')
     state = {'snapshot_id': snapshot_id, 'run_id': run_id, 'status': 'running',
@@ -73,10 +77,14 @@ def analyze_case(snapshot_id: str, *, run_id: str | None = None,
             raise FlowError('This flow requires an agent-plus-Jev investigation')
         if meta.get('evidence_manifest_hash') != manifest['evidence_manifest_hash']:
             raise FlowError('Evidence changed since the investigation; investigate the current snapshot again')
-        data = build(run_id, RECORDED, progress=stage)
-        if data.get('not_modelled'):
-            raise FlowError('Analysis has unresolved disputes: ' + ', '.join(d['title'] for d in data['not_modelled']))
-        artifacts = ['analysis.json', 'page.json', 'collections.csv', 'cashflows.csv', 'jev_log.jsonl.gz']
+        if pool_dir is not None:
+            from app.analysis import pooled
+            artifacts = pooled.build(run_id, RECORDED, pool_dir, processes=processes, progress=stage)
+        else:
+            data = build(run_id, RECORDED, progress=stage)
+            if data.get('not_modelled'):
+                raise FlowError('Analysis has unresolved disputes: ' + ', '.join(d['title'] for d in data['not_modelled']))
+            artifacts = ['analysis.json', 'page.json', 'collections.csv', 'cashflows.csv', 'jev_log.jsonl.gz']
         missing = [name for name in artifacts if not (out / name).is_file()]
         if missing:
             raise FlowError('Analysis did not write: ' + ', '.join(missing))
@@ -85,7 +93,7 @@ def analyze_case(snapshot_id: str, *, run_id: str | None = None,
         save()
         progress('complete')
         return state
-    except Exception as exc:
+    except (Exception, SystemExit) as exc:
         state.update(status='failed', error=str(exc), finished_at=datetime.now(UTC).isoformat())
         save()
         raise FlowError(f"{state['stage']}: {exc}" + (f' (run {run_id})' if run_id else '')) from exc

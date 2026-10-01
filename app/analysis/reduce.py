@@ -498,7 +498,8 @@ def _blocks(cost: dict, n: int) -> list[list[tuple[str, int, int]]]:
     return out
 
 
-def job(run_id: str, ctl_dir: str, answers_file: str, job_i: int, jobs: int, procs: int, out: str) -> None:
+def job(run_id: str, ctl_dir: str, answers_file: str, job_i: int, jobs: int, procs: int, out: str,
+        *, root=None) -> None:
     """This machine's blocks job*procs .. +procs of jobs*procs: each in a forked process, its paths reduced
     (`reduce_paths`, with stress rows) into out/tab<block>.pkl and out/stress<block>.pkl."""
     from app.analysis.build import run_context
@@ -512,7 +513,7 @@ def job(run_id: str, ctl_dir: str, answers_file: str, job_i: int, jobs: int, pro
         ans = json.load(fh)
     from pathlib import Path
 
-    ctx = run_context(run_id, Path("runs/recorded"))
+    ctx = run_context(run_id, root if root is not None else Path("runs/recorded"))
     setup, sens = _variant(ctx)
     fc = Forecaster(ctx["live"], ctx["findings"], borrower=ctx["borrower"], review=ctx["review"],
                     horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup, slots=ctx["slots"], model=ctx["m"],
