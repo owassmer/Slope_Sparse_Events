@@ -18,8 +18,14 @@ class Continuation:
     function: object
     args: tuple
     kwargs: dict
+    canonical: dict
+    classes: dict
+    record_at: tuple | None
 
     def run(self):
+        self.walk.fc._qcanon = copy.deepcopy(self.canonical)
+        self.walk.fc._qcls = copy.deepcopy(self.classes)
+        self.walk.fc._rec_at = self.record_at
         return self.function(self.walk, self.state, *self.args, **self.kwargs)
 
 
@@ -43,7 +49,9 @@ def capture(walk: _Walk, prefix: tuple, method: str, phase: str | None = None) -
             if name == method and state.steps == prefix and (phase is None or args[0] == phase):
                 if self._watch:
                     raise ValueError('Continuation is inside a speculative watch; resume its owning decision')
-                found.append(Continuation(self, copy.deepcopy(state), function, args, kwargs))
+                found.append(Continuation(self, copy.deepcopy(state), function, args, kwargs,
+                                          copy.deepcopy(self.fc._qcanon), copy.deepcopy(self.fc._qcls),
+                                          self.fc._rec_at))
                 return None
             return function(self, state, *args, **kwargs)
         return call

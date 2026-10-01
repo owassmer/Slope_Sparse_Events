@@ -259,7 +259,7 @@ First bounded continuation wave: the210 original affected history prefixes map t
 
 ## Repair reconciliation — current instructions, 2026-10-01
 
-This section supersedes the repair dispatch/adoption instructions above. Compute is paused. GitHub repair runs 36897600258, 36898639339 and 36900757978 were cancelled; personal AWS worker i-0d1ad1d0761e877d8 was stopped with disk preserved. Do not restart the old replacement manifest. No new Jev forecast or financial result has been produced.
+This section supersedes the broad repair dispatch/adoption instructions above. That campaign remains retired; the exact branch recovery below supersedes the subsequent compute pause. GitHub repair runs 36897600258, 36898639339 and 36900757978 were cancelled; personal AWS worker i-0d1ad1d0761e877d8 was stopped with disk preserved. Do not restart the old replacement manifest. No new Jev forecast or financial result has been produced.
 
 The earlier 2,109 reusable / 6,035 replacement segment plan and its 99.3% raw-path replacement implication are withdrawn as a statement of necessary repair. They came from broad filing exposure flags, strict whole-root identity and an overbroad code change. They do not measure invalid cash paths. The complete original walk remains preserved. The scope scan is an exposure inventory only.
 
@@ -289,3 +289,20 @@ The local rollback restores the two `joined` calls. Seventeen focused notes, sco
 - [ ] Finish pooling → Jev → lender cash-flow reduction → inspected analysis page through the repeatable invocation. Russell's work sample and follow-up remain the delivery priority.
 
 GitHub is primary compute; personal AWS can accelerate when justified. No recovery estimate is established yet. Do not describe this reconciliation or the passing local regressions as completed production repair.
+
+## Exact branch recovery — 2026-10-01
+
+Read-only GitHub scan 36906787897 completed all40 workers,100 original sources and578 parts. It indexed4,326,850 raw path events (including20 conditional events outside the previous globally selected count), locating actual prefix-terminal predicates and stored digest merges. Replicated top events were excluded using the original top owner; source/part inventory and completion were checked.
+
+The exact recovery manifest at `/tmp/notes-exact-recovery.pkl` selects12,402 nonoverlapping post-answer branches and12,591 continuation starts. It replaces21,646 old raw histories and retains4,305,204 cash paths (99.5%). This is a complete conservative recovery selection for the identified changed rules, not a claim that every selected old history has wrong cash. Unaffected siblings survive. A merged quiet/holder alternative is reconstructed as its two original alternatives. The manifest retains original event conditions as well as ordering keys.
+
+`tools/notes_resume.py` replays only the exact saved prefix to capture actual walk flags and callback, snapshots canonical class maps, and rejects ambiguous capture or an open speculative watch. It never reconstructs flags from steps alone. A recovered full notes fork produced27 descendants and conserved per-draw probability over three randomized assignments. A ripe-file branch produced20 descendants in4.1s; a heavier selected branch produced557 descendants in34.4s. The production worker preserves completed units independently and checks conditional descendant mass, unexpected financing expansion and original metadata consistency.18 focused tests pass; independent review found no blocker to isolated generation. Global integration checks remain mandatory.
+
+Recovery runs on40 GitHub workers using all detected cores, with no AWS instance launch. Plan SHA256: `66ce5f812399f43878f3d235f2b0ad73e67306b5c9ac35fa851f58076c179672`. Outputs are isolated GitHub artifacts retained7days. Do not reuse the retired whole-root adoption manifest.
+
+Remaining integration work:
+- [ ] Finish every selected continuation; resolve capture, financing or conservation failures without dropping their units.
+- [ ] Assemble replacement paths with original conditional provenance and preserve every unselected raw cash history.
+- [ ] Rebuild notes facts/classes across final histories. For affected non-notes late facts, group by base question + asking prefix, remove old rows for the whole group and rebuild from ALL final supporting histories (retained and recovered); globally deduplicate by late_key. A parent asking prefix can precede the replaced branch, so prefix-local deletion alone is wrong. Preserve shared early recorded ancestor facts separately.
+- [ ] Verify full probability composition, watch coverage, absence of duplicate alternatives and exact question-state coverage.
+- [ ] Finish pooling, Jev judgments, financial reduction and the inspected Russell page through the repeatable invocation.
