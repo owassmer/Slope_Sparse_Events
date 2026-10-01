@@ -212,3 +212,14 @@ The first distributed wave saved states from both GitHub and AWS, but exact cove
 The correction shares that existing lookup through `Forecaster.reduced_band`, preserving `lo < entered <= hi` and booked midpoints, and uses it for the question's reduction bounds. Lowest-band questions omit reduction fields when that answer is absent. Regression checks compare rendered criteria to the walked band across all bands, the open-ended top, the lowest band and exact cut points. Fourteen focused checks passed; independent financial/probability review confirmed the correction. Every affected state must rebuild, including previously successful finite-band states; old outputs are excluded through code-versioned output prefixes and versioned signed manifests.
 
 All 16 source-row buckets finished preparation before the initial coordinator failed. Their 96 saved prepared bundles remain reusable. Old GitHub run 36824836030 is being retired; AWS's completion trap was held before the failure, preserving the instance and completed data for the corrected state-only restart. No Jev probabilities have been requested.
+
+## Corrected fleet result — 2026-10-01 07:10 UTC
+
+Revision d9e4fe7 ran on 40 GitHub runners (four cores each) and all 16 AWS cores. GitHub run 36827669452 finished with 39 successful jobs and one failed job. The failed job's second, independent task (12-2) was rescued on the now-available 16 AWS cores and saved successfully. Current generation 09e662abd9e4682e has 95/96 partitions saved and 15/16 buckets assembled. Healthy outputs are preserved; no whole-fleet restart is needed.
+
+The remaining partition 4-2 rejects `dispute_002:holders_involuntary|judgment_ruling|motions_pending`: no trajectories from which to construct the question's cash state. This is a correctness blocker, not a compute-capacity shortage. A scan of all 545 retained-path files (118,926,442,915 bytes) found the key; decoding part100 confirmed an exact composite-edge dependency. That example carries an empty class-tag tuple with every code -1, but the base question has no class children or fallback. This single example is not proof that the question can be omitted globally. Do not skip the question, invent a probability, classify it as unused, or publish pool readiness. Next: establish its treatment across all affected retained paths and correct the state/probability interface without changing feasible cash outcomes. Jev, financial reduction and the final page remain pending.
+
+- [x] Verify live multicore execution, GitHub runner activity and saved partition progress.
+- [x] Rescue the healthy task stranded behind the failed task onto available AWS cores.
+- [ ] Correct the remaining no-cash-state dependency and complete exact 96-partition coverage.
+- [ ] Publish final pool readiness, then run judgments and financial reduction through the repeatable invocation.
