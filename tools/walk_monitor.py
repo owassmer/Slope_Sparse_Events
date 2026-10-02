@@ -83,6 +83,21 @@ def poll(client):
         while True:
             started = time.monotonic()
             try:
+                try:
+                    progress = json.loads(body(client, POOL_PREFIX + '/progress.json'))
+                except client.exceptions.NoSuchKey:
+                    progress = None
+                if progress:
+                    with LOCK:
+                        STATE['pool'] = progress
+                        STATE['phase'] = 'Pooling: ' + progress['stage'].replace('_', ' ')
+                    ingest('pool-progress', json.dumps(progress, indent=2), source='Pool coordinator')
+                    for obj in objects(client, '/fleet-v3/logs/', POOL_PREFIX):
+                        if ETAGS.get(obj['Key']) != obj['ETag']:
+                            ingest('pool-' + Path(obj['Key']).stem,
+                                   body(client, obj['Key']).decode(errors='replace'),
+                                   obj['LastModified'].isoformat(), 'GitHub pooling')
+                            ETAGS[obj['Key']] = obj['ETag']
                 if STATE['total'] is None:
                     try:
                         ready = json.loads(body(client, PREFIX + '/ready.json'))
@@ -156,21 +171,8 @@ def poll(client):
                                  updated=datetime.now(UTC).isoformat(), error=None)
                     if STATE['total'] is not None and primary_done == STATE['total']:
                         STATE['phase'] = 'Walk outputs complete — assembly and global checks next'
-                try:
-                    progress = json.loads(body(client, POOL_PREFIX + '/progress.json'))
-                except client.exceptions.NoSuchKey:
-                    progress = None
-                if progress:
-                    with LOCK:
-                        STATE['pool'] = progress
-                        STATE['phase'] = 'Pooling: ' + progress['stage'].replace('_', ' ')
-                    ingest('pool-progress', json.dumps(progress, indent=2), source='Pool coordinator')
-                    for obj in objects(client, '/fleet-v3/logs/', POOL_PREFIX):
-                        if ETAGS.get(obj['Key']) != obj['ETag']:
-                            ingest('pool-' + Path(obj['Key']).stem,
-                                   body(client, obj['Key']).decode(errors='replace'),
-                                   obj['LastModified'].isoformat(), 'GitHub pooling')
-                            ETAGS[obj['Key']] = obj['ETag']
+                    if STATE.get('pool'):
+                        STATE['phase'] = 'Pooling: ' + STATE['pool']['stage'].replace('_', ' ')
                 if time.monotonic() - last_github > 30:
                     recent = json.loads(subprocess.check_output(
                         ['gh', 'run', 'list', '--repo', REPO, '--branch', 'fresh-walk',
