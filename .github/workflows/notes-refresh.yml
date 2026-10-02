@@ -17,6 +17,7 @@ jobs:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
       SLOPE_JEV_CACHE_ONLY: '1'
+      NOTES_COMPLETE_MISSING: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

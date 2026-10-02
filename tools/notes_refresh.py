@@ -65,7 +65,7 @@ def correspondence(walk, source):
     return uncovered, changed
 
 
-def refresh(number, unit, saved, control):
+def refresh(number, unit, saved, control, *, complete_missing=False):
     """Keep saved coverage explicit: unknown branches are returned, never silently dropped."""
     outputs, discrepancies = [], []
     for target, source in zip(unit['targets'], saved['outputs'], strict=True):
@@ -80,6 +80,19 @@ def refresh(number, unit, saved, control):
         fc._raise_open = set(control['raised'])
         dispute = next(d for d in fc.disputes if d.instance_id == unit['instance'])
         walk = _Walk(fc, dispute)
+        rows = []
+        record = fc.record
+
+        def recorded(keys, trace, record=record, rows=rows, fc=fc):
+            result = record(keys, trace)
+            rows.extend(('rec', key, fc._rec_at, None, blob) for key, blob in result)
+            return result
+
+        def late(key, before, row, rows=rows, fc=fc):
+            rows.append(('late', key, before, fc.late_key(key, before, row), pack_row(row)))
+
+        fc.record, fc._keep_late = recorded, late
+
         try:
             continuation = capture(walk, prefix, method, phase, legacy=False)
         except ValueError as error:
@@ -98,29 +111,20 @@ def refresh(number, unit, saved, control):
         # Keep the complete saved sibling population, including no-event watch branches.
         allowed = {history(p.steps[:i]) for p in source['paths'] for i in range(len(prefix), len(p.steps) + 1)}
         missing = set()
-        rows = []
-        record = fc.record
-
-        def recorded(keys, trace, record=record, rows=rows, fc=fc):
-            result = record(keys, trace)
-            rows.extend(('rec', key, fc._rec_at, None, blob) for key, blob in result)
-            return result
-
-        def late(key, before, row, rows=rows, fc=fc):
-            rows.append(('late', key, before, fc.late_key(key, before, row), pack_row(row)))
-
-        fc.record, fc._keep_late = recorded, late
-        fc.facts.clear()
-        fc._late_seen.clear()
-
-        def bounded(function, walk=walk, allowed=allowed, missing=missing):
+        completing = []
+        def bounded(function, walk=walk, allowed=allowed, missing=missing, completing=completing):
             @functools.wraps(function)
             def call(self, state, *args, **kwargs):
                 if self is walk and isinstance(state, _S) and history(state.steps) not in allowed:
                     mask = self.mask_of(state.steps)
-                    if mask is None or mask.any():
+                    if mask is not None and not mask.any():
+                        return None
+                    if not any(state.steps[:len(root)] == root for root in completing):
                         missing.add(state.steps)
-                    return None
+                        if complete_missing:
+                            completing.append(state.steps)
+                    if not complete_missing:
+                        return None
                 return function(self, state, *args, **kwargs)
             return call
 
@@ -147,11 +151,12 @@ def refresh(number, unit, saved, control):
             raise ValueError('Refresh opens additional financing prefixes')
         report = {'incoming_compatible': True, 'target_steps': len(prefix), 'saved': len(source['paths']), 'refreshed': len(walk.out),
                   'unmatched_history_draws': uncovered,
-                  'changed_finances': altered, 'unknown_prefixes': len(missing)}
+                  'changed_finances': altered, 'unknown_prefixes': len(missing),
+                  'completed_missing_branches': bool(complete_missing and missing)}
         report['missing'] = sorted(missing)
         discrepancies.append(report)
         # This is an adoption gate. Pruning cannot be used to claim mass conservation.
-        if missing or altered or uncovered:
+        if altered or (not complete_missing and (missing or uncovered)):
             continue
         conditional = [replace(p, edges=p.edges[len(parent.edges):]) for p in walk.out]
         expanded = expand_classes(conditional, fc.nodes, fc.draws.n)
@@ -214,7 +219,8 @@ def main(number):
     with gzip.open(root / 'unit.pkl.gz', 'rb') as stream:
         saved = pickle.load(stream)
     started = time.monotonic()
-    result = refresh(number, plan['units'][number], saved, control)
+    result = refresh(number, plan['units'][number], saved, control,
+                     complete_missing=os.environ.get('NOTES_COMPLETE_MISSING') == '1')
     with gzip.open(root / 'refreshed.pkl.gz', 'wb', compresslevel=1) as stream:
         pickle.dump(result, stream, protocol=5)
     report = {k: v for k, v in result.items() if k != 'outputs'}
