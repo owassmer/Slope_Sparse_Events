@@ -186,7 +186,7 @@ def poll(client):
                         text=True, timeout=25))
                     merge_runs = json.loads(subprocess.check_output(
                         ['gh', 'run', 'list', '--repo', REPO, '--branch', 'merge-fleet',
-                         '--workflow', 'merge-fleet.yml', '--limit', '1', '--json', 'databaseId,url,status'],
+                         '--limit', '1', '--json', 'databaseId,url,status'],
                         text=True, timeout=25))
                     runs += pool_runs + merge_runs
                     jobs = []

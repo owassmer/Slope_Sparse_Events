@@ -499,7 +499,7 @@ def _blocks(cost: dict, n: int) -> list[list[tuple[str, int, int]]]:
 
 
 def job(run_id: str, ctl_dir: str, answers_file: str, job_i: int, jobs: int, procs: int, out: str,
-        *, root=None) -> None:
+        *, root=None, block_ranges=None) -> None:
     """This machine's blocks job*procs .. +procs of jobs*procs: each in a forked process, its paths reduced
     (`reduce_paths`, with stress rows) into out/tab<block>.pkl and out/stress<block>.pkl."""
     from app.analysis.build import run_context
@@ -523,7 +523,7 @@ def job(run_id: str, ctl_dir: str, answers_file: str, job_i: int, jobs: int, pro
     sa = prepared(ctx["feed"], setup, d, ctx["m"], sens, stress=True)
     f_names, full, s_names, scal = settings_for(ans["answers"], ctl["nodes"])
     known, dead = set(ctl["nodes"]), frozenset(ans.get("dead", ()))
-    blocks = _blocks(ctl["part_cost"], jobs * procs)
+    blocks = _blocks(ctl["part_cost"], jobs * procs) if block_ranges is None else block_ranges
     os.makedirs(out, exist_ok=True)
     print(f"{time.time() - t0:7.0f}s reduce job {job_i}: {len(full)} full and {len(scal)} scalar settings",
           file=sys.stderr, flush=True)

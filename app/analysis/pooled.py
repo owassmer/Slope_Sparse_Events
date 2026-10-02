@@ -163,16 +163,23 @@ def build(run_id: str, root: Path, directory: Path | str, *, processes: int, pro
         identity = hashlib.sha256(json.dumps({'inputs': inputs, 'answers': digest(answers), 'code': code},
                                              sort_keys=True).encode()).hexdigest()
         work = work / identity
-        for j in range(jobs):
-            block = work / f'job{j}'
-            marker = block / 'complete.json'
-            expected = [block / f'{kind}{k}.pkl' for k in range(j * processes, (j + 1) * processes)
-                        for kind in ('tab', 'stress')]
-            complete = json.loads(marker.read_text()) if marker.exists() else {}
-            if complete != {p.name: digest(p) if p.exists() else None for p in expected}:
-                progress(f'reduction_{j + 1}_of_{jobs}')
-                reduce.job(run_id, str(directory / 'ctl'), str(answers), j, jobs, processes, str(block), root=root)
-                save(marker, {p.name: digest(p) for p in expected})
+        if os.environ.get('SLOPE_REDUCE_FLEET') == '1':
+            from app.config import RECORDED
+            from tools.reduce_fleet import coordinate
+            if root.resolve() != RECORDED.resolve():
+                raise ValueError('Distributed reduction requires the canonical recorded run directory')
+            work, jobs = coordinate(run_id, directory, answers, identity, progress)
+        else:
+            for j in range(jobs):
+                block = work / f'job{j}'
+                marker = block / 'complete.json'
+                expected = [block / f'{kind}{k}.pkl' for k in range(j * processes, (j + 1) * processes)
+                            for kind in ('tab', 'stress')]
+                complete = json.loads(marker.read_text()) if marker.exists() else {}
+                if complete != {p.name: digest(p) if p.exists() else None for p in expected}:
+                    progress(f'reduction_{j + 1}_of_{jobs}')
+                    reduce.job(run_id, str(directory / 'ctl'), str(answers), j, jobs, processes, str(block), root=root)
+                    save(marker, {p.name: digest(p) for p in expected})
         progress('merge_financials')
         merged = work / 'merged'
         # Merge only the completed job directories; never feed a previous merged tables.pkl back into itself.
