@@ -3,16 +3,66 @@ from __future__ import annotations
 
 import functools
 import inspect
+from collections import defaultdict
 from contextlib import ExitStack
 from dataclasses import replace
 from unittest.mock import patch
 
 import numpy as np
 
-from app.disputes import pool
+from app.disputes import parallel, pool
 from app.disputes.forecast import _S, _Walk, atoms, expand_classes, pack_row, path_mask
 from tools.notes_recover import RUN
 from tools.notes_resume import capture
+
+
+def history(steps):
+    # Matching only: native masks and edges remain untouched. Infeasible no has
+    # no settlement probability, while feasible yes/no retain their native edges.
+    from app.analysis.events import plain
+    return tuple((n, c, plain(b) if n == 'settle' else b) for n, c, b in steps)
+
+
+def correspondence(walk, source):
+    """Compare saved/new populations and finances under native settlement feasibility."""
+    from app.analysis.events import event_trace, plain
+
+    fc = walk.fc
+    old, new = defaultdict(list), defaultdict(list)
+    for path, eq in zip(source['paths'], source['equivalence'], strict=True):
+        old[(history(path.steps), path.outcome)].append((path, eq))
+    for path, eq in zip(walk.out, walk.keys, strict=True):
+        new[(history(path.steps), path.outcome)].append((path, eq))
+    uncovered = changed = 0
+    for key in old.keys() | new.keys():
+        expected, got = np.zeros(fc.draws.n, dtype=int), np.zeros(fc.draws.n, dtype=int)
+        for path, _eq in old[key]:
+            mask = path_mask(path, fc.draws.n)
+            mask = np.ones(fc.draws.n, dtype=bool) if mask is None else mask.copy()
+            for i, (node, ctx, branch) in enumerate(path.steps):
+                if node == 'settle' and plain(branch) == 'yes' and not branch.startswith('@'):
+                    mask &= walk.walk_groups(path.steps[:i] + ((node, ctx, 'no'),)) == 1
+            expected += mask
+        for path, eq in new[key]:
+            mask = path_mask(path, fc.draws.n)
+            mask = np.ones(fc.draws.n, dtype=bool) if mask is None else mask
+            got += mask
+            if not old[key]:
+                continue
+            same = next((saved_eq for saved, saved_eq in old[key]
+                         if saved.steps == path.steps and saved.mask == path.mask), None)
+            if same is not None:
+                changed += same != eq
+            else:
+                # Regrouping changes the digest's mask. Re-evaluate the saved
+                # financial history on this exact native population for comparison.
+                saved = old[key][0][0]
+                tr = event_trace(walk.d, saved, fc.setup, fc.m, fc.draws, fc.sens,
+                                 rows=tuple(mask for _ in saved.steps))
+                comparable = walk.equivalence(_S(steps=saved.steps), saved.outcome, tr, mask)
+                changed += comparable != eq
+        uncovered += int(np.count_nonzero(expected != got))
+    return uncovered, changed
 
 
 def refresh(number, unit, saved, control):
@@ -23,11 +73,30 @@ def refresh(number, unit, saved, control):
         fc = pool.forecaster(RUN, control)
         fc._raise_open = set(control['raised'])
         dispute = next(d for d in fc.disputes if d.instance_id == unit['instance'])
+        historical = capture(_Walk(fc, dispute), prefix, method, phase, legacy=True)
+        incoming = historical.incoming_mask
+        del historical
+        fc = pool.forecaster(RUN, control)
+        fc._raise_open = set(control['raised'])
+        dispute = next(d for d in fc.disputes if d.instance_id == unit['instance'])
         walk = _Walk(fc, dispute)
-        continuation = capture(walk, prefix, method, phase, legacy=True)
+        try:
+            continuation = capture(walk, prefix, method, phase, legacy=False)
+        except ValueError as error:
+            discrepancies.append({'target_steps': len(prefix), 'incoming_compatible': False, 'reason': str(error)})
+            continue
         parent = continuation.state
+        native_mask = walk.mask_of(parent.steps)
+        old = np.ones(fc.draws.n, dtype=bool) if incoming is None else incoming
+        new = np.ones(fc.draws.n, dtype=bool) if native_mask is None else native_mask
+        if not np.array_equal(old, new):
+            discrepancies.append({'target_steps': len(prefix), 'incoming_compatible': False,
+                                  'changed_draws': int(np.count_nonzero(old != new))})
+            continue
+        if walk.out:
+            raise ValueError("Prefix capture unexpectedly emitted paths")
         # Keep the complete saved sibling population, including no-event watch branches.
-        allowed = {p.steps[:i] for p in source['paths'] for i in range(len(prefix), len(p.steps) + 1)}
+        allowed = {history(p.steps[:i]) for p in source['paths'] for i in range(len(prefix), len(p.steps) + 1)}
         missing = set()
         rows = []
         record = fc.record
@@ -47,7 +116,7 @@ def refresh(number, unit, saved, control):
         def bounded(function, walk=walk, allowed=allowed, missing=missing):
             @functools.wraps(function)
             def call(self, state, *args, **kwargs):
-                if self is walk and isinstance(state, _S) and state.steps not in allowed:
+                if self is walk and isinstance(state, _S) and history(state.steps) not in allowed:
                     mask = self.mask_of(state.steps)
                     if mask is None or mask.any():
                         missing.add(state.steps)
@@ -55,7 +124,16 @@ def refresh(number, unit, saved, control):
                 return function(self, state, *args, **kwargs)
             return call
 
+        emitted = _Walk.emit
+
+        def progress(self, s, outcome, emitted=emitted, walk=walk):
+            result = emitted(self, s, outcome)
+            if self is walk and len(self.out) % 100 == 0:
+                print({'unit': number, 'saved_histories_refreshed': len(self.out)}, flush=True)
+            return result
+
         with ExitStack() as stack:
+            stack.enter_context(patch.object(_Walk, 'emit', progress))
             for name, function in list(vars(_Walk).items()):
                 if not callable(function) or name.startswith('__'):
                     continue
@@ -64,17 +142,16 @@ def refresh(number, unit, saved, control):
                 if len(parameters) > 1 and parameters[1] == 's' and signature.return_annotation in ('None', None):
                     stack.enter_context(patch.object(_Walk, name, bounded(function)))
             continuation.run()
-        # Matching is by the complete decision history and population, not output order.
-        original = {(p.steps, p.mask, p.outcome): eq for p, eq in
-                    zip(source['paths'], source['equivalence'], strict=True)}
-        current = {(p.steps, p.mask, p.outcome): eq for p, eq in zip(walk.out, walk.keys, strict=True)}
-        altered = [key for key in original.keys() & current.keys() if original[key] != current[key]]
-        report = {'target_steps': len(prefix), 'saved': len(source['paths']), 'refreshed': len(walk.out),
-                  'unreached': len(original.keys() - current.keys()), 'new_leaves': len(current.keys() - original.keys()),
-                  'changed_finances': len(altered), 'unknown_prefixes': len(missing)}
-        discrepancies.append({**report, 'missing': sorted(missing)})
+        uncovered, altered = correspondence(walk, source)
+        if fc._raise_more - fc._raise_open:
+            raise ValueError('Refresh opens additional financing prefixes')
+        report = {'incoming_compatible': True, 'target_steps': len(prefix), 'saved': len(source['paths']), 'refreshed': len(walk.out),
+                  'unmatched_history_draws': uncovered,
+                  'changed_finances': altered, 'unknown_prefixes': len(missing)}
+        report['missing'] = sorted(missing)
+        discrepancies.append(report)
         # This is an adoption gate. Pruning cannot be used to claim mass conservation.
-        if missing or altered or original.keys() != current.keys():
+        if missing or altered or uncovered:
             continue
         conditional = [replace(p, edges=p.edges[len(parent.edges):]) for p in walk.out]
         expanded = expand_classes(conditional, fc.nodes, fc.draws.n)
@@ -95,7 +172,15 @@ def refresh(number, unit, saved, control):
         report['max_probability_error'] = maximum
         if maximum > 1e-10:
             raise ValueError(f'Refreshed unit {number} fails conditional conservation: {maximum}')
-        outputs.append({**source, 'paths': walk.out, 'equivalence': walk.keys, 'rows': rows,
+        fields = {}
+        for name in parallel.FIELDS:
+            values, before = getattr(fc, name), control[name]
+            if any(value != before[key] for key, value in values.items() if key in before):
+                raise ValueError(f'Original {name} changed during refresh')
+            fields[name] = {k: v for k, v in values.items() if k not in before}
+        outputs.append({**source, 'ev_range': getattr(fc, 'ev_range', None), 'parent': parent, 'fields': fields,
+                        'sets': {name: set(getattr(fc, name)) - control[name] for name in parallel.SETS},
+                        'paths': walk.out, 'equivalence': walk.keys, 'rows': rows,
                         'nodes': {k: v for k, v in fc.nodes.items() if k not in control['nodes']},
                         'max_probability_error': maximum})
     return {'unit': number, 'outputs': outputs, 'reports': discrepancies,
