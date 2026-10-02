@@ -19,6 +19,7 @@ import boto3
 BUCKET = 'slope-walk-462947327980-20261001'
 PREFIX = 'walk-36781427817/fresh-balanced-coarse'
 TRACK_RUN = None
+EXTRA_PREFIX = None
 RUN = '36964784016'
 REPO = 'owassmer/Slope_Sparse_Events'
 LOCK = threading.RLock()
@@ -64,8 +65,8 @@ def ingest(task, content, when=None, source=None):
             row['histories'] = max(counts)
 
 
-def objects(client, suffix):
-    return [o for page in client.get_paginator('list_objects_v2').paginate(Bucket=BUCKET, Prefix=PREFIX + suffix)
+def objects(client, suffix, prefix=None):
+    return [o for page in client.get_paginator('list_objects_v2').paginate(Bucket=BUCKET, Prefix=(prefix or PREFIX) + suffix)
             for o in page.get('Contents', [])]
 
 
@@ -92,6 +93,15 @@ def poll(client):
                 listings = list(pool.map(lambda suffix: objects(client, suffix),
                                          ['/refine-v1/claims/', '/refine-v1/done/', '/refine-v1/live/', '/monitor/']))
                 claims, done, logs, host_logs = listings
+                primary_done = len(done)
+                replacement_ids = set()
+                if EXTRA_PREFIX:
+                    extra = list(pool.map(lambda suffix: objects(client, suffix, EXTRA_PREFIX),
+                                          ['/refine-v1/claims/', '/refine-v1/done/', '/refine-v1/live/']))
+                    replacement_ids = {Path(o['Key']).stem for o in extra[0] + extra[1]}
+                    claims += extra[0]
+                    done += extra[1]
+                    logs += extra[2]
                 completed = {Path(o['Key']).stem for o in done}
                 now = datetime.now(UTC)
                 active = {Path(o['Key']).stem for o in claims
@@ -137,12 +147,13 @@ def poll(client):
                             row['state'] = 'awaiting retry'
                     for ident in active:
                         TASKS.setdefault(ident, {'id': ident})['state'] = 'active'
-                    STATE.update(done=len(completed), active=len(active),
+                    STATE.update(done=primary_done, active=len(active),
+                                 replacement_active=len(active & replacement_ids),
                                  raw_histories=sum(t.get('histories', 0) for key, t in TASKS.items()
-                                                   if re.fullmatch(r'\d+-\d+', key)),
+                                                   if re.fullmatch(r'\d+-\d+', key) and key not in replacement_ids),
                                  phase=('Walking corrected tree' if STATE['total'] else 'Preparing corrected branch list'),
                                  updated=datetime.now(UTC).isoformat(), error=None)
-                    if STATE['total'] is not None and len(completed) == STATE['total']:
+                    if STATE['total'] is not None and primary_done == STATE['total']:
                         STATE['phase'] = 'Walk outputs complete — assembly and global checks next'
                 if time.monotonic() - last_github > 30:
                     recent = json.loads(subprocess.check_output(
@@ -190,7 +201,7 @@ PAGE = '''<!doctype html><html><head><meta charset="utf-8"><title>Slope · Live 
 <details><summary>GitHub worker status</summary><table><tbody id="jobs"></tbody></table></details></main>
 <script>
 let data=null,paused=false;const el=id=>document.getElementById(id),esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),num=x=>Number(x||0).toLocaleString();
-function render(){if(!data||paused)return;let s=data.state;if(s.run_url)el('runlink').href=s.run_url;el('phase').textContent=s.phase;el('updated').textContent=s.updated?'Updated '+new Date(s.updated).toLocaleTimeString():'';el('warning').textContent=s.error?'Update error: '+s.error:'';el('done').textContent=num(s.done)+' / '+(s.total?num(s.total):'preparing');el('active').textContent=num(s.active);el('paths').textContent=num(s.raw_histories);el('workers').textContent=s.jobs.filter(j=>j.status==='in_progress').length+' / '+s.jobs.length;el('progress').max=s.total||1;el('progress').value=s.done;
+function render(){if(!data||paused)return;let s=data.state;if(s.run_url)el('runlink').href=s.run_url;el('phase').textContent=s.phase;el('updated').textContent=s.updated?'Updated '+new Date(s.updated).toLocaleTimeString():'';el('warning').textContent=s.error?'Update error: '+s.error:'';el('done').textContent=num(s.done)+' / '+(s.total?num(s.total):'preparing');el('active').textContent=num(s.active)+(s.replacement_active?' ('+num(s.replacement_active)+' replacements)':'');el('paths').textContent=num(s.raw_histories);el('workers').textContent=s.jobs.filter(j=>j.status==='in_progress').length+' / '+s.jobs.length;el('progress').max=s.total||1;el('progress').value=s.done;
 let current=el('task').value,ids=[...new Set(data.events.map(e=>e.task))].sort();el('task').innerHTML='<option value="">All sources</option>'+ids.map(id=>'<option value="'+esc(id)+'">'+esc(id)+'</option>').join('');el('task').value=current;
 let query=el('search').value.toLowerCase(),only=el('errors').checked;let events=data.events.filter(e=>(!current||e.task===current)&&(!only||e.error)&&(!query||(e.text+' '+e.task+' '+e.source).toLowerCase().includes(query))).slice(-1000);
 let box=el('logs'),bottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;box.innerHTML=events.map(e=>'<div class="line '+(e.error?'error':'')+'"><span class="muted">'+esc(new Date(e.time).toLocaleTimeString())+'</span><span>'+esc(e.task)+'</span><span class="source muted">'+esc(e.source)+'</span><span class="text">'+esc(e.text)+'</span></div>').join('')||'<div class="muted">Waiting for log output…</div>';if(bottom)box.scrollTop=box.scrollHeight;
@@ -231,17 +242,19 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global PREFIX, TRACK_RUN
+    global PREFIX, TRACK_RUN, EXTRA_PREFIX
     parser = argparse.ArgumentParser()
     auth = parser.add_mutually_exclusive_group(required=True)
     auth.add_argument('--credentials')
     auth.add_argument('--profile')
+    parser.add_argument('--extra-prefix')
     parser.add_argument('--run', type=int, nargs='+')
     parser.add_argument('--prefix', default=PREFIX)
     parser.add_argument('--port', type=int, default=18766)
     args = parser.parse_args()
     PREFIX = args.prefix
     TRACK_RUN = args.run
+    EXTRA_PREFIX = args.extra_prefix
     if args.profile:
         client = boto3.Session(profile_name=args.profile).client('s3', region_name='us-east-2')
     else:
