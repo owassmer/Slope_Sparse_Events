@@ -564,3 +564,14 @@ Local consolidated view: http://127.0.0.1:18766 (tools/walk_monitor.py). It poll
 Live monitoring caught GitHub launch using only one subprocess per runner: GNU nproc honors OMP_NUM_THREADS=1, which is correctly set to prevent per-process numerical oversubscription. AWS reproduction returned nproc=1 and nproc --all=16. Change workflow core discovery to nproc --all, preserve numerical thread limits, pin checkout50d452b, and replace only GitHub run36963960032. AWS16workers continue; saved outputs remain canonical and old GitHub leases expire/retry through the existing queue. This was a launch-setting error, not engine behavior.
 
 Replacement36964784016 failed before compute: actions/checkout treats the abbreviated50d452b ref as a branch/tag pattern. Use the full40-character SHA. This second launch configuration mistake did not affect AWS work or saved queue outputs.
+
+
+#### October 2, 04:40 UTC — reduce repeated shared traversal; clarify live reporting
+
+Run36964902871 successfully reached40 GitHub runners ×4 tasks plus16 AWS tasks. Logs exposed excessive repeated shared-top traversal with6500 fine partitions; zero tasks had saved complete outputs when the fleet was cancelled. Historical fallback weights had inflated partition count on the new topology. The native roots and engine were not at fault.
+
+Published isolated namespace `walk-36781427817/fresh-balanced-coarse`: same9050 roots, identical100 group assignments and refinement depths, four partitions per group (400 tasks total). No prior subdivided output is mixed into this queue. Native base pointers are preserved. Independent focused review approved this scheduling-only change with exact coverage checks retained. Existing refinement/prefix tests passed; app sources remain byte-identical to7b69c37.
+
+GitHub run36965503657 uses all cores via `nproc --all`; personal AWS commandc0d23abb-04b7-4693-9378-604189a33b32 runs16 tasks. Old AWS command cancelled and its walker subprocesses terminated before replacement. Worker codee300938 differs from50d452b only in the displayed claim host: `SLOPE_WORKER_ID` labels GitHub jobs individually. AWS uses the identical one-line change. New independent AWS log publisherf374a2aa-be7b-48fd-8943-6838b6342a23 reports CPU-busy processes separately from waiting parents.
+
+The consolidated view remains http://127.0.0.1:18766 and now watches the400-task queue. Prior fine-queue status/log snapshot is preserved at `/tmp/fresh-dashboard-previous.json`. Counts are explicitly reported minimum histories: workers log every1000 paths, so absence of a count never establishes no production. Refinement lines show traversal and child assignment, not saved outputs. Verified16 AWS CPU-busy processes; GitHub fleet startup verification remains in progress. No new completion-time promise is made before measuring this schedule.

@@ -17,8 +17,8 @@ from urllib.parse import parse_qs, urlparse
 import boto3
 
 BUCKET = 'slope-walk-462947327980-20261001'
-PREFIX = 'walk-36781427817/fresh-balanced'
-RUN = '36963960032'
+PREFIX = 'walk-36781427817/fresh-balanced-coarse'
+RUN = '36964784016'
 REPO = 'owassmer/Slope_Sparse_Events'
 LOCK = threading.RLock()
 EVENTS = deque(maxlen=12000)
@@ -42,6 +42,12 @@ def ingest(task, content, when=None, source=None):
     common = 0
     while common < min(len(old), len(lines)) and old[common] == lines[common]:
         common += 1
+    if common == 0 and old and lines:
+        tail = old[-20:]
+        for i in range(len(lines) - len(tail) + 1):
+            if lines[i:i + len(tail)] == tail:
+                common = i + len(tail)
+                break
     for line in lines[common:]:
         if line.strip():
             emit(task, line, when, source)
@@ -67,6 +73,7 @@ def body(client, key):
 
 
 def poll(client):
+    global RUN
     last_github = 0
     workflow_logs = set()
     with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
@@ -85,13 +92,18 @@ def poll(client):
                                          ['/refine-v1/claims/', '/refine-v1/done/', '/refine-v1/live/', '/monitor/']))
                 claims, done, logs, host_logs = listings
                 completed = {Path(o['Key']).stem for o in done}
-                active = {Path(o['Key']).stem for o in claims} - completed
+                now = datetime.now(UTC)
+                active = {Path(o['Key']).stem for o in claims
+                          if (now - o['LastModified']).total_seconds() < 90} - completed
 
                 def fetch_claim(o, completed=completed):
                     ident = Path(o['Key']).stem
                     if ident in completed or (ident in TASKS and TASKS[ident].get('host')):
                         return
-                    c = json.loads(body(client, o['Key']))
+                    try:
+                        c = json.loads(body(client, o['Key']))
+                    except client.exceptions.NoSuchKey:
+                        return  # a finished task can release its lease after the listing
                     with LOCK:
                         TASKS.setdefault(ident, {'id': ident}).update(host=c['host'], state='active')
                     emit(ident, 'Task claimed', source=c['host'])
@@ -119,6 +131,9 @@ def poll(client):
                     for future in [pool.submit(fn, row) for row in rows]:
                         future.result()
                 with LOCK:
+                    for ident, row in TASKS.items():
+                        if re.fullmatch(r'\d+-\d+', ident) and ident not in completed and ident not in active:
+                            row['state'] = 'awaiting retry'
                     for ident in active:
                         TASKS.setdefault(ident, {'id': ident})['state'] = 'active'
                     STATE.update(done=len(completed), active=len(active),
@@ -129,6 +144,13 @@ def poll(client):
                     if STATE['total'] is not None and len(completed) == STATE['total']:
                         STATE['phase'] = 'Walk outputs complete — assembly and global checks next'
                 if time.monotonic() - last_github > 30:
+                    latest = json.loads(subprocess.check_output(
+                        ['gh', 'run', 'list', '--repo', REPO, '--branch', 'fresh-walk',
+                         '--workflow', 'fresh-walk.yml', '--limit', '1', '--json', 'databaseId,url'],
+                        text=True, timeout=25))[0]
+                    RUN = str(latest['databaseId'])
+                    with LOCK:
+                        STATE['run_url'] = latest['url']
                     data = json.loads(subprocess.check_output(
                         ['gh', 'run', 'view', RUN, '--repo', REPO, '--json', 'jobs'], text=True, timeout=25))
                     with LOCK:
@@ -153,16 +175,16 @@ def poll(client):
 PAGE = '''<!doctype html><html><head><meta charset="utf-8"><title>Slope · Live walk</title>
 <style>
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#10151c;color:#e8edf3;font:15px system-ui,sans-serif}main{max-width:1450px;margin:auto;padding:30px}h1{font-size:26px;margin:0 0 8px}.muted{color:#99a9bb}a{color:#85c7ff}.top{display:flex;justify-content:space-between;gap:20px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0}.card{background:#1a232f;padding:18px;border-radius:10px}.number{font-size:28px;font-weight:650;margin-top:7px}progress{width:100%;height:12px;accent-color:#74d5b5}.toolbar{display:flex;gap:12px;align-items:center;margin:20px 0}input,select,button{background:#202d3d;color:inherit;border:1px solid #3a4d63;border-radius:6px;padding:9px}.logs{height:55vh;overflow:auto;background:#0c1118;border:1px solid #293647;border-radius:8px;padding:10px;font:12px ui-monospace,monospace}.line{display:grid;grid-template-columns:90px 125px 155px 1fr;gap:8px;border-bottom:1px solid #18212d;padding:5px 2px}.text{white-space:pre-wrap;overflow-wrap:anywhere}.error{color:#ff9a9a}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:8px;border-bottom:1px solid #293647}.badge{background:#233f3a;color:#9de7c9;padding:5px 10px;border-radius:20px}details{margin-top:20px}#warning{margin:10px 0}.foot{margin:12px 0;font-size:12px} @media(max-width:800px){.cards{grid-template-columns:1fr 1fr}.line{grid-template-columns:70px 80px 1fr}.source{display:none}}
-</style></head><body><main><div class="top"><div><h1>Slope · Live walk</h1><div class="muted">One view of GitHub and AWS execution</div></div><div><a href="https://github.com/owassmer/Slope_Sparse_Events/actions/runs/36963960032" target="_blank">GitHub run ↗</a><div id="updated" class="muted"></div></div></div>
+</style></head><body><main><div class="top"><div><h1>Slope · Live walk</h1><div class="muted">One view of GitHub and AWS execution</div></div><div><a id="runlink" href="https://github.com/owassmer/Slope_Sparse_Events/actions/workflows/fresh-walk.yml" target="_blank">GitHub run ↗</a><div id="updated" class="muted"></div></div></div>
 <p><span id="phase" class="badge">Connecting…</span></p><div id="warning" class="error"></div>
-<div class="cards"><div class="card">Tasks saved<div id="done" class="number">—</div></div><div class="card">Active tasks<div id="active" class="number">—</div></div><div class="card">Raw histories emitted<div id="paths" class="number">—</div></div><div class="card">GitHub jobs running<div id="workers" class="number">—</div></div></div><progress id="progress" value="0" max="1"></progress>
+<div class="cards"><div class="card">Tasks saved<div id="done" class="number">—</div></div><div class="card">Active tasks<div id="active" class="number">—</div></div><div class="card">Histories reported (minimum)<div id="paths" class="number">—</div></div><div class="card">GitHub jobs running<div id="workers" class="number">—</div></div></div><progress id="progress" value="0" max="1"></progress>
 <div class="toolbar"><select id="task"><option value="">All sources</option></select><input id="search" placeholder="Search all logs"><label><input type="checkbox" id="errors"> Errors only</label><button id="pause">Pause display</button></div>
-<div id="logs" class="logs"></div><div class="muted foot">Refreshes every 10 seconds. Times show when log updates were observed. Raw history counts update as workers log them; they are not the final pooled path count. Task logs are live; GitHub workflow logs join this view when each job finishes.</div>
+<div id="logs" class="logs"></div><div class="muted foot">Refreshes every 10 seconds. Times show when log updates were observed. Workers report history counts every 1,000 paths; a missing count does not mean an idle worker. Refinement lines show traversal, not saved output. Reported counts they are not the final pooled path count. Task logs are live; GitHub workflow logs join this view when each job finishes.</div>
 <details><summary>Tasks and latest messages</summary><table><thead><tr><th>Task</th><th>Worker</th><th>Status</th><th>Histories</th><th>Latest message</th></tr></thead><tbody id="tasks"></tbody></table></details>
 <details><summary>GitHub worker status</summary><table><tbody id="jobs"></tbody></table></details></main>
 <script>
 let data=null,paused=false;const el=id=>document.getElementById(id),esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),num=x=>Number(x||0).toLocaleString();
-function render(){if(!data||paused)return;let s=data.state;el('phase').textContent=s.phase;el('updated').textContent=s.updated?'Updated '+new Date(s.updated).toLocaleTimeString():'';el('warning').textContent=s.error?'Update error: '+s.error:'';el('done').textContent=num(s.done)+' / '+(s.total?num(s.total):'preparing');el('active').textContent=num(s.active);el('paths').textContent=num(s.raw_histories);el('workers').textContent=s.jobs.filter(j=>j.status==='in_progress').length+' / 40';el('progress').max=s.total||1;el('progress').value=s.done;
+function render(){if(!data||paused)return;let s=data.state;if(s.run_url)el('runlink').href=s.run_url;el('phase').textContent=s.phase;el('updated').textContent=s.updated?'Updated '+new Date(s.updated).toLocaleTimeString():'';el('warning').textContent=s.error?'Update error: '+s.error:'';el('done').textContent=num(s.done)+' / '+(s.total?num(s.total):'preparing');el('active').textContent=num(s.active);el('paths').textContent=num(s.raw_histories);el('workers').textContent=s.jobs.filter(j=>j.status==='in_progress').length+' / 40';el('progress').max=s.total||1;el('progress').value=s.done;
 let current=el('task').value,ids=[...new Set(data.events.map(e=>e.task))].sort();el('task').innerHTML='<option value="">All sources</option>'+ids.map(id=>'<option value="'+esc(id)+'">'+esc(id)+'</option>').join('');el('task').value=current;
 let query=el('search').value.toLowerCase(),only=el('errors').checked;let events=data.events.filter(e=>(!current||e.task===current)&&(!only||e.error)&&(!query||(e.text+' '+e.task+' '+e.source).toLowerCase().includes(query))).slice(-1000);
 let box=el('logs'),bottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;box.innerHTML=events.map(e=>'<div class="line '+(e.error?'error':'')+'"><span class="muted">'+esc(new Date(e.time).toLocaleTimeString())+'</span><span>'+esc(e.task)+'</span><span class="source muted">'+esc(e.source)+'</span><span class="text">'+esc(e.text)+'</span></div>').join('')||'<div class="muted">Waiting for log output…</div>';if(bottom)box.scrollTop=box.scrollHeight;
