@@ -210,8 +210,12 @@ def poll(client):
                                           'url': j['url'], 'step': next((s['name'] for s in j['steps']
                                                                        if s['status'] == 'in_progress'), '')}
                                          for j in jobs]
-                    for j in jobs:
+                    log_started, log_count = time.monotonic(), 0
+                    for j in sorted(jobs, key=lambda j: j.get('completedAt') or '', reverse=True):
+                        if log_count >= 4 or time.monotonic() - log_started > 5:
+                            break
                         if j['status'] == 'completed' and j['databaseId'] not in workflow_logs:
+                            log_count += 1
                             result = subprocess.run(['gh', 'api', f"repos/{REPO}/actions/jobs/{j['databaseId']}/logs"],
                                                     text=True, capture_output=True, timeout=25)
                             if result.returncode == 0:
