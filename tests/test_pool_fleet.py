@@ -27,7 +27,13 @@ def test_whole_question_partitions_preserve_order_deduplication_and_watch_filter
     (rows / 'part0.pkl').write_bytes(pickle.dumps(a))
     (rows / 'part1.pkl').write_bytes(pickle.dumps(b))
     out = tmp_path / 'bundles'
-    pool_fleet.prepare(str(rows), str(control), 0, str(out))
+    published = []
+    def publish(path):
+        # Reading through the gzip footer requires a fully closed bundle.
+        with gzip.open(path, "rb") as fh:
+            published.append(pickle.loads(fh.read()))
+    pool_fleet.prepare(str(rows), str(control), 0, str(out), publish=publish)
+    assert len(published) == pool_fleet.PARTITIONS
     recovered = {}
     for p in range(pool_fleet.PARTITIONS):
         with gzip.open(out / f'0-{p}.pkl.gz', 'rb') as fh:

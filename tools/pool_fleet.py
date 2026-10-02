@@ -61,7 +61,7 @@ def combine(results):
     return out
 
 
-def prepare(folder, ctl_file, b, out):
+def prepare(folder, ctl_file, b, out, publish=None):
     with open(ctl_file, 'rb') as fh:
         ctl = pickle.load(fh)
     facts = pool.bucket_facts(folder, ctl)
@@ -71,6 +71,8 @@ def prepare(folder, ctl_file, b, out):
         with gzip.open(Path(out) / f'{b}-{p}.pkl.gz', 'wb', compresslevel=1) as fh:
             pickle.dump({'keys': keys, 'facts': {k: facts[k] for k in keys if k in facts}}, fh,
                         protocol=pickle.HIGHEST_PROTOCOL)
+        if publish is not None:
+            publish(Path(out) / f'{b}-{p}.pkl.gz')
     print(f'prepared bucket {b}: {len(mine)} questions in {PARTITIONS} partitions', flush=True)
 
 
@@ -227,7 +229,8 @@ def coordinate(s3, bucket, prefix, root, download, env):
         if read(s3, bucket, f'{base}/prepared/{b}.json') is None:
             download(f'rows{b}', folder)
             subprocess.run(['.venv/bin/python', __file__, 'prepare', str(folder), str(ctl_file), str(b),
-                            str(bundles)], env=env, check=True)
+                            str(bundles)], env={**env, 'SLOPE_PUBLISH_POOL_INPUTS': '1',
+                                                'SLOPE_POOL_BUCKET': bucket, 'SLOPE_POOL_PREFIX': prefix}, check=True)
             for p in range(PARTITIONS):
                 name = f'{b}-{p}.pkl.gz'
                 s3.upload_file(str(bundles / name), bucket, f'{base}/inputs/{name}')
@@ -293,7 +296,15 @@ def coordinate(s3, bucket, prefix, root, download, env):
 if __name__ == '__main__':
     mode, *args = sys.argv[1:]
     if mode == 'prepare':
-        prepare(args[0], args[1], int(args[2]), args[3])
+        publish = None
+        if os.environ.get('SLOPE_PUBLISH_POOL_INPUTS') == '1':
+            import boto3
+            s3 = boto3.client('s3')
+            def publish(path):
+                s3.upload_file(str(path), os.environ['SLOPE_POOL_BUCKET'],
+                               f"{os.environ['SLOPE_POOL_PREFIX']}/pool/fleet-v3/inputs/{path.name}")
+                print(f'published question bundle {path.stem}', flush=True)
+        prepare(args[0], args[1], int(args[2]), args[3], publish=publish)
     elif mode == 'build':
         build(*args[:4], int(args[4]))
     elif mode == 'github':
