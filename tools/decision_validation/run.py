@@ -122,6 +122,64 @@ def focused():
                             'tests/test_notes_decision.py', f'--junitxml={ROOT}/focused.xml'])
 
 
+
+def boundary():
+    """Compare the saved fixture's eligibility under the two petition snapshots."""
+    import numpy as np
+    from dataclasses import replace
+    sys.path.insert(0, 'tests')
+    import test_notes_decision as fixture
+    prefix = fixture.MERGE_STEPS[:14]
+    results = {}
+    with ExitStack() as stack:
+        for item in patches():
+            stack.enter_context(item)
+        corrected = F._Prefix.of.__func__
+
+        def historical(cls, trace, *args, **kwargs):
+            result = corrected(cls, trace, *args, **kwargs)
+            petition = trace.events.petition.copy()
+            if trace.rows is not None:
+                widened = np.zeros(len(result.petition), dtype=petition.dtype)
+                widened[trace.rows] = petition
+                petition = widened
+            return replace(result, petition=petition)
+
+        for mode in ('legacy', 'corrected'):
+            fc, d, walk, key = fixture.case.__wrapped__()
+            rows = []
+            with patch.object(F._Prefix, 'of', classmethod(historical if mode == 'legacy' else corrected)):
+                for i, (node, ctx, answer) in enumerate(prefix):
+                    if not answer.startswith('@'):
+                        continue
+                    probe = prefix[:i] + ((node, ctx, walk.quiet_of(node)),)
+                    tr = walk._raw(probe)
+                    mask = walk.mask_of(prefix[:i + 1])
+                    prior = walk.mask_of(prefix[:i])
+                    rows.append({'index': i, 'step': prefix[i], 'day': tr.day[-1],
+                                 'petition': tr.petition, 'group': tr.groups,
+                                 'eligible_group': walk.walk_groups(probe), 'mask': mask,
+                                 'prior': np.ones(fc.draws.n, dtype=bool) if prior is None else prior})
+            results[mode] = rows
+    report = []
+    for old, new in zip(results['legacy'], results['corrected'], strict=True):
+        np.testing.assert_array_equal(old['day'], new['day'])
+        np.testing.assert_array_equal(old['group'], new['group'])
+        changed = np.flatnonzero(old['mask'] != new['mask'])
+        report.append({'index': old['index'], 'step': old['step'],
+                       'legacy_count': int(old['mask'].sum()), 'corrected_count': int(new['mask'].sum()),
+                       'changed_draws': changed.tolist(),
+                       'examples': [{'draw': int(i), 'day': int(new['day'][i]),
+                                     'final_petition': int(old['petition'][i]),
+                                     'before_question_petition': int(new['petition'][i]),
+                                     'legacy_eligible_group': int(old['eligible_group'][i]),
+                                     'corrected_eligible_group': int(new['eligible_group'][i]),
+                                     'legacy_prior': bool(old['prior'][i]),
+                                     'corrected_prior': bool(new['prior'][i])} for i in changed[:5]]})
+    (ROOT / 'boundary.json').write_text(json.dumps(report, indent=2))
+    print(json.dumps(report), flush=True)
+    return 0
+
 if __name__ == '__main__':
     ROOT.mkdir(parents=True, exist_ok=True)
-    raise SystemExit(focused() if sys.argv[1] == 'focused' else run_unit(int(sys.argv[2]), sys.argv[1]))
+    raise SystemExit(boundary() if sys.argv[1] == 'boundary' else focused() if sys.argv[1] == 'focused' else run_unit(int(sys.argv[2]), sys.argv[1]))

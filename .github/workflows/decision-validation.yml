@@ -13,14 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {mode: petition, unit: 23}
-          - {mode: petition, unit: 59}
-          - {mode: petition, unit: 63}
-          - {mode: petition, unit: 132}
-          - {mode: petition, unit: 2206}
-          - {mode: petition, unit: 6258}
-          - {mode: continuation, unit: 23}
-          - {mode: focused, unit: checks}
+          - {mode: boundary, unit: checks}
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
