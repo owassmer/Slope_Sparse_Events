@@ -313,14 +313,15 @@ def as_of(row: dict) -> dict:
     return out
 
 
-def situation_class(row: dict, live: np.ndarray | None = None) -> np.ndarray | None:
+def situation_class(row: dict, live: np.ndarray | None = None, *, appeal: bool = True) -> np.ndarray | None:
     """Per trajectory, the question's situation class as of its decision day (QUESTIONS_20240514 §1 Grouping: a
     difference in legal status, available actions or ability to pay splits the group; each dimension is a fact the
     state gives): the judgment's band and standing, the notes' status, the listing, the offering's availability (or
-    why it is unavailable) and whether cash covers the amount owed, as one tag. '' where the question is not live on
+    why it is unavailable), whether cash covers the amount owed, and dated appeal status, as one tag. '' where the question is not live on
     the trajectory (`live`: the question's own rule, `Forecaster.live`; else dated before the horizon's end and any
     petition); None where the row has no question-state snapshot (a 20 Jun question)."""
     from app.analysis.events import BIG
+    from app.disputes.state14 import appeal_state
 
     s, day = row.get("sit"), row.get("day")
     if not isinstance(s, dict) or not isinstance(day, np.ndarray):
@@ -348,6 +349,8 @@ def situation_class(row: dict, live: np.ndarray | None = None) -> np.ndarray | N
         tag = np.full(live.size, f"{CLASS_TAG}{band}")
         for part in (standing, notes, listing, offer, pay):
             tag = np.strings.add(np.strings.add(tag, "."), np.asarray(part)[live].astype(str))
+        if appeal:
+            tag = np.strings.add(np.strings.add(tag, ".appeal"), appeal_state(row)[live].astype(str))
         out[live] = tag.astype(object)
     return out
 
@@ -602,6 +605,8 @@ class _Prefix:
         else:  # the event cash is on the path's rows: its petition on every draw, 0 off them (`masked`)
             petition = np.zeros(len(tr.day[-1]), dtype=ev.petition.dtype)
             petition[rows] = ev.petition
+        if not digest and tr.question_petition is not None:
+            petition = tr.question_petition.copy()
         last = slice(None) if whole else slice(-1, None)  # later steps read only the traced step's (`tr.day[-1]`)
         return cls(tr.day[last], tr.cash[last], tr.owed[last], tr.collateral[last], petition, d,
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,
@@ -1504,20 +1509,55 @@ class Forecaster:
             self.node_group[key] = code
         return key
 
+    def uses_appeal_status(self, n: Node) -> bool:
+        """Whether this question consumes the deadline status as well as a filed appeal."""
+        d = next((d for d in self.disputes if d.instance_id == n.instance_id), None)
+        fields = self.texts(n.node, d).get("situation_keys", ())
+        return bool(set(fields) & {"judgment_status", "appeal_deadline"}) or bool(
+            set(n.context.split("|")) & {"final", "appealed"})
+
+    def question_class(self, n: Node, row: dict, live: np.ndarray | None = None) -> np.ndarray | None:
+        """Partition dated appeal facts only when the question renders or uses them."""
+        return situation_class(row, live, appeal=self.uses_appeal_status(n))
+
     def _split(self, keys, row: dict, keep, cls: np.ndarray | None = None) -> np.ndarray | None:
         """The row kept (`keep(key, row)`) under each class of its questions, on that class's trajectories: the
         classes the questions were asked in (`cls`), else the row's own; returns them (None: not classed, the row is
         kept whole)."""
         from app.analysis.events import BIG
 
+        if cls is not None and "note_context" in row:
+            cls = cls.astype(object)
+            for text in set(row["note_context"][cls != ""]):
+                on = (cls != "") & (row["note_context"] == text)
+                cls[on] = np.strings.add(cls[on].astype(str), ".ctx" + str(text).encode().hex()).astype(object)
         if not any(self._classified(k) for k in keys):
             cls = None
         elif cls is None:
-            cls = situation_class(row, self.live(self.nodes[keys[0]], row))
+            cls = self.question_class(self.nodes[keys[0]], row, self.live(self.nodes[keys[0]], row))
         if cls is None:
             for k in keys:
                 keep(k, row)
             return None
+        # Use the shared before-answer class, including when this row records the
+        # appeal's yes answer. The answer must not condition its own probability.
+        from app.disputes.state14 import appeal_state
+
+        status = appeal_state(row).copy()
+        for tag in {t for t in cls if t}:
+            part = next((p for p in tag.split(".") if len(p) == 7 and p.startswith("appeal")
+                         and p[-1] in "012345"), None)
+            if part is not None:
+                status[cls == tag] = int(part[6:])
+        row = {**row, "appeal_state": status}
+        if self.nodes[keys[0]].node == "offering_closes":
+            # A previously traversed answer may occur later in calendar time.
+            failed = np.zeros(len(row["day"]), dtype=bool)
+            for init, close, closed in (row.get("sit") or {}).get("offerings", ()):
+                failed |= (init < row["day"]) & (close <= row["day"]) & ~np.asarray(closed, dtype=bool)
+            cls = cls.copy()
+            for i in np.flatnonzero(failed & (cls != "")):
+                cls[i] += ".after_failed"
         for t in sorted({x for x in cls if x}):
             part = {**row, "day": np.where(cls == t, row["day"], BIG)}
             for k in keys:
@@ -1967,7 +2007,15 @@ class Forecaster:
     def state(self, n: Node) -> tuple[dict, tuple[str, ...], dict]:
         d = next(x for x in self.disputes if x.instance_id == n.instance_id)
         rows = list(self.facts.get(n.key, ()))
-        return self.built(n, d, [c for c in n.context.split("|") if c and not c.startswith(CLASS_TAG)],
+        tags = [c for c in n.context.split("|") if c and not c.startswith(CLASS_TAG)]
+        for tag in n.context.split("|"):
+            if tag.startswith(CLASS_TAG):
+                context = next((p[3:] for p in tag.split(".") if p.startswith("ctx")), "")
+                tags.extend(t for t in bytes.fromhex(context).decode().split("|") if t and t not in tags)
+        if n.node == "offering_closes" and any(c.startswith(CLASS_TAG) and c.endswith(".after_failed")
+                                               for c in n.context.split("|")):
+            tags.append("after_failed")
+        return self.built(n, d, tags,
                           lambda: self.path_facts(n, d),
                           (rows, [self.live(n, r) for r in rows]))
 
@@ -2174,6 +2222,11 @@ class _Walk:
         for w in self._watch:  # a later question that reads the watched event directly
             w.read |= name in w.nodes
         tags = self.situation(s, probe, name, ctx) if s is not None else ()
+        if self.d is not None:
+            n = self.fc.new_node(self.d, name, *ctx, assumptions=assumptions, branches=branches)
+            if groups is not None or (self.fc.CLASSES and self.pend and self.fc.event_forecast(n)
+                                      and n.question_id not in self.fc.no_cash):
+                tags = ()
         if groups is not None:
             from app.analysis.events import group_branches
 
@@ -2190,9 +2243,12 @@ class _Walk:
             at = probe if isinstance(probe[0], tuple) else (probe,)
             row = as_of(self.fc.row_of(self._facts(s.steps + at)))
             if groups is not None:
-                cls = group_classes(situation_class(row, groups >= 0), groups)
+                cls = group_classes(self.context_class(
+                    self.fc.question_class(self.fc.nodes[k], row, groups >= 0), row, s, name, ctx), groups)
             else:
-                cls = situation_class(row, self.fc.live(self.fc.nodes[k], row))
+                cls = self.context_class(
+                    self.fc.question_class(self.fc.nodes[k], row, self.fc.live(self.fc.nodes[k], row)),
+                    row, s, name, ctx)
             self.fc.canon_put(k, s.steps, cls)
         return k
 
@@ -2253,6 +2309,47 @@ class _Walk:
             if not w.read and tr.marks is not None and set(w.marks) & set(conds):
                 cf = {**tr.marks, **{c: np.minimum(tr.marks[c], v) for c, v in w.marks.items()}}
                 w.read = self._tags(s, conds, ctx, replace(tr, marks=cf), at) != out
+        if self.d is not None and self.pend:
+            row = {"day": tr.day[-1], "petition": tr.petition, "marks": tr.marks}
+            live = (row["day"] < self.N) & ((tr.petition < 0) | (row["day"] < tr.petition))
+            before = self.contexts(s, ctx, row, conds)
+            for watch in self._watch:
+                if watch.read or not set(conds) & set(watch.marks):
+                    continue
+                marks = {**tr.marks, **{c: np.minimum(tr.marks[c], v) for c, v in watch.marks.items()}}
+                after = self.contexts(s, ctx, {**row, "marks": marks}, conds)
+                if np.any(live & (before != after)):
+                    watch.read = True
+        return out
+
+    def contexts(self, s: _S, ctx, row: dict, conds: list) -> np.ndarray:
+        """The existing context vocabulary, evaluated separately for each dated situation."""
+        from types import SimpleNamespace
+
+        from app.analysis.events import BIG
+
+        day = row["day"]
+        bits = np.zeros(len(day), dtype=np.int64)
+        for i, condition in enumerate(conds):
+            bits |= (np.asarray(row["marks"][condition]) <= day).astype(np.int64) << i
+        out = np.full(len(day), "", dtype=object)
+        live = (day < self.N) & ((row["petition"] < 0) | (day < row["petition"]))
+        for bit in sorted(set(bits[live])):
+            selected = live & (bits == bit)
+            trace = SimpleNamespace(day=[np.where(selected, day, BIG)], marks=row["marks"],
+                                    petition=row["petition"])
+            out[selected] = "|".join(self._tags(s, conds, ctx, trace, ()))
+        return out
+
+    def context_class(self, cls, row: dict, s: _S, name: str, ctx):
+        conds = list(self.fc.spec[name].get("situation", ()))
+        if cls is None or not conds:
+            return cls
+        text = self.contexts(s, ctx, row, conds)
+        out = cls.astype(object)
+        for value in set(text[cls != ""]):
+            on = (cls != "") & (text == value)
+            out[on] = np.strings.add(cls[on].astype(str), ".ctx" + value.encode().hex()).astype(object)
         return out
 
     def _tags(self, s: _S, conds: list, ctx, tr: _Prefix, at) -> tuple[str, ...]:
@@ -2312,12 +2409,16 @@ class _Walk:
         """The branch that books nothing at a grouped question (its probe)."""
         from app.analysis.events import RESPONSES
 
+        if node == "settle":
+            return "no"
         return self.quiet if node in RESPONSES else "neither"  # the ordinary walk asks no response
 
     def walk_groups(self, steps) -> np.ndarray:
         """Per trajectory, the option group (events.Chain.option_group) the last step is asked of, or -1 where it is
         not asked: outside the horizon, after a petition, or not in the question's situation."""
         tr = self._raw(steps)
+        if steps[-1][0] == "settle":
+            return ((tr.day[-1] < self.N) & (tr.settle_offer > 0)).astype(np.int8)
         if tr.groups is None:
             return np.full(len(tr.petition), -1, dtype=np.int8)
         t = tr.day[-1]
@@ -2390,7 +2491,8 @@ class _Walk:
         positive: where it is zero on every trajectory the question does not arise."""
         probe = ("settle", interval, "no")
         tr = self._trace(s.steps + (probe,))
-        if not ((tr.day[-1] < self.N) & (tr.settle_offer > 0)).any():
+        feasible = (tr.day[-1] < self.N) & (tr.settle_offer > 0)
+        if not feasible.any():
             return then_no(s)
         if interval == "I3":
             self._reads("unstayed")  # the window after the appeal deadline: asked on a path not stayed before the ruling
@@ -2403,8 +2505,16 @@ class _Walk:
         terms = "the company offers to settle for its available cash above its 30-day operating need" + (
             f", paid in {count} equal monthly installments from the settlement date" if mode == "installments" else "")
         q4 = self.node("settlement_accept", interval, s.cls, s=s, probe=probe, assumptions=(terms,))
-        self.binary(s, "settle", interval, [[(a3, "yes"), (q4, "yes")]], (a3, q4),
-                    lambda y: self.tail(y, "settled"), then_no)
+        mask = self.mask_of(s.steps)
+        on = np.ones(len(feasible), dtype=bool) if mask is None else mask
+        if self.fc.equity and (on & ~feasible).any():
+            then_no(s.add(("settle", interval, "@0=no"), None))
+            k = composite([[(a3, "yes"), (q4, "yes")]])
+            self.tail(self.take(s, ("settle", interval, "@1=yes"), (k, "yes"), (a3, q4)), "settled")
+            then_no(self.take(s, ("settle", interval, "@1=no"), (k, "no"), (a3, q4)))
+        else:
+            self.binary(s, "settle", interval, [[(a3, "yes"), (q4, "yes")]], (a3, q4),
+                        lambda y: self.tail(y, "settled"), then_no)
 
     def cx(self, s: _S) -> tuple[str, ...]:
         """A pending claim's nodes that 4.0.0 keys without an amount class carry the verdict branch."""
@@ -2901,21 +3011,18 @@ class _Walk:
         self.settle(s, "I4", lambda z: self.notes_petition(z, "post", lambda y: self.tail(y, "stayed")))
 
     def i3(self, s: _S) -> None:
-        """The I3 settlement window (after the appeal deadline), then enforcement. A pending claim (4.1.0) walks the
-        enforcement first where its levy falls before that window on some trajectory (an appealed judgment registered
-        early): the creditor's decision is dated at finality, before the window; the levy-day response books on its own
-        day (events.py `waits`), so the settlement comes first wherever its window opens before the levy, and every
-        branch of the response still reaches the window. 4.0.0 asks I3 first, as recorded."""
+        """Walk an enforcement decision dated before the I3 window before settlement can terminate the claim.
+        The levy and debtor response still book on their own dates; each response reaches the existing settlement
+        route, whose terms read the cash on its effective date. The 4.0.0 route remains as recorded."""
         if self.pend and self.levy_first(s):
             return self.enforce(s, lambda y: self.settle(y, "I3", self.ripe_post), i3=True)
         self.settle(s, "I3", self.enforce)
 
     def levy_first(self, s: _S) -> bool:
-        levy = s.steps + (("enforce", "post", "levy"),)
-        lv = self._trace(levy + ((self.resp, "post", self.quiet),)).day[-1]
-        w = self._trace(s.steps + (("settle", "I3", "no"),)).day[-1]
-        both = (lv < self.N) & (w < self.N)
-        return bool((both & (lv < w)).any())
+        decision = self._trace(s.steps + (("enforce", "post", "none"),)).day[-1]
+        window = self._trace(s.steps + (("settle", "I3", "no"),)).day[-1]
+        both = (decision < self.N) & (window < self.N)
+        return bool((both & (decision < window)).any())
 
     def a4_post(self, s: _S, then, i3: bool = False) -> None:
         """The company's response on the day the creditor's levy falls, before the levy."""
@@ -2935,6 +3042,7 @@ class _Walk:
         if self.first(s, none_step, lambda y: self.enforce(y, then, pending, i3)):
             return
         extra = ("stay_pending",) if pending else ()
+        # These identify execution routes; the 14 May renderer derives appeal status from dated question facts.
         q3 = self.node("enforce_after_final", s.cls, "appealed" if s.appealed else "final", *extra,
                        s=s, probe=none_step, assumptions=("the judgment is enforceable, unstayed and unpaid after the ruling",)
                        + (("the company has moved for a stay, not yet approved",) if pending else ()))
@@ -3254,7 +3362,9 @@ class _Walk:
         so no later question reads the outcome; the path books 'no' (the step, no edge)."""
         if self._closes_after(s, occasion):
             return then(s.add(("offering", occasion, "no"), None))
-        n1 = self.node("offering_closes", occasion, *(("after_failed",) if s.failed else ()), branches=("yes", "no"))
+        # The ordinary walk retains its existing unclassed question identities.
+        prior = ("after_failed",) if self.d is None and s.failed else ()
+        n1 = self.node("offering_closes", occasion, *prior, branches=("yes", "no"))
         late = s.late + ((n1, len(s.steps)),)
         for b in ("yes", "no"):
             then(s.add(("offering", occasion, b), (n1, b), late=late, failed=s.failed or b == "no"))

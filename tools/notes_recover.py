@@ -35,7 +35,7 @@ def recover(number, unit, control):
         walk = _Walk(fc, dispute)
         if walk.reading() != 'entered':
             raise ValueError('This recovery manifest binds the entered-judgment reading')
-        continuation = capture(walk, prefix, method, phase)
+        continuation = capture(walk, prefix, method, phase, legacy=True)
         parent = continuation.state
         if walk.out:
             raise ValueError('Prefix capture unexpectedly emitted paths')

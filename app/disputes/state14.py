@@ -24,6 +24,22 @@ class Unbuilt(RuntimeError):
     """A situation key whose step-9 interface accessor is not on this branch (Chain.C_INTERFACE)."""
 
 
+def appeal_state(row: dict) -> np.ndarray:
+    """Before-answer appeal facts: deadline unknown/open/passed (0/1/2), plus 3 if filed.
+
+    Recorded rows retain the quiet question's classification, so an appeal's own
+    answer cannot become a fact conditioning that answer.
+    """
+    if row.get("appeal_state") is not None:
+        return np.asarray(row["appeal_state"], dtype=np.int8)
+    day = np.asarray(row["day"])
+    deadline = np.asarray((row.get("triggers") or {}).get("appeal_deadline", np.full(day.shape, BIG)))
+    filed = np.asarray((row.get("marks") or {}).get("appealed", np.full(day.shape, BIG)))
+    known = deadline < BIG
+    return (np.where(known, np.where(day > deadline, 2, 1), 0)
+            + 3 * ((filed < BIG) & (filed <= day))).astype(np.int8)
+
+
 def ordinal(k: int) -> str:
     return f"{k}{'th' if 10 <= k % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(k % 10, 'th')}"
 
@@ -168,7 +184,7 @@ DUE_HOW = {"declared": "by declaration of the trustee or the holders",
            "automatic_j": "automatically under §7.02, on a continuing §7.01(j)(v) general-nonpayment default",
            "repurchase": "on the repurchase date, unpaid"}
 STATUS = {"I1": "the post-trial motions are pending", "I2": "the post-trial motions are decided, or the time for them "
-          "has run; the time to appeal is running", "I3": "the time to appeal has expired",
+          "has run", "I3": "after the post-trial ruling",
           "I4": "the judgment is stayed on approved security"}
 OCCASION = {"entry": "the day the judgment is entered", "I1": "the day of a levy, before the levy",
             "post": "the day of a levy, before the levy", "ripe": "the day the notes' judgment default becomes "
@@ -246,14 +262,33 @@ class Situation:
         ruled = self._sit("ruling")[0] <= self.day
         if status is None:
             status = STATUS["I2"] if ruled else STATUS["I1"]
-        return f"{self.judgment_standing()}; {status}"
+        return "; ".join((self.judgment_standing(), status, *self.appeal_events()))
+
+    def appeal_events(self) -> list[str]:
+        g = self._g()
+        states = g.rowwise(lambda r, x: appeal_state(r)[x])
+        deadline = self.n is None or self.fc.uses_appeal_status(self.n)
+        if np.unique(states if deadline else states >= 3).size != 1:
+            raise Unbuilt("question mixes decision-time appeal statuses")
+        state = int(states[0])
+        out = []
+        if deadline and state % 3:
+            prefix = "the deadline to appeal passed on" if state % 3 == 2 else "the deadline to appeal is"
+            out.append(f"{prefix} {self.appeal_deadline()}")
+        if state >= 3:
+            dates = g.rowwise(lambda r, x: np.asarray((r.get("marks") or {}).get(
+                "appealed", np.full(len(r["day"]), BIG)))[x])
+            if (dates >= BIG).any() or (dates > g.field("day")).any():
+                raise Unbuilt("filed appeal has no before-decision date")
+            i, j = g.rep
+            rep = g.rows[i]["marks"]["appealed"][j]
+            out.append(f"the company filed an appeal on {dated(self.review, int(rep), dates)}")
+        return out
 
     def interval(self):
         got = next((self.labels[t] for t in self.tags if t in self.labels and t.startswith("I")), None)
-        if got is None and "final" in self.tags:
-            return "after the time to appeal has expired"
-        if got is None and "appealed" in self.tags:  # QUESTIONS C1: ruled, with an appeal pending
-            return "after the post-trial ruling, with an appeal pending"
+        if got is None and ({"final", "appealed"} & set(self.tags)):
+            return "; ".join(("after the post-trial ruling", *self.appeal_events()))
         if got is None:
             raise Unbuilt(f"no interval among the context tags {self.tags}")
         return got
@@ -680,7 +715,6 @@ class Situation:
 # judgment as entered, no class names); the 20 Jun phrases (forecast.STATE_PHRASES) are untouched
 PHRASES = {"stay_pending": "the company has moved for a stay, not yet decided",
            "levied": "{claimant} has levied on the company's cash", "unlevied": "no levy on the company's cash so far",
-           "appealed": "the company has appealed", "final": "the time to appeal has expired",
            "motions_pending": "the post-trial motions are pending",
            "executing": "{claimant} initiated enforcement before the post-trial ruling",
            "stay_moved": "the company has moved for a stay", "stayed": "the judgment is stayed on approved security",
@@ -700,6 +734,7 @@ PHRASES = {"stay_pending": "the company has moved for a stay, not yet decided",
            "ruling": "the post-trial ruling changed the judgment"}
 # tags that name a class, an option set or a retired state: the situation states what they stood for
 UNSTATED = {"entered", "pay", "nopay", "raise", "noraise", "after_seek", "seeking", "raised", "claimant_theory",
+            "final", "appealed",  # routing tags; dated appeal facts are rendered from the question's rows
             "without_principal_measure",
             # the distress chain's question identities (worker A): the situation states the date, the offering
             # available or why not, and the notes' route
@@ -841,7 +876,8 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     keys = t["situation_keys"]
     if n.node == "post_trial_ruling" and "reduced" not in n.branches:
         keys = [k for k in keys if k not in ("reduced_low", "reduced_high")]
-    sit = Situation(fc, n, d, g, tags, labels).fill(keys, strict)
+    situation = Situation(fc, n, d, g, tags, labels)
+    sit = situation.fill(keys, strict)
     values = {"company": fc.borrower, "claimant": d.counterparty,  # the question names the representative's figures
               **{k: RANGE.sub("", v) if isinstance(v, str) else json.dumps(v) for k, v in sit.items()}}
     crit = entry["prompt"]["criteria"]
@@ -852,6 +888,8 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     readings, _ = fc._readings(d, n.question_id)
     verdict = n.node in ("verdict_finding", "verdict_amount")
     assumed = [*([] if verdict else assumed_events(tags, labels, d.counterparty, strict)), *n.assumptions]
+    if not verdict and ({"final", "appealed"} & set(tags)):
+        assumed.extend(situation.appeal_events())
     state = {"case": {"evidence_cutoff": fmt(fc.review), "company": fc.borrower, "counterparty": d.counterparty,
                       "obligation": f"{fc.m['natures'].get(d.nature, d.nature)}, {d.order_reference}"},
              "question": {"actor": fill_text(t["actor"], values), "text": fill_text(entry["prompt"]["instructions"],

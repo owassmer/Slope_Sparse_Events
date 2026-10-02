@@ -1,6 +1,6 @@
 # Repeatable event-analysis flow: plan and todo list
 
-Updated: 2026-10-01. Owner: Codex, working with Owen. Current focus: reconcile the notes repair and recover the necessary continuations while preserving the completed 100-shard walk; see the final section before any dispatch. Live end-to-end validation remains outstanding.
+Updated: 2026-10-01. Owner: Codex, working with Owen. Current focus: integrate the validated decision-state correction while preserving the completed walk and recovery outputs; see the final section before any dispatch. Live end-to-end validation remains outstanding.
 
 ## Objective and reason for the realignment
 
@@ -386,7 +386,115 @@ The retry selection was derived from all40 final reports of36909118504:12,402 un
 - [x] Apply decision-day general snapshot and earlier-distress terminal check.
 - [x] Focused independent review and existing notes regression checks.
 - [x] Finish direct applied-code recovery checks:11 and6910 pass, alongside all15 existing notes-decision tests.
-- [ ] Publish and verify the113-unit GitHub retry has started — connection restored; authorized dispatch in progress.
+- [x] Publish the113-unit GitHub retry: commit7755856, run36939735152,40 runners. Attempt1 failed before recovery because the signed manifest download expired (HTTP400). Refreshed the input links in personal AWS account462947327980, verified manifest/control/plan downloads, and started attempt2 with the same commit and113-unit selection. Existing PR21 branch also updated. Latest attempt2 observation:39 jobs running,1 queued;39 in the recovery step, no failed jobs reported yet. Unit-level success remains to be checked from output reports.
 - [ ] Reconcile retry outputs with saved successes; perform assembled global checks before adoption.
 
 No AWS compute, broader stay redesign or baseline walk is part of this retry.
+
+### Retry live monitoring — attempt2
+
+First complete browser log sweep observed40 passing units /11,364 paths and two rejected units:2206 (mass error2.664664363061231e-05) and6258 (0.00014999015997929632). These are partial live observations, not final totals. Units11,6910 and5171 pass in GitHub. Other units continue; no failed output is adopted and no further source change is underway. Logs and reports are in `/tmp/notes-retry-monitor/`.
+
+### Retry completed — 2026-10-01 23:30UTC
+
+Run36939735152 attempt2 finished all40 workers. All113 assignments are accounted for exactly once:107 pass with68,885 saved paths; six remain rejected by unchanged conditional-probability conservation:23,59,63,132,2206,6258. All40 GitHub artifacts exist. Earlier12,289 successful units /514,891 paths remain preserved, making12,396 locally passing recovery units /583,776 paths across both runs; six unresolved units still prevent complete repair adoption. No global assembly or Jev execution has been represented as complete.
+
+Final unit reports/logs and artifact metadata: `/tmp/notes-retry-monitor/`. Partial local artifact copies: `var/notes-recovery-retry/`. Local bulk downloads stopped when disk space ran out; GitHub artifacts remain intact. Removed only the task's recreatable uv dependency cache (93.2MiB) to permit recording the result; no source, evidence or recovery output was removed. No new diagnostic, source patch or rerun was started while monitoring.
+
+### Six remaining failures: causal diagnosis and proposed correction
+
+No production source edits or new remote dispatch in this diagnosis. Two concrete continuation/conditioning defects are demonstrated:
+
+1. `_Walk.settle` uses an any-draw feasibility test, then routes settlement=yes to settled tail on every draw. Unit23 draw1 path274 has zero settlement offer and no settlement booked, but skips enforcement because other draws can settle. Proposed correction: reuse existing draw masks to send infeasible draws directly through the ordinary continuation, with no settlement probability edge; retain yes/no settlement branches on feasible draws. Local-only prototype passes6258 with304 paths (maximum mass error4.44e-16), but does not by itself fix2206 or23.
+2. `_Walk.offer` derives `after_failed` from traversal-order `s.failed`. Unit2206 draw383 has a post offering on day74 and a floor2 offering on day137; the later failure incorrectly conditions the earlier offering. Four-path witness54/55/61/62 totals0.9186539379637493 under a valid independent probability assignment. Proposed correction: derive prior-failure context from actual offering failures completed by the current initiation date, excluding future/nonexistent offerings and preserving genuinely earlier failures. This follows QUESTIONS §4.4 N1 and requires per-draw late classification rather than a global traversal flag.
+
+Do not freeze offering facts at traversal prefixes: that diagnostic can normalize sums while changing valid decision-time situations. Do not change probability normalization, inactive-class handling globally, or financial booking rules. Combined correction is proposed, not yet validated across all six. Next: implement only these bounded corrections after authorization, check exact witnesses and all six failed units, preserve passing outputs, assemble and run the existing global gates before Jev/reduction/Russell page. Evidence/scripts are `/tmp/probe_settlement_feasibility.py`, `/tmp/retry-23-simple-witness.pkl`, `/tmp/retry-2206-simple-witness.pkl`, and `/tmp/notes-<unit>-diagnostic.pkl`.
+
+### Authorized bounded corrections and integration — in progress
+
+User authorized both corrections, checks on all six failed units, assembly with preserved successes, and the existing global checks. Implemented settlement eligibility masks and dated N1 prior-failure classes; retained financial booking code. Historical prefix replay preserves original offering keys and settlement labels; resumed callbacks use corrected methods. Focused independent review found no demonstrated blocker. All18 notes/coverage tests pass and Ruff passes. Applied-code recovery passes2206 (313 histories, max4.44e-16) and6258 (304, max4.44e-16). Unit6258's captured parent steps and edges match the original saved diagnostic exactly. Actual new N1 records:2206 checks1822 live rows, including40 day74 rows excluding future failure;6258 checks381 genuine earlier-failure rows. Larger23/59/63/132 checks are running; no complete six-unit or global success claim yet.
+
+Assembly must normalize N1 references in ordinary/composite edges and path classes, rebuild dated class support and inactive-class mappings, and preserve incoming boundaries. Refreshing facts alone cannot reconcile old traversal-conditioned probability identities. Existing passing outputs are retained. No new baseline walk or AWS compute launched.
+
+### Side-conversation edit: dated appeal wording
+
+Explicitly authorized local wording/classification correction: the 14 May renderer no longer treats the `final`/`appealed` routing tags as dated factual assertions. Appeal status comes from the decision date, appeal deadline, and filing mark; the deadline day remains open. The same status partitions situation classes and is retained from the before-answer class when recording answers, so an appeal answer does not condition itself. `interval`, `judgment_status`, and rendered appeal events use these facts. Unknown deadlines do not imply expiry. Financial booking and continuation rules are unchanged.
+
+Seven focused appeal tests pass, covering days112/142/143 against deadline142, unknown/future filing dates, mixed groups, unchanged-scenario independence, and an actual engine appeal yes/no pair sharing its before-answer status. The existing notes-decision and Jev-state checks also pass. Ruff and diff checks pass. These are local checks, not validation of the broader repair or saved production artifacts. Situation-class identifiers now include appeal status; saved question identities/rows require refresh before adoption. No production dispatch, commit, push, or interaction with the main thread's workers was performed by this side conversation.
+
+
+### Isolated decision-state validation — 2026-10-01 evening
+
+Production adoption remains blocked; the changes below are experimental snapshots on `decision-validation-20261001`, not merged into the working production engine. Heavy local validation processes were stopped at the user's request. GitHub run36952648641 completed eight parallel jobs: the before-question-petition/context candidate passes2206(313 paths) and6258(328), fails23(error.01565762162384654),59(.006062295825078223),63(.00021942700950039473),132(.0016721318924661777). Focused checks32pass/1fail. The same candidate plus continuing from settlement into the existing next stage passes23:2064 paths,error1.3322676295501878e-15. Run36953488967 tests that combined candidate on the other five units, including the two previous passes.
+
+The focused failure is a real saved-prefix incompatibility, not an acceptable normalization adjustment. Run36953094864 isolates it in MERGE_STEPS: grouped steps2/7 remain512draws; step10 changes334→365. On draw2, the earlier response is day96, before-question petition=-1, final petition=96. The later same-day filing must not suppress the earlier response. All six production-test incoming masks remain unchanged under the candidate. The old fixture's boundary must move before its changed ancestor; do not bypass the guard.
+
+Local inspection of the preserved failure outputs (no walking) reduces59/63/132 to the same pair: offering145 success ends at I2settlement; offering145 failure includes appeal122. N1 consequently gets appeal1 vsappeal4, so the two answers are not one normalized conditional question. QUESTIONS D3/C2 specifies acceptance by, and claim release on, settlement date; opening the window is not claim release. Unit23's continued witness has eight earlier-decision alternatives, identical cash/lock/capacity to its old terminal on all57active draws; zero of its2064histories contains multiple accepted settlements.
+
+Independent source review and a short local engine check identify a blocker to applying blanket yes→then_no everywhere: an I1 settlement releases at38 on draw0, but post_trial_ruling at122 remains LIVE (419draws in the fixture). Post-trial questions lack release-date gating. The six recovery units all have I0/I1=no and cannot establish that generic compatibility. Preserve existing engine gates for appeal marks, levy, stays and later-effective settlements; do not invent an immediate agreement date, change financial rules, or silently broaden to a baseline rewalk.
+
+- [x] Offload heavyweight replays; preserve per-job logs/reports/artifacts.
+- [x] Complete all six petition-only replays and the unit23 combined discriminator.
+- [x] Explain the existing saved-prefix regression with actual dates and masks.
+- [ ] Complete the five combined replays and inspect final artifacts.
+- [ ] Reconcile the minimal coherent dated-release eligibility correction before recommending global adoption; exact saved-work reuse remains unvalidated.
+- [ ] Once the correction is validated and scoped, assemble preserved work, run the existing global gates, then Jev→financial reduction→Russell page.
+
+
+#### Scope correction: the global appeal-class addition is itself overbroad
+
+Before recommending settlement continuation, independent review traced the actual N1 consumer. N1's situation contract reads `judgment_standing`, not `judgment_status`/`appeal_deadline`; cash_out N1 has no final/appealed tags. Its renderer and record routing do not consume appeal status. Therefore the new global `.appeal1`/`.appeal4` partition can create two independent probabilities for identical N1 Jev inputs. The remaining reduced witnesses do NOT establish a need to expand settlement histories. Withdraw that interpretation and do not adopt blanket settlement continuation or build its newly required early-release gates.
+
+Run36954217413 tests the smaller alternative on all six in parallel: preserve original settlement continuation, retain before-question petition and per-draw context correction, and restrict appeal classification to actual dated-appeal consumers (`judgment_status`, `appeal_deadline`, or final/appealed rendered context). Prototype `tools/decision_validation/scoped_appeal.py`; production source untouched. A quick local check demonstrates N1 shares its class while enforcement and appeal retain distinct classes; all seven existing appeal-state tests pass under the scoped candidate. The ongoing broader continuation experiment remains diagnostic only; any successes cannot justify adoption when the narrower explanation suffices.
+
+
+#### Residual isolated after removing the unnecessary appeal partition
+
+Scoped appeal classification alone still fails the larger units (63 has83affected draws, versus269with global appeal classes). This is not a complete correction. In unit63/draw8, saved path1074 accepts I3settlement(open124,effective154), stops, and omits the creditor's enforcement decision94. Alternative1273/1274 has that decision94 and levy/response125; it changes which offering can occur. This distinction IS present in cash/standing and cannot be removed from the question classes. `_Walk.levy_first` tests the levy/response125 against window124, selecting settlement-first, although the actor's decision94 precedes the window. A direct local check reproduces oldpredicateFalse, actor-date predicateTrue.
+
+Run36955018504 tests the narrower chronology candidate on all six: compare the existing enforcement decision date with I3opening; use the existing `enforce(..., i3=True)` route, whose response alternatives already return through I3. Preserve settlement stopping and all financial/date formulas. Keep consumer-scoped appeal classification, before-question petition, and the per-draw context candidate. No production adoption. Independent review confirms this targets the omitted actor, but notes the predicate affects many I3 routes and therefore requires all six and a dated financial witness. DECOMPOSITION479 records the old comparator as-built under PR18 fixes; it is not independent authority for either alternative.
+
+
+#### Six-unit ordered candidate complete — run36955018504
+
+All six passed unchanged incoming-population and three conditional-probability assignments:23=1866histories,59=1780,63=1774,132=1747,2206=313,6258=328;7808total. Keep this as validated proposal evidence, not an adopted production repair or global assembly result. The broader all-stage settlement-continuation experiment also passed but is withdrawn as unnecessarily broad and incompatible with existing early-settlement eligibility. The narrowed candidate leaves settlement termination unchanged.
+
+A concrete unit63/draw8 financial check preserves enforcement decision94, response/levy125, settlement window124 and effective154. Declining enforcement preserves all512 cash/lock/capacity/petition arrays; an actual levy125 eliminates the otherwise$685135.68settlement offer at154. The engine already gives the correct amount when the actor is included before settlement. N1's18rendered situation fields were separately identical across the overbroad appeal-class witness. Seven appeal-state tests pass under consumer-scoped classification. Clean proposal fragments and reports are in `var/decision-state-review/github-36952648641/`.
+
+The earlier-boundary regression initially hit a TEST-fixture issue: its original shortcut borrowed a notes-question key for the verdict, which falsely requires a notes origin in newly included alternative histories. Replaced that shortcut with the real verdict composite, without changing tested engine behavior. Run36955976259 now tests rejection of the old14-step boundary and replay from10steps before the changed response. No guard is bypassed and expected incoming mass is unchanged.
+
+#### Boundary failure resolved on preserved histories; affected regression running
+
+Run36955976259 failed on125/512draws (max0.013479467556775). The evidence-preserving rerun36956510025 reproduced it and saved306raw histories /2671expanded records. The assertion is sound; two code defects were isolated without adding histories:
+
+1. Experimental `context_candidate.split` appended context into a fixed-width Unicode notes-class array, truncating identifiers at widths determined by other draws. Actual sibling suffixes ended in `.ctx6a7564676d656e74` and odd-length `.ctx6a7564676d656e745`. Convert the array to object dtype before suffix assignment. This is a prototype bug introduced during this repair.
+2. Completed-history notes reconstruction let a later same-day appeal condition the issuer's earlier filing answer. Actual draw5: ruling109, issuer filing109, appeal109. Filing prevents the later appeal; removing that filing to form before-answer facts incorrectly reintroduced appeal=yes on one sibling only. The isolated notes adapter excludes only a subsequent appeal mark equal to the actor's own decision day, retaining earlier appeals and the preceding same-day ruling. Financial rules and paths unchanged. Focused independent review found no concrete blocker.
+
+Rebuilding notes classifications on the SAME306saved histories with both corrections passes all512draws under all3probability assignments, maximum error5.551115123125783e-16. No normalization/tolerance changes, new paths, or changed cash arrays. Evidence: `var/decision-state-review/boundary-failed.pkl.gz`, `boundary-notes-fixed.pkl.gz`, `boundary-tie-probe.pkl.gz`; scripts `/tmp/reclassify_boundary_notes.py` and `/tmp/reclassify_boundary_tie.py`.
+
+Run36957194362 (commit81f4525) validates the exact two corrections against all six ordered units plus the earlier-boundary replay in seven parallel jobs. Production sources remain unadopted. Do not treat the earlier six-unit pass as acceptance of the changed candidate; wait for this affected regression, then record final results. The local attempted full replay was automatically stopped at900MiB RSS; subsequent local work only replayed saved facts.
+
+#### Corrected candidate regression complete — run36957194362
+
+All seven jobs PASSED. Earlier-boundary replay correctly rejects the incompatible14-step saved boundary, resumes at10steps and emits the SAME306histories on512draws, maxerror8.881784197001252e-16. All six recovery units retain their history counts:23=1866,59=1780,63=1774,132=1747,2206=313,6258=328 (7808total); maximum error1.6653345369377348e-15. No production adoption, assembly or global-check completion is implied.
+
+Local existing appeal/notes/Jev-state checks pass (the obsolete14-step capture test was replaced by the explicit rejection+earlier-replay check). Focused actual-history checks preserve every day/cash/owed/collateral/petition value across512draws: issuer109 excludes later appeal109; holder169 retains that appeal109; prior ruling109 retained. Eleven actual context-class suffixes round-trip completely and match the recorded context. Exact reviewable correction: `var/decision-state-review/boundary-correction.patch`; evidence `boundary-correction-checks.json`, `boundary-corrected/boundary-replay.json`, `boundary-regression-results.json`.
+
+Accountability: the latest125-draw failure was explained by bugs in repair-added code (prototype fixed-width class corruption and completed-history same-day appeal conditioning), not an assertion error or proof of another original-walk gap. Both are corrected and validated in the isolated candidate. All dispatched jobs are complete. Next remains the exact reconciled production diff and saved-work adoption, followed by assembly/global gates/Jev/reduction/Russell page; no broader walk is warranted by this failure.
+
+### Step 1 — native production integration (authorized)
+
+The validated candidate is integrated directly into events/forecast/notes/state14 and the recovery capture tool. Application execution imports no experimental adapters or runtime source transformations. Historical node/context/order helpers live only in `tools/notes_resume.py`, where saved-prefix capture restores old identities before corrected execution; the unchanged-population guard remains mandatory.
+
+The renderer now receives the per-scenario context encoded in each class. Classification and wording share `uses_appeal_status`: a derived appeal context states its actual filing date, while deadline status remains partitioned only for consumers that use it. This completes the context consumer without expanding validated grouping. Focused independent review found and resolved that renderer integration gap; no remaining concrete blocker was found.
+
+Local44focused checks pass (decision petition snapshots, dated appeal/notes facts, context identity and independence, renderer consumption, I3 dates and unchanged declined-enforcement cash, Jev states and pool coverage); Ruff and diff checks pass. Native run36958624797 at2f46858 runs all six units without candidate monkeypatches and compares their exact incoming state, paths/classes/edges and financial-equivalence records to candidate36957194362. Units2206/6258 and the306-history earlier restart have passed; four larger comparisons are still running. Standard PR CI will run in parallel on the review commit.
+
+- [x] Integrate the validated rules into ordinary application methods.
+- [x] Preserve historical capture and reject incompatible incoming populations.
+- [x] Complete per-scenario context rendering with consumer-scoped deadline facts.
+- [x] Focused local checks and independent review.
+- [ ] Finish native seven-job parity and standard PR CI.
+- [ ] Record the completed step1 review commit and validation evidence.
+
+Step2 assembly/adoption, global checks, Jev judgments, reduction and Russell page have NOT been started by this integration task.

@@ -50,6 +50,12 @@ def decision_row(fc, d, steps: tuple, index: int, actor: str, mask=None) -> tupl
     if mask is not None:
         on &= mask
     row = {**row, 'day': np.where(on, row['day'], BIG)}
+    # Exclude a later same-day appeal from the earlier actor's before-answer facts.
+    if any(step[0] == 'appeal' for step in steps[index + 1:]):
+        marks = dict(row['marks'])
+        marks['appealed'] = np.where(marks['appealed'] == row['day'], BIG, marks['appealed'])
+        row = {**row, 'marks': marks}
+        tr = replace(tr, marks=marks)
     return row, replace(tr, day=[row['day']], petition=row['petition'])
 
 
