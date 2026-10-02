@@ -83,6 +83,10 @@ def run_unit(number, mode):
         with ExitStack() as stack:
             for item in patches():
                 stack.enter_context(item)
+            if mode == 'scoped':
+                from tools.decision_validation.scoped_appeal import patches as scoped_patches
+                for item in scoped_patches():
+                    stack.enter_context(item)
             stack.enter_context(patch.object(R, 'capture', capture))
             stack.enter_context(patch.object(F._Walk, 'emit', progress))
             result = R.recover(number, plan['units'][number], control)
