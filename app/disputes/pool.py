@@ -142,6 +142,14 @@ def control(folder: str, out: str) -> None:
            "remit_classes": set().union(*(h["remit_classes"] for h in heads)),
            "verdict_asks": asked("verdict_asks"),
            "classed": {x for x in set().union(*(h.get("classed", ()) for h in heads)) if x in nodes}}
+    ctl["segments"] = next(h["nseg"] for h in heads if h.get("complete", True))
+    ctl["parts"] = len(files)
+    import numpy as np
+    rngs = [h["ev_range"] for h in heads if h.get("ev_range") is not None]
+    ctl["ev_range"] = (np.minimum.reduce([r[0] for r in rngs]), np.maximum.reduce([r[1] for r in rngs])) if rngs else None
+    del node_ev, edge_ev, raised, live, asked, rngs
+    heads = []
+    holds = None
     os.makedirs(os.path.join(out, "paths"), exist_ok=True)
     os.makedirs(os.path.join(out, "walked"), exist_ok=True)
     global _PATH_CONTEXT
@@ -159,12 +167,6 @@ def control(folder: str, out: str) -> None:
     for f, n in merged.items():  # the reduction balances its blocks by each part's paths after the merge
         cost[f] = (n, cost[f][1])
     ctl["walked"], ctl["paths"], ctl["part_cost"] = total, sum(merged.values()), cost
-    ctl["segments"] = next(h["nseg"] for h in heads if h.get("complete", True))
-    ctl["parts"] = len(files)
-    import numpy as np  # the tree's per-day range of cumulative event cash on each path's draws (_Walk.emit)
-    rngs = [h["ev_range"] for h in heads if h.get("ev_range") is not None]
-    ctl["ev_range"] = (np.minimum.reduce([r[0] for r in rngs]), np.maximum.reduce([r[1] for r in rngs])) if rngs \
-        else None
     if missing and os.environ.get("SLOPE_POOL_ALLOW_MISSING") != "1":
         raise SystemExit(f"control: {len(missing)} questions the paths read were never logged, e.g. {sorted(missing)[:3]}")
     with open(os.path.join(out, "control.pkl"), "wb") as fh:
@@ -181,6 +183,9 @@ def _merge(out: str, meta: list, branches: dict) -> dict[str, int]:
     path. merge_equivalent treats each key's group on its own, so each group is merged alone, its members in the
     walk's order. Writes out/paths/<part>: each merged path in the part of its group's first member, in the walk's
     order. Returns each part's count."""
+    if os.environ.get("SLOPE_MERGE_FLEET") == "1":
+        from tools.merge_fleet import run
+        return run(out, meta, branches)
     meta.sort(key=lambda m: m[0])
     groups: dict = {}
     for e, k, f, i in meta:
@@ -230,12 +235,24 @@ def _path_part(item):
     reads, nodes, edges, owner, out = _PATH_CONTEXT
     holds = _holds(reads)
     k, file = item
-    p, f = parallel.read_part(file), f"part{k}.pkl"
+    f = f"part{k}.pkl"
+    walked = Path(out) / "walked" / f
+    checkpoint = walked.with_suffix(".meta")
+    implementation = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    if os.environ.get("SLOPE_POOL_REUSE_WALKED") == "1" and checkpoint.exists() and walked.exists():
+        with checkpoint.open("rb") as fh:
+            saved = pickle.load(fh)
+        if saved[0] == implementation:
+            return saved[1]
+    p = parallel.read_part(file)
+    reuse = os.environ.get("SLOPE_POOL_REUSE_WALKED") == "1" and walked.exists()
     kept, meta, missing = [], [], set()
     for ekey, kind, x, cond in sorted(p["events"], key=lambda e: e[0]):
         if kind != "path" or not all(holds(c) for c in cond) or (ekey[1] == 1 and k != owner):
             continue
-        meta.append((ekey, x[1], f, len(kept)))
+        meta.append((ekey, x[1], f, len(meta)))
+        if reuse:
+            continue
         w = x[0]
         for wid in x[2]:
             for at, edge, qcls in edges.get(wid, ()):
@@ -244,12 +261,23 @@ def _path_part(item):
                             if key not in have and (cls := qcls_best(entries, w.steps)) is not None)
                 w = replace(w, edges=w.edges[:at] + (edge,) + w.edges[at:], classes=w.classes + add)
         kept.append(w)
+    if reuse:
+        with walked.open("rb") as fh:
+            kept = pickle.load(fh)
+        if len(kept) != len(meta):
+            raise RuntimeError(f"saved path count differs for {f}")
+    for w in kept:
         for key, _ in w.edges:
-            # Subtracting dict_keys scans every node for every edge; membership is exact and constant-time.
             missing.update(atom for atom in atoms(key) if atom not in nodes)
-    with open(os.path.join(out, "walked", f), "wb") as fh:
-        pickle.dump(kept, fh, protocol=pickle.HIGHEST_PROTOCOL)
-    return k, meta, missing, len(kept), float(p.get("seconds", 0.0))
+    if not reuse:
+        with walked.open("wb") as fh:
+            pickle.dump(kept, fh, protocol=pickle.HIGHEST_PROTOCOL)
+    result = k, meta, missing, len(kept), float(p.get("seconds", 0.0))
+    temporary = checkpoint.with_suffix(".tmp")
+    with temporary.open("wb") as fh:
+        pickle.dump((implementation, result), fh, protocol=pickle.HIGHEST_PROTOCOL)
+    temporary.replace(checkpoint)
+    return result
 
 
 def _merge_home(f):

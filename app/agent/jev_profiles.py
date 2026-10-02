@@ -13,6 +13,7 @@ dispute_model (host, when the agent instantiates a live dispute; see DisputeProf
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from collections.abc import Callable
 
@@ -327,7 +328,7 @@ class DisputeProfile:
         # A bounded number in flight: each request reserves its worst-case cost against the spend cap before
         # dispatch, so ~100 questions sent at once trip the cap on reservations alone.
         if getattr(self, "_forecast_sem", None) is None:
-            self._forecast_sem = asyncio.Semaphore(FORECAST_CONCURRENCY)
+            self._forecast_sem = asyncio.Semaphore(max(1, int(os.environ.get("SLOPE_JEV_CONCURRENCY", str(FORECAST_CONCURRENCY)))))
         async with self._forecast_sem:
             [o] = await self._ask(entry["profile"], [question_id], state, subject_ids, criteria)
         return o

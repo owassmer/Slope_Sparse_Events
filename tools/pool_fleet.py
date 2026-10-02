@@ -1,6 +1,6 @@
 """Distribute independent Jev state construction after global row ordering/deduplication.
 
-AWS prepares each original bucket once. GitHub schedules 240 balanced pieces on up to forty runners; AWS consumes 16 pieces. Only signed object URLs reach GitHub.
+AWS prepares each original bucket once. GitHub schedules 240 balanced pieces on up to eighty runners; AWS consumes 16 pieces. Only signed object URLs reach GitHub.
 """
 from __future__ import annotations
 
