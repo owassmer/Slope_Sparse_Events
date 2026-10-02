@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 50d452b
+          ref: 50d452bc072e8d902f5249294178da63a6fbc72d
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked
       - run: uv run slope evidence build akoustis_20240514

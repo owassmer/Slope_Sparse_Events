@@ -562,3 +562,5 @@ Local consolidated view: http://127.0.0.1:18766 (tools/walk_monitor.py). It poll
 
 
 Live monitoring caught GitHub launch using only one subprocess per runner: GNU nproc honors OMP_NUM_THREADS=1, which is correctly set to prevent per-process numerical oversubscription. AWS reproduction returned nproc=1 and nproc --all=16. Change workflow core discovery to nproc --all, preserve numerical thread limits, pin checkout50d452b, and replace only GitHub run36963960032. AWS16workers continue; saved outputs remain canonical and old GitHub leases expire/retry through the existing queue. This was a launch-setting error, not engine behavior.
+
+Replacement36964784016 failed before compute: actions/checkout treats the abbreviated50d452b ref as a branch/tag pattern. Use the full40-character SHA. This second launch configuration mistake did not affect AWS work or saved queue outputs.
