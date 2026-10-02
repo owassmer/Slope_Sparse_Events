@@ -109,3 +109,27 @@ def test_unmodelled_disputes_cannot_be_reported_as_complete(flow, monkeypatch):
     result = CliRunner().invoke(cli, ['analyze-case', SNAPSHOT])
     assert result.exit_code == 1 and 'Unresolved obligation' in result.output
     assert json.loads((root / 'case-run/flow.json').read_text())['status'] == 'failed'
+
+
+@pytest.mark.parametrize('saved_evidence, reaches_coverage', [('expanded', True), ('older', False)])
+def test_saved_pool_uses_its_bound_evidence_before_any_judging(flow, monkeypatch, saved_evidence, reaches_coverage):
+    from app.analysis import pooled
+    from app.disputes import pool
+
+    root, calls = flow
+    pipeline.investigate(SNAPSHOT, 'agent_plus_jev')
+    monkeypatch.setattr(pipeline, 'build_snapshot', lambda sid: {'evidence_manifest_hash': 'expanded'})
+    monkeypatch.setattr(pooled, 'binding', lambda *args: {'evidence_manifest_hash': 'expanded'})
+    directory = root / 'pool'
+    directory.mkdir()
+    (directory / 'binding.json').write_text(json.dumps({'evidence_manifest_hash': saved_evidence}))
+    checked = []
+    def coverage(*args, count_only=False, **kwargs):
+        assert count_only
+        checked.append(True)
+        raise RuntimeError('coverage reached without forecasting')
+    monkeypatch.setattr(pool, 'judge', coverage)
+    with pytest.raises(pipeline.FlowError, match='coverage reached' if reaches_coverage else 'Saved pool does not match'):
+        pipeline.analyze_case(SNAPSHOT, run_id='case-run', pool_dir=directory, progress=lambda stage: None)
+    assert bool(checked) == reaches_coverage
+    assert not calls

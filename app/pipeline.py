@@ -75,7 +75,9 @@ def analyze_case(snapshot_id: str, *, run_id: str | None = None,
             raise FlowError('Recorded investigation belongs to a different dated case')
         if record.get('arm') != 'agent_plus_jev' or meta.get('arm') != 'agent_plus_jev':
             raise FlowError('This flow requires an agent-plus-Jev investigation')
-        if meta.get('evidence_manifest_hash') != manifest['evidence_manifest_hash']:
+        # A saved pool binds the evidence used for its states, which can include dated contract
+        # sources added after the investigation opened. pooled.build checks that binding before Jev.
+        if pool_dir is None and meta.get('evidence_manifest_hash') != manifest['evidence_manifest_hash']:
             raise FlowError('Evidence changed since the investigation; investigate the current snapshot again')
         if pool_dir is not None:
             from app.analysis import pooled

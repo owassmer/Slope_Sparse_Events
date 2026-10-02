@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import tarfile
+from contextlib import closing
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -30,8 +31,13 @@ def binding(run_id: str, root: Path) -> dict:
             or live[0].status not in ('interpreted', 'resolved')):
         raise ValueError('Pooled analysis requires one interpreted pending debtor claim; other disputes need the local flow')
     snapshot = store.events[0].payload['snapshot_id']
+    from app.evidence.store import EvidenceStore
+    evidence = EvidenceStore(snapshot)
+    with closing(evidence.con):
+        evidence_hash = evidence.snapshot_info()['evidence_manifest_hash']
     return {'run_id': run_id, 'chain_head': store.head, 'snapshot_id': snapshot,
             'variant': os.environ.get('SLOPE_VARIANT') or 'central',
+            'evidence_manifest_hash': evidence_hash,
             'model': load_model(snapshot),
             'files': {name: digest(CASES_DIR / snapshot / name) if (CASES_DIR / snapshot / name).exists() else None
                       for name in ('bank_feed.json', 'run_inputs.json', 'scenario.json')},
