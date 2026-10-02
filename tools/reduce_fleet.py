@@ -17,7 +17,7 @@ from app.analysis.pooled import binding, digest, save
 from app.config import RECORDED
 from app.disputes import pool
 from tools.merge_fleet import archive
-from tools.pool_fleet import fetch, put
+from tools.pool_fleet import fetch, put, run_logged
 
 GITHUB_JOBS, AWS_JOBS, PROCS = 160, 8, 4
 
@@ -81,7 +81,8 @@ def github(job):
     fetch(task['input'], 'input.tgz', wait=True)
     with tarfile.open('input.tgz') as tf:
         tf.extractall('input', filter='data')
-    worker(info['run'], 'input', 'input/answers.json', job, info['jobs'], 'output')
+    run_logged([sys.executable, __file__, 'local', info['run'], 'input', 'input/answers.json',
+                str(job), str(info['jobs']), 'output'], Path('reduce.log'), task['log'])
     archive('output', 'output.tgz', sorted(expected(job)))
     put(task['output'], Path('output.tgz').read_bytes())
     print(f'Reduction job {job} saved', flush=True)
@@ -107,7 +108,8 @@ def coordinate(run_id, directory, answers, identity, progress):
         return s3.generate_presigned_url(op, Params={'Bucket': bucket, 'Key': key}, ExpiresIn=21600)
     tasks = [{'input': url('get_object', f'{remote}/inputs/{j}.tgz'),
               'output': url('put_object', f'{remote}/outputs/{j}.tgz'),
-              'existing': url('get_object', f'{remote}/outputs/{j}.tgz')}
+              'existing': url('get_object', f'{remote}/outputs/{j}.tgz'),
+              'log': url('put_object', f'{prefix}/pool/reduce-logs/{j}.log')}
              for j in range(GITHUB_JOBS)]
     manifest = {'version': version(), 'run': run_id, 'jobs': jobs, 'tasks': tasks}
     key = f'{remote}/manifest.json'

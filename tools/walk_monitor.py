@@ -92,7 +92,7 @@ def poll(client):
                         STATE['pool'] = progress
                         STATE['phase'] = 'Pooling: ' + progress['stage'].replace('_', ' ')
                     ingest('pool-progress', json.dumps(progress, indent=2), source='Pool coordinator')
-                    for obj in objects(client, '/fleet-v3/logs/', POOL_PREFIX) + objects(client, '/merge-logs/', POOL_PREFIX):
+                    for obj in objects(client, '/fleet-v3/logs/', POOL_PREFIX) + objects(client, '/merge-logs/', POOL_PREFIX) + objects(client, '/reduce-logs/', POOL_PREFIX):
                         if ETAGS.get(obj['Key']) != obj['ETag']:
                             ingest(obj['Key'].split('/')[-2] + '-' + Path(obj['Key']).stem,
                                    body(client, obj['Key']).decode(errors='replace'),
@@ -188,7 +188,11 @@ def poll(client):
                         ['gh', 'run', 'list', '--repo', REPO, '--branch', 'merge-fleet',
                          '--limit', '1', '--json', 'databaseId,url,status'],
                         text=True, timeout=25))
-                    runs += pool_runs + merge_runs
+                    reduce_runs = json.loads(subprocess.check_output(
+                        ['gh', 'run', 'list', '--repo', REPO, '--branch', 'reduce-fleet',
+                         '--limit', '1', '--json', 'databaseId,url,status'],
+                        text=True, timeout=25))
+                    runs += pool_runs + merge_runs + reduce_runs
                     jobs = []
                     for run in runs:
                         data = json.loads(subprocess.check_output(
@@ -230,7 +234,7 @@ PAGE = '''<!doctype html><html><head><meta charset="utf-8"><title>Slope · Live 
 <script>
 let data=null,paused=false;const el=id=>document.getElementById(id),esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),num=x=>Number(x||0).toLocaleString();
 function render(){if(!data||paused)return;let s=data.state;if(s.run_url)el('runlink').href=s.run_url;el('phase').textContent=s.phase;el('updated').textContent=s.updated?'Updated '+new Date(s.updated).toLocaleTimeString():'';el('warning').textContent=s.error?'Update error: '+s.error:'';el('done').textContent=num(s.done)+' / '+(s.total?num(s.total):'preparing');el('active').textContent=num(s.active)+(s.replacement_active?' ('+num(s.replacement_active)+' replacements)':'');el('paths').textContent=num(s.raw_histories);el('workers').textContent=s.jobs.filter(j=>j.status==='in_progress').length+' / '+s.jobs.length;el('progress').max=s.total||1;el('progress').value=s.done;
-let p=s.pool;el('pool').hidden=!p;if(p){el('pool').textContent='Pooling · '+p.stage.replaceAll('_',' ')+(p.total_partitions?' · '+num(p.partitions)+' / '+num(p.total_partitions)+' pieces saved · '+num(p.buckets_complete)+' / 16 batches assembled':'')+(p.total_jobs?' · '+num(p.jobs_complete)+' / '+num(p.total_jobs)+' jobs saved · '+num(p.completed_output_parts)+' / '+num(p.total_parts)+' output parts':'')+(p.error?' · '+p.error:'')+' · updated '+new Date(p.time*1000).toLocaleTimeString();}
+let p=s.pool;el('pool').hidden=!p;if(p){el('pool').textContent='Pooling · '+p.stage.replaceAll('_',' ')+(p.total_partitions?' · '+num(p.partitions)+' / '+num(p.total_partitions)+' pieces saved · '+num(p.buckets_complete)+' / 16 batches assembled':'')+(p.total_jobs?' · '+num(p.jobs_complete)+' / '+num(p.total_jobs)+' jobs saved'+(p.total_parts?' · '+num(p.completed_output_parts)+' / '+num(p.total_parts)+' output parts':''):'')+(p.error?' · '+p.error:'')+' · updated '+new Date(p.time*1000).toLocaleTimeString();}
 let current=el('task').value,ids=[...new Set(data.events.map(e=>e.task))].sort();el('task').innerHTML='<option value="">All sources</option>'+ids.map(id=>'<option value="'+esc(id)+'">'+esc(id)+'</option>').join('');el('task').value=current;
 let query=el('search').value.toLowerCase(),only=el('errors').checked;let events=data.events.filter(e=>(!current||e.task===current)&&(!only||e.error)&&(!query||(e.text+' '+e.task+' '+e.source).toLowerCase().includes(query))).slice(-1000);
 let box=el('logs'),bottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;box.innerHTML=events.map(e=>'<div class="line '+(e.error?'error':'')+'"><span class="muted">'+esc(new Date(e.time).toLocaleTimeString())+'</span><span>'+esc(e.task)+'</span><span class="source muted">'+esc(e.source)+'</span><span class="text">'+esc(e.text)+'</span></div>').join('')||'<div class="muted">Waiting for log output…</div>';if(bottom)box.scrollTop=box.scrollHeight;

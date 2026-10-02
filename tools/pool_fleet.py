@@ -157,6 +157,25 @@ def put(url, data):
             time.sleep(5)
 
 
+def run_logged(command, log, url):
+    """Publish running worker output every fifteen seconds, including failed attempts."""
+    with log.open('w') as fh, subprocess.Popen(command, stdout=fh, stderr=subprocess.STDOUT) as process:
+        try:
+            while True:
+                try:
+                    code = process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    put(url, log.read_bytes())
+                    continue
+                put(url, log.read_bytes())
+                if code:
+                    raise subprocess.CalledProcessError(code, command)
+                break
+        finally:
+            if process.poll() is None:
+                process.terminate()
+
+
 def github(worker):
     fetch(os.environ['POOL_MANIFEST_URL'], 'fleet-manifest.json')
     info = json.loads(Path('fleet-manifest.json').read_text())
@@ -172,10 +191,8 @@ def github(worker):
         fetch(task['input'], f'{tag}.pkl.gz', wait=True)
         log = Path(f'{tag}.log')
         try:
-            with log.open('w') as fh:
-                subprocess.run([sys.executable, __file__, 'build', info['run'], 'fleet-control.pkl',
-                                f'{tag}.pkl.gz', f'{tag}.json.gz', str(os.cpu_count() or 4)],
-                               stdout=fh, stderr=subprocess.STDOUT, check=True)
+            run_logged([sys.executable, __file__, 'build', info['run'], 'fleet-control.pkl',
+                        f'{tag}.pkl.gz', f'{tag}.json.gz', str(os.cpu_count() or 4)], log, task['log'])
             put(task['output'], Path(f'{tag}.json.gz').read_bytes())
         finally:
             put(task['log'], log.read_bytes())
