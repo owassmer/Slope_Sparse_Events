@@ -149,7 +149,7 @@ def poll(client):
                          '--workflow', 'fresh-walk.yml', '--limit', '10', '--json', 'databaseId,url,status'],
                         text=True, timeout=25))
                     runs = [r for r in recent if r['status'] != 'completed'
-                            or r['databaseId'] in {36965503657, 36971374732}]
+                            or r['databaseId'] in {36965503657, 36971374732, 36971460782}]
                     jobs = []
                     for run in runs:
                         data = json.loads(subprocess.check_output(
