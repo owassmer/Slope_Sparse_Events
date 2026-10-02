@@ -97,7 +97,7 @@ def task(bucket, prefix, plan, index):
                 return
             raise
     attempt = uuid.uuid4().hex
-    claim = {'started': time.time(), 'host': os.uname().nodename, 'attempt': attempt}
+    claim = {'started': time.time(), 'host': os.environ.get('SLOPE_WORKER_ID', os.uname().nodename), 'attempt': attempt}
     if not create(s3, bucket, claim_key, claim):
         return
     with tempfile.TemporaryDirectory(prefix=f'refine-{ident}-') as tmp:
