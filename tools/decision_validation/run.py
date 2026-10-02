@@ -188,6 +188,12 @@ def boundary_replay():
                 mask = F.path_mask(p, fc.draws.n)
                 total += F.path_probability(p.edges, dist) * (1 if mask is None else mask)
             maximum = max(maximum, float(abs(total-expected).max()))
+            if not np.allclose(total, expected, atol=1e-10, rtol=0):
+                evidence = dict(parent=parent, paths=paths, expected=expected,
+                                total=total, dist=dist, keys=keys, raw_paths=walk.out,
+                                nodes=fc.nodes, classes=fc._qcls, canonical=fc._qcanon)
+                with gzip.open(ROOT / 'boundary-failed.pkl.gz', 'wb', compresslevel=1) as stream:
+                    pickle.dump(evidence, stream, protocol=5)
             np.testing.assert_allclose(total, expected, atol=1e-10, rtol=0)
     report = {'old_boundary_rejected': True, 'new_prefix_length': 10, 'paths': len(walk.out),
               'incoming_draws': int(expected.sum()), 'max_error': maximum,
