@@ -18,6 +18,7 @@ import boto3
 
 BUCKET = 'slope-walk-462947327980-20261001'
 PREFIX = 'walk-36781427817/fresh-balanced-coarse'
+TRACK_RUN = None
 RUN = '36964784016'
 REPO = 'owassmer/Slope_Sparse_Events'
 LOCK = threading.RLock()
@@ -148,8 +149,8 @@ def poll(client):
                         ['gh', 'run', 'list', '--repo', REPO, '--branch', 'fresh-walk',
                          '--workflow', 'fresh-walk.yml', '--limit', '10', '--json', 'databaseId,url,status'],
                         text=True, timeout=25))
-                    runs = [r for r in recent if r['status'] != 'completed'
-                            or r['databaseId'] in {36965503657, 36971374732, 36971460782}]
+                    runs = [r for r in recent if (r['databaseId'] == TRACK_RUN if TRACK_RUN else
+                            r['status'] != 'completed' or r['databaseId'] in {36965503657, 36971374732, 36971460782})]
                     jobs = []
                     for run in runs:
                         data = json.loads(subprocess.check_output(
@@ -230,15 +231,17 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global PREFIX
+    global PREFIX, TRACK_RUN
     parser = argparse.ArgumentParser()
     auth = parser.add_mutually_exclusive_group(required=True)
     auth.add_argument('--credentials')
     auth.add_argument('--profile')
+    parser.add_argument('--run', type=int)
     parser.add_argument('--prefix', default=PREFIX)
     parser.add_argument('--port', type=int, default=18766)
     args = parser.parse_args()
     PREFIX = args.prefix
+    TRACK_RUN = args.run
     if args.profile:
         client = boto3.Session(profile_name=args.profile).client('s3', region_name='us-east-2')
     else:
