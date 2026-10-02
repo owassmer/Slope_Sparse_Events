@@ -19,21 +19,33 @@ jobs:
   walk:
     runs-on: ubuntu-latest
     env:
-      SLOPE_WORKER_ID: github-${{ matrix.worker }}
+      SLOPE_WORKER_ID: github-${{ github.run_id }}-${{ matrix.worker }}
     timeout-minutes: 340
     strategy:
       fail-fast: false
       matrix:
         worker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
     steps:
+      - name: Skip replacement when the queue is already complete
+        id: queue
+        run: |
+          total=$(aws s3 cp "s3://$BUCKET/$PREFIX/ready.json" - | python3 -c 'import json,sys; print(json.load(sys.stdin)["tasks"])')
+          done=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$PREFIX/refine-v1/done/" --query 'length(Contents || `[]`)' --output text)
+          if [ "$done" -lt "$total" ]; then echo "pending=true" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
+        if: steps.queue.outputs.pending == 'true'
         with:
-          ref: e300938fef5fe4b7676018dc7b2c627bf340c6fe
+          ref: a013e821a13b3b681352e0e076f352433fee0a14
       - uses: astral-sh/setup-uv@v6
+        if: steps.queue.outputs.pending == 'true'
       - run: uv sync --locked
+        if: steps.queue.outputs.pending == 'true'
       - run: uv run slope evidence build akoustis_20240514
+        if: steps.queue.outputs.pending == 'true'
       - name: Wait for complete native queue
+        if: steps.queue.outputs.pending == 'true'
         timeout-minutes: 15
         run: |
           until aws s3api head-object --bucket "$BUCKET" --key "$PREFIX/ready.json" >/dev/null 2>&1; do sleep 5; done
       - run: uv run --with boto3 python tools/refine_walk.py worker "$BUCKET" "$PREFIX" --cores "$(nproc --all)" --first 0 --last 96
+        if: steps.queue.outputs.pending == 'true'
