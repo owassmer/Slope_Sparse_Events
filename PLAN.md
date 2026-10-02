@@ -516,3 +516,17 @@ Adopt the exact plan (SHA256 `66ce5f812399f43878f3d235f2b0ad73e67306b5c9ac35fa85
 - [ ] Assemble retained and compatible recovered paths with refreshed rows/metadata; verify replacement coverage and probability references.
 
 Focused independent review identified native saved-history replay as the coherent refresh route: use actual quiet probes, before-answer classes and late rows, not a hand-maintained node-to-step table. Watches require their full saved sibling context; a pruned single history cannot establish that a watch is unread. Retain exact incoming population/financial checks. No baseline rewalk, Jev calls, financial reduction or paid compute dispatched.
+
+#### Step2 input preservation and bounded refresh checks
+
+Run36960118740 completed all40jobs successfully. All86 input archives are stored in personal S3 under `walk-36781427817/pool/repair/assembly-7b69c37/inputs/`; catalogs bind exact old-event ownership and checksums. `selection.json` selects exactly12,402units /591,584histories:12,289from36909118504,107from36939735152,6from36958624797. Preserved inputs are not yet adopted outputs.
+
+Saved-history refresh uses native quiet probes, late rows, context classes and native incoming edges. For settlement regrouping only, trie lookup equates old plain answers to native `@0`/`@1` labels while retaining native masks and probability edges. Old yes support is removed only where native terms are infeasible; financial comparisons use the same native mask. Missing native descendants are completed only inside the exact captured unit; the incoming population must remain identical. Changed incoming boundaries are rejected for explicit reconciliation.
+
+Run36960914315 attempt2 passed both concrete checks. Unit0:557saved→674corrected histories,16first missing prefixes from the approved I3 ordering completed,unchanged incoming population,zero changed financial comparisons on corresponding histories,mass error8.881784197001252e-16. Unit6258:328→328,identical history population and finances, refreshed incoming references,mass error4.440892098500626e-16. Attempt1 failed before reading inputs because the personal AWS session's signed link expired; refreshed links resolved it. No application rules changed in step2. Independent review identified and resolved stale metadata, duplicate-history correspondence and ev_range handling.
+
+- [x] Consolidate and preserve all successful recovery inputs; exact unit selection verified.
+- [x] Validate native refresh and bounded completion on an old successful unit and a corrected unit.
+- [ ] Complete40-worker recovery refresh using every runner core; reconcile every rejected incoming boundary.
+- [ ] Refresh retained original question support, preserving global watch provenance and replacing only owned original records.
+- [ ] Assemble complete corrected pool. No Jev/reduction calls before adoption/global checks.

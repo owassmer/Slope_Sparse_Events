@@ -232,6 +232,96 @@ def main(number):
         raise SystemExit('Saved coverage differs; explicit reconciliation required')
 
 
-if __name__ == '__main__':
+
+
+_BATCH_PLAN = None
+_BATCH_CONTROL = None
+_BATCH_ROOT = None
+
+
+def _refresh_one(number):
+    import gzip
+    import json
+    import pickle
+    import time
+    import traceback
+
+    started = time.monotonic()
+    with gzip.open(_BATCH_ROOT / 'inputs' / f'unit-{number}.pkl.gz', 'rb') as stream:
+        saved = pickle.load(stream)
+    try:
+        result = refresh(number, _BATCH_PLAN['units'][number], saved, _BATCH_CONTROL, complete_missing=True)
+        result['old_events'] = _BATCH_PLAN['units'][number]['old_events']
+        if result['complete']:
+            with gzip.open(_BATCH_ROOT / f'unit-{number}.pkl.gz', 'wb', compresslevel=1) as stream:
+                pickle.dump(result, stream, protocol=5)
+        report = {k: v for k, v in result.items() if k not in ('outputs', 'old_events')}
+        report['paths'] = sum(len(o['paths']) for o in result['outputs'])
+    except Exception:
+        report = {'unit': number, 'complete': False, 'error': traceback.format_exc()}
+    report['seconds'] = round(time.monotonic() - started, 2)
+    (_BATCH_ROOT / f'unit-{number}.json').write_text(json.dumps(report))
+    return {k: v for k, v in report.items() if k != 'reports'}
+
+
+def batch(worker):
+    import gzip
+    import hashlib
+    import json
+    import multiprocessing
+    import os
+    import pickle
+    import zipfile
+    from pathlib import Path
+
+    from tools.pool_fleet import fetch
+
+    global _BATCH_PLAN, _BATCH_CONTROL, _BATCH_ROOT
+    _BATCH_ROOT = Path('var/notes-refresh-batch')
+    (_BATCH_ROOT / 'inputs').mkdir(parents=True, exist_ok=True)
+    fetch(os.environ['NOTES_REFRESH_MANIFEST_URL'], _BATCH_ROOT / 'manifest.json')
+    manifest = json.loads((_BATCH_ROOT / 'manifest.json').read_text())
+    for key in ('plan', 'control'):
+        fetch(manifest[key], _BATCH_ROOT / f'{key}.pkl')
+    raw = (_BATCH_ROOT / 'plan.pkl').read_bytes()
+    if hashlib.sha256(raw).hexdigest() != manifest['plan_sha256']:
+        raise ValueError('Replacement plan checksum mismatch')
+    _BATCH_PLAN = pickle.loads(raw)
+    with (_BATCH_ROOT / 'control.pkl').open('rb') as stream:
+        _BATCH_CONTROL = pickle.load(stream)
+    assigned = []
+    for archive in manifest['tasks'][worker]:
+        path = _BATCH_ROOT / 'source.zip'
+        fetch(archive['input'], path)
+        if hashlib.sha256(path.read_bytes()).hexdigest() != archive['sha256']:
+            raise ValueError('Saved input archive checksum mismatch')
+        with zipfile.ZipFile(path) as source:
+            for text, info in archive['units'].items():
+                number = int(text)
+                raw = source.read(info['member'])
+                if hashlib.sha256(raw).hexdigest() != info['sha256']:
+                    raise ValueError(f'Unit {number} checksum mismatch')
+                saved = pickle.loads(gzip.decompress(raw))
+                if saved['unit'] != number or saved['old_events'] != _BATCH_PLAN['units'][number]['old_events']:
+                    raise ValueError(f'Unit {number} ownership differs')
+                (_BATCH_ROOT / 'inputs' / f'unit-{number}.pkl.gz').write_bytes(raw)
+                assigned.append(number)
+        path.unlink()
+    if len(assigned) != len(set(assigned)):
+        raise ValueError('Duplicate assigned units')
+    print({'worker': worker, 'units': len(assigned), 'processes': os.cpu_count()}, flush=True)
+    results = []
+    with multiprocessing.get_context('fork').Pool(os.cpu_count(), maxtasksperchild=20) as workers:
+        for report in workers.imap_unordered(_refresh_one, assigned):
+            results.append(report)
+            print(report, flush=True)
+    complete = len(results) == len(assigned) and all(r['complete'] for r in results)
+    (_BATCH_ROOT / 'report.json').write_text(json.dumps({'worker': worker, 'reports': results, 'complete': complete,
+                                                       'plan_sha256': manifest['plan_sha256']}))
+    if not complete:
+        raise SystemExit('Some saved units require incoming-boundary reconciliation; successful outputs preserved')
+
+
+if __name__ == "__main__":
     import sys
-    main(int(sys.argv[1]))
+    batch(int(sys.argv[2])) if sys.argv[1] == "batch" else main(int(sys.argv[1]))
