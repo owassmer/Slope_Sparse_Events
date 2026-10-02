@@ -18,6 +18,7 @@ import boto3
 
 BUCKET = 'slope-walk-462947327980-20261001'
 PREFIX = 'walk-36781427817/fresh-balanced-coarse'
+POOL_PREFIX = 'walk-36781427817/fresh-balanced-coarse/pool'
 TRACK_RUN = None
 EXTRA_PREFIX = None
 RUN = '36964784016'
@@ -155,6 +156,21 @@ def poll(client):
                                  updated=datetime.now(UTC).isoformat(), error=None)
                     if STATE['total'] is not None and primary_done == STATE['total']:
                         STATE['phase'] = 'Walk outputs complete — assembly and global checks next'
+                try:
+                    progress = json.loads(body(client, POOL_PREFIX + '/progress.json'))
+                except client.exceptions.NoSuchKey:
+                    progress = None
+                if progress:
+                    with LOCK:
+                        STATE['pool'] = progress
+                        STATE['phase'] = 'Pooling: ' + progress['stage'].replace('_', ' ')
+                    ingest('pool-progress', json.dumps(progress, indent=2), source='Pool coordinator')
+                    for obj in objects(client, '/fleet-v3/logs/', POOL_PREFIX):
+                        if ETAGS.get(obj['Key']) != obj['ETag']:
+                            ingest('pool-' + Path(obj['Key']).stem,
+                                   body(client, obj['Key']).decode(errors='replace'),
+                                   obj['LastModified'].isoformat(), 'GitHub pooling')
+                            ETAGS[obj['Key']] = obj['ETag']
                 if time.monotonic() - last_github > 30:
                     recent = json.loads(subprocess.check_output(
                         ['gh', 'run', 'list', '--repo', REPO, '--branch', 'fresh-walk',
@@ -162,6 +178,11 @@ def poll(client):
                         text=True, timeout=25))
                     runs = [r for r in recent if (r['databaseId'] in TRACK_RUN if TRACK_RUN else
                             r['status'] != 'completed' or r['databaseId'] in {36965503657, 36971374732, 36971460782})]
+                    pool_runs = json.loads(subprocess.check_output(
+                        ['gh', 'run', 'list', '--repo', REPO, '--branch', 'pool-fleet',
+                         '--workflow', 'pool-fleet.yml', '--limit', '1', '--json', 'databaseId,url,status'],
+                        text=True, timeout=25))
+                    runs += pool_runs
                     jobs = []
                     for run in runs:
                         data = json.loads(subprocess.check_output(
@@ -189,12 +210,13 @@ def poll(client):
             time.sleep(max(1, 10 - (time.monotonic() - started)))
 
 
-PAGE = '''<!doctype html><html><head><meta charset="utf-8"><title>Slope · Live walk</title>
+PAGE = '''<!doctype html><html><head><meta charset="utf-8"><title>Slope · Live computation</title>
 <style>
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#10151c;color:#e8edf3;font:15px system-ui,sans-serif}main{max-width:1450px;margin:auto;padding:30px}h1{font-size:26px;margin:0 0 8px}.muted{color:#99a9bb}a{color:#85c7ff}.top{display:flex;justify-content:space-between;gap:20px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0}.card{background:#1a232f;padding:18px;border-radius:10px}.number{font-size:28px;font-weight:650;margin-top:7px}progress{width:100%;height:12px;accent-color:#74d5b5}.toolbar{display:flex;gap:12px;align-items:center;margin:20px 0}input,select,button{background:#202d3d;color:inherit;border:1px solid #3a4d63;border-radius:6px;padding:9px}.logs{height:55vh;overflow:auto;background:#0c1118;border:1px solid #293647;border-radius:8px;padding:10px;font:12px ui-monospace,monospace}.line{display:grid;grid-template-columns:90px 125px 155px 1fr;gap:8px;border-bottom:1px solid #18212d;padding:5px 2px}.text{white-space:pre-wrap;overflow-wrap:anywhere}.error{color:#ff9a9a}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:8px;border-bottom:1px solid #293647}.badge{background:#233f3a;color:#9de7c9;padding:5px 10px;border-radius:20px}details{margin-top:20px}#warning{margin:10px 0}.foot{margin:12px 0;font-size:12px} @media(max-width:800px){.cards{grid-template-columns:1fr 1fr}.line{grid-template-columns:70px 80px 1fr}.source{display:none}}
-</style></head><body><main><div class="top"><div><h1>Slope · Live walk</h1><div class="muted">One view of GitHub and AWS execution</div></div><div><a id="runlink" href="https://github.com/owassmer/Slope_Sparse_Events/actions/workflows/fresh-walk.yml" target="_blank">GitHub run ↗</a><div id="updated" class="muted"></div></div></div>
+</style></head><body><main><div class="top"><div><h1>Slope · Live computation</h1><div class="muted">One view of GitHub and AWS execution</div></div><div><a id="runlink" href="https://github.com/owassmer/Slope_Sparse_Events/actions/workflows/fresh-walk.yml" target="_blank">GitHub run ↗</a><div id="updated" class="muted"></div></div></div>
 <p><span id="phase" class="badge">Connecting…</span></p><div id="warning" class="error"></div>
 <div class="cards"><div class="card">Tasks saved<div id="done" class="number">—</div></div><div class="card">Active tasks<div id="active" class="number">—</div></div><div class="card">Histories reported (minimum)<div id="paths" class="number">—</div></div><div class="card">GitHub jobs running<div id="workers" class="number">—</div></div></div><progress id="progress" value="0" max="1"></progress>
+<div id="pool" class="card" hidden></div>
 <div class="toolbar"><select id="task"><option value="">All sources</option></select><input id="search" placeholder="Search all logs"><label><input type="checkbox" id="errors"> Errors only</label><button id="pause">Pause display</button></div>
 <div id="logs" class="logs"></div><div class="muted foot">Refreshes every 10 seconds. Times show when log updates were observed. Workers report history counts every 1,000 paths; a missing count does not mean an idle worker. Refinement lines show traversal, not saved output. Reported counts they are not the final pooled path count. Task logs are live; GitHub workflow logs join this view when each job finishes.</div>
 <details><summary>Tasks and latest messages</summary><table><thead><tr><th>Task</th><th>Worker</th><th>Status</th><th>Histories</th><th>Latest message</th></tr></thead><tbody id="tasks"></tbody></table></details>
@@ -202,6 +224,7 @@ PAGE = '''<!doctype html><html><head><meta charset="utf-8"><title>Slope · Live 
 <script>
 let data=null,paused=false;const el=id=>document.getElementById(id),esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),num=x=>Number(x||0).toLocaleString();
 function render(){if(!data||paused)return;let s=data.state;if(s.run_url)el('runlink').href=s.run_url;el('phase').textContent=s.phase;el('updated').textContent=s.updated?'Updated '+new Date(s.updated).toLocaleTimeString():'';el('warning').textContent=s.error?'Update error: '+s.error:'';el('done').textContent=num(s.done)+' / '+(s.total?num(s.total):'preparing');el('active').textContent=num(s.active)+(s.replacement_active?' ('+num(s.replacement_active)+' replacements)':'');el('paths').textContent=num(s.raw_histories);el('workers').textContent=s.jobs.filter(j=>j.status==='in_progress').length+' / '+s.jobs.length;el('progress').max=s.total||1;el('progress').value=s.done;
+let p=s.pool;el('pool').hidden=!p;if(p){el('pool').textContent='Pooling · '+p.stage.replaceAll('_',' ')+(p.total_partitions?' · '+num(p.partitions)+' / '+num(p.total_partitions)+' pieces saved · '+num(p.buckets_complete)+' / 16 batches assembled':'')+(p.error?' · '+p.error:'')+' · updated '+new Date(p.time*1000).toLocaleTimeString();}
 let current=el('task').value,ids=[...new Set(data.events.map(e=>e.task))].sort();el('task').innerHTML='<option value="">All sources</option>'+ids.map(id=>'<option value="'+esc(id)+'">'+esc(id)+'</option>').join('');el('task').value=current;
 let query=el('search').value.toLowerCase(),only=el('errors').checked;let events=data.events.filter(e=>(!current||e.task===current)&&(!only||e.error)&&(!query||(e.text+' '+e.task+' '+e.source).toLowerCase().includes(query))).slice(-1000);
 let box=el('logs'),bottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;box.innerHTML=events.map(e=>'<div class="line '+(e.error?'error':'')+'"><span class="muted">'+esc(new Date(e.time).toLocaleTimeString())+'</span><span>'+esc(e.task)+'</span><span class="source muted">'+esc(e.source)+'</span><span class="text">'+esc(e.text)+'</span></div>').join('')||'<div class="muted">Waiting for log output…</div>';if(bottom)box.scrollTop=box.scrollHeight;

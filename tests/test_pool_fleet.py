@@ -29,12 +29,11 @@ def test_whole_question_partitions_preserve_order_deduplication_and_watch_filter
     out = tmp_path / 'bundles'
     pool_fleet.prepare(str(rows), str(control), 0, str(out))
     recovered = {}
-    for p in range(6):
+    for p in range(pool_fleet.PARTITIONS):
         with gzip.open(out / f'0-{p}.pkl.gz', 'rb') as fh:
             data = pickle.load(fh)
         assert not set(recovered) & set(data['keys'])
         for k in data['keys']:
-            assert pool_fleet.partition(k) == p
             recovered[k] = [data['facts'][k].blob(i) for i in range(len(data['facts'][k]))]
     assert set(recovered) == set(keys[:-1])
     assert all(value == [b'first', b'middle', b'last'] for value in recovered.values())

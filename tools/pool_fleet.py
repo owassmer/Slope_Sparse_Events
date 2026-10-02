@@ -1,7 +1,6 @@
 """Distribute independent Jev state construction after global row ordering/deduplication.
 
-AWS prepares each original bucket once. Forty GitHub runners each consume two of the
-80 question partitions; AWS consumes the other 16. Only signed object URLs reach GitHub.
+AWS prepares each original bucket once. GitHub schedules 240 balanced pieces on up to forty runners; AWS consumes 16 pieces. Only signed object URLs reach GitHub.
 """
 from __future__ import annotations
 
@@ -21,7 +20,7 @@ from pathlib import Path
 
 from app.disputes import pool
 
-PARTITIONS = 6
+PARTITIONS = 16
 _FC = None
 
 
@@ -31,8 +30,16 @@ def state_version():
     return hashlib.sha256(b''.join((root / 'app/disputes' / name).read_bytes()
                                    for name in ('state14.py', 'forecast.py', 'pool.py'))).hexdigest()[:16]
 
-def partition(key):
-    return int(hashlib.blake2b(key.encode(), digest_size=8).hexdigest(), 16) % PARTITIONS
+def balanced_questions(keys, facts, count):
+    import heapq
+    groups = [[] for _ in range(count)]
+    loads = [(0, i) for i in range(count)]
+    heapq.heapify(loads)
+    for key in sorted(keys, key=lambda k: (-len(facts.get(k, ())), k)):
+        cost, i = heapq.heappop(loads)
+        groups[i].append(key)
+        heapq.heappush(loads, (cost + max(1, len(facts.get(key, ()))), i))
+    return groups
 
 
 def _states(keys):
@@ -60,8 +67,7 @@ def prepare(folder, ctl_file, b, out):
     facts = pool.bucket_facts(folder, ctl)
     mine = sorted(k for k in ctl['nodes'] if pool.bucket(k) == b and k not in ctl['classed'])
     Path(out).mkdir(parents=True, exist_ok=True)
-    for p in range(PARTITIONS):
-        keys = [k for k in mine if partition(k) == p]
+    for p, keys in enumerate(balanced_questions(mine, facts, PARTITIONS)):
         with gzip.open(Path(out) / f'{b}-{p}.pkl.gz', 'wb', compresslevel=1) as fh:
             pickle.dump({'keys': keys, 'facts': {k: facts[k] for k in keys if k in facts}}, fh,
                         protocol=pickle.HIGHEST_PROTOCOL)
@@ -78,7 +84,7 @@ def build(run, ctl_file, bundle, out, cores):
     _FC.facts = data['facts']
     # More chunks than cores balance question-state costs while sharing immutable rows through fork.
     keys = sorted(data['keys'], key=lambda k: len(_FC.facts.get(k, ())), reverse=True)
-    chunks = [keys[i::cores * 8] for i in range(min(len(keys), cores * 8))]
+    chunks = balanced_questions(keys, _FC.facts, min(len(keys), cores * 8) or 1)
     if cores == 1:
         result = combine(map(_states, chunks))
     else:
@@ -96,7 +102,7 @@ def build(run, ctl_file, bundle, out, cores):
 
 
 def manifest(s3, bucket, prefix, identity):
-    base = f'{prefix}/pool/fleet-v2'
+    base = f'{prefix}/pool/fleet-v3'
     outputs = f'{base}/outputs/{state_version()}'
 
     def url(operation, key):
@@ -105,7 +111,7 @@ def manifest(s3, bucket, prefix, identity):
     value = {'identity': identity, 'state_version': state_version(), 'run': 'akoustis_20240514-agent_plus_jev-20260929T052558Z',
              'control': url('get_object', f'{prefix}/pool/control.pkl'), 'tasks': []}
     for b in range(16):
-        for p in range(5):
+        for p in range(PARTITIONS - 1):
             value['tasks'].append({'bucket': b, 'partition': p,
                                   'input': url('get_object', f'{base}/inputs/{b}-{p}.pkl.gz'),
                                   'output': url('put_object', f'{outputs}/{b}-{p}.json.gz'),
@@ -157,7 +163,7 @@ def github(worker):
     if info['state_version'] != state_version():
         raise RuntimeError('worker question-state code differs from coordinator')
     fetch(info['control'], 'fleet-control.pkl', wait=True)
-    for task in info['tasks'][worker::40]:
+    for task in [info['tasks'][worker]]:
         tag = f'{task["bucket"]}-{task["partition"]}'
         if fetch(task['existing'], f'{tag}.json.gz', missing_ok=True):
             print(f'reusing completed question partition {tag}', flush=True)
@@ -183,17 +189,19 @@ def coordinate(s3, bucket, prefix, root, download, env):
 
     from app.analysis.pooled import save
 
-    base = f'{prefix}/pool/fleet-v2'
+    base = f'{prefix}/pool/fleet-v3'
     outputs = f'{base}/outputs/{state_version()}'
     ctl_file = root / 'ctl/control.pkl'
     run = 'akoustis_20240514-agent_plus_jev-20260929T052558Z'
     done = set()
+    identity = hashlib.sha256((root / 'inputs.json').read_bytes()).hexdigest()
+    manifest(s3, bucket, prefix, identity)
 
     def one_bucket(b):
         from botocore.exceptions import ClientError
 
         try:
-            s3.head_object(Bucket=bucket, Key=f'{outputs}/{b}-5.json.gz')
+            s3.head_object(Bucket=bucket, Key=f'{outputs}/{b}-{PARTITIONS - 1}.json.gz')
             return b
         except ClientError as error:
             if error.response['Error']['Code'] not in ('404', 'NoSuchKey'):
@@ -203,7 +211,7 @@ def coordinate(s3, bucket, prefix, root, download, env):
             download(f'rows{b}', folder)
             subprocess.run(['.venv/bin/python', __file__, 'prepare', str(folder), str(ctl_file), str(b),
                             str(bundles)], env=env, check=True)
-            for p in range(6):
+            for p in range(PARTITIONS):
                 name = f'{b}-{p}.pkl.gz'
                 s3.upload_file(str(bundles / name), bucket, f'{base}/inputs/{name}')
             s3.put_object(Bucket=bucket, Key=f'{base}/prepared/{b}.json', Body=b'{}')
@@ -211,20 +219,20 @@ def coordinate(s3, bucket, prefix, root, download, env):
             shutil.rmtree(folder)
         else:
             bundles.mkdir(exist_ok=True)
-            name = f'{b}-5.pkl.gz'
+            name = f'{b}-{PARTITIONS - 1}.pkl.gz'
             s3.download_file(bucket, f'{base}/inputs/{name}', str(bundles / name))
         # Four concurrent buckets, four cores each: use all 16 AWS cores as preparations finish.
-        output = root / f'fleet-{b}-5.json.gz'
-        subprocess.run(['.venv/bin/python', __file__, 'build', run, str(ctl_file), str(bundles / f'{b}-5.pkl.gz'),
+        output = root / f'fleet-{b}-{PARTITIONS - 1}.json.gz'
+        subprocess.run(['.venv/bin/python', __file__, 'build', run, str(ctl_file), str(bundles / f'{b}-{PARTITIONS - 1}.pkl.gz'),
                         str(output), '4'], env=env, check=True)
-        s3.upload_file(str(output), bucket, f'{outputs}/{b}-5.json.gz')
-        for p in range(6):
+        s3.upload_file(str(output), bucket, f'{outputs}/{b}-{PARTITIONS - 1}.json.gz')
+        for p in range(PARTITIONS):
             (bundles / f'{b}-{p}.pkl.gz').unlink(missing_ok=True)
         return b
 
     def collect(b):
         values = []
-        for p in range(6):
+        for p in range(PARTITIONS):
             obj = s3.get_object(Bucket=bucket, Key=f'{outputs}/{b}-{p}.json.gz')
             values.append(json.loads(gzip.decompress(obj['Body'].read())))
         result = combine(values)
@@ -253,11 +261,11 @@ def coordinate(s3, bucket, prefix, root, download, env):
             for page in s3.get_paginator('list_objects_v2').paginate(Bucket=bucket, Prefix=f'{outputs}/'):
                 keys.update(x['Key'] for x in page.get('Contents', []))
             for b in range(16):
-                if b not in done and all(f'{outputs}/{b}-{p}.json.gz' in keys for p in range(6)):
+                if b not in done and all(f'{outputs}/{b}-{p}.json.gz' in keys for p in range(PARTITIONS)):
                     collect(b)
                     done.add(b)
             progress = {'stage': 'build_question_states', 'time': time.time(), 'partitions': len(keys),
-                        'total_partitions': 96, 'buckets_complete': len(done), 'github_runners': 40,
+                        'total_partitions': 16 * PARTITIONS, 'buckets_complete': len(done), 'github_runners': 40,
                         'aws_cores': 16}
             s3.put_object(Bucket=bucket, Key=f'{prefix}/pool/progress.json', Body=json.dumps(progress).encode())
             save(root / 'fleet-progress.json', progress)
