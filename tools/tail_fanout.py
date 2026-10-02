@@ -113,7 +113,7 @@ def assemble(s3, bucket, prefix, config, parent):
     return True
 
 
-def worker(bucket, prefix, cores):
+def worker(bucket, prefix, cores, assemble_outputs=True):
     s3 = boto3.client('s3')
     config = read(s3, bucket, prefix + '/ready.json')
     locks = {p['id']: threading.Lock() for p in config['parents']}
@@ -128,8 +128,9 @@ def worker(bucket, prefix, cores):
         except TaskSuperseded:
             print(f"original {parent['id']} won; replacement stopped", flush=True)
             return
-        with locks[parent['id']], assembly_slots:
-            assemble(s3, bucket, prefix, config, parent)
+        if assemble_outputs:
+            with locks[parent['id']], assembly_slots:
+                assemble(s3, bucket, prefix, config, parent)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=cores) as ex:
         futures = [ex.submit(run, parent, child) for parent in config['parents'] for child in parent['children']]
@@ -140,13 +141,20 @@ def worker(bucket, prefix, cores):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['prepare', 'worker'])
+    parser.add_argument('action', choices=['prepare', 'worker', 'assemble'])
     parser.add_argument('bucket')
     parser.add_argument('prefix')
     parser.add_argument('--source')
+    parser.add_argument('--no-assemble', action='store_true')
     parser.add_argument('--cores', type=int, default=4)
     args = parser.parse_args()
     if args.action == 'prepare':
         prepare(args.bucket, args.source, args.prefix)
+    elif args.action == 'worker':
+        worker(args.bucket, args.prefix, args.cores, not args.no_assemble)
     else:
-        worker(args.bucket, args.prefix, args.cores)
+        s3 = boto3.client('s3')
+        config = read(s3, args.bucket, args.prefix + '/ready.json')
+        pending = [p['id'] for p in config['parents'] if not assemble(s3, args.bucket, args.prefix, config, p)]
+        print(json.dumps({'pending_parents': pending}), flush=True)
+        raise SystemExit(bool(pending))
