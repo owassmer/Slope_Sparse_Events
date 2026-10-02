@@ -28,3 +28,32 @@ def test_root_split_preserves_original_partition_and_coverage():
     first['done'] = segments[1::4]
     with pytest.raises(ValueError, match='coverage differs'):
         validate(parts, plan, 2)
+
+
+def test_finer_partition_headers_preserve_events_and_reject_gaps():
+    from copy import deepcopy
+
+    from tail_fanout import collapse
+
+    plan = {'roots': [(10, 0, 1)], 'partitions': 4, 'depth': 6}
+    root = (10, 0, 1)
+    segments = tuple((i, 0, i) for i in range(99))
+    parts = [{'k': 400 + j, 'complete': True, 'clock': 50, 'nseg': 1, 'segs': [(1, 10, 1)],
+              'events': [('unchanged', j)], 'subdivisions': {root: {
+                  'segments': segments, 'done': segments[2 + 4 * j::32],
+                  'partition': 2 + 4 * j, 'partitions': 32, 'depth': 6}}} for j in range(8)]
+    original = deepcopy(parts)
+    collapse(parts, plan, 2, 8)
+    assert [p['events'] for p in parts] == [p['events'] for p in original]
+    assert parts[0]['subdivisions'][root]['done'] == segments[2::4]
+    assert all(not p['subdivisions'] for p in parts[1:])
+    with pytest.raises(ValueError, match='Incomplete'):
+        collapse(original[:-1], plan, 2, 8)
+    bad = deepcopy(original)
+    bad[0]['subdivisions'][root]['done'] = ()
+    with pytest.raises(ValueError, match='child coverage'):
+        collapse(bad, plan, 2, 8)
+    bad = deepcopy(original)
+    bad[1]['subdivisions'][root]['segments'] = tuple(reversed(segments))
+    with pytest.raises(ValueError, match='topology'):
+        collapse(bad, plan, 2, 8)

@@ -100,3 +100,48 @@ def test_history_prefix_selection_preserves_the_selected_subtrees(tmp_path, monk
     assert parallel._same(actual, expected)
     assert part['segs'] == all_part['segs']
     assert 0 < len(part['done']) < len(all_part['done'])
+
+
+def test_finer_tail_matches_original_partition(tmp_path, monkeypatch):
+    from collections import Counter
+
+    sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1] / 'tools'))
+    from tail_fanout import collapse
+
+    monkeypatch.setattr(parallel, 'CUT', 2)
+    setup = replace(fx.setup(), horizon=fx.REVIEW + timedelta(days=50))
+    basis = basis_for(load_feed(fx.SNAP), setup)
+
+    def context():
+        d = fx.pending().model_copy(update={'status': 'interpreted'})
+        return Forecaster([d], {}, borrower='B', review=fx.REVIEW, horizon=setup.horizon,
+                          hydrate=lambda f: {}, model=fx.model(), setup=setup, basis=basis), d
+
+    whole = tmp_path / 'whole'
+    whole.mkdir()
+    fc, d = context()
+    parallel._fork(fc, d, 1, str(whole), sys.stderr)
+    part = parallel.load_parts(str(whole))[0]
+    counts = Counter(e[:3] for e, kind, _, _ in part['events'] if kind == 'path' and e[1] == 0)
+    root = counts.most_common(1)[0][0]
+    selector = tmp_path / 'roots.pkl'
+    selector.write_bytes(pickle.dumps([root]))
+    monkeypatch.setenv('SLOPE_WALK_ROOTS', str(selector))
+    for original_index in (0, 2):
+        original = tmp_path / f'original{original_index}'
+        finer = tmp_path / f'finer{original_index}'
+        original.mkdir()
+        finer.mkdir()
+        monkeypatch.setenv('SLOPE_WALK_REFINE', f'{original_index}/4/2')
+        fc, d = context()
+        parallel._fork(fc, d, 1, str(original), sys.stderr, ks=[500])
+        for j in range(8):
+            monkeypatch.setenv('SLOPE_WALK_REFINE', f'{original_index + 4*j}/32/2')
+            fc, d = context()
+            parallel._fork(fc, d, 1, str(finer), sys.stderr, ks=[600 + j])
+        a, b = parallel.load_parts(str(original)), parallel.load_parts(str(finer))
+        collapse(b, {'roots': [root], 'partitions': 4, 'depth': 2}, original_index, 8)
+        assert parallel._same(parallel._live(a), parallel._live(b))
+        for field in parallel.FIELDS:
+            assert parallel._same(parallel._union(a, field), parallel._union(b, field))
+        assert a[0]['subdivisions'] == b[0]['subdivisions']

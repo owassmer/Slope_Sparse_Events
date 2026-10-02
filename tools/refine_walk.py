@@ -74,6 +74,10 @@ def prepare(bucket, prefix, job):
         print(json.dumps(plan), flush=True)
 
 
+class TaskSuperseded(Exception):
+    """Another complete attempt already supplied this task."""
+
+
 def task(bucket, prefix, plan, index):
     s3 = boto3.client('s3')
     queue, job = prefix + '/refine-v1', plan['job']
@@ -120,6 +124,8 @@ def task(bucket, prefix, plan, index):
         def heartbeat():
             while not stopped.wait(15):
                 try:
+                    if plan.get('superseded_by') and read(s3, bucket, plan['superseded_by']):
+                        raise TaskSuperseded('Original task completed; stop redundant replacement')
                     if log.exists():
                         s3.upload_file(str(log), bucket, f'{queue}/live/{ident}.log')
                     response = s3.get_object(Bucket=bucket, Key=claim_key)
