@@ -552,3 +552,10 @@ The uniform launch36963219909 and AWS preparation were cancelled before any subt
 The allocator places largest roots first into100 balanced groups, then assigns ceil(estimated histories/2000) partitions bounded1..96. Groups containing roots>25000 use existing depth6 subdivision, others depth4. On the original topology this yields2248 tasks,22–37 per group,38 deeper groups,estimated1919–1998 histories/task. Actual native counts will be recorded at preparation. Exact disjoint native-root coverage is asserted. Fresh assembly verifies explicit plan roots; part0 is emitted once globally, preserving the pool's shared-top contract.
 
 Fresh workers prioritize estimated task cost, keep leases alive through packaging/upload, and revisit unfinished/expired claims. Existing refinement and prefix-selection tests both pass; allocator retains unseen roots and rejects duplicate ownership. Fresh namespace is walk-36781427817/fresh-balanced; application sources remain unchanged from7b69c37.
+
+
+#### Balanced native fleet launched; consolidated live logs
+
+Run36963960032 at50d452b and personal AWS command93cadfb4-eb4b-41fa-a91d-c3df9b569e70 use identical code. Native preparation completed:9050 roots,5522 exact historical cost matches,6500 scheduled tasks. Unmatched roots receive conservative cost estimates; task count is not a final history count. All40 GitHub runners reached the ready gate and began queue work with AWS16cores. Production app remains byte-identical to7b69c37. Independent focused scheduler review found no remaining launch blocker; this queue namespace must stay immutable.
+
+Local consolidated view: http://127.0.0.1:18766 (tools/walk_monitor.py). It polls S3 task logs, claims and saved outputs from both platforms; includes AWS startup/process snapshots and GitHub job states, plus workflow logs once jobs finish. Backend credentials are in a private temporary file, never served to the browser. Credentials expire2026-10-02T10:40:52Z; AWS shutdown backstop remains08:07UTC. New AWS log publisher commandb3cd74b2-d681-4948-8216-cb596abac637 runs independently of compute.
