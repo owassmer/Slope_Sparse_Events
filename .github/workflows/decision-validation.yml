@@ -13,12 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {mode: ordered, unit: 23}
-          - {mode: ordered, unit: 59}
-          - {mode: ordered, unit: 63}
-          - {mode: ordered, unit: 132}
-          - {mode: ordered, unit: 2206}
-          - {mode: ordered, unit: 6258}
+          - {mode: boundary_replay, unit: checks}
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'

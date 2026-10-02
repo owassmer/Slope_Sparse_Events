@@ -136,6 +136,65 @@ def focused():
 
 
 
+def boundary_replay():
+    import numpy as np
+    from dataclasses import replace
+    sys.path.insert(0, 'tests')
+    import test_notes_decision as fixture
+    from tools.decision_validation.scoped_appeal import patches as scoped_patches
+    started = time.monotonic()
+    with ExitStack() as stack:
+        for item in patches() + scoped_patches():
+            stack.enter_context(item)
+        fc, dispute, walk, key = fixture.case.__wrapped__()
+        fc.verdict_classes = lambda d: {fixture.MERGE_STEPS[1][2]: [[(key, 'no')]]}
+        saved = _resume.capture(walk, fixture.MERGE_STEPS[:14], 'notes_petition', 'ruling', legacy=True)
+        try:
+            saved.run()
+        except ValueError as exc:
+            assert 'incoming recovery population' in str(exc)
+        else:
+            raise AssertionError('The incompatible old boundary was not rejected')
+        fc, dispute, walk, key = fixture.case.__wrapped__()
+        fc.verdict_classes = lambda d: {fixture.MERGE_STEPS[1][2]: [[(key, 'no')]]}
+        saved = _resume.capture(walk, fixture.MERGE_STEPS[:10], 'ripe_i1', legacy=True)
+        parent = saved.state
+        for item in context_patches():
+            stack.enter_context(item)
+        stack.enter_context(patch.object(F._Walk, 'levy_first', decision_first))
+        original_emit = F._Walk.emit
+        count = 0
+        def emit(self, *args, **kwargs):
+            nonlocal count
+            result = original_emit(self, *args, **kwargs)
+            count += 1
+            if count % 100 == 0:
+                print(json.dumps({'histories_emitted': count, 'seconds': round(time.monotonic()-started,1)}), flush=True)
+            return result
+        stack.enter_context(patch.object(F._Walk, 'emit', emit))
+        saved.run()
+        paths = F.expand_classes([replace(p, edges=p.edges[len(parent.edges):]) for p in walk.out], fc.nodes, fc.draws.n)
+        expected = walk.mask_of(parent.steps)
+        expected = np.ones(fc.draws.n) if expected is None else expected.astype(float)
+        keys = {k for p in paths for edge, branch in p.edges for k in F.atoms(edge)}
+        rng = np.random.default_rng(291)
+        maximum = 0.0
+        for _ in range(3):
+            dist = F.Dist({k: dict(zip(fc.nodes[k].branches, rng.dirichlet(np.ones(len(fc.nodes[k].branches))), strict=True)) for k in sorted(keys)})
+            total = np.zeros(fc.draws.n)
+            for p in paths:
+                mask = F.path_mask(p, fc.draws.n)
+                total += F.path_probability(p.edges, dist) * (1 if mask is None else mask)
+            maximum = max(maximum, float(abs(total-expected).max()))
+            np.testing.assert_allclose(total, expected, atol=1e-10, rtol=0)
+    report = {'old_boundary_rejected': True, 'new_prefix_length': 10, 'paths': len(walk.out),
+              'incoming_draws': int(expected.sum()), 'max_error': maximum,
+              'seconds': round(time.monotonic()-started,2)}
+    (ROOT/'boundary-replay.json').write_text(json.dumps(report, indent=2))
+    print(json.dumps(report), flush=True)
+    return 0
+
+
 def boundary():
     """Compare the saved fixture's eligibility under the two petition snapshots."""
     import numpy as np
@@ -195,4 +254,4 @@ def boundary():
 
 if __name__ == '__main__':
     ROOT.mkdir(parents=True, exist_ok=True)
-    raise SystemExit(boundary() if sys.argv[1] == 'boundary' else focused() if sys.argv[1] == 'focused' else run_unit(int(sys.argv[2]), sys.argv[1]))
+    raise SystemExit(boundary_replay() if sys.argv[1] == 'boundary_replay' else boundary() if sys.argv[1] == 'boundary' else focused() if sys.argv[1] == 'focused' else run_unit(int(sys.argv[2]), sys.argv[1]))
