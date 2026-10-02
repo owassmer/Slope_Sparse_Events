@@ -530,3 +530,16 @@ Run36960914315 attempt2 passed both concrete checks. Unit0:557saved→674correct
 - [ ] Complete40-worker recovery refresh using every runner core; reconcile every rejected incoming boundary.
 - [ ] Refresh retained original question support, preserving global watch provenance and replacing only owned original records.
 - [ ] Assemble complete corrected pool. No Jev/reduction calls before adoption/global checks.
+
+
+### Fresh native rebuild — authorized October 2
+
+Owen authorized replacing saved-work reconciliation with a fresh corrected tree, using all GitHub cores plus personal AWS acceleration. Recovery refresh36961410934 was cancelled; archived original and repair evidence remains intact. Application rules remain the validated7b69c37 version. The new run uses personal bucket slope-walk-462947327980-20261001, isolated prefix walk-36781427817/fresh-7b69c37.
+
+The existing subdivision queue is seeded from a complete native empty-root skeleton:100 ownership groups,24 subdivisions each, depth4,40 GitHub workers using every detected core and16 personal AWS cores. No old subtree output is adopted. Existing exact subdivision topology/coverage checks remain mandatory. AWS instance i-0d1ad1d0761e877d8 has a four-hour shutdown backstop. Temporary worker credentials are removed from GitHub after the run.
+
+- [x] Stop the reconciliation fleet and restart the personal AWS host.
+- [ ] Publish native queue, launch40 GitHub workers and AWS worker, verify actual multicore progress.
+- [ ] Finish every partition, reclaim expired claims and subdivide any heavy remainder.
+- [ ] Assemble fresh pool and complete existing global checks.
+- [ ] Jev judgments, financial reduction, Russell analysis page.

@@ -189,7 +189,7 @@ def refresh(number, unit, saved, control, *, complete_missing=False):
                         'nodes': {k: v for k, v in fc.nodes.items() if k not in control['nodes']},
                         'max_probability_error': maximum})
     return {'unit': number, 'outputs': outputs, 'reports': discrepancies,
-            'complete': len(outputs) == len(unit['targets']), 'production_ready': False}
+            'complete': len(outputs) == len(unit['targets']), 'stage': 'unit_refresh'}
 
 
 def main(number):

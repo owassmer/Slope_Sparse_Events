@@ -85,7 +85,7 @@ def collect(worker):
         put(source['output'], path.read_bytes())
         report = {'generation': source['generation'], 'run': source['run'], 'artifact': source['id'],
                   'archive': source['key'], 'sha256': digest, 'units': units,
-                  'plan_sha256': manifest['plan_sha256'], 'production_ready': False}
+                  'plan_sha256': manifest['plan_sha256'], 'stage': 'preserved_inputs'}
         put(source['catalog_output'], json.dumps(report).encode())
         (root / f"catalog-{source['id']}.json").write_text(json.dumps(report))
         print({'run': source['run'], 'artifact': source['id'], 'units': len(units),
