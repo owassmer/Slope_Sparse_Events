@@ -5,10 +5,12 @@ import copy
 import functools
 import inspect
 from contextlib import ExitStack
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from unittest.mock import patch
 
-from app.disputes.forecast import _S, _Walk
+import numpy as np
+
+from app.disputes.forecast import _S, _DepthCache, _Prefix, _Walk
 
 
 @dataclass
@@ -21,11 +23,25 @@ class Continuation:
     canonical: dict
     classes: dict
     record_at: tuple | None
+    legacy: bool = False
+    incoming_mask: object = None
 
     def run(self):
         self.walk.fc._qcanon = copy.deepcopy(self.canonical)
         self.walk.fc._qcls = copy.deepcopy(self.classes)
         self.walk.fc._rec_at = self.record_at
+        if self.legacy:
+            fc = self.walk.fc
+            fc._traces = _DepthCache(fc.SIBLINGS)
+            fc._reuse.clear()
+            fc.__dict__.get('_open_light', {}).clear()
+            self.walk._masks = _DepthCache(fc.SIBLINGS)
+            current = self.walk.mask_of(self.state.steps)
+            old = np.ones(fc.draws.n, dtype=bool) if self.incoming_mask is None else self.incoming_mask
+            current = np.ones(fc.draws.n, dtype=bool) if current is None else current
+            if not np.array_equal(old, current):
+                raise ValueError('Corrected eligibility changes the incoming recovery population; '
+                                 'resume before the affected ancestor decision')
         return self.function(self.walk, self.state, *self.args, **self.kwargs)
 
 
@@ -52,7 +68,7 @@ def capture(walk: _Walk, prefix: tuple, method: str, phase: str | None = None,
                     raise ValueError('Continuation is inside a speculative watch; resume its owning decision')
                 found.append(Continuation(self, copy.deepcopy(state), function, args, kwargs,
                                           copy.deepcopy(self.fc._qcanon), copy.deepcopy(self.fc._qcls),
-                                          self.fc._rec_at))
+                                          self.fc._rec_at, legacy, copy.deepcopy(self.mask_of(state.steps))))
                 return None
             replay = {"offer": _original_offer, "settle": _original_settle}.get(name, function) if legacy else function
             return replay(self, state, *args, **kwargs)
@@ -60,6 +76,19 @@ def capture(walk: _Walk, prefix: tuple, method: str, phase: str | None = None,
 
     try:
         with ExitStack() as stack:
+            if legacy:
+                prefix_of = _Prefix.of.__func__
+
+                def historical_prefix(cls, trace, *args, **kwargs):
+                    result = prefix_of(cls, trace, *args, **kwargs)
+                    petition = trace.events.petition.copy()
+                    if trace.rows is not None:
+                        widened = np.zeros(len(result.petition), dtype=petition.dtype)
+                        widened[trace.rows] = petition
+                        petition = widened
+                    return replace(result, petition=petition)
+
+                stack.enter_context(patch.object(_Prefix, 'of', classmethod(historical_prefix)))
             for name, function in list(vars(_Walk).items()):
                 if not callable(function) or name.startswith('__'):
                     continue

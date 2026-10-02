@@ -1,0 +1,47 @@
+name: decision-validation
+on:
+  push:
+    branches: [decision-validation-20261001]
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: ${{ matrix.mode }} / ${{ matrix.unit }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {mode: petition, unit: 23}
+          - {mode: petition, unit: 59}
+          - {mode: petition, unit: 63}
+          - {mode: petition, unit: 132}
+          - {mode: petition, unit: 2206}
+          - {mode: petition, unit: 6258}
+          - {mode: continuation, unit: 23}
+          - {mode: focused, unit: checks}
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      SLOPE_JEV_CACHE_ONLY: '1'
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - name: Validate isolated candidate
+        env:
+          DECISION_VALIDATION_KEY: ${{ secrets.DECISION_VALIDATION_KEY }}
+        run: uv run python tools/decision_validation/run.py ${{ matrix.mode }} ${{ matrix.unit }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: decision-${{ matrix.mode }}-${{ matrix.unit }}
+          path: var/decision-validation/
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 0

@@ -604,6 +604,8 @@ class _Prefix:
         else:  # the event cash is on the path's rows: its petition on every draw, 0 off them (`masked`)
             petition = np.zeros(len(tr.day[-1]), dtype=ev.petition.dtype)
             petition[rows] = ev.petition
+        if not digest and tr.question_petition is not None:
+            petition = tr.question_petition.copy()
         last = slice(None) if whole else slice(-1, None)  # later steps read only the traced step's (`tr.day[-1]`)
         return cls(tr.day[last], tr.cash[last], tr.owed[last], tr.collateral[last], petition, d,
                    None if tr.cause is None else tr.cause.copy(), tr.marks, tr.settle_offer, tr.stay_offer,

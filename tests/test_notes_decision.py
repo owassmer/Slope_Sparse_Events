@@ -295,12 +295,15 @@ def test_captured_original_fork_conserves_probability_across_real_descendants(ca
     fc, _d, w, key = case
     # Select this real verdict history without enumerating unrelated verdict bands.
     monkeypatch.setattr(fc, 'verdict_classes', lambda d: {MERGE_STEPS[1][2]: [[(key, 'no')]]})
-    continuation = capture(w, MERGE_STEPS[:14], 'notes_petition', 'ruling')
+    continuation = capture(w, MERGE_STEPS[:14], 'notes_petition', 'ruling', legacy=True)
     parent = continuation.state
     assert parent.stayed and parent.early and parent.failed
     assert parent.k == 2 and parent.resp == 'offer'
     continuation.run()
-    assert len(w.out) == 27
+    assert len(w.out) == 30  # Includes the ordinary continuation where settlement cannot occur.
+    assert any("|after_failed" in edge for edge, _ in parent.edges)
+    assert all("|after_failed" not in atom for p in w.out for edge, _ in p.edges[len(parent.edges):]
+               for atom in atoms(edge))
     paths = expand_classes([replace(p, edges=p.edges[len(parent.edges):]) for p in w.out], fc.nodes, fc.draws.n)
     expected = w.mask_of(parent.steps).astype(float)
     rng = np.random.default_rng(291)
@@ -312,3 +315,26 @@ def test_captured_original_fork_conserves_probability_across_real_descendants(ca
             mask = path_mask(p, fc.draws.n)
             total += path_probability(p.edges, dist) * (1 if mask is None else mask)
         np.testing.assert_allclose(total, expected, atol=1e-12)
+
+
+def test_offering_prior_failure_is_dated_not_traversal_order(case):
+    from app.disputes.forecast import as_of
+
+    fc, d, _w, _key = case
+    k = fc.node(d, "offering_closes", "post")
+    day = np.array([74, 74, 74, 74])
+    row = {"day": day, "petition": np.full(4, -1), "cash": np.zeros(4), "owed": np.ones(4),
+           "sit": {"offerings": [(np.array([137, 30, 30, 74]), np.array([140, 33, 80, 77]),
+                                   np.zeros(4, dtype=bool))]}}
+    kept = {}
+    got = fc._split((k,), as_of(row), lambda key, r: kept.setdefault(key, r),
+                    np.full(4, "#test", dtype=object))
+    assert got.tolist() == ["#test", "#test.after_failed", "#test", "#test"]
+    assert set(kept) == {f"{k}|#test", f"{k}|#test.after_failed"}
+    captured = []
+    fc.built = lambda n, d, tags, *args: captured.extend(tags)
+    fc.state(fc.nodes[f"{k}|#test.after_failed"])
+    assert captured.count("after_failed") == 1
+    captured.clear()
+    fc.state(fc.nodes[f"{k}|#test"])
+    assert "after_failed" not in captured
