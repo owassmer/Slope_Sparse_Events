@@ -51,6 +51,13 @@ def continuation_patch():
     return patch.object(F._Walk, 'settle', namespace['settle'])
 
 
+def decision_first(walk, state):
+    decision = walk._trace(state.steps + (("enforce", "post", "none"),)).day[-1]
+    window = walk._trace(state.steps + (("settle", "I3", "no"),)).day[-1]
+    both = (decision < walk.N) & (window < walk.N)
+    return bool((both & (decision < window)).any())
+
+
 def run_unit(number, mode):
     plan, control = restore()
     started = time.monotonic()
@@ -75,6 +82,8 @@ def run_unit(number, mode):
                     stack.enter_context(item)
                 if mode == 'continuation':
                     stack.enter_context(continuation_patch())
+                if mode == 'ordered':
+                    stack.enter_context(patch.object(F._Walk, 'levy_first', decision_first))
                 return saved.run()
         return SimpleNamespace(state=saved.state, run=run)
 
@@ -83,7 +92,7 @@ def run_unit(number, mode):
         with ExitStack() as stack:
             for item in patches():
                 stack.enter_context(item)
-            if mode == 'scoped':
+            if mode in ('scoped', 'ordered'):
                 from tools.decision_validation.scoped_appeal import patches as scoped_patches
                 for item in scoped_patches():
                     stack.enter_context(item)
