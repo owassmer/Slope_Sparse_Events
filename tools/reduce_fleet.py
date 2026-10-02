@@ -130,7 +130,8 @@ def coordinate(run_id, directory, answers, identity, progress):
     with (directory / 'ctl/control.pkl').open('rb') as fh:
         ctl = pickle.load(fh)
     blocks = reduce._blocks(ctl['part_cost'], jobs * PROCS)
-    s3 = boto3.client('s3')
+    from botocore.config import Config
+    s3 = boto3.client('s3', region_name='us-east-2', config=Config(signature_version='s3v4'))
     bucket, prefix = os.environ['SLOPE_POOL_BUCKET'], os.environ['SLOPE_POOL_PREFIX']
     remote = f'{prefix}/pool/reduction/{identity}/{version()}'
     def url(op, key):

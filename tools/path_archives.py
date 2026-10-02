@@ -67,7 +67,8 @@ def complete(out, meta, branches):
     expected_version = os.environ['SLOPE_SAVED_GROUPING_VERSION']
     if spec['version'] != expected_version or set(spec['homes']) != {m[2] for m in meta}:
         raise ValueError('saved grouping assignment differs from selected paths')
-    s3 = boto3.client('s3')
+    from botocore.config import Config
+    s3 = boto3.client('s3', region_name='us-east-2', config=Config(signature_version='s3v4'))
     bucket, prefix = os.environ['SLOPE_POOL_BUCKET'], os.environ['SLOPE_POOL_PREFIX']
     remote = f'{prefix}/pool/merge-fleet/{expected_version}'
     def url(op, key):

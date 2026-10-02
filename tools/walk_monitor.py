@@ -192,7 +192,11 @@ def poll(client):
                         ['gh', 'run', 'list', '--repo', REPO, '--branch', 'reduce-fleet',
                          '--limit', '1', '--json', 'databaseId,url,status'],
                         text=True, timeout=25))
-                    runs += pool_runs + merge_runs + reduce_runs
+                    catalog_runs = json.loads(subprocess.check_output(
+                        ['gh', 'run', 'list', '--repo', REPO, '--branch', 'archive-catalog',
+                         '--limit', '1', '--json', 'databaseId,url,status'],
+                        text=True, timeout=25))
+                    runs += pool_runs + merge_runs + reduce_runs + catalog_runs
                     jobs = []
                     for run in runs:
                         data = json.loads(subprocess.check_output(
