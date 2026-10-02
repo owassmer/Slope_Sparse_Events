@@ -23,6 +23,8 @@ from app.disputes import forecast as F
 from tools import notes_recover as R
 from tools.decision_validation import context_candidate as C
 from tools.decision_validation.load_candidate import _resume, patches
+from tools.decision_validation import notes_candidate
+from app.disputes import notes
 
 ROOT = Path('var/decision-validation')
 
@@ -37,7 +39,8 @@ def restore():
 def context_patches():
     return [patch.object(F._Walk, 'node', C.newnode),
             patch.object(F._Walk, 'situation', C.situation),
-            patch.object(F.Forecaster, '_split', C.split)]
+            patch.object(F.Forecaster, '_split', C.split),
+            patch.object(notes, 'decision_row', notes_candidate.decision_row)]
 
 
 def continuation_patch():

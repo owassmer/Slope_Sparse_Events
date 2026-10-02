@@ -57,7 +57,7 @@ ns=dict(F.__dict__,classified=classified,condition_class=condition_class);exec(s
 
 def split(fc,keys,row,keep,cls=None):
  if cls is not None and 'note_context' in row:
-  cls=cls.copy()
+  cls=cls.astype(object)
   for text in set(row['note_context'][cls!='']):
    on=(cls!='')&(row['note_context']==text)
    cls[on]=np.strings.add(cls[on].astype(str),'.ctx'+str(text).encode().hex()).astype(object)

@@ -14,6 +14,12 @@ jobs:
       matrix:
         include:
           - {mode: boundary_replay, unit: checks}
+          - {mode: ordered, unit: 23}
+          - {mode: ordered, unit: 59}
+          - {mode: ordered, unit: 63}
+          - {mode: ordered, unit: 132}
+          - {mode: ordered, unit: 2206}
+          - {mode: ordered, unit: 6258}
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
