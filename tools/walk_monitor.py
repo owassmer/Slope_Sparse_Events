@@ -98,7 +98,7 @@ def poll(client):
                 if EXTRA_PREFIX:
                     extra = list(pool.map(lambda suffix: objects(client, suffix, EXTRA_PREFIX),
                                           ['/refine-v1/claims/', '/refine-v1/done/', '/refine-v1/live/']))
-                    replacement_ids = {Path(o['Key']).stem for o in extra[0] + extra[1]}
+                    replacement_ids = {Path(o['Key']).stem for o in extra[0] + extra[1] + extra[2]}
                     claims += extra[0]
                     done += extra[1]
                     logs += extra[2]
