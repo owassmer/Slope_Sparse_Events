@@ -686,7 +686,15 @@ def missing_segments(parts: list[dict]) -> list[tuple]:
 def spill(folder: str, out: str) -> int:
     """The segments the parts under `folder` never walked, written to `out` for the next wave (SLOPE_WALK_ROOTS);
     returns their number."""
-    parts = load_parts(folder)
+    files = part_files(folder)
+    assert files, f"no parts under {folder}"
+    parts = []
+    fields = ("k", "complete", "clock", "nseg", "segs", "done", "subdivisions", "nested_subdivisions")
+    for k in sorted(files):
+        part = read_part(files[k])
+        parts.append({field: part[field] for field in fields if field in part})
+        del part
+        print(f"spill coverage: {len(parts)}/{len(files)} parts", file=sys.stderr, flush=True)
     missing = missing_segments(parts)
     with open(out, "wb") as fh:
         pickle.dump(missing, fh)
