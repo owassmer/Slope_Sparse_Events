@@ -106,7 +106,8 @@ class JevAdapter:
         self.run_id = run_id
         self.new_id = new_id or (lambda prefix: f"{prefix}_{uuid.uuid4().hex[:10]}")
         self.use_cache = use_cache
-        self.max_attempts = max_attempts or cfg["budgets"]["jev_max_physical_attempts_including_retries"]
+        self.max_attempts = max_attempts or int(os.environ.get(
+            "SLOPE_JEV_MAX_ATTEMPTS", cfg["budgets"]["jev_max_physical_attempts_including_retries"]))
         self.spend_cap = Decimal(spend_cap_usd or cfg["runtime"]["jev"]["spend_cap_usd_per_run"])
         self.price_per_token = Decimal(cfg["runtime"]["jev"]["provider_price_usd_per_million_input_tokens_at_design"]) / 10**6
         self.inflight_attempts = 0
