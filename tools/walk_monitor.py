@@ -149,7 +149,7 @@ def poll(client):
                         ['gh', 'run', 'list', '--repo', REPO, '--branch', 'fresh-walk',
                          '--workflow', 'fresh-walk.yml', '--limit', '10', '--json', 'databaseId,url,status'],
                         text=True, timeout=25))
-                    runs = [r for r in recent if (r['databaseId'] == TRACK_RUN if TRACK_RUN else
+                    runs = [r for r in recent if (r['databaseId'] in TRACK_RUN if TRACK_RUN else
                             r['status'] != 'completed' or r['databaseId'] in {36965503657, 36971374732, 36971460782})]
                     jobs = []
                     for run in runs:
@@ -236,7 +236,7 @@ def main():
     auth = parser.add_mutually_exclusive_group(required=True)
     auth.add_argument('--credentials')
     auth.add_argument('--profile')
-    parser.add_argument('--run', type=int)
+    parser.add_argument('--run', type=int, nargs='+')
     parser.add_argument('--prefix', default=PREFIX)
     parser.add_argument('--port', type=int, default=18766)
     args = parser.parse_args()
