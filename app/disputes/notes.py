@@ -1,6 +1,9 @@
 """Before-decision note facts from a complete path, including its earlier-dated events."""
 from __future__ import annotations
 
+import os
+from collections import OrderedDict
+from copy import deepcopy
 from dataclasses import replace
 
 import numpy as np
@@ -36,6 +39,22 @@ def decision_row(fc, d, steps: tuple, index: int, actor: str, mask=None) -> tupl
         raise ValueError(f'Not a notes trigger: {steps[index]!r}')
     quiet = 'due' if node == 'nonpayment' else 'accelerated'
     counterfactual = steps[:index] + ((node, context, quiet),) + steps[index + 1:]
+    # Forecaster inputs are fixed for a walk, as with its existing trace caches.
+    # Retain the entire history: later traversal steps may happen earlier in time.
+    capacity = int(os.environ.get('SLOPE_NOTES_CACHE', '64'))
+    key = (d.instance_id, counterfactual, index, actor,
+           None if mask is None else (mask.shape, mask.dtype.str, mask.tobytes()))
+    if capacity > 0:
+        scope = (d, fc.setup, fc.m, fc.draws, fc.sens)
+        old_scope = getattr(fc, '_notes_scope', ())
+        if len(old_scope) != len(scope) or any(a is not b for a, b in zip(old_scope, scope, strict=True)):
+            fc._notes_scope, fc._notes_rows = scope, OrderedDict()
+        cache = fc._notes_rows
+        while len(cache) > capacity:
+            cache.popitem(last=False)
+        if key in cache:
+            cache.move_to_end(key)
+            return deepcopy(cache[key])
     probe = counterfactual + (('notes_due_date', actor, ''),)
     rows = None if mask is None else tuple(mask for _ in probe)
     trace = event_trace(d, DisputePath(instance_id=d.instance_id, steps=probe, outcome='', edges=()),
@@ -56,7 +75,12 @@ def decision_row(fc, d, steps: tuple, index: int, actor: str, mask=None) -> tupl
         marks['appealed'] = np.where(marks['appealed'] == row['day'], BIG, marks['appealed'])
         row = {**row, 'marks': marks}
         tr = replace(tr, marks=marks)
-    return row, replace(tr, day=[row['day']], petition=row['petition'])
+    result = row, replace(tr, day=[row['day']], petition=row['petition'])
+    if capacity > 0:
+        cache[key] = deepcopy(result)
+        if len(cache) > capacity:
+            cache.popitem(last=False)
+    return result
 
 
 def record(fc, d, steps: tuple, key: str, mask=None):

@@ -31,6 +31,7 @@ from datetime import date, timedelta
 from typing import Protocol
 
 import numpy as np
+from zlib_ng import zlib_ng
 
 from app.disputes.rules import load_model
 from app.domain.investigation import AtomicFinding, DisputeInstance, SemanticObservation
@@ -494,7 +495,7 @@ def pack_row(row: dict) -> bytes:
 
 
 def unpack_row(b: bytes) -> dict:
-    row = pickle.loads(zlib.decompress(b))
+    row = pickle.loads(zlib_ng.decompress(b))
     if "__ix__" not in row:
         return row
     ix, n = row.pop("__ix__"), row.pop("__n__")
@@ -524,7 +525,7 @@ class _Lazy(Mapping):
 
 
 def lazy_row(b: bytes):
-    row = pickle.loads(zlib.decompress(b))
+    row = pickle.loads(zlib_ng.decompress(b))
     if "__ix__" not in row:
         return row
     ix, n = row.pop("__ix__"), row.pop("__n__")
@@ -1664,19 +1665,20 @@ class Forecaster:
         return classes
 
     @staticmethod
-    def late_key(k: str, prefix: tuple, row: dict) -> tuple:
+    def late_key(k: str, prefix: tuple, row: dict, *, blob: bytes | None = None) -> tuple:
         """What `_keep_late` keeps a record once per: the node, the prefix and the digest of the record as stored
         (`pack_row`: what a question can read of it)."""
         import xxhash
 
-        return k, prefix, xxhash.xxh3_128_digest(pack_row(row))
+        return k, prefix, xxhash.xxh3_128_digest(pack_row(row) if blob is None else blob)
 
     def _keep_late(self, k: str, prefix: tuple, row: dict) -> None:
         """Keep a whole path's record for a node once per distinct record at each prefix that asks it."""
-        seen = self.late_key(k, prefix, row)
+        blob = pack_row(row)
+        seen = self.late_key(k, prefix, row, blob=blob)
         if seen not in self._late_seen:
             self._late_seen.add(seen)
-            self.facts.setdefault(k, Rows()).append_blob(pack_row(row))
+            self.facts.setdefault(k, Rows()).append_blob(blob)
 
     def live(self, n: Node, row: dict) -> np.ndarray:
         """The trajectories where the question's situation holds: the decision falls inside the analysis period,
@@ -2309,7 +2311,8 @@ class _Walk:
             if not w.read and tr.marks is not None and set(w.marks) & set(conds):
                 cf = {**tr.marks, **{c: np.minimum(tr.marks[c], v) for c, v in w.marks.items()}}
                 w.read = self._tags(s, conds, ctx, replace(tr, marks=cf), at) != out
-        if self.d is not None and self.pend:
+        if self.d is not None and self.pend and any(
+                not w.read and set(conds) & set(w.marks) for w in self._watch):
             row = {"day": tr.day[-1], "petition": tr.petition, "marks": tr.marks}
             live = (row["day"] < self.N) & ((tr.petition < 0) | (row["day"] < tr.petition))
             before = self.contexts(s, ctx, row, conds)
@@ -2324,21 +2327,19 @@ class _Walk:
 
     def contexts(self, s: _S, ctx, row: dict, conds: list) -> np.ndarray:
         """The existing context vocabulary, evaluated separately for each dated situation."""
-        from types import SimpleNamespace
-
-        from app.analysis.events import BIG
-
         day = row["day"]
         bits = np.zeros(len(day), dtype=np.int64)
         for i, condition in enumerate(conds):
             bits |= (np.asarray(row["marks"][condition]) <= day).astype(np.int64) << i
         out = np.full(len(day), "", dtype=object)
         live = (day < self.N) & ((row["petition"] < 0) | (day < row["petition"]))
-        for bit in sorted(set(bits[live])):
-            selected = live & (bits == bit)
-            trace = SimpleNamespace(day=[np.where(selected, day, BIG)], marks=row["marks"],
-                                    petition=row["petition"])
-            out[selected] = "|".join(self._tags(s, conds, ctx, trace, ()))
+        values, inverse = np.unique(bits[live], return_inverse=True)
+        vocabulary = []
+        for bit in values:
+            held = {c for i, c in enumerate(conds) if bit & (1 << i)}
+            never = set(conds) - held
+            vocabulary.append("|".join(self._context_tags(s, conds, ctx, held, never)))
+        out[live] = np.asarray(vocabulary, dtype=object)[inverse]
         return out
 
     def context_class(self, cls, row: dict, s: _S, name: str, ctx):
@@ -2354,16 +2355,19 @@ class _Walk:
 
     def _tags(self, s: _S, conds: list, ctx, tr: _Prefix, at) -> tuple[str, ...]:
         held, never = self.fc.situation(self.d, s.steps + at, conds, tr=tr)
+        return self._context_tags(s, conds, ctx, held, never)
+
+    def _context_tags(self, state: _S, conds: list, ctx, held: set, never: set) -> tuple[str, ...]:
         out = []
         for c in conds:
-            if c == "ruled" and self.pend and s.cls in NO_JUDGMENT:
-                if s.cls not in ctx:  # no money judgment on the path: that is the situation
-                    out.append(s.cls)
+            if c == "ruled" and self.pend and state.cls in NO_JUDGMENT:
+                if state.cls not in ctx:  # no money judgment on the path: that is the situation
+                    out.append(state.cls)
             elif c == "ruled":
                 if held & {"settled", "paid"}:  # the judgment is no longer owed: its amount is not the situation
                     continue
-                if c in held and s.cls not in ctx:
-                    out.append(s.cls)
+                if c in held and state.cls not in ctx:
+                    out.append(state.cls)
                 elif c in never and not any(x in INTERVAL_PHRASES for x in ctx):
                     out.append("motions_pending")
             elif c not in held:

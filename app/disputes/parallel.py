@@ -324,9 +324,10 @@ def _child(fc, d, k: int, run: str, log) -> None:
         return out
 
     def keep_logged(self, key, prefix, row):  # every process logs it; `walk` keeps the first of each late key
-        lk = self.late_key(key, prefix, row)
+        blob = F.pack_row(row)
+        lk = self.late_key(key, prefix, row, blob=blob)
         if fresh(("late", lk)):
-            log_event("late", key, lk, F.pack_row(row))
+            log_event("late", key, lk, blob)
     F.Forecaster.node, F.Forecaster.record, F.Forecaster._keep_late = node_logged, record_logged, keep_logged
 
     # --- the stream: each finished unit appended as it ends --------------------------------------------------------

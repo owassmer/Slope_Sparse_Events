@@ -351,3 +351,43 @@ def test_notes_context_identity_is_not_truncated(case, monkeypatch):
     monkeypatch.setattr(fc, '_keep_late', keep)
     notes.record(fc, d, STEPS, key, walk.mask_of(STEPS))
     assert captured
+
+
+def test_notes_cache_reuses_only_same_before_answer_state(case, monkeypatch):
+    from app.disputes.parallel import _same
+
+    fc, d, w, _ = case
+    mask = w.mask_of(STEPS)
+    calls = []
+    original = notes.event_trace
+
+    def traced(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(notes, 'event_trace', traced)
+    monkeypatch.setenv('SLOPE_NOTES_CACHE', '256')
+    first = notes.decision_row(fc, d, STEPS, ORIGIN, 'holders', mask)
+    filed = STEPS[:ORIGIN] + (('judgment_default', 'ruling', 'holders_file'),) + STEPS[ORIGIN + 1:]
+    cached = notes.decision_row(fc, d, filed, ORIGIN, 'holders', mask.copy())
+    assert len(calls) == 1
+    monkeypatch.setenv('SLOPE_NOTES_CACHE', '0')
+    reference = notes.decision_row(fc, d, filed, ORIGIN, 'holders', mask)
+    assert _same(cached[0], reference[0])
+    assert _same(vars(cached[1]), vars(reference[1]))
+    monkeypatch.setenv('SLOPE_NOTES_CACHE', '256')
+    # Both the first returned value and cache hits remain independently mutable.
+    first[0]['day'][:] = 0
+    cached[1].marks['appealed'][:] = 0
+    again = notes.decision_row(fc, d, STEPS, ORIGIN, 'holders', mask)
+    assert _same(again[0], reference[0])
+    assert _same(vars(again[1]), vars(reference[1]))
+    for steps, actor, selected in ((STEPS, 'issuer', mask),
+                                   (STEPS, 'holders', ~mask),
+                                   (STEPS[:-1], 'holders', mask)):
+        before = len(calls)
+        notes.decision_row(fc, d, steps, ORIGIN, actor, selected)
+        assert len(calls) == before + 1
+    monkeypatch.setenv('SLOPE_NOTES_CACHE', '1')
+    notes.decision_row(fc, d, STEPS, ORIGIN, 'holders', mask)
+    assert len(fc._notes_rows) == 1
