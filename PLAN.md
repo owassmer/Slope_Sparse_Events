@@ -494,7 +494,15 @@ Local44focused checks pass (decision petition snapshots, dated appeal/notes fact
 - [x] Preserve historical capture and reject incompatible incoming populations.
 - [x] Complete per-scenario context rendering with consumer-scoped deadline facts.
 - [x] Focused local checks and independent review.
-- [ ] Finish native seven-job parity and standard PR CI.
-- [ ] Record the completed step1 review commit and validation evidence.
+- [x] Finish native seven-job parity; inspect standard CI and record its pre-existing failure and full-tree fixture limit.
+- [x] Record the completed step1 review commit and validation evidence.
 
 Step2 assembly/adoption, global checks, Jev judgments, reduction and Russell page have NOT been started by this integration task.
+
+#### Step1 complete — native parity verified
+
+Production commit `7b69c37` is pushed to PR21. Native run36958624797 PASSED all seven jobs: all six units exactly match candidate36957194362 in incoming `_S`, complete path records (steps, edges, masks and classes), and financial-equivalence records. Counts remain23=1866,59=1780,63=1774,132=1747,2206=313,6258=328;7808total, maximum mass error1.6653345369377348e-15. The earlier restart emits306histories on512draws, max8.881784197001252e-16, and still rejects the incompatible original boundary. Results: `var/decision-state-review/production-integration-results.json`. The local44focused checks and Ruff/diff checks pass. Independent focused review is complete with its renderer finding resolved.
+
+Standard CI36959132550 passed repository lint, then reported the existing `tests/test_assumptions.py::test_each_saved_variant_records_only_its_knob` failure (`KeyError: atm_pace_10`). The test compares today's variant declarations with the Sept28 artifact. A clean detached checkout of PRE-integration7755856 reproduced the identical failure; its test/inputs/artifact/declared implementation are unchanged. Evidence: `var/decision-state-review/preintegration-ci-failure.txt`. CI subsequently reached `test_pending_claim.py`'s unrestricted full-May-tree fixture; it was cancelled to honor the no-baseline-rewalk scope. Full CI is therefore not green and is not represented as a completed suite. No tests were weakened or archived results rewritten.
+
+Experimental source adapters/workflow are archived under `var/decision-state-review/validation-harness/` and retained on the separate validation branch, excluded from the production commit. Only the pre-existing untracked browser directory remains in the worktree. This documentation-only completion commit skips rerunning the unchanged full-tree CI fixture. Step2 assembly/adoption and all downstream delivery work remain next, not completed by step1.
