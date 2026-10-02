@@ -10,7 +10,7 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.FRESH_WALK_SECRET_ACCESS_KEY }}
   AWS_SESSION_TOKEN: ${{ secrets.FRESH_WALK_SESSION_TOKEN }}
   BUCKET: slope-walk-462947327980-20261001
-  PREFIX: walk-36781427817/fresh-balanced
+  PREFIX: walk-36781427817/fresh-balanced-coarse
   PYTHONPATH: .
   OPENBLAS_NUM_THREADS: '1'
   OMP_NUM_THREADS: '1'
@@ -18,6 +18,8 @@ env:
 jobs:
   walk:
     runs-on: ubuntu-latest
+    env:
+      SLOPE_WORKER_ID: github-${{ matrix.worker }}
     timeout-minutes: 340
     strategy:
       fail-fast: false
@@ -26,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 50d452bc072e8d902f5249294178da63a6fbc72d
+          ref: e300938fef5fe4b7676018dc7b2c627bf340c6fe
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked
       - run: uv run slope evidence build akoustis_20240514
