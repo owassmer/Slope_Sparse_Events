@@ -144,21 +144,26 @@ def poll(client):
                     if STATE['total'] is not None and len(completed) == STATE['total']:
                         STATE['phase'] = 'Walk outputs complete — assembly and global checks next'
                 if time.monotonic() - last_github > 30:
-                    latest = json.loads(subprocess.check_output(
+                    recent = json.loads(subprocess.check_output(
                         ['gh', 'run', 'list', '--repo', REPO, '--branch', 'fresh-walk',
-                         '--workflow', 'fresh-walk.yml', '--limit', '1', '--json', 'databaseId,url'],
-                        text=True, timeout=25))[0]
-                    RUN = str(latest['databaseId'])
+                         '--workflow', 'fresh-walk.yml', '--limit', '10', '--json', 'databaseId,url,status'],
+                        text=True, timeout=25))
+                    runs = [r for r in recent if r['status'] != 'completed'
+                            or r['databaseId'] in {36965503657, 36971374732}]
+                    jobs = []
+                    for run in runs:
+                        data = json.loads(subprocess.check_output(
+                            ['gh', 'run', 'view', str(run['databaseId']), '--repo', REPO, '--json', 'jobs'],
+                            text=True, timeout=25))
+                        for job in data['jobs']:
+                            jobs.append({**job, 'name': f"{run['databaseId']} · {job['name']}"})
                     with LOCK:
-                        STATE['run_url'] = latest['url']
-                    data = json.loads(subprocess.check_output(
-                        ['gh', 'run', 'view', RUN, '--repo', REPO, '--json', 'jobs'], text=True, timeout=25))
-                    with LOCK:
+                        STATE['run_url'] = recent[0]['url']
                         STATE['jobs'] = [{'name': j['name'], 'status': j['status'], 'conclusion': j['conclusion'],
                                           'url': j['url'], 'step': next((s['name'] for s in j['steps']
                                                                        if s['status'] == 'in_progress'), '')}
-                                         for j in data['jobs']]
-                    for j in data['jobs']:
+                                         for j in jobs]
+                    for j in jobs:
                         if j['status'] == 'completed' and j['databaseId'] not in workflow_logs:
                             result = subprocess.run(['gh', 'api', f"repos/{REPO}/actions/jobs/{j['databaseId']}/logs"],
                                                     text=True, capture_output=True, timeout=25)
@@ -184,7 +189,7 @@ PAGE = '''<!doctype html><html><head><meta charset="utf-8"><title>Slope · Live 
 <details><summary>GitHub worker status</summary><table><tbody id="jobs"></tbody></table></details></main>
 <script>
 let data=null,paused=false;const el=id=>document.getElementById(id),esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),num=x=>Number(x||0).toLocaleString();
-function render(){if(!data||paused)return;let s=data.state;if(s.run_url)el('runlink').href=s.run_url;el('phase').textContent=s.phase;el('updated').textContent=s.updated?'Updated '+new Date(s.updated).toLocaleTimeString():'';el('warning').textContent=s.error?'Update error: '+s.error:'';el('done').textContent=num(s.done)+' / '+(s.total?num(s.total):'preparing');el('active').textContent=num(s.active);el('paths').textContent=num(s.raw_histories);el('workers').textContent=s.jobs.filter(j=>j.status==='in_progress').length+' / 40';el('progress').max=s.total||1;el('progress').value=s.done;
+function render(){if(!data||paused)return;let s=data.state;if(s.run_url)el('runlink').href=s.run_url;el('phase').textContent=s.phase;el('updated').textContent=s.updated?'Updated '+new Date(s.updated).toLocaleTimeString():'';el('warning').textContent=s.error?'Update error: '+s.error:'';el('done').textContent=num(s.done)+' / '+(s.total?num(s.total):'preparing');el('active').textContent=num(s.active);el('paths').textContent=num(s.raw_histories);el('workers').textContent=s.jobs.filter(j=>j.status==='in_progress').length+' / '+s.jobs.length;el('progress').max=s.total||1;el('progress').value=s.done;
 let current=el('task').value,ids=[...new Set(data.events.map(e=>e.task))].sort();el('task').innerHTML='<option value="">All sources</option>'+ids.map(id=>'<option value="'+esc(id)+'">'+esc(id)+'</option>').join('');el('task').value=current;
 let query=el('search').value.toLowerCase(),only=el('errors').checked;let events=data.events.filter(e=>(!current||e.task===current)&&(!only||e.error)&&(!query||(e.text+' '+e.task+' '+e.source).toLowerCase().includes(query))).slice(-1000);
 let box=el('logs'),bottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;box.innerHTML=events.map(e=>'<div class="line '+(e.error?'error':'')+'"><span class="muted">'+esc(new Date(e.time).toLocaleTimeString())+'</span><span>'+esc(e.task)+'</span><span class="source muted">'+esc(e.source)+'</span><span class="text">'+esc(e.text)+'</span></div>').join('')||'<div class="muted">Waiting for log output…</div>';if(bottom)box.scrollTop=box.scrollHeight;
