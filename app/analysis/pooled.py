@@ -57,13 +57,14 @@ def fetch(uri: str, directory: Path, expected: dict) -> Path:
     s3 = boto3.client('s3')
     bucket, prefix = location.netloc, location.path.strip('/')
     # The ready marker is published only after all states and the input binding are durable.
-    s3.head_object(Bucket=bucket, Key=f'{prefix}/ready.json')
+    ready = json.loads(s3.get_object(Bucket=bucket, Key=f'{prefix}/ready.json')['Body'].read())
     source_binding = json.loads(s3.get_object(Bucket=bucket, Key=f'{prefix}/binding.json')['Body'].read())
     if source_binding != expected:
         raise ValueError('Saved pool does not match the investigation, case inputs or model')
     directory.mkdir(parents=True, exist_ok=True)
     save(directory / 'binding.json', source_binding)
-    for name in ['control.pkl', *(f'states{i}.tgz' for i in range(16)), 'paths.tgz']:
+    path_object = 'path_sources.json' if ready.get('path_storage') == 'archives' else 'paths.tgz'
+    for name in ['control.pkl', *(f'states{i}.tgz' for i in range(16)), path_object]:
         key = f'{prefix}/{name}'
         meta = s3.head_object(Bucket=bucket, Key=key)
         marker = directory / f'.{name}.download.json'
@@ -89,7 +90,7 @@ def fetch(uri: str, directory: Path, expected: dict) -> Path:
                 archive.extractall(target, filter='data')
             pending.unlink()
         else:
-            target = directory / ('ctl/control.pkl' if name == 'control.pkl' else name)
+            target = directory / ('ctl/' + name if name in ('control.pkl', 'path_sources.json') else name)
             target.parent.mkdir(parents=True, exist_ok=True)
             pending.replace(target)
         downloaded = sorted(target.rglob('*')) if target.is_dir() else [target]
@@ -132,10 +133,19 @@ def build(run_id: str, root: Path, directory: Path | str, *, processes: int, pro
         with control.open('rb') as stream:
             import pickle
             ctl = pickle.load(stream)
+        sources = directory / 'ctl/path_sources.json'
+        remote_parts = json.loads(sources.read_text())['parts'] if sources.exists() else {}
+        if sources.exists() and os.environ.get('SLOPE_REDUCE_FLEET') != '1':
+            raise ValueError('Distributed path archives require the financial fleet')
         for name, (count, _seconds) in ctl.get('part_cost', {}).items():
+            if sources.exists():
+                if count and remote_parts.get(name, {}).get('count') != count:
+                    raise ValueError(f'Remote path coverage differs: {name}')
+                continue
             if count and not (paths / name).is_file():
                 raise ValueError(f'Saved pool path file is missing: {name}')
-        inputs = {'paths': {str(p.relative_to(paths)): digest(p) for p in sorted(paths.rglob('*')) if p.is_file()},
+        inputs = {'paths': {'sources': digest(sources)} if sources.exists() else
+                  {str(p.relative_to(paths)): digest(p) for p in sorted(paths.rglob('*')) if p.is_file()},
                   'control': digest(control), 'binding': digest(directory / 'binding.json'),
                   'states': {str(p.relative_to(directory)): digest(p)
                              for p in sorted(directory.rglob('states*.json.gz'))}}

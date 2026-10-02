@@ -369,13 +369,16 @@ def pool(bucket, prefix, slots, *, source_bucket=None, source_s3=None):
         resume = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
         local_ready = (resume.get('inputs') == identity and local_control.exists()
                        and resume.get('control') == hashlib.sha256(local_control.read_bytes()).hexdigest()
-                       and resume.get('paths') == path_fingerprints(root / 'ctl/paths'))
+                       and (resume.get('paths') == path_fingerprints(root / 'ctl/paths') if not (root / 'ctl/path_sources.json').exists() else resume.get('sources') == hashlib.sha256((root / 'ctl/path_sources.json').read_bytes()).hexdigest()))
         if read(s3, bucket, f'{prefix}/pool/control-ready.json'):
             progress('restore_control')
             (root / 'ctl').mkdir(exist_ok=True)
             if not local_ready:
                 s3.download_file(bucket, f'{prefix}/pool/control.pkl', str(root / 'ctl/control.pkl'))
-                fetch_group(s3, bucket, f'{prefix}/pool', 'paths', root / 'ctl/paths')
+                if read(s3, bucket, f'{prefix}/pool/path_sources.json') is not None:
+                    s3.download_file(bucket, f'{prefix}/pool/path_sources.json', str(root / 'ctl/path_sources.json'))
+                else:
+                    fetch_group(s3, bucket, f'{prefix}/pool', 'paths', root / 'ctl/paths')
         else:
             if not local_ready:
                 progress('download_control', shards=100)
@@ -396,7 +399,8 @@ def pool(bucket, prefix, slots, *, source_bucket=None, source_s3=None):
                                 str(root / 'control'), str(root / 'ctl')], check=True, env=env)
                 save(checkpoint, {'inputs': identity,
                                   'control': hashlib.sha256(local_control.read_bytes()).hexdigest(),
-                                  'paths': path_fingerprints(root / 'ctl/paths')})
+                                  'paths': path_fingerprints(root / 'ctl/paths') if not (root / 'ctl/path_sources.json').exists() else {},
+                                  'sources': hashlib.sha256((root / 'ctl/path_sources.json').read_bytes()).hexdigest() if (root / 'ctl/path_sources.json').exists() else None})
             else:
                 progress('resume_completed_control')
             with (root / 'ctl/control.pkl').open('rb') as f:
@@ -406,12 +410,17 @@ def pool(bucket, prefix, slots, *, source_bucket=None, source_s3=None):
                            classed_parent_nodes=len(ctl['classed']),
                            question_types=dict(Counter(n.node for n in ctl['nodes'].values())),
                            offering_continuations=len(ctl['raised']))
+            if (root / 'ctl/path_sources.json').exists():
+                summary['path_storage'] = 'archives'
             save(root / 'walk-summary.json', summary)
             s3.upload_file(str(root / 'walk-summary.json'), bucket, f'{prefix}/pool/walk-summary.json')
             if ctl['raised']:
                 raise RuntimeError(f"{len(ctl['raised'])} offering continuations require a further walk")
             s3.upload_file(str(root / 'ctl/control.pkl'), bucket, f'{prefix}/pool/control.pkl')
-            upload_group(s3, bucket, f'{prefix}/pool/paths.tgz', root / 'ctl/paths', processes=16)
+            if (root / 'ctl/path_sources.json').exists():
+                s3.upload_file(str(root / 'ctl/path_sources.json'), bucket, f'{prefix}/pool/path_sources.json')
+            else:
+                upload_group(s3, bucket, f'{prefix}/pool/paths.tgz', root / 'ctl/paths', processes=16)
             create(s3, bucket, f'{prefix}/pool/control-ready.json', summary)
             shutil.rmtree(root / 'control')
         with (root / 'ctl/control.pkl').open('rb') as f:
@@ -449,7 +458,8 @@ def pool(bucket, prefix, slots, *, source_bucket=None, source_s3=None):
         subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'judge', RUN, str(root),
                         str(root / 'ctl/control.pkl')], check=True, env={**env, 'SLOPE_JUDGE_COUNT': '1'})
         create(s3, bucket, f'{prefix}/pool/ready.json',
-               {'finished': time.time(), 'paths': ctl['paths'], 'walked': ctl['walked'], 'nodes': len(ctl['nodes'])})
+               {'finished': time.time(), 'paths': ctl['paths'], 'walked': ctl['walked'], 'nodes': len(ctl['nodes']),
+                'path_storage': 'archives' if (root / 'ctl/path_sources.json').exists() else 'files'})
         progress('complete', paths=ctl['paths'], nodes=len(ctl['nodes']))
     except BaseException as error:
         progress('failed', error=str(error))

@@ -1,11 +1,13 @@
 """Reduce disjoint indexed path ranges on GitHub and AWS using the existing arithmetic."""
 from __future__ import annotations
 
+import base64
 import concurrent.futures as cf
 import hashlib
 import json
 import os
 import pickle
+import struct
 import subprocess
 import sys
 import tarfile
@@ -24,7 +26,7 @@ GITHUB_JOBS, AWS_JOBS, PROCS = 160, 8, 4
 
 def version():
     root = Path(__file__).resolve().parents[1]
-    files = [Path(__file__), *sorted((root / 'app/analysis').glob('*.py')),
+    files = [Path(__file__), root / 'tools/path_archives.py', *sorted((root / 'app/analysis').glob('*.py')),
              *sorted((root / 'app/finance').glob('*.py')), *sorted((root / 'app/disputes').glob('*.py'))]
     h = hashlib.sha256()
     for f in files:
@@ -48,6 +50,29 @@ def pack_job(ctl_dir, target, ctl, blocks, job):
     (target / 'blocks.pkl').write_bytes(pickle.dumps(ranges, protocol=pickle.HIGHEST_PROTOCOL))
 
 
+def pack_remote(target, ctl, blocks, job, sources, sign):
+    target = Path(target)
+    target.mkdir(parents=True, exist_ok=True)
+    ranges, tasks = {}, {}
+    for k in range(job * PROCS, (job + 1) * PROCS):
+        ranges[k] = []
+        for i, (f, lo, hi) in enumerate(blocks[k]):
+            item = sources['parts'][f]
+            raw = base64.b64decode(item['index'])
+            offsets = struct.unpack(f'<{len(raw)//8}Q', raw)
+            if not 0 <= lo <= hi <= item['count']:
+                raise ValueError('path range exceeds saved index')
+            name = f'block{k}-slice{i}.pkl'
+            relative = [x-offsets[lo] for x in offsets[lo:hi+1]]
+            part = tasks.setdefault(item['archive'], {}).setdefault(f, {'size':item['size'], 'sha256':item['sha256'], 'slices':[]})
+            part['slices'].append({'name':name, 'begin':offsets[lo], 'end':offsets[hi],
+                                   'index':base64.b64encode(struct.pack(f'<{len(relative)}Q', *relative)).decode()})
+            ranges[k].append((name, 0, hi-lo))
+    (target/'control.pkl').write_bytes(pickle.dumps(ctl, protocol=pickle.HIGHEST_PROTOCOL))
+    (target/'blocks.pkl').write_bytes(pickle.dumps(ranges, protocol=pickle.HIGHEST_PROTOCOL))
+    (target/'remote.json').write_text(json.dumps([{'url':sign(key),'members':members} for key,members in tasks.items()]))
+
+
 def expected(job):
     return {f'{kind}{k}.pkl' for k in range(job * PROCS, (job + 1) * PROCS) for kind in ('tab', 'stress')}
 
@@ -65,6 +90,10 @@ def complete(folder, job):
 def worker(run_id, source, answers, job, jobs, out):
     if json.loads((Path(source) / 'binding.json').read_text()) != binding(run_id, RECORDED):
         raise RuntimeError('financial worker investigation or model differs from saved pool')
+    remote = Path(source) / 'remote.json'
+    if remote.exists():
+        from tools.path_archives import materialize
+        materialize(json.loads(remote.read_text()), Path(source) / 'paths')
     with (Path(source) / 'blocks.pkl').open('rb') as fh:
         blocks = pickle.load(fh)
     reduce.job(run_id, source, answers, job, jobs, PROCS, out, block_ranges=blocks)
@@ -121,7 +150,12 @@ def coordinate(run_id, directory, answers, identity, progress):
             return j
         with tempfile.TemporaryDirectory(dir=work) as tmp:
             base = Path(tmp) / 'input'
-            pack_job(directory / 'ctl', base, ctl, blocks, j)
+            if (directory / 'ctl/path_sources.json').exists():
+                sources = json.loads((directory / 'ctl/path_sources.json').read_text())
+                pack_remote(base, ctl, blocks, j, sources,
+                            lambda key: s3.generate_presigned_url('get_object', Params={'Bucket': sources['bucket'], 'Key': key}, ExpiresIn=21600))
+            else:
+                pack_job(directory / 'ctl', base, ctl, blocks, j)
             shutil.copyfile(answers, base / 'answers.json')
             shutil.copyfile(directory / 'binding.json', base / 'binding.json')
             if j < GITHUB_JOBS:

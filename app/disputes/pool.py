@@ -183,6 +183,9 @@ def _merge(out: str, meta: list, branches: dict) -> dict[str, int]:
     path. merge_equivalent treats each key's group on its own, so each group is merged alone, its members in the
     walk's order. Writes out/paths/<part>: each merged path in the part of its group's first member, in the walk's
     order. Returns each part's count."""
+    if os.environ.get("SLOPE_REMOTE_PATHS") == "1":
+        from tools.path_archives import complete
+        return complete(out, meta, branches)
     if os.environ.get("SLOPE_MERGE_FLEET") == "1":
         from tools.merge_fleet import run
         return run(out, meta, branches)
