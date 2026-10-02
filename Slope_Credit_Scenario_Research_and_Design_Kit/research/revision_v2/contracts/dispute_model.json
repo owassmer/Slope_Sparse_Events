@@ -1427,6 +1427,8 @@
               "available_cash",
               "operating_need_30_days",
               "settlement_amount",
+              "settlement_pricing_cash",
+              "settlement_pricing_operating_need",
               "installments",
               "settlement_date"
             ]
@@ -1490,6 +1492,8 @@
               "available_cash",
               "operating_need_30_days",
               "settlement_amount",
+              "settlement_pricing_cash",
+              "settlement_pricing_operating_need",
               "installments",
               "settlement_date"
             ]
@@ -1706,7 +1710,7 @@
               "judgment_standing",
               "available_cash",
               "arrears",
-              "days_of_continuous_arrears"
+              "days_since_first_nonpayment"
             ]
           }
         },
@@ -2065,7 +2069,7 @@
           "pending_money_claim": {
             "residual_question": "forecast_claim_petition_cash_out",
             "actor": "{company}",
-            "decision": "On {decision_date}, the first day an obligation goes unpaid, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+            "decision": "On {decision_date}, the first day an obligation would go unpaid without further financing, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
             "branches": [
               "initiate_offering",
               "file",
@@ -2087,7 +2091,8 @@
             "situation_keys": [
               "decision_date",
               "floor_decision",
-              "available_cash",
+              "cash_before_scheduled_payments",
+              "projected_cash_after_payments",
               "unpaid_obligation",
               "arrears",
               "notes_status",
@@ -2145,7 +2150,7 @@
           "pending_money_claim": {
             "residual_question": "forecast_financing_at_floor",
             "actor": "{company}",
-            "decision": "On {decision_date}, when its available cash of {available_cash} falls below its operating need of {operating_need_30_days} for the next month, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+            "decision": "On {decision_date}, when its projected cash after scheduled payments of {projected_cash_after_payments} falls below its operating need of {operating_need_30_days} for the next month, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
             "branches": [
               "initiate_offering",
               "file",
@@ -2165,7 +2170,8 @@
             ],
             "situation_keys": [
               "decision_date",
-              "available_cash",
+              "cash_before_scheduled_payments",
+              "projected_cash_after_payments",
               "operating_need_30_days",
               "atm_proceeds_to_date",
               "judgment_standing",

@@ -537,6 +537,7 @@ class Trace:
     # the cash, amount owed, collateral and reduced security that day, and the path's petition day
     stays: dict = field(default_factory=dict)
     situations: dict = field(default_factory=dict)  # worker C: step index -> Chain.c_situation
+    questions: dict = field(default_factory=dict)  # complete before-answer records, separate from financial outcomes
     groups: dict = field(default_factory=dict)  # a grouped step's index -> its option group per draw (-1: not asked)
     # a trace computed on a path's trajectories alone (`_run` rows): their indices among the draws. Every per-step
     # field is on every draw (off the rows as `forecast.masked` leaves them); the event cash stays on the rows.
@@ -644,6 +645,8 @@ class Chain:
         self._at = np.full(self.n, BIG, dtype=np.int64)  # the current step's decision day (the accessors' default)
         self.coupons: list[tuple] = []  # (payment day, cash (int or [draws]), still paid per draw, interest date)
         self.rec: tuple[list, list, list, list] = ([], [], [], [])  # per step: decision day, cash, owed, collateral
+        self.capture_questions = False
+        self.questions: dict = {}
         # the state-triggered decisions (FLOOR_NODES) walked but not yet booked on every trajectory: [step index, node,
         # branch, booked mask]; each books on its own day (`upto`), whatever the walk order
         self.waiting: list = []
@@ -1502,7 +1505,8 @@ class Chain:
         terms = self.offering_terms(day)
         o = {"occasion": occasion, "init": np.where(rows, day, BIG), "rows": rows,
              "close": np.where(rows, day + terms["close_days"], BIG), "shares": np.where(rows, terms["shares"], 0),
-             "net": np.where(rows, terms["net"], 0), "closed": np.zeros(self.n, dtype=bool), "booked": False}
+             "net": np.where(rows, terms["net"], 0), "closed": np.zeros(self.n, dtype=bool), "booked": False,
+             "terms": _copied(terms)}
         self._offers.append(o)
         self._eq_v += 1
         self._close(o)
@@ -1591,6 +1595,7 @@ class Chain:
         owed = v.owed_at(pd) if cap is None else np.full(self.n, cap, dtype=np.int64)
         bound = np.where(ok, np.clip(v.cash_at(pd) - need, 0, owed), 0).astype(np.int64)
         self.settle_offer = bound
+        self.settlement_pricing = {"day": pd.copy(), "cash": v.cash_at(pd).copy(), "operating_need": need.copy()}
         ok = ok & (bound > 0)
         if not agreed:
             return pd, ok
@@ -1637,7 +1642,7 @@ class Chain:
         if self.daily:  # sized on the approval day whatever the walk order (`restay`)
             if approved:
                 self.mark("stay_moved", motion, self.live(motion))
-            st = {"approval": approval, "approved": approved, "stayed_from": self.stayed_from.copy(),
+            st = {"approval": approval, "motion": motion.copy(), "approved": approved, "stayed_from": self.stayed_from.copy(),
                   "mark": self.marks["stayed"].copy(), "triggers": self.trigger_days()}
             self.stays[len(self.rec[0])] = st
             self._size_stay(st, read=True)
@@ -1704,6 +1709,16 @@ class Chain:
         offer = np.where(live & ~covers, np.maximum(cash_a - need_a, 0), 0).astype(np.int64)
         st.update(day=approval, cash=cash_a, owed=v.owed_at(approval), collateral=collateral, stay_offer=offer,
                   petition=v.ev.petition.copy())
+        if self.capture_questions:
+            # Resizing has removed this stay's lock. Its prior approval metadata
+            # must also be absent from the court's question, without changing cash.
+            facts = v.clone()
+            facts.capture_questions = False
+            facts.stayed_from = st["stayed_from"].copy()
+            facts.marks["stayed"] = st["mark"].copy()
+            facts.mark("stay_moved", st["motion"], facts.live(st["motion"]))
+            st["question"] = facts.question_row(approval, "court_order", "stay")
+            st["question"].update(cash=cash_a.copy(), collateral=collateral.copy(), stay_offer=offer.copy())
         if read:
             self.stay_offer, self.collateral_required = offer, collateral
         if not st["approved"]:
@@ -2224,11 +2239,16 @@ class Chain:
         raise ValueError(f"Unknown chain step {node}")
 
     def run(self, steps, day_only: bool = False) -> Trace:
+        self.capture_questions = self.pending or self.ordinary
         self.instrument_cash()
         tr = Trace(self.ev)
         for node, ctx, branch in steps:
             self.advance(tr, node, ctx, branch)
-        return self.finish(tr, day_only)
+        tr = self.finish(tr, day_only)
+        # Direct-run callers own their petition array; snapshot clones retain the
+        # old immutable array. Prefix-cached traces keep their existing ownership.
+        self.ev.petition = self.ev.petition.copy()
+        return tr
 
     def advance(self, tr: Trace, node: str, ctx: str, branch: str) -> None:
         """One step of `run`: book it and record its decision day and path facts. The cash floor and cash exhaustion
@@ -2274,7 +2294,17 @@ class Chain:
             before = (self.cum(),)
         self._grp = None
         self.question_petition = self.ev.petition.copy()
+        facts = self.clone() if self.capture_questions else None
+        if facts is not None:
+            facts.capture_questions = False
         day = self.step(node, ctx, branch)
+        if facts is not None:
+            row = facts.question_row(day, node, ctx)
+            row.update(settle_offer=self.settle_offer.copy(), stay_offer=self.stay_offer.copy(),
+                       raise_offer=self.raise_offer.copy())
+            if node == "settle":
+                row["sit"]["settlement_pricing"] = _copied(self.settlement_pricing)
+            self.questions[len(self.rec[0])] = row
         self._atm_rebook()  # a verdict, a ruling or an election changes the amount owed the share price reads
         if self._grp is not None:
             self.grec[len(self.rec[0])] = self._grp
@@ -2484,6 +2514,7 @@ class Chain:
                 late["petition"] = np.where(fire, self.ev.petition, late["petition"])
                 late["triggers"] = {k: np.where(fire, v, late["triggers"].get(k, BIG))
                                     for k, v in self.trigger_days().items()}
+                self.capture_waiting(i, node, ctx, t, fire)
                 amt = self.decide_waiting(i, node, branch, np.where(fire, t, BIG))
                 late["raise_offer"] = np.where(fire, amt, late["raise_offer"])
                 done |= fire
@@ -2546,6 +2577,7 @@ class Chain:
                 late["petition"] = np.where(fire, self.ev.petition, late["petition"])
                 late["triggers"] = {k: np.where(fire, v, late["triggers"].get(k, BIG))
                                     for k, v in self.trigger_days().items()}
+                self.capture_waiting(i, node, _ctx, t, fire)
                 amt = self.decide_waiting(i, node, branch, np.where(fire, t, BIG))
                 late["raise_offer"] = np.where(fire, amt, late["raise_offer"])
                 done |= fire  # each trajectory books one step a pass (bookings are per trajectory)
@@ -2592,7 +2624,7 @@ class Chain:
         path's; the fingerprint of the event cash to the horizon is not computed (`_Prefix.digest` None). Where the
         last step itself waits, its day is known only once it books: every decision before it, it, then those on
         its day. Trajectories where the step falls outside the horizon book nothing more (no read looks there). A
-        walked stay's snapshot is its approval day's (`c_situations`, `_snapshot_day`): booked up to that day."""
+        walked stay's snapshot is its approval day's (`_snapshot_day`): booked up to that day."""
         i = len(self.rec[0]) - 1
         if any(w[0] == i for w in self.waiting):
             tw = next(w for w in self.waiting if w[0] == i)
@@ -2608,7 +2640,7 @@ class Chain:
             self._upto_dated(bound, False, None)
 
     def _snapshot_day(self, i: int) -> np.ndarray:
-        """The day step i's question-state snapshot reads (`c_situations`): a walked stay's approval day, else the
+        """The day step i's question-state snapshot reads: a walked stay's approval day, else the
         step's decision day."""
         return self.stays[i]["approval"] if i in self.stays else self.rec[0][i]
 
@@ -2684,11 +2716,14 @@ class Chain:
         return self._snapshot_tail(tr, day_only)
 
     def _snapshot_tail(self, tr: Trace, day_only: bool) -> Trace:
-        """The end of `finish` a light trace leaves out, on the finished chain: each waiting step's facts, the
-        question-state snapshot, the booking days a view saw and the day read through (`as_of`)."""
+        """Attach captured before-answer records, never reconstruct them from final outcomes.
+        Keep the view's booking days and read horizon for structural reuse.
+        """
         tr.late = {i: dict(v) for i, v in self.late.items()}
-        tr.situations = ({len(tr.day) - 1: self.c_situation(tr.day[-1])} if day_only
-                         and (self.pending or self.ordinary) else self.c_situations(tr))  # the question-state snapshot
+        tr.questions = dict(self.questions)
+        if not day_only:
+            tr.questions.update({i: st["question"] for i, st in self.stays.items() if "question" in st})
+        tr.situations = {i: row["sit"] for i, row in tr.questions.items()}
         vf = self.__dict__.get("_vfired", {})  # each waiting step's booking day, here or in a view (BIG: neither)
         tr.fired = {i: np.minimum(tr.day[i], vf.get(i, BIG)) for i in tr.late}
         # a day-only trace: per draw, the last day whose state it reads (what it booked through, a cash read's day)
@@ -2696,12 +2731,11 @@ class Chain:
         return tr
 
     def completed(self, tr: Trace) -> Trace | None:
-        """A light day-only trace of this finished chain made whole (`_snapshot_tail`), exactly as `finish` without
-        light would have ended it: nothing of what a light finish leaves out is read by what it keeps. Once only;
-        None where the light finish also left out a stay's facts (a whole path: `finish` sizes an unapproved stay
-        before the petition's zeroing, so it cannot be completed afterwards)."""
+        """Complete only a chain that captured the decision boundaries. Ordinary light
+        enumeration omits those reads and needs a facts replay, not final-state inference.
+        """
         done = self.__dict__.get("_finished")
-        if done is None or done != (True, True):
+        if not self.capture_questions or done is None or done != (True, True):
             return None
         self._finished = (True, False)
         return self._snapshot_tail(tr, True)
@@ -2715,7 +2749,7 @@ class Chain:
     # containers whose arrays are only ever replaced (np.where into a new array), never written in place: a clone
     # copies the containers and shares the arrays (`clone` marks them read-only); memo dicts of immutable values
     CONTAINERS = {"rec": lambda v: tuple(list(x) for x in v), "late": lambda v: {i: dict(e) for i, e in v.items()},
-                  "_hd": dict, "_keys": dict}
+                  "questions": dict, "_hd": dict, "_keys": dict}
     EV_WRITTEN = ("cash", "lock", "capacity")  # with `k:<kind>`: the event-cash arrays written in place (`_evw`)
 
     def clone(self) -> Chain:
@@ -2794,6 +2828,7 @@ class Chain:
     DATED = frozenset({"suspended", "resolved", "release_at", "adverse_from", "adverse_until", "early_registration",
                        "pending_levy", "delisted", "stayed_from"})
     UNSEEN = frozenset({"_cum", "_tau", "_out", "_keys", "_av", "_hd", "_cv", "_stay_cv", "_restaying", "_atm_memo",
+                        "capture_questions", "questions", "settlement_pricing",
                         "_atm_cols", "_atm_v", "_eq_v", "_offer_memo", "_shares_memo", "_grp", "settle_offer",
                         "stay_offer", "raise_offer", "reads", "question_petition", "rec", "grec", "late", "wctx", "_atm", "_atm_cum",
                         "_atm_sold", "_atm_nsold", "taken", "_booked_to", "_last_node", "ev", "marks", "waiting", "takes", "writs",
@@ -2850,7 +2885,9 @@ class Chain:
             oa = self._offers[i] if i < len(self._offers) else None
             ob = other._offers[i] if i < len(other._offers) else None
             init = np.minimum(*(day(o["init"]) if o is not None else np.full(n, BIG) for o in (oa, ob)))
-            ne = np.ones(n, dtype=bool) if oa is None or ob is None else _differs(oa, ob, n)
+            ne = np.ones(n, dtype=bool) if oa is None or ob is None else _differs(
+                {k: v for k, v in oa.items() if k != "terms"},
+                {k: v for k, v in ob.items() if k != "terms"}, n)
             x = np.minimum(x, np.where(ne, init, BIG))
         for k in set(self.floor_days) | set(other.floor_days):
             dated(self.floor_days.get(k), other.floor_days.get(k))
@@ -2952,6 +2989,33 @@ class Chain:
             return v(*args)
         return v
 
+    def question_row(self, day: np.ndarray, node: str, ctx: str) -> dict:
+        """Read the decision before its answer books anything. Cash after scheduled
+        payments is a projection absent that answer; cash before payments is separate.
+        """
+        sit = self.c_situation(day)
+        if node in ("judgment_default", "delisting_notes"):
+            sit["declaration_deadline"] = np.where(day < self.N, day + int(self.p("holder_notice_lag_days")), BIG)
+        if node == "offering":
+            offers = [o for o in self._offers if o["occasion"] == ctx]
+            if offers:
+                terms = {k: np.zeros_like(v) for k, v in offers[0]["terms"].items()}
+                for o in offers:
+                    terms = {k: np.where(o["rows"], o["terms"][k], v) for k, v in terms.items()}
+                sit["offering_terms"] = terms
+        return {"day": day.copy(), "cash": self.decision_cash(day).copy(), "owed": self.owed_at(day).copy(),
+                "collateral": self.collateral_required.copy(), "petition": self.ev.petition.copy(),
+                "marks": _copied(self.marks), "triggers": _copied(self.trigger_days()), "sit": sit,
+                "settle_offer": self.settle_offer.copy(), "stay_offer": self.stay_offer.copy(),
+                "raise_offer": self.offer_available(day),
+                "groups": self.option_group(node, day) if node in GROUPED else None}
+
+    def capture_waiting(self, i: int, node: str, ctx: str, day: np.ndarray, fire: np.ndarray) -> None:
+        if not self.capture_questions:
+            return
+        row = self.question_row(day, node, ctx)
+        self.questions[i] = _merge_question(self.questions.get(i), row, fire)
+
     def c_situation(self, day: np.ndarray) -> dict:
         """What a question's situation reads on its decision day (QUESTIONS §§2.1-2.6), per trajectory: each entry an
         array [n], a scalar or dict, or an Awaiting marker where the interface is not built on this branch."""
@@ -2982,14 +3046,24 @@ class Chain:
             out[key] = _copied(v)
         return out
 
-    def c_situations(self, tr) -> dict:
-        """A pending claim's (or the ordinary view's) snapshot at the steps whose facts a question reads: the last
-        step (a prefix's decision), each state-triggered step and each stay (their facts come from the whole path)."""
-        if not (self.pending or self.ordinary) or not tr.day:
-            return {}
-        at = {len(tr.day) - 1: tr.day[-1], **{i: tr.day[i] for i in tr.late},
-              **{i: st["day"] for i, st in tr.stays.items()}}
-        return {i: self.c_situation(day) for i, day in at.items()}
+def _merge_question(old, new, fire: np.ndarray, name: str = ""):
+    """Replace only the trajectories whose decision fires in this pass."""
+    if isinstance(new, np.ndarray):
+        if old is None:
+            fill = BIG if name in ("day", "marks", "triggers") else 0
+            old = np.full_like(new, fill if new.dtype.kind in "iuf" else "" if new.dtype.kind in "USO" else False)
+        return np.where(fire, new, old)
+    if isinstance(new, dict):
+        old = old or {}
+        return {k: _merge_question(old.get(k), v, fire, name if name in ("marks", "triggers") else k)
+                for k, v in new.items()}
+    if isinstance(new, (tuple, list)):
+        old = old or ()
+        return type(new)(_merge_question(old[i] if i < len(old) else None, v, fire,
+                                        "day" if name == "offerings" and isinstance(new, tuple) and i < 2 else name)
+                         for i, v in enumerate(new))
+    return new
+
 
 def _same_state(a, b) -> bool:
     """Equal chain state: arrays by value (shape, dtype, content), containers element by element."""
@@ -3164,6 +3238,13 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
     fields are returned on every draw, off those rows as `forecast.masked` leaves a path's trace (`_widen`), and its
     event cash on the rows (`Trace.rows`: nothing reads it elsewhere)."""
     from app.analysis import shadow
+
+    base_make = make
+    def make():
+        ch = base_make()
+        ch.capture_questions = not light and (ch.pending or ch.ordinary)
+        return ch
+    key = (*key, "questions") if not light else key
 
     if rows is not None and (not rows or rows[-1] is None or rows[-1].all()):  # masks only narrow: every draw
         rows = None

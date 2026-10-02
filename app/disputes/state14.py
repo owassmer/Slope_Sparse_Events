@@ -183,9 +183,6 @@ LISTING = {"listed": "listed", "hearing_requested": "listed; a hearing is reques
 DUE_HOW = {"declared": "by declaration of the trustee or the holders",
            "automatic_j": "automatically under §7.02, on a continuing §7.01(j)(v) general-nonpayment default",
            "repurchase": "on the repurchase date, unpaid"}
-STATUS = {"I1": "the post-trial motions are pending", "I2": "the post-trial motions are decided, or the time for them "
-          "has run", "I3": "after the post-trial ruling",
-          "I4": "the judgment is stayed on approved security"}
 OCCASION = {"entry": "the day the judgment is entered", "I1": "the day of a levy, before the levy",
             "post": "the day of a levy, before the levy", "ripe": "the day the notes' judgment default becomes "
             "available", "default": "the day the notes' judgment default becomes available"}
@@ -258,11 +255,7 @@ class Situation:
         return STANDING[str(self._g().at_rep("standing", sit=True))]
 
     def judgment_status(self):
-        status = next((STATUS[t] for t in self.tags if t in STATUS), None)
-        ruled = self._sit("ruling")[0] <= self.day
-        if status is None:
-            status = STATUS["I2"] if ruled else STATUS["I1"]
-        return "; ".join((self.judgment_standing(), status, *self.appeal_events()))
+        return "; ".join((self.judgment_standing(), *self.appeal_events()))
 
     def appeal_events(self) -> list[str]:
         g = self._g()
@@ -283,6 +276,24 @@ class Situation:
             i, j = g.rep
             rep = g.rows[i]["marks"]["appealed"][j]
             out.append(f"the company filed an appeal on {dated(self.review, int(rep), dates)}")
+        return out
+
+    def historical_events(self) -> list[str]:
+        g = self._g()
+        i, j = g.rep
+        marks = g.rows[i].get("marks") or {}
+        out = []
+        for name, text in (("stay_moved", "the company moved for a stay"),
+                           ("stayed", "the court approved a stay"),
+                           ("paid", "the company paid the judgment"),
+                           ("settled", "the parties agreed to settle; the first settlement payment was due"),
+                           ("levied", "the creditor levied on the company's cash"),
+                           ("executing", "the creditor sought execution"),
+                           ("notes_due", "the notes became due"),
+                           ("delisted", "the stock was delisted")):
+            dates = marks.get(name)
+            if dates is not None and 0 <= int(dates[j]) <= self.day:
+                out.append(f"{text} on {when(self.review, int(dates[j]))}")
         return out
 
     def interval(self):
@@ -322,6 +333,12 @@ class Situation:
     def available_cash(self):
         return money(*self._row("cash"))
 
+    def projected_cash_after_payments(self):
+        return money(*self._sit("cash_end"))
+
+    def cash_before_scheduled_payments(self):
+        return self.available_cash()
+
     def _need(self):
         g, need = self._g(), self.fc.draws.basis.need
         vals = g.rowwise(lambda r, x: need[x, np.minimum(r["day"][x], need.shape[1] - 1)])
@@ -338,24 +355,32 @@ class Situation:
             raise Unbuilt(by.name)
         i, j = g.rep
         rep = {k: int(v[j]) for k, v in by.items()}
+        due = g.rows[i]["sit"].get("notes_due_day")
+        notes = (f"; notes principal of {self.notes_principal()} is due and unpaid since "
+                 f"{when(self.review, int(due[j]))}" if due is not None and int(due[j]) <= self.day else "")
         if not any(rep.values()):
-            return "none: every obligation that has fallen due has been paid"
+            return "no operating expenses, loan payments, notes interest, settlement payments or judgment " \
+                   "payments are overdue" + notes
         first, _ = self._sit("first_unpaid")
         out = {k.replace("_", " "): usd(v) for k, v in rep.items() if v}
-        out["unpaid since"] = when(self.review, first) if first < BIG else "not applicable"
+        out["first recorded nonpayment"] = when(self.review, first) if first <= self.day else "not applicable"
+        if notes:
+            out["notes principal"] = notes.removeprefix("; ")
         return out
 
     def unpaid_obligation(self):
         return self.arrears()
 
-    def days_of_continuous_arrears(self):
+    def days_since_first_nonpayment(self):
         first, grp = self._sit("first_unpaid")
-        if first >= BIG or first > self.day:
-            return "none: no obligation is unpaid"
         days = self._g().field("day").astype(np.int64)
-        return f"{self.day - first} days" + ("" if (days - grp).min() == (days - grp).max() else
-                                             f" (across this situation: {int((days - grp).min())} to "
-                                             f"{int((days - grp).max())} days)")
+        valid = (grp >= 0) & (grp < BIG) & (grp <= days)
+        elapsed = days[valid] - grp[valid]
+        rep = f"{self.day - first} days" if 0 <= first < BIG and first <= self.day else "no recorded nonpayment"
+        if elapsed.size and (not valid.all() or elapsed.min() != elapsed.max()):
+            rep += f" (across this situation: {int(elapsed.min())} to {int(elapsed.max())} days"
+            rep += "; some trajectories have no recorded nonpayment)" if not valid.all() else ")"
+        return rep
 
     # stay security (§2.5)
     def _security(self) -> tuple[str, int]:
@@ -418,12 +443,29 @@ class Situation:
         return str(count)
 
     def settlement_date(self):
+        if self.g is not None and "settlement_pricing" in self.g.rows[self.g.rep[0]]["sit"]:
+            g = self._g()
+            dates = g.rowwise(lambda r, x: r["sit"]["settlement_pricing"]["day"][x])
+            i, j = g.rep
+            return dated(self.review, int(g.rows[i]["sit"]["settlement_pricing"]["day"][j]), dates)
         p = self.fc.m["parameters"]["settlement_date_in_interval"]
         if self.fc.sens.get("settlement_date_in_interval"):
             return "the end of the current stage of the dispute"
         rep, grp = self._row("day")
         k = int(p["value"])
         return dated(self.review, rep + k, grp + k)
+
+    def settlement_pricing_cash(self):
+        return self._pricing_money("cash")
+
+    def settlement_pricing_operating_need(self):
+        return self._pricing_money("operating_need")
+
+    def _pricing_money(self, name):
+        g = self._g()
+        vals = g.rowwise(lambda r, x: r["sit"]["settlement_pricing"][name][x])
+        i, j = g.rep
+        return money(int(g.rows[i]["sit"]["settlement_pricing"][name][j]), vals)
 
     # the notes (§2.3, §3)
     def notes_principal(self):
@@ -445,9 +487,7 @@ class Situation:
         return dated(self.review, *self._sit("default_available"), none="not available on this date")
 
     def declaration_deadline(self):
-        lag = int(self.fc.m["parameters"]["holder_notice_lag_days"]["value"])
-        rep, grp = self._sit("default_available")
-        return dated(self.review, rep + lag if rep < BIG else BIG, np.where(grp < BIG, grp + lag, BIG))
+        return dated(self.review, *self._sit("declaration_deadline"))
 
     def notes_due_how(self):
         how = str(self._g().at_rep("notes_due_how", sit=True))
@@ -887,7 +927,15 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     kinds, filled, fids = evidence_kinds(fc, n, t, d)
     readings, _ = fc._readings(d, n.question_id)
     verdict = n.node in ("verdict_finding", "verdict_amount")
-    assumed = [*([] if verdict else assumed_events(tags, labels, d.counterparty, strict)), *n.assumptions]
+    # Routing tags remain part of identity. Current standing and dated actions
+    # come from the question's engine snapshot, not a second account of status.
+    dated_tags = {"I1", "I2", "I3", "I4", "post", "ripe", "motions_pending", "stay_pending", "stay_moved",
+                  "stayed", "paid", "settled", "notes_due", "delisted", "levied", "unlevied", "executing"}
+    history_tags = [tag for tag in tags if g is None or
+                    (tag not in dated_tags and not tag.startswith(("judgment_", "delisting_")))]
+    assumed = [*([] if verdict else assumed_events(history_tags, labels, d.counterparty, strict)), *n.assumptions]
+    if not verdict and g is not None:
+        assumed.extend(situation.historical_events())
     if not verdict and ({"final", "appealed"} & set(tags)):
         assumed.extend(situation.appeal_events())
     state = {"case": {"evidence_cutoff": fmt(fc.review), "company": fc.borrower, "counterparty": d.counterparty,

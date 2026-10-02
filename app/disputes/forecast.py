@@ -588,6 +588,7 @@ class _Prefix:
     fired: dict | None = None  # each waiting step's booking day (index -> [draws]; BIG: not booked)
     served: bool = False  # a sibling's trace served for the walk's structure (`Forecaster._served`), not for facts
     light: bool = False  # a walk read's trace (events.Chain.finish light): no triggers, snapshot or fired days
+    question: dict | None = None
 
     @classmethod
     def of(cls, tr, daily: bool = False, whole: bool = False, digest: bool = True, light: bool = False) -> _Prefix:
@@ -614,7 +615,8 @@ class _Prefix:
                    tr.triggers, getattr(tr, "raise_offer", None), getattr(tr, "reads", None),
                    (getattr(tr, "situations", None) or {}).get(len(tr.day) - 1),
                    (getattr(tr, "groups", None) or {}).get(len(tr.day) - 1), getattr(tr, "as_of", None),
-                   getattr(tr, "fired", None), light=light)
+                   getattr(tr, "fired", None), light=light,
+                   question=getattr(tr, "questions", {}).get(len(tr.day) - 1))
 
 
 class _DepthCache:
@@ -671,7 +673,9 @@ def masked(p: _Prefix, m: np.ndarray | None) -> _Prefix:
         return p
     from app.analysis.events import BIG
 
-    return replace(p, day=[np.where(m, x, BIG) for x in p.day], petition=np.where(m, p.petition, 0),
+    question = None if p.question is None else {**p.question, "day": np.where(m, p.question["day"], BIG),
+                                                "petition": np.where(m, p.question["petition"], 0)}
+    return replace(p, day=[np.where(m, x, BIG) for x in p.day], petition=np.where(m, p.petition, 0), question=question,
                    groups=None if p.groups is None else np.where(m, p.groups, -1).astype(np.int8))
 
 
@@ -1589,6 +1593,8 @@ class Forecaster:
 
     def row_of(self, tr) -> dict:
         """A question's recorded facts from its prefix trace (`record`)."""
+        if getattr(tr, "question", None) is not None:
+            return tr.question
         return {"day": tr.day[-1], "cash": tr.cash[-1], "owed": tr.owed[-1], "collateral": tr.collateral[-1],
                 "petition": tr.petition, "settle_offer": getattr(tr, "settle_offer", None),
                 "stay_offer": getattr(tr, "stay_offer", None), "triggers": getattr(tr, "triggers", None),
@@ -1640,6 +1646,17 @@ class Forecaster:
                              self.m, self.draws, self.sens)
         classes: dict = {}
         for k, i in late:
+            if i in getattr(tr, "questions", {}):
+                row = on(tr.questions[i])
+                if self.nodes[k].node == "financing_at_floor" and "noraise" in self.nodes[k].context.split("|"):
+                    pet = np.where(row["petition"] < 0, BIG, row["petition"])
+                    if ((row["day"] < self.days) & (row["day"] < pet) & (row["raise_offer"] > 0)).any():
+                        self._raise_more.add(steps[:i])
+                got = self._split((k,), as_of(row), lambda key, r, i=i: self._keep_late(key, steps[:i], r),
+                                  self.canon_get(k, steps))
+                if got is not None:
+                    classes[k] = got
+                continue
             if i in tr.stays:  # a stay's approval (daily processing): the security sized on the whole path
                 got = self._split((k,), as_of(on({**tr.stays[i], "settle_offer": None, "raise_offer": None,
                                                   "sit": tr.situations.get(i), "marks": tr.marks})),
@@ -3635,14 +3652,21 @@ class _OrdinaryWalk(_Walk):
             self.row(k, tr, -1, sit=getattr(tr, "sit", None))
 
     def row(self, k: str, tr, i: int, late: dict | None = None, sit: dict | None = None, mask=None) -> None:
-        t = tr.day[i]
-        pet, eq, trig = ((late["petition"], late["raise_offer"], late["triggers"]) if late
-                         else (tr.petition, tr.raise_offer, tr.triggers))
+        question = (getattr(tr, "question", None) if i == -1 else getattr(tr, "questions", {}).get(i))
+        if question is not None:
+            question = as_of(question)
+            t, cash, pet, eq, trig, sit = (question[x] for x in
+                                          ("day", "cash", "petition", "raise_offer", "triggers", "sit"))
+        else:
+            t, cash = tr.day[i], tr.cash[i]
+            pet, eq, trig = ((late["petition"], late["raise_offer"], late["triggers"]) if late
+                             else (tr.petition, tr.raise_offer, tr.triggers))
         t = np.where((pet >= 0) & (pet <= t), self.fc.days, t)  # a decision after a petition is not taken
         need = self.fc.draws.basis.need[np.arange(len(t)), np.clip(t, 0, self.fc.days - 1)]
         if mask is not None:  # the path's trajectories only (a masked prefix is already: `_trace`)
             t = np.where(mask, t, self.fc.days)
-        self.fc.bank_facts.setdefault(k, []).append((t, tr.cash[i], need, eq, trig, sit))  # sit: the snapshot
+        self.fc.bank_facts.setdefault(k, []).append((t, cash, need, eq, trig, sit,
+                                                     None if question is None else {**question, "day": t}))
 
     def emit(self, s: _S, outcome: str) -> None:
         """A whole path: the facts of its state-triggered decisions on their own day (kept once per distinct
@@ -3655,6 +3679,8 @@ class _OrdinaryWalk(_Walk):
             for k, i in s.late:
                 late = tr.late[i]
                 h = hashlib.blake2b(digest_size=16)
+                if i in tr.questions:
+                    h.update(pack_row(tr.questions[i]))
                 for a in (tr.day[i], tr.cash[i], late["petition"], late["raise_offer"], *(() if m is None else (m,))):
                     h.update(np.ascontiguousarray(a).tobytes())
                 if (k, s.steps[:i], h.digest()) not in self.seen:
@@ -3695,7 +3721,8 @@ def ordinary_state(fc: Forecaster, n: Node) -> tuple[dict, tuple[str, ...], dict
     builder (the case, the record items and evidence routed to it, the standard), with the ordinary view's own path
     facts, a context without the dispute's branch conditions, and the situation (the event given no cash effect)
     among the conditions that hold (the node's assumptions)."""
-    rows = [{"day": r[0], "cash": r[1], "owed": np.zeros_like(r[1]), "collateral": np.zeros_like(r[1]),
+    rows = [r[6] if len(r) > 6 and r[6] is not None else
+            {"day": r[0], "cash": r[1], "owed": np.zeros_like(r[1]), "collateral": np.zeros_like(r[1]),
              "petition": np.full_like(r[0], -1), "triggers": r[4] if len(r) > 4 else None,
              "sit": r[5] if len(r) > 5 else None} for r in fc.bank_facts.get(n.key, [])]
     return fc.built(n, fc.ordinary_dispute(), [c for c in n.context.split("|")[1:] if c], lambda: bank_facts(fc, n),
@@ -3706,7 +3733,8 @@ def ordinary_classes(fc: Forecaster, n: Node) -> set[str]:
     """The situation classes (`situation_class`, as of each decision day) the ordinary view's question pools."""
     tags: set[str] = set()
     for r in fc.bank_facts.get(n.key, []):
-        row = {"day": r[0], "cash": r[1], "owed": np.zeros_like(r[1]), "petition": np.full_like(r[0], -1),
+        row = r[6] if len(r) > 6 and r[6] is not None else {
+               "day": r[0], "cash": r[1], "owed": np.zeros_like(r[1]), "petition": np.full_like(r[0], -1),
                "triggers": r[4] if len(r) > 4 else None, "sit": r[5] if len(r) > 5 else None}
         c = situation_class(as_of(row), r[0] < fc.days)
         tags |= set() if c is None else {x for x in c if x}

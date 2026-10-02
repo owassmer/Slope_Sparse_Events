@@ -2151,7 +2151,7 @@
       "version": "5.0.0",
       "profile": "event_forecast",
       "primitive": "choice",
-      "question": "On {decision_date}, when its available cash of {available_cash} falls below its operating need of {operating_need_30_days} for the next month, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+      "question": "On {decision_date}, when its projected cash after scheduled payments of {projected_cash_after_payments} falls below its operating need of {operating_need_30_days} for the next month, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
       "actor": "{company}",
       "template": "pending_money_claim",
       "node": "financing_at_floor",
@@ -2168,7 +2168,7 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "On {decision_date}, when its available cash of {available_cash} falls below its operating need of {operating_need_30_days} for the next month, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+        "instructions": "On {decision_date}, when its projected cash after scheduled payments of {projected_cash_after_payments} falls below its operating need of {operating_need_30_days} for the next month, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
         "criteria": {
           "initiate_offering": "{company} initiates an underwritten offering of its common stock on the stated terms on {decision_date}.",
           "file": "{company} files a voluntary petition on {decision_date}.",
@@ -2501,7 +2501,7 @@
       "version": "5.0.0",
       "profile": "event_forecast",
       "primitive": "choice",
-      "question": "On {decision_date}, the first day an obligation goes unpaid, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+      "question": "On {decision_date}, the first day an obligation would go unpaid without further financing, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
       "actor": "{company}",
       "template": "pending_money_claim",
       "node": "petition_cash_out",
@@ -2518,7 +2518,7 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "On {decision_date}, the first day an obligation goes unpaid, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+        "instructions": "On {decision_date}, the first day an obligation would go unpaid without further financing, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
         "criteria": {
           "initiate_offering": "{company} initiates an underwritten offering of its common stock on the stated terms on {decision_date}.",
           "file": "{company} files a voluntary petition on {decision_date}.",

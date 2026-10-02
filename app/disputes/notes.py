@@ -75,7 +75,7 @@ def decision_row(fc, d, steps: tuple, index: int, actor: str, mask=None) -> tupl
         marks['appealed'] = np.where(marks['appealed'] == row['day'], BIG, marks['appealed'])
         row = {**row, 'marks': marks}
         tr = replace(tr, marks=marks)
-    result = row, replace(tr, day=[row['day']], petition=row['petition'])
+    result = row, replace(tr, day=[row['day']], petition=row['petition'], question=row)
     if capacity > 0:
         cache[key] = deepcopy(result)
         if len(cache) > capacity:
