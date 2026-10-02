@@ -147,7 +147,8 @@ def boundary_replay():
         for item in patches() + scoped_patches():
             stack.enter_context(item)
         fc, dispute, walk, key = fixture.case.__wrapped__()
-        fc.verdict_classes = lambda d: {fixture.MERGE_STEPS[1][2]: [[(key, 'no')]]}
+        verdict_classes = fc.verdict_classes
+        fc.verdict_classes = lambda d, fn=verdict_classes: {fixture.MERGE_STEPS[1][2]: fn(d)[fixture.MERGE_STEPS[1][2]]}
         saved = _resume.capture(walk, fixture.MERGE_STEPS[:14], 'notes_petition', 'ruling', legacy=True)
         try:
             saved.run()
@@ -156,7 +157,8 @@ def boundary_replay():
         else:
             raise AssertionError('The incompatible old boundary was not rejected')
         fc, dispute, walk, key = fixture.case.__wrapped__()
-        fc.verdict_classes = lambda d: {fixture.MERGE_STEPS[1][2]: [[(key, 'no')]]}
+        verdict_classes = fc.verdict_classes
+        fc.verdict_classes = lambda d, fn=verdict_classes: {fixture.MERGE_STEPS[1][2]: fn(d)[fixture.MERGE_STEPS[1][2]]}
         saved = _resume.capture(walk, fixture.MERGE_STEPS[:10], 'ripe_i1', legacy=True)
         parent = saved.state
         for item in context_patches():
