@@ -95,10 +95,10 @@ def poll(client):
                 claims, done, logs, host_logs = listings
                 primary_done = len(done)
                 replacement_ids = set()
-                if EXTRA_PREFIX:
-                    extra = list(pool.map(lambda suffix: objects(client, suffix, EXTRA_PREFIX),
+                for extra_prefix in EXTRA_PREFIX or []:
+                    extra = list(pool.map(lambda suffix, p=extra_prefix: objects(client, suffix, p),
                                           ['/refine-v1/claims/', '/refine-v1/done/', '/refine-v1/live/']))
-                    replacement_ids = {Path(o['Key']).stem for o in extra[0] + extra[1] + extra[2]}
+                    replacement_ids.update(Path(o['Key']).stem for o in extra[0] + extra[1] + extra[2])
                     claims += extra[0]
                     done += extra[1]
                     logs += extra[2]
@@ -247,7 +247,7 @@ def main():
     auth = parser.add_mutually_exclusive_group(required=True)
     auth.add_argument('--credentials')
     auth.add_argument('--profile')
-    parser.add_argument('--extra-prefix')
+    parser.add_argument('--extra-prefix', nargs='+')
     parser.add_argument('--run', type=int, nargs='+')
     parser.add_argument('--prefix', default=PREFIX)
     parser.add_argument('--port', type=int, default=18766)

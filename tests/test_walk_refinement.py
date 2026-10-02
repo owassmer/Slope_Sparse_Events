@@ -145,3 +145,58 @@ def test_finer_tail_matches_original_partition(tmp_path, monkeypatch):
         for field in parallel.FIELDS:
             assert parallel._same(parallel._union(a, field), parallel._union(b, field))
         assert a[0]['subdivisions'] == b[0]['subdivisions']
+
+
+def test_nested_refinement_materializes_original_paths_and_facts(tmp_path, monkeypatch):
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
+    from nested_tail import combine
+
+    from app.disputes import pool
+
+    monkeypatch.setattr(parallel, 'CUT', 2)
+    setup = replace(fx.setup(), horizon=fx.REVIEW + timedelta(days=50))
+    basis = basis_for(load_feed(fx.SNAP), setup)
+
+    def context():
+        d = fx.pending().model_copy(update={'status': 'interpreted'})
+        return Forecaster([d], {}, borrower='B', review=fx.REVIEW, horizon=setup.horizon,
+                          hydrate=lambda f: {}, model=fx.model(), setup=setup, basis=basis), d
+
+    whole, nested, joined = (tmp_path / name for name in ('whole', 'nested', 'joined'))
+    for folder in (whole, nested, joined):
+        folder.mkdir()
+    fc, d = context()
+    parallel._fork(fc, d, 1, str(whole), sys.stderr)
+    original = parallel.load_parts(str(whole))[0]
+    roots = tmp_path / 'roots.pkl'
+    roots.write_bytes(pickle.dumps(original['done']))
+    monkeypatch.setenv('SLOPE_WALK_ROOTS', str(roots))
+    monkeypatch.setenv('SLOPE_WALK_REFINE', '0/1/2')
+    for i in range(4):
+        monkeypatch.setenv('SLOPE_WALK_NESTED_REFINE', f'{i}/4/1')
+        fc, d = context()
+        parallel._fork(fc, d, 1, str(nested), sys.stderr, ks=[600 + i])
+    parts = parallel.load_parts(str(nested))
+    with pytest.raises(ValueError, match='coverage'):
+        combine(parts[:-1], 0)
+    combined = combine(parts, 0)
+    (joined / 'part0.pkl').write_bytes(pickle.dumps(combined))
+    assert not parallel.missing_segments([combined])
+    results = []
+    for folder in (whole, joined):
+        monkeypatch.setenv('SLOPE_WALK_PARTS', str(folder))
+        fc, d = context()
+        paths = parallel.walk(fc, d, 1)
+        results.append((paths, fc.nodes, {k: list(v) for k, v in fc.facts.items()}))
+    assert len(results[0][0]) > 1000
+    assert parallel._same(*results)
+
+    # The production pool must also apply newly split watch edges in the same order.
+    outputs = []
+    for folder in (whole, joined):
+        split, out = folder / 'split', folder / 'pool'
+        pool.split(str(folder), str(split))
+        pool.control(str(split / 'control'), str(out))
+        outputs.append(pool.read_paths(str(out / 'paths/part0.pkl')))
+    assert parallel._same(*outputs)

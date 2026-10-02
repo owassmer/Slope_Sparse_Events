@@ -113,6 +113,8 @@ def task(bucket, prefix, plan, index):
                'SLOPE_WALK_REFINE': f"{index}/{plan['partitions']}/{plan['depth']}",
                'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1'}
         env.pop('CLAUDE_CODE_OAUTH_TOKEN', None)
+        if plan.get('nested_refinement'):
+            env['SLOPE_WALK_NESTED_REFINE'] = '/'.join(map(str, plan['nested_refinement']))
         log = root / 'walk.log'
         command = ['.venv/bin/python', '-m', 'app.disputes.parallel', RUN, '0', '1', '1',
                    str(root / 'out'), str(100000 + job * 100 + index)]

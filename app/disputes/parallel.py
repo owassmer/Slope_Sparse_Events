@@ -70,8 +70,14 @@ def _child(fc, d, k: int, run: str, log) -> None:
     partition, partitions, depth = map(int, refinement.split("/")) if refinement else (0, 1, 0)
     if refinement and (listed is None or not 0 <= partition < partitions or depth < 1):
         raise ValueError("refinement requires selected roots, a valid partition and positive depth")
+    nested = os.environ.get("SLOPE_WALK_NESTED_REFINE")
+    nested_config = tuple(map(int, nested.split("/"))) if nested else None
+    if nested_config and (not refinement or len(nested_config) != 3 or
+                          not 0 <= nested_config[0] < nested_config[1] or nested_config[2] < 1):
+        raise ValueError("nested refinement requires an outer refinement and valid index/count/depth")
     parent = None
     inner_segs, inner_done, subdivisions = [], [], {}
+    nested_subdivisions = {}
     st = {"seg": None, "clock": 0, "nseg": 0, "vdepth": 0, "roots": {}, "seq": 0, "j": 0, "n": 0,
           "regions": [], "wstack": [], "local": False, "W": None}
     events: list = []
@@ -150,17 +156,21 @@ def _child(fc, d, k: int, run: str, log) -> None:
     def log_event(kind, *payload) -> None:
         cond = tuple(st["regions"])
         if st["seg"] is None:
-            if parent is None or partition == 0:
+            if parent is None or (partition == 0 and
+                                  (not nested_config or len(parent) > 3 or nested_config[0] == 0)):
                 events.append(((parent or ()) + (st["clock"], 1, 0, 0), kind, payload, cond))
             st["clock"] += 1
         else:
             events.append((st["seg"] + (st["j"],), kind, payload, cond))
             st["j"] += 1
 
-    def refined(key, f, self, s, a, kw):
-        nonlocal parent, once_top, once_unit, inner_segs, inner_done
+    def refined(key, f, self, s, a, kw, inner_config=None):
+        nonlocal parent, once_top, once_unit, inner_segs, inner_done, partition, partitions, depth
         saved = {x: st[x] for x in ("clock", "nseg", "roots", "seq", "vdepth", "j", "local")}
         saved_once = once_top, once_unit
+        saved_level = parent, inner_segs, inner_done, partition, partitions, depth
+        if inner_config:
+            partition, partitions, depth = inner_config
         parent, inner_segs, inner_done = key, [], []
         once_top, once_unit = once_top.copy(), set()
         st.update(clock=0, nseg=0, roots={}, seq=0, vdepth=len(s.steps), j=0)
@@ -168,12 +178,13 @@ def _child(fc, d, k: int, run: str, log) -> None:
         # same speculative-watch machinery as the original tree's shared prefix.
         try:
             result = f(self, s, *a, **kw)
-            subdivisions[key] = {"segments": tuple(inner_segs), "done": tuple(inner_done),
-                                 "partition": partition, "partitions": partitions, "depth": depth}
+            coverage = nested_subdivisions if inner_config else subdivisions
+            coverage[key] = {"segments": tuple(inner_segs), "done": tuple(inner_done),
+                             "partition": partition, "partitions": partitions, "depth": depth}
             print(f"refined {key}: partition {partition}/{partitions}, "
                   f"{len(inner_done)}/{len(inner_segs)} children", file=log, flush=True)
         finally:
-            parent = None
+            parent, inner_segs, inner_done, partition, partitions, depth = saved_level
             once_top, once_unit = saved_once
             st.update(saved)
         flush()
@@ -195,6 +206,10 @@ def _child(fc, d, k: int, run: str, log) -> None:
                 return None  # another process's, or a later wave's
             if refinement and parent is None:
                 return refined(key, f, self, s, a, kw)
+            if nested_config and parent is not None and len(parent) == 3:
+                result = refined(key, f, self, s, a, kw, nested_config)
+                inner_done.append(key[len(parent):])
+                return result
             st["seg"], st["j"] = key, 0
             try:
                 return f(self, s, *a, **kw)
@@ -289,7 +304,8 @@ def _child(fc, d, k: int, run: str, log) -> None:
         return g
 
     def edge_after(self, i0, at, edge):  # a split watch's: applied in `walk` to the paths emitted under it
-        if st["local"]:
+        local = st["seg"] is not None if nested_config else st["local"]
+        if local:
             return single_edge(self, i0, at, edge)
         qcls = {k: list(self.fc._qcanon.get(k, ()) or self.fc._qcls.get(k, ())) for k in sorted(F.atoms(edge[0]))
                 if self.fc._classified(k)}
@@ -360,7 +376,8 @@ def _child(fc, d, k: int, run: str, log) -> None:
         lists = {"events": events, "done": done, "segs": segs}
         rec = {x: lst[at[x]:] for x, lst in lists.items()}
         rec.update(added(), clock=st["clock"], ev_range=getattr(fc, "ev_range", None), walked=st["n"],
-                   seconds=time.time() - t0, subdivisions=dict(subdivisions))
+                   seconds=time.time() - t0, subdivisions=dict(subdivisions),
+                   nested_subdivisions=dict(nested_subdivisions))
         for x, lst in lists.items():
             at[x] = len(lst)
         pickle.dump(rec, stream, protocol=pickle.HIGHEST_PROTOCOL)
@@ -375,7 +392,7 @@ def _child(fc, d, k: int, run: str, log) -> None:
            **{x: set(getattr(fc, x, ())) for x in SETS},
            "seconds": time.time() - t0, "rss": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / RSS_GB,
            "walked": st["n"], "ev_range": getattr(fc, "ev_range", None), "segs": segs, "done": done, "job": job,
-           "complete": True, "subdivisions": subdivisions}
+           "complete": True, "subdivisions": subdivisions, "nested_subdivisions": nested_subdivisions}
     with open(os.path.join(run, f"part{k}.pkl"), "wb") as fh:
         pickle.dump(out, fh, protocol=pickle.HIGHEST_PROTOCOL)
     print(f"{time.time() - t0:7.0f}s part {k}: done, {st['n']} paths, {st['nseg']} segments, {len(done)} walked",
@@ -609,8 +626,10 @@ def _restore(path: str) -> dict:
            "nseg": None, "segs": [], "done": [], "seconds": 0.0, "rss": 0.0, "walked": 0, "ev_range": None,
            "complete": False, **{x: {} for x in FIELDS}, **{x: set() for x in SETS}}
     out["subdivisions"] = {}
+    out["nested_subdivisions"] = {}
     for r in recs[1:]:
         out["subdivisions"].update(r.get("subdivisions", {}))
+        out["nested_subdivisions"].update(r.get("nested_subdivisions", {}))
         for x in ("events", "segs", "done"):
             out[x] += r[x]
         for x in FIELDS:
@@ -633,6 +652,8 @@ def load_parts(folder: str) -> list[dict]:
 
 def missing_segments(parts: list[dict]) -> list[tuple]:
     """The segments (calls into a unit from the top) no part walked whole: every complete part numbers them all."""
+    if any(p.get("nested_subdivisions") for p in parts):
+        raise RuntimeError("nested refinement requires complete child coverage assembly before adoption")
     full = [p for p in parts if p.get("complete", True)]
     if not full:
         raise RuntimeError("no part is complete: the walk's top was never finished; walk again")
