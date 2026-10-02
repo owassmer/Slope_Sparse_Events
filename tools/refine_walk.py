@@ -170,7 +170,8 @@ def worker(bucket, prefix, cores, first, last):
     plans = [read(s3, bucket, o['Key']) for o in objects(s3, bucket, prefix + '/refine-v1/plans/')]
     # Larger estimated tasks start first; every free core claims from the same queue.
     tasks = sorted(((p, i) for p in plans if p['roots']
-                    for i in range(first, min(last, p['partitions']))),
+                    for i in p.get('indexes', range(first, min(last, p['partitions'])))
+                    if first <= i < last),
                    key=lambda x: x[0].get('estimated_histories', 0) / x[0]['partitions'], reverse=True)
     fresh = bool(plans) and all(p.get('fresh') for p in plans)
     while True:

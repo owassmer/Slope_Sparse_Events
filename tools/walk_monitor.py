@@ -230,13 +230,21 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    global PREFIX
     parser = argparse.ArgumentParser()
-    parser.add_argument('--credentials', required=True)
+    auth = parser.add_mutually_exclusive_group(required=True)
+    auth.add_argument('--credentials')
+    auth.add_argument('--profile')
+    parser.add_argument('--prefix', default=PREFIX)
     parser.add_argument('--port', type=int, default=18766)
     args = parser.parse_args()
-    c = json.loads(Path(args.credentials).read_text())
-    client = boto3.client('s3', region_name='us-east-2', aws_access_key_id=c['AccessKeyId'],
-                          aws_secret_access_key=c['SecretAccessKey'], aws_session_token=c['Token'])
+    PREFIX = args.prefix
+    if args.profile:
+        client = boto3.Session(profile_name=args.profile).client('s3', region_name='us-east-2')
+    else:
+        c = json.loads(Path(args.credentials).read_text())
+        client = boto3.client('s3', region_name='us-east-2', aws_access_key_id=c['AccessKeyId'],
+                              aws_secret_access_key=c['SecretAccessKey'], aws_session_token=c['Token'])
     threading.Thread(target=poll, args=(client,), daemon=True).start()
     server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
     print(f'Live consolidated logs: http://127.0.0.1:{args.port}', flush=True)
