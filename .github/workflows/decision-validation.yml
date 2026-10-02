@@ -13,7 +13,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {mode: boundary, unit: checks}
+          - {mode: continuation, unit: 59}
+          - {mode: continuation, unit: 63}
+          - {mode: continuation, unit: 132}
+          - {mode: continuation, unit: 2206}
+          - {mode: continuation, unit: 6258}
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
