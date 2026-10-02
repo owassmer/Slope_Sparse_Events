@@ -1,0 +1,36 @@
+name: notes-refresh
+on:
+  push:
+    branches: [notes-refresh]
+permissions:
+  contents: read
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        unit: [0, 6258]
+    env:
+      PYTHONPATH: .
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      SLOPE_JEV_CACHE_ONLY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - run: uv run python tools/notes_refresh.py ${{ matrix.unit }}
+        env:
+          NOTES_ASSEMBLY_MANIFEST_URL: ${{ secrets.NOTES_ASSEMBLY_MANIFEST_URL }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: notes-refresh-${{ matrix.unit }}
+          path: |
+            var/notes-refresh/report.json
+            var/notes-refresh/refreshed.pkl.gz
+          if-no-files-found: error
+          retention-days: 14
