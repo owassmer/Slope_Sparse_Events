@@ -267,11 +267,12 @@ class Situation:
     def appeal_events(self) -> list[str]:
         g = self._g()
         states = g.rowwise(lambda r, x: appeal_state(r)[x])
-        if np.unique(states).size != 1:
+        deadline = self.n is None or self.fc.uses_appeal_status(self.n)
+        if np.unique(states if deadline else states >= 3).size != 1:
             raise Unbuilt("question mixes decision-time appeal statuses")
         state = int(states[0])
         out = []
-        if state % 3:
+        if deadline and state % 3:
             prefix = "the deadline to appeal passed on" if state % 3 == 2 else "the deadline to appeal is"
             out.append(f"{prefix} {self.appeal_deadline()}")
         if state >= 3:

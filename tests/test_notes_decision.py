@@ -288,33 +288,15 @@ def test_equal_finished_prefixes_can_hide_distinct_holder_continuations(case):
     np.testing.assert_array_equal(holders.petition[changed], [163, 163, 163])
 
 
-def test_captured_original_fork_conserves_probability_across_real_descendants(case, monkeypatch):
-    from app.disputes.forecast import expand_classes, path_mask, path_probability
+def test_incompatible_saved_boundary_is_rejected(case, monkeypatch):
     from tools.notes_resume import capture
 
-    fc, _d, w, key = case
-    # Select this real verdict history without enumerating unrelated verdict bands.
-    monkeypatch.setattr(fc, 'verdict_classes', lambda d: {MERGE_STEPS[1][2]: [[(key, 'no')]]})
-    continuation = capture(w, MERGE_STEPS[:14], 'notes_petition', 'ruling', legacy=True)
-    parent = continuation.state
-    assert parent.stayed and parent.early and parent.failed
-    assert parent.k == 2 and parent.resp == 'offer'
-    continuation.run()
-    assert len(w.out) == 30  # Includes the ordinary continuation where settlement cannot occur.
-    assert any("|after_failed" in edge for edge, _ in parent.edges)
-    assert all("|after_failed" not in atom for p in w.out for edge, _ in p.edges[len(parent.edges):]
-               for atom in atoms(edge))
-    paths = expand_classes([replace(p, edges=p.edges[len(parent.edges):]) for p in w.out], fc.nodes, fc.draws.n)
-    expected = w.mask_of(parent.steps).astype(float)
-    rng = np.random.default_rng(291)
-    for _ in range(3):
-        dist = Dist({k: dict(zip(n.branches, rng.dirichlet(np.ones(len(n.branches))), strict=True))
-                     for k, n in fc.nodes.items()})
-        total = np.zeros(fc.draws.n)
-        for p in paths:
-            mask = path_mask(p, fc.draws.n)
-            total += path_probability(p.edges, dist) * (1 if mask is None else mask)
-        np.testing.assert_allclose(total, expected, atol=1e-12)
+    fc, _d, walk, _key = case
+    original = fc.verdict_classes
+    monkeypatch.setattr(fc, 'verdict_classes', lambda d: {MERGE_STEPS[1][2]: original(d)[MERGE_STEPS[1][2]]})
+    continuation = capture(walk, MERGE_STEPS[:14], 'notes_petition', 'ruling', legacy=True)
+    with pytest.raises(ValueError, match='incoming recovery population'):
+        continuation.run()
 
 
 def test_offering_prior_failure_is_dated_not_traversal_order(case):

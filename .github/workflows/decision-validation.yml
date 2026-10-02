@@ -4,22 +4,16 @@ on:
     branches: [decision-validation-20261001]
 permissions:
   contents: read
+  actions: read
 jobs:
   validate:
-    name: ${{ matrix.mode }} / ${{ matrix.unit }}
+    name: production / ${{ matrix.unit }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {mode: boundary_replay, unit: checks}
-          - {mode: ordered, unit: 23}
-          - {mode: ordered, unit: 59}
-          - {mode: ordered, unit: 63}
-          - {mode: ordered, unit: 132}
-          - {mode: ordered, unit: 2206}
-          - {mode: ordered, unit: 6258}
+        unit: [boundary, 23, 59, 63, 132, 2206, 6258]
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
@@ -32,15 +26,20 @@ jobs:
           enable-cache: true
       - run: uv sync --locked
       - run: uv run slope evidence build akoustis_20240514
-      - name: Validate isolated candidate
+      - name: Download validated candidate
+        if: matrix.unit != 'boundary'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 36957194362 --name decision-ordered-${{ matrix.unit }} --dir var/validated-reference
+      - name: Validate production implementation
         env:
           DECISION_VALIDATION_KEY: ${{ secrets.DECISION_VALIDATION_KEY }}
-        run: uv run python tools/decision_validation/run.py ${{ matrix.mode }} ${{ matrix.unit }}
+        run: uv run python tools/decision_validation/production.py ${{ matrix.unit }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: decision-${{ matrix.mode }}-${{ matrix.unit }}
-          path: var/decision-validation/
+          name: decision-production-${{ matrix.unit }}
+          path: var/decision-production/
           if-no-files-found: warn
           retention-days: 7
           compression-level: 0

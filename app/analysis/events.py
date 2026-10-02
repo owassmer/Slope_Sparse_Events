@@ -529,6 +529,7 @@ class Trace:
     settle_offer: np.ndarray | None = None  # the last step's settlement amount on its payment date (0: none)
     stay_offer: np.ndarray | None = None  # the last step's cash above the 30-day need on the stay-approval day (0: none)
     raise_offer: np.ndarray | None = None  # the last step's equity available at the cash floor (0: none)
+    question_petition: np.ndarray | None = None  # petition before the last decision, distinct from its outcome
     late: dict = field(default_factory=dict)  # a floor step's index -> its petition day, triggers, equity available
     reads: np.ndarray | None = None  # the last step's latest day whose cash it read (a payment, approval or levy day)
     triggers: dict = field(default_factory=dict)  # TRIGGERS name -> day index per draw (BIG: none)
@@ -2272,6 +2273,7 @@ class Chain:
         else:
             before = (self.cum(),)
         self._grp = None
+        self.question_petition = self.ev.petition.copy()
         day = self.step(node, ctx, branch)
         self._atm_rebook()  # a verdict, a ruling or an election changes the amount owed the share price reads
         if self._grp is not None:
@@ -2638,6 +2640,9 @@ class Chain:
             i: {k: st[k] for k in ("day", "cash", "owed", "collateral", "stay_offer", "petition", "triggers")}
             for i, st in self.stays.items()}
         tr.day, tr.cash, tr.owed, tr.collateral = (list(x) for x in self.rec)
+        last = len(self.rec[0]) - 1
+        tr.question_petition = (self.late[last]["petition"].copy() if last in self.late
+                                else getattr(self, "question_petition", None))
         tr.late = {}  # set with the snapshot (`_snapshot_tail`)
         if self.late and max(self.late) == len(self.rec[0]) - 1:  # the path ends at a floor: its equity available
             self.raise_offer = self.late[max(self.late)]["raise_offer"]
@@ -2790,7 +2795,7 @@ class Chain:
                        "pending_levy", "delisted", "stayed_from"})
     UNSEEN = frozenset({"_cum", "_tau", "_out", "_keys", "_av", "_hd", "_cv", "_stay_cv", "_restaying", "_atm_memo",
                         "_atm_cols", "_atm_v", "_eq_v", "_offer_memo", "_shares_memo", "_grp", "settle_offer",
-                        "stay_offer", "raise_offer", "reads", "rec", "grec", "late", "wctx", "_atm", "_atm_cum",
+                        "stay_offer", "raise_offer", "reads", "question_petition", "rec", "grec", "late", "wctx", "_atm", "_atm_cum",
                         "_atm_sold", "_atm_nsold", "taken", "_booked_to", "_last_node", "ev", "marks", "waiting", "takes", "writs",
                         "coupons", "floor_days", "stays", "pet_cause", "collateral_required", "lock_amount",
                         "levied", "q1", "offerings", "_at", "notes_due_how", "appealed", "_offers", "lock_day",
@@ -3149,7 +3154,7 @@ def _cut_trace(tr: Trace, idx: np.ndarray, n: int) -> Trace:
 
 
 LIGHT_FIELDS = ("day", "cash", "owed", "collateral", "cause", "marks", "settle_offer", "stay_offer", "raise_offer",
-                "reads", "groups")  # what a light trace keeps (`Chain.finish`), with its event cash
+                "reads", "groups", "question_petition")  # what a light trace keeps (`Chain.finish`), with its event cash
 
 
 def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = False, light: bool = False,
