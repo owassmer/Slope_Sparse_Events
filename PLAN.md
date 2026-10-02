@@ -543,3 +543,12 @@ The existing subdivision queue is seeded from a complete native empty-root skele
 - [ ] Finish every partition, reclaim expired claims and subdivide any heavy remainder.
 - [ ] Assemble fresh pool and complete existing global checks.
 - [ ] Jev judgments, financial reduction, Russell analysis page.
+
+
+#### Cost-aware subdivision replaces fixed24-way allocation
+
+The uniform launch36963219909 and AWS preparation were cancelled before any subtree result/claim was published. Owen requested scheduling informed by the saved tree. Its6573 roots contain4,326,850 histories: median4,p952423,max72093; top10 account for12.13%. These counts now supply scheduling weights by normalized decision prefix+method only. Native topology owns coverage; unmatched native roots receive fallback2423, never exclusion.
+
+The allocator places largest roots first into100 balanced groups, then assigns ceil(estimated histories/2000) partitions bounded1..96. Groups containing roots>25000 use existing depth6 subdivision, others depth4. On the original topology this yields2248 tasks,22–37 per group,38 deeper groups,estimated1919–1998 histories/task. Actual native counts will be recorded at preparation. Exact disjoint native-root coverage is asserted. Fresh assembly verifies explicit plan roots; part0 is emitted once globally, preserving the pool's shared-top contract.
+
+Fresh workers prioritize estimated task cost, keep leases alive through packaging/upload, and revisit unfinished/expired claims. Existing refinement and prefix-selection tests both pass; allocator retains unseen roots and rejects duplicate ownership. Fresh namespace is walk-36781427817/fresh-balanced; application sources remain unchanged from7b69c37.

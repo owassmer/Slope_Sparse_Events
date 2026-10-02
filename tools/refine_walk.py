@@ -10,6 +10,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -113,13 +114,14 @@ def task(bucket, prefix, plan, index):
                    str(root / 'out'), str(100000 + job * 100 + index)]
         print(f'start subdivision {ident}: {len(plan["roots"])} parent segments', flush=True)
         process = None
-        try:
-            with log.open('wb') as f:
-                process = subprocess.Popen(command, env=env, stdout=f, stderr=subprocess.STDOUT,
-                                           start_new_session=True)
-                while process.poll() is None:
-                    time.sleep(15)
-                    s3.upload_file(str(log), bucket, f'{queue}/live/{ident}.log')
+        stopped = threading.Event()
+        errors = []
+
+        def heartbeat():
+            while not stopped.wait(15):
+                try:
+                    if log.exists():
+                        s3.upload_file(str(log), bucket, f'{queue}/live/{ident}.log')
                     response = s3.get_object(Bucket=bucket, Key=claim_key)
                     owner = json.loads(response['Body'].read())
                     if owner.get('attempt') != attempt:
@@ -127,12 +129,29 @@ def task(bucket, prefix, plan, index):
                     claim['started'] = time.time()
                     s3.put_object(Bucket=bucket, Key=claim_key, Body=json.dumps(claim).encode(),
                                   IfMatch=response['ETag'])
+                except Exception as error:
+                    errors.append(error)
+                    return
+        pulse = threading.Thread(target=heartbeat, daemon=True)
+        pulse.start()
+        try:
+            with log.open('wb') as f:
+                process = subprocess.Popen(command, env=env, stdout=f, stderr=subprocess.STDOUT,
+                                           start_new_session=True)
+                while process.poll() is None:
+                    time.sleep(1)
+                    if errors:
+                        raise errors[0]
                 if process.returncode:
                     raise RuntimeError(f'subdivision {ident} exited {process.returncode}')
             subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'split',
                             str(root / 'out'), str(root / 'split')], env=env, check=True)
+            if errors:
+                raise errors[0]
             publish(s3, bucket, queue, ident, attempt, root / 'split', log)
         finally:
+            stopped.set()
+            pulse.join()
             if process is not None and process.poll() is None:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
@@ -149,12 +168,29 @@ def task(bucket, prefix, plan, index):
 def worker(bucket, prefix, cores, first, last):
     s3 = boto3.client('s3')
     plans = [read(s3, bucket, o['Key']) for o in objects(s3, bucket, prefix + '/refine-v1/plans/')]
-    # Every runner visits the same queue; conditional claims assign disjoint partitions.
-    with concurrent.futures.ThreadPoolExecutor(max_workers=cores) as ex:
-        futures = [ex.submit(task, bucket, prefix, p, i) for i in range(first, last)
-                   for p in plans if p['roots']]
-        for f in futures:
-            f.result()
+    # Larger estimated tasks start first; every free core claims from the same queue.
+    tasks = sorted(((p, i) for p in plans if p['roots']
+                    for i in range(first, min(last, p['partitions']))),
+                   key=lambda x: x[0].get('estimated_histories', 0) / x[0]['partitions'], reverse=True)
+    fresh = bool(plans) and all(p.get('fresh') for p in plans)
+    while True:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=cores) as ex:
+            futures = [ex.submit(task, bucket, prefix, p, i) for p, i in tasks]
+            for f in concurrent.futures.as_completed(futures):
+                try:
+                    f.result()
+                except Exception as error:
+                    if not fresh:
+                        raise
+                    print(f'partition retry required: {error}', flush=True)
+        if not fresh:
+            return
+        done = {Path(o['Key']).stem for o in objects(s3, bucket, prefix + '/refine-v1/done/')}
+        tasks = [(p, i) for p, i in tasks if f"{p['job']}-{i}" not in done]
+        if not tasks:
+            return
+        print(f'waiting/retrying {len(tasks)} unfinished partitions', flush=True)
+        time.sleep(15)
 
 
 def assemble(bucket, prefix, job):
@@ -189,9 +225,12 @@ def assemble(bucket, prefix, job):
                     parts.append(topology)  # coverage only; do not copy shard 8's events
                 missing = parallel.missing_segments(parts)
                 full = next(p for p in parts if p['complete'])
-                expected = {(c, 0, n) for n, c, owner in full['segs'] if owner % 100 == job}
+                expected = {tuple(k) for k in plan['roots']} if plan.get('fresh') else {
+                    (c, 0, n) for n, c, owner in full['segs'] if owner % 100 == job}
                 if expected & set(missing):
                     raise RuntimeError(f'incomplete refined shard {job}')
+            if plan.get('fresh') and job != 0:
+                (folder / 'part0.pkl').unlink()  # publish the shared top only in group zero
             upload_group(s3, bucket, f'{dest}/{group}.tgz', folder)
             shutil.rmtree(folder)
         create(s3, bucket, f'{prefix}/done/{job}.json',
