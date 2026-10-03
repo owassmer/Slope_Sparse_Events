@@ -97,7 +97,7 @@ def test_complete_histories_keep_later_traversed_earlier_events(case, tmp_path):
         requests.close()
 
 
-def test_saved_consumers_share_streamed_calculation_and_keep_before_answer_facts(case, tmp_path):  # noqa: F811
+def test_saved_consumers_share_streamed_calculation_and_keep_before_answer_facts(case, tmp_path, monkeypatch):  # noqa: F811
     import pytest
 
     from app.disputes.forecast import DisputePath, unpack_row
@@ -195,6 +195,22 @@ def test_saved_consumers_share_streamed_calculation_and_keep_before_answer_facts
             from tools.question_assembly_fleet import bundles, rebind_bundle
             parts = list(bundles(source, {dispute.instance_id: plan.db}, max_histories=1))
             assert [b['start'] for b in parts] == [0, 1]
+            from tools import question_preparation_fleet as preparation
+            requests = []
+            def remote(route, payload):
+                requests.append(route)
+                if route == '/consumers':
+                    rows = list(plan.db.execute('SELECT row,bindings FROM consumers WHERE part=? ORDER BY row', (source.name,)))
+                else:
+                    ids = payload['ids']
+                    rows = list(plan.db.execute('SELECT b.id,b.question,b.prefix,r.row,r.classes FROM bindings b '
+                        'JOIN results r ON r.binding=b.id WHERE b.id IN (' + ','.join('?' for _ in ids) + ')', ids))
+                return pickle.loads(pickle.dumps(rows, protocol=5))
+            monkeypatch.setattr(preparation, 'request', remote)
+            adapter = preparation.RemoteRecords(0, dispute.instance_id)
+            remote_parts = list(bundles(source, {dispute.instance_id: adapter}, max_histories=1))
+            assert [pickle.dumps(b, protocol=5) for b in remote_parts] == [pickle.dumps(b, protocol=5) for b in parts]
+            assert requests.count('/consumers') == 1
             union, rebuilt = {}, []
             for tag, bundle in enumerate(parts):
                 directory = tmp_path / f'bundle{tag}'
