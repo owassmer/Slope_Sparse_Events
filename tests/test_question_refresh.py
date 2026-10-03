@@ -142,6 +142,23 @@ def test_saved_consumers_share_streamed_calculation_and_keep_before_answer_facts
         for i, path in enumerate(paths):
             refreshed = result.rebind(fc, path, 'part', i)
             assert refreshed.edges == path.edges and refreshed.steps == path.steps
+        from app.analysis.events import BIG
+        from app.disputes.forecast import lazy_row, pack_row
+
+        get = result.get
+
+        def inactive(binding, n):
+            key, row, cls = get(binding, n)
+            row = {**row, 'day': np.full(n, BIG)}
+            row = lazy_row(pack_row(row))
+            assert row['groups'] is None
+            return key, row, cls
+
+        with patch.object(result, 'get', side_effect=inactive):
+            unchanged = result.rebind(fc, paths[0], 'part', 0)
+        assert unchanged.steps == paths[0].steps
+        assert unchanged.edges == paths[0].edges
+        assert unchanged.classes == paths[0].classes
         facts = list(result.facts(fc))
         assert facts
         for _, _, blob in facts:

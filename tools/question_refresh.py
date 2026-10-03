@@ -616,6 +616,11 @@ class Results:
             classes[key] = cls
             if fc.nodes[key].node in ('judgment_response', 'financing_at_floor', 'petition_cash_out'):
                 fc.grouped.add(key)
+                # pack_row omits groups when the decision is live on no draws.
+                if not live.any():
+                    continue
+                if row['groups'] is None:
+                    raise ValueError(f'Live decision has no refreshed option groups: {key}')
                 branch = next(b for k, b in path.edges if k == key)
                 for group in set(row['groups'][live]):
                     if branch not in group_branches(fc.nodes[key].node, int(group)):
