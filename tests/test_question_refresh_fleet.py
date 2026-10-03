@@ -152,3 +152,70 @@ def test_collector_ingests_prefetched_outputs_and_rejects_incomplete(tmp_path):
     with sqlite3.connect(root / 'plan.sqlite') as db:
         assert set(db.execute('SELECT tag FROM ingested_batches')) == {('d-0',), ('d-1',)}
     assert not list(tmp_path.glob('collect-*'))
+
+
+def test_queue_retry_preserves_conditional_claim_and_conflict():
+    import http.client
+    import urllib.error
+
+    conflict = urllib.error.HTTPError('claim', 412, 'already claimed', {}, io.BytesIO())
+    attempts = []
+
+    def open_request(request, **_):
+        attempts.append(request)
+        if len(attempts) == 1:
+            raise http.client.RemoteDisconnected('lost acknowledgement')
+        raise conflict
+
+    with patch.object(fleet.urllib.request, 'urlopen', side_effect=open_request), \
+            patch.object(fleet.time, 'sleep'):
+        assert fleet.claim({'claim': 'https://example.test/claim'}) is None
+    assert attempts[0] is attempts[1]
+    assert attempts[0].get_header('If-none-match') == '*'
+    assert attempts[0].data == attempts[1].data
+
+
+def test_queue_retry_is_bounded_and_does_not_retry_authorization():
+    import urllib.error
+
+    import pytest
+
+    with patch.object(fleet.urllib.request, 'urlopen', side_effect=TimeoutError), \
+            patch.object(fleet.time, 'sleep') as sleep:
+        with pytest.raises(TimeoutError):
+            fleet.queue_request('queue')
+        assert sleep.call_count == 4
+    with patch.object(fleet.urllib.request, 'urlopen', side_effect=
+                      urllib.error.HTTPError('queue', 403, 'forbidden', {}, io.BytesIO())) as request:
+        with pytest.raises(urllib.error.HTTPError):
+            fleet.queue_request('queue')
+        assert request.call_count == 1
+
+
+def test_worker_logs_original_error_before_serializing_failure(capsys):
+    import pickle
+    import urllib.error
+
+    import pytest
+
+    with patch.object(fleet, '_consume', side_effect=
+                      urllib.error.HTTPError('queue', 403, 'forbidden', {}, io.BytesIO())):
+        with pytest.raises(RuntimeError, match='HTTPError') as caught:
+            fleet._consume_logged(0)
+    pickle.dumps(caught.value)
+    assert 'HTTP Error 403' in capsys.readouterr().err
+
+
+def test_pending_body_disconnect_is_retried_and_closed():
+    import http.client
+
+    class Broken(io.BytesIO):
+        def read(self, *args):
+            raise http.client.IncompleteRead(b'{')
+
+    broken = Broken()
+    good = io.BytesIO(b'{"remaining":0,"available":[]}')
+    with patch.object(fleet.urllib.request, 'urlopen', side_effect=[broken, good]), \
+            patch.object(fleet.time, 'sleep'):
+        assert fleet.queue_request('queue', json_body=True) == {'remaining': 0, 'available': []}
+    assert broken.closed and good.closed

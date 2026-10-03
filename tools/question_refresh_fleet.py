@@ -5,6 +5,7 @@ import concurrent.futures
 import contextlib
 import gzip
 import hashlib
+import http.client
 import json
 import multiprocessing
 import os
@@ -12,6 +13,7 @@ import pickle
 import tempfile
 import threading
 import time
+import traceback
 import urllib.error
 import urllib.request
 import uuid
@@ -230,11 +232,31 @@ def release_stale(s3, bucket, base, done, age=300):
     return active
 
 
+def queue_request(request, *, json_body=False):
+    """Retry transient queue transport failures without weakening conditional writes."""
+    for attempt in range(5):
+        try:
+            response = urllib.request.urlopen(request, timeout=30)
+            if json_body:
+                with response:
+                    return json.load(response)
+            return response
+        except urllib.error.HTTPError as error:
+            if error.code not in (429, 500, 502, 503, 504) or attempt == 4:
+                raise
+            error.close()
+        except (urllib.error.URLError, TimeoutError, ConnectionError,
+                http.client.RemoteDisconnected, http.client.IncompleteRead):
+            if attempt == 4:
+                raise
+        time.sleep(2 ** attempt)
+
+
 def claim(task):
     body = json.dumps({'owner': uuid.uuid4().hex, 'time': time.time()}).encode()
     request = urllib.request.Request(task['claim'], data=body, method='PUT', headers={'If-None-Match': '*'})
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with queue_request(request) as response:
             return response.headers['ETag']
     except urllib.error.HTTPError as error:
         if error.code in (409, 412):
@@ -245,7 +267,7 @@ def claim(task):
 def release(task, etag):
     request = urllib.request.Request(task['release'], method='DELETE', headers={'If-Match': etag})
     try:
-        with urllib.request.urlopen(request, timeout=30):
+        with queue_request(request):
             pass
     except urllib.error.HTTPError as error:
         if error.code not in (404, 412):
@@ -260,8 +282,7 @@ def _consume(slot):
     start = len(tasks) * slot // workers % max(1, len(tasks))
     ordered = tasks[start:] + tasks[:start]
     while True:
-        with urllib.request.urlopen(_INFO['pending'], timeout=30) as response:
-            state = json.load(response)
+        state = queue_request(_INFO['pending'], json_body=True)
         if not state['remaining']:
             return
         pending = set(state['available'])
@@ -280,6 +301,16 @@ def _consume(slot):
         else:
             # Busy batches stay owned; the collector recovers a dead process.
             time.sleep(15)
+
+
+def _consume_logged(slot):
+    try:
+        return _consume(slot)
+    except Exception as error:
+        # HTTPError contains an unpicklable response. Preserve its traceback in
+        # the worker log before sending a simple failure across the process pool.
+        traceback.print_exc()
+        raise RuntimeError(f'Worker failed: {type(error).__name__}') from None
 
 
 def _one(task):
@@ -337,11 +368,11 @@ def worker(job, manifest_url, cores=None):
         cores = min(cores, max(1, memory // (2 * 1024**3)))
     print({'job': job, 'cores': cores, 'batches': len(tasks), 'jev_started': False}, flush=True)
     if cores == 1:
-        _consume(job)
+        _consume_logged(job)
     else:
         with multiprocessing.get_context('fork').Pool(cores) as processes:
             # A process takes a new batch as soon as its previous one is published.
-            for _ in processes.imap_unordered(_consume, [job] * cores, chunksize=1):
+            for _ in processes.imap_unordered(_consume_logged, [job] * cores, chunksize=1):
                 pass
 
 
