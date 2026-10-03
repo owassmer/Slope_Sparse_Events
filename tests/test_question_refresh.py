@@ -199,8 +199,16 @@ def test_saved_consumers_share_streamed_calculation_and_keep_before_answer_facts
             for tag, bundle in enumerate(parts):
                 directory = tmp_path / f'bundle{tag}'
                 directory.mkdir()
+                from tools.question_assembly_stream import describe
+                bundle.update(tag=str(tag), identity='stream-test')
+                expected = describe(bundle, str(tag), 'input-digest', 'stream-test')
+                assert expected['start'] == tag
+                assert expected['count'] == 1
+                bundle['input_digest'] = expected['input_digest']
                 saved = rebind_bundle(fc, bundle, str(tag), directory)
                 detail = pickle.loads(saved.read_bytes())
+                assert detail['identity'] == 'stream-test'
+                assert detail['input_digest'] == 'input-digest'
                 rebuilt.extend(pickle.loads(saved.with_suffix('.pkl').read_bytes()))
                 for binding, mask in detail['wanted'][dispute.instance_id]:
                     union[binding] = union.get(binding, 0) | int.from_bytes(mask, 'little')
