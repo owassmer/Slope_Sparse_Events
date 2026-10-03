@@ -224,10 +224,12 @@ def serve(config):
                     self.send_error(500)
         def log_message(self, *_):
             pass
-    server = ThreadingHTTPServer(('0.0.0.0', cfg['port']), Handler)
+    class RecordServer(ThreadingHTTPServer):
+        request_queue_size = 256
+    server = RecordServer(('0.0.0.0', cfg['port']), Handler)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(cfg['certfile'], cfg['keyfile'])
-    server.socket = context.wrap_socket(server.socket, server_side=True)
+    server.socket = context.wrap_socket(server.socket, server_side=True, do_handshake_on_connect=False)
     server.serve_forever()
 
 
