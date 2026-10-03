@@ -163,6 +163,23 @@ def test_saved_consumers_share_streamed_calculation_and_keep_before_answer_facts
         from tools.question_refresh_assemble import parallel_facts
         plan.db.commit()
         assert list(parallel_facts(fc, {dispute.instance_id: result}, tmp_path, 2)) == facts
+        # Remote serialization refines whole prefixes, preserving identical rows and order.
+        from tools import question_fact_fleet as fact_fleet
+        plan.db.execute('DELETE FROM fact_assignments')
+        plan.db.execute('INSERT INTO fact_assignments SELECT b.prefix % 14,w.binding,b.prefix,w.mask '
+                        'FROM wanted w JOIN bindings b ON w.binding=b.id')
+        plan.db.commit()
+        def page(_route, args):
+            return fact_fleet.read_page(plan.db, args['shard'], args['after'])
+        monkeypatch.setattr(fact_fleet.transport, 'request', page)
+        import sqlite3
+        remote_rows = []
+        for shard in range(fact_fleet.PARTITIONS):
+            db = sqlite3.connect(':memory:')
+            remote = Results(fact_fleet.RemoteFacts(dispute.instance_id, shard, db))
+            remote_rows.extend(remote.facts(fc, (shard, fact_fleet.PARTITIONS), with_binding=True))
+            db.close()
+        assert [(q, p, b) for _, q, p, b in sorted(remote_rows, key=lambda r: r[0])] == facts
         assert facts
         for _, _, blob in facts:
             row = unpack_row(blob)

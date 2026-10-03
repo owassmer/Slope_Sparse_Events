@@ -180,6 +180,14 @@ def serve(config):
                     if self.path == '/source':
                         path = Path(cfg['walked']) / source['source']
                         result = path.read_bytes(), path.with_suffix('.meta').read_bytes()
+                    elif self.path == '/facts' and cfg.get('facts'):
+                        from tools.question_fact_fleet import read_page
+                        filename = cfg['databases'][args['instance']]
+                        db = sqlite3.connect(f'file:{filename}?mode=ro', uri=True)
+                        try:
+                            result = read_page(db, args['shard'], args['after'])
+                        finally:
+                            db.close()
                     elif self.path in ('/consumers', '/rows'):
                         filename = cfg['databases'][args['instance']]
                         db = sqlite3.connect(f'file:{filename}?mode=ro', uri=True)
