@@ -468,14 +468,24 @@ def run_batch(fc, source, output):
         pickle.dump(instance, dst, protocol=5)
         while True:
             try:
-                ident, mode, steps, target, actor, bindings = pickle.load(src)
+                request = pickle.load(src)
             except EOFError:
                 break
+            ident, mode, steps, target, actor, bindings = request[:6]
+            mask = None
+            if len(request) == 7:
+                import numpy as np
+                mask = np.unpackbits(np.frombuffer(request[6], np.uint8), count=fc.draws.n).astype(bool)
+                if mask.all():
+                    mask = None
+                elif not mask.any():
+                    raise ValueError('A calculation has no saved consumer population')
             if mode == 'notes':
-                result, _ = decision_row(fc, dispute, steps, target, actor)
+                result, _ = decision_row(fc, dispute, steps, target, actor, mask)
             else:
                 trace = event_trace(dispute, DisputePath(instance, steps, '', ()),
-                                    fc.setup, fc.m, fc.draws, fc.sens, day_only=mode == 'prefix')
+                                    fc.setup, fc.m, fc.draws, fc.sens, day_only=mode == 'prefix',
+                                    rows=None if mask is None else tuple(mask for _ in steps))
                 result = fc.row_of(_Prefix.of(trace, digest=False)) if mode == 'prefix' else trace.questions
             records = []
             for binding, key, select, prefix in bindings:
@@ -542,17 +552,17 @@ class Results:
                 count += 1
         return count
 
-    def _get(self, binding, n):
+    def _get(self, binding, n, whole=False):
         import pickle
 
-        from app.disputes.forecast import unpack_row
+        from app.disputes.forecast import lazy_row, unpack_row
 
         found = self.db.execute('SELECT b.question,r.row,r.classes FROM results r JOIN bindings b '
                                 'ON r.binding=b.id WHERE b.id=?', (binding,)).fetchone()
         if found is None:
             raise ValueError(f'No calculated result for binding {binding}')
         key, row, codes = found
-        return key, unpack_row(row), decode_classes(pickle.loads(codes), None, n)
+        return key, (unpack_row if whole else lazy_row)(row), decode_classes(pickle.loads(codes), None, n)
 
     def rebind(self, fc, path, part, index):
         import numpy as np
@@ -608,7 +618,9 @@ class Results:
                         'PRIMARY KEY(question,prefix,digest)) WITHOUT ROWID')
         for binding, prefix, mask in self.db.execute(
                 'SELECT w.binding,b.prefix,w.mask FROM wanted w JOIN bindings b ON w.binding=b.id ORDER BY w.binding'):
-            key, row, cls = self.get(binding, fc.draws.n)
+            # Rebinding reads only day/petition/groups; keep its cache compact.
+            # Serialization needs all fields, one row at a time, without caching them.
+            key, row, cls = self._get(binding, fc.draws.n, whole=True)
             on = np.unpackbits(np.frombuffer(mask, np.uint8), count=fc.draws.n).astype(bool)
             if not on.any():
                 continue
@@ -730,6 +742,90 @@ def refresh(fc, dispute, paths):
     if found != source.keys():
         raise ValueError(f'Native replay missed {len(source.keys() - found)} saved histories')
     return result, rows, walk.keys
+
+
+def restrict_populations(control_file, walked, folder):
+    """Union actual consumer draws before dispatch, without replaying finance.
+
+    This separate pass also supports an already prepared registry. Compact arrays
+    map binding IDs to requests; one integer holds each request's population.
+    """
+    import gzip
+    import json
+    import pickle
+    from pathlib import Path
+
+    folder = Path(folder)
+    if (folder / 'populations.json').exists():
+        return json.loads((folder / 'populations.json').read_text())
+    prepared = json.loads((folder / 'prepared.json').read_text())
+    with open(control_file, 'rb') as fh:
+        if pickle.load(fh)['walked'] != prepared['histories']:
+            raise ValueError('Population preparation differs from saved control coverage')
+    from app.analysis.setup import DRAWS
+    n = DRAWS
+    if n % 8:
+        raise ValueError('Packed production draw masks require a multiple of eight')
+    stores, total = {}, 0
+    for iid, item in prepared['instances'].items():
+        db = sqlite3.connect(f'file:{folder / item["folder"] / "plan.sqlite"}?mode=ro', uri=True)
+        last = db.execute('SELECT MAX(id) FROM bindings').fetchone()[0] or 0
+        mapping = array('I', [0]) * (last + 1)
+        for ident, request in db.execute('SELECT id,request FROM bindings'):
+            mapping[ident] = request
+        count = db.execute('SELECT MAX(id) FROM calculations').fetchone()[0] or 0
+        stores[iid] = db, mapping, [0] * (count + 1)
+    sources = sorted(Path(walked).glob('part*.pkl'), key=lambda p: int(p.stem[4:]))
+    for number, source in enumerate(sources, 1):
+        with source.open('rb') as fh:
+            paths = pickle.load(fh)
+        for iid, (db, mapping, masks) in stores.items():
+            for index, blob in db.execute('SELECT row,bindings FROM consumers WHERE part=? ORDER BY row', (source.name,)):
+                path = paths[index]
+                if path.instance_id != iid:
+                    raise ValueError('Consumer population belongs to a different dispute')
+                mask = (1 << n) - 1 if path.mask is None else int.from_bytes(path.mask, 'little')
+                refs = array('Q')
+                refs.frombytes(blob)
+                for binding in refs:
+                    request = mapping[binding]
+                    masks[request] |= mask
+                total += 1
+        if number % 10 == 0 or number == len(sources):
+            progress = {'stage': 'share_required_draws', 'sources': number, 'total_sources': len(sources),
+                        'histories': total, 'jev_started': False}
+            (folder / 'progress.json').write_text(json.dumps(progress))
+            print(progress, flush=True)
+    if total != prepared['histories']:
+        raise ValueError('Consumer population coverage differs')
+    requests, draws = 0, 0
+    for iid, item in prepared['instances'].items():
+        db, _, masks = stores[iid]
+        for source in sorted((folder / item['folder'] / 'inputs').glob('*.pkl.gz')):
+            temporary = source.with_suffix('.pending')
+            with gzip.open(source, 'rb') as src, gzip.open(temporary, 'wb', compresslevel=1) as dst:
+                instance = pickle.load(src)
+                if instance != iid:
+                    raise ValueError('Input batch dispute differs')
+                pickle.dump(instance, dst, protocol=5)
+                while True:
+                    try:
+                        request = pickle.load(src)
+                    except EOFError:
+                        break
+                    mask = masks[request[0]]
+                    if not mask:
+                        raise ValueError('Calculation has no saved population')
+                    pickle.dump((*request[:6], mask.to_bytes(n // 8, 'little')), dst, protocol=5)
+                    requests += 1
+                    draws += mask.bit_count()
+            temporary.replace(source)
+        db.close()
+    result = {'requests': requests, 'requested_draws': draws, 'unrestricted_draws': requests * n,
+              'histories': total, 'jev_started': False}
+    (folder / 'populations.json').write_text(json.dumps(result, indent=2))
+    print(result, flush=True)
+    return result
 
 
 def prepare_saved(run, control_file, walked, out):

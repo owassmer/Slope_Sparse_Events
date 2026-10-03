@@ -31,6 +31,9 @@ def version():
 def publish(s3, bucket, prefix, folder, control, github_jobs=80, aws_jobs=8):
     folder = Path(folder)
     prepared = json.loads((folder / 'prepared.json').read_text())
+    populations = json.loads((folder / 'populations.json').read_text())
+    if populations['histories'] != prepared['histories']:
+        raise ValueError('Required draw populations do not cover the saved preparation')
     inputs = []
     identity = hashlib.sha256(Path(control).read_bytes())
     for instance, item in sorted(prepared['instances'].items()):
