@@ -127,6 +127,24 @@ def collect(s3, bucket, folder):
     return progress
 
 
+def monitor(s3, bucket, prefix, folder):
+    """Publish the coordinator stage beside the workers' live calculation logs."""
+    folder = Path(folder)
+    while True:
+        try:
+            progress = json.loads((folder / 'progress.json').read_text())
+            if (folder / 'fleet.json').exists():
+                progress['logs_prefix'] = json.loads((folder / 'fleet.json').read_text())['base'] + '/logs/'
+            progress['observed_at'] = time.time()
+            s3.put_object(Bucket=bucket, Key=f'{prefix}/progress.json', Body=json.dumps(progress).encode())
+            log = Path('/var/log/question-index.log')
+            if log.exists():
+                s3.put_object(Bucket=bucket, Key=f'{prefix}/index.log', Body=log.read_bytes()[-262144:])
+        except Exception as error:
+            print({'monitor_error': str(error)}, flush=True)
+        time.sleep(15)
+
+
 def _one(task):
     tag = task['tag']
     source, output, log = (Path(tag + suffix) for suffix in ('.input.gz', '.output.gz', '.log'))
@@ -197,5 +215,8 @@ if __name__ == '__main__':
     elif sys.argv[1] == 'collect':
         import boto3
         collect(boto3.client('s3'), sys.argv[2], sys.argv[3])
+    elif sys.argv[1] == 'monitor':
+        import boto3
+        monitor(boto3.client('s3'), *sys.argv[2:])
     else:
         raise SystemExit('usage: python -m tools.question_refresh_fleet worker JOB [CORES]')

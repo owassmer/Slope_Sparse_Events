@@ -282,6 +282,36 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+def poll_refresh(client, prefix):
+    """The current question repair, without reloading completed walk archives."""
+    while True:
+        try:
+            progress = json.loads(body(client, prefix + '/progress.json'))
+            progress.setdefault('time', progress.get('observed_at', time.time()))
+            ingest('refresh-index', body(client, prefix + '/index.log').decode(errors='replace'),
+                   source='AWS coordinator')
+            logs = objects(client, '', progress['logs_prefix']) if progress.get('logs_prefix') else []
+            for obj in logs:
+                if ETAGS.get(obj['Key']) == obj['ETag']:
+                    continue
+                tag = 'refresh-' + Path(obj['Key']).stem
+                content = body(client, obj['Key']).decode(errors='replace')
+                ingest(tag, content, obj['LastModified'].isoformat(), 'Question refresh worker')
+                TASKS[tag]['state'] = 'complete' if "'complete':" in content else 'active'
+                ETAGS[obj['Key']] = obj['ETag']
+            with LOCK:
+                STATE.update(phase=progress['stage'].replace('_', ' '), pool=progress,
+                             total=progress.get('total_batches', progress.get('total_sources')),
+                             done=progress.get('completed_batches', progress.get('sources', 0)),
+                             active=sum(t.get('state') == 'active' for t in TASKS.values()),
+                             raw_histories=progress.get('histories', 0),
+                             updated=datetime.now(UTC).isoformat(), error=None)
+        except Exception as error:
+            with LOCK:
+                STATE['error'] = str(error)
+        time.sleep(10)
+
+
 def main():
     global PREFIX, TRACK_RUN, EXTRA_PREFIX
     parser = argparse.ArgumentParser()
@@ -289,6 +319,7 @@ def main():
     auth.add_argument('--credentials')
     auth.add_argument('--profile')
     parser.add_argument('--extra-prefix', nargs='+')
+    parser.add_argument('--refresh-prefix')
     parser.add_argument('--run', type=int, nargs='+')
     parser.add_argument('--prefix', default=PREFIX)
     parser.add_argument('--port', type=int, default=18766)
@@ -302,7 +333,8 @@ def main():
         c = json.loads(Path(args.credentials).read_text())
         client = boto3.client('s3', region_name='us-east-2', aws_access_key_id=c['AccessKeyId'],
                               aws_secret_access_key=c['SecretAccessKey'], aws_session_token=c['Token'])
-    threading.Thread(target=poll, args=(client,), daemon=True).start()
+    threading.Thread(target=poll_refresh if args.refresh_prefix else poll,
+                     args=(client, args.refresh_prefix) if args.refresh_prefix else (client,), daemon=True).start()
     server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
     print(f'Live consolidated logs: http://127.0.0.1:{args.port}', flush=True)
     server.serve_forever()
