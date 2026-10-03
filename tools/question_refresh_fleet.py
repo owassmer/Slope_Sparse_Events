@@ -9,6 +9,7 @@ import json
 import multiprocessing
 import os
 import pickle
+import tempfile
 import threading
 import time
 import urllib.error
@@ -82,6 +83,33 @@ def publish(s3, bucket, prefix, folder, control, github_jobs=80, aws_jobs=8):
     return url('get_object', manifest)
 
 
+def downloaded_outputs(s3, bucket, keys, folder, workers=8):
+    """Overlap transfer latency with ingestion, with a bounded disk buffer."""
+    keys = iter(keys)
+    with tempfile.TemporaryDirectory(prefix='collect-', dir=folder) as temporary, \
+            concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        pending = {}
+
+        def submit():
+            key = next(keys, None)
+            if key is None:
+                return
+            target = Path(temporary) / key.rsplit('/', 1)[-1]
+            future = executor.submit(s3.download_file, bucket, key, str(target))
+            pending[future] = key, target
+
+        for _ in range(workers * 2):
+            submit()
+        while pending:
+            ready, _ = concurrent.futures.wait(pending, return_when=concurrent.futures.FIRST_COMPLETED)
+            for future in ready:
+                key, target = pending.pop(future)
+                future.result()
+                yield key, target
+                target.unlink()
+                submit()
+
+
 def collect(s3, bucket, folder):
     """Ingest finished batches while the remaining workers calculate."""
     import sqlite3
@@ -103,32 +131,43 @@ def collect(s3, bucket, folder):
     if not done <= expected.keys() or len(expected) != fleet['tasks']:
         raise ValueError('Refresh result assignment differs from preparation')
     prefix = fleet['base'] + '/outputs/'
+    last_progress = 0
+
+    def report():
+        nonlocal last_progress
+        last_progress = time.time()
+        progress = {'stage': 'refresh_question_calculations', 'completed_batches': len(done),
+                    'total_batches': len(expected), 'time': last_progress, 'jev_started': False}
+        (folder / 'progress.json').write_text(json.dumps(progress))
+        s3.put_object(Bucket=bucket, Key=f'{fleet["base"]}/progress.json', Body=json.dumps(progress).encode())
+        print(progress, flush=True)
+
     while len(done) < len(expected):
         available = {o['Key'] for page in s3.get_paginator('list_objects_v2').paginate(Bucket=bucket, Prefix=prefix)
                      for o in page.get('Contents', [])}
+        waiting = []
         for key in sorted(available):
             tag = key.removeprefix(prefix).removesuffix('.pkl.gz')
             if tag not in expected:
                 raise ValueError(f'Unassigned refresh output {tag}')
             if tag in done:
                 continue
-            target = folder / 'ingesting.pkl.gz'
-            s3.download_file(bucket, key, str(target))
-            store = stores[expected[tag]]
-            store.ingest(target, expected[tag])
-            with store.db:
-                store.db.execute('INSERT INTO ingested_batches VALUES(?)', (tag,))
-            target.unlink()
-            done.add(tag)
+            waiting.append(key)
+        with contextlib.closing(downloaded_outputs(s3, bucket, waiting, folder)) as downloads:
+            for key, target in downloads:
+                tag = key.removeprefix(prefix).removesuffix('.pkl.gz')
+                store = stores[expected[tag]]
+                store.ingest(target, expected[tag])
+                with store.db:
+                    store.db.execute('INSERT INTO ingested_batches VALUES(?)', (tag,))
+                done.add(tag)
+                if time.time() - last_progress >= 10:
+                    report()
         active = release_stale(s3, bucket, fleet['base'], done)
         s3.put_object(Bucket=bucket, Key=f'{fleet["base"]}/pending.json',
                       Body=json.dumps({'remaining': len(expected) - len(done),
                                        'available': sorted(expected.keys() - done - active)}).encode())
-        progress = {'stage': 'refresh_question_calculations', 'completed_batches': len(done),
-                    'total_batches': len(expected), 'time': time.time(), 'jev_started': False}
-        (folder / 'progress.json').write_text(json.dumps(progress))
-        s3.put_object(Bucket=bucket, Key=f'{fleet["base"]}/progress.json', Body=json.dumps(progress).encode())
-        print(progress, flush=True)
+        report()
         if len(done) < len(expected):
             time.sleep(15)
     progress = {'stage': 'refresh_question_calculations', 'completed_batches': len(done),

@@ -77,3 +77,78 @@ def test_collector_restart_after_last_commit_recovers_completion(tmp_path):
     assert result['completed_batches'] == result['total_batches'] == 1
     assert published['run/pending.json'] == {'remaining': 0, 'available': []}
     assert json.loads((tmp_path / 'calculated.json').read_text()) == result
+
+
+def test_downloads_overlap_without_unbounded_prefetch(tmp_path):
+    import threading
+    from pathlib import Path
+
+    barrier = threading.Barrier(2)
+    started = []
+    lock = threading.Lock()
+
+    class S3:
+        def download_file(self, bucket, key, target):
+            with lock:
+                started.append(key)
+            barrier.wait(timeout=3)
+            Path(target).write_text(key)
+
+    with fleet.contextlib.closing(fleet.downloaded_outputs(
+            S3(), 'bucket', [f'outputs/{i}' for i in range(10)], tmp_path, workers=2)) as outputs:
+        key, target = next(outputs)
+        assert target.read_text() == key
+        assert len(started) <= 4
+        seen = {key}
+        for key, target in outputs:
+            assert target.read_text() == key
+            seen.add(key)
+    assert len(seen) == 10
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_collector_ingests_prefetched_outputs_and_rejects_incomplete(tmp_path):
+    import gzip
+    import pickle
+    import sqlite3
+
+    import pytest
+
+    root = tmp_path / 'd'
+    (root / 'balanced').mkdir(parents=True)
+    for i in range(2):
+        (root / f'balanced/{i}.pkl.gz').touch()
+    (tmp_path / 'prepared.json').write_text(json.dumps({'instances': {'d': {'folder': 'd'}}}))
+    (tmp_path / 'fleet.json').write_text(json.dumps({'base': 'run', 'tasks': 2}))
+
+    class S3:
+        malformed = True
+
+        def get_paginator(self, _):
+            return self
+
+        def paginate(self, **_):
+            return [{'Contents': [{'Key': f'run/outputs/d-{i}.pkl.gz'} for i in range(2)]}]
+
+        def download_file(self, bucket, key, target):
+            with gzip.open(target, 'wb') as fh:
+                pickle.dump('d', fh)
+                pickle.dump(('complete', 1 if self.malformed else 0), fh)
+
+        def put_object(self, **_):
+            pass
+
+    s3 = S3()
+    with pytest.raises(ValueError, match='Incomplete'):
+        fleet.collect(s3, 'bucket', tmp_path)
+    with sqlite3.connect(root / 'plan.sqlite') as db:
+        assert db.execute('SELECT count(*) FROM ingested_batches').fetchone()[0] == 0
+    assert not (tmp_path / 'calculated.json').exists()
+    assert not list(tmp_path.glob('collect-*'))
+    s3.malformed = False
+    with patch.object(fleet, 'release_stale', return_value=set()):
+        result = fleet.collect(s3, 'bucket', tmp_path)
+    assert result['completed_batches'] == 2
+    with sqlite3.connect(root / 'plan.sqlite') as db:
+        assert set(db.execute('SELECT tag FROM ingested_batches')) == {('d-0',), ('d-1',)}
+    assert not list(tmp_path.glob('collect-*'))
