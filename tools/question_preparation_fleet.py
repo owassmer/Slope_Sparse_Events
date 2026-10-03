@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import http.client
 import json
 import multiprocessing
 import os
@@ -35,7 +36,7 @@ def request(route, payload=None):
         try:
             with urllib.request.urlopen(req, context=_CONTEXT, timeout=180) as response:
                 return pickle.loads(gzip.decompress(response.read()))
-        except (OSError, TimeoutError):
+        except (OSError, TimeoutError, http.client.HTTPException):
             if attempt == 4:
                 raise RuntimeError('Read-only preparation service unavailable') from None
             time.sleep(2 ** attempt)
