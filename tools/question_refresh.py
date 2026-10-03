@@ -565,6 +565,16 @@ class Results:
                 count += 1
         return count
 
+    def require_complete(self, expected):
+        # Ingest commits every assigned binding and its completion marker together.
+        # Check exact request coverage without scanning the much larger row BLOBs.
+        finished = self.db.execute('SELECT COUNT(*) FROM finished_requests').fetchone()[0]
+        matched = self.db.execute('SELECT COUNT(*) FROM finished_requests f '
+                                  'JOIN calculations c ON c.id=f.request').fetchone()[0]
+        if finished != expected or matched != expected:
+            raise ValueError(f'Incomplete refresh: {finished} completed requests, '
+                             f'{matched} assigned, expected {expected}')
+
     def _get(self, binding, n, whole=False):
         import pickle
 

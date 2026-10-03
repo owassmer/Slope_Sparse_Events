@@ -93,10 +93,7 @@ def assemble(run, control_file, walked, refresh, out, processes=8):
         filename = refresh / item['folder'] / 'plan.sqlite'
         db = sqlite3.connect(filename)
         store = Results(db)
-        finished = db.execute('SELECT COUNT(*) FROM finished_requests').fetchone()[0]
-        bindings = db.execute('SELECT COUNT(*) FROM results').fetchone()[0]
-        if finished != item['calculations'] or bindings != item['bindings']:
-            raise ValueError(f'Incomplete refresh for {iid}: {finished} calculations, {bindings} bindings')
+        store.require_complete(item['calculations'])
         db.execute('DELETE FROM wanted')
         db.commit()
         databases[iid], stores[iid] = filename, store

@@ -98,6 +98,8 @@ def test_complete_histories_keep_later_traversed_earlier_events(case, tmp_path):
 
 
 def test_saved_consumers_share_streamed_calculation_and_keep_before_answer_facts(case, tmp_path):  # noqa: F811
+    import pytest
+
     from app.disputes.forecast import DisputePath, unpack_row
 
     fc, dispute = case
@@ -115,8 +117,28 @@ def test_saved_consumers_share_streamed_calculation_and_keep_before_answer_facts
             run_batch(fc, tmp_path / 'inputs/0.pkl.gz', tmp_path / 'output.gz')
         assert compute.call_count == 1
         result = Results(plan.db)
+        import gzip
+        import pickle
+
+        with gzip.open(tmp_path / 'output.gz', 'rb') as original:
+            header, records = pickle.load(original), pickle.load(original)
+        with gzip.open(tmp_path / 'truncated.gz', 'wb') as truncated:
+            pickle.dump(header, truncated)
+            pickle.dump(records, truncated)
+        with pytest.raises(EOFError):
+            result.ingest(tmp_path / 'truncated.gz', dispute.instance_id)
+        assert plan.db.execute('SELECT COUNT(*) FROM results').fetchone()[0] == 0
+        with pytest.raises(ValueError, match='Incomplete refresh'):
+            result.require_complete(1)
         assert result.ingest(tmp_path / 'output.gz', dispute.instance_id) == 1
         assert result.ingest(tmp_path / 'output.gz', dispute.instance_id) == 1  # retry is idempotent
+        result.require_complete(1)
+        # Equal counts cannot conceal an unassigned completion replacing a missing one.
+        plan.db.execute('UPDATE finished_requests SET request=-1')
+        with pytest.raises(ValueError, match='Incomplete refresh'):
+            result.require_complete(1)
+        plan.db.rollback()
+        result.require_complete(1)
         for i, path in enumerate(paths):
             refreshed = result.rebind(fc, path, 'part', i)
             assert refreshed.edges == path.edges and refreshed.steps == path.steps
