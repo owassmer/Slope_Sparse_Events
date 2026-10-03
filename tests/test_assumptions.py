@@ -53,6 +53,9 @@ def test_each_variant_differs_from_central_only_through_its_knob() -> None:
             assert changed == set() and set(v["sens"]) == set(d["parameters"]), v["id"]
             for k, x in v["sens"].items():
                 sens = m["parameters"][k]["sensitivity"]
+                if isinstance(sens, list):  # one of several sensitivities, named by its value
+                    assert x == d["parameters"][k] and x in sens and x != m["parameters"][k]["value"], v["id"]
+                    continue
                 assert x == (sens if isinstance(sens, str) else True) and sens != m["parameters"][k]["value"]
         assert v["label"] and v["basis"]
 

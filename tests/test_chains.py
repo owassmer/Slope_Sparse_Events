@@ -392,7 +392,8 @@ def test_the_notes_petition_questions_get_the_facts_of_the_day_each_actor_may_fi
             for r in fc.facts[k]:
                 day = r["day"][r["day"] < N]
                 assert day.size and (day == at).all()
-                assert (r["triggers"]["judgment_default_ruling"] >= 10**6).all()  # only where the holders acted
+                # only where the holders acted (a trigger that never falls is stored as absent: forecast.pack_row)
+                assert (r["triggers"].get("judgment_default_ruling", np.full(1, 10**6)) >= 10**6).all()
 
 
 def test_delisting_is_a_default_on_its_date_and_the_repurchase_date_is_code(base, full):

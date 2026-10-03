@@ -17,6 +17,8 @@ from app.finance.bank import load_feed
 
 REVIEW = date(2024, 5, 14)
 INPUTS = json.loads((ROOT / "cases" / "akoustis_20240514" / "run_inputs.json").read_text())
+# these pins are the net engine's (the rule they were made under); the case itself processes cash daily
+INPUTS["common_model"]["central"]["cash_processing"] = "net"
 SETUP = setup_from_inputs(INPUTS, REVIEW)
 DAYS = 180
 

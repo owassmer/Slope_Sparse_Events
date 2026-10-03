@@ -1,7 +1,7 @@
 # Slope Sparse Events — builder instructions
 
 ## What this is
-A proof-of-concept demo for Russell (Slope). Thesis: **domain-informed probabilistic judgments turn unusual qualitative evidence into a useful, measurable financial signal.** An agent (Claude Agent SDK) investigates an unusual external event (a lawsuit). Jev (TypeSafe) reads the evidence and supplies conditional probabilities for the future events that move cash. Deterministic code composes those probabilities into event paths, simulates the borrower's cash against a bootstrapped operating distribution, and carries the result into the loan's dated cash flows. Lead case: Akoustis Technologies reviewed on 14 May 2024, the day after its 10-Q, with Qorvo's trade-secret and patent claims at jury trial and the convertible notes' default terms and the Nasdaq listing live (`Slope_Model_Extensions_Spec.md` §16 governs). The recorded 20 Jun 2024 run stays as an earlier artifact. Charles & Colvard at 18 Nov 2024 is the second case, after this rebuild. Synergy CHC keeps its financial tests; Barfresh is deferred.
+A proof-of-concept demo for Russell (Slope). Thesis: **domain-informed probabilistic judgments turn unusual qualitative evidence into a useful, measurable financial signal.** An agent (Claude Agent SDK) investigates an unusual external event (a lawsuit). Jev (TypeSafe) reads the evidence and supplies conditional probabilities for the future events that move cash. Deterministic code composes those probabilities into event paths, simulates the borrower's cash against a bootstrapped operating distribution, and carries the result into the loan's dated cash flows. Lead case: Akoustis Technologies reviewed on 14 May 2024, the day after its 10-Q, with Qorvo's trade-secret and patent claims at jury trial and the convertible notes' default terms and the Nasdaq listing live (`Slope_Model_Extensions_Spec.md` §16 governs). The recorded 20 Jun 2024 run stays as an earlier artifact. Charles & Colvard as a second case, calibration against past dockets and the lawsuit's lifecycle before trial come after this demonstration (`Slope_Model_Extensions_Spec.md` §16.9). Synergy CHC keeps its financial tests; Barfresh is deferred.
 
 The demo reconstructs Slope as closely as public information allows: Slope's reusable line, its limit set by Slope's published rule on the connected-bank data (15% of trailing monthly receipts net of debt service; 3.7% fee; each draw repaid in three monthly installments), and synthetic connected-bank data, labelled once at its source and otherwise used plainly (this is a proof of concept for Russell, not a hedged research note).
 
@@ -32,6 +32,10 @@ Layout: `app/{domain,evidence,agent,disputes,analysis,finance,decisions,web}`, `
 
 Commands: `uv sync`, `uv run slope ...` (`slope analyze --run <id>`), `uv run pytest`, `uv run ruff check .`
 
+## Active work plan
+
+Read `PLAN.md` when resuming work. Maintain its checklist after substantive changes, distinguishing implementation from live validation and delivery. It tracks the repeatable-flow realignment and outstanding production work; the governing specifications above still define financial and evidence correctness.
+
 ## Delivery workflow
 1. **Implement in an isolated worktree** on a branch off the relevant PR head or the latest `main`.
 2. **Commit and push, then open or update the PR**, stating the step's exit condition from spec §9 and how it was met.
@@ -40,6 +44,8 @@ Commands: `uv sync`, `uv run slope ...` (`slope analyze --run <id>`), `uv run py
 5. **Owen merges.** Agents never merge PRs or push to `main`.
 
 ## Build posture
+Scenario declarations state their substance directly, with actual source citations where relevant. They contain no references to project decisions, people, internal specifications or drafting history, and no labels qualifying them as assumptions. Scenario assumptions and their rationales do not enter Jev's inputs; code applies their rules, and Jev receives the resulting concrete situation and sourced evidence.
+
 This is a concept demonstration for Russell. **Do not build provenance machinery, verification campaigns, review workflows, banners or hedging captions.** Existing isolation, source links and spans, accepted findings, caching, replay and the deterministic financial guards are enough; add a check only where it prevents a demonstrated financial or semantic failure. Tests protect financial correctness, probability composition and isolation, nothing more. This does not permit careless implementation: the economics, the probability arithmetic and the evidence-to-impact chain must be right, and the demo must be coherent and intuitive.
 
 ## Product judgment

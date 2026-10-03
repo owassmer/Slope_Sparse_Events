@@ -701,6 +701,36 @@
       }
     },
     {
+      "source_id": "akts_2024_01_29_8k_ex1_1",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024007401/ea192187ex1-1_akoustis.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2024_01_29_8k_ex1_1.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2024_01_29_8k_ex1_1.html",
+      "sha256": "bf5210de350a3155616aaf348c2528f36b95e276e02c60978024402182cfe989",
+      "bytes": 190732,
+      "availability": {
+        "date": "2024-01-29",
+        "precision": "second",
+        "accepted_at": "2024-01-29T16:21:08.000Z",
+        "basis": "EDGAR filing index headers ACCEPTANCE-DATETIME 20240129162108 (accession 0001213900-24-007401, the 8-K of 29 Jan 2024)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2024-01-29"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      },
+      "kit_copy": "The exhibit as EDGAR serves it (EX-1.1 of accession 0001213900-24-007401), unchanged."
+    },
+    {
       "source_id": "akts_2024q3_10q",
       "case_id": "akoustis_qorvo_2024",
       "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390024041897/ea0204504-10q_akoustis.htm",
@@ -2584,6 +2614,445 @@
         "akoustis_20240620": "out_of_case",
         "akoustis_20240514": "eligible"
       }
+    },
+    {
+      "source_id": "akts_2022_02_04_s3",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390022005538/ea154498-s3_akoustistech.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2022_02_04_s3.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2022_02_04_s3.html",
+      "sha256": "cb187ffbbd4bc60a1bd488b58b592ae076440cab09fd9e82f116a5c1abd5c3e7",
+      "bytes": 443098,
+      "availability": {
+        "date": "2022-02-04",
+        "precision": "day",
+        "accepted_at": "2022-02-04T17:02:01.000Z",
+        "basis": "SEC submissions JSON: filingDate (acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2022-02-04"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "akts_2022_05_02_atm_agreement",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390022022900/f10q0322ex1-1_akoustis.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2022_05_02_atm_agreement.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2022_05_02_atm_agreement.html",
+      "sha256": "43b47980d400adc46dd3dc25b9ca69bbb5042f4a42aea731b074d483d504bd1f",
+      "bytes": 220383,
+      "availability": {
+        "date": "2022-05-02",
+        "precision": "day",
+        "accepted_at": "2022-05-02T07:45:07.000Z",
+        "basis": "SEC submissions JSON: filingDate (acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2022-05-02"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "akts_2023_01_23_424b5",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023004470/ea171983-424b5_akoustistech.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2023_01_23_424b5.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2023_01_23_424b5.html",
+      "sha256": "194ecec0bd8a209591523822ac1f842374222d960e8e02987498aeece2df636e",
+      "bytes": 527042,
+      "availability": {
+        "date": "2023-01-23",
+        "precision": "day",
+        "accepted_at": "2023-01-23T16:56:59.000Z",
+        "basis": "SEC submissions JSON: filingDate (acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2023-01-23"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "akts_2023_09_19_def14a",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023077402/def14a0923_akoustistech.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2023_09_19_def14a.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2023_09_19_def14a.html",
+      "sha256": "331c172e74271f353684e4160b73cceb323678d167e0ac443e31e7f147d87f3d",
+      "bytes": 187915,
+      "availability": {
+        "date": "2023-09-19",
+        "precision": "day",
+        "accepted_at": "2023-09-18T18:01:34.000Z",
+        "basis": "SEC submissions JSON: filingDate (acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2023-09-19"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      },
+      "kit_copy": "Excerpt of the EDGAR document: the cover, notice and 'General Information Concerning Voting' (through 'Quorum and Vote Necessary for Action') and Proposal 3; the other sections (directors, compensation, Proposals 1-2 and 4-5, audit, future stockholder proposals, householding) are omitted as not bearing on any question."
+    },
+    {
+      "source_id": "akts_2023_11_02_8k",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023082841/ea187610-8k_akoustis.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2023_11_02_8k.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2023_11_02_8k.html",
+      "sha256": "bda68cdcfac26165b844f10a6ab66a399ae928bdd77cdc65dfab921467fe2f70",
+      "bytes": 47803,
+      "availability": {
+        "date": "2023-11-02",
+        "precision": "day",
+        "accepted_at": "2023-11-02T17:01:05.000Z",
+        "basis": "SEC submissions JSON: filingDate (acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2023-11-02"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "ded_21cv1417_d565_limiting_instructions",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.565.0.pdf",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d565_limiting_instructions.pdf",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d565_limiting_instructions.pdf",
+      "sha256": "a2ffd69c0ec2c8e642c0c7a84b2387d07f050627bbb64850bf2075344c70e2bb",
+      "bytes": 158789,
+      "availability": {
+        "date": "2024-05-02",
+        "precision": "day",
+        "basis": "Federal docket entry filing date (CourtListener RECAP copy of the PACER document)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2024-05-02"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "ded_21cv1417_d533_preliminary_instructions",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.533.0.pdf",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d533_preliminary_instructions.pdf",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d533_preliminary_instructions.pdf",
+      "sha256": "5f6b629a35bd3ad2b9634e1b459329876d88f4dfa166f3b0b0537bbe91869436",
+      "bytes": 155678,
+      "availability": {
+        "date": "2024-04-12",
+        "precision": "day",
+        "basis": "Federal docket entry filing date (CourtListener RECAP copy of the PACER document; the filing stamp on each page)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2024-04-12"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "ded_21cv1417_d537_final_instructions",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.537.0.pdf",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d537_final_instructions.pdf",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d537_final_instructions.pdf",
+      "sha256": "08fa77a746643543818b1f79aa8c25e3c59e71c9cd64cf3c33ec0fb50bf9be46",
+      "bytes": 461929,
+      "availability": {
+        "date": "2024-04-12",
+        "precision": "day",
+        "basis": "Federal docket entry filing date (CourtListener RECAP copy of the PACER document; the filing stamp on each page)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2024-04-12"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "ded_21cv1417_d539_witness_list",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.539.0.pdf",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d539_witness_list.pdf",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d539_witness_list.pdf",
+      "sha256": "443df17eeb9d2dec72082a950a4653550bdedb105b195887a65f204edfadacdf",
+      "bytes": 147210,
+      "availability": {
+        "date": "2024-04-17",
+        "precision": "day",
+        "basis": "Federal docket entry filing date (CourtListener RECAP copy of the PACER document; the filing stamp on each page)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2024-04-17"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "ded_21cv1417_d582_judicial_notice",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.582.0.pdf",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d582_judicial_notice.pdf",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d582_judicial_notice.pdf",
+      "sha256": "ca31f42791eed58d897f187edddc043040573b88ff38befde0ed01c89e0ee600",
+      "bytes": 186092,
+      "availability": {
+        "date": "2024-05-10",
+        "precision": "day",
+        "basis": "Federal docket entry filing date (CourtListener RECAP copy of the PACER document; the filing stamp on each page)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2024-05-10"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      },
+      "kit_copy": "The main document only; its exhibits 1-2 (D.I. 582-1, 582-2) are not copied."
+    },
+    {
+      "source_id": "ded_21cv1417_d585_exhibit_list",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.585.0.pdf",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d585_exhibit_list.pdf",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d585_exhibit_list.pdf",
+      "sha256": "09a3a1ed1dfea6852d0d318138c11e4d85958e6151218c5c71341650e61a5582",
+      "bytes": 399825,
+      "availability": {
+        "date": "2024-05-12",
+        "precision": "day",
+        "basis": "Federal docket entry filing date (CourtListener RECAP copy of the PACER document; the filing stamp on each page)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2024-05-12"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "ded_21cv1417_d588_bench_memo",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.588.0.pdf",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d588_bench_memo.pdf",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d588_bench_memo.pdf",
+      "sha256": "1fa6cb99c7af4e0586eedb0aea03ed94f862a71088802e4cd201110090015fec",
+      "bytes": 154344,
+      "availability": {
+        "date": "2024-05-14",
+        "precision": "day",
+        "basis": "Federal docket entry filing date (CourtListener RECAP copy of the PACER document; the filing stamp on each page)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2024-05-14"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "ded_21cv1417_d589_bench_memo",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://storage.courtlistener.com/recap/gov.uscourts.ded.76727/gov.uscourts.ded.76727.589.0.pdf",
+      "original_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d589_bench_memo.pdf",
+      "package_relative_path": "research/recent_cases/akoustis/ded_21cv1417_d589_bench_memo.pdf",
+      "sha256": "6b835feb5bce396a0e3e7a9218e5cb8ddc0bba77d9661db171b7a163b47d1362",
+      "bytes": 216679,
+      "availability": {
+        "date": "2024-05-14",
+        "precision": "day",
+        "basis": "Federal docket entry filing date (CourtListener RECAP copy of the PACER document; the filing stamp on each page)",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "court_filing",
+          "date": "2024-05-14"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "akts_fy2023_10k_ex21",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023074139/f10k2023ex21-1_akoustistech.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_fy2023_10k_ex21.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_fy2023_10k_ex21.html",
+      "sha256": "540ce75d3babfc4d52e32ee119c66e8a92a11fc933e09fa85c12da05c14f3dff",
+      "bytes": 1445,
+      "availability": {
+        "date": "2023-09-06",
+        "precision": "day",
+        "accepted_at": "2023-09-06T07:31:03.000Z",
+        "basis": "SEC submissions JSON: filingDate of the 10-K (accession 0001213900-23-074139; acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [
+        {
+          "type": "sec_filing",
+          "date": "2023-09-06"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      }
+    },
+    {
+      "source_id": "akts_daily_px_20240514",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://stockanalysis.com/stocks/akts/history/",
+      "original_relative_path": "research/recent_cases/akoustis/akts_daily_px_20240514.html",
+      "package_relative_path": "research/recent_cases/akoustis/akts_daily_px_20240514.html",
+      "sha256": "46c0ec4c7116174e4a5b49199de887e1150ed55bc250d8927ad5017664f11e3b",
+      "bytes": 24520,
+      "availability": {
+        "date": "2024-05-14",
+        "precision": "day",
+        "basis": "Last trading day in the series: each day's prices and volume were public at that day's close. Retrieved from stockanalysis.com on 28 Sep 2026 and filtered in code to trading days on or before 14 May 2024 before any value was saved.",
+        "retrieved_at": "2026-09-28",
+        "intraday_runtime_policy": "Conservative end of stated date in America/New_York."
+      },
+      "event_dates": [
+        {
+          "type": "market_data",
+          "date": "2024-05-14"
+        }
+      ],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {
+        "synergy_20240813": "out_of_case",
+        "barfresh_20240815": "out_of_case",
+        "barfresh_20241025": "out_of_case",
+        "akoustis_20240620": "out_of_case",
+        "akoustis_20240514": "eligible"
+      },
+      "kit_copy": "HTML table generated in code from cases/akoustis_20240514/akts_daily_px.csv (240 rows, values unchanged; source note in akts_daily_px.source.json). Cross-checked against the 424B5 of 29 Jan 2024 (24 Jan last sale $0.70) and the 10-Q of 13 May 2024 (1 May close $0.60)."
     }
   ]
 }

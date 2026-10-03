@@ -22,13 +22,7 @@ The jury is asked its own verdict form's questions (D.I. 580), not "which theory
 
 §4.6 lists what is collapsed and why: liability per claim; awards of $10.0M or more; enhancements; remittitur; the separate merits motions; the listing sub-steps; the repurchase.
 
-**Jev questions (18; §6).**
-- **Jury or court:** J1 damages theory; J2 the ruling; J3 stay on reduced security; J4 early registration.
-- **Claimant:** C1 enforces; C2 accepts the settlement terms.
-- **Debtor:** D1 post-trial motions; D2 pay, file or continue (at entry, on a levy, at a ripe default); D3 offers settlement; D4 moves for a stay; D5 appeals; D6 keeps the listing; D7 and D8 file at the cash floor or at zero cash; D9 files on acceleration.
-- **Holders:** H1 act on the judgment default; H2 act on delisting; H3 file an involuntary petition.
-
-Questions marked ⚑ receive cash facts that must match the engine on their decision date, including the line's own flows (§7.6).
+**Jev questions.** `QUESTIONS_20240514.md` owns them: each question's event, answers, situation, record and consequences, and the rules every question follows.
 
 **Implementation (§7).** Contract and registry 4.1.0, both additive: a new template, stage, five new registry entries, and label templates filled from case inputs. There are small changes to the domain, interpretation and tool, plus new walker methods and Chain steps that reuse the 4.0.0 flow. The 4.0.0 template and the recorded 20 Jun run are unchanged. Estimates: about 3,000–7,000 paths and 100–150 Jev asks per variant.
 
@@ -320,52 +314,7 @@ Both are the approved 20 Jun rules (`DECOMPOSITION.md` decisions 3 and §5.4), r
 
 ## 6. The Jev questions
 
-Eighteen questions, each one actor's decision. None asks about timing, an amount, affordability, enforceability or legal meaning. Every question receives the standard state (spec §3.4; registry `state_contract`): the case, the question with its branches and situation, the governing standard, its record items (§8), the path facts code computed, the assumptions that hold, the evidence, and the readings routed to it. Material factors are established first, and aggregation receives the factor results and the structured facts, not the whole record again (spec §16.4).
-
-**Cash facts and the engine (spec §16.4).** A question marked **⚑** receives cash facts: available cash, the 30-day need, the amount owed, collateral, the offered amount, and the dated triggers, at its decision date. Those facts must equal the engine's state on that date, including the line's draws and collections to that date (§7.2). **⚑⚑** marks the questions where the line's own flows can move a structural threshold, not just a figure: whether "pay" is feasible, and the day τ at which the cash-floor questions arise. Questions without a mark are court or jury decisions on the merits or the law and receive no cash, because solvency is not their standard (as `DECOMPOSITION.md` §4).
-
-### 6.1 The list
-
-| Id | Registry id | Actor | Decision (branches) | Asked where | Facts |
-|---|---|---|---|---|---|
-| J1 | `forecast_verdict_finding`, `forecast_verdict_measure` (new) | Jury | Its answers to the money-bearing questions of its verdict form (D.I. 580), each yes / no, in the form's order; J1's three branches (no award / liability without the head-start measure / claimant's theory) are composites of them (§7.12). Never an amount | Before the verdict, where no settlement was paid; each question once per sequence of earlier answers that reaches it | The form question quoted, the earlier answers, the claims and requested amounts; no cash |
-| J2 | `forecast_post_trial_ruling` (new) | Court | The money judgment stands or is set aside (JMOL or new trial) | Each money branch where D1 = yes and the ruling falls inside the horizon on some trajectory | The branch amount and the preserved grounds; no cash |
-| J3 | `forecast_stay_approved` (reused) | Court | Approves reduced security and stays execution (yes / no) | D4 = yes and no trajectory funds a full bond | ⚑ the offered security on the approval day, the bond, the collateral |
-| J4 | `forecast_1963_good_cause` (reused) | Court | Orders registration before finality (yes / no) | C1 = yes before finality | ⚑ stay status, the amount owed |
-| C1 | `forecast_execution_pending_motions` in I1; `forecast_enforcement_after_final` in I2 (both reused) | Claimant | Enforces the unpaid, unstayed judgment (yes / no) | Where a levy can move cash before any stay approval | ⚑ owed, reachable cash, the petition's effect on its position (Law) |
-| C2 | `forecast_settlement_accept` (reused) | Claimant | Accepts the offered terms (yes / no) | D3 = yes, per interval and branch | ⚑ the offered amount (P5/P50 on the payment date), owed |
-| D1 | `forecast_post_trial_motions` (new) | Debtor | Files timely post-trial motions (yes / no) | Each money branch, after D2 at entry = continue | The branch amount, the preserved grounds |
-| D2 | `forecast_judgment_response` (new; the 4.0.0 `forecast_debtor_response` stays for the recorded run) | Debtor | Pays, files, or continues | At entry; on each levy day before the levy; on a ripe judgment default | ⚑⚑ owed, cash, the reserve, dated triggers (the ripe dates, the coupon) |
-| D3 | `forecast_settlement_offer` (reused; new context I0) | Debtor | Offers the §4.5 terms (yes / no) | Each interval where the offered amount is positive on some trajectory | ⚑ the offered amount, owed, cash, dated triggers |
-| D4 | `forecast_stay_motion` (reused) | Debtor | Moves for a stay (yes / no) | C1 = yes (I1); after the ruling (I2) | ⚑ the bond, the collateral, cash above the reserve |
-| D5 | `forecast_appeal` (reused) | Debtor | Appeals within 30 days (yes / no) | J2 = stands, or D1 = no, where a later levy falls inside the horizon | The branch amount; stay status |
-| D6 | `forecast_listing_kept` (new) | Company | Keeps the stock listed through the horizon: a reverse split in time, or a timely hearing request (yes / no) | 29 Oct, where no earlier petition or acceleration | ⚑ cash, the notes' status, the deadline, the $0.60 price and authorized shares (Record) |
-| D7 | `forecast_financing_at_floor` (new; item 1) | Company | At the cash floor: raise equity, file, or continue ('raise equity' only where the amount available is positive) | τ inside the horizon, before any petition | ⚑⚑ cash, need, dated triggers, the equity available in the situation |
-| D8 | `forecast_petition_cash_out` (reused) | Company | Files when cash first falls below zero | D7 = no, and cash below zero inside the horizon | ⚑⚑ as D7 |
-| D9 | `forecast_petition_on_notes` (reused) | Issuer | Files on acceleration (yes / no) | H1 or H2 = accelerate | ⚑ cash, the $44.0M due, the judgment owed |
-| H1 | `forecast_holders_act_judgment` (reused) | Holders of 25% or the trustee | Give §7.01(i) notice and accelerate (yes / no) | Each ripe date on the claimant's branch | ⚑ the judgment, its stay status, the issuer's cash |
-| H2 | `forecast_holders_act_delisting` (reused; "repurchase only" merges with "neither") | Holders | Accelerate on the delisting default | D6 = no and suspended inside the horizon | ⚑ as H1 |
-| H3 | `forecast_holders_involuntary` (reused) | Three or more noteholders | File an involuntary petition (yes / no) | Accelerated on the entered reading, unpaid, the issuer has not filed; §7.06 date inside | ⚑ as H1 |
-
-**Situation.** Each question is asked in the conditions its actor weighs that hold at the decision on every trajectory of the path (the 4.0.0 `situation` rule, reused): the verdict branch and its amount, whether motions are pending or the ruling has issued, a stay moved or in force, an appeal, a levy, a settlement or payment, the notes due and unpaid, a delisting. A condition that holds on only some trajectories is left unstated.
-
-### 6.2 Material factors and the record items that evidence them
-
-| Id | Material factors (established first) | Record items (named slots; §8 lists the sources) |
-|---|---|---|
-| J1 | The weight of the head-start measure after the court admitted it; what the jury may award on each claim; the liability findings still open | the claimant's itemised damages claim; the defense's statement of intended proof on damages; the court's rulings admitting or limiting the damages evidence; the final verdict form; the summary-judgment and validity rulings; the defendant's public statements on the trial and its likely damages |
-| J2 | The grounds preserved at trial; the court's own rulings on those grounds before the verdict | the motions for judgment as a matter of law made at trial; the court's rulings on the damages evidence |
-| J3 | Whether the offered security protects the claimant; the debtor's showing of hardship | the company's statements on its liquidity and ability to post security |
-| J4 | Where the debtor's assets sit; the risk of an unsatisfied judgment | the locations of the company's operating assets |
-| C1 | What execution recovers now against what a petition would do to the claimant's position; the claimant's stated aims | the claimant's public statements on the litigation and its remedies; the parties' competitive relationship |
-| C2, D3 | Signals of willingness to settle; each side's leverage | the company's statements on settlement; the company's own claims against the claimant; the parties' competitive relationship |
-| D1, D5 | The debtor's stated intent to contest; the grounds preserved | the company's statements on contesting the claims; the motions for judgment as a matter of law made at trial |
-| D2, D7, D8, D9 | The company's stated responses to an adverse judgment or a cash shortfall; its access to financing | the company's going-concern and bankruptcy statements; the company's financing routes and their status |
-| D4 | The company's ability and stated intent to secure the judgment | the company's statements on its liquidity and ability to post security |
-| D6 | The company's plan to regain compliance; the stockholders' past votes on share amendments | the listing deficiency notice and compliance deadline; the company's stated cure; the latest stockholder vote on a charter amendment |
-| H1, H2, H3 | The holders' recovery if they act now against waiting; the notes' terms | the indenture's default, acceleration and suit terms; the notes' interest terms and payment record |
-
-Readings (`dispute_interpretation`) are routed as in 4.0.0 (`evidence_routing`): settlement signals to D3 and C2, appeal intent to D1 and D5, debtor resistance to D2, D4 and C1, amount finality to J2. A reading is evidence handed to a question, never its probability.
+`QUESTIONS_20240514.md` owns the Jev questions: the rules every question follows, the shared state, the legal scenarios held along a path, and for each question its event, answers, situation and grouping, record, and consequences.
 
 ---
 
@@ -527,7 +476,7 @@ The three branches' composites are disjoint and exhaustive over the answers (tes
 - **4.0.0 unchanged:** the 20 Jun tree was rebuilt after every step. Each rebuild gave 13,821 paths and 337 node keys, with every question and bank-view state hash identical.
 
 **PR #18 review fixes (28 Sep 2026).**
-- **Date order.** The cash floor, cash exhaustion, the levy-day response after the ruling and the notes' judgment default book on their own day on every trajectory, whatever the walk order (`events.py` `waits`); the walker asks the floor before the first decision it precedes, or whose cash it reads after the floor (a stay's approval, a settlement's payment, a levy). Their facts come from each whole path. A pending claim's levy that falls before the I3 window on some trajectory is walked first, and every branch of the company's response still reaches the window.
+- **Date order.** The cash floor, cash exhaustion, the levy-day response after the ruling and the notes' judgment default book on their own day on every trajectory, whatever the walk order (`events.py` `waits`); the walker asks the floor before the first decision it precedes, or whose cash it reads after the floor (a stay's approval, a settlement's payment, a levy). Their facts come from each whole path. A pending claim's enforcement decision that falls before the I3 window on some trajectory is walked first, and every branch of the company's response still reaches the window. The decision date governs this ordering; the later levy and response retain their own dates.
 - **Only impossibility removes a branch.** The raise is offered wherever a whole path makes it available at the floor, including a set-aside or payment walked after the floor question and dated before it.
 - **⚑ facts equal the engine.** Bond collateral is the engine's figure on the approval day (with §1961 interest at the pending rate); the amount owed counts only levies and payments dated before the decision.
 - **One dispute end.** A levy or payment that satisfies the judgment, a settlement, or a vacatur ends the dispute (`resolve`): legal spend stops that day and never returns, a later petition included.
@@ -540,34 +489,55 @@ The three branches' composites are disjoint and exhaustive over the answers (tes
 
 ## 8. Evidence requirements
 
-The record items of §6.2 are named slots. The agent fills each one with accepted findings from the 14 May snapshot; a slot no finding fills is stated to Jev as not in the record (spec §3.5). All sources below are dated on or before 14 May 2024. "Kit" means already in `research/recent_cases/akoustis/`; "add" means the snapshot needs it (URLs in ACQ).
+The record each question reads (`QUESTIONS_20240514.md` §4, each entry's **Record** field) is a set of named slots. The agent fills each one with accepted findings from the 14 May snapshot; a slot no finding fills is left out of Jev's state. Every source below is public on or before 14 May 2024. Status: **kit**, in the `akoustis_20240514` snapshot before the second record pass; **added**, acquired in it.
 
-| Record item | Questions | Sources | Status |
+| Record item | Questions | Sources (document, D.I. or section, date) | Status |
 |---|---|---|---|
-| the claimant's itemised damages claim | J1, D2, D3, C2 | D.I. 543-1 Ex. A.2 (22 Apr 2024), ¶¶19, 31–32, 42, 49–50, 56–57, 61–62 | add |
-| the defense's statement of intended proof on damages | J1 | D.I. 543-1 Ex. A.4 | add |
-| the court's rulings admitting or limiting the damages evidence | J1, J2 | D.I. 553 (30 Apr); D.I. 566 (3 May, poaching opinions); D.I. 590 (14 May) | 553, 590 kit; 566 add |
-| the final verdict form | J1 | D.I. 580 (9 May) | add (fetched for this document) |
-| the summary-judgment and validity rulings | J1 | D.I. 545 (25 Apr), D.I. 557 (2 May); 10-Q Note 14 | kit |
-| the defendant's public statements on the trial and its likely damages | J1, D1, D2, D5 | 13 May earnings call (Insider Monkey copy published 14 May; ACQ §1(g)); 10-Q Note 14 | call add; 10-Q kit |
-| the challenges to the damages method | J1, J2 | D.I. 476 (23 Feb, redacted brief against the head-start measure); D.I. 535 (12 Apr, proposed verdict form) | add |
-| the motions for judgment as a matter of law made at trial | J2, D1, D5 | D.I. 587 (13 May), D.I. 590 (14 May) | kit |
-| the company's statements on its liquidity and ability to post security | J3, D2, D4, D7, D8, D9 | 10-Q Note 2 and risk factors; 13 May release | kit |
-| the locations of the company's operating assets | J4 | 10-Q Note 13 (leases); FY2023 10-K (properties) | kit |
-| the claimant's public statements on the litigation and its remedies | C1, C2 | D.I. 543 §6 (relief sought); D.I. 133 (second amended complaint, prayer) | add |
-| the parties' competitive relationship | C1, C2, D3 | FY2023 10-K (competition); D.I. 590 ("testimony that the Parties are competitors") | kit |
-| the company's statements on settlement | D3, C2 | 10-Q Note 14 (none disclosed) | kit; stated as not in the record if no finding |
-| the company's own claims against the claimant | D3, C2 | 10-Q Note 14 (E.D. Tex. suit; the two IPR petitions) | kit |
-| the company's going-concern and bankruptcy statements | D2, D7, D8, D9 | 10-Q Note 2, MD&A overview, risk factors | kit |
-| the company's financing routes and their status | D2, D7, D8, D9, D6 | 10-Q Note 2 and Part II Item 5 (ATM re-activated, $48.0M remaining, no sales obligation); 8-K 29 Jan 2024 (the January offering); resale S-3 of 13 May; 424B5s of 2 May 2022 and 29 Jan 2024 (the shelf) | 10-Q and 8-K kit; S-3 and 424B5s add |
-| the listing deficiency notice and compliance deadline; the company's stated cure | D6, H2 | 10-Q Note 12 and risk factor; 8-K 27 Oct 2023 | kit |
-| the latest stockholder vote on a charter amendment | D6 | DEF 14A of 19 Sep 2023 and 8-K of 2 Nov 2023 (`STAGE3.md` E19) | add |
-| the indenture's default, acceleration and suit terms | H1, H2, H3, D9 | indenture §§7.01, 7.02, 7.06, 7.07, 10.01 | kit |
-| the notes' interest terms and payment record | H1, D2, D9 | 2022 notes 8-K; FY2023 10-K; resale S-3 of 13 May (5,000,000 Note Shares) | 8-K, 10-K kit; S-3 add |
+| the verdict form | J1, J1b | D.I. 580, final verdict form, blank (9 May 2024) | kit |
+| the instructions on each claim's elements and burdens | J1 | D.I. 533, Qorvo's proposed preliminary instructions §§2, 5 (12 Apr 2024); D.I. 537, the parties' proposed final instructions §1.12 and §§2–7, disputed alternatives marked (12 Apr 2024); D.I. 588 and 589, the parties' bench memoranda on the conspiracy instruction (14 May 2024) | added |
+| the instructions on unjust enrichment, actual loss and exemplary damages | J1b | D.I. 537 §§2.9–2.12 (unjust enrichment; the head-start measure disputed; exemplary damages) and §3.5 (12 Apr 2024) | added |
+| the rulings that narrow the issues; the rulings on the evidence and the claims | J1, J1b, J2 | D.I. 152, claim construction (15 Mar 2023); D.I. 545, summary judgment (25 Apr 2024); D.I. 546, Lebby opinions excluded in part (25 Apr 2024); D.I. 553, Irwin and Bennis opinions admitted (30 Apr 2024); D.I. 557, validity (2 May 2024); D.I. 590, Rule 50(a) ruling, UDTPA damages barred (14 May 2024) | kit |
+| the limiting instructions | J1, J1b | D.I. 565 (2 May 2024) | kit |
+| each side's statement of intended proof | J1 | D.I. 543-1 (22 Apr 2024) Ex. A.2 (Qorvo), Ex. A.4 (Akoustis) | kit |
+| the witnesses | J1 | D.I. 543-1 Ex. C.1 (Qorvo) and Ex. C.2 (Akoustis), pp. 123–128 (22 Apr 2024); D.I. 539, Akoustis's amended trial witnesses (17 Apr 2024) | 543-1 kit; 539 added |
+| the exhibits | J1 | D.I. 585, Akoustis's second amended trial exhibit list (12 May 2024); D.I. 582, request for judicial notice on trial exhibit 18 (10 May 2024); D.I. 543 §VII (22 Apr 2024) | 585, 582 added; 543 kit |
+| the trial's docket through 14 May | J1 | docket report through 14 May 2024: trial days 1–7 (6–14 May), deposition-designation rulings D.I. 571, 576–579, 581, 586, and D.I. 580–587, 590 | kit |
+| the Rule 50(a) papers filed by 14 May; the grounds preserved at trial | J1, D1, J2, D5 | D.I. 587, Qorvo's bench memorandum opposing Akoustis's Rule 50(a) motion on UDTPA remedies (13 May 2024); D.I. 590 (14 May 2024) | kit |
+| the company's statements on the trial and on contesting the claims | J1, D1, D2, D5 | 13 May 2024 earnings call (Wright); 10-Q of 13 May 2024 Note 14 and Part II Item 1 | kit |
+| Qorvo's damages method and figures, and the ruling admitting them | J1b | D.I. 543-1 Ex. A.2 ¶¶19, 31–32, 42, 56–57, 61–62; D.I. 553; D.I. 476 (23 Feb 2024, redacted) | kit |
+| the revenue base left to the jury | J1b | D.I. 553 pp. 6–7 | kit |
+| the defense's damages positions as admitted | J1b | D.I. 553 pp. 10–11 and n. 2; D.I. 471 (23 Feb 2024, redacted); D.I. 543-1 Ex. A.4 pp. 35–42; D.I. 537 §2.11, Akoustis's proposal | kit; 537 added |
+| the company's statements on the likely award | J1b | 13 May 2024 call (Wright: "an eight-figure verdict") | kit |
+| the record on actual loss (2(c)) | J1b | D.I. 543-1 Ex. A.2 ¶¶52–57; D.I. 476 | kit |
+| the notes' judgment-default terms | D1, D2, D3, D4, D5 | indenture of 9 Jun 2022 §§7.01(i), 7.02 (Ex. 4.1 to the 8-K of 10 Jun 2022) | kit |
+| the company's cash, assets, going-concern, bankruptcy, liquidity and debt disclosures; its financial condition | C1, C2, C3, D2, D3, D4, D7, D8, D9, H1, J3, J4, N1, D6a | 10-Q of 13 May 2024: balance sheet, Note 2, Note 10, Note 13, MD&A, Part II Item 1A; 13 May 2024 release (8-K Ex. 99.1) and call | kit |
+| the relief Qorvo seeks, including a permanent injunction | C1, C2, C3, D3 | D.I. 543-1 Ex. A.2 ¶¶41, 62; D.I. 543 §6 (22 Apr 2024); D.I. 133 prayer (17 Feb 2023) | kit |
+| the parties' competitive relationship | C1, C2, D3 | FY2023 10-K Item 1, "Competition" (6 Sep 2023); D.I. 590 | kit |
+| the company's own claims against Qorvo | D3 | 10-Q of 13 May 2024 Note 14 (E.D. Tex. 2:23-cv-00180; the inter partes review petitions) | kit |
+| Qorvo's statements on the litigation | C1, C2 | its filings in the case: D.I. 133, D.I. 476, D.I. 543-1 Ex. A.2, D.I. 587, D.I. 588 | kit; 588 added |
+| the notes' claim alongside the judgment; other obligations | C2, H1 | indenture; 10-Q of 13 May 2024 Note 10 (the notes; the GDSI seller note) and Note 13 | kit |
+| where the company and its subsidiaries are organised and operate, and its properties | J4 | FY2023 10-K cover, Item 2 "Properties", Note 1, "Principles of Consolidation"; FY2023 10-K Ex. 21.1 (Akoustis, Inc., Delaware; Grinding & Dicing Services, Inc., California; RFM Integrated Device Inc., Texas; 6 Sep 2023); 10-Q of 13 May 2024 Notes 1 and 13 | kit; Ex. 21.1 added |
+| the offering channels and their status; the at-the-market program, its proceeds and its re-activation | D2, D7, D8, N1 | S-3 333-262540 (4 Feb 2022); ATM Sales Agreement (Ex. 1.1 to the 10-Q of 2 May 2022); 424B5 of 2 May 2022; 10-Q of 13 May 2024 Note 2 and Part II Item 5; resale S-3 of 13 May 2024 | kit |
+| the January 2024 offering | N1 | 8-K of 29 Jan 2024 Item 1.01; 424B5 of 29 Jan 2024 | kit |
+| the daily price and volume to 14 May 2024; the closing prices | N1, D6a | AKTS daily open, high, low, close and volume, 1 Jun 2023 – 14 May 2024 (stockanalysis.com, retrieved 28 Sep 2026; `cases/akoustis_20240514/akts_daily_px.csv`) | added |
+| the shelf and the share capacity; the authorized and outstanding shares | D7, D8, N1, D6a | S-3 333-262540; 424B5s of 2 May 2022, 23 Jan 2023 and 29 Jan 2024; 10-Q of 13 May 2024 cover, balance sheet and Note 16; resale S-3 of 13 May 2024 | kit |
+| counsel's statement on the ability to raise money | N1 | 13 May 2024 call | kit |
+| the company's stated plans | D7, D8 | 10-Q of 13 May 2024 Note 2; 13 May 2024 release and call | kit |
+| the listing status; the deficiency notices and compliance periods; the company's statements on its listing | D2, D7, D8, D9, N1, D6a, D6b | 8-K of 27 Oct 2023 Item 3.01; 10-Q of 13 May 2024 Note 12 and Part II Item 1A | kit |
+| the company's stated options to regain compliance | D6a | 10-Q of 13 May 2024 Note 12 and Part II Item 1A | kit |
+| the latest stockholder vote on a charter amendment | D6a | DEF 14A of 19 Sep 2023 (excerpt); 8-K of 2 Nov 2023 Items 5.03, 5.07 | kit |
+| the indenture's default, acceleration, rescission and suit terms (§§7.06, 7.07) | H1, H2, H3 | indenture §§7.01, 7.02, 7.06, 7.07 | kit |
+| the notes' general-nonpayment terms | D8 | indenture §§7.01(j), 7.02 | kit |
+| the delisting default; each holder's repurchase right and its date | H2, D6b | indenture §1.01 ("Fundamental Change"), §10.01 | kit |
+| the holders of record | H1, H3 | resale S-3 of 13 May 2024, "Selling Stockholders" | kit |
+| the notes' interest payment record | H1 | 8-K of 10 Jun 2022; FY2023 10-K Note 11; 10-Q of 13 May 2024 Note 10; resale S-3 of 13 May 2024 | kit |
+| the cost and risk of a new trial | C3 | docket report (trial days 6–14 May 2024); D.I. 550 (26 Apr 2024) | kit |
 
-**Common-model inputs (§16.3, worker A)** are not event-model slots: the 31 Mar balance sheet, the 10-Q cash flows, the 13 May guidance on revenue, burn and CHIPS credits.
+**Path facts** (the question spec's §2 state, not snapshot items): the judgment, its amount, standing and date; the remitted amount; the post-trial ruling; the settlement terms; the security offered; enforcement on the path; the obligation unpaid and its class; the notes due and the arrears; cash against the month's operating need.
 
-**Not obtainable by 14 May, and so not slots:** the defense's damages figure; the entered pretrial order's time allocations (D.I. 549, sealed); any trial transcript; the claimant's post-verdict filings.
+**Law** (contract rules, `dispute_model.json`): Rules 50(b) and 59 (`jmol_standard`, `frcp_59a`, `frcp_50b_59_deadline`); remittitur (`remittitur`); Rule 62(b) (`frcp_62b`, `stay_as_of_right`, `bond_amount`); 28 U.S.C. §1963 (`usc28_1963`); 11 U.S.C. §§303(b), 362, 547 (`usc11_303b`, `usc11_362`, `usc11_547`); Nasdaq Rule 5815 (`nasdaq_5815_hearing_stay`). Not in the contracts: Rule 50(a) and the limit of a Rule 50(b) motion to the grounds raised under it; a Third Circuit authority for a stay on reduced security.
+
+**Not public by 14 May 2024:** the oral Rule 50(a) motions and the trial transcript; the preliminary and final instructions as given; the motions-in-limine order (D.I. 548) and the final pretrial order (D.I. 549), sealed; Qorvo's trial exhibit list (D.I. 543-1 Ex. E.1, redacted; D.I. 544, sealed); D.I. 584, sealed; the defense's avoided-cost figure (redacted in D.I. 471 and D.I. 553); Nasdaq's April 2024 letter granting the second compliance period; the company's statements on settlement; Qorvo's statements on the litigation outside its filings in the case; Qorvo's cost of a new trial.
 
 ---
 
@@ -579,3 +549,5 @@ The record items of §6.2 are named slots. The agent fills each one with accepte
 - **The verdict date** is a window drawn per trajectory from pre-14-May statements (§3), not the actual date.
 - **The acquisition note** is copied verbatim; its [POST] items are marked reveal-only there and enter no slot, parameter or question here.
 - **Implementation (27–28 Sep 2026).** D.I. 580 was fetched from RECAP (filed 9 May 2024) and quoted verbatim in §7.12. The figures in §5.3 and §7.12 are code's arithmetic on the 14 May feed and the case inputs. No source dated after 14 May was read for them.
+- **Record acquisition (step 9, 28 Sep 2026).** §8 was rebuilt from the Record fields of `QUESTIONS_20240514.md` §4. Added sources, all filed or published on or before 14 May 2024 (dates from EDGAR's submissions JSON and the RECAP filing stamps): the shelf S-3 333-262540 (4 Feb 2022), the ATM Sales Agreement (2 May 2022), the 424B5 of 23 Jan 2023, the 2023 proxy (19 Sep 2023, excerpt) and the 8-K of 2 Nov 2023, D.I. 565 (2 May 2024), and the daily price series filtered to 14 May 2024. The proxy's future-proposals section names a 22 May 2024 deadline (an isolation probe string) and is cut from the kit copy. No source dated after 14 May 2024 was read for this table.
+- **Second record pass (step 9, 28 Sep 2026).** §8 was rebuilt from the Record fields of `QUESTIONS_20240514.md` §4 at 4c49294. Added, each filed or published on or before 14 May 2024 (RECAP filing stamps; EDGAR submissions JSON): D.I. 533 and D.I. 537 (12 Apr 2024), D.I. 539 (17 Apr 2024), D.I. 582 (10 May 2024), D.I. 585 (12 May 2024), D.I. 588 and D.I. 589 (14 May 2024), the FY2023 10-K's Exhibit 21.1 (6 Sep 2023), and the daily price series as a kit table (last row 14 May 2024). The 20 Jun docket capture was read only through a filter to entries filed on or before 14 May, to check for D.I. 535–537 and 588–589 (absent from both captures). Qorvo's 10-K of 19 May 2023, 10-Qs of 2 Nov 2023 and 1 Feb 2024 and 8-Ks of 31 Jan and 1 May 2024 were read for statements on the case; none names it. **Seen and not used:** a web search for Qorvo's pre-cutoff statements listed Qorvo's later verdict release among its results; nothing from it enters any slot, table or question.
