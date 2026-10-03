@@ -632,7 +632,7 @@ class Results:
                             'DO UPDATE SET mask=mask_union(mask,excluded.mask)', (binding, pack_mask(valid)))
         return rebind_population(path, classes, valid, n)
 
-    def facts(self, fc):
+    def facts(self, fc, partition=None, with_binding=False):
         """One record per distinct conditioning prefix/content, after support is known."""
         import numpy as np
         import xxhash
@@ -644,8 +644,15 @@ class Results:
         self.db.execute('CREATE TEMP TABLE unique_facts ('
                         'question TEXT, prefix INTEGER, digest BLOB, row BLOB, '
                         'PRIMARY KEY(question,prefix,digest)) WITHOUT ROWID')
-        for binding, prefix, mask in self.db.execute(
-                'SELECT w.binding,b.prefix,w.mask FROM wanted w JOIN bindings b ON w.binding=b.id ORDER BY w.binding'):
+        sql = 'SELECT w.binding,b.prefix,w.mask FROM wanted w JOIN bindings b ON w.binding=b.id ORDER BY w.binding'
+        args = ()
+        if partition is not None:
+            shard, count = partition
+            if not 0 <= shard < count:
+                raise ValueError('Invalid fact partition')
+            sql = 'SELECT binding,prefix,mask FROM fact_assignments WHERE shard=? ORDER BY binding'
+            args = (shard,)
+        for binding, prefix, mask in self.db.execute(sql, args):
             # Rebinding reads only day/petition/groups; keep its cache compact.
             # Serialization needs all fields, one row at a time, without caching them.
             key, row, cls = self._get(binding, fc.draws.n, whole=True)
@@ -660,7 +667,7 @@ class Results:
                 identity = question, prefix, xxhash.xxh3_128_digest(blob)
                 inserted = self.db.execute('INSERT OR IGNORE INTO unique_facts VALUES(?,?,?,?)', (*identity, blob))
                 if inserted.rowcount:
-                    yield question, prefix, blob
+                    yield (binding, question, prefix, blob) if with_binding else (question, prefix, blob)
                 elif self.db.execute('SELECT row FROM unique_facts WHERE question=? AND prefix=? AND digest=?',
                                      identity).fetchone()[0] != blob:
                     raise ValueError('Fact content digest collision')

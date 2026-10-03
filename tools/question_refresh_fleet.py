@@ -274,7 +274,7 @@ def release(task, etag):
             raise
 
 
-def _consume(slot):
+def _consume(slot, handler=None):
     """Every free process can claim work from any runner's preferred range."""
     tasks = _INFO['tasks']
     workers = _INFO['workers']
@@ -293,7 +293,7 @@ def _consume(slot):
             if etag is None:
                 continue
             try:
-                print({'completed': _one(task)}, flush=True)
+                print({'completed': (handler or _one)(task)}, flush=True)
                 break
             except Exception:
                 release(task, etag)

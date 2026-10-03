@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import heapq
 import json
 import multiprocessing
 import pickle
@@ -126,13 +127,22 @@ def assemble(run, control_file, walked, refresh, out, processes=8):
     _CONTEXT = None
     if total != prepared['histories'] or total != control['walked']:
         raise ValueError('Refreshed source coverage differs')
+    finalize(fc, stores, control, meta, total, retained, cost, out)
+
+
+def finalize(fc, stores, control, meta, total, retained, cost, out, fact_processes=1):
+    """Global support is complete before question rows are serialized and deduplicated."""
     handles = [gzip.open(out / f'facts{b}.pkl.gz', 'wb', compresslevel=1) for b in range(pool.BUCKETS)]
     fact_count = 0
     try:
+        if fact_processes > 1:
+            records = parallel_facts(fc, stores, out, fact_processes)
+        else:
+            records = (record for store in stores.values() for record in store.facts(fc))
+        for key, prefix, row in records:
+            pickle.dump((key, prefix, row), handles[pool.bucket(key)], protocol=5)
+            fact_count += 1
         for store in stores.values():
-            for key, prefix, row in store.facts(fc):
-                pickle.dump((key, prefix, row), handles[pool.bucket(key)], protocol=5)
-                fact_count += 1
             store.db.close()
     finally:
         for fh in handles:
@@ -147,6 +157,66 @@ def assemble(run, control_file, walked, refresh, out, processes=8):
               'facts': fact_count, 'jev_started': False, 'ready_for_jev': False}
     (out / 'rebound.json').write_text(json.dumps(result, indent=2))
     print(result, flush=True)
+
+
+_FACT_CONTEXT = None
+
+
+def _facts_partition(shard):
+    fc, databases, out, count = _FACT_CONTEXT
+    filename = out / f'fact-part{shard}.pkl.gz'
+    records = 0
+    with gzip.open(filename, 'wb', compresslevel=1) as fh:
+        for iid, path in databases.items():
+            db = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
+            db.execute('PRAGMA cache_size=-131072')
+            store = Results(db)
+            for binding, question, prefix, blob in store.facts(fc, (shard, count), with_binding=True):
+                pickle.dump((iid, binding, question, prefix, blob), fh, protocol=5)
+                records += 1
+            db.close()
+    return shard, records
+
+
+def _fact_records(filename):
+    with gzip.open(filename, 'rb') as fh:
+        while True:
+            try:
+                yield pickle.load(fh)
+            except EOFError:
+                return
+
+
+def parallel_facts(fc, stores, out, processes):
+    """Same-prefix identities stay together; merge restores original instance/binding order."""
+    global _FACT_CONTEXT
+    databases = {}
+    for iid, store in stores.items():
+        store.db.execute('CREATE TABLE IF NOT EXISTS fact_assignments ('
+                         'shard INTEGER, binding INTEGER, prefix INTEGER, mask BLOB, '
+                         'PRIMARY KEY(shard,binding)) WITHOUT ROWID')
+        store.db.execute('DELETE FROM fact_assignments')
+        store.db.execute('INSERT INTO fact_assignments SELECT b.prefix % ?,w.binding,b.prefix,w.mask '
+                         'FROM wanted w JOIN bindings b ON w.binding=b.id', (processes,))
+        store.db.commit()
+        databases[iid] = store.db.execute('PRAGMA database_list').fetchone()[2]
+    _FACT_CONTEXT = fc, databases, out, processes
+    total = 0
+    try:
+        with multiprocessing.get_context('fork').Pool(processes) as workers:
+            for completed, (_shard, records) in enumerate(workers.imap_unordered(_facts_partition, range(processes)), 1):
+                total += records
+                progress = {'stage': 'serialize_question_facts', 'completed': completed, 'total': processes,
+                            'facts': total, 'time': time.time(), 'jev_started': False}
+                (out / 'progress.json').write_text(json.dumps(progress))
+                print(progress, flush=True)
+    finally:
+        _FACT_CONTEXT = None
+    # A prefix is local to its dispute, so each instance is merged in its original order.
+    order = {iid: i for i, iid in enumerate(databases)}
+    streams = [_fact_records(out / f'fact-part{s}.pkl.gz') for s in range(processes)]
+    for _iid, _binding, question, prefix, blob in heapq.merge(*streams, key=lambda r: (order[r[0]], r[1])):
+        yield question, prefix, blob
 
 
 def prepare_states(control_file, facts_file, bucket_number, out):

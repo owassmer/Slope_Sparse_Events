@@ -160,6 +160,9 @@ def test_saved_consumers_share_streamed_calculation_and_keep_before_answer_facts
         assert unchanged.edges == paths[0].edges
         assert unchanged.classes == paths[0].classes
         facts = list(result.facts(fc))
+        from tools.question_refresh_assemble import parallel_facts
+        plan.db.commit()
+        assert list(parallel_facts(fc, {dispute.instance_id: result}, tmp_path, 2)) == facts
         assert facts
         for _, _, blob in facts:
             row = unpack_row(blob)
@@ -188,6 +191,37 @@ def test_saved_consumers_share_streamed_calculation_and_keep_before_answer_facts
             assert report['source_count'] == 2
             assert report['wanted'][dispute.instance_id]
             assert all(m[1][0] == 'equal-financial-arrays' for m in report['meta'])
+            # Subdivision must preserve histories and OR the same shared supports.
+            from tools.question_assembly_fleet import bundles, rebind_bundle
+            parts = list(bundles(source, {dispute.instance_id: plan.db}, max_histories=1))
+            assert [b['start'] for b in parts] == [0, 1]
+            union, rebuilt = {}, []
+            for tag, bundle in enumerate(parts):
+                directory = tmp_path / f'bundle{tag}'
+                directory.mkdir()
+                saved = rebind_bundle(fc, bundle, str(tag), directory)
+                detail = pickle.loads(saved.read_bytes())
+                rebuilt.extend(pickle.loads(saved.with_suffix('.pkl').read_bytes()))
+                for binding, mask in detail['wanted'][dispute.instance_id]:
+                    union[binding] = union.get(binding, 0) | int.from_bytes(mask, 'little')
+            assert rebuilt == pickle.loads((out / 'walked' / source.name).read_bytes())
+            assert union == {b: int.from_bytes(m, 'little') for b, m in report['wanted'][dispute.instance_id]}
+            import tarfile
+
+            from tools.question_assembly_fleet import validate_output
+            detail.update(identity='preparation', input_digest='exact-input')
+            saved.write_bytes(pickle.dumps(detail))
+            archive = tmp_path / 'bundle-output.tgz'
+            with tarfile.open(archive, 'w:gz') as tar:
+                tar.add(saved, arcname=saved.name)
+                tar.add(saved.with_suffix('.pkl'), arcname=saved.with_suffix('.pkl').name)
+            task = {'tag': str(tag), 'source': source.name, 'start': 1,
+                    'count': 1, 'input_digest': 'exact-input'}
+            validate_output(archive, task, 'preparation')
+            with pytest.raises(ValueError, match='preparation or coverage'):
+                validate_output(archive, task, 'different-preparation')
+
+
         finally:
             assembly._CONTEXT = None
     finally:
