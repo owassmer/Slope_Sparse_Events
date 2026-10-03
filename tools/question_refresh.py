@@ -453,8 +453,8 @@ def run_batch(fc, source, output):
     import pickle
     from pathlib import Path
 
-    from app.analysis.events import event_trace
-    from app.disputes.forecast import _ROW_BLOBS, DisputePath, _Prefix, class_entry
+    from app.analysis.events import event_questions
+    from app.disputes.forecast import _ROW_BLOBS, DisputePath, class_entry
     from app.disputes.notes import decision_row
 
     output = Path(output)
@@ -483,13 +483,24 @@ def run_batch(fc, source, output):
             if mode == 'notes':
                 result, _ = decision_row(fc, dispute, steps, target, actor, mask)
             else:
-                trace = event_trace(dispute, DisputePath(instance, steps, '', ()),
-                                    fc.setup, fc.m, fc.draws, fc.sens, day_only=mode == 'prefix',
-                                    rows=None if mask is None else tuple(mask for _ in steps))
-                result = fc.row_of(_Prefix.of(trace, digest=False)) if mode == 'prefix' else trace.questions
+                result, _ = event_questions(dispute, DisputePath(instance, steps, '', ()),
+                                            fc.setup, fc.m, fc.draws, fc.sens,
+                                            indices=tuple({b[2] for b in bindings}),
+                                            day_only=mode == 'prefix',
+                                            rows=None if mask is None else tuple(mask for _ in steps))
             records = []
+            classified, packed = {}, {}
             for binding, key, select, prefix in bindings:
-                row = result[select] if select >= 0 else result
+                row = result if mode == 'notes' else result[select]
+                node = fc.nodes[key]
+                identity = (node.node, node.context.split("|")[0], select,
+                            fc.uses_appeal_status(node), fc._classified(key))
+                if identity in classified:
+                    blob, entry = classified[identity]
+                    if node.node in ("judgment_response", "financing_at_floor", "petition_cash_out"):
+                        fc.grouped.add(key)
+                    records.append((binding, key, prefix, blob, (key, *entry[1:])))
+                    continue
                 enriched = []
 
                 def keep(_key, r, enriched=enriched, row=row):
@@ -497,8 +508,10 @@ def run_batch(fc, source, output):
                         enriched.append({**r, 'day': row['day']})
 
                 cls = classify_row(fc, dispute, key, steps, row, keep)
-                records.append((binding, key, prefix, pack_row(enriched[0] if enriched else row),
-                                class_entry(key, cls, None)))
+                blob = pack_row(enriched[0] if enriched else row, cache=packed)
+                entry = class_entry(key, cls, None)
+                classified[identity] = blob, entry
+                records.append((binding, key, prefix, blob, entry))
             pickle.dump((ident, records), dst, protocol=5)
             _ROW_BLOBS.clear()  # batches stream; the global registry owns reuse, not process lifetime
             count += 1
@@ -826,6 +839,57 @@ def restrict_populations(control_file, walked, folder):
     (folder / 'populations.json').write_text(json.dumps(result, indent=2))
     print(result, flush=True)
     return result
+
+
+def balance_batches(folder, max_requests=128, work_limit=131072):
+    """Bound each contiguous batch by required draw/step work, not compressed bytes."""
+    import gzip
+    import json
+    import pickle
+    from pathlib import Path
+
+    folder = Path(folder)
+    prepared = json.loads((folder / 'prepared.json').read_text())
+    if not (folder / 'populations.json').exists():
+        raise ValueError('Draw populations must be prepared before balancing')
+    costs = {}
+    for iid, item in prepared['instances'].items():
+        root = folder / item['folder']
+        output = root / 'balanced'
+        output.mkdir(exist_ok=True)
+        # A failed preparation can be repeated from the untouched original inputs.
+        for old in output.glob('*.pkl.gz'):
+            old.unlink()
+        number, count, cost, handle = -1, 0, 0, None
+        try:
+            for source in sorted((root / 'inputs').glob('*.pkl.gz'), key=lambda p: int(p.name.split('.')[0])):
+                with gzip.open(source, 'rb') as src:
+                    if pickle.load(src) != iid:
+                        raise ValueError('Batch dispute differs')
+                    while True:
+                        try:
+                            request = pickle.load(src)
+                        except EOFError:
+                            break
+                        if len(request) != 7:
+                            raise ValueError('Every calculation must carry its required draws')
+                        work = max(1, len(request[2])) * int.from_bytes(request[6], 'little').bit_count()
+                        if handle is None or count >= max_requests or cost + work > work_limit:
+                            if handle is not None:
+                                handle.close()
+                            number += 1
+                            count, cost = 0, 0
+                            handle = gzip.open(output / f'{number}.pkl.gz', 'wb', compresslevel=1)
+                            pickle.dump(iid, handle, protocol=5)
+                        pickle.dump(request, handle, protocol=5)
+                        count += 1
+                        cost += work
+                        costs[f'{item["folder"]}-{number}'] = cost
+        finally:
+            if handle is not None:
+                handle.close()
+    (folder / 'balanced.json').write_text(json.dumps(costs))
+    return costs
 
 
 def prepare_saved(run, control_file, walked, out):

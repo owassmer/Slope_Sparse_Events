@@ -464,7 +464,7 @@ def expand_classes(paths: list, known, n: int, dead=frozenset(), first: dict | N
     return out
 
 
-def pack_row(row: dict) -> bytes:
+def pack_row(row: dict, cache: dict | None = None) -> bytes:
     """A recorded row as one compressed pickle, interned by content (identical rows are stored once). Only the
     trajectories where the question can be live are stored: its decision is dated (not BIG) and precedes any petition
     (`Forecaster.live` reads no other); `unpack_row` restores the others as BIG days and zeros, which no read takes.
@@ -490,8 +490,14 @@ def pack_row(row: dict) -> bytes:
                 isinstance(o[0], np.ndarray) and o[0].shape[:1] == (n,) and (o[0][on] >= BIG).all())]}}
         row = {"__ix__": np.flatnonzero(on).astype(np.int32), "__n__": n,
                **{k: _keep(v, on, n) for k, v in row.items()}}
-    b = zlib.compress(pickle.dumps(row, protocol=pickle.HIGHEST_PROTOCOL), 1)
-    return _ROW_BLOBS.setdefault(b, b)
+    raw = pickle.dumps(row, protocol=pickle.HIGHEST_PROTOCOL)
+    if cache is not None and raw in cache:
+        return cache[raw]
+    b = zlib.compress(raw, 1)
+    b = _ROW_BLOBS.setdefault(b, b)
+    if cache is not None:
+        cache[raw] = b
+    return b
 
 
 def unpack_row(b: bytes) -> dict:

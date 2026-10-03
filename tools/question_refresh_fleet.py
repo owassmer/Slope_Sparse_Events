@@ -3,14 +3,17 @@ from __future__ import annotations
 
 import concurrent.futures
 import contextlib
+import gzip
 import hashlib
-import heapq
 import json
 import multiprocessing
 import os
 import pickle
 import threading
 import time
+import urllib.error
+import urllib.request
+import uuid
 from pathlib import Path
 
 from tools.pool_fleet import fetch, put
@@ -34,10 +37,11 @@ def publish(s3, bucket, prefix, folder, control, github_jobs=80, aws_jobs=8):
     populations = json.loads((folder / 'populations.json').read_text())
     if populations['histories'] != prepared['histories']:
         raise ValueError('Required draw populations do not cover the saved preparation')
+    costs = json.loads((folder / 'balanced.json').read_text())
     inputs = []
     identity = hashlib.sha256(Path(control).read_bytes())
     for instance, item in sorted(prepared['instances'].items()):
-        for source in sorted((folder / item['folder'] / 'inputs').glob('*.pkl.gz')):
+        for source in sorted((folder / item['folder'] / 'balanced').glob('*.pkl.gz')):
             tag = f'{item["folder"]}-{source.name.removesuffix(".pkl.gz")}'
             identity.update(pickle.dumps((instance, tag), protocol=5))
             identity.update(hashlib.sha256(source.read_bytes()).digest())
@@ -45,35 +49,34 @@ def publish(s3, bucket, prefix, folder, control, github_jobs=80, aws_jobs=8):
     preparation = identity.hexdigest()
     base = f'{prefix}/{version()}/{preparation[:24]}'
 
-    def url(operation, key):
-        return s3.generate_presigned_url(operation, Params={'Bucket': bucket, 'Key': key}, ExpiresIn=21600)
+    def url(operation, key, **params):
+        return s3.generate_presigned_url(operation, Params={'Bucket': bucket, 'Key': key, **params}, ExpiresIn=21600)
 
     control_key = f'{base}/control.pkl'
     s3.upload_file(str(control), bucket, control_key)
     info = {'run': prepared['run'], 'version': version(), 'preparation': preparation,
-            'control': url('get_object', control_key),
-            'github_jobs': github_jobs, 'jobs': [[] for _ in range(github_jobs + aws_jobs)]}
-    # Whole batches remain contiguous prefix ranges. Small batches balance the tail;
-    # the existing input byte size accounts for history length and number of consumers.
-    loads = [(0, j) for j in range(len(info['jobs']))]
-    heapq.heapify(loads)
+            'control': url('get_object', control_key), 'github_jobs': github_jobs,
+            'workers': github_jobs + aws_jobs, 'tasks': [],
+            'pending': url('get_object', f'{base}/pending.json')}
     transfers = []
-    for source, instance, tag in sorted(inputs, key=lambda x: (-x[0].stat().st_size, x[2])):
-        cost, job = heapq.heappop(loads)
-        capacity = 2 if job < github_jobs else 1
-        heapq.heappush(loads, (cost + source.stat().st_size / capacity, job))
+    for source, instance, tag in sorted(inputs, key=lambda x: (-costs[x[2]], x[2])):
         key = f'{base}/inputs/{tag}.pkl.gz'
         transfers.append((source, key))
-        info['jobs'][job].append({'tag': tag, 'instance': instance, 'input': url('get_object', key),
-                                 'output': url('put_object', f'{base}/outputs/{tag}.pkl.gz'),
-                                 'existing': url('get_object', f'{base}/outputs/{tag}.pkl.gz'),
-                                 'log': url('put_object', f'{base}/logs/{tag}.log')})
+        info['tasks'].append({'tag': tag, 'instance': instance, 'input': url('get_object', key),
+                              'output': url('put_object', f'{base}/outputs/{tag}.pkl.gz'),
+                              'existing': url('get_object', f'{base}/outputs/{tag}.pkl.gz'),
+                              'claim': url('put_object', f'{base}/claims/{tag}.json', IfNoneMatch='*'),
+                              'release': url('delete_object', f'{base}/claims/{tag}.json'),
+                              'log': url('put_object', f'{base}/logs/{tag}.log')})
     with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
         futures = [executor.submit(s3.upload_file, str(source), bucket, key) for source, key in transfers]
         for future in concurrent.futures.as_completed(futures):
             future.result()
-    manifest = f'{base}/manifest.json'
-    s3.put_object(Bucket=bucket, Key=manifest, Body=json.dumps(info).encode())
+    manifest = f'{base}/manifest.json.gz'
+    s3.put_object(Bucket=bucket, Key=f'{base}/pending.json',
+                  Body=json.dumps({'remaining': len(info['tasks']),
+                                   'available': [t['tag'] for t in info['tasks']]}).encode())
+    s3.put_object(Bucket=bucket, Key=manifest, Body=gzip.compress(json.dumps(info).encode(), compresslevel=1))
     (folder / 'fleet.json').write_text(json.dumps({'base': base, 'tasks': len(inputs), 'version': version(),
                                                 'preparation': preparation}))
     return url('get_object', manifest)
@@ -94,7 +97,7 @@ def collect(s3, bucket, folder):
         stores[iid] = Results(db)
         db.execute('CREATE TABLE IF NOT EXISTS ingested_batches (tag TEXT PRIMARY KEY)')
         db.commit()
-        for source in (folder / item['folder'] / 'inputs').glob('*.pkl.gz'):
+        for source in (folder / item['folder'] / 'balanced').glob('*.pkl.gz'):
             expected[f'{item["folder"]}-{source.name.removesuffix(".pkl.gz")}'] = iid
     done = {tag for store in stores.values() for tag, in store.db.execute('SELECT tag FROM ingested_batches')}
     if not done <= expected.keys() or len(expected) != fleet['tasks']:
@@ -117,6 +120,10 @@ def collect(s3, bucket, folder):
                 store.db.execute('INSERT INTO ingested_batches VALUES(?)', (tag,))
             target.unlink()
             done.add(tag)
+        active = release_stale(s3, bucket, fleet['base'], done)
+        s3.put_object(Bucket=bucket, Key=f'{fleet["base"]}/pending.json',
+                      Body=json.dumps({'remaining': len(expected) - len(done),
+                                       'available': sorted(expected.keys() - done - active)}).encode())
         progress = {'stage': 'refresh_question_calculations', 'completed_batches': len(done),
                     'total_batches': len(expected), 'time': time.time(), 'jev_started': False}
         (folder / 'progress.json').write_text(json.dumps(progress))
@@ -124,6 +131,11 @@ def collect(s3, bucket, folder):
         print(progress, flush=True)
         if len(done) < len(expected):
             time.sleep(15)
+    progress = {'stage': 'refresh_question_calculations', 'completed_batches': len(done),
+                'total_batches': len(expected), 'time': time.time(), 'jev_started': False}
+    s3.put_object(Bucket=bucket, Key=f'{fleet["base"]}/pending.json',
+                  Body=json.dumps({'remaining': 0, 'available': []}).encode())
+    (folder / 'progress.json').write_text(json.dumps(progress))
     for store in stores.values():
         store.db.close()
     (folder / 'calculated.json').write_text(json.dumps(progress))
@@ -148,13 +160,95 @@ def monitor(s3, bucket, prefix, folder):
         time.sleep(15)
 
 
+def release_stale(s3, bucket, base, done, age=300):
+    """Recover dead processes without taking a batch away from a live heartbeat."""
+    from botocore.exceptions import ClientError
+
+    active = set()
+    for page in s3.get_paginator('list_objects_v2').paginate(Bucket=bucket, Prefix=f'{base}/claims/'):
+        for item in page.get('Contents', []):
+            tag = item['Key'].rsplit('/', 1)[-1].removesuffix('.json')
+            if tag in done:
+                continue
+            active.add(tag)
+            if time.time() - item['LastModified'].timestamp() < age:
+                continue
+            try:
+                log = s3.head_object(Bucket=bucket, Key=f'{base}/logs/{tag}.log')
+                if time.time() - log['LastModified'].timestamp() < age:
+                    continue
+            except ClientError as error:
+                if error.response['Error']['Code'] not in ('404', 'NoSuchKey'):
+                    raise
+            # Conditional deletion cannot remove a replacement owner's claim.
+            try:
+                s3.delete_object(Bucket=bucket, Key=item['Key'], IfMatch=item['ETag'])
+                active.discard(tag)
+            except ClientError as error:
+                if error.response['Error']['Code'] not in ('PreconditionFailed', 'NoSuchKey', '404'):
+                    raise
+
+    return active
+
+
+def claim(task):
+    body = json.dumps({'owner': uuid.uuid4().hex, 'time': time.time()}).encode()
+    request = urllib.request.Request(task['claim'], data=body, method='PUT', headers={'If-None-Match': '*'})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.headers['ETag']
+    except urllib.error.HTTPError as error:
+        if error.code in (409, 412):
+            return None
+        raise
+
+
+def release(task, etag):
+    request = urllib.request.Request(task['release'], method='DELETE', headers={'If-Match': etag})
+    try:
+        with urllib.request.urlopen(request, timeout=30):
+            pass
+    except urllib.error.HTTPError as error:
+        if error.code not in (404, 412):
+            raise
+
+
+def _consume(slot):
+    """Every free process can claim work from any runner's preferred range."""
+    tasks = _INFO['tasks']
+    workers = _INFO['workers']
+    # Start near this runner's preferred range; all tasks remain claimable.
+    start = len(tasks) * slot // workers % max(1, len(tasks))
+    ordered = tasks[start:] + tasks[:start]
+    while True:
+        with urllib.request.urlopen(_INFO['pending'], timeout=30) as response:
+            state = json.load(response)
+        if not state['remaining']:
+            return
+        pending = set(state['available'])
+        for task in ordered:
+            if task['tag'] not in pending:
+                continue
+            etag = claim(task)
+            if etag is None:
+                continue
+            try:
+                print({'completed': _one(task)}, flush=True)
+                break
+            except Exception:
+                release(task, etag)
+                raise
+        else:
+            # Busy batches stay owned; the collector recovers a dead process.
+            time.sleep(15)
+
+
 def _one(task):
     tag = task['tag']
     source, output, log = (Path(tag + suffix) for suffix in ('.input.gz', '.output.gz', '.log'))
     if fetch(task['existing'], output, missing_ok=True):
         output.unlink()
         return tag, 'preserved'
-    fetch(task['input'], source)
     stop = threading.Event()
     log.write_text(f'calculating {tag}\n')
     failures = []
@@ -169,6 +263,8 @@ def _one(task):
     reporter = threading.Thread(target=report, daemon=True)
     reporter.start()
     try:
+        put(task['log'], log.read_bytes())
+        fetch(task['input'], source)
         with log.open('a', buffering=1) as fh, contextlib.redirect_stdout(fh):
             count = run_batch(_FC, source, output)
             print({'complete': tag, 'calculations': count}, flush=True)
@@ -189,25 +285,25 @@ def worker(job, manifest_url, cores=None):
     from app.disputes import pool
 
     fetch(manifest_url, 'refresh-manifest.json')
-    _INFO = json.loads(Path('refresh-manifest.json').read_text())
+    _INFO = json.loads(gzip.decompress(Path('refresh-manifest.json').read_bytes()))
     if _INFO['version'] != version():
         raise RuntimeError('Refresh worker differs from prepared calculation code')
     fetch(_INFO['control'], 'refresh-control.pkl')
     with open('refresh-control.pkl', 'rb') as fh:
         _FC = pool.forecaster(_INFO['run'], pickle.load(fh))
-    tasks = _INFO['jobs'][job]
+    tasks = _INFO['tasks']
     cores = cores or (os.cpu_count() or 1)
     if hasattr(os, 'sysconf'):
         memory = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
         cores = min(cores, max(1, memory // (2 * 1024**3)))
     print({'job': job, 'cores': cores, 'batches': len(tasks), 'jev_started': False}, flush=True)
     if cores == 1:
-        for task in tasks:
-            print({'completed': _one(task)}, flush=True)
+        _consume(job)
     else:
         with multiprocessing.get_context('fork').Pool(cores) as processes:
-            for done in processes.imap_unordered(_one, tasks, chunksize=1):
-                print({'completed': done}, flush=True)
+            # A process takes a new batch as soon as its previous one is published.
+            for _ in processes.imap_unordered(_consume, [job] * cores, chunksize=1):
+                pass
 
 
 if __name__ == '__main__':

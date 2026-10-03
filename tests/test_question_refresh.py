@@ -5,7 +5,7 @@ import numpy as np
 from test_decision_snapshots import AWARD, case  # noqa: F401, F811
 from test_notes_decision import ORIGIN, STEPS
 
-from app.analysis.events import event_trace
+from app.analysis.events import event_questions, event_trace
 from tools.question_refresh import (
     Calculations,
     HistoryIndex,
@@ -111,7 +111,7 @@ def test_saved_consumers_share_streamed_calculation_and_keep_before_answer_facts
         for i, path in enumerate(paths):
             plan.add(fc, path, 'part', i)
         assert plan.write_batches(tmp_path / 'inputs', 1) == {'batches': 1, 'calculations': 1}
-        with patch('app.analysis.events.event_trace', wraps=event_trace) as compute:
+        with patch('app.analysis.events.event_questions', wraps=event_questions) as compute:
             run_batch(fc, tmp_path / 'inputs/0.pkl.gz', tmp_path / 'output.gz')
         assert compute.call_count == 1
         result = Results(plan.db)
@@ -192,7 +192,7 @@ def test_shared_request_computes_union_of_saved_draws(case, tmp_path):  # noqa: 
         assert report['requests'] == 1 and report['requested_draws'] == 9
         union = masks[0] | masks[1]
         output = directory / 'masked.gz'
-        with patch('app.analysis.events.event_trace', wraps=event_trace) as compute:
+        with patch('app.analysis.events.event_questions', wraps=event_questions) as compute:
             run_batch(fc, source, output)
         assert compute.call_count == 1
         assert all(np.array_equal(mask, union) for mask in compute.call_args.kwargs['rows'])
@@ -216,3 +216,85 @@ def test_shared_request_computes_union_of_saved_draws(case, tmp_path):  # noqa: 
                                           decode_classes(b[4], None, fc.draws.n)[union])
     finally:
         plan.close()
+
+
+def test_selected_question_records_equal_full_trace_without_expanding_history(case):  # noqa: F811
+    from app.analysis.events import _same_state
+    from app.disputes.forecast import DisputePath
+
+    fc, dispute = case
+    mask = np.arange(fc.draws.n) % 7 == 0
+    steps = STEPS + (('notes_due_date', 'holders', ''),)
+    path = DisputePath(dispute.instance_id, steps, '', ())
+    rows = tuple(mask for _ in steps)
+    full = event_trace(dispute, path, fc.setup, fc.m, fc.draws, fc.sens, day_only=True, rows=rows)
+    with patch('app.analysis.events._trace_rows', side_effect=AssertionError('widened the entire trace')):
+        selected, dates = event_questions(dispute, path, fc.setup, fc.m, fc.draws, fc.sens,
+                                          indices=(-1, ORIGIN), day_only=True, rows=rows)
+    for index in (-1, ORIGIN):
+        actual = index if index >= 0 else len(steps) + index
+        assert _same_state(selected[index], full.questions[actual])
+        np.testing.assert_array_equal(dates[index], full.day[actual])
+
+
+def test_reused_classification_preserves_each_question_identity(case, tmp_path):  # noqa: F811
+    import gzip
+    import pickle
+
+    from app.disputes.forecast import DisputePath, class_entry, pack_row
+    from tools.question_refresh import classify_row
+
+    fc, dispute = case
+    steps = AWARD + (('judgment_response', 'entry', 'none'),)
+    keys = [fc.node(dispute, 'judgment_response', 'entry', context,
+                    branches=('pay', 'initiate_offering', 'file', 'none')) for context in ('final', 'appealed')]
+    row = event_trace(dispute, DisputePath(dispute.instance_id, steps, '', ()),
+                      fc.setup, fc.m, fc.draws, fc.sens, day_only=True).questions[len(steps) - 1]
+    expected = []
+    for key in keys:
+        enriched = []
+        cls = classify_row(fc, dispute, key, steps, row,
+                           lambda _k, r, enriched=enriched: enriched.append({**r, 'day': row['day']}))
+        expected.append((pack_row(enriched[0] if enriched else row), class_entry(key, cls, None)))
+    source, output = tmp_path / 'in.gz', tmp_path / 'out.gz'
+    with gzip.open(source, 'wb') as fh:
+        pickle.dump(dispute.instance_id, fh)
+        pickle.dump((1, 'prefix', steps, -1, '', [(i, key, -1, i) for i, key in enumerate(keys)]), fh)
+    with patch('tools.question_refresh.classify_row', wraps=classify_row) as classify:
+        run_batch(fc, source, output)
+    assert classify.call_count == 1
+    with gzip.open(output, 'rb') as fh:
+        pickle.load(fh)
+        _, records = pickle.load(fh)
+    assert [(r[3], r[4]) for r in records] == expected
+
+
+def test_balance_uses_draw_work_and_preserves_shared_prefix_order(tmp_path):
+    import gzip
+    import json
+    import pickle
+
+    from tools.question_refresh import balance_batches
+
+    root = tmp_path / 'd'
+    (root / 'inputs').mkdir(parents=True)
+    requests = [(i, 'complete', (('event', '', ''),) * length, 0, '', [], bytes([mask]))
+                for i, length, mask in ((1, 2, 1), (2, 2, 1), (3, 4, 255), (4, 1, 1))]
+    with gzip.open(root / 'inputs/0.pkl.gz', 'wb') as fh:
+        pickle.dump('d', fh)
+        for request in requests:
+            pickle.dump(request, fh)
+    (tmp_path / 'prepared.json').write_text(json.dumps({'instances': {'d': {'folder': 'd'}}}))
+    (tmp_path / 'populations.json').write_text('{}')
+    costs = balance_batches(tmp_path, max_requests=3, work_limit=10)
+    assert list(costs.values()) == [4, 32, 1]  # indivisible heavy request stays alone
+    got = []
+    for source in sorted((root / 'balanced').glob('*.pkl.gz')):
+        with gzip.open(source, 'rb') as fh:
+            assert pickle.load(fh) == 'd'
+            while True:
+                try:
+                    got.append(pickle.load(fh))
+                except EOFError:
+                    break
+    assert got == requests

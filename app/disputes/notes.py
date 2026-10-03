@@ -8,7 +8,7 @@ from dataclasses import replace
 
 import numpy as np
 
-from app.analysis.events import BIG, event_trace, pval
+from app.analysis.events import BIG, event_questions, pval
 from app.disputes.forecast import _S, DisputePath, _Prefix, _Walk, as_of, situation_class
 
 NAMES = {'petition_on_notes', 'holders_involuntary'}
@@ -57,12 +57,14 @@ def decision_row(fc, d, steps: tuple, index: int, actor: str, mask=None) -> tupl
             return deepcopy(cache[key])
     probe = counterfactual + (('notes_due_date', actor, ''),)
     rows = None if mask is None else tuple(mask for _ in probe)
-    trace = event_trace(d, DisputePath(instance_id=d.instance_id, steps=probe, outcome='', edges=()),
-                        fc.setup, fc.m, fc.draws, fc.sens, day_only=True, rows=rows)
-    tr = _Prefix.of(trace, digest=False)
-    row = as_of(fc.row_of(tr))
-    # fired includes speculative views; only the completed path's booking counts.
-    fired = trace.day[index]
+    questions, days = event_questions(d, DisputePath(instance_id=d.instance_id, steps=probe, outcome='', edges=()),
+                                     fc.setup, fc.m, fc.draws, fc.sens, indices=(-1,), dates=(index,), day_only=True, rows=rows)
+    row = as_of(questions[-1])
+    tr = _Prefix(day=[row['day']], cash=[row['cash']], owed=[row['owed']],
+                 collateral=[row['collateral']], petition=row['petition'], digest=None,
+                 marks=row['marks'], question=row)
+    # Read the actual booked origin date, not a speculative question date.
+    fired = days[index]
     lag = 0 if node == 'nonpayment' else int(pval(fc.m, 'holder_notice_lag_days', fc.sens.get('holder_notice_lag_days', False)))
     due = row['sit']['notes_due_day']
     on = (fired < fc.days) & (due == fired + lag)

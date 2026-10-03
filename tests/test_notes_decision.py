@@ -359,13 +359,13 @@ def test_notes_cache_reuses_only_same_before_answer_state(case, monkeypatch):
     fc, d, w, _ = case
     mask = w.mask_of(STEPS)
     calls = []
-    original = notes.event_trace
+    original = notes.event_questions
 
     def traced(*args, **kwargs):
         calls.append(1)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(notes, 'event_trace', traced)
+    monkeypatch.setattr(notes, 'event_questions', traced)
     monkeypatch.setenv('SLOPE_NOTES_CACHE', '256')
     first = notes.decision_row(fc, d, STEPS, ORIGIN, 'holders', mask)
     filed = STEPS[:ORIGIN] + (('judgment_default', 'ruling', 'holders_file'),) + STEPS[ORIGIN + 1:]

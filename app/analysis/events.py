@@ -3232,7 +3232,7 @@ LIGHT_FIELDS = ("day", "cash", "owed", "collateral", "cause", "marks", "settle_o
 
 
 def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = False, light: bool = False,
-         rows: tuple | None = None) -> Trace:
+         rows: tuple | None = None, question_indices: tuple | None = None):
     """`make().run(steps)`, resumed from the prefix stack (`_advanced`); light: a walk read's trace (`finish`).
     rows: per step, the path's trajectories (`_advanced`): the trace is computed on rows[-1] alone; its per-step
     fields are returned on every draw, off those rows as `forecast.masked` leaves a path's trace (`_widen`), and its
@@ -3283,6 +3283,8 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
                 with open(os.environ["SLOPE_SHADOW_DUMP"], "wb") as fh:
                     _p.dump({"steps": steps, "rows": rows, "sub": a_, "ref": b_}, fh)
             shadow.check("rows_trace", a_, b_)
+        if question_indices is not None:
+            return _question_records(sub, question_indices, idx, n)
         out = wide(sub)
         if light:
             def complete() -> Trace | None:  # the light trace made whole on its own finished chain
@@ -3292,6 +3294,8 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
         return out
     ch, tr = _advanced(make, steps, draws, key, inputs)
     tr = ch.finish(tr, day_only, light)
+    if question_indices is not None:
+        return _question_records(tr, question_indices)
     if not light:
         return tr
 
@@ -3329,6 +3333,31 @@ def event_chain(d: DisputeInstance | None, steps, setup: Setup, model: dict, dra
                          (fin, setup, model, sens), rows)[0]
     return _advanced(lambda: Chain(d, setup, model, draws, sens), steps, draws, (d.instance_id,),
                      (d, setup, model, sens), rows)[0]
+
+
+def _question_records(trace, selection, rows=None, n=None):
+    """Return only requested question snapshots and their actual booked dates."""
+    indices, date_indices = selection
+    result, days = {}, {}
+    for index in dict.fromkeys(indices):
+        actual = index if index >= 0 else len(trace.day) + index
+        if actual in trace.questions:
+            row = trace.questions[actual]
+            result[index] = row if rows is None else _widen(row, rows, n)
+    for index in dict.fromkeys((*indices, *date_indices)):
+        day = trace.day[index]
+        days[index] = day if rows is None else _widen(day, rows, n, "day")
+    return result, days
+
+
+def event_questions(d, path, setup, model, draws, sens=None, *, indices=(-1,), dates=(), day_only=False, rows=None):
+    """The same dated engine calculation, extracting only its requested question records.
+
+    Keep the chain/prefix cache and compact financial arrays unchanged. Do not widen
+    unrelated historical snapshots, ledgers or cash arrays for a question consumer.
+    """
+    return _run(lambda: Chain(d, setup, model, draws, sens), canon(path.steps), draws, (d.instance_id,),
+                (d, setup, model, sens), day_only, False, rows, (tuple(indices), tuple(dates)))
 
 
 def event_trace(d: DisputeInstance, path: DisputePath, setup: Setup, model: dict, draws: Draws,
