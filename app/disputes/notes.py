@@ -97,6 +97,16 @@ def record(fc, d, steps: tuple, key: str, mask=None):
     index = matches[0]
     actor = 'holders' if n.node == 'holders_involuntary' else 'issuer'
     row, tr = decision_row(fc, d, steps, index, actor, mask)
+    return record_row(fc, d, steps, key, index, row, tr)
+
+
+def record_row(fc, d, steps, key, index, row, tr=None):
+    """Classify a previously calculated decision row without replaying its history."""
+    n = fc.nodes[key]
+    if tr is None:
+        tr = _Prefix(day=[row['day']], cash=[row['cash']], owed=[row['owed']],
+                     collateral=[row['collateral']], petition=row['petition'], digest=None,
+                     marks=row['marks'], question=row)
     live = fc.live(n, row)
     cls = situation_class(row, live)
     if cls is None:

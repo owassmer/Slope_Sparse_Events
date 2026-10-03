@@ -2657,7 +2657,7 @@ class _Walk:
         the debtor; without the order nothing reaches cash before the ruling, and the debtor's response waits for it."""
         if self.first(s, ("registration_early", "I1", "no"), self.j9_i1):
             return
-        k = self.node("registration_early", "I1", *self.cx(s), s=s, probe=("registration_early", "I1", "no"),
+        k = self.node("registration_early", "I1", *self.cx(s), s=s, probe=("court_order", "registration_I1", ""),
                       assumptions=("the creditor executes before finality",))
         self.court(s, k, "registration_I1")
         self.a4_i1(self.take(s, ("registration_early", "I1", "yes"), (k, "yes"), early=True))
@@ -3068,7 +3068,8 @@ class _Walk:
                        s=s, probe=none_step, assumptions=("the judgment is enforceable, unstayed and unpaid after the ruling",)
                        + (("the company has moved for a stay, not yet approved",) if pending else ()))
         if s.appealed and not s.early:
-            j9 = self.node("registration_early", "post", s.cls, *extra, s=s, probe=none_step,
+            j9 = self.node("registration_early", "post", s.cls, *extra, s=s,
+                           probe=("court_order", "registration_post", ""),
                            assumptions=("the creditor enforces before finality",))
             self.court(s, j9, "registration_post")
             levy, none, keys = [[(q3, "yes"), (j9, "yes")]], [[(q3, "no")], [(q3, "yes"), (j9, "no")]], (q3,)
