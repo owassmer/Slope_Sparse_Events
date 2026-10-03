@@ -122,9 +122,18 @@ def main(config):
             counts[shard] += count
         db.close()
     control.update(nodes=fc.nodes, node_group=fc.node_group, classed=fc.classed)
-    raw = pickle.dumps(control, protocol=5)
+    checkpoint = folder / 'control.pkl'
+    if checkpoint.exists():
+        raw = checkpoint.read_bytes()
+        saved = pickle.loads(raw)
+        if any(saved[name] != control[name] for name in ('nodes', 'node_group', 'classed')):
+            raise ValueError('Frozen fact definitions differ')
+    else:
+        raw = pickle.dumps(control, protocol=5)
+        temporary = checkpoint.with_suffix('.tmp')
+        temporary.write_bytes(raw)
+        temporary.replace(checkpoint)
     identity = hashlib.sha256(raw).hexdigest()
-    (folder / 'control.pkl').write_bytes(raw)
     s3.put_object(Bucket=bucket, Key=base+'/control.pkl', Body=raw)
     def url(op, key, **kw):
         return s3.generate_presigned_url(op, Params={'Bucket': bucket, 'Key': key, **kw}, ExpiresIn=21600)
