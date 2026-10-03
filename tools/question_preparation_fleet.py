@@ -158,7 +158,7 @@ def serve(config):
 
     cfg = json.loads(Path(config).read_text())
     s3 = boto3.client('s3', region_name=cfg['region'], config=Config(signature_version='s3v4'))
-    slots = threading.BoundedSemaphore(48)
+    slots = threading.BoundedSemaphore(int(os.environ.get('RECORD_SERVICE_CONNECTIONS', '48')))
     def url(op, key):
         return s3.generate_presigned_url(op, Params={'Bucket': cfg['bucket'], 'Key': key}, ExpiresIn=21600)
     class Handler(BaseHTTPRequestHandler):
@@ -235,6 +235,7 @@ def serve(config):
             pass
     class RecordServer(ThreadingHTTPServer):
         request_queue_size = 256
+        allow_reuse_port = True
     server = RecordServer(('0.0.0.0', cfg['port']), Handler)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(cfg['certfile'], cfg['keyfile'])
@@ -244,6 +245,11 @@ def serve(config):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'serve':
-        serve(sys.argv[2])
+        processes = int(os.environ.get('RECORD_SERVICE_PROCESSES', '1'))
+        if processes == 1:
+            serve(sys.argv[2])
+        else:
+            with multiprocessing.get_context('fork').Pool(processes) as servers:
+                servers.map(serve, [sys.argv[2]] * processes)
     else:
         worker(int(sys.argv[1]))
