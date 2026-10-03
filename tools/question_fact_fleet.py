@@ -138,7 +138,7 @@ def consume(slot):
 
 def worker(job):
     global _INFO, _CONTROL
-    fetch(os.environ['FACT_MANIFEST_URL'], 'fact-manifest.json')
+    fetch(os.environ['FACT_MANIFEST_URL'], 'fact-manifest.json', wait=True)
     _INFO = json.loads(Path('fact-manifest.json').read_text())
     fetch(_INFO['control'], 'fact-control.pkl')
     raw = Path('fact-control.pkl').read_bytes()
