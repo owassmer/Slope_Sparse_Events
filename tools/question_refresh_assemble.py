@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import multiprocessing
 import pickle
@@ -73,6 +74,17 @@ def assemble(run, control_file, walked, refresh, out, processes=8):
     global _CONTEXT
     refresh, out = Path(refresh), Path(out)
     (out / 'walked').mkdir(parents=True, exist_ok=True)
+    identity = {'control': hashlib.sha256(Path(control_file).read_bytes()).hexdigest(),
+                'preparation': json.loads((refresh / 'fleet.json').read_text())['preparation'],
+                'assembly': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+    marker = out / 'assembly-source.json'
+    if marker.exists():
+        if json.loads(marker.read_text()) != identity:
+            raise ValueError('Assembly checkpoints belong to another refresh preparation or implementation')
+    else:
+        if any((out / 'walked').iterdir()):
+            raise ValueError('Unbound assembly checkpoints must not be reused')
+        marker.write_text(json.dumps(identity, sort_keys=True))
     with open(control_file, 'rb') as fh:
         control = pickle.load(fh)
     prepared = json.loads((refresh / 'prepared.json').read_text())
