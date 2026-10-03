@@ -646,6 +646,7 @@ class Chain:
         self.coupons: list[tuple] = []  # (payment day, cash (int or [draws]), still paid per draw, interest date)
         self.rec: tuple[list, list, list, list] = ([], [], [], [])  # per step: decision day, cash, owed, collateral
         self.capture_questions = False
+        self.capture_indices: frozenset[int] | None = None
         self.questions: dict = {}
         # the state-triggered decisions (FLOOR_NODES) walked but not yet booked on every trajectory: [step index, node,
         # branch, booked mask]; each books on its own day (`upto`), whatever the walk order
@@ -1709,7 +1710,7 @@ class Chain:
         offer = np.where(live & ~covers, np.maximum(cash_a - need_a, 0), 0).astype(np.int64)
         st.update(day=approval, cash=cash_a, owed=v.owed_at(approval), collateral=collateral, stay_offer=offer,
                   petition=v.ev.petition.copy())
-        if self.capture_questions:
+        if any(value is st and self.captures(i) for i, value in self.stays.items()):
             # Resizing has removed this stay's lock. Its prior approval metadata
             # must also be absent from the court's question, without changing cash.
             facts = v.clone()
@@ -2294,7 +2295,7 @@ class Chain:
             before = (self.cum(),)
         self._grp = None
         self.question_petition = self.ev.petition.copy()
-        facts = self.clone() if self.capture_questions else None
+        facts = self.clone() if self.captures(len(self.rec[0])) else None
         if facts is not None:
             facts.capture_questions = False
         day = self.step(node, ctx, branch)
@@ -2828,7 +2829,7 @@ class Chain:
     DATED = frozenset({"suspended", "resolved", "release_at", "adverse_from", "adverse_until", "early_registration",
                        "pending_levy", "delisted", "stayed_from"})
     UNSEEN = frozenset({"_cum", "_tau", "_out", "_keys", "_av", "_hd", "_cv", "_stay_cv", "_restaying", "_atm_memo",
-                        "capture_questions", "questions", "settlement_pricing",
+                        "capture_questions", "capture_indices", "questions", "settlement_pricing",
                         "_atm_cols", "_atm_v", "_eq_v", "_offer_memo", "_shares_memo", "_grp", "settle_offer",
                         "stay_offer", "raise_offer", "reads", "question_petition", "rec", "grec", "late", "wctx", "_atm", "_atm_cum",
                         "_atm_sold", "_atm_nsold", "taken", "_booked_to", "_last_node", "ev", "marks", "waiting", "takes", "writs",
@@ -3010,8 +3011,11 @@ class Chain:
                 "raise_offer": self.offer_available(day),
                 "groups": self.option_group(node, day) if node in GROUPED else None}
 
+    def captures(self, index: int) -> bool:
+        return self.capture_questions and (self.capture_indices is None or index in self.capture_indices)
+
     def capture_waiting(self, i: int, node: str, ctx: str, day: np.ndarray, fire: np.ndarray) -> None:
-        if not self.capture_questions:
+        if not self.captures(i):
             return
         row = self.question_row(day, node, ctx)
         self.questions[i] = _merge_question(self.questions.get(i), row, fire)
@@ -3123,18 +3127,22 @@ def _rows_key(m: np.ndarray | None) -> bytes | None:
     return None if m is None else np.packbits(m).tobytes()
 
 
-def _advanced(make, steps, draws: Draws, key: tuple, inputs: tuple, rows: tuple | None = None) -> tuple[Chain, Trace]:
+def _advanced(make, steps, draws: Draws, key: tuple, inputs: tuple, rows: tuple | None = None,
+              capture_indices: frozenset[int] | None = None) -> tuple[Chain, Trace]:
     """`make()` with `steps` advanced (not finished), resumed from the deepest prefix of `steps` already walked. A
     chain's state after k steps depends only on those k steps, so with `draws.prefixes` on (the tree builder and the
     analysis walk paths in depth-first order) each call walks only the steps after the prefix it shares with the
     previous call. The cache holds one stack of states per chain: the root (after the instrument's cash) and each
-    step of the last path.
+    step of the last path. A cached superset of the requested draws can also be
+    resumed by slicing its state; changing the consumer population alone does not
+    invalidate already processed events.
     rows: per step, the trajectories the path follows after it ([n] bool; None: every draw), narrowing only at a
-    grouped step. The chain after step i is on rows[i] alone (`Chain.sliced`); its own stack, whose entries also match
-    on their rows. Returns the chain on rows[-1] (all rows without `rows`)."""
+    grouped step. A reusable stack entry must contain every requested row.
+    Returns the chain on rows[-1] (all rows without `rows`)."""
     cache = draws.prefixes
     if cache is None:
         ch = make()
+        ch.capture_indices = capture_indices
         ch.instrument_cash()
         tr = Trace(ch.ev)
         cur = None
@@ -3151,11 +3159,37 @@ def _advanced(make, steps, draws: Draws, key: tuple, inputs: tuple, rows: tuple 
         entry = cache[skey] = (inputs, [(None, root, None, None)])
     stack = entry[1]
     rk = [None] * len(steps) if rows is None else [_rows_key(m) for m in rows]
+    required = frozenset(range(len(steps))) if capture_indices is None else capture_indices
     k = 0
-    while k < len(steps) and k + 1 < len(stack) and stack[k + 1][0] == steps[k] and stack[k + 1][2] == rk[k]:
-        k += 1
-    del stack[k + 1:]
-    ch, cur = stack[k][1].clone(), stack[k][3]  # its per-step records (Chain.rec) travel with it
+    best = stack
+    other = cache.get((*key, "rows") if rows is None else key)
+    candidates = [stack]
+    if other is not None and len(other[0]) == len(inputs) and all(
+            a is b for a, b in zip(other[0], inputs, strict=True)):
+        candidates.append(other[1])
+    for candidate in candidates:
+        depth = 0
+        while depth < len(steps) and depth + 1 < len(candidate):
+            step, cached, cached_key, cached_rows = candidate[depth + 1]
+            if step != steps[depth]:
+                break
+            if cached_key != rk[depth] and cached_rows is not None:
+                if rows is None or rows[depth] is None or np.any(rows[depth] & ~cached_rows):
+                    break
+            if cached.capture_indices is not None and any(
+                    i <= depth and i not in cached.capture_indices for i in required):
+                break
+            depth += 1
+        if depth > k:
+            k, best = depth, candidate
+    stack[:] = best[:k + 1]
+    state, cur = stack[k][1], stack[k][3]
+    if k and stack[k][2] != rk[k - 1]:
+        cur = rows[k - 1]
+        ch = state.sliced(_rel(stack[k][3], cur), draws.sub(cur))
+    else:
+        ch = state.clone()  # its per-step records (Chain.rec) travel with it
+    ch.capture_indices = capture_indices
     tr = Trace(ch.ev)
     for i in range(k, len(steps)):
         if rk[i] != _rows_key(cur):  # a grouped step: on to its group's rows
@@ -3245,12 +3279,14 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
         ch.capture_questions = not light and (ch.pending or ch.ordinary)
         return ch
     key = (*key, "questions") if not light else key
+    capture_indices = None if question_indices is None else frozenset(
+        i if i >= 0 else len(steps) + i for i in question_indices[0])
 
     if rows is not None and (not rows or rows[-1] is None or rows[-1].all()):  # masks only narrow: every draw
         rows = None
     if rows is not None:
         idx, n = np.flatnonzero(rows[-1]), draws.n
-        ch, sub = _advanced(make, steps, draws, key, inputs, rows)
+        ch, sub = _advanced(make, steps, draws, key, inputs, rows, capture_indices)
         sub = ch.finish(sub, day_only, light)
 
         def wide(t: Trace) -> Trace:
@@ -3258,7 +3294,7 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
             w.rows = idx
             return w
         if shadow.ON:  # the rows' trace is the whole draws' trace on them, field for field
-            ref_ch, ref = _advanced(make, steps, draws, key, inputs)
+            ref_ch, ref = _advanced(make, steps, draws, key, inputs, capture_indices=capture_indices)
             ref = ref_ch.finish(ref, day_only, light)
 
             def canon(x, name=""):  # a trigger that never falls, an offering never initiated (BIG): absent
@@ -3292,7 +3328,7 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
                 return None if whole is None else wide(whole)
             out.complete = complete
         return out
-    ch, tr = _advanced(make, steps, draws, key, inputs)
+    ch, tr = _advanced(make, steps, draws, key, inputs, capture_indices=capture_indices)
     tr = ch.finish(tr, day_only, light)
     if question_indices is not None:
         return _question_records(tr, question_indices)

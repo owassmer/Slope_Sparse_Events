@@ -298,3 +298,140 @@ def test_balance_uses_draw_work_and_preserves_shared_prefix_order(tmp_path):
                 except EOFError:
                     break
     assert got == requests
+
+
+def test_prefix_cache_reuses_superset_draws_without_replaying_events(case):  # noqa: F811
+    from app.analysis.events import Chain, _same_state
+    from app.disputes.forecast import DisputePath, pack_row
+
+    fc, dispute = case
+    path = DisputePath(dispute.instance_id, STEPS, '', ())
+    masks = [np.ones(fc.draws.n, dtype=bool), np.arange(fc.draws.n) % 2 == 0,
+             np.arange(fc.draws.n) % 2 == 1]
+    expected = []
+    for mask in masks:
+        fc.draws.prefixes = None
+        expected.append(event_trace(dispute, path, fc.setup, fc.m, fc.draws, fc.sens,
+                                    rows=tuple(mask for _ in STEPS)))
+    fc.draws.prefixes = {}
+    calls = []
+    advance = Chain.advance
+
+    def counted(self, *args):
+        calls.append(args)
+        return advance(self, *args)
+
+    with patch.object(Chain, 'advance', counted):
+        for i, mask in enumerate(masks):
+            before = len(calls)
+            actual = event_trace(dispute, path, fc.setup, fc.m, fc.draws, fc.sens,
+                                 rows=tuple(mask for _ in STEPS))
+            if i:
+                assert len(calls) == before  # both disjoint subsets reuse the full cached prefix
+            # The existing row writer removes offerings absent on every retained
+            # draw. A sliced superset may still contain those empty array slots.
+            assert actual.questions.keys() == expected[i].questions.keys()
+            for index, row in actual.questions.items():
+                assert pack_row(row) == pack_row(expected[i].questions[index])
+            for field in ('day', 'cash', 'owed', 'collateral', 'groups'):
+                assert _same_state(getattr(actual, field), getattr(expected[i], field)), field
+            for field in ('cash', 'lock', 'capacity', 'petition', 'kinds', 'incurred', 'proceeds'):
+                assert _same_state(getattr(actual.events, field), getattr(expected[i].events, field)), field
+
+
+def test_prefix_cache_does_not_reuse_missing_draws(case):  # noqa: F811
+    from app.analysis.events import Chain, _same_state
+    from app.disputes.forecast import DisputePath
+
+    fc, dispute = case
+    path = DisputePath(dispute.instance_id, STEPS, '', ())
+    left = np.arange(fc.draws.n) % 2 == 0
+    right = ~left
+    fc.draws.prefixes = {}
+    event_trace(dispute, path, fc.setup, fc.m, fc.draws, fc.sens, rows=tuple(left for _ in STEPS))
+    calls = []
+    advance = Chain.advance
+
+    def counted(self, *args):
+        calls.append(args)
+        return advance(self, *args)
+
+    with patch.object(Chain, 'advance', counted):
+        actual = event_trace(dispute, path, fc.setup, fc.m, fc.draws, fc.sens,
+                             rows=tuple(right for _ in STEPS))
+    assert len(calls) == len(STEPS)
+    fc.draws.prefixes = None
+    expected = event_trace(dispute, path, fc.setup, fc.m, fc.draws, fc.sens,
+                           rows=tuple(right for _ in STEPS))
+    assert _same_state(actual.questions, expected.questions)
+    np.testing.assert_array_equal(actual.events.cash, expected.events.cash)
+
+
+def test_superset_prefix_can_continue_on_new_answer(case):  # noqa: F811
+    from app.analysis.events import Chain, _same_state
+    from app.disputes.forecast import DisputePath, pack_row
+
+    fc, dispute = case
+    prefix = AWARD + (('post_trial_motions', '', 'yes'),)
+    steps = prefix + (('stay', 'I1', 'yes'),)
+    mask = np.arange(fc.draws.n) % 3 == 0
+    fc.draws.prefixes = None
+    expected = event_trace(dispute, DisputePath(dispute.instance_id, steps, '', ()),
+                           fc.setup, fc.m, fc.draws, fc.sens, rows=tuple(mask for _ in steps))
+    fc.draws.prefixes = {}
+    event_trace(dispute, DisputePath(dispute.instance_id, prefix, '', ()),
+                fc.setup, fc.m, fc.draws, fc.sens)
+    calls = []
+    advance = Chain.advance
+
+    def counted(self, *args):
+        calls.append(args)
+        return advance(self, *args)
+
+    with patch.object(Chain, 'advance', counted):
+        actual = event_trace(dispute, DisputePath(dispute.instance_id, steps, '', ()),
+                             fc.setup, fc.m, fc.draws, fc.sens, rows=tuple(mask for _ in steps))
+    assert len(calls) == 1
+    assert {i: pack_row(r) for i, r in actual.questions.items()} == {
+        i: pack_row(r) for i, r in expected.questions.items()}
+    for field in ('cash', 'lock', 'capacity', 'petition', 'kinds', 'incurred', 'proceeds'):
+        assert _same_state(getattr(actual.events, field), getattr(expected.events, field)), field
+
+
+def test_selected_capture_does_not_build_unrequested_snapshots(case):  # noqa: F811
+    from app.analysis.events import Chain
+    from app.disputes.forecast import DisputePath, pack_row
+
+    fc, dispute = case
+    steps = AWARD + (('post_trial_motions', '', 'yes'), ('stay', 'I1', 'yes'))
+    path = DisputePath(dispute.instance_id, steps, '', ())
+    expected = event_trace(dispute, path, fc.setup, fc.m, fc.draws, fc.sens).questions[0]
+    calls = []
+    question_row = Chain.question_row
+
+    def counted(self, *args):
+        calls.append(args)
+        return question_row(self, *args)
+
+    fc.draws.prefixes = {}
+    with patch.object(Chain, 'question_row', counted):
+        actual, _ = event_questions(dispute, path, fc.setup, fc.m, fc.draws, fc.sens, indices=(0,))
+    assert len(calls) == 1
+    assert pack_row(actual[0]) == pack_row(expected)
+
+
+def test_selected_capture_cache_recovers_newly_requested_earlier_questions(case):  # noqa: F811
+    from app.disputes.forecast import DisputePath, pack_row
+
+    fc, dispute = case
+    path = DisputePath(dispute.instance_id, STEPS, '', ())
+    mask = np.arange(fc.draws.n) % 8 == 0
+    rows = tuple(mask for _ in STEPS)
+    fc.draws.prefixes = None
+    expected = event_trace(dispute, path, fc.setup, fc.m, fc.draws, fc.sens, rows=rows)
+    fc.draws.prefixes = {}
+    for selected in ((13,), (0,), (20,), (13, 20), (0, 13, 20)):
+        actual, _ = event_questions(dispute, path, fc.setup, fc.m, fc.draws, fc.sens,
+                                    indices=selected, rows=rows)
+        assert {i: pack_row(row) for i, row in actual.items()} == {
+            i: pack_row(expected.questions[i]) for i in selected if i in expected.questions}
