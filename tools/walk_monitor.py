@@ -102,7 +102,7 @@ def poll(client):
                     try:
                         ready = json.loads(body(client, PREFIX + '/ready.json'))
                         with LOCK:
-                            STATE.update(total=ready['tasks'], roots=ready['roots'], matched_costs=ready['matched_costs'])
+                            STATE.update(total=ready['tasks'], roots=ready['roots'], matched_costs=ready.get('matched_costs', ready.get('measured_roots')))
                         emit('queue', f"Published {ready['tasks']} tasks covering {ready['roots']} native branches")
                     except client.exceptions.NoSuchKey:
                         pass
@@ -415,9 +415,12 @@ def main():
     parser.add_argument('--refresh-prefix')
     parser.add_argument('--run', type=int, nargs='+')
     parser.add_argument('--prefix', default=PREFIX)
+    parser.add_argument('--pool-prefix')
     parser.add_argument('--port', type=int, default=18766)
     args = parser.parse_args()
     PREFIX = args.prefix
+    global POOL_PREFIX
+    POOL_PREFIX = args.pool_prefix or PREFIX + '/pool'
     TRACK_RUN = args.run
     EXTRA_PREFIX = args.extra_prefix
     if args.profile:
