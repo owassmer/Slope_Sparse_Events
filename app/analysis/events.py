@@ -610,7 +610,8 @@ class Chain:
         self.q1 = False
         self.appealed = False
         self.early_registration = np.full(self.n, BIG)
-        self.pending_levy: np.ndarray | None = None  # the pre-ruling levy day (early-registration order + levy lag), not yet booked
+        self.pending_levy: np.ndarray | None = None  # earliest unbooked writ per trajectory
+        self._pending_writs: list[np.ndarray] = []
         self.stayed_from = np.full(self.n, BIG)
         self.resolved = np.full(self.n, BIG)
         self.delisted = np.full(self.n, BIG)
@@ -1026,7 +1027,7 @@ class Chain:
         self._take(day)
         if self.increase:
             self.restay()  # a first writ dated before an approval is in the security's balance
-            self._take(np.where(day < self.EI, self.EI, BIG))
+            self.queue_levy(np.where(day < self.EI, self.EI, BIG))
 
     def _take(self, day: np.ndarray) -> None:
         v = self.seen_at(day)  # a floor decision dated before the levy is in the cash it reaches
@@ -1045,15 +1046,32 @@ class Chain:
         self.writs.append((day, take))
         self._atm_rebook()  # a levy changes the amount owed the share price reads
 
+    def queue_levy(self, day: np.ndarray) -> None:
+        """Retain each writ until its date; a later order cannot overwrite an earlier pending writ."""
+        self._pending_writs.append(np.asarray(day).copy())
+        self._refresh_pending_levy()
+
+    def _refresh_pending_levy(self) -> None:
+        self._pending_writs = [day for day in self._pending_writs if (day < BIG).any()]
+        self.pending_levy = np.minimum.reduce(self._pending_writs) if self._pending_writs else None
+
     def flush_levy(self, rows: np.ndarray | None = None) -> None:
-        """Book the pending pre-ruling levy. It waits one step so the debtor's response on the levy day acts
-        first: a petition or a payment that day pre-empts it (`live`)."""
-        if self.pending_levy is not None:
-            day = self.pending_levy
-            rows = np.ones(self.n, dtype=bool) if rows is None else rows
-            rest = np.where(rows, BIG, day)
-            self.pending_levy = None if (rest >= BIG).all() else rest
-            self.levy(np.where(rows, day, BIG), lagged=True)
+        """Book the earliest pending writ on selected trajectories. A response on its day acts first;
+        an intervening settlement releases the claim on its effective date through the existing live check."""
+        if self.pending_levy is None:
+            return
+        day = self.pending_levy.copy()
+        rows = np.ones(self.n, dtype=bool) if rows is None else rows
+        selected = []
+        for i, writ in enumerate(self._pending_writs):
+            on = rows & (writ == day) & (writ < BIG)
+            if on.any():
+                selected.append(np.where(on, writ, BIG))
+                self._pending_writs[i] = np.where(on, BIG, writ)
+        # Remove consumed writs before their cash reads can inspect the remaining queue.
+        self._refresh_pending_levy()
+        for writ in selected:
+            self.levy(writ, lagged=True)
 
     def claimed(self) -> int:
         """Before a verdict: the most any verdict branch enters (the claimed amount), the settlement offer's cap."""
@@ -2057,8 +2075,7 @@ class Chain:
     def step(self, node: str, ctx: str, branch: str) -> np.ndarray:
         """Book one step's effects; return its decision day per draw (BIG where it never arises)."""
         N, full = self.N, (lambda v: np.full(self.n, v, dtype=np.int64))
-        if not answers_levy(node, ctx) and not self.waiting:  # with floor decisions waiting, `advance` orders it
-            self.flush_levy()
+        # Dated pending writs are processed by advance/until, not structural walk order.
         if node == "settle":
             if ctx == "I0":  # before the verdict: nothing is owed yet; the offer is capped at the claimed amount
                 start, end = full(-1), self.V
@@ -2102,10 +2119,7 @@ class Chain:
             order = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, f"registration_{ctx}")
             if branch == "yes":
                 self.early_registration = np.minimum(self.early_registration, order)
-                if ctx == "I1":  # booked at the next step, after the debtor's response on the levy day
-                    self.pending_levy = order + int(self.p("levy_lag_days"))
-                else:
-                    self.levy(order)
+                self.queue_levy(order + int(self.p("levy_lag_days")))
             return motion
         if node == "judgment_default":
             return self.book_default(ctx, branch, np.ones(self.n, dtype=bool))
@@ -2145,7 +2159,7 @@ class Chain:
                                                                                          "registration_post")
                     day = np.where(self.early_registration < BIG, np.maximum(self.EF, self.early_registration), order)
                 # booked at the next step, after the company's response on the levy day
-                self.pending_levy = np.maximum(day, 0) + int(self.p("levy_lag_days"))
+                self.queue_levy(np.maximum(day, 0) + int(self.p("levy_lag_days")))
             return np.maximum(self.EF, 0)
         if node in ("listing", "listing_date") and self.equity:
             return self.listing_step(node, ctx, branch)
@@ -2265,8 +2279,6 @@ class Chain:
         every step dated before it and before every step dated after it, whatever the walk order. A grouped branch
         ('@<group>=<answer>') books its answer (`plain`)."""
         branch = plain(branch)
-        if not self.waits(node, ctx) and not self.waiting and not answers_levy(node, ctx):
-            self.flush_levy()  # an earlier levy is in the cash the next decision sees
         self.settle_offer = np.zeros(self.n, dtype=np.int64)
         self.stay_offer = np.zeros(self.n, dtype=np.int64)
         self.raise_offer = np.zeros(self.n, dtype=np.int64)
@@ -2284,14 +2296,18 @@ class Chain:
         self._last_node = node
         if node == "notes_due_date" and self.waiting:  # a probe on the dates a waiting judgment default sets
             self.until(np.full(self.n, self.N, dtype=np.int64))
-        if self.waiting:  # what is dated before this decision comes first, on each trajectory where it arises
+        if self.waiting or self.pending_levy is not None:  # book only what precedes this decision
             probe = self.clone()
             probe.waiting = []
+            probe.pending_levy = None
+            probe._pending_writs = []
             d = probe.step(node, ctx, branch)
             self.until(np.where(d < self.N, d, -1))
             if not answers_levy(node, ctx) and self.pending_levy is not None:  # unless a floor decision or the
                 # response on the levy day, still waiting, precedes it
-                self.flush_levy(~(self.next_floor() < self.pending_levy) & ~self.response_waiting())
+                self.flush_levy((d >= 0) & (d < self.N) & (self.pending_levy <= d)
+                                & ~(self.next_floor() < self.pending_levy)
+                                & ~self.response_waiting())
         self.restay()  # what was booked since (a levy, a floor decision) is in a walked stay's security
         if self.daily:  # the state before the step, shared: a later write to one of its arrays copies it first (`_evw`)
             own = self.__dict__.get("_ev_own")
@@ -2539,7 +2555,7 @@ class Chain:
         day, after any step walked later and dated before them (`until`)."""
         bound = np.where(np.asarray(day) < self.N, day, -1)
         self.reads = np.maximum(self.reads, bound)
-        if not self.waiting:
+        if not self.waiting and not (levy and self.pending_levy is not None):
             return self
         v = self.clone()
         v.until(bound) if levy else v.upto(bound)
@@ -2615,7 +2631,7 @@ class Chain:
         """Book, in date order on each trajectory, the waiting decisions and the pending levy dated before `bound` (a
         day index per draw): a floor dated before the levy first, else the response on the levy day and the levy."""
         bound = self.per_draw(bound)
-        while self.waiting:
+        while self.waiting or self.pending_levy is not None:
             lv = self.pending_levy if self.pending_levy is not None else np.full(self.n, BIG, dtype=np.int64)
             moved = self.upto(bound, levy=lv)
             rows = (lv < bound) & (lv < BIG)
@@ -2661,7 +2677,7 @@ class Chain:
         groups): the facts only a recorded question reads are left out (the triggers, the question-state snapshot,
         each stay's and each waiting step's facts, the booking days a view saw), each a pure read of the state the
         fields kept are computed from."""
-        if self.pending_levy is not None:  # the floor decisions dated up to the pending levy, and the levy, on the
+        while self.pending_levy is not None:  # the floor decisions dated up to each pending levy, and the levy, on the
             # trajectories with one pending (elsewhere nothing here: its decisions book below, to the step's own day)
             self.until(np.where(self.pending_levy < BIG, self.pending_levy + 1, -1))
         self.flush_levy()
@@ -2846,7 +2862,7 @@ class Chain:
                         "_atm_sold", "_atm_nsold", "taken", "_booked_to", "_last_node", "ev", "marks", "waiting", "takes", "writs",
                         "coupons", "floor_days", "stays", "pet_cause", "collateral_required", "lock_amount",
                         "levied", "q1", "offerings", "_at", "notes_due_how", "appealed", "_offers", "lock_day",
-                        "hearing_requested", "_vfired", "_price_v", "_price_key", "_ev_own"})
+                        "hearing_requested", "_vfired", "_price_v", "_price_key", "_ev_own", "_pending_writs"})
 
     def divergence(self, other: Chain, wait: int | None = None) -> np.ndarray:
         """Per draw, a day before which this chain and `other` (the same dispute after sibling steps) book and read
@@ -2903,6 +2919,14 @@ class Chain:
             x = np.minimum(x, np.where(ne, init, BIG))
         for k in set(self.floor_days) | set(other.floor_days):
             dated(self.floor_days.get(k), other.floor_days.get(k))
+        # Writs have no separate terms: compare their per-draw dates, including multiplicity.
+        # A later queued writ changes nothing before its date, even if inserted in a different walk order.
+        count = max(len(self._pending_writs), len(other._pending_writs))
+        if count:
+            queues = [np.sort(np.stack(q + [np.full(n, BIG, dtype=np.int64)] * (count - len(q))), axis=0)
+                      for q in (self._pending_writs, other._pending_writs)]
+            for a, b in zip(*queues, strict=True):
+                dated(a, b)
         for la, lb in ((self.takes, other.takes), (self.writs, other.writs)):  # (day, amount) events
             for i in range(max(len(la), len(lb))):
                 (da, aa), (db, ab) = (la[i] if i < len(la) else (BIG, 0)), (lb[i] if i < len(lb) else (BIG, 0))

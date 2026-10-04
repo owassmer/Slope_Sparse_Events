@@ -265,6 +265,8 @@ def test_an_increase_is_levied_only_once_its_own_stay_ends_and_the_original_at_o
     r = c.rows[ok]
     original = -c.ev.cash[r, first[ok]]
     assert (original <= c.entered * 1.05).all() and (original >= c.entered).all()  # the surviving amount, at once
+    assert (c.ev.cash[r, second[ok]] == 0).all()  # the later writ remains queued until its date
+    c.until(second + 1)
     assert (-c.ev.cash[r, second[ok]] >= total - c.entered).all()  # the increase, once enforceable
     assert (c.taken[ok] >= total).all()
 
