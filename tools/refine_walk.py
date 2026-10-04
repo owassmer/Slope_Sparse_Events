@@ -13,6 +13,7 @@ import tempfile
 import threading
 import time
 import uuid
+from collections import Counter
 from pathlib import Path
 
 import boto3
@@ -174,12 +175,17 @@ def task(bucket, prefix, plan, index):
                     if errors:
                         raise errors[0]
                 if process.returncode:
+                    try:  # keep the failed attempt's whole log: the temporary directory is about to go
+                        s3.upload_file(str(log), bucket, f'{queue}/failed/{ident}-{attempt}.log')
+                    except (OSError, ClientError):
+                        pass
                     raise RuntimeError(f'subdivision {ident} exited {process.returncode}')
             subprocess.run(['.venv/bin/python', '-m', 'app.disputes.pool', 'split',
                             str(root / 'out'), str(root / 'split')], env=env, check=True)
             if errors:
                 raise errors[0]
             publish(s3, bucket, queue, ident, attempt, root / 'split', log)
+            return 'ran'
         finally:
             stopped.set()
             pulse.join()
@@ -206,6 +212,8 @@ def worker(bucket, prefix, cores, first, last):
                    key=lambda x: x[0].get('longest_seconds', x[0].get('estimated_histories', 0) / x[0]['partitions']),
                    reverse=True)
     fresh = bool(plans) and all(p.get('fresh') for p in plans)
+    if fresh:
+        return claim_loop(s3, bucket, prefix, tasks, cores)
     while True:
         expiring = False
         with concurrent.futures.ThreadPoolExecutor(max_workers=cores) as ex:
@@ -276,6 +284,56 @@ def assemble(bucket, prefix, job):
     return True
 
 
+
+def open_tasks(s3, bucket, prefix, tasks, failed):
+    """The tasks still to walk, in priority order: not done, not claimed by a live attempt (a heartbeat in the last
+    five minutes), not failed twice here."""
+    queue = prefix + '/refine-v1'
+    done = {Path(o['Key']).stem for o in objects(s3, bucket, queue + '/done/')}
+    now = time.time()
+    live = {Path(o['Key']).stem for o in objects(s3, bucket, queue + '/claims/')
+            if now - o['LastModified'].timestamp() < 300}
+    left = [(p, i) for p, i in tasks if f"{p['job']}-{i}" not in done]
+    return left, [(p, i) for p, i in left if f"{p['job']}-{i}" not in live and failed[f"{p['job']}-{i}"] < 2]
+
+
+def claim_loop(s3, bucket, prefix, tasks, cores):
+    """Each core walks the highest-priority open task and, when it ends, reads the queue again from the top, so
+    an abandoned or failed heavy task is taken before lighter ones. Ends when nothing is left, or when the
+    credential no longer outlives a task."""
+    failed = Counter()
+    lock = threading.Lock()
+
+    def core():
+        while True:
+            if credential_minutes() < CLAIM_MINUTES:
+                print(f'credential has {credential_minutes():.0f} minutes left; core stops claiming', flush=True)
+                return
+            left, ready = open_tasks(s3, bucket, prefix, tasks, failed)
+            if not left:
+                return
+            if not ready:
+                time.sleep(60)
+                continue
+            for p, i in ready:
+                try:
+                    result = task(bucket, prefix, p, i)
+                except Exception as error:
+                    with lock:
+                        failed[f"{p['job']}-{i}"] += 1
+                    print(f'partition retry required: {error}', flush=True)
+                    break
+                if result == 'ran':
+                    break
+
+    threads = [threading.Thread(target=core) for _ in range(cores)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    print('queue pass finished', flush=True)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=['prepare', 'worker', 'assemble'])
@@ -293,3 +351,4 @@ if __name__ == '__main__':
     else:
         while not assemble(args.bucket, args.prefix, args.job):
             time.sleep(30)
+
