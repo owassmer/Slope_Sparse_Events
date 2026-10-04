@@ -914,3 +914,14 @@ Adoption checklist:
 - [ ] Return Jev-ready; do not start Jev.
 
 User correction: automatic shutdown is prohibited for this ongoing work. Cancelled the newly scheduled OS shutdown on i-00b6051aa298e85e2 and verified NO_SCHEDULED_SHUTDOWN. Instance timers show no Slope stop/shutdown timer; root cron and at queues are empty. EventBridge Scheduler and scheduled-rule lists in us-east-2 are empty. Do not reintroduce automatic shutdown/stop/termination schedules. Preserve the running work and saved artifacts; manage compute explicitly.
+
+## 4 October — fresh walk on the corrected source, split by measured cost
+
+Owen chose a fresh walk on the corrected source (2991d27) over reconciling saved histories. The 2 October walk took 15.5 hours, against about 3.7 hours of balanced work on 336 processes. Its logs show why: each task pays 9–14 minutes of setup (load, walk the shared top, walk its roots' upper levels); the 400 starting tasks split every group four ways regardless of root size, giving 3–5.6 hour tasks with the heavy ones not started first; the slow tasks were then re-split three times, each re-split discarding partial progress and paying the setup again. Median walking cost was 0.7 seconds a path per process.
+
+The split now comes from measured cost (98940cd). `tools/fresh_walk.py costs` reads the 2 October walk's saved paths (100 group controls, 6.5M paths) and measures, below each native root prefix of the corrected tree, its paths and its largest continuation at depths 4–12. `prepare` gives each root the shallowest depth whose largest continuation fits one task, packs roots of one depth into the 100 ownership groups, and sizes each group's partitions to about 5,000 paths (about an hour). Workers claim the largest tasks first from one shared queue. GitHub tasks are claimed only while their temporary credential has 120 minutes left; the AWS host's instance role refreshes itself. Coverage is still checked against the native skeleton per root, so cost estimates only schedule work.
+
+- Queue: `walk-36781427817/fresh-corrected` in the personal bucket. GitHub: `fresh-walk` workflow, 80 jobs on every core. AWS: i-00b6051aa298e85e2, 16 processes and the group assembler (/var/log/slope-walk-*.log). No automatic shutdown.
+- [ ] Skeleton, cost scan and queue published.
+- [ ] Walk complete and all 100 groups assembled.
+- [ ] Pool, global probability check, 100-question reading; then Jev on Owen's start.
