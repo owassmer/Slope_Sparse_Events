@@ -927,3 +927,7 @@ The split now comes from measured cost (98940cd). `tools/fresh_walk.py costs` re
 - [ ] Pool, global probability check, 100-question reading; then Jev on Owen's start.
 
 AWS raised the us-east-2 on-demand limit to 128 vCPUs (case 179114455600111). Two extra walk hosts on ca6ff28: i-070d4380d338ef0af (m6a.16xlarge, 64 walkers) and i-04dffa9a231480f14 (m6a.12xlarge, 48 walkers), 4.84 USD/h together; instance-initiated stop behaviour, termination protection on, root volume kept, no timers. Stop them explicitly once the queue has no open tasks. Total: 156 GitHub + 128 AWS processes on one queue.
+
+### 4 October, 23:15 UTC: walk restarted on d3607c1, queue fresh-corrected-2
+
+Three engine faults surfaced on the heavy groups and are fixed: (1) the holders delisting decision could be asked twice on one path after a nested _first_listing resolved it early (notes.record raised); (2) the daily processor tried to store an empty prefix checkpoint; (3) since 1ca49d1 a pre-ruling writ inside the horizon stayed queued when later steps fell after the horizon, so the post-ruling response was dated at the pre-ruling levy and booked a petition there (128 of 432 filing paths in the 20 June tree). The earlier queue fresh-corrected saved no task, so only in-flight work was lost. tests/test_chains.py::test_each_court_ruling_on_a_motion_has_the_facts_of_its_own_day is a stale test (its helper reads pending_levy as the step own writ, and the old court-day facts); update it in the PR.
