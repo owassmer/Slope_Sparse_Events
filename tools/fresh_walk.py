@@ -143,16 +143,18 @@ def uppers(root, depth) -> float:
 
 
 def choose(root):
-    """(depth, task paths): the shallowest depth whose largest piece and upper levels fit LONGEST_S (else the
-    depth with the shortest such task); task size grows with the upper levels so they stay UPPER_SHARE of a task."""
+    """(depth, task paths): the shallowest depth whose largest piece fits one task, a task being sized so the root's
+    upper levels stay UPPER_SHARE of it; if no depth splits that finely, the depth with the shortest longest task."""
     if root['paths'] <= TARGET or not root['largest']:
         return DEPTHS[0], TARGET
 
-    def longest(d):
-        return root['largest'].get(str(d), 0) * PATH_S + uppers(root, d)
-    fits = [d for d in DEPTHS if longest(d) <= LONGEST_S]
-    depth = fits[0] if fits else min(DEPTHS, key=longest)
-    return depth, max(TARGET, math.ceil(uppers(root, depth) / (UPPER_SHARE * PATH_S)))
+    def size(d):
+        return max(TARGET, math.ceil(uppers(root, d) / (UPPER_SHARE * PATH_S)))
+    for d in DEPTHS:
+        if root['largest'].get(str(d), 0) <= size(d):
+            return d, size(d)
+    d = min(DEPTHS, key=lambda d: root['largest'].get(str(d), 0) * PATH_S + uppers(root, d))
+    return d, size(d)
 
 
 def allocate(calls, measured):
@@ -194,11 +196,13 @@ def allocate(calls, measured):
         partitions = max(1, math.ceil(paths / size))
         if partitions > MAX_PARTITIONS:
             raise ValueError(f"group {g['job']} needs {partitions} partitions")
-        task = max(paths / partitions, max(r['piece'] for r in m)) * PATH_S + sum(r['upper'] for r in m)
+        upper = sum(r['upper'] for r in m)
+        task = paths / partitions * PATH_S + upper
+        longest = max(paths / partitions, max(r['piece'] for r in m)) * PATH_S + upper
         plans.append({'job': g['job'], 'roots': [r['key'] for r in m], 'estimated_histories': paths,
                       'largest_root': max(r['paths'] for r in m), 'depth': m[0]['depth'],
                       'partitions': partitions, 'indexes': list(range(partitions)), 'task_seconds': round(task),
-                      'upper_seconds': round(sum(r['upper'] for r in m)), 'cut': CUT, 'saved': 0,
+                      'longest_seconds': round(longest), 'upper_seconds': round(upper), 'cut': CUT, 'saved': 0,
                       'recovery': None, 'fresh': True})
     assigned = [key for p in plans for key in p['roots']]
     expected = [tuple(key) for key, _, _ in calls]
@@ -257,11 +261,12 @@ if __name__ == '__main__':
         calls = pickle.loads(Path(sys.argv[2]).read_bytes())
         plans = allocate(calls, json.loads(Path(sys.argv[3]).read_text()))
         tasks = sorted((p['task_seconds'] for p in plans for _ in p['indexes']), reverse=True)
+        longest = max(p['longest_seconds'] for p in plans)
         print(json.dumps({'tasks': len(tasks), 'paths': sum(p['estimated_histories'] for p in plans),
                           'depths': dict(Counter(p['depth'] for p in plans)),
                           'task_seconds_max_p50_min': [round(tasks[0]), round(tasks[len(tasks) // 2]), round(tasks[-1])],
                           'partitions_max': max(p['partitions'] for p in plans),
-                          'process_hours': round(sum(tasks) / 3600),
+                          'longest_task_hours': round(longest / 3600, 2), 'process_hours': round(sum(tasks) / 3600),
                           'hours_on_336': round(sum(tasks) / 3600 / 336, 2)}))
     else:
         prepare(*sys.argv[2:6])
