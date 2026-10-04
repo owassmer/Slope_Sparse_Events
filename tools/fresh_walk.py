@@ -24,26 +24,25 @@ from pathlib import Path
 
 RUN = 'akoustis_20240514-agent_plus_jev-20260929T052558Z'
 GROUPS = 100
-TARGET = 5000  # paths per task: about an hour of walking at the measured 0.7 s a path
-DEPTHS = (4, 6, 8, 10, 12)
-MAX_PARTITIONS = 99  # part numbers are 100000 + 100 * group + partition
+CUT = 6  # roots six steps below the verdict: the shared top every task walks takes seconds, not minutes
+TARGET = 4000  # paths per task: about 45 minutes of walking at the measured 0.7 s a path
+DEPTHS = (2, 4, 6, 8, 10, 12, 14)  # refinement depths below a root
+MAX_PARTITIONS = 9999  # part numbers are 1000000 + 10000 * group + partition
 
 
-def normalized(prefix):
-    return tuple((n, c, b.split('=', 1)[-1] if n == 'settle' else b) for n, c, b in prefix)
+def canon(step):
+    """A decision as both trees record it: group codes and settlement-offer labels dropped; a denied stay motion
+    compared with the earlier tree's single 'no'."""
+    node, ctx, branch = step
+    if branch.startswith('@') or node == 'settle':
+        branch = branch.split('=', 1)[-1]
+    if node == 'stay' and branch == 'denied':
+        branch = 'no'
+    return node, ctx, branch
 
 
-def chain(steps) -> list[int]:
-    """The digest of every prefix of `steps` (index n - 1: the first n steps), one hash per step."""
-    out, h = [], b''
-    for step in steps:
-        h = hashlib.blake2b(h + repr(step).encode(), digest_size=8).digest()
-        out.append(int.from_bytes(h, 'little'))
-    return out
-
-
-def digest(steps) -> int:
-    return chain(steps)[-1] if steps else 0
+def key(steps) -> int:
+    return int.from_bytes(hashlib.blake2b(repr(tuple(steps)).encode(), digest_size=8).digest(), 'little')
 
 
 def skeleton(out):
@@ -68,11 +67,14 @@ def skeleton(out):
 
 
 def _scan_one(job):
-    """Path counts below each root prefix, per-depth continuation sizes and ancestor counts in one saved group."""
-    archive, prefixes, maxlen = job
-    index = {p: i for i, p in enumerate(prefixes)}
-    lengths = sorted({len(p) for p in prefixes}, reverse=True)
-    roots, children, ancestors, unmatched = Counter(), Counter(), Counter(), 0
+    """For one saved group: the paths whose decisions include each root's (shared equally where several roots
+    match), and the size of each continuation below a root at each depth, in the saved walk's order."""
+    archive, roots = job
+    sets = [frozenset(r) for r in roots]
+    index = defaultdict(list)
+    for i, r in enumerate(roots):
+        index[r[-1]].append(i)
+    paths, children, unmatched = Counter(), Counter(), 0
     with tempfile.TemporaryDirectory(prefix='cost-scan-') as tmp:
         with tarfile.open(archive) as tar:
             tar.extractall(tmp, filter='data')
@@ -81,62 +83,48 @@ def _scan_one(job):
             for _key, kind, payload, _cond in part['events']:
                 if kind != 'path':
                     continue
-                steps = normalized(payload[0].steps)
-                hashes = chain(steps)
-                for h in hashes[:maxlen]:
-                    ancestors[h] += 1
-                root = next((index[steps[:n]] for n in lengths if steps[:n] in index), None)
-                if root is None:
+                steps = [canon(x) for x in payload[0].steps]
+                have = set(steps)
+                found = {i for x in have for i in index.get(x, ()) if sets[i] <= have}
+                if not found:
                     unmatched += 1
                     continue
-                roots[root] += 1
-                base = len(prefixes[root])
-                for d in DEPTHS:
-                    children[root, d, hashes[min(base + d, len(hashes)) - 1]] += 1
+                w = 1 / len(found)
+                for i in found:
+                    paths[i] += w
+                    rest = [x for x in steps if x not in sets[i]]
+                    for d in DEPTHS:
+                        children[i, d, key(rest[:d])] += w
             del part
-    return roots, children, ancestors, unmatched
+    return paths, children, unmatched
 
 
 def costs(calls_file, archives_dir, out):
     calls = pickle.loads(Path(calls_file).read_bytes())
-    prefixes = sorted({normalized(prefix) for _key, _method, prefix in calls})
-    maxlen = max(map(len, prefixes))
+    roots = sorted({tuple(canon(x) for x in prefix) for _key, _method, prefix in calls})
     archives = sorted(str(p) for p in Path(archives_dir).rglob('*.tgz'))
-    roots, children, ancestors, unmatched = Counter(), Counter(), Counter(), 0
+    paths, children, unmatched = Counter(), Counter(), 0
     with ProcessPoolExecutor(max_workers=os.cpu_count()) as ex:
-        for i, (r, c, a, u) in enumerate(ex.map(_scan_one, [(a, prefixes, maxlen) for a in archives])):
-            roots.update(r)
+        for i, (p, c, u) in enumerate(ex.map(_scan_one, [(a, roots) for a in archives])):
+            paths.update(p)
             children.update(c)
-            ancestors.update(a)
             unmatched += u
             print(f'scanned {i + 1}/{len(archives)} archives', flush=True)
     largest = defaultdict(dict)
-    for (root, d, _child), n in children.items():
-        largest[root][d] = max(largest[root].get(d, 0), n)
-    # A root the saved walk never reached shares its nearest measured ancestor's unclaimed paths.
-    matched_under = Counter()
-    for root, n in roots.items():
-        for k in range(1, len(prefixes[root])):
-            matched_under[digest(prefixes[root][:k])] += n
-    waiting = defaultdict(list)
-    for i, p in enumerate(prefixes):
-        if i not in roots:
-            k = next((k for k in range(len(p) - 1, 0, -1) if ancestors.get(digest(p[:k]))), 0)
-            waiting[k and digest(p[:k])].append(i)
-    estimate = {}
-    for anc, members in waiting.items():
-        spare = max(len(members), ancestors.get(anc, 0) - matched_under.get(anc, 0)) if anc else len(members)
-        for i in members:
-            estimate[i] = max(1, spare // len(members))
-    per_prefix = {i: {'paths': roots.get(i, estimate.get(i, 1)), 'measured': i in roots,
-                      'largest': {str(d): n for d, n in largest.get(i, {}).items()}} for i in range(len(prefixes))}
-    position = {p: i for i, p in enumerate(prefixes)}
-    by_prefix = defaultdict(list)
-    for key, _method, prefix in calls:
-        by_prefix[position[normalized(prefix)]].append(tuple(key))
-    result = {'roots': [{'keys': by_prefix[i], **per_prefix[i]} for i in range(len(prefixes))],
-              'saved_paths': sum(roots.values()) + unmatched, 'unmatched_saved_paths': unmatched,
-              'measured_roots': len(roots), 'native_prefixes': len(prefixes), 'native_roots': len(calls)}
+    for (i, d, _child), n in children.items():
+        largest[i][d] = max(largest[i].get(d, 0), n)
+    # A root no saved path reached (a decision the earlier tree never offered) is costed at the median root.
+    measured = sorted(paths.values())
+    fallback = measured[len(measured) // 2] if measured else 1
+    position = {r: i for i, r in enumerate(roots)}
+    by_root = defaultdict(list)
+    for k, _method, prefix in calls:
+        by_root[position[tuple(canon(x) for x in prefix)]].append(tuple(k))
+    result = {'roots': [{'keys': by_root[i], 'paths': round(paths.get(i, fallback)), 'measured': i in paths,
+                         'largest': {str(d): round(n) for d, n in largest.get(i, {}).items()}}
+                        for i in range(len(roots))],
+              'saved_paths': round(sum(paths.values())) + unmatched, 'unmatched_saved_paths': unmatched,
+              'measured_roots': len(paths), 'native_prefixes': len(roots), 'native_roots': len(calls)}
     Path(out).write_text(json.dumps(result))
     print(json.dumps({k: v for k, v in result.items() if k != 'roots'}), flush=True)
 
@@ -145,7 +133,8 @@ def depth_for(root) -> int:
     """The shallowest refinement depth whose largest continuation fits one task (unmeasured: the base depth)."""
     if root['paths'] <= TARGET or not root['largest']:
         return DEPTHS[0]
-    return next((d for d in DEPTHS if root['largest'].get(str(d), 0) <= TARGET), DEPTHS[-1])
+    # The earlier walk's order sets these sizes; a margin covers continuations the corrected order regroups.
+    return next((d for d in DEPTHS if root['largest'].get(str(d), 0) <= 0.75 * TARGET), DEPTHS[-1])
 
 
 def allocate(calls, measured):
@@ -188,7 +177,8 @@ def allocate(calls, measured):
         partitions = max(1, math.ceil(group['estimated_histories'] / TARGET))
         if partitions > MAX_PARTITIONS:
             raise ValueError(f"group {group['job']} needs {partitions} partitions; raise GROUPS")
-        group.update(partitions=partitions, indexes=list(range(partitions)), saved=0, recovery=None, fresh=True)
+        group.update(partitions=partitions, indexes=list(range(partitions)), cut=CUT, saved=0, recovery=None,
+                     fresh=True)
     assigned = [key for group in groups for key in group['roots']]
     expected = [tuple(key) for key, _, _ in calls]
     if len(set(assigned)) != len(assigned) or set(assigned) != set(expected) or len(groups) != GROUPS:

@@ -92,6 +92,13 @@ def credential_minutes() -> float:
 CLAIM_MINUTES = float(os.environ.get('SLOPE_CLAIM_MINUTES', '120'))
 
 
+def part_number(plan, index) -> int:
+    """A unique part number per task; plans with their own cut depth may hold up to 10,000 partitions."""
+    if 'cut' in plan:
+        return 1000000 + plan['job'] * 10000 + index
+    return 100000 + plan['job'] * 100 + index
+
+
 def task(bucket, prefix, plan, index):
     s3 = boto3.client('s3')
     queue, job = prefix + '/refine-v1', plan['job']
@@ -124,7 +131,7 @@ def task(bucket, prefix, plan, index):
         root = Path(tmp)
         roots = root / 'roots.pkl'
         roots.write_bytes(pickle.dumps([tuple(x) for x in plan['roots']]))
-        env = {**os.environ, 'SLOPE_JEV_CACHE_ONLY': '1', 'SLOPE_WALK_CUT': '10',
+        env = {**os.environ, 'SLOPE_JEV_CACHE_ONLY': '1', 'SLOPE_WALK_CUT': str(plan.get('cut', 10)),
                'SLOPE_WALK_ROOTS': str(roots), 'SLOPE_WALK_MINUTES': '0',
                'SLOPE_WALK_REFINE': f"{index}/{plan['partitions']}/{plan['depth']}",
                'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1'}
@@ -133,7 +140,7 @@ def task(bucket, prefix, plan, index):
             env['SLOPE_WALK_NESTED_REFINE'] = '/'.join(map(str, plan['nested_refinement']))
         log = root / 'walk.log'
         command = ['.venv/bin/python', '-m', 'app.disputes.parallel', RUN, '0', '1', '1',
-                   str(root / 'out'), str(100000 + job * 100 + index)]
+                   str(root / 'out'), str(part_number(plan, index))]
         print(f'start subdivision {ident}: {len(plan["roots"])} parent segments', flush=True)
         process = None
         stopped = threading.Event()
