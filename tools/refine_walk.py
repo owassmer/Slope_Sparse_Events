@@ -93,6 +93,9 @@ def credential_minutes() -> float:
 CLAIM_MINUTES = float(os.environ.get('SLOPE_CLAIM_MINUTES', '120'))
 
 
+LOST_RACE = ('PreconditionFailed', 'NoSuchKey', 'ConditionalRequestConflict', '404')
+
+
 def part_number(plan, index) -> int:
     """A unique part number per task; plans with their own cut depth may hold up to 10,000 partitions."""
     if 'cut' in plan:
@@ -115,13 +118,13 @@ def task(bucket, prefix, plan, index):
             return
         # An expired attempt may still finish: it has a separate immutable output
         # prefix and can win only the normal conditional completion write.
-        response = s3.get_object(Bucket=bucket, Key=claim_key)
-        if time.time() - json.loads(response['Body'].read())['started'] < 300:
-            return
-        try:
+        try:  # many cores race to take over the same stale claim: a lost race is not a failure
+            response = s3.get_object(Bucket=bucket, Key=claim_key)
+            if time.time() - json.loads(response['Body'].read())['started'] < 300:
+                return
             s3.delete_object(Bucket=bucket, Key=claim_key, IfMatch=response['ETag'])
         except ClientError as error:
-            if error.response['Error']['Code'] in ('PreconditionFailed', 'NoSuchKey'):
+            if error.response['Error']['Code'] in LOST_RACE:
                 return
             raise
     attempt = uuid.uuid4().hex
@@ -198,7 +201,7 @@ def task(bucket, prefix, plan, index):
                 if owner.get('attempt') == attempt:
                     s3.delete_object(Bucket=bucket, Key=claim_key, IfMatch=response['ETag'])
             except ClientError as error:
-                if error.response['Error']['Code'] not in ('PreconditionFailed', 'NoSuchKey'):
+                if error.response['Error']['Code'] not in LOST_RACE:
                     raise
 
 
@@ -319,9 +322,10 @@ def claim_loop(s3, bucket, prefix, tasks, cores):
                 try:
                     result = task(bucket, prefix, p, i)
                 except Exception as error:
-                    with lock:
-                        failed[f"{p['job']}-{i}"] += 1
-                    print(f'partition retry required: {error}', flush=True)
+                    if 'exited' in str(error):
+                        with lock:
+                            failed[f"{p['job']}-{i}"] += 1
+                    print(f"task {p['job']}-{i} retry required: {error}", flush=True)
                     break
                 if result == 'ran':
                     break
