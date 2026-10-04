@@ -59,6 +59,9 @@ def github(job):
     global _CONTEXT
     fetch(os.environ['MASS_MANIFEST_URL'], 'mass-manifest.json')
     manifest = json.loads(Path('mass-manifest.json').read_text())
+    if job in manifest.get('completed', []):
+        print(f'Job {job} already has a validated saved probability sum', flush=True)
+        return
     task = manifest['tasks'][job]
     fetch(manifest['control'], 'control.pkl')
     import hashlib

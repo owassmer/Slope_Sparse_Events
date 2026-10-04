@@ -125,7 +125,7 @@ class EventModel:
             enc = cache[name] = (len(combos), combos[0] if combos else None, list(pairs), np.asfortranarray(ref))
         _, _, pairs, ref = enc
         dist = self._dist(overrides)
-        vals = np.array([dist[k][b] for k, b in pairs] + [1.0], dtype=np.float64)
+        vals = np.array([dist[k].get(b, 0.0) for k, b in pairs] + [1.0], dtype=np.float64)
         out = np.ones(len(combos))
         for j in range(ref.shape[1]):
             out *= vals[ref[:, j]]

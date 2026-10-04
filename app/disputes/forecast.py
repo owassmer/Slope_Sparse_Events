@@ -142,7 +142,7 @@ class Dist(dict):
     def __missing__(self, key: str) -> dict[str, float]:
         if not key.startswith(COMPOSITE):
             raise KeyError(key)
-        p = sum(math.prod(self[k][b] for k, b in c) for c in _conjunctions(key))
+        p = sum(math.prod(self[k].get(b, 0.0) for k, b in c) for c in _conjunctions(key))
         p = min(max(p, 0.0), 1.0)
         self[key] = v = {"yes": p, "no": 1.0 - p}
         return v
@@ -151,7 +151,9 @@ class Dist(dict):
 def path_probability(edges: tuple[tuple[str, str], ...], dist: dict[str, dict[str, float]]) -> float:
     p = 1.0
     for key, branch in edges:
-        p *= dist[key][branch]
+        # Dead decision classes can resolve to a class with fewer available
+        # actions. Those actions have no mass; an unknown question still fails.
+        p *= dist[key].get(branch, 0.0)
     return p
 
 

@@ -336,7 +336,7 @@ class Tables:
 # --- probabilities of a path's groups -------------------------------------------------------------------------------
 
 def edge_prob(key: str, branch: str, dist) -> float:
-    return dist[key][branch]
+    return dist[key].get(branch, 0.0)
 
 
 def group_probs(edges, dists: list) -> np.ndarray:
@@ -346,7 +346,7 @@ def group_probs(edges, dists: list) -> np.ndarray:
     for i, D in enumerate(dists):
         p = 1.0
         for key, b in edges:
-            p *= D[key][b]
+            p *= D[key].get(b, 0.0)
         out[i] = p
     return out
 
@@ -363,7 +363,7 @@ def atoms_derivative(edges, D) -> list[tuple[str, str, float]]:
         if seen & ks:
             raise ValueError(f"a path reads {sorted(seen & ks)[0]} twice: its probability is not linear in it")
         seen |= ks
-    vals = [D[k][b] for k, b in edges]
+    vals = [D[k].get(b, 0.0) for k, b in edges]
     # the other edges' product as prefix times suffix products (linear in the edges; a zero edge makes every other
     # edge's product zero exactly as the term-by-term product did)
     before, after, acc = [1.0] * (len(vals) + 1), [1.0] * (len(vals) + 1), 1.0
@@ -380,17 +380,20 @@ def atoms_derivative(edges, D) -> list[tuple[str, str, float]]:
         if rest == 0.0:
             continue
         if not key.startswith(COMPOSITE):
-            out[(key, b)] += rest
+            if b in D[key]:
+                out[(key, b)] += rest
             continue
         conj = _conjunctions(key)
         # a composite's 'yes' is the sum over its conjunctions; its 'no' is one minus it
         sign = 1.0 if b == "yes" else -1.0
         for c in conj:
             for m, (k, a) in enumerate(c):
+                if a not in D[k]:
+                    continue
                 other = 1.0
                 for n_, (k2, a2) in enumerate(c):
                     if n_ != m:
-                        other *= D[k2][a2]
+                        other *= D[k2].get(a2, 0.0)
                 out[(k, a)] += sign * rest * other
     return [(k, a, v) for (k, a), v in out.items() if v != 0.0]
 
