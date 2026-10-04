@@ -1158,8 +1158,10 @@ class Forecaster:
 
     def moves_cash(self, d: DisputeInstance, steps: tuple, a: tuple, b: tuple) -> bool:
         """Whether two branches of a step book different event cash, encumbrance, credit capacity or petition day on
-        some trajectory (else they merge)."""
-        return self.trace(d, steps + (a,), full=True).digest != self.trace(d, steps + (b,), full=True).digest
+        some trajectory (else they merge). Light traces: the digest reads only the event cash, which a light trace
+        keeps whole (shadow `light_trace`); the before-answer question captures and court rereads are not needed."""
+        return (self.trace(d, steps + (a,), full=True, light=True).digest
+                != self.trace(d, steps + (b,), full=True, light=True).digest)
 
     def pay_possible(self, d: DisputeInstance, steps: tuple, step: tuple) -> bool:
         """Arithmetic: 'pay' stays unless the amount owed exceeds available cash on every trajectory of the path at
