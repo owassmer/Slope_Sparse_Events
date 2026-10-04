@@ -925,3 +925,5 @@ The split now comes from measured cost (98940cd). `tools/fresh_walk.py costs` re
 - [ ] Skeleton, cost scan and queue published.
 - [ ] Walk complete and all 100 groups assembled.
 - [ ] Pool, global probability check, 100-question reading; then Jev on Owen's start.
+
+AWS raised the us-east-2 on-demand limit to 128 vCPUs (case 179114455600111). Two extra walk hosts on ca6ff28: i-070d4380d338ef0af (m6a.16xlarge, 64 walkers) and i-04dffa9a231480f14 (m6a.12xlarge, 48 walkers), 4.84 USD/h together; instance-initiated stop behaviour, termination protection on, root volume kept, no timers. Stop them explicitly once the queue has no open tasks. Total: 156 GitHub + 128 AWS processes on one queue.
