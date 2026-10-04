@@ -3357,8 +3357,8 @@ class _Walk:
         accelerate, require the repurchase, or neither; then the issuer files, or else the holders file once §7.06
         allows, or the notes stay due and unpaid."""
         probe = ("delisting_notes", dc, "none")
-        if not self.inside(s.steps + (probe,)):
-            return self.floor(s, outcome)
+        if any(st[:2] == probe[:2] for st in s.steps) or not self.inside(s.steps + (probe,)):
+            return self.floor(s, outcome)  # already decided on this path, or not inside the period
         if self.first(s, probe, lambda y: self.delisting_notes(y, dc, delist, outcome)):
             return
         h2 = self.node("holders_act_delisting", dc, s=s, probe=probe, assumptions=ASSUMED["holders_act_delisting"])
@@ -3448,6 +3448,10 @@ class _Walk:
         due, or not (the repurchase date is in the situation); after a declaration, D9, the issuer files, or else
         H3, the holders file once §7.06 allows, or the notes stay due and unpaid. Then the distress loop."""
         probe = ("delisting_notes", dc, "none")
+        done = next((st for st in s.steps if st[:2] == probe[:2]), None)
+        if done is not None:  # resolved earlier on this path (a nested `_first_listing`): asked once, at its date
+            out = "petition" if done[2].startswith("petition") else outcome
+            return then(s) if then is not None else self.distress(s, out)
         if not self.inside(s.steps + (probe,)):
             return then(s) if then is not None else self.distress(s, outcome)
         if self.first(s, probe, lambda y: self.delisting(y, dc, delist, outcome, then)):

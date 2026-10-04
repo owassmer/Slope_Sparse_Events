@@ -154,6 +154,8 @@ def _prefix_key(line, opening, terms, arrays, petition, day):
 
 def _keep_prefix(key, line, checkpoints, cash, arrears):
     global _PREFIX_BYTES
+    if not checkpoints:  # no trajectory reached the checkpoint day: nothing to reuse
+        return
     offsets = np.r_[0, np.cumsum([a.size for a in checkpoints])].astype(np.int64)
     packed = np.concatenate(checkpoints)
     value = (weakref.ref(line), (packed, offsets), cash.copy(), arrears.copy())
