@@ -324,6 +324,17 @@ def judgment_bps(model: dict, d: DisputeInstance | None, sens: dict | None = Non
     return rate_1961_bps(model, d.judgment_date) if d.judgment_date else 0
 
 
+def bond_collateral_cents(owed, bps, model, setup, sens):
+    """The engine's bond requirement, also used by dated question facts."""
+    years = pval(model, "bond_forward_interest_years", sens.get("bond_forward_interest_years", False))
+    bond = owed + np.rint(owed * bps / 10_000 * years).astype(np.int64)
+    share = (setup.collateral_share[0] if setup.collateral_share else
+             (model["parameters"]["bond_collateral_share_bps"]["lower"]
+              if sens.get("bond_collateral_share_bps") else
+              model["parameters"]["bond_collateral_share_bps"]["value"]) / 10_000)
+    return np.rint(bond * share).astype(np.int64)
+
+
 def pending_template(model: dict) -> dict:
     return next(t for t in model["templates"].values() if t.get("stage") == PENDING)
 
@@ -1711,6 +1722,8 @@ class Chain:
         st.update(day=approval, cash=cash_a, owed=v.owed_at(approval), collateral=collateral, stay_offer=offer,
                   petition=v.ev.petition.copy())
         if any(value is st and self.captures(i) for i, value in self.stays.items()):
+            st["security_terms"] = {"day": approval.copy(), "cash": cash_a.copy(), "need": need_a.copy(),
+                                    "collateral": collateral.copy(), "offer": offer.copy(), "live": live.copy()}
             # Resizing has removed this stay's lock. Its prior approval metadata
             # must also be absent from the court's question, without changing cash.
             facts = v.clone()
@@ -1720,6 +1733,7 @@ class Chain:
             facts.mark("stay_moved", st["motion"], facts.live(st["motion"]))
             st["question"] = facts.question_row(approval, "court_order", "stay")
             st["question"].update(cash=cash_a.copy(), collateral=collateral.copy(), stay_offer=offer.copy())
+            st["question"]["security_terms"] = _copied(st["security_terms"])
         if read:
             self.stay_offer, self.collateral_required = offer, collateral
         if not st["approved"]:
@@ -1761,13 +1775,7 @@ class Chain:
 
     def bond_collateral(self, approval: np.ndarray) -> np.ndarray:
         """The bond (the path judgment plus §1961 interest over the appeal) times the collateral share."""
-        years = self.p("bond_forward_interest_years")
-        owed = self.owed_at(approval)
-        bond = owed + np.rint(owed * self.bps / 10_000 * years).astype(np.int64)
-        share = (self.s.collateral_share[0] if self.s.collateral_share else
-                 (self.m["parameters"]["bond_collateral_share_bps"]["lower"] if self.sens.get("bond_collateral_share_bps")
-                  else self.m["parameters"]["bond_collateral_share_bps"]["value"]) / 10_000)
-        return np.rint(bond * share).astype(np.int64)
+        return bond_collateral_cents(self.owed_at(approval), self.bps, self.m, self.s, self.sens)
 
     def book_default(self, ctx: str, branch: str, rows: np.ndarray) -> np.ndarray:
         """The judgment default on `rows`: it ripens; the holders give notice and accelerate (+ holder_notice_lag_days);
@@ -2722,6 +2730,9 @@ class Chain:
         """
         tr.late = {i: dict(v) for i, v in self.late.items()}
         tr.questions = dict(self.questions)
+        for i, st in self.stays.items():
+            if i in tr.questions and "security_terms" in st:
+                tr.questions[i] = {**tr.questions[i], "security_terms": _copied(st["security_terms"])}
         if not day_only:
             tr.questions.update({i: st["question"] for i, st in self.stays.items() if "question" in st})
         tr.situations = {i: row["sit"] for i, row in tr.questions.items()}

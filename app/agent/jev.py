@@ -80,7 +80,11 @@ def build_question(entry: dict) -> Choice | Noul | Score:
     reg = question_registry()
     own = reg["profiles"].get(entry.get("profile", ""), {}).get("rules")
     rules = "\n".join(f"- {r}" for r in (own if own is not None else reg["global_rules"]))
-    instructions = f"{'Rules' if own is not None else 'Global rules'}:\n{rules}\n\nQuestion:\n{entry['prompt']['instructions']}"
+    instruction = entry['prompt']['instructions']
+    if entry.get('profile') == 'event_forecast' and entry['prompt'].get('criteria_from_host'):
+        instruction = ('Answer the question in state.question.text. Its state.question.answers gives the '
+                       'available actions and their dated meanings; use only the answer options in the criteria.')
+    instructions = f"{'Rules' if own is not None else 'Global rules'}:\n{rules}\n\nQuestion:\n{instruction}"
     if entry["primitive"] == "noul":
         return Noul(instructions=instructions, criteria=entry["prompt"]["criteria"])
     if entry["primitive"] == "score":

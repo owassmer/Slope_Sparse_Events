@@ -2385,7 +2385,7 @@
       "version": "5.0.0",
       "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does the court grant {claimant}'s application to register the judgment in another district before the judgment is final?",
+      "question": "Does the court grant {claimant}'s application to register the judgment in another district?",
       "actor": "court",
       "template": "pending_money_claim",
       "node": "registration_early",
@@ -2402,10 +2402,10 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "Does the court grant {claimant}'s application to register the judgment in another district before the judgment is final?",
+        "instructions": "Does the court grant {claimant}'s application to register the judgment in another district?",
         "criteria": {
-          "true": "The court grants registration in another district before the judgment is final.",
-          "false": "The court does not grant registration before the judgment is final."
+          "true": "The court grants registration in another district.",
+          "false": "The court does not grant registration."
         }
       }
     },
@@ -2414,7 +2414,7 @@
       "version": "5.0.0",
       "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does {company} move for a stay of execution by {motion_date}, offering {security_offered} as security?",
+      "question": "Does {company} move for a stay of execution by {motion_date}, with the following proposed security: {security_offered}?",
       "actor": "{company}",
       "template": "pending_money_claim",
       "node": "stay_motion",
@@ -2431,9 +2431,9 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "Does {company} move for a stay of execution by {motion_date}, offering {security_offered} as security?",
+        "instructions": "Does {company} move for a stay of execution by {motion_date}, with the following proposed security: {security_offered}?",
         "criteria": {
-          "true": "{company} moves for a stay of execution offering {security_offered} by {motion_date}.",
+          "true": "{company} moves for a stay of execution with the following proposed security: {security_offered} by {motion_date}.",
           "false": "{company} makes no such motion by {motion_date}."
         }
       }
@@ -2443,7 +2443,7 @@
       "version": "5.0.0",
       "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does the court grant {company}'s requested stay of execution on {security_offered}?",
+      "question": "Does the court grant {company}'s requested stay of execution with the following security: {security_offered}?",
       "actor": "court",
       "template": "pending_money_claim",
       "node": "stay_approved",
@@ -2460,9 +2460,9 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "Does the court grant {company}'s requested stay of execution on {security_offered}?",
+        "instructions": "Does the court grant {company}'s requested stay of execution with the following security: {security_offered}?",
         "criteria": {
-          "true": "The court grants the stay on {security_offered}.",
+          "true": "The court grants the stay with the following security: {security_offered}.",
           "false": "The court does not grant the stay."
         }
       }

@@ -113,6 +113,28 @@ class Group:
         return v[j] if isinstance(v, np.ndarray) else v
 
 
+def security_terms(fc, n, row):
+    terms = row.get("security_terms")
+    if terms is not None:
+        return terms
+    if n.node != "stay_approved":
+        raise Unbuilt("missing approval-day security terms for the stay motion")
+    day = row["day"]
+    return {"day": day, "cash": row["cash"], "collateral": row["collateral"],
+            "need": fc.draws.basis.need[np.arange(len(day)), np.clip(day, 0, fc.days - 1)],
+            "offer": row["stay_offer"], "live": (day >= 0) & (day < fc.days)}
+
+
+def security_kinds(fc, n, row):
+    from app.analysis.events import pval
+    terms = security_terms(fc, n, row)
+    full = (terms["collateral"] > 0) & (terms["cash"] - terms["need"] >= terms["collateral"])
+    noncash = pval(fc.m, "stay_security", fc.sens.get("stay_security", False)) == "noncash"
+    kinds = np.where(full, "full", np.where(terms["offer"] > 0, "reduced", "noncash" if noncash else "none"))
+    return np.where(terms["live"], kinds,
+                    np.where(terms["day"] >= fc.days, "unavailable", "inactive"))
+
+
 def signatures(fc, n, g: Group) -> dict:
     """QUESTIONS §1 Grouping: each member's legal status, available actions and ability to pay, on the dimensions the
     spec names (pay eligibility, stay security type, notes status, listing status), counted over the group. More than
@@ -121,19 +143,12 @@ def signatures(fc, n, g: Group) -> dict:
     is not on the branch counts as '?'."""
     from collections import Counter
 
-    from app.analysis.events import pval
-
     day, cash, owed = g.field("day").astype(np.int64), g.field("cash").astype(np.int64), g.field("owed").astype(np.int64)
     m = len(g.members)
     pay = np.where((owed > 0) & (owed <= cash), "pay", "nopay")
     sec = np.full(m, "-", dtype=object)
     if n.node in ("stay_motion", "stay_approved"):
-        need = g.rowwise(lambda r, x: fc.draws.basis.need[x, np.minimum(r["day"][x], fc.draws.basis.need.shape[1] - 1)])
-        coll = g.field("collateral").astype(np.int64)
-        offer = g.rowwise(lambda r, x: r["stay_offer"][x] if r.get("stay_offer") is not None else np.zeros(x.size))
-        noncash = pval(fc.m, "stay_security", fc.sens.get("stay_security", False)) == "noncash"
-        sec = np.where((coll > 0) & (cash - need >= coll), "full", np.where(offer > 0, "reduced",
-                                                                            "noncash" if noncash else "none"))
+        sec = g.rowwise(lambda r, x: security_kinds(fc, n, r)[x])
 
     def sit(name):
         try:
@@ -317,7 +332,21 @@ class Situation:
                f"{self.judgment_standing()}"
 
     def appeal_deadline(self):
-        return self._trigger("appeal_deadline")
+        # The walk clips triggers outside its horizon. A known ruling still
+        # establishes the notice deadline even when that deadline is later.
+        g = self._g()
+        def dates(r):
+            out = np.asarray((r.get("triggers") or {}).get("appeal_deadline",
+                             np.full(len(r["day"]), BIG))).copy()
+            if self.d is not None and self.d.stage == "liability_pending":
+                ruling = np.asarray(r["sit"]["ruling"])
+                known = (ruling >= 0) & (ruling < BIG) & (ruling <= r["day"])
+                out = np.where((out >= BIG) & known,
+                               ruling + int(self.fc.m["rules"]["frap_4a1a"]["value"]), out)
+            return out
+        vals = g.rowwise(lambda r, x: dates(r)[x])
+        i, j = g.rep
+        return dated(self.review, int(dates(g.rows[i])[j]), vals)
 
     def _trigger(self, name: str, none: str = "not applicable") -> str:
         g = self._g()
@@ -386,36 +415,55 @@ class Situation:
     def _security(self) -> tuple[str, int]:
         g, i = self._g(), self._g().rep[0]
         j = g.rep[1]
-        offer = int((g.rows[i].get("stay_offer") if g.rows[i].get("stay_offer") is not None
-                     else np.zeros(len(g.rows[i]["day"]), dtype=np.int64))[j])
-        coll = int(g.rows[i]["collateral"][j])
-        cash, need = int(g.rows[i]["cash"][j]), self._need()[0]
-        if coll > 0 and cash - need >= coll:
-            return "full", coll
-        if offer > 0:
-            return "reduced", offer
-        from app.analysis.events import pval
-        return ("noncash", 0) if pval(self.fc.m, "stay_security", self.fc.sens.get("stay_security", False)) == \
-            "noncash" else ("none", 0)
+        terms = security_terms(self.fc, self.n, g.rows[i])
+        kind = str(security_kinds(self.fc, self.n, g.rows[i])[j])
+        return kind, int(terms["collateral" if kind == "full" else "offer"][j])
 
     def collateral_required(self):
-        return money(*self._row("collateral"))
+        if self.n.node not in ("stay_motion", "stay_approved"):
+            return money(*self._row("collateral"))
+        g = self._g()
+        i, j = g.rep
+        terms = security_terms(self.fc, self.n, g.rows[i])
+        if not terms["live"][j]:
+            return "not available" if int(terms["day"][j]) >= self.fc.days else "not applicable: the stay does not take effect"
+        vals = g.rowwise(lambda r, x: security_terms(self.fc, self.n, r)["collateral"][x])
+        return money(int(terms["collateral"][j]), vals)
 
     def bond_required(self):
+        if self.n.node in ("stay_motion", "stay_approved"):
+            if self._security()[0] in ("inactive", "unavailable"):
+                return self.collateral_required()
+            g = self._g()
+            i, j = g.rep
+            vals = g.rowwise(lambda r, x: security_terms(self.fc, self.n, r)["collateral"][x])
+            rep = int(security_terms(self.fc, self.n, g.rows[i])["collateral"][j])
+        else:
+            rep, vals = self._row("collateral")
         share = int(self.fc.m["parameters"]["bond_collateral_share_bps"]["value"])
-        rep, grp = self._row("collateral")
-        return money(rep * 10_000 // share, grp * 10_000 // share)
+        return money(rep * 10_000 // share, vals * 10_000 // share)
 
     def security_offered(self):
         kind, amount = self._security()
+        g = self._g()
+        i, j = g.rep
+        day = int(security_terms(self.fc, self.n, g.rows[i])["day"][j])
+        if kind == "unavailable":
+            return "security amount unavailable"
+        if kind == "inactive":
+            return f"no security takes effect on {dated(self.review, day)}"
         return {"full": f"full bond collateral of {usd(amount)} in cash",
                 "reduced": f"reduced cash security of {usd(amount)}, its cash above its operating need for the next "
-                           f"month on the day the court decides",
+                           f"month on {when(self.review, day)}, when the court decides",
                 "noncash": "security not in cash, or a waiver of security",
-                "none": "none: the company has no cash above its operating need for the next month"}[kind]
+                "none": f"no cash security: no cash remains above operating need on {dated(self.review, day)}"}[kind]
 
     def stay_security_required(self):
-        return f"bond collateral of {self.collateral_required()}; offered: {self.security_offered()}"
+        from app.analysis.events import bond_collateral_cents, judgment_bps
+        rep, vals = self._row("owed")
+        required = bond_collateral_cents(np.r_[rep, vals], judgment_bps(self.fc.m, self.d, self.fc.sens),
+                                        self.fc.m, self.fc.setup, self.fc.sens)
+        return f"bond collateral of {money(int(required[0]), required[1:])} on the decision date"
 
     def motion_date(self):
         return self.decision_date()
@@ -718,7 +766,11 @@ class Situation:
         return self.judgment_amount()
 
     def remitted_amount(self):
-        return money(*self._sit("remitted"))
+        key = self.n.key.split("|#", 1)[0]
+        terms = self.fc.remitted.get(key)
+        if terms is None:
+            raise Unbuilt(f"no proposed remittitur terms for {key}")
+        return usd(int(terms[0]))
 
     # the verdict form (no cash: the form's words and the earlier answers)
     def _form(self) -> dict:
@@ -861,6 +913,23 @@ def fill_text(text: str, values: dict) -> str:
     return re.sub(r"{(\w+)}", one, text)
 
 
+def question_text(n, text: str, values: dict) -> str:
+    """The question names only actions in its recorded answer set."""
+    if n.node in ("judgment_response", "financing_at_floor", "petition_cash_out"):
+        choices = {"pay": "pay the judgment balance of {amount_owed} in full",
+                   "initiate_offering": "initiate an underwritten offering of its common stock on the stated terms",
+                   "file": "file a voluntary petition", "none": "none of these", "neither": "neither"}
+        actions = [choices[b] for b in choices if b in n.branches]
+        if set(n.branches) == {"file", "neither"}:
+            actions[-1] = "continue without filing"
+        options = ", ".join(actions[:-1]) + ", or " + actions[-1]
+        if n.node == "judgment_response":
+            text = "What does {company} do on {decision_date}, {occasion}: " + options + "?"
+        else:
+            text = text.split("does {company}", 1)[0] + "does {company} " + options + "?"
+    return fill_text(text, values)
+
+
 def eligible(fc, n, rows: list, masks: list) -> list:
     """QUESTIONS §4.2-4.3 eligibility inside the trajectories a node is asked on: a settlement question covers only
     trajectories whose offer is positive (D3, C2); a stay question only those where security of some type is
@@ -874,13 +943,9 @@ def eligible(fc, n, rows: list, masks: list) -> list:
     elif n.node in ("stay_motion", "stay_approved"):
         if pval(fc.m, "stay_security", fc.sens.get("stay_security", False)) == "noncash":
             return masks
-        need = fc.draws.basis.need
         out = []
         for r, m in zip(rows, masks, strict=True):
-            t = np.minimum(r["day"], need.shape[1] - 1)
-            nd = need[np.arange(len(t)), t]
-            offer = r["stay_offer"] if r.get("stay_offer") is not None else 0
-            out.append(m & (((r["collateral"] > 0) & (r["cash"] - nd >= r["collateral"])) | (offer > 0)))
+            out.append(m & np.isin(security_kinds(fc, n, r), ("full", "reduced")))
     else:
         return masks
     return out if any(x.any() for x in out) else masks
@@ -940,8 +1005,8 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
         assumed.extend(situation.appeal_events())
     state = {"case": {"evidence_cutoff": fmt(fc.review), "company": fc.borrower, "counterparty": d.counterparty,
                       "obligation": f"{fc.m['natures'].get(d.nature, d.nature)}, {d.order_reference}"},
-             "question": {"actor": fill_text(t["actor"], values), "text": fill_text(entry["prompt"]["instructions"],
-                                                                                    values),
+             "question": {"actor": fill_text(t["actor"], values), "text": question_text(n,
+                                                                    entry["prompt"]["instructions"], values),
                           "answers": answers},
              "standard": cite(fc, t), "record_items": filled, "situation": sit, **kinds,
              "assumed_events": assumed, "earlier_readings": readings}

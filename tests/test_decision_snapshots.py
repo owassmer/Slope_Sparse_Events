@@ -174,3 +174,23 @@ def test_ordinary_view_carries_the_same_complete_before_answer_record(case):
     state, _, _ = ordinary_state(fc, fc.bank_nodes[key])
     assert "not applicable" not in state["question"]["text"]
     assert any("stock was delisted on" in x for x in state["assumed_events"])
+
+
+def test_motion_retains_its_cash_and_separate_approval_security_terms(case):
+    fc, d = case
+    steps = AWARD + (("post_trial_motions", "", "yes"), ("stay", "I1", "no"))
+    tr = event_trace(d, DisputePath(d.instance_id, steps, "", ()), fc.setup, fc.m, fc.draws, fc.sens,
+                     day_only=True)
+    row = tr.questions[len(steps)-1]
+    terms = row['security_terms']
+    on = row['day'] < fc.days
+    assert on.any()
+    assert (terms['day'][on] > row['day'][on]).all()
+    np.testing.assert_array_equal(terms['need'], fc.draws.basis.need[
+        np.arange(len(on)), np.clip(terms['day'], 0, fc.days-1)])
+    expected_offer = np.where(terms['live'] & (terms['cash']-terms['need'] < terms['collateral']),
+                              np.maximum(terms['cash']-terms['need'], 0), 0)
+    np.testing.assert_array_equal(terms['offer'], expected_offer)
+    from app.disputes.forecast import lazy_row, pack_row, unpack_row
+    blob = pack_row(row)
+    assert _same_state(unpack_row(blob)['security_terms'], dict(lazy_row(blob)['security_terms']))
