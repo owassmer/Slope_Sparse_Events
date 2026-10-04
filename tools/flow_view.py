@@ -159,6 +159,8 @@ def walk_view(q: Queue, now: float):
               f'{len(attempts)} failed attempts (listed below)' if attempts else 'No failed attempts']
     walk = step('walk', 'Walk the corrected tree', 'done' if total and len(saved) >= total else 'running',
                 len(saved), total, 'tasks saved', f'{len(q.plans)} groups, {total:,} tasks', [d for d in detail if d])
+    walk.update(paths=walked, paths_est=sum(p['estimated_histories'] for p in q.plans.values()),
+                rate=round(rate, 1) if rate else None)
     grid = []
     for job in range(100):
         plan = q.plans.get(job)
@@ -221,7 +223,7 @@ main{max-width:1180px;margin:0 auto;padding:28px 24px 60px}h1{font-size:22px;mar
 .name{font-weight:600}.state{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5d6878;margin-left:8px}
 .note{color:#5d6878;font-size:13px}ul{margin:6px 0 0;padding-left:18px;font-size:13px}li{margin:2px 0}
 .bar{height:10px;background:#e7eaee;border-radius:5px;overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:#1a5fb4}
-.done .bar i{background:#2e8b57}.count{font-size:13px;margin-top:4px;text-align:right;color:#3b4555}
+.done .bar i{background:#2e8b57}.count{font-size:13px;margin-top:4px;text-align:right;color:#3b4555}.live{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}.bar.p i{background:#7fb3e6}
 .grid{display:grid;grid-template-columns:repeat(20,minmax(0,1fr));gap:4px}.cell{height:34px;border-radius:4px;background:#e7eaee;position:relative;overflow:hidden;border:2px solid transparent}
 .cell i{position:absolute;left:0;bottom:0;width:100%;background:#7fb3e6}.cell.asm i{background:#2e8b57}.cell.act{border-color:#1a5fb4}
 .cell b{position:absolute;top:2px;left:4px;font-size:10px;font-weight:600;color:#1d2433}.cell.bad:after{content:"";position:absolute;right:3px;top:3px;width:7px;height:7px;border-radius:50%;background:#c0392b}
@@ -232,7 +234,8 @@ main{max-width:1180px;margin:0 auto;padding:28px 24px 60px}h1{font-size:22px;mar
 </style></head><body><main>
 <div class="head"><div><h1>Akoustis Technologies · review date 14 May 2024</h1>
 <div class="sub">Slope line forecast through 10 Nov 2024 · from investigation to the analysis page</div></div>
-<div class="sub" style="text-align:right"><a id="run" target="_blank" href="#">GitHub run ↗</a><br><span id="upd">connecting…</span></div></div>
+<div style="text-align:right"><div id="live" class="live">—</div><div class="sub">paths walked (live)</div>
+<div class="sub"><a id="run" target="_blank" href="#">GitHub run ↗</a> · <span id="upd">connecting…</span></div></div></div>
 <div id="err" class="err"></div><div id="steps" class="steps"></div>
 <h2>Walk by group</h2><div id="grid" class="grid"></div>
 <div class="legend">Each square is one of the 100 groups, heaviest first. Fill: share of its tasks saved (green once the group is assembled). Blue outline: tasks walking now. Red dot: a failed attempt. Hover for numbers.</div>
@@ -246,8 +249,11 @@ function render(v){el('upd').textContent=v.updated?'updated '+new Date(v.updated
 el('err').textContent=v.error?'Update error: '+v.error:'';if(v.run_url)el('run').href=v.run_url;
 el('steps').innerHTML=v.steps.map((s,n)=>{const pct=s.total?Math.min(100,100*s.done/s.total):0;
 const count=s.total?`${(s.done||0).toLocaleString()} / ${s.total.toLocaleString()} ${esc(s.unit)}`:'';
+const pp=s.paths_est?Math.min(100,100*(s.paths||0)/s.paths_est):0;
+const pbar=s.paths!=null?`<div class="bar p" style="margin-top:12px"><i style="width:${pp}%"></i></div><div class="count">${(s.paths||0).toLocaleString()} / ~${(s.paths_est||0).toLocaleString()} paths${s.rate?' · '+Math.round(s.rate).toLocaleString()+' a second':''}</div>`:'';
 const det=(s.state==='running'||s.state==='failed'||s.state==='held')&&s.detail.length?'<ul>'+s.detail.map(d=>'<li>'+esc(d)+'</li>').join('')+'</ul>':'';
-return `<div class="step ${s.state}"><div class="mark">${s.state==='done'?'✓':n+1}</div><div><span class="name">${esc(s.name)}</span><span class="state">${label[s.state]||esc(s.state)}</span><div class="note">${esc(s.note)}</div>${det}</div><div>${s.total?`<div class="bar"><i style="width:${pct}%"></i></div><div class="count">${count}</div>`:''}</div></div>`}).join('');
+return `<div class="step ${s.state}"><div class="mark">${s.state==='done'?'✓':n+1}</div><div><span class="name">${esc(s.name)}</span><span class="state">${label[s.state]||esc(s.state)}</span><div class="note">${esc(s.note)}</div>${det}</div><div>${s.total?`<div class="bar"><i style="width:${pct}%"></i></div><div class="count">${count}</div>`:''}${pbar}</div></div>`}).join('');
+const w=v.steps.find(x=>x.key==='walk');if(w&&w.paths!=null)el('live').textContent=w.paths.toLocaleString();
 el('grid').innerHTML=v.groups.map(g=>`<div class="cell ${g.assembled?'asm':''} ${g.active?'act':''} ${g.failed?'bad':''}" title="Group ${g.job}: ${g.saved}/${g.total} tasks saved, ${g.active} walking, ${g.failed} failed attempts, depth ${g.depth}, ~${g.paths.toLocaleString()} paths (2 Oct estimate)${g.assembled?', assembled':''}"><i style="height:${100*g.saved/g.total}%"></i><b>${g.job}</b></div>`).join('');
 el('events').innerHTML=v.events.map(e=>`<div class="row"><span class="sub">${hm(e.time)}</span><span class="${e.kind}">${esc(e.text)}</span></div>`).join('')||'<div class="sub">Nothing yet.</div>';
 el('failed').innerHTML=v.failed.map(f=>`<div class="row"><span class="sub">${hm(f.time)}</span><span>Task ${esc(f.task)} · <a target="_blank" href="/log?key=${encodeURIComponent(f.key)}">log</a></span></div>`).join('')||'<div class="sub">None.</div>'}
