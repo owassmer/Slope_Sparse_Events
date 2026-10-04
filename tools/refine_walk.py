@@ -78,12 +78,28 @@ class TaskSuperseded(Exception):
     """Another complete attempt already supplied this task."""
 
 
+def credential_minutes() -> float:
+    """Minutes left on a fixed temporary credential (AWS_CREDENTIAL_EXPIRATION); unlimited without one."""
+    import datetime
+    expiry = os.environ.get('AWS_CREDENTIAL_EXPIRATION')
+    if not expiry:
+        return float('inf')
+    end = datetime.datetime.fromisoformat(expiry.replace('Z', '+00:00'))
+    return (end - datetime.datetime.now(datetime.UTC)).total_seconds() / 60
+
+
+# A task is claimed only if its credential outlives the longest expected task and its upload.
+CLAIM_MINUTES = float(os.environ.get('SLOPE_CLAIM_MINUTES', '120'))
+
+
 def task(bucket, prefix, plan, index):
     s3 = boto3.client('s3')
     queue, job = prefix + '/refine-v1', plan['job']
     ident = f'{job}-{index}'
     if read(s3, bucket, f'{prefix}/done/{job}.json') or read(s3, bucket, f'{queue}/done/{ident}.json'):
         return
+    if credential_minutes() < CLAIM_MINUTES:
+        return 'expiring'
     claim_key = f'{queue}/claims/{ident}.json'
     previous = read(s3, bucket, claim_key)
     if previous:
@@ -183,16 +199,20 @@ def worker(bucket, prefix, cores, first, last):
                    key=lambda x: x[0].get('estimated_histories', 0) / x[0]['partitions'], reverse=True)
     fresh = bool(plans) and all(p.get('fresh') for p in plans)
     while True:
+        expiring = False
         with concurrent.futures.ThreadPoolExecutor(max_workers=cores) as ex:
             futures = [ex.submit(task, bucket, prefix, p, i) for p, i in tasks]
             for f in concurrent.futures.as_completed(futures):
                 try:
-                    f.result()
+                    expiring |= f.result() == 'expiring'
                 except Exception as error:
                     if not fresh:
                         raise
                     print(f'partition retry required: {error}', flush=True)
         if not fresh:
+            return
+        if expiring:
+            print(f'credential has {credential_minutes():.0f} minutes left; leaving the rest to a fresh worker', flush=True)
             return
         done = {Path(o['Key']).stem for o in objects(s3, bucket, prefix + '/refine-v1/done/')}
         tasks = [(p, i) for p, i in tasks if f"{p['job']}-{i}" not in done]
