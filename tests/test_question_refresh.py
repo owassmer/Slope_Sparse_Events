@@ -467,16 +467,23 @@ def test_prefix_cache_does_not_reuse_missing_draws(case):  # noqa: F811
     advance = Chain.advance
 
     def counted(self, *args):
-        calls.append(args)
+        if "_court_read_before" not in self.__dict__:
+            calls.append(args[1:])
         return advance(self, *args)
 
     with patch.object(Chain, 'advance', counted):
         actual = event_trace(dispute, path, fc.setup, fc.m, fc.draws, fc.sens,
                              rows=tuple(right for _ in STEPS))
-    assert len(calls) == len(STEPS)
+    actual_calls = tuple(calls)
+    calls.clear()
     fc.draws.prefixes = None
-    expected = event_trace(dispute, path, fc.setup, fc.m, fc.draws, fc.sens,
-                           rows=tuple(right for _ in STEPS))
+    with patch.object(Chain, 'advance', counted):
+        expected = event_trace(dispute, path, fc.setup, fc.m, fc.draws, fc.sens,
+                               rows=tuple(right for _ in STEPS))
+    # Count financial advances separately from court snapshot reconstruction.
+    # Every original step must run for draws absent from the cached population.
+    assert actual_calls == tuple(calls)
+    assert len(actual_calls) == len(STEPS)
     assert _same_state(actual.questions, expected.questions)
     np.testing.assert_array_equal(actual.events.cash, expected.events.cash)
 
@@ -549,3 +556,25 @@ def test_selected_capture_cache_recovers_newly_requested_earlier_questions(case)
                                     indices=selected, rows=rows)
         assert {i: pack_row(row) for i, row in actual.items()} == {
             i: pack_row(expected.questions[i]) for i in selected if i in expected.questions}
+
+
+def test_recording_remittitur_does_not_classify_the_no_cash_ruling(case):  # noqa: F811
+    from app.disputes.forecast import _Walk
+
+    fc, dispute = case
+    steps = AWARD + (('post_trial_motions', '', 'yes'),
+                     ('post_trial_ruling', '', 'reduced:500000000:0:1000000000'))
+    walk = _Walk(fc, dispute)
+    ruling = fc.node(dispute, 'post_trial_ruling', 'award')
+    election = fc.node(dispute, 'remittitur_elected', 'award', 'remit500000000')
+    assert not fc._classified(ruling) and fc._classified(election)
+    fc.classed.add(ruling)  # metadata restored from the earlier mixed-recording bug
+    recorded = fc.record((ruling, election), walk._facts(steps))
+    assert ruling in fc.facts and ruling not in fc.classed
+    assert not any(key.startswith(ruling + '|#') for key, _ in recorded)
+    assert election in fc.classed
+    assert any(key.startswith(election + '|#') for key, _ in recorded)
+    assert ruling not in fc._qcls and ruling not in fc._qcanon
+    assert not walk._classes_of(((ruling, 'unchanged'),), steps, None, {})
+    state, _, _ = fc.state(fc.nodes[ruling])
+    assert state['question']['text']

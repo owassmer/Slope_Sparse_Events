@@ -7,37 +7,40 @@ from app.disputes.forecast import DisputePath, pack_mask
 from tools.question_mass_check import distributions, totals
 
 
-def test_dead_option_group_uses_the_live_choice_domain_on_all_draws():
-    from app.disputes.forecast import class_firsts
-    nodes = {'q|#dead.g3': SimpleNamespace(branches=('pay', 'initiate_offering', 'file', 'none')),
-             'q|#live.g2': SimpleNamespace(branches=('initiate_offering', 'file', 'none'))}
-    dead = {'q|#dead.g3'}
+def test_dead_option_group_preserves_its_saved_answer_domain_on_all_draws():
+    from app.disputes.forecast import class_firsts, expand_classes
+    nodes = {'q|#dead.g0': SimpleNamespace(branches=('file', 'none')),
+             'q|#a.g2': SimpleNamespace(branches=('initiate_offering', 'file', 'none')),
+             'q|#z.g0': SimpleNamespace(branches=('file', 'none'))}
+    dead = {'q|#dead.g0'}
     paths = [DisputePath('d', (), 'done', (('q', answer),),
-                        classes=(('q', ('#dead.g3',), None),))
-             for answer in nodes['q|#dead.g3'].branches]
-    count, result = totals(paths, nodes, 512, dead, distributions(nodes), class_firsts(nodes, dead))
-    assert count == 4
+                        classes=(('q', ('#dead.g0',), None),))
+             for answer in nodes['q|#dead.g0'].branches]
+    first = class_firsts(nodes, dead)
+    assert first['q'] == 'q|#a.g2'  # the global first class has a different domain
+    expanded = expand_classes(paths, nodes, 512, dead, first)
+    assert [p.edges for p in expanded] == [(('q|#z.g0', a),) for a in ('file', 'none')]
+    live = {key: node for key, node in nodes.items() if key not in dead}
+    count, result = totals(paths, nodes, 512, dead, distributions(live), first)
+    assert count == 2
     np.testing.assert_allclose(result['d'], 1, atol=1e-10, rtol=0)
 
 
-def test_unavailable_answers_have_no_probability_or_derivative_but_zero_probabilities_do():
+def test_missing_answers_fail_instead_of_hiding_incorrect_class_substitution():
     from app.analysis.core import EventModel
     from app.analysis.reduce import atoms_derivative, edge_prob, group_probs
     from app.disputes.forecast import Dist, composite, path_probability
     d = Dist({'q': {'file': 0.0, 'none': 1.0}, 'r': {'yes': .4, 'no': .6}})
     absent = (('q', 'pay'), ('r', 'yes'))
-    assert path_probability(absent, d) == 0
-    assert edge_prob('q', 'pay', d) == 0
-    assert group_probs(absent, [d]).tolist() == [0]
     model = SimpleNamespace(_dist=lambda overrides: d)
     p = DisputePath('d', (), 'done', absent)
-    assert EventModel._weigh(model, 'test', [(p,)], None).tolist() == [0]
-    assert atoms_derivative(absent, d) == []
+    calls = (lambda: path_probability(absent, d), lambda: edge_prob('q', 'pay', d),
+             lambda: group_probs(absent, [d]), lambda: EventModel._weigh(model, 'test', [(p,)], None),
+             lambda: atoms_derivative(absent, d), lambda: d[composite([[('q', 'pay')]])])
+    for call in calls:
+        with pytest.raises(KeyError, match='pay'):
+            call()
     assert atoms_derivative((('q', 'file'), ('r', 'yes')), d) == [('q', 'file', .4)]
-    c = composite([[('q', 'pay'), ('r', 'yes')], [('q', 'file'), ('r', 'no')]])
-    assert d[c]['yes'] == 0
-    assert atoms_derivative(((c, 'yes'),), d) == [('q', 'file', .6)]
-    assert atoms_derivative(((c, 'no'),), d) == [('q', 'file', -.6)]
     with pytest.raises(KeyError, match='unknown'):
         path_probability((('unknown', 'pay'),), d)
 

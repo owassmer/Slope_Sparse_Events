@@ -17,7 +17,8 @@ def row(days, deadlines=None, filed=None):
             "petition": np.full(n, -1),
             "triggers": {"appeal_deadline": np.array(deadlines if deadlines is not None else [142] * n)},
             "marks": {"appealed": np.array(filed if filed is not None else [BIG] * n)},
-            "sit": {"standing": np.full(n, "unpaid"), "ruling": np.full(n, 94)}}
+            "sit": {"standing": np.full(n, "unpaid"), "ruling": np.full(n, 94),
+                    "stay_status": np.full(n, "not_requested")}}
 
 
 def situation(r, tags=("final",)):

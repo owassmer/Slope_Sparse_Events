@@ -270,7 +270,17 @@ class Situation:
         return STANDING[str(self._g().at_rep("standing", sit=True))]
 
     def judgment_status(self):
-        return "; ".join((self.judgment_standing(), *self.appeal_events()))
+        return "; ".join((self.judgment_standing(), *self.appeal_events(), *self.stay_events()))
+
+    def stay_events(self) -> list[str]:
+        statuses = np.unique(self._g().field("stay_status", sit=True))
+        if len(statuses) != 1:
+            raise Unbuilt("question mixes decision-time stay statuses")
+        text = {"not_requested": "", "resolved": "",
+                "pending": "the current stay request is awaiting a court decision",
+                "denied": "the court denied the latest stay request",
+                "approved": "the court approved the latest stay request"}[str(statuses[0])]
+        return [text] if text else []
 
     def appeal_events(self) -> list[str]:
         g = self._g()
@@ -300,6 +310,7 @@ class Situation:
         out = []
         for name, text in (("stay_moved", "the company moved for a stay"),
                            ("stayed", "the court approved a stay"),
+                           ("stay_denied", "the court denied a stay request"),
                            ("paid", "the company paid the judgment"),
                            ("settled", "the parties agreed to settle; the first settlement payment was due"),
                            ("levied", "the creditor levied on the company's cash"),
@@ -994,7 +1005,8 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     verdict = n.node in ("verdict_finding", "verdict_amount")
     # Routing tags remain part of identity. Current standing and dated actions
     # come from the question's engine snapshot, not a second account of status.
-    dated_tags = {"I1", "I2", "I3", "I4", "post", "ripe", "motions_pending", "stay_pending", "stay_moved",
+    dated_tags = {"I1", "I2", "I3", "I4", "post", "ripe", "motions_pending", "stay_pending", "stay_moved", "stay_denied",
+                  "stay_approved", "stay_resolved",
                   "stayed", "paid", "settled", "notes_due", "delisted", "levied", "unlevied", "executing"}
     history_tags = [tag for tag in tags if g is None or
                     (tag not in dated_tags and not tag.startswith(("judgment_", "delisting_")))]

@@ -283,9 +283,14 @@ def test_equal_finished_prefixes_can_hide_distinct_holder_continuations(case):
     quiet = fc.trace(d, steps, full=True, real=True)
     holders = fc.trace(d, filed, full=True, real=True)
     changed = np.flatnonzero(mask & (quiet.petition != holders.petition))
-    assert changed.tolist() == [122, 193, 408]
-    np.testing.assert_array_equal(quiet.petition[changed], [168, 164, 164])
-    np.testing.assert_array_equal(holders.petition[changed], [163, 163, 163])
+    assert changed.tolist() == [122, 193, 322, 391, 408, 417]
+    np.testing.assert_array_equal(quiet.petition[changed], [168, 164, 175, 179, 164, 168])
+    np.testing.assert_array_equal(holders.petition[changed], [163, 163, 163, 168, 163, 166])
+    # These settlements release the judgment before writs dated 145,145,148.
+    # The old immediate levy booked cash anyway, forcing both answers to file
+    # before the holders' own decision and hiding these three continuations.
+    np.testing.assert_array_equal(quiet.marks['settled'][[322, 391, 417]], [133, 138, 136])
+    assert (quiet.marks['levied'][[322, 391, 417]] > fc.days).all()
 
 
 def test_incompatible_saved_boundary_is_rejected(case, monkeypatch):
@@ -294,8 +299,10 @@ def test_incompatible_saved_boundary_is_rejected(case, monkeypatch):
     fc, _d, walk, _key = case
     original = fc.verdict_classes
     monkeypatch.setattr(fc, 'verdict_classes', lambda d: {MERGE_STEPS[1][2]: original(d)[MERGE_STEPS[1][2]]})
-    continuation = capture(walk, MERGE_STEPS[:14], 'notes_petition', 'ruling', legacy=True)
-    with pytest.raises(ValueError, match='incoming recovery population'):
+    # Earlier listing can now precede the saved floor decision, preventing
+    # exact prefix capture; otherwise the changed population rejects resume.
+    with pytest.raises(ValueError, match='Expected one exact continuation, found 0|incoming recovery population'):
+        continuation = capture(walk, MERGE_STEPS[:14], 'notes_petition', 'ruling', legacy=True)
         continuation.run()
 
 

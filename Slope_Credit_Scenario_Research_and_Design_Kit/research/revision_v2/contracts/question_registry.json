@@ -2433,7 +2433,7 @@
       "prompt": {
         "instructions": "Does {company} move for a stay of execution by {motion_date}, with the following proposed security: {security_offered}?",
         "criteria": {
-          "true": "{company} moves for a stay of execution with the following proposed security: {security_offered} by {motion_date}.",
+          "true": "{company} moves for a stay of execution by {motion_date}, with the following proposed security: {security_offered}.",
           "false": "{company} makes no such motion by {motion_date}."
         }
       }

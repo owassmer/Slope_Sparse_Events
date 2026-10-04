@@ -16,9 +16,7 @@ from app.disputes.forecast import _Walk, atoms, pack_row
 
 def classify_row(fc, dispute, key, steps, row, keep):
     """Facts, classes and available answers read the same before-answer record."""
-    import numpy as np
-
-    from app.disputes.forecast import _S, as_of, group_classes
+    from app.disputes.forecast import as_of, group_classes
 
     node = fc.nodes[key]
     row = as_of(row)
@@ -32,24 +30,9 @@ def classify_row(fc, dispute, key, steps, row, keep):
             return record_row(fc, dispute, steps, key, index, row)
         finally:
             fc._keep_late = old
-    live = fc.live(node, row)
-    cls = fc.question_class(node, row, live)
+    cls = fc.dated_class(dispute, key, steps, row)
     if cls is None:
         raise ValueError(f'Missing conditioning snapshot for {key}')
-    conds = fc.spec[node.node].get('situation', ())
-    if conds and all(c in row['marks'] for c in conds):
-        verdict = next((s[2] for s in steps if s[0] == 'verdict'), '')
-        ruling = next((s[2] for s in steps if s[0] == 'post_trial_ruling'), '')
-        label = 'award' + verdict.split(':')[1] if verdict.startswith('award:') else verdict or 'claimed'
-        after = ('reduced' + ruling.split(':')[1] if ruling.startswith('reduced:') else
-                 'set_aside' if ruling == 'set_aside' else label)
-        ruled = row['marks']['ruled'] <= row['day']
-        walk = _Walk(fc, dispute)
-        for selected, value in ((live & ~ruled, label), (live & ruled, after)):
-            if selected.any():
-                part = np.where(selected, cls, '')
-                tagged = walk.context_class(part, row, _S(cls=value), node.node, (node.context.split('|')[0],))
-                cls[selected] = tagged[selected]
     if node.node in ('judgment_response', 'financing_at_floor', 'petition_cash_out'):
         if row.get('groups') is None:
             raise ValueError(f'Missing before-answer option groups for {key}')
@@ -94,8 +77,12 @@ def question_source(node, positions):
         raise ValueError(f'No saved question boundary for {name!r}')
     probe = aliases[name]
     origin = positions[probe[:2]]
+    if name in ('bid_compliance', 'hearing_request', 'holders_act_delisting'):
+        return origin, 'dated'
     if name in ('stay_approved', 'financing_at_floor', 'petition_cash_out', 'offering_closes',
                 'holders_act_judgment') or name == 'judgment_response' and context in ('post', 'ripe'):
+        return origin, None
+    if name in ('settlement_offer', 'settlement_accept') and context == 'I3':
         return origin, None
     if name == 'registration_early':
         probe = ('court_order', f'registration_{context}', '')
@@ -151,6 +138,11 @@ class RefreshPlan:
             if probe == 'notes':
                 actor = 'holders' if node.node == 'holders_involuntary' else 'issuer'
                 request = self.calculations.add_notes(self.histories, prefixes[-1], target, actor)
+                select = -1
+            elif probe == 'dated':
+                completed = fc.completed_probe(key, path.steps, target)
+                request = self.calculations.add('prefix', self.histories.add(
+                    tuple((n, c, plain(b)) for n, c, b in completed)))
                 select = -1
             elif probe is None:
                 request = self.calculations.add('complete', prefixes[-1])
@@ -494,7 +486,7 @@ def run_batch(fc, source, output):
                 row = result if mode == 'notes' else result[select]
                 node = fc.nodes[key]
                 identity = (node.node, node.context.split("|")[0], select,
-                            fc.uses_appeal_status(node), fc._classified(key))
+                            fc.uses_appeal_status(node), fc.uses_stay_status(node), fc._classified(key))
                 if identity in classified:
                     blob, entry = classified[identity]
                     if node.node in ("judgment_response", "financing_at_floor", "petition_cash_out"):

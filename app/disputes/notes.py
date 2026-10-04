@@ -9,7 +9,7 @@ from dataclasses import replace
 import numpy as np
 
 from app.analysis.events import BIG, event_questions, pval
-from app.disputes.forecast import _S, DisputePath, _Prefix, _Walk, as_of, situation_class
+from app.disputes.forecast import _S, DisputePath, _Prefix, _Walk, as_of
 
 NAMES = {'petition_on_notes', 'holders_involuntary'}
 
@@ -110,10 +110,11 @@ def record_row(fc, d, steps, key, index, row, tr=None):
                      collateral=[row['collateral']], petition=row['petition'], digest=None,
                      marks=row['marks'], question=row)
     live = fc.live(n, row)
-    cls = situation_class(row, live)
+    cls = fc.question_class(n, row, live)
     if cls is None:
         raise ValueError('Deferred notes require a decision-state snapshot')
-    conds = list(fc.spec[n.node].get('situation', ()))
+    walk = _Walk(fc, d)
+    conds = walk.situation_conditions(n.node)
     bits = np.zeros(len(live), dtype=np.int64)
     for i, condition in enumerate(conds):
         bits |= (np.asarray(tr.marks[condition]) <= row['day']).astype(np.int64) << i
@@ -122,7 +123,6 @@ def record_row(fc, d, steps, key, index, row, tr=None):
     ruling = next((s[2] for s in steps if s[0] == 'post_trial_ruling'), '')
     verdict = next((s[2] for s in steps if s[0] == 'verdict'), '')
     verdict_label = 'award' + verdict.split(':')[1] if verdict.startswith('award:') else verdict or 'claimed'
-    walk = _Walk(fc, d)
     for tag in sorted(set(cls[live])):
         selected = cls == tag
         label = verdict_label

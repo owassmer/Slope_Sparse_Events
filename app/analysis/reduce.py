@@ -336,7 +336,7 @@ class Tables:
 # --- probabilities of a path's groups -------------------------------------------------------------------------------
 
 def edge_prob(key: str, branch: str, dist) -> float:
-    return dist[key].get(branch, 0.0)
+    return dist[key][branch]
 
 
 def group_probs(edges, dists: list) -> np.ndarray:
@@ -346,7 +346,7 @@ def group_probs(edges, dists: list) -> np.ndarray:
     for i, D in enumerate(dists):
         p = 1.0
         for key, b in edges:
-            p *= D[key].get(b, 0.0)
+            p *= D[key][b]
         out[i] = p
     return out
 
@@ -363,7 +363,7 @@ def atoms_derivative(edges, D) -> list[tuple[str, str, float]]:
         if seen & ks:
             raise ValueError(f"a path reads {sorted(seen & ks)[0]} twice: its probability is not linear in it")
         seen |= ks
-    vals = [D[k].get(b, 0.0) for k, b in edges]
+    vals = [D[k][b] for k, b in edges]
     # the other edges' product as prefix times suffix products (linear in the edges; a zero edge makes every other
     # edge's product zero exactly as the term-by-term product did)
     before, after, acc = [1.0] * (len(vals) + 1), [1.0] * (len(vals) + 1), 1.0
@@ -380,20 +380,17 @@ def atoms_derivative(edges, D) -> list[tuple[str, str, float]]:
         if rest == 0.0:
             continue
         if not key.startswith(COMPOSITE):
-            if b in D[key]:
-                out[(key, b)] += rest
+            out[(key, b)] += rest
             continue
         conj = _conjunctions(key)
         # a composite's 'yes' is the sum over its conjunctions; its 'no' is one minus it
         sign = 1.0 if b == "yes" else -1.0
         for c in conj:
             for m, (k, a) in enumerate(c):
-                if a not in D[k]:
-                    continue
                 other = 1.0
                 for n_, (k2, a2) in enumerate(c):
                     if n_ != m:
-                        other *= D[k2].get(a2, 0.0)
+                        other *= D[k2][a2]
                 out[(k, a)] += sign * rest * other
     return [(k, a, v) for (k, a), v in out.items() if v != 0.0]
 
@@ -525,7 +522,7 @@ def job(run_id: str, ctl_dir: str, answers_file: str, job_i: int, jobs: int, pro
     a = prepared(ctx["feed"], setup, d, ctx["m"], sens)
     sa = prepared(ctx["feed"], setup, d, ctx["m"], sens, stress=True)
     f_names, full, s_names, scal = settings_for(ans["answers"], ctl["nodes"])
-    known, dead = set(ctl["nodes"]), frozenset(ans.get("dead", ()))
+    known, dead = ctl["nodes"], frozenset(ans.get("dead", ()))
     blocks = _blocks(ctl["part_cost"], jobs * procs) if block_ranges is None else block_ranges
     os.makedirs(out, exist_ok=True)
     print(f"{time.time() - t0:7.0f}s reduce job {job_i}: {len(full)} full and {len(scal)} scalar settings",

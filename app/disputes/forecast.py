@@ -142,7 +142,7 @@ class Dist(dict):
     def __missing__(self, key: str) -> dict[str, float]:
         if not key.startswith(COMPOSITE):
             raise KeyError(key)
-        p = sum(math.prod(self[k].get(b, 0.0) for k, b in c) for c in _conjunctions(key))
+        p = sum(math.prod(self[k][b] for k, b in c) for c in _conjunctions(key))
         p = min(max(p, 0.0), 1.0)
         self[key] = v = {"yes": p, "no": 1.0 - p}
         return v
@@ -151,9 +151,7 @@ class Dist(dict):
 def path_probability(edges: tuple[tuple[str, str], ...], dist: dict[str, dict[str, float]]) -> float:
     p = 1.0
     for key, branch in edges:
-        # Dead decision classes can resolve to a class with fewer available
-        # actions. Those actions have no mass; an unknown question still fails.
-        p *= dist[key].get(branch, 0.0)
+        p *= dist[key][branch]
     return p
 
 
@@ -316,7 +314,8 @@ def as_of(row: dict) -> dict:
     return out
 
 
-def situation_class(row: dict, live: np.ndarray | None = None, *, appeal: bool = True) -> np.ndarray | None:
+def situation_class(row: dict, live: np.ndarray | None = None, *, appeal: bool = True,
+                    stay: bool = False) -> np.ndarray | None:
     """Per trajectory, the question's situation class as of its decision day (QUESTIONS_20240514 §1 Grouping: a
     difference in legal status, available actions or ability to pay splits the group; each dimension is a fact the
     state gives): the judgment's band and standing, the notes' status, the listing, the offering's availability (or
@@ -330,6 +329,8 @@ def situation_class(row: dict, live: np.ndarray | None = None, *, appeal: bool =
     if not isinstance(s, dict) or not isinstance(day, np.ndarray):
         return None
     n = day.shape[0]
+    if stay and (not isinstance(s.get("stay_status"), np.ndarray) or s["stay_status"].shape != (n,)):
+        raise ValueError("Question consuming judgment status requires a dated stay-status snapshot")
     pet = np.where(row["petition"] < 0, BIG, row["petition"])
     live = np.flatnonzero((day < BIG) & (day < pet) if live is None else live)
 
@@ -354,6 +355,8 @@ def situation_class(row: dict, live: np.ndarray | None = None, *, appeal: bool =
             tag = np.strings.add(np.strings.add(tag, "."), np.asarray(part)[live].astype(str))
         if appeal:
             tag = np.strings.add(np.strings.add(tag, ".appeal"), appeal_state(row)[live].astype(str))
+        if stay:
+            tag = np.strings.add(np.strings.add(tag, ".stay"), s["stay_status"][live].astype(str))
         out[live] = tag.astype(object)
     return out
 
@@ -405,14 +408,31 @@ def _rewrite(key: str, to: dict) -> str:
 
 
 def class_firsts(known, dead=frozenset()) -> dict:
-    """Per classed question, the first class asked anywhere (`expand_classes`: what a draw the question is not live
-    on reads; a dead class is passed over where a live one exists)."""
+    """Fallbacks for inactive decisions, with dead classes retaining their exact answer domain.
+
+    Base keys serve unclassified inactive draws; full dead keys select a class
+    offering the same answers. With dead classes, known must include node metadata.
+    """
     first = {}
     for k in sorted(known):  # a question live on no path at all reads its first class (it moves no figure either)
         if "|" + CLASS_TAG in k:
             base = k.split("|" + CLASS_TAG)[0]
             if k not in dead or first.get(base, k) in dead:
                 first[base] = k if base not in first or first[base] in dead else first[base]
+    if dead:
+        if not isinstance(known, Mapping):
+            raise ValueError("Dead-class substitution requires question answer domains")
+        domains = {}
+        for k in sorted(known):
+            if "|" + CLASS_TAG not in k:
+                continue
+            base = k.split("|" + CLASS_TAG)[0]
+            domain = base, tuple(known[k].branches)
+            if domain not in domains or domains[domain] in dead and k not in dead:
+                domains[domain] = k
+        for k in dead:
+            base = k.split("|" + CLASS_TAG)[0]
+            first[k] = domains[base, tuple(known[k].branches)]
     return first
 
 
@@ -422,7 +442,8 @@ def expand_classes(paths: list, known, n: int, dead=frozenset(), first: dict | N
     not live reads the question's first class asked anywhere (`known`: node keys; `first`: `class_firsts`, computed
     here when not given), on every path: its answer books nothing inside the horizon there, so any class gives the
     same result, and one class for all of the question's branches keeps each draw's answers summing to one. A class
-    live on no path of the tree (`dead`: the facts found no live trajectory for it) is read the same way, everywhere.
+    live on no path of the tree (`dead`: the facts found no live trajectory for it) instead retains its saved
+    answer domain when selecting a replacement, everywhere.
     n: the draws."""
     if first is None:
         first = class_firsts(known, dead)
@@ -435,11 +456,11 @@ def expand_classes(paths: list, known, n: int, dead=frozenset(), first: dict | N
         on = np.arange(n) if m is None else np.flatnonzero(m)
         cols, fixed = [], {}
         for k, tags, codes in p.classes:
-            if dead and any(f"{k}|{t}" in dead for t in tags):  # a dead class reads as a draw not live
-                c = (np.full(len(np.flatnonzero(path_mask(p, n))) if p.mask is not None else n, 0, dtype=np.int64)
-                     if codes is None else np.frombuffer(codes, dtype=np.int8).astype(np.int64))
-                c = np.where(np.isin(c, [i for i, t in enumerate(tags) if f"{k}|{t}" in dead]), -1, c)
-                codes = c.astype(np.int8).tobytes()
+            if dead:
+                # Keep the saved answer domain: replacing file/neither with
+                # offering/file/neither loses mass even when the decision is inactive.
+                tags = tuple(first[f"{k}|{t}"].rsplit("|", 1)[1]
+                             if f"{k}|{t}" in dead else t for t in tags)
             if not tags:
                 if k in first:
                     fixed[k] = first[k]
@@ -1529,9 +1550,65 @@ class Forecaster:
         return bool(set(fields) & {"judgment_status", "appeal_deadline"}) or bool(
             set(n.context.split("|")) & {"final", "appealed"})
 
+    def uses_stay_status(self, n: Node) -> bool:
+        """Current stay status is consumed by the judgment-status wording."""
+        d = next((d for d in self.disputes if d.instance_id == n.instance_id), None)
+        return "judgment_status" in self.texts(n.node, d).get("situation_keys", ())
+
     def question_class(self, n: Node, row: dict, live: np.ndarray | None = None) -> np.ndarray | None:
-        """Partition dated appeal facts only when the question renders or uses them."""
-        return situation_class(row, live, appeal=self.uses_appeal_status(n))
+        """Partition dated statuses when the question renders or uses them."""
+        return situation_class(row, live, appeal=self.uses_appeal_status(n), stay=self.uses_stay_status(n))
+
+    def dated_class(self, d, key: str, steps: tuple, row: dict):
+        """Class and historical context at a completed before-decision snapshot."""
+        node = self.nodes[key]
+        live = self.live(node, row)
+        cls = self.question_class(node, row, live)
+        walk = _Walk(self, d)
+        conds = walk.situation_conditions(node.node)
+        if cls is None or not conds:
+            return cls
+        verdict = next((s[2] for s in steps if s[0] == 'verdict'), '')
+        ruling = next((s[2] for s in steps if s[0] == 'post_trial_ruling'), '')
+        label = 'award' + verdict.split(':')[1] if verdict.startswith('award:') else verdict or 'claimed'
+        after = ('reduced' + ruling.split(':')[1] if ruling.startswith('reduced:') else
+                 'set_aside' if ruling == 'set_aside' else label)
+        ruled = row['marks']['ruled'] <= row['day']
+        for selected, value in ((live & ~ruled, label), (live & ruled, after)):
+            if selected.any():
+                part = np.where(selected, cls, '')
+                tagged = walk.context_class(part, row, _S(cls=value), node.node, (node.context.split('|')[0],))
+                cls[selected] = tagged[selected]
+        return cls
+
+    def deferred_decision(self, key: str) -> bool:
+        """Question boundaries resolved by the engine after earlier-dated events are known."""
+        node = self.nodes[key]
+        d = next((d for d in self.disputes if d.instance_id == node.instance_id), None)
+        if d is None or d.stage != PENDING:
+            return False
+        return node.node in ('stay_approved', 'financing_at_floor', 'petition_cash_out', 'offering_closes',
+                             'petition_on_notes', 'holders_involuntary', 'bid_compliance', 'hearing_request',
+                             'holders_act_delisting') or (
+            node.node == 'judgment_response' and node.context.split('|')[0] in ('ripe', 'post')) or (
+            node.node in ('settlement_offer', 'settlement_accept') and node.context.split('|')[0] == 'I3')
+
+    def completed_probe(self, key: str, steps: tuple, index: int) -> tuple | None:
+        """Neutral own action, retaining all other dated events for listing decisions."""
+        name = self.nodes[key].node
+        if name not in ('bid_compliance', 'hearing_request', 'holders_act_delisting'):
+            return None
+        node, context, _ = steps[index]
+        if name == 'holders_act_delisting':
+            if node != 'delisting_notes':
+                raise ValueError(f'{name} has no delisting origin at {index}')
+            neutral = probe = (node, context, 'none')
+        else:
+            if node != 'listing':
+                raise ValueError(f'{name} has no listing origin at {index}')
+            neutral = (node, context, 'compliant')
+            probe = ('listing_date', 'compliance' if name == 'bid_compliance' else 'hearing_request', '')
+        return steps[:index] + (neutral,) + steps[index + 1:] + (probe,)
 
     def _split(self, keys, row: dict, keep, cls: np.ndarray | None = None) -> np.ndarray | None:
         """The row kept (`keep(key, row)`) under each class of its questions, on that class's trajectories: the
@@ -1539,14 +1616,22 @@ class Forecaster:
         kept whole)."""
         from app.analysis.events import BIG
 
+        classified = []
+        for key in keys:
+            if self._classified(key):
+                classified.append(key)
+            else:
+                self.classed.discard(key)
+                keep(key, row)
+        keys = tuple(classified)
+        if not keys:
+            return None
         if cls is not None and "note_context" in row:
             cls = cls.astype(object)
             for text in set(row["note_context"][cls != ""]):
                 on = (cls != "") & (row["note_context"] == text)
                 cls[on] = np.strings.add(cls[on].astype(str), ".ctx" + str(text).encode().hex()).astype(object)
-        if not any(self._classified(k) for k in keys):
-            cls = None
-        elif cls is None:
+        if cls is None:
             cls = self.question_class(self.nodes[keys[0]], row, self.live(self.nodes[keys[0]], row))
         if cls is None:
             for k in keys:
@@ -1625,13 +1710,15 @@ class Forecaster:
             self.facts.setdefault(k, Rows()).append_blob(b)
             out.append((k, b))
         # as of the decision day (a later-walked step dated after it has not happened), per situation class
-        asked = self.canon_get(keys[0], self._rec_at) if keys and self._rec_at is not None else None
+        classified = tuple(k for k in keys if self._classified(k))
+        asked = (self.canon_get(classified[0], self._rec_at)
+                 if classified and self._rec_at is not None and not self.deferred_decision(classified[0]) else None)
         cls = self._split(keys, as_of(row), keep, asked)
         if cls is not None and asked is None:
             quiet = self._rec_at and self._rec_at[-1][2].split("=")[-1] in ("", "no", "none", "neither")
-            for k in keys:
+            for k in classified:
                 self._qcls_put(k, self._rec_at, cls)
-                if quiet:  # asked without its situation probe: the branch that books nothing is the state before it
+                if quiet and not self.deferred_decision(k):  # deferred canon stores enumeration domains only
                     self.canon_put(k, self._rec_at[:-1], cls)
         return out
 
@@ -1654,14 +1741,41 @@ class Forecaster:
                              self.m, self.draws, self.sens)
         classes: dict = {}
         for k, i in late:
+            completed = self.completed_probe(k, steps, i)
+            if completed is not None:
+                from app.analysis.events import event_questions
+
+                cache = self.__dict__.setdefault('_dated_probe_rows', {})
+                identity = (d.instance_id, completed, pack_mask(mask))
+                row = cache.get(identity)
+                if row is None:
+                    questions, _ = event_questions(d, DisputePath(d.instance_id, completed, '', ()), self.setup,
+                                                  self.m, self.draws, self.sens, indices=(-1,), day_only=True,
+                                                  rows=None if mask is None else tuple(mask for _ in completed))
+                    row = as_of(on(questions[-1]))
+                    if self.SIBLINGS > 0:
+                        if len(cache) >= self.SIBLINGS:
+                            cache.pop(next(iter(cache)))
+                        cache[identity] = row
+                got = self._split((k,), row, lambda key, r, i=i: self._keep_late(key, steps[:i], r),
+                                  self.dated_class(d, k, steps, row))
+                if got is not None:
+                    classes[k] = got
+                continue
             if i in getattr(tr, "questions", {}):
                 row = on(tr.questions[i])
                 if self.nodes[k].node == "financing_at_floor" and "noraise" in self.nodes[k].context.split("|"):
                     pet = np.where(row["petition"] < 0, BIG, row["petition"])
                     if ((row["day"] < self.days) & (row["day"] < pet) & (row["raise_offer"] > 0)).any():
                         self._raise_more.add(steps[:i])
-                got = self._split((k,), as_of(row), lambda key, r, i=i: self._keep_late(key, steps[:i], r),
-                                  self.canon_get(k, steps))
+                row = as_of(row)
+                cls = (self.dated_class(d, k, steps, row) if self.deferred_decision(k)
+                       else self.canon_get(k, steps))
+                if self.deferred_decision(k) and k in self.grouped:
+                    if row.get('groups') is None:
+                        raise ValueError(f'Missing dated option groups for {k}')
+                    cls = group_classes(cls, row['groups'])
+                got = self._split((k,), row, lambda key, r, i=i: self._keep_late(key, steps[:i], r), cls)
                 if got is not None:
                     classes[k] = got
                 continue
@@ -2225,6 +2339,7 @@ class _Walk:
 
     def __init__(self, fc: Forecaster, d: DisputeInstance) -> None:
         self.fc, self.d, self.out = fc, d, []
+        self._population: np.ndarray | None = None  # current chronological ordering population
         self._masks = _DepthCache(fc.SIBLINGS)  # a prefix ending in a grouped step -> its trajectories (`mask_of`)
         self._watch: list[_Watch] = []  # the questions whose no-event branch is being walked (QUESTIONS §1 Depth)
         self.keys: list = []  # per emitted path, its financial-equivalence key (`equivalence`)
@@ -2240,6 +2355,19 @@ class _Walk:
         if self.fin is not None and fc.reach is not None and self.fin.principal_cents <= fc.reach:
             raise NotImplementedError("Paying the notes is arithmetically possible on some trajectory; the chains remove "
                                       "that branch only when the principal exceeds cash on every trajectory")
+
+    def scoped(self, population: np.ndarray | None, then):
+        """Continue one ordering population, restoring branch-local masks and question classes afterwards."""
+        previous, masks = self._population, self._masks
+        canonical, classes, at = self.fc._qcanon, self.fc._qcls, self.fc._rec_at
+        self.fc._qcanon = {k: list(v) for k, v in canonical.items()}
+        self.fc._qcls = {k: list(v) for k, v in classes.items()}
+        self._population, self._masks = population, _DepthCache(self.fc.SIBLINGS)
+        try:
+            return then()
+        finally:
+            self._population, self._masks = previous, masks
+            self.fc._qcanon, self.fc._qcls, self.fc._rec_at = canonical, classes, at
 
     # helpers
     def node(self, name, *ctx, s: _S | None = None, probe=None, assumptions=(), branches=None, groups=None):
@@ -2263,7 +2391,12 @@ class _Walk:
         k = self.fc.node(self.d, name, *ctx, *tags, assumptions=assumptions, branches=branches)
         if groups is not None:
             self.fc.grouped.add(k)
-        if s is not None and probe is not None and self.fc._classified(k) and not self.deferred_notes(k) \
+            if s is not None and self.deferred_dated(k):
+                # Retain enumeration's answer domain if this decision later
+                # becomes inactive. Active conditioning still comes from its
+                # completed before-answer record, never these domain-only tags.
+                self.fc.canon_put(k, s.steps, group_classes(None, groups))
+        if s is not None and probe is not None and self.fc._classified(k) and not self.deferred_dated(k) \
                 and not any(e[0] == s.steps for e in self.fc._qcanon.get(k, ())):
             # QUESTIONS §1 Grouping: each draw's class as the question is asked, on the branch that books nothing (the
             # state before the decision); every branch's paths and rows read it (`Forecaster.canon_get`)
@@ -2284,6 +2417,10 @@ class _Walk:
         from app.disputes.notes import NAMES
 
         return self.d is not None and self.pend and self.fc.nodes[key].node in NAMES
+
+    def deferred_dated(self, key: str) -> bool:
+        """These decisions occur after their traversal prefix: bind their own dated record."""
+        return self.fc.deferred_decision(key)
 
     def _reads(self, walk: str) -> None:
         """A later question asked where the walk's structure depends on a watched event (`_Watch.walks`)."""
@@ -2318,15 +2455,33 @@ class _Walk:
                 if k in seen or not self.fc._classified(k):
                     continue
                 seen.add(k)
-                cls = late.get(k) if self.deferred_notes(k) else self.fc.canon_get(k, steps)
+                cls = late.get(k) if self.deferred_dated(k) else self.fc.canon_get(k, steps)
                 if cls is None:
                     cls = late[k] if k in late else self.fc._qcls_get(k, steps)
+                if cls is not None and k in self.fc.grouped and self.deferred_dated(k):
+                    domain = self.fc.canon_get(k, steps)
+                    if domain is not None:
+                        inactive = (cls == '') & (domain != '')
+                        if inactive.any():
+                            cls = np.where(inactive, domain, cls)
+                            for tag in set(domain[inactive]):
+                                self.fc.class_key(k, tag)
                 if cls is not None:
                     out.append(class_entry(k, cls, mask))
         return tuple(out)
 
-    def situation(self, s: _S, probe, name: str, ctx) -> tuple[str, ...]:
+    def situation_conditions(self, name: str) -> list[str]:
         conds = list(self.fc.spec[name].get("situation", []))
+        # These routes previously encoded a pending motion in the raw node key.
+        # Its existence and denial now come from the dated before-answer record.
+        if self.pend and name in ("enforce_after_final", "judgment_response") and "stay_moved" not in conds:
+            conds.append("stay_moved")
+        if self.pend and "stay_moved" in conds:
+            conds.append("stay_denied")
+        return conds
+
+    def situation(self, s: _S, probe, name: str, ctx) -> tuple[str, ...]:
+        conds = self.situation_conditions(name)
         if not conds:
             return ()
         at = probe if isinstance(probe[0], tuple) else (probe,)  # one probe step, or several
@@ -2352,10 +2507,12 @@ class _Walk:
 
     def contexts(self, s: _S, ctx, row: dict, conds: list) -> np.ndarray:
         """The existing context vocabulary, evaluated separately for each dated situation."""
+        from app.analysis.events import BIG
+
         day = row["day"]
         bits = np.zeros(len(day), dtype=np.int64)
         for i, condition in enumerate(conds):
-            bits |= (np.asarray(row["marks"][condition]) <= day).astype(np.int64) << i
+            bits |= (np.asarray(row["marks"].get(condition, np.full(len(day), BIG))) <= day).astype(np.int64) << i
         out = np.full(len(day), "", dtype=object)
         live = (day < self.N) & ((row["petition"] < 0) | (day < row["petition"]))
         values, inverse = np.unique(bits[live], return_inverse=True)
@@ -2365,10 +2522,16 @@ class _Walk:
             never = set(conds) - held
             vocabulary.append("|".join(self._context_tags(s, conds, ctx, held, never)))
         out[live] = np.asarray(vocabulary, dtype=object)[inverse]
+        status = (row.get("sit") or {}).get("stay_status")
+        if "stay_moved" in conds and status is not None:
+            for value in ("pending", "denied", "approved", "resolved"):
+                on = live & (status == value)
+                out[on] = np.array(["|".join(filter(None, (str(text), "stay_" + value))) for text in out[on]],
+                                   dtype=object)
         return out
 
     def context_class(self, cls, row: dict, s: _S, name: str, ctx):
-        conds = list(self.fc.spec[name].get("situation", ()))
+        conds = self.situation_conditions(name)
         if cls is None or not conds:
             return cls
         text = self.contexts(s, ctx, row, conds)
@@ -2417,7 +2580,7 @@ class _Walk:
         SLOPE_ROWS=0: None (every trace on every draw, the reference the row subsets are checked against)."""
         if ROWS_OFF:
             return None
-        out, m = [], None
+        out, m = [], getattr(self, "_population", None)
         for i, st in enumerate(steps):
             if st[2].startswith("@"):
                 m = self.mask_of(steps[:i + 1])
@@ -2462,8 +2625,9 @@ class _Walk:
 
         steps = tuple(steps)
         j = next((i for i in range(len(steps) - 1, -1, -1) if steps[i][2].startswith("@")), None)
+        population = getattr(self, "_population", None)
         if j is None:
-            return None
+            return population
         key = steps[:j + 1]
         m = self._masks.get(None, key)
         if m is None:
@@ -2471,11 +2635,11 @@ class _Walk:
             g = np.isin(self.walk_groups(steps[:j] + ((node, ctx, self.quiet_of(node)),)), step_group(branch))
             parent = self.mask_of(steps[:j])
             m = self._masks.put(None, key, g if parent is None else parent & g)
-        return m
+        return m if population is None else m & population
 
     def rec(self, k: str, steps) -> None:
         """Record a question's facts from the prefix `steps` (its last step is the question's own day)."""
-        if not self.deferred_notes(k):
+        if not self.deferred_dated(k):
             self.fc.record((k,), self._facts(steps))
 
     def inside(self, steps) -> bool:
@@ -2515,7 +2679,23 @@ class _Walk:
         then_yes(self.take(s, (node, ctx, "yes"), (k, "yes"), keys))
         then_no(self.take(s, (node, ctx, "no"), (k, "no"), keys))
 
-    def settle(self, s: _S, interval: str, then_no) -> None:
+    def stay_answers(self, s: _S, ctx: str, motion: str, approval: str, then_yes, then_denied, then_no):
+        """A denied motion still existed before the court ruled on it.
+
+        Keep that history separate wherever intervening decisions read the motion;
+        the court's answer must not choose their before-answer circumstances.
+        """
+        if not self.pend:
+            s = self.stay_court(s, approval, f"stay_{ctx}")
+            return self.binary(s, "stay", ctx, [[(motion, "yes"), (approval, "yes")]], (motion,),
+                               then_yes, then_no)
+        then_no(self.take(s, ("stay", ctx, "no"), (motion, "no"), (motion,)))
+        moved = self.stay_court(s, approval, f"stay_{ctx}")
+        for answer, branch, then in (("yes", "yes", then_yes), ("no", "denied", then_denied)):
+            edge = composite([[(motion, "yes"), (approval, answer)]])
+            then(self.take(moved, ("stay", ctx, branch), (edge, "yes"), (motion,)))
+
+    def settle(self, s: _S, interval: str, then_no, then_yes=None) -> None:
         """A settlement exists only where its amount (cash above the 30-day need, capped at the amount owed) is
         positive: where it is zero on every trajectory the question does not arise."""
         probe = ("settle", interval, "no")
@@ -2525,7 +2705,7 @@ class _Walk:
             return then_no(s)
         if interval == "I3":
             self._reads("unstayed")  # the window after the appeal deadline: asked on a path not stayed before the ruling
-        if self.first(s, probe, lambda y: self.settle(y, interval, then_no)):
+        if self.first(s, probe, lambda y: self.settle(y, interval, then_no, then_yes)):
             return
         a3 = self.node("settlement_offer", interval, s.cls, s=s, probe=probe)
         from app.analysis.events import settlement_terms
@@ -2534,16 +2714,20 @@ class _Walk:
         terms = "the company offers to settle for its available cash above its 30-day operating need" + (
             f", paid in {count} equal monthly installments from the settlement date" if mode == "installments" else "")
         q4 = self.node("settlement_accept", interval, s.cls, s=s, probe=probe, assumptions=(terms,))
+        accepted = then_yes if then_yes is not None else lambda y: self.tail(y, "settled")
+        keys = (a3, q4)
+        if self.pend and interval == 'I3':
+            s = replace(s, late=s.late + ((a3, len(s.steps)), (q4, len(s.steps))))
+            keys = ()
         mask = self.mask_of(s.steps)
         on = np.ones(len(feasible), dtype=bool) if mask is None else mask
         if self.fc.equity and (on & ~feasible).any():
             then_no(s.add(("settle", interval, "@0=no"), None))
             k = composite([[(a3, "yes"), (q4, "yes")]])
-            self.tail(self.take(s, ("settle", interval, "@1=yes"), (k, "yes"), (a3, q4)), "settled")
-            then_no(self.take(s, ("settle", interval, "@1=no"), (k, "no"), (a3, q4)))
+            accepted(self.take(s, ("settle", interval, "@1=yes"), (k, "yes"), keys))
+            then_no(self.take(s, ("settle", interval, "@1=no"), (k, "no"), keys))
         else:
-            self.binary(s, "settle", interval, [[(a3, "yes"), (q4, "yes")]], (a3, q4),
-                        lambda y: self.tail(y, "settled"), then_no)
+            self.binary(s, "settle", interval, [[(a3, "yes"), (q4, "yes")]], keys, accepted, then_no)
 
     def cx(self, s: _S) -> tuple[str, ...]:
         """A pending claim's nodes that 4.0.0 keys without an amount class carry the verdict branch."""
@@ -2648,9 +2832,8 @@ class _Walk:
         a1 = self.node("stay_motion", "I1", s.cls, s=s, probe=probe,
                        assumptions=("the creditor executes before the ruling",))
         j8 = self.node("stay_approved", "I1", s.cls, s=s, probe=probe, assumptions=("the company moves for a stay",))
-        s = self.stay_court(s, j8, "stay_I1")
-        self.binary(s, "stay", "I1", [[(a1, "yes"), (j8, "yes")]], (a1,),
-                    lambda y: self.j9_stayed(replace(y, stayed=True)), self.j9_i1)
+        self.stay_answers(s, "I1", a1, j8,
+                          lambda y: self.j9_stayed(replace(y, stayed=True)), self.j9_i1, self.j9_i1)
 
     def j9_stayed(self, s: _S) -> None:
         """A stay is effective only on approval: early registration and its levy can come before it, and no
@@ -2697,7 +2880,7 @@ class _Walk:
         else:
             rest = ("seek_sale_or_financing", "file", "neither")
         branches = (("pay",) if pay else ()) + rest
-        pending = s.stayed and phase in ("I1", "post")  # moved for a stay, not yet approved
+        pending = s.stayed and phase in ("I1", "post")  # legacy, unclassed route
         when = {"post": ("the creditor levies on the company's cash that day",),
                 "ripe": ("the judgment default under the notes has ripened that day",),
                 "entry": ("the money judgment was entered that day, unpaid; execution is stayed automatically for "
@@ -2750,7 +2933,9 @@ class _Walk:
         codes = self.option_groups(s.steps + (probe,))
         if not any(c >= 0 for c in codes):
             return then(s)
-        pending = s.stayed and phase in ("I1", "post")  # moved for a stay, not yet approved
+        # Classed 14 May questions read the dated motion/denial facts. A future
+        # approval answer cannot select a different earlier response question.
+        pending = False
         when = {"post": ("the creditor levies on the company's cash that day",),
                 "ripe": ("the judgment default under the notes has ripened that day",),
                 "entry": ("the money judgment was entered that day, unpaid; execution is stayed automatically for "
@@ -3031,27 +3216,28 @@ class _Walk:
             return
         a1 = self.node("stay_motion", "post", s.cls, s=s, probe=probe, assumptions=("the final judgment is entered",))
         j8 = self.node("stay_approved", "post", s.cls, s=s, probe=probe, assumptions=("the company moves for a stay",))
-        s = self.stay_court(s, j8, "stay_post")
-        self.binary(s, "stay", "post", [[(a1, "yes"), (j8, "yes")]], (a1,),
-                    lambda y: self.enforce(replace(y, stayed=True), self.stayed_tail, pending=True), self.i3)
+        self.stay_answers(s, "post", a1, j8,
+                          lambda y: self.i3(replace(y, stayed=True), pending=True, then=self.stayed_tail),
+                          lambda y: self.i3(y, pending=True), self.i3)
 
     def stayed_tail(self, s: _S) -> None:
         """Stayed on approval: the I4 settlement, then the notes' judgment default where it can ripen first."""
         self.settle(s, "I4", lambda z: self.notes_petition(z, "post", lambda y: self.tail(y, "stayed")))
 
-    def i3(self, s: _S) -> None:
+    def i3(self, s: _S, pending: bool = False, then=None) -> None:
         """Walk an enforcement decision dated before the I3 window before settlement can terminate the claim.
         The levy and debtor response still book on their own dates; each response reaches the existing settlement
         route, whose terms read the cash on its effective date. The 4.0.0 route remains as recorded."""
+        then = then or self.ripe_post
         if self.pend and self.levy_first(s):
-            return self.enforce(s, lambda y: self.settle(y, "I3", self.ripe_post), i3=True)
-        self.settle(s, "I3", self.enforce)
+            return self.enforce(s, then, pending=pending, i3=True)
+        self.settle(s, "I3", lambda y: self.enforce(y, then, pending=pending))
 
     def levy_first(self, s: _S) -> bool:
         decision = self._trace(s.steps + (("enforce", "post", "none"),)).day[-1]
         window = self._trace(s.steps + (("settle", "I3", "no"),)).day[-1]
         both = (decision < self.N) & (window < self.N)
-        return bool((both & (decision < window)).any())
+        return bool((both & (decision <= window)).any())
 
     def a4_post(self, s: _S, then, i3: bool = False) -> None:
         """The company's response on the day the creditor's levy falls, before the levy."""
@@ -3066,15 +3252,15 @@ class _Walk:
         then = then or self.ripe_post
         levy_step, none_step = ("enforce", "post", "levy"), ("enforce", "post", "none")
         if not self.arises(s, none_step) or (pending and not self.fc.moves_cash(self.d, s.steps, levy_step, none_step)):
-            return then(s)
+            return self.settle(s, 'I3', then) if i3 else then(s)
         self._reads("unstayed")
         if self.first(s, none_step, lambda y: self.enforce(y, then, pending, i3)):
             return
-        extra = ("stay_pending",) if pending else ()
+        extra = ("stay_pending",) if pending and not self.pend else ()
         # These identify execution routes; the 14 May renderer derives appeal status from dated question facts.
         q3 = self.node("enforce_after_final", s.cls, "appealed" if s.appealed else "final", *extra,
                        s=s, probe=none_step, assumptions=("the judgment is enforceable, unstayed and unpaid after the ruling",)
-                       + (("the company has moved for a stay, not yet approved",) if pending else ()))
+                       + (("the company has moved for a stay, not yet approved",) if extra else ()))
         if s.appealed and not s.early:
             j9 = self.node("registration_early", "post", s.cls, *extra, s=s,
                            probe=("court_order", "registration_post", ""),
@@ -3083,8 +3269,17 @@ class _Walk:
             levy, none, keys = [[(q3, "yes"), (j9, "yes")]], [[(q3, "no")], [(q3, "yes"), (j9, "no")]], (q3,)
         else:
             levy, none, keys = [[(q3, "yes")]], [[(q3, "no")]], (q3,)
-        self.a4_post(self.take(s, levy_step, (composite(levy), "yes"), keys), then, i3)
-        then(self.take(s, none_step, (composite(none), "yes"), keys))
+        levied = self.take(s, levy_step, (composite(levy), "yes"), keys)
+        if i3:
+            # The creditor decides first; the settlement decision can precede
+            # the eventual levy-day response. Agreement does not release the
+            # claim until its effective date, so retain intervening responses.
+            self.settle(levied, 'I3', lambda y: self.a4_post(y, then),
+                        lambda y: self.a4_post(y, lambda z: self.tail(z, 'settled')))
+            self.settle(self.take(s, none_step, (composite(none), "yes"), keys), 'I3', then)
+        else:
+            self.a4_post(levied, then)
+            then(self.take(s, none_step, (composite(none), "yes"), keys))
 
     def ripe_post(self, s: _S) -> None:
         """After 'seek a sale or financing', the company responds again at the ripe default date."""
@@ -3203,15 +3398,23 @@ class _Walk:
             self.floor(y, outcome)
 
     # --- the distress chain (QUESTIONS_20240514 §4.4, §4.6): one chain for the forecast and the ordinary view ---
-    def listing(self, s: _S, outcome: str) -> None:
+    def listing(self, s: _S, outcome: str, then=None, *, defer_delisting: bool = False) -> None:
         """D6a, compliance with the bid price regained by the deadline; where it is not, D6b, a timely hearing
         request (suspension stayed until the panel decides, after the period); without one, suspension and the
         delisting default (H2). Then the distress loop. Asked where no petition precedes the deadline."""
         f = self.fin
         at = ("listing_date", "compliance", "")
+        if any(step[0] == 'listing' for step in s.steps):
+            pending = self._pending_delisting(s)
+            if pending is not None and not defer_delisting:
+                return self.delisting(s, *pending, outcome, then)
+            return then(s) if then is not None else self.distress(s, outcome)
         if f is None or f.listing_deadline is None or not self.inside(s.steps + (at,)):
-            return self.distress(s, outcome)
-        if self.first(s, at, lambda y: self.listing(y, outcome)):
+            return then(s) if then is not None else self.distress(s, outcome)
+        # Fixed listing answers establish the dated constraint that distress
+        # option enumeration reads. Its own facts are deferred, so an earlier
+        # distress action still appears in the listing question on those draws.
+        if not (self.pend and self.d is not None) and self.first(s, at, lambda y: self.listing(y, outcome, then)):
             return
         hr = ("listing_date", "hearing_request", "")
         d6a = self.node("bid_compliance", "deadline")
@@ -3224,11 +3427,13 @@ class _Walk:
         to_distress = ("compliant", "hearing") + (() if dates["delisted_suspension"] < self.N else ("suspended",))
         classes = self.joined(s, "listing", "", classes, (to_distress,))
         for c, parts in classes.items():
-            y = s.add(("listing", "", c), (composite(parts), "yes"))
-            if c == "suspended" and dates["delisted_suspension"] < self.N:
-                self.delisting(y, "delisted_suspension", dates["delisted_suspension"], outcome)
+            late = s.late + (((d6a, len(s.steps)), (d6b, len(s.steps)))
+                             if self.fc.deferred_decision(d6a) else ())
+            y = s.add(("listing", "", c), (composite(parts), "yes"), late=late)
+            if c == "suspended" and dates["delisted_suspension"] < self.N and not defer_delisting:
+                self.delisting(y, "delisted_suspension", dates["delisted_suspension"], outcome, then)
             else:
-                self.distress(y, outcome)
+                then(y) if then is not None else self.distress(y, outcome)
 
     def _listing_dates(self) -> dict[str, int]:
         return _listing_dates(self.fc, self.d)
@@ -3236,20 +3441,21 @@ class _Walk:
     def _repurchase_day(self, delist: int) -> int:
         return int(Chain_(self.fc, self.d).repurchase_day(np.array([delist]))[0])
 
-    def delisting(self, s: _S, dc: str, delist: int, outcome: str) -> None:
+    def delisting(self, s: _S, dc: str, delist: int, outcome: str, then=None) -> None:
         """The delisting default (§7.01(b)), where the notes are not already due: H2, the holders declare the notes
         due, or not (the repurchase date is in the situation); after a declaration, D9, the issuer files, or else
         H3, the holders file once §7.06 allows, or the notes stay due and unpaid. Then the distress loop."""
         probe = ("delisting_notes", dc, "none")
         if not self.inside(s.steps + (probe,)):
-            return self.distress(s, outcome)
-        if self.first(s, probe, lambda y: self.delisting(y, dc, delist, outcome)):
+            return then(s) if then is not None else self.distress(s, outcome)
+        if self.first(s, probe, lambda y: self.delisting(y, dc, delist, outcome, then)):
             return
         if self._repurchase_day(delist) < self.N:
             raise NotImplementedError("the repurchase falls due inside the period: D9 on an unpaid repurchase and H3 "
                                       "on it are not built (QUESTIONS §4.4 D9)")
         if self._declared_after(s, probe):  # QUESTIONS §1 Depth: not asked; the path books 'none' (the step, no edge)
-            return self.distress(s.add(probe, None), outcome)
+            y = s.add(probe, None)
+            return then(y) if then is not None else self.distress(y, outcome)
         acc = ("delisting_notes", dc, "accelerated")
         issuer, holders = s.steps + (acc, ("notes_due_date", "issuer", "")), s.steps + (acc, ("notes_due_date",
                                                                                               "holders", ""))
@@ -3272,8 +3478,49 @@ class _Walk:
                        "accelerated": [[(h2, "accelerate"), (a5, "no"), (h3, "no")]], "none": classes["none"]}
         classes = self.joined(s, "delisting_notes", dc, classes, (("petition_delist", "petition_delist_holders"),))
         for c, parts in classes.items():
-            self.distress(s.add(("delisting_notes", dc, c), (composite(parts), "yes"), notes_due=c != "none"),
-                          "petition" if c.startswith("petition") else outcome)
+            y = s.add(("delisting_notes", dc, c), (composite(parts), "yes"), notes_due=c != "none",
+                      late=s.late + (((h2, len(s.steps)),) if self.fc.deferred_decision(h2) else ()))
+            then(y) if then is not None else self.distress(y, "petition" if c.startswith("petition") else outcome)
+
+    def _pending_delisting(self, s: _S) -> tuple[str, int] | None:
+        """A suspended listing leaves its later holder decision unresolved until that date is reached."""
+        if ('listing', '', 'suspended') not in s.steps or any(step[0] == 'delisting_notes' for step in s.steps):
+            return None
+        day = self._listing_dates()['delisted_suspension']
+        return ('delisted_suspension', day) if day < self.N else None
+
+    def _first_listing(self, s: _S, probe, then) -> bool:
+        """Resolve only the next listing-stage decision, on draws where it precedes the parent decision."""
+        if not self.fc.equity or not self.pend or self.d is None or probe[0] == 'listing_date' \
+                or self.fin is None or self.fin.listing_deadline is None:
+            return False
+        if any(step[0] == 'listing' for step in s.steps):
+            pending = self._pending_delisting(s)
+            if pending is None:
+                return False
+            prerequisite = ('delisting_notes', pending[0], 'none')
+            earlier = lambda: self.delisting(s, *pending, '', then)  # noqa: E731
+        else:
+            prerequisite = ('listing_date', 'compliance', '')
+            # Resume the parent after D6; H2 has its own later date and is
+            # reconsidered on the parent's next first() call or at the tail.
+            earlier = lambda: self.listing(s, '', then, defer_delisting=True)  # noqa: E731
+        listing = self._trace(s.steps + (prerequisite,))
+        question = self._trace(s.steps + (probe,))
+        day, at = listing.day[-1], question.day[-1]
+        petition = np.where(listing.petition < 0, np.iinfo(np.int64).max, listing.petition)
+        parent = self.mask_of(s.steps)
+        parent = np.ones(self.fc.draws.n, dtype=bool) if parent is None else parent
+        before = parent & (day < at) & (at < self.N) & (day < petition) & (at < petition)
+        if not before.any():
+            return False
+        rest = parent & ~before
+        if not rest.any():
+            earlier()
+        else:
+            self.scoped(before, earlier)
+            self.scoped(rest, lambda: then(s))
+        return True
 
     def _declared_after(self, s: _S, probe: tuple) -> bool:
         """H2 (QUESTIONS §4.5): whether, on every trajectory of the path where the delisting default arises inside the
@@ -3309,23 +3556,36 @@ class _Walk:
         return self._end(s, outcome, then)
 
     def _first_distress(self, s: _S, probe, then) -> bool:
-        """`first` under the equity model: a distress decision dated before the probe's decision (or the latest day
-        whose cash it reads) on some trajectory, before any petition, is asked first, so the probe's facts include
-        it; `then` continues each of its branches."""
+        """Ask earlier distress only on the draws where it precedes the actor's decision.
+
+        A future cash read is not the decision date. The complementary draws continue at the parent decision;
+        promoting distress there would let a later choice change the earlier decision's available answers.
+        """
         x = self._trace(s.steps + (probe,))
         dx = x.day[-1]
-        rx = dx if x.reads is None else np.maximum(dx, x.reads)
+        parent = self.mask_of(s.steps)
+        parent = np.ones(self.fc.draws.n, dtype=bool) if parent is None else parent
         for c in self._candidates(s):
             a = self._trace(s.steps + (c,))
             t = a.day[-1]
             pet = np.where(a.petition < 0, np.iinfo(np.int64).max, a.petition)
-            if ((t < rx) & (dx < self.N) & (t < pet) & (dx < pet)).any():
+            before = parent & (t < dx) & (dx < self.N) & (t < pet) & (dx < pet)
+            if not before.any():
+                continue
+            rest = parent & ~before
+            if not rest.any():
                 self.ask_distress(s, c, "", then)
-                return True
+            else:
+                self.scoped(before, lambda c=c: self.ask_distress(s, c, "", then))
+                self.scoped(rest, lambda: then(s))
+            return True
         return False
 
     def ask_distress(self, s: _S, c: tuple, outcome: str, then) -> None:
         """Ask one distress decision (D7, D8 or §3.3); `then` continues each branch (from `first`), else the loop."""
+        if self._first_listing(s, c, lambda y: self.ask_distress(y, c, outcome, then)):
+            return
+
         def nxt(y: _S, o: str) -> None:
             then(y) if then is not None else self.distress(y, o)
 
@@ -3435,6 +3695,8 @@ class _Walk:
         some trajectory, so every later-dated question's facts include it; the question's situation keeps the model's
         rule (a condition holding on only some trajectories stays unstated). 4.0.0 asks them last, as recorded.
         Returns whether it asked one; `then` continues each of its branches."""
+        if self._first_listing(s, probe, then):
+            return True
         if self.fc.equity:
             return self._first_distress(s, probe, then)
         if not self.pend or s.floor == "done":
@@ -3745,7 +4007,7 @@ def ordinary_classes(fc: Forecaster, n: Node) -> set[str]:
         row = r[6] if len(r) > 6 and r[6] is not None else {
                "day": r[0], "cash": r[1], "owed": np.zeros_like(r[1]), "petition": np.full_like(r[0], -1),
                "triggers": r[4] if len(r) > 4 else None, "sit": r[5] if len(r) > 5 else None}
-        c = situation_class(as_of(row), r[0] < fc.days)
+        c = fc.question_class(n, as_of(row), r[0] < fc.days)
         tags |= set() if c is None else {x for x in c if x}
     return tags
 

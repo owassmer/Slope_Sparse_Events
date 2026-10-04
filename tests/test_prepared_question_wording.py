@@ -2,10 +2,11 @@ from datetime import date
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from app.agent.jev import build_question, registry_question
 from app.analysis.events import BIG
-from app.disputes.state14 import Group, Situation, question_text
+from app.disputes.state14 import Group, Situation, Unbuilt, question_text
 
 
 def test_grouped_question_and_provider_only_offer_recorded_actions():
@@ -89,3 +90,29 @@ def test_inactive_stay_and_unavailable_future_security_are_not_pending_sizing():
     unavailable = Situation(fc, node, None, Group.of([row], [np.array([False, True])]), [], {})
     assert unavailable.security_offered() == 'security amount unavailable'
     assert unavailable.collateral_required() == 'not available'
+
+
+def test_stay_denial_is_rendered_only_when_in_the_dated_question_history():
+    fc = SimpleNamespace(review=date(2024, 5, 14), instrument=lambda: None)
+    for day, denied, expected in ((19, 20, False), (20, BIG, False), (21, 20, True)):
+        row = {'day': np.array([day]), 'cash': np.array([100]),
+               'marks': {'stay_moved': np.array([10]), 'stay_denied': np.array([denied])}}
+        s = Situation(fc, None, None, Group.of([row], [np.array([True])]), [], {})
+        events = s.historical_events()
+        assert 'the company moved for a stay on 25 May 2024' in events
+        assert ('the court denied a stay request on 4 Jun 2024' in events) == expected
+
+
+def test_prior_denial_does_not_describe_a_new_pending_request_as_denied():
+    fc = SimpleNamespace(review=date(2024, 5, 14), instrument=lambda: None)
+    row = {'day': np.array([112, 225]), 'cash': np.array([100, 100]),
+           'marks': {'stay_denied': np.array([109, 224])},
+           'sit': {'stay_status': np.array(['pending', 'denied'], dtype=object)}}
+    pending = Situation(fc, None, None, Group.of([row], [np.array([True, False])]), [], {})
+    assert pending.stay_events() == ['the current stay request is awaiting a court decision']
+    assert any('denied a stay request' in event for event in pending.historical_events())
+    decided = Situation(fc, None, None, Group.of([row], [np.array([False, True])]), [], {})
+    assert decided.stay_events() == ['the court denied the latest stay request']
+    mixed = Situation(fc, None, None, Group.of([row], [np.array([True, True])]), [], {})
+    with pytest.raises(Unbuilt, match='mixes decision-time stay statuses'):
+        mixed.stay_events()

@@ -523,7 +523,7 @@ TRIGGERS = DISPUTE_TRIGGERS + INSTRUMENT_TRIGGERS
 
 PETITION_CAUSES = ("none", "enforcement", "notes", "cash_floor")
 # The conditions a decision can be asked in, each dated per trajectory (BIG: not on this trajectory)
-MARKS = ("executing", "stay_moved", "stayed", "ruled", "settled", "paid", "levied", "appealed", "seeking", "notes_due",
+MARKS = ("executing", "stay_moved", "stay_denied", "stayed", "ruled", "settled", "paid", "levied", "appealed", "seeking", "notes_due",
          "delisted", "raised")  # the rule that booked a trajectory's petition
 
 
@@ -674,6 +674,7 @@ class Chain:
         self.release_at = np.full(self.n, BIG, dtype=np.int64)
         self._stay_cv = -1  # the event cash's version at the last `restay`
         self._restaying = False  # inside `restay` (its views do not re-size)
+        self._sizing_stay = None  # initial sizing: its read must not book its own lock
 
     def per_draw(self, x, dtype=np.int64) -> np.ndarray:
         """x as an array [draws] (a scalar filled, an array of that shape as it is): no broadcast view per call."""
@@ -1062,6 +1063,8 @@ class Chain:
             return
         day = self.pending_levy.copy()
         rows = np.ones(self.n, dtype=bool) if rows is None else rows
+        if (bound := self.__dict__.get("_court_read_before")) is not None:
+            rows = rows & (day < bound)
         selected = []
         for i, writ in enumerate(self._pending_writs):
             on = rows & (writ == day) & (writ < BIG)
@@ -1619,8 +1622,30 @@ class Chain:
         Returns the settlement date and where a settlement exists."""
         pd = np.asarray(end) if self.sens.get("settlement_date_in_interval") else np.asarray(start) + int(
             self.m["parameters"]["settlement_date_in_interval"]["value"])
-        v = self.seen_at(pd, levy=True)  # what is dated before the settlement date is in the cash it reads
-        ok = v.live(pd) & (pd < self.N)
+        source = self
+        if self.pending and self.daily and any(
+                st["approved"] and (st["approval"] > start).any() for st in self.stays.values()):
+            # Price the proposal using decisions already made at agreement.
+            # A later court answer cannot determine whether this offer exists.
+            source = self.clone()
+            source._prospective_before = np.asarray(start)
+            for st in source.stays.values():
+                for field in ("stayed_from", "mark", "denial_mark"):
+                    if field in st:
+                        st[field] = np.where(st[field] <= start, st[field], BIG)
+            source.stayed_from = np.where(source.stayed_from <= start, source.stayed_from, BIG)
+            source.restay(force=True)
+            # Resizing the read view is not a read of the eventual court answer.
+            # Track only dependencies of the proposal's prospective pricing read.
+            source.reads = self.reads.copy()
+            source._vfired = {}
+        v = source.seen_at(pd, levy=True)  # retain already committed writs and scheduled obligations
+        if source is not self:
+            self.reads = np.maximum(self.reads, source.reads)
+            fired = self.__dict__.setdefault("_vfired", {})
+            for index, day in source.__dict__.get("_vfired", {}).items():
+                fired[index] = np.minimum(fired.get(index, BIG), day)
+        ok = v.live(pd) & (pd < self.N) & (np.asarray(start) < self.N)
         need = self.basis.need[self.rows, np.clip(pd, 0, self.N - 1)]
         owed = v.owed_at(pd) if cap is None else np.full(self.n, cap, dtype=np.int64)
         bound = np.where(ok, np.clip(v.cash_at(pd) - need, 0, owed), 0).astype(np.int64)
@@ -1658,7 +1683,7 @@ class Chain:
               if x < self.N else int(x) for x in np.unique(day)}
         return np.array([at[int(x)] for x in day.ravel()], dtype=np.int64).reshape(day.shape)
 
-    def stay_security(self, motion: np.ndarray, key: str, approved: bool) -> np.ndarray:
+    def stay_security(self, motion: np.ndarray, key: str, approved: bool, moved: bool = False) -> np.ndarray:
         """Rule 62(b), effective on approval (motion + briefing + a lag draw). Where the company's cash at approval
         covers the bond collateral and its 30-day operating need, the collateral is locked. Elsewhere the company
         proposes reduced security, posted on approval: its available cash above its 30-day operating need on the
@@ -1670,12 +1695,20 @@ class Chain:
         `_size_stay` sizes it here, and `restay` re-sizes it after every later booking."""
         approval = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, key)
         if self.daily:  # sized on the approval day whatever the walk order (`restay`)
-            if approved:
+            if approved or moved:
                 self.mark("stay_moved", motion, self.live(motion))
             st = {"approval": approval, "motion": motion.copy(), "approved": approved, "stayed_from": self.stayed_from.copy(),
-                  "mark": self.marks["stayed"].copy(), "triggers": self.trigger_days()}
-            self.stays[len(self.rec[0])] = st
-            self._size_stay(st, read=True)
+                  "mark": self.marks["stayed"].copy(), "triggers": self.trigger_days(), "moved": moved or approved,
+                  "denied": moved and not approved,
+                  "denial_mark": self.marks["stay_denied"].copy()}
+            index = len(self.rec[0])
+            self.stays[index] = st
+            previous = self._sizing_stay
+            self._sizing_stay = index
+            try:
+                self._size_stay(st, read=True)
+            finally:
+                self._sizing_stay = previous
             return approval
         v = self.seen_at(approval, levy=True)  # what is dated before the approval is in the cash it reads
         collateral = v.bond_collateral(approval)
@@ -1685,6 +1718,9 @@ class Chain:
         offer = np.maximum(cash_a - need_a, 0)
         self.stay_offer = np.where(v.live(approval) & (approval < self.N) & ~covers, offer, 0).astype(np.int64)
         self.collateral_required = collateral
+        if moved:
+            self.mark("stay_moved", motion, self.live(motion))
+            self.mark("stay_denied", approval, v.live(approval) & (v.owed_at(approval) > 0))
         if not approved:
             return approval
         posts = ~covers & (self.stay_offer > 0)
@@ -1736,6 +1772,9 @@ class Chain:
         need_a = self.basis.need[self.rows, np.clip(approval, 0, self.N - 1)]
         covers = cash_a - need_a >= collateral
         live = v.live(approval) & (approval < self.N)
+        if st.get("denied"):
+            self.marks["stay_denied"] = st["denial_mark"].copy()
+            self.mark("stay_denied", approval, live & (v.owed_at(approval) > 0))
         offer = np.where(live & ~covers, np.maximum(cash_a - need_a, 0), 0).astype(np.int64)
         st.update(day=approval, cash=cash_a, owed=v.owed_at(approval), collateral=collateral, stay_offer=offer,
                   petition=v.ev.petition.copy())
@@ -1748,8 +1787,11 @@ class Chain:
             facts.capture_questions = False
             facts.stayed_from = st["stayed_from"].copy()
             facts.marks["stayed"] = st["mark"].copy()
+            facts.marks["stay_denied"] = st.get("denial_mark", facts.marks["stay_denied"]).copy()
             facts.mark("stay_moved", st["motion"], facts.live(st["motion"]))
             st["question"] = facts.question_row(approval, "court_order", "stay")
+            st["question"]["sit"]["stay_status"] = np.where(live & (v.owed_at(approval) > 0),
+                                                            "pending", "resolved")
             st["question"].update(cash=cash_a.copy(), collateral=collateral.copy(), stay_offer=offer.copy())
             st["question"]["security_terms"] = _copied(st["security_terms"])
         if read:
@@ -1757,6 +1799,8 @@ class Chain:
         if not st["approved"]:
             return
         effective = live & (covers | (offer > 0) | (self.p("stay_security") == "noncash"))
+        if (decision := self.__dict__.get("_prospective_before")) is not None:
+            effective &= approval <= decision
         lock = np.where(effective & covers, collateral, np.where(effective, offer, 0)).astype(np.int64)
         self.stayed_from = np.minimum(st["stayed_from"], np.where(effective, approval, BIG))
         rel = self.release_at
@@ -1784,8 +1828,8 @@ class Chain:
         self._stay_owed = key
         self._restaying = True
         try:
-            for st in self.stays.values():
-                if st["approved"]:
+            for i, st in self.stays.items():
+                if st["approved"] and i != self._sizing_stay:
                     self._size_stay(st, read=False)
         finally:
             self._restaying = False
@@ -2087,6 +2131,8 @@ class Chain:
                 end = {"I1": self.F, "I2": self.AD, "I3": full(N - 1), "I4": full(N - 1)}[ctx]
             start = np.maximum(start, -1)  # an interval that began before the review date runs from it
             cap = self.claimed() if ctx == "I0" else None
+            if ctx == "I3" and self.pending:
+                start = np.where(self.stayed_from <= start, BIG, start)
             self.settle(start, end, agreed=branch == "yes", cap=cap)  # a settlement releases the stay's security
             return np.where(end < 0, BIG, np.maximum(start, 0))  # a closed interval asks nothing
         if node == "execute_pre_ruling":
@@ -2096,7 +2142,7 @@ class Chain:
             return full(self.E0)
         if node == "stay":
             motion = full(self.E0) if ctx == "I1" else np.maximum(self.F, 0)
-            self.stay_security(motion, f"stay_{ctx}", approved=branch == "yes")
+            self.stay_security(motion, f"stay_{ctx}", approved=branch == "yes", moved=branch == "denied")
             return motion
         if node == "court_order":
             # a probe that books nothing: the day the court rules on a motion (ctx "stay_I1" / "stay_post": the stay's
@@ -2262,12 +2308,15 @@ class Chain:
         raise ValueError(f"Unknown chain step {node}")
 
     def run(self, steps, day_only: bool = False) -> Trace:
+        steps = tuple(steps)
         self.capture_questions = self.pending or self.ordinary
         self.instrument_cash()
         tr = Trace(self.ev)
         for node, ctx, branch in steps:
             self.advance(tr, node, ctx, branch)
         tr = self.finish(tr, day_only)
+        if not day_only:
+            self.court_questions(tr, steps)
         # Direct-run callers own their petition array; snapshot clones retain the
         # old immutable array. Prefix-cached traces keep their existing ownership.
         self.ev.petition = self.ev.petition.copy()
@@ -2518,6 +2567,9 @@ class Chain:
         """Book the waiting state-triggered decisions, in walk order, on each trajectory whose own day falls before
         `before` (every: on every trajectory left). A day's cash reads nothing booked after it, so a floor dated before
         `before` is final there; its facts (day, cash, owed, collateral, earlier petitions, triggers) are its own day's."""
+        if (bound := self.__dict__.get("_court_read_before")) is not None:
+            before = bound if before is None else np.minimum(before, bound)
+            every = False
         if not self.waiting or (before is None and not every):
             return False
         if self.equity:
@@ -2631,6 +2683,8 @@ class Chain:
         """Book, in date order on each trajectory, the waiting decisions and the pending levy dated before `bound` (a
         day index per draw): a floor dated before the levy first, else the response on the levy day and the levy."""
         bound = self.per_draw(bound)
+        if (court := self.__dict__.get("_court_read_before")) is not None:
+            bound = np.minimum(bound, court)
         while self.waiting or self.pending_levy is not None:
             lv = self.pending_levy if self.pending_levy is not None else np.full(self.n, BIG, dtype=np.int64)
             moved = self.upto(bound, levy=lv)
@@ -2740,6 +2794,55 @@ class Chain:
             return tr
         return self._snapshot_tail(tr, day_only)
 
+    def court_questions(self, tr: Trace, steps) -> None:
+        """Read each court question before its answer and same-day waiting events.
+
+        A completed path may already have booked that day's levy and distress.
+        `seen_at` can exclude waiting events, but cannot undo those bookings. Replay
+        this read using the same dated queue, stopping waiting decisions and writs
+        strictly before approval. Earlier agreements keep their payment schedules;
+        independent structural steps retain their own dated facts. This read never
+        replaces the actual path's financial events.
+        """
+        for i, st in self.stays.items():
+            if not self.captures(i) or "question" not in st or steps[i][0] != "stay":
+                continue
+            approval = st["approval"]
+            history = tuple((node, ctx, "denied" if j == i else plain(branch))
+                            for j, (node, ctx, branch) in enumerate(steps))
+            inputs = (self.d, self.s, self.m, self.fin)
+            previous, cache = getattr(self.dr, "_court_reads", ((), {}))
+            if len(previous) != len(inputs) or any(a is not b for a, b in zip(previous, inputs, strict=True)):
+                cache = {}
+                self.dr._court_reads = inputs, cache
+            key = i, history, approval.tobytes(), repr(sorted(self.sens.items()))
+            if key in cache:
+                row, stay = _copied(cache[key])
+                tr.questions[i], tr.situations[i], tr.stays[i] = row, row["sit"], stay
+                continue
+            # Rebuild the whole row population together: offerings are a variable
+            # length list, so merging a few rewritten rows positionally is unsafe.
+            view = Chain(self.d, self.s, self.m, self.dr, self.sens, fin=self.fin)
+            view.capture_questions = False
+            view.instrument_cash()
+            view._court_read_before = approval.copy()
+            scratch = Trace(view.ev)
+            for node, ctx, branch in history:
+                view.advance(scratch, node, ctx, branch)
+            view.until(approval)
+            view.capture_questions = True
+            view.capture_indices = frozenset({i})
+            target = view.stays[i]
+            view._size_stay(target, read=False)
+            row = target["question"]
+            tr.questions[i] = row
+            tr.situations[i] = row["sit"]
+            tr.stays[i] = {k: target[k] for k in
+                           ("day", "cash", "owed", "collateral", "stay_offer", "petition", "triggers")}
+            cache[key] = _copied((row, tr.stays[i]))
+            if len(cache) > 32:
+                del cache[next(iter(cache))]
+
     def _snapshot_tail(self, tr: Trace, day_only: bool) -> Trace:
         """Attach captured before-answer records, never reconstruct them from final outcomes.
         Keep the view's booking days and read horizon for structural reuse.
@@ -2838,6 +2941,7 @@ class Chain:
             else:
                 new.__dict__[k] = cut(v)
         new.dr, new.basis, new.n, new.rows, new._ev_own = dr, dr.basis, len(sel), np.arange(len(sel)), set()
+        new._refresh_pending_levy()
         if "_stay_owed" in self.__dict__:  # the stays current here are current there (`restay`)
             new._stay_owed = new._owed_key() if self._stay_owed == self._owed_key() else None
         if self._price_key is not None and self._price_key == self._owed_key():  # the price is current (`_reprice`)
@@ -2855,7 +2959,7 @@ class Chain:
     # the draws it concerns (on every draw where it is not per draw).
     DATED = frozenset({"suspended", "resolved", "release_at", "adverse_from", "adverse_until", "early_registration",
                        "pending_levy", "delisted", "stayed_from"})
-    UNSEEN = frozenset({"_cum", "_tau", "_out", "_keys", "_av", "_hd", "_cv", "_stay_cv", "_restaying", "_atm_memo",
+    UNSEEN = frozenset({"_cum", "_tau", "_out", "_keys", "_av", "_hd", "_cv", "_stay_cv", "_restaying", "_sizing_stay", "_atm_memo",
                         "capture_questions", "capture_indices", "questions", "settlement_pricing",
                         "_atm_cols", "_atm_v", "_eq_v", "_offer_memo", "_shares_memo", "_grp", "settle_offer",
                         "stay_offer", "raise_offer", "reads", "question_petition", "rec", "grec", "late", "wctx", "_atm", "_atm_cum",
@@ -3065,6 +3169,19 @@ class Chain:
                                if self.has_judgment() else np.full(self.n, BIG, dtype=np.int64)),
                      "ruling": np.asarray(self.F, dtype=np.int64).copy(), "delisted": self.delisted.copy(),
                      "stayed_from": np.asarray(self.stayed_from, dtype=np.int64).copy()}
+        # Historical min-date marks cannot tell an old denied I1 motion from a
+        # new post-ruling motion. The existing per-occasion records can.
+        status = np.full(self.n, "not_requested", dtype=object)
+        latest = np.full(self.n, -1, dtype=np.int64)
+        for stay in self.stays.values():
+            if not stay.get("moved", stay["approved"]):
+                continue
+            motion = stay["motion"]
+            selected = (motion <= day) & (motion >= latest)
+            answer = "approved" if stay["approved"] else "denied"
+            status = np.where(selected, np.where(day < stay["approval"], "pending", answer), status)
+            latest = np.where(selected, motion, latest)
+        out["stay_status"] = np.where((latest >= 0) & (self.owed_at(day) <= 0), "resolved", status)
         reads = {"standing": ("judgment_standing", day), "entered": ("judgment_amount_entered",),
                  "band": ("band",), "band_range": ("band_range",), "default_available": ("default_available_day",),
                  "route_days": ("holder_route_days_path",), "remitted": ("remitted_amount",),
@@ -3323,6 +3440,8 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
         idx, n = np.flatnonzero(rows[-1]), draws.n
         ch, sub = _advanced(make, steps, draws, key, inputs, rows, capture_indices)
         sub = ch.finish(sub, day_only, light)
+        if not day_only and not light:
+            ch.court_questions(sub, steps)
 
         def wide(t: Trace) -> Trace:
             w = _trace_rows(t, lambda v, k: v if k == "events" else _widen(v, idx, n, k))
@@ -3331,6 +3450,8 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
         if shadow.ON:  # the rows' trace is the whole draws' trace on them, field for field
             ref_ch, ref = _advanced(make, steps, draws, key, inputs, capture_indices=capture_indices)
             ref = ref_ch.finish(ref, day_only, light)
+            if not day_only and not light:
+                ref_ch.court_questions(ref, steps)
 
             def canon(x, name=""):  # a trigger that never falls, an offering never initiated (BIG): absent
                 if type(x) is dict:
@@ -3365,6 +3486,8 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
         return out
     ch, tr = _advanced(make, steps, draws, key, inputs, capture_indices=capture_indices)
     tr = ch.finish(tr, day_only, light)
+    if not day_only and not light:
+        ch.court_questions(tr, steps)
     if question_indices is not None:
         return _question_records(tr, question_indices)
     if not light:
@@ -3372,7 +3495,10 @@ def _run(make, steps, draws: Draws, key: tuple, inputs: tuple, day_only: bool = 
 
     def reference() -> Trace:  # the same steps finished without light, from the prefix stack
         ref_ch, ref = _advanced(make, steps, draws, key, inputs)
-        return ref_ch.finish(ref, day_only)
+        ref = ref_ch.finish(ref, day_only)
+        if not day_only:
+            ref_ch.court_questions(ref, steps)
+        return ref
 
     def fields(t: Trace, extra: tuple = ()) -> tuple:
         e = t.events

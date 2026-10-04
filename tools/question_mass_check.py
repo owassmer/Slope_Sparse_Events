@@ -42,7 +42,9 @@ def totals(paths, nodes, draws, dead, dists, first):
 def _file(task):
     name, expected = task
     nodes, draws, dead = _CONTEXT
-    dists = distributions(nodes)
+    # Match the actual Jev answer set. Never-live questions receive no judgment;
+    # supplying random answers for them would hide unresolved references.
+    dists = distributions({k: node for k, node in nodes.items() if k not in dead})
     first = class_firsts(nodes, dead)
     def paths():
         with open(name, 'rb') as fh:

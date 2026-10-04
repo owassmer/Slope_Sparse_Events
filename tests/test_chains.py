@@ -652,10 +652,10 @@ class _Court(Chain):
         super().__init__(*a, **k)
         self.seen = []
 
-    def stay_security(self, motion, key, approved):
+    def stay_security(self, motion, key, approved, moved=False):
         approval = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, key)
         cash = self.cash_at(approval)
-        out = super().stay_security(motion, key, approved)
+        out = super().stay_security(motion, key, approved, moved=moved)
         self.seen.append((("stay_approved", key.split("_")[1]), out, cash, self.stay_offer.copy()))
         return out
 

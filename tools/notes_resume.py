@@ -42,12 +42,28 @@ class Continuation:
             if not np.array_equal(old, current):
                 raise ValueError('Corrected eligibility changes the incoming recovery population; '
                                  'resume before the affected ancestor decision')
-        return self.function(self.walk, self.state, *self.args, **self.kwargs)
+        return self.walk.scoped(self.incoming_mask,
+                                lambda: self.function(self.walk, self.state, *self.args, **self.kwargs))
 
 
 def capture(walk: _Walk, prefix: tuple, method: str, phase: str | None = None,
             legacy: bool = False) -> Continuation:
+    found = capture_many(walk, method,
+                         compatible=lambda steps: steps == prefix[:len(steps)],
+                         target=lambda steps: steps == prefix,
+                         phase=phase, legacy=legacy)
+    if len(found) != 1:
+        raise ValueError(f'Expected one exact continuation, found {len(found)}')
+    return found[0]
+
+
+def capture_many(walk: _Walk, method: str, *, compatible, target,
+                 phase: str | None = None, legacy: bool = False) -> list[Continuation]:
     """Recover flags and the actual callback; never reconstruct state from steps alone.
+
+    Predicates constrain saved ancestor answers while allowing explicitly selected
+    chronological prerequisites. The caller scopes the original draw population
+    and records earlier terminals through emit; neither is inferred here.
 
     This operates in a dedicated process: class methods are temporarily wrapped.
     A capture within an open speculative watch must be promoted to its owning
@@ -61,9 +77,9 @@ def capture(walk: _Walk, prefix: tuple, method: str, phase: str | None = None,
         def call(self, state, *args, **kwargs):
             if self is not walk or not pruning or not isinstance(state, _S):
                 return function(self, state, *args, **kwargs)
-            if state.steps != prefix[:len(state.steps)]:
+            if not compatible(state.steps):
                 return None
-            if name == method and state.steps == prefix and (phase is None or args[0] == phase):
+            if name == method and target(state.steps) and (phase is None or args[0] == phase):
                 if self._watch:
                     raise ValueError('Continuation is inside a speculative watch; resume its owning decision')
                 found.append(Continuation(self, copy.deepcopy(state), function, args, kwargs,
@@ -103,9 +119,7 @@ def capture(walk: _Walk, prefix: tuple, method: str, phase: str | None = None,
     finally:
         # Captured callbacks can reference a bound wrapper after class restoration.
         pruning = False
-    if len(found) != 1:
-        raise ValueError(f'Expected one exact continuation, found {len(found)}')
-    return found[0]
+    return found
 
 
 def _original_offer(self, s, occasion, then):
