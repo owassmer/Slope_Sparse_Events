@@ -2351,10 +2351,11 @@ class Chain:
             probe.pending_levy = None
             probe._pending_writs = []
             d = probe.step(node, ctx, branch)
-            self.until(np.where(d < self.N, d, -1))
+            # a step dated after the horizon comes after everything dated inside it; one that never arises, nothing
+            self.until(np.where(d < self.N, d, np.where(d < BIG, self.N, -1)))
             if not answers_levy(node, ctx) and self.pending_levy is not None:  # unless a floor decision or the
                 # response on the levy day, still waiting, precedes it
-                self.flush_levy((d >= 0) & (d < self.N) & (self.pending_levy <= d)
+                self.flush_levy((d >= 0) & (d < BIG) & (self.pending_levy <= d) & (self.pending_levy < self.N)
                                 & ~(self.next_floor() < self.pending_levy)
                                 & ~self.response_waiting())
         self.restay()  # what was booked since (a levy, a floor decision) is in a walked stay's security
@@ -2397,7 +2398,10 @@ class Chain:
         elif ctx == "I1":  # the levy the early-registration order makes possible, where it
             # comes before stay approval and before the ruling; nowhere else does an act reach cash before it
             milestone = np.where((lv < self.stayed_from) & (lv < self.F), lv, BIG)
-        elif ctx == "post":  # the day the creditor's levy after the ruling falls, before it is booked
+        elif ctx == "post":  # the day the creditor's levy after the ruling falls, before it is booked: the earliest
+            # pending writ dated once the ruling is enforceable (an earlier writ is the pre-ruling one's)
+            ef = np.maximum(self.EF, 0)
+            lv = np.minimum.reduce([np.where(w >= ef, w, BIG) for w in self._pending_writs] or [full(BIG)])
             milestone = np.where((lv < self.stayed_from) & (lv < N), lv, BIG)
         elif self.pending:  # "ripe" (QUESTIONS D2): the day the judgment default becomes available (§3.1)
             milestone = self.default_available_day
