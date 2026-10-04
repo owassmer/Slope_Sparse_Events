@@ -203,7 +203,8 @@ def worker(bucket, prefix, cores, first, last):
     tasks = sorted(((p, i) for p in plans if p['roots']
                     for i in p.get('indexes', range(first, min(last, p['partitions'])))
                     if first <= i < last),
-                   key=lambda x: x[0].get('estimated_histories', 0) / x[0]['partitions'], reverse=True)
+                   key=lambda x: x[0].get('task_seconds', x[0].get('estimated_histories', 0) / x[0]['partitions']),
+                   reverse=True)
     fresh = bool(plans) and all(p.get('fresh') for p in plans)
     while True:
         expiring = False

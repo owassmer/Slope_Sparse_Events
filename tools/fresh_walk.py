@@ -131,61 +131,82 @@ def costs(calls_file, archives_dir, out):
     print(json.dumps({k: v for k, v in result.items() if k != 'roots'}), flush=True)
 
 
-def depth_for(root) -> int:
-    """The shallowest refinement depth whose largest continuation fits one task (unmeasured: the base depth)."""
+PATH_S = 0.7  # walking seconds per path (2 October median)
+NODE_S = 0.074  # seconds per upper-level branch: the measured cut-10 top over the branches between cut 6 and 10
+LONGEST_S = 9000  # a root's largest piece plus its upper levels: such tasks start first and end inside the walk
+UPPER_SHARE = 0.15  # a heavy root's tasks are sized so its upper levels are at most this share of a task
+
+
+def uppers(root, depth) -> float:
+    """Seconds a task spends walking the root's upper levels to `depth` before reaching the pieces it owns."""
+    return NODE_S * sum(root['branches'].get(str(k), 0) for k in range(1, depth + 1))
+
+
+def choose(root):
+    """(depth, task paths): the shallowest depth whose largest piece and upper levels fit LONGEST_S (else the
+    depth with the shortest such task); task size grows with the upper levels so they stay UPPER_SHARE of a task."""
     if root['paths'] <= TARGET or not root['largest']:
-        return DEPTHS[0]
-    # The earlier walk's order sets these sizes; a margin covers continuations the corrected order regroups.
-    return next((d for d in DEPTHS if root['largest'].get(str(d), 0) <= 0.75 * TARGET), DEPTHS[-1])
+        return DEPTHS[0], TARGET
+
+    def longest(d):
+        return root['largest'].get(str(d), 0) * PATH_S + uppers(root, d)
+    fits = [d for d in DEPTHS if longest(d) <= LONGEST_S]
+    depth = fits[0] if fits else min(DEPTHS, key=longest)
+    return depth, max(TARGET, math.ceil(uppers(root, depth) / (UPPER_SHARE * PATH_S)))
 
 
 def allocate(calls, measured):
-    """Pack native roots into GROUPS ownership groups of one depth each; size each group's partitions to TARGET."""
-    items = []
-    for root in measured['roots']:
-        share = max(1, root['paths'] // max(1, len(root['keys'])))
-        items += [(share, tuple(key), depth_for(root)) for key in root['keys']]
-    total = sum(w for w, _, _ in items)
+    """Ownership groups: a root whose upper levels cost a minute or more per task gets a group of its own (its
+    tasks re-walk only its own upper levels); the rest are packed by depth into the remaining groups."""
+    roots = []
+    for r in measured['roots']:
+        depth, size = choose(r)
+        share = max(1, r['paths'] // max(1, len(r['keys'])))
+        piece = r['largest'].get(str(depth), share) if r['largest'] else share
+        roots += [{'key': tuple(k), 'paths': share, 'depth': depth, 'size': size, 'upper': uppers(r, depth),
+                   'piece': min(piece, share)} for k in r['keys']]
+    heavy = sorted((r for r in roots if r['upper'] >= 60), key=lambda r: -r['upper'])[:GROUPS - 10]
+    rest = [r for r in roots if r['upper'] < 60 or r not in heavy]
+    groups = [{'job': j, 'members': [r]} for j, r in enumerate(heavy)]
     by_depth = defaultdict(list)
-    for item in items:
-        by_depth[item[2]].append(item)
-    # Groups per depth in proportion to its paths, at least one each; largest remainders take the rest.
-    weight = {d: sum(w for w, _, _ in xs) for d, xs in by_depth.items()}
-    quota = {d: max(1, int(GROUPS * weight[d] / total)) for d in by_depth}
-    for d in sorted(by_depth, key=lambda d: GROUPS * weight[d] / total - quota[d], reverse=True):
-        if sum(quota.values()) >= GROUPS:
-            break
-        quota[d] += 1
-    while sum(quota.values()) > GROUPS:
+    for r in rest:
+        by_depth[r['depth']].append(r)
+    free, total = GROUPS - len(groups), sum(r['paths'] for r in rest)
+    weight = {d: sum(r['paths'] for r in xs) for d, xs in by_depth.items()}
+    quota = {d: min(len(by_depth[d]), max(1, int(free * weight[d] / total))) for d in by_depth}
+    while sum(quota.values()) > free:
         quota[max(quota, key=lambda d: quota[d])] -= 1
-    # A group with no root would only hold an empty task: hand surplus groups to depths with roots to spare.
-    for d in quota:
-        quota[d] = min(quota[d], len(by_depth[d]))
-    while sum(quota.values()) < GROUPS:
+    while sum(quota.values()) < free:
         spare = [d for d in quota if quota[d] < len(by_depth[d])]
         quota[max(spare, key=lambda d: weight[d] / quota[d])] += 1
-    groups, job = [], 0
     for d in sorted(by_depth):
-        own = [{'job': job + j, 'roots': [], 'estimated_histories': 0, 'largest_root': 0, 'depth': d}
-               for j in range(quota[d])]
-        job += quota[d]
-        for w, key, _ in sorted(by_depth[d], reverse=True):
-            group = min(own, key=lambda g: (g['estimated_histories'], g['job']))
-            group['roots'].append(key)
-            group['estimated_histories'] += w
-            group['largest_root'] = max(group['largest_root'], w)
+        own = [{'job': len(groups) + j, 'members': [], 'load': 0} for j in range(quota[d])]
+        for r in sorted(by_depth[d], key=lambda r: -r['paths']):
+            g = min(own, key=lambda g: (g['load'], g['job']))
+            g['members'].append(r)
+            g['load'] += r['paths']
         groups += own
-    for group in groups:
-        partitions = max(1, math.ceil(group['estimated_histories'] / TARGET))
+    plans = []
+    for g in groups:
+        m = g['members']
+        paths = sum(r['paths'] for r in m)
+        size = max(r['size'] for r in m)
+        partitions = max(1, math.ceil(paths / size))
         if partitions > MAX_PARTITIONS:
-            raise ValueError(f"group {group['job']} needs {partitions} partitions; raise GROUPS")
-        group.update(partitions=partitions, indexes=list(range(partitions)), cut=CUT, saved=0, recovery=None,
-                     fresh=True)
-    assigned = [key for group in groups for key in group['roots']]
+            raise ValueError(f"group {g['job']} needs {partitions} partitions")
+        task = max(paths / partitions, max(r['piece'] for r in m)) * PATH_S + sum(r['upper'] for r in m)
+        plans.append({'job': g['job'], 'roots': [r['key'] for r in m], 'estimated_histories': paths,
+                      'largest_root': max(r['paths'] for r in m), 'depth': m[0]['depth'],
+                      'partitions': partitions, 'indexes': list(range(partitions)), 'task_seconds': round(task),
+                      'upper_seconds': round(sum(r['upper'] for r in m)), 'cut': CUT, 'saved': 0,
+                      'recovery': None, 'fresh': True})
+    assigned = [key for p in plans for key in p['roots']]
     expected = [tuple(key) for key, _, _ in calls]
-    if len(set(assigned)) != len(assigned) or set(assigned) != set(expected) or len(groups) != GROUPS:
+    if len(set(assigned)) != len(assigned) or set(assigned) != set(expected) or len(plans) != GROUPS:
         raise ValueError('Queue must own every native root exactly once in GROUPS groups')
-    return groups
+    if any(len({r['depth'] for r in g['members']}) != 1 for g in groups):
+        raise ValueError('A group mixes refinement depths')
+    return plans
 
 
 def prepare(bucket, prefix, skeleton_dir, costs_file):
@@ -235,10 +256,12 @@ if __name__ == '__main__':
     elif action == 'plan':
         calls = pickle.loads(Path(sys.argv[2]).read_bytes())
         plans = allocate(calls, json.loads(Path(sys.argv[3]).read_text()))
-        tasks = sorted((p['estimated_histories'] / p['partitions'] for p in plans for _ in p['indexes']), reverse=True)
+        tasks = sorted((p['task_seconds'] for p in plans for _ in p['indexes']), reverse=True)
         print(json.dumps({'tasks': len(tasks), 'paths': sum(p['estimated_histories'] for p in plans),
                           'depths': dict(Counter(p['depth'] for p in plans)),
-                          'task_paths_max_p50_min': [round(tasks[0]), round(tasks[len(tasks) // 2]), round(tasks[-1])],
-                          'partitions_max': max(p['partitions'] for p in plans)}))
+                          'task_seconds_max_p50_min': [round(tasks[0]), round(tasks[len(tasks) // 2]), round(tasks[-1])],
+                          'partitions_max': max(p['partitions'] for p in plans),
+                          'process_hours': round(sum(tasks) / 3600),
+                          'hours_on_336': round(sum(tasks) / 3600 / 336, 2)}))
     else:
         prepare(*sys.argv[2:6])
