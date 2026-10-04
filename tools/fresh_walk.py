@@ -26,7 +26,7 @@ RUN = 'akoustis_20240514-agent_plus_jev-20260929T052558Z'
 GROUPS = 100
 CUT = 6  # roots six steps below the verdict: the shared top every task walks takes seconds, not minutes
 TARGET = 4000  # paths per task: about 45 minutes of walking at the measured 0.7 s a path
-DEPTHS = (2, 4, 6, 8, 10, 12, 14)  # refinement depths below a root
+DEPTHS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14)  # refinement depths below a root
 MAX_PARTITIONS = 9999  # part numbers are 1000000 + 10000 * group + partition
 
 
@@ -110,9 +110,10 @@ def costs(calls_file, archives_dir, out):
             children.update(c)
             unmatched += u
             print(f'scanned {i + 1}/{len(archives)} archives', flush=True)
-    largest = defaultdict(dict)
+    largest, count = defaultdict(dict), defaultdict(Counter)
     for (i, d, _child), n in children.items():
         largest[i][d] = max(largest[i].get(d, 0), n)
+        count[i][d] += 1
     # A root no saved path reached (a decision the earlier tree never offered) is costed at the median root.
     measured = sorted(paths.values())
     fallback = measured[len(measured) // 2] if measured else 1
@@ -121,7 +122,8 @@ def costs(calls_file, archives_dir, out):
     for k, _method, prefix in calls:
         by_root[position[tuple(canon(x) for x in prefix)]].append(tuple(k))
     result = {'roots': [{'keys': by_root[i], 'paths': round(paths.get(i, fallback)), 'measured': i in paths,
-                         'largest': {str(d): round(n) for d, n in largest.get(i, {}).items()}}
+                         'largest': {str(d): round(n) for d, n in largest.get(i, {}).items()},
+                         'branches': {str(d): n for d, n in count.get(i, {}).items()}}
                         for i in range(len(roots))],
               'saved_paths': round(sum(paths.values())) + unmatched, 'unmatched_saved_paths': unmatched,
               'measured_roots': len(paths), 'native_prefixes': len(roots), 'native_roots': len(calls)}
