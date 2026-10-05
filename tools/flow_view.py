@@ -135,9 +135,16 @@ def walk_view(q: Queue, now: float):
     q.samples.append((now, walked))
     old = next((s for s in q.samples if now - s[0] <= 900), q.samples[0])
     rate = (walked - old[1]) / (now - old[0]) if now - old[0] > 60 else None
-    left = 0.0
+    left, got, want = 0.0, 0, 0.0
     for job, plan in q.plans.items():
         per = plan['estimated_histories'] / plan['partitions']
+        for i in plan['indexes']:
+            ident = f'{job}-{i}'
+            if ident in saved and q.logs.get(ident, {}).get('paths'):
+                got, want = got + q.logs[ident]['paths'], want + per
+    scale = got / want if want else 1.0  # finished tasks' actual paths over their 2 October estimate
+    for job, plan in q.plans.items():
+        per = plan['estimated_histories'] / plan['partitions'] * scale
         for i in plan['indexes']:
             ident = f'{job}-{i}'
             if ident not in saved:
@@ -155,11 +162,12 @@ def walk_view(q: Queue, now: float):
               f"GitHub jobs: {jobs.get('running', 0)} running, {jobs.get('queued', 0)} queued" if jobs else '',
               f'{walked:,} paths walked in the current and saved attempts',
               f'{rate:,.0f} paths a second across the fleet (last 15 minutes)' if rate else 'Rate: measuring',
-              f'Estimated finish: {eta} (remaining work estimated from the 2 October path counts)' if eta else '',
+              (f'Estimated finish: {eta} (2 October path counts scaled by {scale:.2f}, from {len(saved)} finished tasks)'
+               if eta else ''),
               f'{len(attempts)} failed attempts (listed below)' if attempts else 'No failed attempts']
     walk = step('walk', 'Walk the corrected tree', 'done' if total and len(saved) >= total else 'running',
                 len(saved), total, 'tasks saved', f'{len(q.plans)} groups, {total:,} tasks', [d for d in detail if d])
-    walk.update(paths=walked, paths_est=sum(p['estimated_histories'] for p in q.plans.values()),
+    walk.update(paths=walked, paths_est=round(scale * sum(p['estimated_histories'] for p in q.plans.values())),
                 rate=round(rate, 1) if rate else None)
     grid = []
     for job in range(100):
