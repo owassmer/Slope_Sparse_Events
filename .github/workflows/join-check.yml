@@ -24,11 +24,21 @@ jobs:
       - run: uv run slope evidence build akoustis_20240514
       - name: Four partitions of group 4, each stopping at its first cold/walked disagreement
         run: |
+          mkdir -p out
+          pids=()
           for i in 0 1 2 3; do
             p=$(( ${{ matrix.job }} * 4 + i ))
-            [ $p -lt 34 ] && (.venv/bin/python tools/diag/join_check.py tools/diag/plan4.json $p out > out-$p.txt 2>&1; echo "partition $p exit $?") &
+            if [ $p -lt 34 ]; then
+              (.venv/bin/python tools/diag/join_check.py tools/diag/plan4.json $p out > out-$p.txt 2>&1; echo $? > out/exit-$p) &
+              pids+=($!)
+            fi
           done
-          wait
+          # stop as soon as any partition reports a disagreement (exit 3), or when all have ended
+          while true; do
+            if grep -lx 3 out/exit-* >/dev/null 2>&1; then echo "disagreement found"; kill ${pids[@]} 2>/dev/null; pkill -f join_check.py; break; fi
+            [ $(ls out/exit-* 2>/dev/null | wc -l) -ge ${#pids[@]} ] && break
+            sleep 20
+          done
           grep -h -E 'DISAGREE|cache that alone|DONE' out/log-*.txt || true
       - if: always()
         uses: actions/upload-artifact@v4
