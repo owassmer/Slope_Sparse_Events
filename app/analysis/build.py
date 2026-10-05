@@ -366,12 +366,13 @@ def _progress_log():
 def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict],
            progress: Callable[[str], None]) -> dict:
     from app.agent.jev import JevAdapter
+    from app.config import judgment_provider
 
     progress("engine_context")
     ctx = run_context(run_id, root, refresh)
     meta, setup, borrower, feed, m = ctx["meta"], ctx["setup"], ctx["borrower"], ctx["feed"], ctx["m"]
     records: list = []
-    jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
+    jev = JevAdapter(provider=judgment_provider(), run_id=f"{run_id}-analysis", use_cache=not refresh)
     fc, model = judged_model(ctx, setup, jev, records, progress=progress)
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in ctx["live"] if d.status not in ("interpreted", "resolved")]

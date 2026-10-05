@@ -466,11 +466,12 @@ def judge(run_id: str, states: str, control_file: str, count_only: bool = False,
     from app.agent.jev import JevAdapter
     from app.agent.jev_profiles import DisputeProfile
     from app.analysis.build import VAR
+    from app.config import judgment_provider
 
     records: list = []
     # the cap is a setting (SLOPE_JEV_CAP, dollars), never a blocker; the adapter reserves every in-flight request
     # worst case, so the questions go in batches (SLOPE_JEV_BATCH) and the reserve stays a batch's
-    jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=True, spend_cap_usd=os.environ.get("SLOPE_JEV_CAP"))
+    jev = JevAdapter(provider=judgment_provider(), run_id=f"{run_id}-analysis", use_cache=True, spend_cap_usd=os.environ.get("SLOPE_JEV_CAP"))
     batch = int(os.environ.get("SLOPE_JEV_BATCH", "200"))
     prof = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
 

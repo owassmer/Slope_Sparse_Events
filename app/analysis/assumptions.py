@@ -101,6 +101,7 @@ def run_variant(run_id: str, vid: str, root: Path | None = None) -> dict:
     from app.analysis.core import Analysis
     from app.analysis.page import chart_view
     from app.analysis.setup import setup_from_inputs
+    from app.config import judgment_provider
 
     root = root or ROOT / "runs" / "recorded"
     ctx = run_context(run_id, root)
@@ -108,7 +109,7 @@ def run_variant(run_id: str, vid: str, root: Path | None = None) -> dict:
     setup = setup_from_inputs(ctx["inputs"], ctx["review"], v["scenario"])
     jev_module.EXCHANGE_LOG = exchanges = []
     try:  # caps are settings: sized to re-ask every question of the tree
-        jev = JevAdapter(run_id=f"{run_id}-assumption-{vid}", use_cache=True, max_attempts=4000, spend_cap_usd="2.00")
+        jev = JevAdapter(provider=judgment_provider(), run_id=f"{run_id}-assumption-{vid}", use_cache=True)
         fc, model = judged_model(ctx, setup, jev, [], v["sens"])
     finally:
         jev_module.EXCHANGE_LOG = None

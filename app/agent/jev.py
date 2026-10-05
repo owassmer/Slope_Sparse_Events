@@ -29,6 +29,7 @@ from pydantic import BaseModel, ConfigDict
 from typesafe_sdk import AsyncTypeSafeClient, Choice, Noul, RetryPolicy, Score
 
 from app.config import (
+    JUDGMENTS,
     VAR,
     ConfigurationError,
     JevProvider,
@@ -103,17 +104,26 @@ class JevAdapter:
         async def count_attempt(_request) -> None:
             self.physical_attempts += 1
 
-        self.client = AsyncTypeSafeClient(
-            api_key=jev_credential(self.provider), base_url=self.provider.base_url,
-            retry=RetryPolicy(max_retries=MAX_RETRIES),
-            http_client=httpx2.AsyncClient(timeout=30.0, event_hooks={"request": [count_attempt]}))
+        http = httpx2.AsyncClient(timeout=60.0, event_hooks={"request": [count_attempt]})
+        if self.provider.name == "clef":
+            from app.agent.clef import ClefClient
+            self.client = ClefClient(url=self.provider.base_url, token=jev_credential(self.provider),
+                                     max_retries=MAX_RETRIES, http_client=http)
+        else:
+            self.client = AsyncTypeSafeClient(
+                api_key=jev_credential(self.provider), base_url=self.provider.base_url,
+                retry=RetryPolicy(max_retries=MAX_RETRIES), http_client=http)
         self.run_id = run_id
         self.new_id = new_id or (lambda prefix: f"{prefix}_{uuid.uuid4().hex[:10]}")
         self.use_cache = use_cache
+        own = JUDGMENTS if self.provider.name == JUDGMENTS["provider"] else {}
         self.max_attempts = max_attempts or int(os.environ.get(
-            "SLOPE_JEV_MAX_ATTEMPTS", cfg["budgets"]["jev_max_physical_attempts_including_retries"]))
-        self.spend_cap = Decimal(spend_cap_usd or cfg["runtime"]["jev"]["spend_cap_usd_per_run"])
-        self.price_per_token = Decimal(cfg["runtime"]["jev"]["provider_price_usd_per_million_input_tokens_at_design"]) / 10**6
+            "SLOPE_JEV_MAX_ATTEMPTS", own.get("max_physical_attempts",
+                                              cfg["budgets"]["jev_max_physical_attempts_including_retries"])))
+        self.spend_cap = Decimal(spend_cap_usd or own.get("spend_cap_usd_per_run")
+                                 or cfg["runtime"]["jev"]["spend_cap_usd_per_run"])
+        self.price_per_token = Decimal(self.provider.price_usd_per_million or cfg["runtime"]["jev"][
+            "provider_price_usd_per_million_input_tokens_at_design"]) / 10**6
         self.inflight_attempts = 0
         self.inflight_usd = Decimal(0)
         self.spent_usd = Decimal(0)
@@ -169,12 +179,16 @@ class JevAdapter:
                 self.inflight_attempts -= reserved
                 self.inflight_usd -= estimate
                 attempts_used = self.physical_attempts - before  # approximate under concurrency; totals are exact
-            cost = (raw.get("usage") or {}).get("cost")
-            self.spent_usd += Decimal(str(cost)) if cost is not None else estimate
+            usage = raw.get("usage") or {}
+            cost = usage.get("cost")
+            tokens = next((usage[k] for k in ("input_tokens", "prompt_tokens", "total_tokens") if k in usage), None)
+            self.spent_usd += (Decimal(str(cost)) if cost is not None else
+                               Decimal(int(tokens)) * self.price_per_token if tokens is not None
+                               else estimate / (1 + MAX_RETRIES))
             now = datetime.now(UTC).isoformat()
             returned = raw.get("model")
-            if not returned or EXPECTED_BUILD_MARKER not in str(returned):
-                raise ConfigurationError(f"Unexpected Jev model {returned!r}; pinned {self.provider.pinned_build}")
+            if not returned or self.provider.marker not in str(returned):
+                raise ConfigurationError(f"Unexpected model {returned!r}; pinned {self.provider.pinned_build}")
             if self.use_cache:
                 CACHE_DIR.mkdir(parents=True, exist_ok=True)
                 cache_file.write_text(json.dumps({"raw": raw, "created_at": now}))

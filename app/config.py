@@ -65,6 +65,8 @@ class JevProvider:
     base_url: str | None  # None = SDK default (direct TypeSafe)
     model: str  # provider-specific identifier for the same pinned Jev build
     pinned_build: str  # canonical build from agent_config (jev-1.13.0)
+    marker: str = "jev-1.13"  # the returned model ID must contain it
+    price_usd_per_million: str | None = None  # None: agent_config runtime.jev's design price
 
 
 def jev_provider() -> JevProvider:
@@ -80,6 +82,28 @@ def jev_provider() -> JevProvider:
     if name == "typesafe":
         return JevProvider("typesafe", "TYPESAFE_API_KEY", None, pinned, pinned)
     raise ConfigurationError(f"Unknown JEV_PROVIDER {name!r}; expected 'openrouter' or 'typesafe'")
+
+
+# The decision model for every forecast and no-lawsuit judgment. Kept here, not in agent_config.json: the saved
+# walk and pool are bound to the contracts' hashes, and the model does not change what the questions are.
+JUDGMENTS = {"provider": "clef", "model": "clef", "price_usd_per_million_input_tokens": "0.24",
+             "spend_cap_usd_per_run": "90.00", "max_physical_attempts": 65000}
+
+
+def judgment_provider() -> JevProvider:
+    """The decision model for forecast and no-lawsuit judgments (SLOPE_JUDGMENT_PROVIDER, else agent_config
+    runtime.judgments.provider). The recorded investigation and its record-item slots keep `jev_provider`."""
+    cfg = JUDGMENTS
+    name = (os.environ.get("SLOPE_JUDGMENT_PROVIDER") or cfg.get("provider") or "jev").lower()
+    if name != "clef":
+        return jev_provider()
+    account = secret("CLOUDFLARE_ACCOUNT_ID") or os.environ.get("CORDON_CF_ACCOUNT")
+    if not account:
+        raise ConfigurationError("Clef requires CLOUDFLARE_ACCOUNT_ID (env or .env)")
+    model = cfg.get("model", "clef")
+    return JevProvider("clef", "CLOUDFLARE_API_TOKEN",
+                       f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/cloudflare/{model}",
+                       model, model, marker=model, price_usd_per_million=cfg.get("price_usd_per_million_input_tokens"))
 
 
 def jev_credential(provider: JevProvider) -> str:

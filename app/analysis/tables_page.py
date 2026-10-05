@@ -52,9 +52,10 @@ def bank_view(ctx: dict, setup, fc, run_id: str) -> tuple:
     from app.agent.jev import JevAdapter
     from app.agent.jev_profiles import DisputeProfile
     from app.analysis.core import Analysis, EventModel
+    from app.config import judgment_provider
 
     bank_paths = fc.bank_paths()
-    jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=True)
+    jev = JevAdapter(provider=judgment_provider(), run_id=f"{run_id}-analysis", use_cache=True)
     prof = DisputeProfile(jev, lambda kind, obj: None)
     bank_judgments = asyncio.run(fc.judge_bank(prof)) if fc.bank_nodes else {}
     model = EventModel({d.instance_id: d for d in fc.disputes}, {}, {}, [], bank_paths=bank_paths,
