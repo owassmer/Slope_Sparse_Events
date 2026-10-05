@@ -26,7 +26,7 @@ BUCKET = 'slope-walk-462947327980-20261001'
 REPO = 'owassmer/Slope_Sparse_Events'
 RUN_ID = 'akoustis_20240514-agent_plus_jev-20260929T052558Z'
 LATER = [('pool', 'Pooling'), ('mass', 'Probability check'), ('review', 'Question reading'),
-         ('jev', 'Jev judgments'), ('reduce', 'Financial reduction'), ('page', 'Analysis page')]
+         ('jev', 'Clef judgments'), ('reduce', 'Financial reduction'), ('page', 'Analysis page')]
 LOCK = threading.Lock()
 VIEW: dict = {'updated': None, 'error': None, 'steps': [], 'groups': [], 'failed': [], 'events': [], 'jobs': {}}
 EVENTS: deque = deque(maxlen=300)
@@ -96,6 +96,84 @@ class Queue:
                 key = {'in_progress': 'running', 'queued': 'queued'}.get(job['status'], 'finished')
                 counts[key] += 1
         self.jobs, self.jobs_at = counts, time.time()
+
+
+DIAG_DESC = re.compile(r'^(\d+)m(.*)$')
+DIAG_PART = re.compile(r'p(\d+):(\d+)p/(\d+)c')
+DIAG_LINES = re.compile(r'^(DISAGREE.*|cache that alone.*|  (?:rows_|mask|div_ok|digest|walked a==b|chain ).*)$', re.M)
+
+
+def gh_json(*args):
+    out = subprocess.run(['gh', 'api', *args], capture_output=True, text=True, timeout=30)
+    return json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip() else None
+
+
+class Diag:
+    """The merge-decision check (workflow join-check): each job posts '<minutes>m p<partition>:<paths>p/<checks>c ...'
+    as a commit status every 2 minutes, with REPORTED (a partition stopped at a merge decision and saved its report)
+    or ENDED once its partitions finish. Jobs 9 and 10 walk partitions 0 and 4 exactly as production and report at
+    the known listing merge; jobs 0-8 decide every merge also with the walk caches empty. Reports are read from the
+    artifacts the watcher downloads into `results`."""
+
+    def __init__(self, run, results):
+        self.run, self.results = run, Path(results).expanduser()
+        self.sha = self.url = None
+        self.at, self.cached = 0.0, (None, [])
+
+    def view(self, now):
+        if not self.run or now - self.at < 60:
+            return self.cached
+        self.at = now
+        if self.sha is None:
+            info = gh_json(f'repos/{REPO}/actions/runs/{self.run}') or {}
+            self.sha, self.url = info.get('head_sha'), info.get('html_url')
+        jobs = {}
+        for j in (gh_json(f'repos/{REPO}/actions/runs/{self.run}/jobs?per_page=100') or {}).get('jobs', []):
+            m = re.search(r'\((\d+)\)', j['name'])
+            if m:
+                jobs[int(m.group(1))] = (j['status'], j.get('conclusion'))
+        posted = {}
+        for s in gh_json(f'repos/{REPO}/commits/{self.sha}/statuses?per_page=100') or [] if self.sha else []:
+            ctx = s['context']
+            if ctx.startswith('join-check/') and ctx not in posted:  # newest first
+                posted[ctx] = s['description'] or ''
+        rows = []
+        for ctx, desc in posted.items():
+            job = int(ctx.split('/')[1])
+            m = DIAG_DESC.match(desc)
+            minutes, rest = (int(m.group(1)), m.group(2)) if m else (0, desc)
+            status, conclusion = jobs.get(job, ('unknown', None))
+            flag = 'reported' if 'REPORTED' in rest else 'ended' if 'ENDED' in rest else (
+                'walking' if status == 'in_progress' else conclusion or status)
+            for p, paths, checks in DIAG_PART.findall(rest):
+                rows.append({'job': job, 'partition': int(p), 'mode': 'production replica' if job >= 9 else 'every merge',
+                             'paths': int(paths), 'checks': int(checks), 'minutes': minutes, 'state': flag})
+        rows.sort(key=lambda r: (r['mode'] != 'production replica', r['partition']))
+        found = []
+        if self.results.is_dir():
+            for f in sorted(self.results.rglob('log-*.txt')):
+                found += [f'{f.stem.replace("log-", "partition ")}: {x}' for x in DIAG_LINES.findall(f.read_text())]
+        walking = sum(r['state'] == 'walking' for r in rows)
+        reported = sorted({r['partition'] for r in rows if r['state'] == 'reported'})
+        checks = sum(r['checks'] for r in rows if r['mode'] == 'every merge')
+        done_jobs = sum(s == 'completed' for s, _ in jobs.values())
+        replica = [r for r in rows if r['mode'] == 'production replica']
+        detail = [f'{len(jobs)} GitHub jobs: {len(jobs) - done_jobs} running, {done_jobs} ended; '
+                  f'{walking} of {len(rows)} partitions walking',
+                  *(f"Partition {r['partition']} (production replica): {r['paths']:,} paths, {r['minutes']} min, "
+                    f"{r['state']}" for r in replica),
+                  'Partition 0 reached the known bad merge about 55 minutes in last time; partition 4 is the control',
+                  f'{checks:,} merge decisions checked against a cold computation: '
+                  + (f'disagreement reported by partition {", ".join(map(str, reported))}' if reported
+                     else 'all agree so far'),
+                  *found[:40]]
+        state = 'done' if found else 'failed' if jobs and done_jobs == len(jobs) else 'running' if jobs else 'waiting'
+        note = ('Finds the cache that makes a merge decision depend on what the process walked before (the cause of '
+                'the 34 unassembled groups). Results: ' + ('below' if found else 'not yet'))
+        step_ = step('diag', 'Merge-decision check (group 4)', state, checks, None, 'merge checks', note, detail)
+        step_['url'] = self.url
+        self.cached = (step_, rows)
+        return self.cached
 
 
 def event(when, text, kind='info'):
@@ -178,10 +256,15 @@ def walk_view(q: Queue, now: float):
         grid.append({'job': job, 'total': len(ids), 'saved': sum(i in saved for i in ids),
                      'active': sum(i in active for i in ids), 'failed': sum(a['task'] in ids for a in attempts),
                      'assembled': job in assembled, 'depth': plan['depth'], 'paths': plan['estimated_histories']})
+    walk_done = bool(total) and len(saved) >= total
+    blocked = walk_done and len(assembled) < 100
     assembly = step('assembly', 'Assemble the 100 groups',
-                    'done' if len(assembled) >= 100 else 'running' if assembled else 'waiting',
+                    'done' if len(assembled) >= 100 else 'held' if blocked else 'running' if assembled else 'waiting',
                     len(assembled), 100, 'groups assembled',
-                    'A group assembles as soon as every one of its tasks is saved')
+                    (f'{100 - len(assembled)} groups fail the coverage check: their tasks disagree on the layout of '
+                     'the branch they share, because a merge decision depends on what each process walked before. '
+                     'The assembled groups are not trusted until the cause is known (merge-decision check below).'
+                     if blocked else 'A group assembles as soon as every one of its tasks is saved'))
     return walk, assembly, grid, attempts, jobs.get('url', '')
 
 
@@ -202,20 +285,34 @@ def later_steps(q: Queue):
     return out
 
 
-def poll(q: Queue):
+def poll(q: Queue, diag: Diag):
+    """The walk (S3) and the merge check (GitHub) refresh independently: an expired AWS login keeps the last walk
+    view on the page with the error, and the merge check still updates."""
+    walk_part: dict = {}
+    later: list = []
     while True:
         now = time.time()
+        errors = []
         try:
             walk, assembly, grid, attempts, run_url = walk_view(q, now)
-            investigation = step('investigation', 'Investigation record', 'done', note=f'Recorded run {RUN_ID}')
-            with LOCK:
-                VIEW.update(steps=[investigation, walk, assembly, *later_steps(q)], groups=grid,
-                            failed=sorted(attempts, key=lambda a: a['time'], reverse=True)[:40],
-                            events=sorted(EVENTS, key=lambda e: e['time'], reverse=True)[:60],
-                            run_url=run_url, updated=datetime.now(UTC).isoformat(), error=None)
+            later = later_steps(q)
+            walk_part = {'walk': walk, 'assembly': assembly, 'groups': grid, 'run_url': run_url,
+                         'failed': sorted(attempts, key=lambda a: a['time'], reverse=True)[:40]}
         except Exception as error:  # shown on the page; the next poll retries
-            with LOCK:
-                VIEW['error'] = f'{type(error).__name__}: {error}'
+            errors.append(f'walk (S3): {type(error).__name__}: {error}')
+        try:
+            diag_step, diag_rows = diag.view(now)
+        except Exception as error:
+            diag_step, diag_rows = None, []
+            errors.append(f'merge check (GitHub): {type(error).__name__}: {error}')
+        investigation = step('investigation', 'Investigation record', 'done', note=f'Recorded run {RUN_ID}')
+        steps = [investigation, *(walk_part[k] for k in ('walk', 'assembly') if k in walk_part),
+                 *([diag_step] if diag_step else []), *later]
+        with LOCK:
+            VIEW.update(steps=steps, groups=walk_part.get('groups', []), failed=walk_part.get('failed', []),
+                        events=sorted(EVENTS, key=lambda e: e['time'], reverse=True)[:60],
+                        run_url=walk_part.get('run_url', ''), diag=diag_rows,
+                        updated=datetime.now(UTC).isoformat(), error='; '.join(errors) or None)
         time.sleep(max(5, 20 - (time.time() - now)))
 
 
@@ -238,6 +335,7 @@ main{max-width:1180px;margin:0 auto;padding:28px 24px 60px}h1{font-size:22px;mar
 .legend{font-size:12px;color:#5d6878;margin-top:8px}.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
 .panel{background:#fff;border:1px solid #dde1e7;border-radius:10px;padding:10px 14px;max-height:340px;overflow:auto;font-size:13px}
 .row{display:grid;grid-template-columns:92px minmax(0,1fr);gap:8px;padding:4px 0;border-top:1px solid #f0f2f5}.row:first-child{border-top:0}
+.tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}.tbl th{text-align:left;font-weight:600;color:#5d6878;font-size:12px;padding:4px 6px}.tbl td{padding:4px 6px;border-top:1px solid #f0f2f5}.st-reported{color:#c0392b;font-weight:600}.st-walking{color:#1a5fb4}.st-ended{color:#2e8b57}
 .good{color:#2e8b57}.bad{color:#c0392b}.err{color:#c0392b;margin-top:10px}
 </style></head><body><main>
 <div class="head"><div><h1>Akoustis Technologies · review date 14 May 2024</h1>
@@ -245,6 +343,9 @@ main{max-width:1180px;margin:0 auto;padding:28px 24px 60px}h1{font-size:22px;mar
 <div style="text-align:right"><div id="live" class="live">—</div><div class="sub">paths walked (live)</div>
 <div class="sub"><a id="run" target="_blank" href="#">GitHub run ↗</a> · <span id="upd">connecting…</span></div></div></div>
 <div id="err" class="err"></div><div id="steps" class="steps"></div>
+<div id="diagwrap" style="display:none"><h2>Merge-decision check by partition · <a id="diagrun" target="_blank" href="#">run ↗</a></h2>
+<div class="panel" style="max-height:none"><table class="tbl"><thead><tr><th>Partition</th><th>Mode</th><th>Paths walked</th><th>Merge checks passed</th><th>Minutes</th><th>State</th></tr></thead><tbody id="diag"></tbody></table></div>
+<div class="legend">Production replica: walks exactly as the production task did and decides the known bad merge (listing: compliant vs hearing) cold, testing each cache. Every merge: each merge decision is also computed with the walk caches empty; the first disagreement stops the job and saves its report. Updated from GitHub every 2 minutes.</div></div>
 <h2>Walk by group</h2><div id="grid" class="grid"></div>
 <div class="legend">Each square is one of the 100 groups, heaviest first. Fill: share of its tasks saved (green once the group is assembled). Blue outline: tasks walking now. Red dot: a failed attempt. Hover for numbers.</div>
 <div class="cols"><div><h2>Recent events</h2><div id="events" class="panel"></div></div>
@@ -263,6 +364,8 @@ const det=(s.state==='running'||s.state==='failed'||s.state==='held')&&s.detail.
 return `<div class="step ${s.state}"><div class="mark">${s.state==='done'?'✓':n+1}</div><div><span class="name">${esc(s.name)}</span><span class="state">${label[s.state]||esc(s.state)}</span><div class="note">${esc(s.note)}</div>${det}</div><div>${s.total?`<div class="bar"><i style="width:${pct}%"></i></div><div class="count">${count}</div>`:''}${pbar}</div></div>`}).join('');
 const w=v.steps.find(x=>x.key==='walk');if(w&&w.paths!=null)el('live').textContent=w.paths.toLocaleString();
 el('grid').innerHTML=v.groups.map(g=>`<div class="cell ${g.assembled?'asm':''} ${g.active?'act':''} ${g.failed?'bad':''}" title="Group ${g.job}: ${g.saved}/${g.total} tasks saved, ${g.active} walking, ${g.failed} failed attempts, depth ${g.depth}, ~${g.paths.toLocaleString()} paths (2 Oct estimate)${g.assembled?', assembled':''}"><i style="height:${100*g.saved/g.total}%"></i><b>${g.job}</b></div>`).join('');
+const dg=v.diag||[];el('diagwrap').style.display=dg.length?'':'none';const ds=v.steps.find(x=>x.key==='diag');if(ds&&ds.url)el('diagrun').href=ds.url;
+el('diag').innerHTML=dg.map(r=>`<tr><td>${r.partition}</td><td>${esc(r.mode)}</td><td>${r.paths.toLocaleString()}</td><td>${r.mode==='every merge'?r.checks.toLocaleString():'—'}</td><td>${r.minutes}</td><td class="st-${esc(r.state)}">${esc(r.state)}</td></tr>`).join('');
 el('events').innerHTML=v.events.map(e=>`<div class="row"><span class="sub">${hm(e.time)}</span><span class="${e.kind}">${esc(e.text)}</span></div>`).join('')||'<div class="sub">Nothing yet.</div>';
 el('failed').innerHTML=v.failed.map(f=>`<div class="row"><span class="sub">${hm(f.time)}</span><span>Task ${esc(f.task)} · <a target="_blank" href="/log?key=${encodeURIComponent(f.key)}">log</a></span></div>`).join('')||'<div class="sub">None.</div>'}
 async function tick(){try{const r=await fetch('/api/view');render(await r.json())}catch(e){el('err').textContent='Viewer disconnected: '+e.message}}
@@ -306,11 +409,13 @@ def main():
     parser.add_argument('--prefix', required=True)
     parser.add_argument('--run', type=int, nargs='*', default=[])
     parser.add_argument('--port', type=int, default=18766)
+    parser.add_argument('--diag-run', type=int, default=None, help='join-check workflow run id')
+    parser.add_argument('--diag-results', default='~/.hermes/profiles/connor/cache/scratch/split/joins')
     args = parser.parse_args()
     s3 = boto3.Session(profile_name=args.profile).client('s3', region_name='us-east-2')
     queue = Queue(s3, args.prefix, args.run)
     Handler.queue = queue
-    threading.Thread(target=poll, args=(queue,), daemon=True).start()
+    threading.Thread(target=poll, args=(queue, Diag(args.diag_run, args.diag_results)), daemon=True).start()
     print(f'Analysis run view: http://127.0.0.1:{args.port}', flush=True)
     ThreadingHTTPServer(('127.0.0.1', args.port), Handler).serve_forever()
 
