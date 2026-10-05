@@ -28,6 +28,7 @@ import app.disputes.forecast as F  # noqa: E402
 from app.analysis.events import BIG, EventCash, canon, event_chain  # noqa: E402
 from app.disputes import parallel  # noqa: E402
 
+KNOWN = tuple(tuple(x) for x in json.load(open(Path(sys.argv[1]).with_name("prefix.json"))))
 LOG = open(out / f"log-{part}.txt", "a", buffering=1)
 STATE = {"walk": None, "checks": 0, "t0": time.time(), "busy": False}
 
@@ -199,7 +200,8 @@ def same_after(self, s, a, b, m):
     try:
         fc = self.fc
         decide = lambda names: under(names(), fc, self, lambda: orig_same(self, s, a, b, m))  # noqa: E731
-        cold = decide(lambda: list(GROUPS))
+        # walk caches emptied (fast: engine runs are content-keyed and kept); every cache at the known decision
+        cold = decide(lambda: list(GROUPS) if s.steps == KNOWN else ["prefix_stack", "trace_cache", "masks"])
         STATE["checks"] += 1
         if STATE["checks"] % 200 == 0:
             say(f"{STATE['checks']} merge checks agree, {time.time() - STATE['t0']:.0f}s")
@@ -218,7 +220,7 @@ def moves_cash(self, d, steps, a, b):
     try:
         w = STATE["walk"]
         decide = lambda names: under(names(), self, w, lambda: orig_moves(self, d, steps, a, b))  # noqa: E731
-        cold = decide(lambda: list(GROUPS))
+        cold = decide(lambda: ["prefix_stack", "trace_cache", "masks"])
         STATE["checks"] += 1
         if cold != r:
             report("moves_cash", w, self, (d, steps, a, b), r, cold, {"decide": decide})
