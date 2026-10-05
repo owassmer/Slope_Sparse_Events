@@ -3080,8 +3080,16 @@ class _Walk:
             rows_a, rows_b = self._rows(s.steps + (a,)), self._rows(s.steps + (b,))
         chain = lambda st, r: event_chain(self.d, canon(st), self.fc.setup, self.fc.m, self.fc.draws,  # noqa: E731
                                           self.fc.sens, fin=None if self.d is not None else self.fin, rows=r)
-        ca = chain(s.steps + (a,), rows_a)
-        div = ca.divergence(chain(s.steps + (b,), rows_b))
+        # The two chains compared are built from the path alone, not resumed from the prefix cache: a state served
+        # from a prefix walked on more draws, then cut to these rows, books the same cash but can carry the other
+        # draws' bookkeeping (zero levies, pending entries, memo keys), so a resumed comparison would depend on what
+        # this process walked before, and two tasks of one group would split the same branch differently.
+        cached, self.fc.draws.prefixes = self.fc.draws.prefixes, None
+        try:
+            ca = chain(s.steps + (a,), rows_a)
+            div = ca.divergence(chain(s.steps + (b,), rows_b))
+        finally:
+            self.fc.draws.prefixes = cached
         on = np.ones(self.fc.draws.n, dtype=bool) if m is None else m
         if not bool(((div if len(div) != len(on) else div[on]) >= BIG).all()):  # a chain on rows is on m already
             return False

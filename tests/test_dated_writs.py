@@ -125,3 +125,25 @@ def test_merge_comparison_ignores_walk_history(chain):
     amount[:3] = 1
     real.takes.append((np.full(c.n, 150), amount))
     assert (c.divergence(real)[:3] <= 150).all()
+
+
+def test_merge_check_builds_its_chains_from_the_path(monkeypatch):
+    """The merge check's two chains are built from the path alone, never resumed from the prefix cache (whose
+    states, cut from more draws, can carry other draws' bookkeeping), so the answer cannot depend on walk history.
+    Groups 1 and 15 split the same listing branch differently across tasks while the comparison read cached states."""
+    import app.analysis.events as E
+    from app.disputes import forecast as F
+
+    d = fx.pending(instance_id="dispute_002")
+    fc = Forecaster([d], {}, borrower="B", review=fx.REVIEW, horizon=fx.setup().horizon,
+                    hydrate=lambda f: {}, model=fx.model(), setup=fx.setup(), basis=fx.basis())
+    fc.draws.prefixes = {}
+    w = F._Walk(fc, d)
+    s = F._S(steps=(("verdict", "I0", "award:2397555350:2260000400:2535110300"), ("post_trial_motions", "", "yes"),
+                    ("post_trial_ruling", "", "unchanged")))
+    seen = []
+    real = E.event_chain
+    monkeypatch.setattr(E, "event_chain", lambda *a, **k: (seen.append(a[4].prefixes), real(*a, **k))[1])
+    w._same_after(s, ("appeal", "", "no"), ("appeal", "", "yes"), w.mask_of(s.steps))
+    assert seen[:2] == [None, None]
+    assert fc.draws.prefixes is not None  # the walk's cache is restored
