@@ -2970,7 +2970,8 @@ class Chain:
                         "_atm_sold", "_atm_nsold", "taken", "_booked_to", "_last_node", "ev", "marks", "waiting", "takes", "writs",
                         "coupons", "floor_days", "stays", "pet_cause", "collateral_required", "lock_amount",
                         "levied", "q1", "offerings", "_at", "notes_due_how", "appealed", "_offers", "lock_day",
-                        "hearing_requested", "_vfired", "_price_v", "_price_key", "_ev_own", "_pending_writs"})
+                        "hearing_requested", "_vfired", "_price_v", "_price_key", "_stay_owed", "_ev_own",
+                        "_pending_writs"})
 
     def divergence(self, other: Chain, wait: int | None = None) -> np.ndarray:
         """Per draw, a day before which this chain and `other` (the same dispute after sibling steps) book and read
@@ -3035,11 +3036,26 @@ class Chain:
                       for q in (self._pending_writs, other._pending_writs)]
             for a, b in zip(*queues, strict=True):
                 dated(a, b)
-        for la, lb in ((self.takes, other.takes), (self.writs, other.writs)):  # (day, amount) events
-            for i in range(max(len(la), len(lb))):
-                (da, aa), (db, ab) = (la[i] if i < len(la) else (BIG, 0)), (lb[i] if i < len(lb) else (BIG, 0))
-                ne = (day(da) != day(db)) | (np.asarray(aa) != np.asarray(ab))
-                x = np.minimum(x, np.where(ne, np.minimum(day(da), day(db)), BIG))
+        def events(ch, lst):  # per draw, the (day, amount) events sorted by day then amount; a zero amount books
+            # nothing (every reader sums amounts), so it is no event: a chain served from a state on more draws keeps
+            # the other draws' levies at zero on its own, and walk history must not decide a merge
+            if not lst:
+                return np.empty((0, n), dtype=np.int64), np.empty((0, n), dtype=np.int64)
+            A = np.stack([ch.per_draw(a) for _, a in lst])
+            D = np.where(A != 0, np.stack([day(ch.per_draw(t)) for t, _ in lst]), BIG)
+            A = np.where(D < BIG, A, 0)
+            i = np.argsort(A, axis=0, kind="stable")
+            D, A = np.take_along_axis(D, i, 0), np.take_along_axis(A, i, 0)
+            i = np.argsort(D, axis=0, kind="stable")
+            return np.take_along_axis(D, i, 0), np.take_along_axis(A, i, 0)
+
+        for la, lb in ((self.takes, other.takes), (self.writs, other.writs)):
+            (Da, Aa), (Db, Ab) = events(self, la), events(other, lb)
+            k = max(len(Da), len(Db))
+            pad = lambda a, v, k=k: np.concatenate([a, np.full((k - len(a), n), v, dtype=np.int64)])  # noqa: E731
+            Da, Aa, Db, Ab = pad(Da, BIG), pad(Aa, 0), pad(Db, BIG), pad(Ab, 0)
+            ne = (Da != Db) | (Aa != Ab)
+            x = np.minimum(x, np.where(ne, np.minimum(Da, Db), BIG).min(axis=0, initial=BIG))
         for i in range(max(len(self.coupons), len(other.coupons))):  # (payment day, cash, paid per draw)
             ca = self.coupons[i] if i < len(self.coupons) else None
             cb = other.coupons[i] if i < len(other.coupons) else None

@@ -105,3 +105,23 @@ def test_absent_structural_probe_does_not_preempt_later_release(chain):
     c.resolve(np.full(c.n, 132), np.ones(c.n, dtype=bool))
     c.until(np.full(c.n, 141))
     assert not c.ev.kinds["levy"].any()
+
+
+def test_merge_comparison_ignores_walk_history(chain):
+    """A chain served from a state walked on more draws carries the other draws' levies at zero amount and a stay
+    memo key built from them; neither books anything, so the merge comparison must not see them (group 4's listing
+    merge split on exactly these, so its tasks walked different pieces)."""
+    c = chain
+    c.queue_levy(np.full(c.n, 140))
+    c.until(np.full(c.n, 141))
+    other = c.clone()
+    other.takes.append((np.full(c.n, 120), np.zeros(c.n, dtype=np.int64)))
+    other.writs.insert(0, (np.full(c.n, 120), np.zeros(c.n, dtype=np.int64)))
+    other.takes.reverse()
+    other._stay_owed = ("a memo key from another history",)
+    assert (c.divergence(other) == BIG).all()
+    real = c.clone()  # a levy that takes cash is still a difference, from no later than its day
+    amount = np.zeros(c.n, dtype=np.int64)
+    amount[:3] = 1
+    real.takes.append((np.full(c.n, 150), amount))
+    assert (c.divergence(real)[:3] <= 150).all()
