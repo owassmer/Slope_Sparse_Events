@@ -192,10 +192,21 @@ def init(self, *a, **k):
     STATE["walk"] = self
 
 
+KNOWN_ONLY = bool(os.environ.get("DIAG_KNOWN_ONLY"))
+PAIR = {"compliant", "hearing"}
+
+
 def same_after(self, s, a, b, m):
     r = orig_same(self, s, a, b, m)
     if STATE["busy"]:
         return r
+    if KNOWN_ONLY:  # walk exactly as production; at the known listing merge, decide it cold, test each cache, stop
+        if s.steps != KNOWN or {a[-1], b[-1]} != PAIR:
+            return r
+        STATE["busy"] = True
+        fc = self.fc
+        decide = lambda names: under(names(), fc, self, lambda: orig_same(self, s, a, b, m))  # noqa: E731
+        report("same_after", self, fc, (s, a, b, m), r, decide(lambda: list(GROUPS)), {"decide": decide})
     STATE["busy"] = True
     try:
         fc = self.fc
@@ -214,7 +225,7 @@ def same_after(self, s, a, b, m):
 
 def moves_cash(self, d, steps, a, b):
     r = orig_moves(self, d, steps, a, b)
-    if STATE["busy"]:
+    if STATE["busy"] or KNOWN_ONLY:
         return r
     STATE["busy"] = True
     try:

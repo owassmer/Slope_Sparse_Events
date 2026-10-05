@@ -4,6 +4,7 @@ on:
     branches: [diag-joins]
 permissions:
   contents: read
+  statuses: write
 env:
   PYTHONPATH: .
   OPENBLAS_NUM_THREADS: '1'
@@ -16,30 +17,49 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        job: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        # 0-8: partitions 4j..4j+3, every merge also decided with walk caches empty
+        # 9, 10: partitions 0 and 4 walked exactly as production, all caches tested at the known listing merge
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --locked
       - run: uv run slope evidence build akoustis_20240514
-      - name: Four partitions of group 4, each stopping at its first cold/walked disagreement
+      - name: Walk group 4 partitions; stop at the first disagreement; post progress as a commit status
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p out
+          J=${{ matrix.job }}
+          case $J in
+            9) parts="0"; export DIAG_KNOWN_ONLY=1 ;;
+            10) parts="4"; export DIAG_KNOWN_ONLY=1 ;;
+            *) parts=""; for i in 0 1 2 3; do p=$(( J * 4 + i )); [ $p -lt 34 ] && parts="$parts $p"; done ;;
+          esac
           pids=()
-          for i in 0 1 2 3; do
-            p=$(( ${{ matrix.job }} * 4 + i ))
-            if [ $p -lt 34 ]; then
-              (.venv/bin/python tools/diag/join_check.py tools/diag/plan4.json $p out > out-$p.txt 2>&1; echo $? > out/exit-$p) &
-              pids+=($!)
-            fi
+          for p in $parts; do
+            (.venv/bin/python tools/diag/join_check.py tools/diag/plan4.json $p out > out-$p.txt 2>&1; echo $? > out/exit-$p) &
+            pids+=($!)
           done
-          # stop as soon as any partition reports a disagreement (exit 3), or when all have ended
+          post() {
+            d=""
+            for p in $parts; do
+              c=$(grep -oE '^[0-9]+ merge checks' out/log-$p.txt 2>/dev/null | tail -1 | cut -d' ' -f1)
+              n=$(grep -oE 'paths [0-9]+' out-$p.txt 2>/dev/null | tail -1 | cut -d' ' -f2)
+              d="$d p$p:${n:-0}p/${c:-0}c"
+            done
+            d="$(( ($(date +%s) - T0) / 60 ))m$d $1"
+            gh api -X POST repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA -f state=pending -f context="join-check/$J" -f description="${d:0:139}" >/dev/null || true
+          }
+          T0=$(date +%s); k=0
           while true; do
-            if grep -lx 3 out/exit-* >/dev/null 2>&1; then echo "disagreement found"; kill ${pids[@]} 2>/dev/null; pkill -f join_check.py; break; fi
-            [ $(ls out/exit-* 2>/dev/null | wc -l) -ge ${#pids[@]} ] && break
-            sleep 20
+            if grep -lx 3 out/exit-* >/dev/null 2>&1; then post REPORTED; kill ${pids[@]} 2>/dev/null; pkill -f join_check.py; break; fi
+            if [ $(ls out/exit-* 2>/dev/null | wc -l) -ge ${#pids[@]} ]; then post ENDED; break; fi
+            [ $(( k % 6 )) -eq 0 ] && post ""
+            k=$(( k + 1 )); sleep 20
           done
-          grep -h -E 'DISAGREE|cache that alone|DONE' out/log-*.txt || true
+          cat out/exit-* ; grep -h -E 'DISAGREE|cache that alone|DONE' out/log-*.txt || true
+          tail -5 out-*.txt
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -47,4 +67,5 @@ jobs:
           path: |
             out/log-*.txt
             out/disagree-*.pkl
+            out-*.txt
           if-no-files-found: ignore
