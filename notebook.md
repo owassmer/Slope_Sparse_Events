@@ -61,3 +61,7 @@ reading output. One entry per observation, dated. Nothing here is fixed when it 
 - Coordinator: the verifier's own notebook edit was discarded with its throwaway checkout. `scripts/verify` copies back only the list and the feature map.
 - Coordinator: six BROKEN lines on the product as it stands: the assumption radios (500 in a fresh checkout), the assumption section ignoring overrides, "Jev $771k" labelling an overridden value, the 20 Jun page blank (an old `page.json` shape), unknown override names silently ignored by `/reweight`, and evidence search before a build. The map is not yet checked against Owen's own use.
 - 2026-10-06, task 001-1: `part1840009.pkl` draw 145 closes the ripe-response offering on day 101 before the floor on day 155; the old prefix domain is wrong, not the `nocapacity` snapshot. Rewalk rather than re-pool; the self-contained regression and local check limits are in `tests/test_dated_answer_domains.py` and `tasks/001-1-result.md`.
+
+## 2026-10-06: running the loop
+- Coordinator: the first `scripts/work` on task 001-1 started twice in the same worktree (13:29 and 13:34), apparently from one command being run twice. Both were stopped and one restarted under a lock. If it recurs, `scripts/work` should refuse to start while another worker holds the worktree.
+- Coordinator: `scripts/verify`'s final check looked for lines starting `WORKS`, while the verifier wrote `- WORKS`, so a clean list would still have exited 1. Fixed with the live-run change (the check accepts both).

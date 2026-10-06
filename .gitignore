@@ -20,3 +20,6 @@ runs/recorded/*/analysis.json
 # Claude Code worktrees
 .claude/worktrees/
 .drive/
+
+# worker and verifier runs, live (scripts/watch)
+.runs/

@@ -15,6 +15,7 @@ Slope Sparse Events is a work sample for Russell, Slope's Head of Lending. He as
 ## Commands
 - Gates: `uv run ruff check .` and `uv run pytest` (CI runs both on every pull request).
 - Run and use the product: the verify skill.
+- Follow a worker or verifier live: `scripts/watch` (the newest run), `scripts/watch --list`; each run is in `.runs/`.
 
 ## How work is done here
 An outcome is finished when it is true in the running product. Keep working until it is.

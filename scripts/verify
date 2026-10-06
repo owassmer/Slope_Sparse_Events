@@ -2,41 +2,51 @@
 # scripts/verify <outcome file>    A fresh verifier checks the outcome against the running product.
 # Exits 0 when every line of its list works. Called by the coordinator.
 #
-# The verifier works in a throwaway checkout of this commit with tasks/ removed and no .env within reach; it
-# writes its list and feature-map.md there, and this script copies both back and commits them.
+# The verifier works in a throwaway checkout of the committed head with tasks/ removed and no .env within reach.
+# Its list and feature-map.md are copied back, its new notebook lines are appended, and they are committed. The run
+# streams to .runs/<run>.log as it happens (scripts/watch follows it; a Terminal window opens on it unless
+# FACTORY_WATCH=off); Pi's raw events are in .runs/<run>.jsonl.
 set -euo pipefail
 outcome="${1:?usage: scripts/verify outcomes/<NNN>.md}"
-[ -f "$outcome" ] || { echo "scripts/verify: no outcome file $outcome" >&2; exit 2; }
 VERIFIER="claude-cli/claude-opus-5-5:high"   # a different family from the worker; change it here and nowhere else
-
-repo="$(git rev-parse --show-toplevel)"
-outcome="$(cd "$(dirname "$outcome")" && pwd)/$(basename "$outcome")"; outcome="${outcome#"$repo"/}"
+root="$(git rev-parse --show-toplevel)"
+outcome="$(cd "$(dirname "$outcome")" && pwd)/$(basename "$outcome")"; outcome="${outcome#"$root"/}"; cd "$root"
+[ -f "$outcome" ] || { echo "no outcome file $outcome" >&2; exit 2; }
 seen="${outcome%.md}.seen.md"
+git diff --quiet HEAD -- . ':!tasks' || { echo "commit first: the verifier checks the committed product" >&2; exit 2; }
+
 scratch="$(mktemp -d)/product"
-git -C "$repo" worktree add --quiet --detach "$scratch" HEAD
+git worktree add --quiet --detach "$scratch" HEAD
 cleanup() {
   (cd "$scratch" && .agents/skills/verify/drive stop >/dev/null 2>&1) || true
-  git -C "$repo" worktree remove --force "$scratch" >/dev/null 2>&1 || true
+  git worktree remove --force "$scratch" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
-rm -rf "$scratch/tasks"
-cp "$repo/$outcome" "$scratch/$outcome"                       # the outcome as the coordinator wrote it
-[ -f "$repo/feature-map.md" ] && cp "$repo/feature-map.md" "$scratch/feature-map.md"
-rm -f "$scratch/$seen"
+rm -rf "$scratch/tasks" "$scratch/$seen"
 
 # No route to a paid call: saved judgment answers only, no cloud or GitHub credentials.
 export SLOPE_JEV_CACHE_ONLY=1 AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null GH_CONFIG_DIR="$(mktemp -d)"
 unset AWS_PROFILE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN GH_TOKEN GITHUB_TOKEN
 
-(cd "$scratch" && pi -p --no-session --approve --model "$VERIFIER" "Read AGENTS.md and $outcome. You did not
-  write this change and must not read the diff, the git history or any file under tasks/. Use the verify skill
+run="verify-$(basename "${outcome%.md}")-$(date +%Y%m%dT%H%M%S)"; mkdir -p .runs
+echo "=== verifier on $outcome ($VERIFIER) in $scratch" > ".runs/$run.log"; echo "run: .runs/$run.log"
+[ "${FACTORY_WATCH:-window}" = off ] || scripts/watch --window "$run" >/dev/null 2>&1 || true
+set +e
+(cd "$scratch" && pi --mode json --no-session --approve --model "$VERIFIER" "Read AGENTS.md and $outcome. You did
+  not write this change and must not read the diff, the git history or any file under tasks/. Use the verify skill
   to do, as a user, what the outcome says a user can do, then try the features that share a layer with what
-  changed. Write $seen as a list, one line per behaviour you tried, each starting with WORKS or BROKEN, then
-  what you did and what you saw. Update feature-map.md for each feature you reached. Do not commit.")
+  changed. Write $seen as a list, one line per behaviour you tried, each starting with WORKS or BROKEN, then what
+  you did and what you saw. Update feature-map.md for each feature you reached. Do not commit.") \
+  | tee ".runs/$run.jsonl" | scripts/watch --render >> ".runs/$run.log"
+status=${PIPESTATUS[0]}; set -e
+echo "=== finished exit $status" >> ".runs/$run.log"
+[ "$status" -eq 0 ] || exit "$status"
 
-[ -f "$scratch/$seen" ] || { echo "scripts/verify: the verifier wrote no $seen" >&2; exit 1; }
-cp "$scratch/$seen" "$repo/$seen"
-cp "$scratch/feature-map.md" "$repo/feature-map.md"
-git -C "$repo" add "$seen" feature-map.md
-git -C "$repo" commit --quiet -m "Verify $(basename "${outcome%.md}") on $(git -C "$repo" rev-parse --short HEAD)" || true
-grep -q '^WORKS' "$repo/$seen" && ! grep -q '^BROKEN' "$repo/$seen"
+[ -f "$scratch/$seen" ] || { echo "the verifier wrote no $seen" >&2; exit 1; }
+cp "$scratch/$seen" "$seen"; cp "$scratch/feature-map.md" feature-map.md; git add "$seen" feature-map.md
+if [ -f "$scratch/notebook.md" ]; then
+  grep -Fxv -f notebook.md "$scratch/notebook.md" >> notebook.md || true
+  git add notebook.md
+fi
+git diff --cached --quiet || git commit -q -m "Verify $(basename "${outcome%.md}") on $(git rev-parse --short HEAD)"
+grep -q '^\(- \)\?WORKS' "$seen" && ! grep -q '^\(- \)\?BROKEN' "$seen"
