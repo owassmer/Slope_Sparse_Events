@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
 # scripts/work <task file>    A fresh worker makes one task true and commits. Called by the coordinator.
+# The run streams to .runs/<run>.log as it happens (scripts/watch follows it; a Terminal window opens on it unless
+# FACTORY_WATCH=off); Pi's raw events are in .runs/<run>.jsonl.
 set -euo pipefail
 task="${1:?usage: scripts/work tasks/<NNN>-<n>.md}"
-[ -f "$task" ] || { echo "scripts/work: no task file $task" >&2; exit 2; }
 WORKER="openai-codex/gpt-6-astra:medium"     # change the worker model here and nowhere else
+root="$(git rev-parse --show-toplevel)"; cd "$root"
+[ -f "$task" ] || { echo "no task file $task; write it first" >&2; exit 2; }
 
 # No route to a paid call: saved judgment answers only, no cloud or GitHub credentials.
 export SLOPE_JEV_CACHE_ONLY=1 AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null GH_CONFIG_DIR="$(mktemp -d)"
 unset AWS_PROFILE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN GH_TOKEN GITHUB_TOKEN
 
-pi -p --no-session --approve --model "$WORKER" "Read AGENTS.md and $task. Make it true in the running product,
-  then commit."
+run="work-$(basename "${task%.md}")-$(date +%Y%m%dT%H%M%S)"; mkdir -p .runs
+echo "=== worker on $task ($WORKER)" > ".runs/$run.log"; echo "run: .runs/$run.log"
+[ "${FACTORY_WATCH:-window}" = off ] || scripts/watch --window "$run" >/dev/null 2>&1 || true
+set +e
+pi --mode json --no-session --approve --model "$WORKER" "Read AGENTS.md and $task. Make it true in the running
+  product, then commit." | tee ".runs/$run.jsonl" | scripts/watch --render >> ".runs/$run.log"
+status=${PIPESTATUS[0]}; set -e
+echo "=== finished exit $status" >> ".runs/$run.log"
+exit "$status"
