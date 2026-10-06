@@ -68,7 +68,7 @@ def next_decisions(chain, cursors: Cursors, support=None) -> Frontier:
     mistake a later ripe response's prospective cash for its before-answer cash.
     Only calculation caches may be populated; no semantic state is changed.
     """
-    from app.analysis.events import BIG, answers_levy
+    from app.analysis.events import BIG, DISTRESS, answers_levy
 
     candidates = []
     pet = np.where(chain.ev.petition < 0, BIG, chain.ev.petition)
@@ -88,5 +88,12 @@ def next_decisions(chain, cursors: Cursors, support=None) -> Frontier:
             add(name, decision, chain.decision_day(decision.node, decision.ctx), phase)
     if chain.pending_levy is not None:
         add('deterministic', Decision('levy'), chain.pending_levy, 1)
+    # Answers already chosen can still be waiting for their booking day (an
+    # offering closes after its initiation). They must book before forecasting
+    # a later cash trigger, even though they need no new question or edge.
+    for index, node, _answer, done, ctx in chain.waiting:
+        day = chain.distress_day(node, ctx) if node in DISTRESS else chain.waiting_day(node, ctx)
+        phase = 0 if answers_levy(node, ctx) else 1
+        add('deterministic', Decision('waiting', str(index)), np.where(done, BIG, day), phase)
     candidates = tuple(candidates)
     return Frontier(candidates, select(candidates, chain.n))

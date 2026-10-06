@@ -59,6 +59,22 @@ def test_frontier_never_books_an_answer_or_changes_semantic_state(monkeypatch, p
     assert not frontier.pick.flags.writeable
 
 
+def test_already_answered_waiting_transition_remains_a_frontier_boundary():
+    chain = seed(SAVED[:8] + (('judgment_response', 'ripe', 'initiate_offering'),
+                             ('offering', 'ripe', 'yes')))
+    support = np.arange(chain.n) == 145
+    cur = Cursors(listing=(Decision('listing_date', 'compliance'),))
+    frontier = chain.next_decisions(cur, support)
+    assert chosen(frontier, 145) == Decision('waiting', '8')
+    assert dates(frontier, 'waiting', '8')[145] == 96
+    before = pickle.dumps(chain)
+    chain.next_decisions(cur, support)
+    assert pickle.dumps(chain) == before
+    chain.until(np.where(support, 97, -1))
+    frontier = chain.next_decisions(cur, support)
+    assert dates(frontier, 'waiting', '8')[145] == BIG
+
+
 def test_day96_response_precedes_prospective_floor():
     chain = seed(SAVED[:8])
     frontier = chain.next_decisions(cursors())
