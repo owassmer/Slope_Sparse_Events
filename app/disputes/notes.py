@@ -1,0 +1,136 @@
+"""Before-decision note facts from a complete path, including its earlier-dated events."""
+from __future__ import annotations
+
+import os
+from collections import OrderedDict
+from copy import deepcopy
+from dataclasses import replace
+
+import numpy as np
+
+from app.analysis.events import BIG, event_questions, pval
+from app.disputes.forecast import _S, DisputePath, _Prefix, _Walk, as_of
+
+NAMES = {'petition_on_notes', 'holders_involuntary'}
+
+
+def occasion(context: str) -> tuple[str, str]:
+    origin = context.split('|')[0]
+    if origin.startswith('judgment_'):
+        return 'judgment_default', origin.removeprefix('judgment_')
+    if origin.startswith('delisting_'):
+        return 'delisting_notes', origin.removeprefix('delisting_')
+    if origin == 'nonpayment':
+        return 'nonpayment', ''
+    raise ValueError(f'No deferred notes occasion for {origin!r}')
+
+
+def decision_row(fc, d, steps: tuple, index: int, actor: str, mask=None) -> tuple[dict, object]:
+    """The actor's state before its own petition, tied to the specific acceleration/default.
+
+    A generic notes-due probe alone can accidentally read a different default later
+    on the path. Require the named originating step to have actually fired and set
+    the notes' due day. Exclude the actor's own filing when reading its decision.
+    """
+    if actor not in ('issuer', 'holders'):
+        raise ValueError(actor)
+    node, context, _ = steps[index]
+    if node not in ('judgment_default', 'delisting_notes', 'nonpayment'):
+        raise ValueError(f'Not a notes trigger: {steps[index]!r}')
+    quiet = 'due' if node == 'nonpayment' else 'accelerated'
+    counterfactual = steps[:index] + ((node, context, quiet),) + steps[index + 1:]
+    # Forecaster inputs are fixed for a walk, as with its existing trace caches.
+    # Retain the entire history: later traversal steps may happen earlier in time.
+    capacity = int(os.environ.get('SLOPE_NOTES_CACHE', '64'))
+    key = (d.instance_id, counterfactual, index, actor,
+           None if mask is None else (mask.shape, mask.dtype.str, mask.tobytes()))
+    if capacity > 0:
+        scope = (d, fc.setup, fc.m, fc.draws, fc.sens)
+        old_scope = getattr(fc, '_notes_scope', ())
+        if len(old_scope) != len(scope) or any(a is not b for a, b in zip(old_scope, scope, strict=True)):
+            fc._notes_scope, fc._notes_rows = scope, OrderedDict()
+        cache = fc._notes_rows
+        while len(cache) > capacity:
+            cache.popitem(last=False)
+        if key in cache:
+            cache.move_to_end(key)
+            return deepcopy(cache[key])
+    probe = counterfactual + (('notes_due_date', actor, ''),)
+    rows = None if mask is None else tuple(mask for _ in probe)
+    questions, days = event_questions(d, DisputePath(instance_id=d.instance_id, steps=probe, outcome='', edges=()),
+                                     fc.setup, fc.m, fc.draws, fc.sens, indices=(-1,), dates=(index,), day_only=True, rows=rows)
+    row = as_of(questions[-1])
+    tr = _Prefix(day=[row['day']], cash=[row['cash']], owed=[row['owed']],
+                 collateral=[row['collateral']], petition=row['petition'], digest=None,
+                 marks=row['marks'], question=row)
+    # Read the actual booked origin date, not a speculative question date.
+    fired = days[index]
+    lag = 0 if node == 'nonpayment' else int(pval(fc.m, 'holder_notice_lag_days', fc.sens.get('holder_notice_lag_days', False)))
+    due = row['sit']['notes_due_day']
+    on = (fired < fc.days) & (due == fired + lag)
+    if mask is not None:
+        on &= mask
+    row = {**row, 'day': np.where(on, row['day'], BIG)}
+    # Exclude a later same-day appeal from the earlier actor's before-answer facts.
+    if any(step[0] == 'appeal' for step in steps[index + 1:]):
+        marks = dict(row['marks'])
+        marks['appealed'] = np.where(marks['appealed'] == row['day'], BIG, marks['appealed'])
+        row = {**row, 'marks': marks}
+        tr = replace(tr, marks=marks)
+    result = row, replace(tr, day=[row['day']], petition=row['petition'], question=row)
+    if capacity > 0:
+        cache[key] = deepcopy(result)
+        if len(cache) > capacity:
+            cache.popitem(last=False)
+    return result
+
+
+def record(fc, d, steps: tuple, key: str, mask=None):
+    """Reclassify one original note question from its complete before-action state.
+
+    Context in a note question's old key is an identity, not authority for its
+    rendered facts. Each new class records the context actually true on its draws.
+    """
+    n = fc.nodes[key]
+    origin = occasion(n.context)
+    matches = [i for i, step in enumerate(steps) if step[:2] == origin]
+    if len(matches) != 1:
+        raise ValueError(f'{key}: expected one originating step, found {len(matches)}')
+    index = matches[0]
+    actor = 'holders' if n.node == 'holders_involuntary' else 'issuer'
+    row, tr = decision_row(fc, d, steps, index, actor, mask)
+    return record_row(fc, d, steps, key, index, row, tr)
+
+
+def record_row(fc, d, steps, key, index, row, tr=None):
+    """Classify a previously calculated decision row without replaying its history."""
+    n = fc.nodes[key]
+    if tr is None:
+        tr = _Prefix(day=[row['day']], cash=[row['cash']], owed=[row['owed']],
+                     collateral=[row['collateral']], petition=row['petition'], digest=None,
+                     marks=row['marks'], question=row)
+    live = fc.live(n, row)
+    cls = fc.question_class(n, row, live)
+    if cls is None:
+        raise ValueError('Deferred notes require a decision-state snapshot')
+    walk = _Walk(fc, d)
+    conds = walk.situation_conditions(n.node)
+    bits = np.zeros(len(live), dtype=np.int64)
+    for i, condition in enumerate(conds):
+        bits |= (np.asarray(tr.marks[condition]) <= row['day']).astype(np.int64) << i
+    cls = np.where(live, np.strings.add(np.strings.add(cls.astype(str), '.t'), bits.astype(str)), '')
+    context = np.full(len(live), '', dtype=object)
+    ruling = next((s[2] for s in steps if s[0] == 'post_trial_ruling'), '')
+    verdict = next((s[2] for s in steps if s[0] == 'verdict'), '')
+    verdict_label = 'award' + verdict.split(':')[1] if verdict.startswith('award:') else verdict or 'claimed'
+    for tag in sorted(set(cls[live])):
+        selected = cls == tag
+        label = verdict_label
+        if (tr.marks['ruled'][selected] <= row['day'][selected]).all():
+            label = ('reduced' + ruling.split(':')[1] if ruling.startswith('reduced:') else
+                     'set_aside' if ruling == 'set_aside' else verdict_label)
+        state = replace(tr, day=[np.where(selected, row['day'], BIG)])
+        tags = walk._tags(_S(steps=steps, cls=label), conds, (n.context.split('|')[0],), state, ())
+        context[selected] = '|'.join((n.context.split('|')[0], *tags))
+    row = {**row, 'note_context': context}
+    return fc._split((key,), row, lambda k, r: fc._keep_late(k, steps[:index], r), cls)

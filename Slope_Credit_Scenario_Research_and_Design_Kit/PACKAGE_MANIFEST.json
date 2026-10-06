@@ -2,7 +2,7 @@
   "package": "Slope credit-event scenario research and design kit",
   "revision": "2",
   "status": "Research and design; not a built agent or lending application",
-  "primary_catalog_records": 87,
+  "primary_catalog_records": 103,
   "warning": "Build dated agent evidence stores. Do not expose this entire kit, outcomes or evaluator answers to investigator/reviewer runtimes.",
   "files": [
     {
@@ -126,9 +126,19 @@
       "sha256": "43cdb7e4a1eaf964262ca7fcb4c589b6648ed3bdc37ab9adac5fdb3cc32befc9"
     },
     {
+      "path": "research/recent_cases/akoustis/akts_2022_02_04_s3.html",
+      "bytes": 443098,
+      "sha256": "cb187ffbbd4bc60a1bd488b58b592ae076440cab09fd9e82f116a5c1abd5c3e7"
+    },
+    {
       "path": "research/recent_cases/akoustis/akts_2022_05_02_424b5.html",
       "bytes": 432384,
       "sha256": "0b471ec0eb28f7cdbbe57f11e232cc09f75efe689bfb00ebb6bae350e95a6c8d"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_2022_05_02_atm_agreement.html",
+      "bytes": 220383,
+      "sha256": "43b47980d400adc46dd3dc25b9ca69bbb5042f4a42aea731b074d483d504bd1f"
     },
     {
       "path": "research/recent_cases/akoustis/akts_2022_06_notes_8k.html",
@@ -141,9 +151,24 @@
       "sha256": "2aa3ccf1a3ecdb58b759faace8d1f03e7d0d1b0e351067bb9e0d04d3ab5aecb7"
     },
     {
+      "path": "research/recent_cases/akoustis/akts_2023_01_23_424b5.html",
+      "bytes": 527042,
+      "sha256": "194ecec0bd8a209591523822ac1f842374222d960e8e02987498aeece2df636e"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_2023_09_19_def14a.html",
+      "bytes": 187915,
+      "sha256": "331c172e74271f353684e4160b73cceb323678d167e0ac443e31e7f147d87f3d"
+    },
+    {
       "path": "research/recent_cases/akoustis/akts_2023_10_27_8k.html",
       "bytes": 25254,
       "sha256": "a928b76b54b6e844c44aeee8d7e584fbea205374a8ca380248951f4fb35c53ac"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_2023_11_02_8k.html",
+      "bytes": 47803,
+      "sha256": "bda68cdcfac26165b844f10a6ab66a399ae928bdd77cdc65dfab921467fe2f70"
     },
     {
       "path": "research/recent_cases/akoustis/akts_2024_01_29_424b5.html",
@@ -154,6 +179,11 @@
       "path": "research/recent_cases/akoustis/akts_2024_01_29_8k.html",
       "bytes": 29514,
       "sha256": "1640e51bf00b7f5a33551091b52efd35f3a09219477ca4a7691c80cf1188b598"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_2024_01_29_8k_ex1_1.html",
+      "bytes": 190732,
+      "sha256": "bf5210de350a3155616aaf348c2528f36b95e276e02c60978024402182cfe989"
     },
     {
       "path": "research/recent_cases/akoustis/akts_2024_05_13_8k.html",
@@ -251,9 +281,19 @@
       "sha256": "b37f5dc47fff9902256afa15f83eb67ad915ab8ca6a40eebe086e7193afa2584"
     },
     {
+      "path": "research/recent_cases/akoustis/akts_daily_px_20240514.html",
+      "bytes": 24520,
+      "sha256": "46c0ec4c7116174e4a5b49199de887e1150ed55bc250d8927ad5017664f11e3b"
+    },
+    {
       "path": "research/recent_cases/akoustis/akts_fy2023_10k.html",
       "bytes": 1335334,
       "sha256": "4d405945d9ae4f46abc1e62ea1d51e0773d202b1f883b21d1b81e33a8731db53"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_fy2023_10k_ex21.html",
+      "bytes": 1445,
+      "sha256": "540ce75d3babfc4d52e32ee119c66e8a92a11fc933e09fa85c12da05c14f3dff"
     },
     {
       "path": "research/recent_cases/akoustis/akts_fy2024_10k.html",
@@ -326,9 +366,24 @@
       "sha256": "38a342e0882d75e2212dc31b2be46213f198a535ccc1b2f30ce38a44681ec5a4"
     },
     {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d533_preliminary_instructions.pdf",
+      "bytes": 155678,
+      "sha256": "5f6b629a35bd3ad2b9634e1b459329876d88f4dfa166f3b0b0537bbe91869436"
+    },
+    {
       "path": "research/recent_cases/akoustis/ded_21cv1417_d535_proposed_verdict.pdf",
       "bytes": 189395,
       "sha256": "2f3d6a58a90a1b916b6f85d6f184d27fcb79a36370f8e7ee28257e2046c8f6f2"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d537_final_instructions.pdf",
+      "bytes": 461929,
+      "sha256": "08fa77a746643543818b1f79aa8c25e3c59e71c9cd64cf3c33ec0fb50bf9be46"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d539_witness_list.pdf",
+      "bytes": 147210,
+      "sha256": "443df17eeb9d2dec72082a950a4653550bdedb105b195887a65f204edfadacdf"
     },
     {
       "path": "research/recent_cases/akoustis/ded_21cv1417_d543_1_exhibits.pdf",
@@ -366,14 +421,39 @@
       "sha256": "b95021b815621923d6891dba191d9c13471daff7831a12c1b5bc48e19dbdca41"
     },
     {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d565_limiting_instructions.pdf",
+      "bytes": 158789,
+      "sha256": "a2ffd69c0ec2c8e642c0c7a84b2387d07f050627bbb64850bf2075344c70e2bb"
+    },
+    {
       "path": "research/recent_cases/akoustis/ded_21cv1417_d580_verdict_form.pdf",
       "bytes": 228470,
       "sha256": "58ac4822c64d32184adf5b9c9d6477a1101c6d982189dca6e042b5b044fb707e"
     },
     {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d582_judicial_notice.pdf",
+      "bytes": 186092,
+      "sha256": "ca31f42791eed58d897f187edddc043040573b88ff38befde0ed01c89e0ee600"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d585_exhibit_list.pdf",
+      "bytes": 399825,
+      "sha256": "09a3a1ed1dfea6852d0d318138c11e4d85958e6151218c5c71341650e61a5582"
+    },
+    {
       "path": "research/recent_cases/akoustis/ded_21cv1417_d587_brief.pdf",
       "bytes": 169357,
       "sha256": "17761677aca74645c1bf9c68cf8513657f10708668be24503e2564fed8450436"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d588_bench_memo.pdf",
+      "bytes": 154344,
+      "sha256": "1fa6cb99c7af4e0586eedb0aea03ed94f862a71088802e4cd201110090015fec"
+    },
+    {
+      "path": "research/recent_cases/akoustis/ded_21cv1417_d589_bench_memo.pdf",
+      "bytes": 216679,
+      "sha256": "6b835feb5bce396a0e3e7a9218e5cb8ddc0bba77d9661db171b7a163b47d1362"
     },
     {
       "path": "research/recent_cases/akoustis/ded_21cv1417_d590_order.pdf",
@@ -467,8 +547,13 @@
     },
     {
       "path": "research/recent_cases/akoustis/design/DECOMPOSITION_20240514.md",
-      "bytes": 99880,
-      "sha256": "b5740902cc619272c4d12849f3c315d3f9b4fff3d7f1f963ca08dc9c143d8428"
+      "bytes": 97333,
+      "sha256": "39a4197c9e26217d64012213b7eca9522387e23af3f95355666e588e1463af32"
+    },
+    {
+      "path": "research/recent_cases/akoustis/design/QUESTIONS_20240514.md",
+      "bytes": 43607,
+      "sha256": "53f80bc86e2317f63822858d57e7fd1c5dcb60a6acb4e6054da95ef565762043"
     },
     {
       "path": "research/recent_cases/akoustis/design/acquisition_akoustis_20240514.md",
@@ -477,8 +562,8 @@
     },
     {
       "path": "research/recent_cases/akoustis/display.json",
-      "bytes": 16140,
-      "sha256": "5ef1e0a5d939ab1b1d35f0b5c82ee86b5411163c727fc30a4d0628332d682a17"
+      "bytes": 20603,
+      "sha256": "68587a4189d3593f37c37d93b07eceee631fce4fa8890d8f627984871571654b"
     },
     {
       "path": "research/recent_cases/akoustis/qorvo_2024_05_20_8k.html",
@@ -537,8 +622,8 @@
     },
     {
       "path": "research/revision_v2/contracts/agent_config.json",
-      "bytes": 41199,
-      "sha256": "94fd357e6416e1389778c54bbe76b8848c35bb21f896c799c2d17981675b8d31"
+      "bytes": 46459,
+      "sha256": "0a499a70f0d4a8ba328230bb9c3e41ee4a2e89015ac8bba282190f1e04b005cf"
     },
     {
       "path": "research/revision_v2/contracts/barfresh-economic-effects.json",
@@ -572,8 +657,8 @@
     },
     {
       "path": "research/revision_v2/contracts/dispute_model.json",
-      "bytes": 111724,
-      "sha256": "7720156850d25e8d6a9a5fa57cc057a7342a663fd83d10c4af59551b36a5095e"
+      "bytes": 144960,
+      "sha256": "22dc74906fa84828b729ec2cedf54c63df55445eb3e353b94a377aa17039f93f"
     },
     {
       "path": "research/revision_v2/contracts/economic-effects.json",
@@ -592,8 +677,8 @@
     },
     {
       "path": "research/revision_v2/contracts/question_registry.json",
-      "bytes": 123508,
-      "sha256": "bf9418b7d07935e719bdefa5f9cc26a6752af634831ea65132ca5846f886ef50"
+      "bytes": 142721,
+      "sha256": "6720ca4853d92f10c05d4b3ddf0e0be4424e798371d42f30b1f1bd985a3ccd38"
     },
     {
       "path": "research/revision_v2/contracts/synergy-decision-context.json",
@@ -627,8 +712,8 @@
     },
     {
       "path": "research/revision_v2/data/sources.json",
-      "bytes": 105139,
-      "sha256": "d9370e9f93f6add9d0c1f7df6457b197e028b76288ffd7ec9448b12e33aface9"
+      "bytes": 125674,
+      "sha256": "0453571a25779e1a7449d5fc618d8926484b9375e1832e4dd0b5dbe4b2fa4b47"
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",

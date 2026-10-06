@@ -23,6 +23,7 @@ def load_model(snapshot_id: str | None = None) -> dict:
         for k, v in scen.get("parameters", {}).items():
             m["parameters"][k] = {**m["parameters"].get(k, {}), **v}
         m["case_labels"] = scen.get("labels", {})
+        m["case_sources"] = scen.get("source_attribution", {})  # each source's author and status (QUESTIONS §1)
         if "verdict_form" in scen:  # the money-bearing questions of the case's verdict form (template verdict_form)
             m["case_verdict_form"] = scen["verdict_form"]
     return m

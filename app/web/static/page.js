@@ -11,6 +11,10 @@
   const W = await (await fetch("/static/words.json")).json();
   const S = { overrides: {}, sel: {}, event: D.event, bank: D.bank, assumption: "central", vm: null, compare: null, open: null, reveal: false, outcome: null, focus: null };
   window.__page = S;
+  // The tables page (app/analysis/tables_page.py): a tree too large to carry path by path. Every figure comes from
+  // the runners' tables under Jev's answers; a changed answer moves the figures and the series through the
+  // judgment's derivative atoms (exact: each path's probability is linear in the answer), one judgment at a time.
+  const TB = D.tables || null;
 
   // --- formatting -----------------------------------------------------------------------------------------------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -55,8 +59,28 @@
     }
     return out;
   }
-  const hasKey = (k) => k in D.paths.scalars;
-  const expect = (probs, key) => { const x = D.paths.scalars[key]; if (!x) return null; let s = 0; for (let i = 0; i < P; i++) s += probs[i] * x[i]; return s; };
+  // a path's weight among all draws: p x the part of the draws it follows (a grouped question forks the path)
+  const SH = D.paths.scalars.share || null, wt = (pr, i) => (SH ? pr[i] * SH[i] : pr[i]);
+  // the tables page: a figure under the answers `get` gives each shown judgment: Jev's figure plus each changed
+  // answer's derivative (page keys to the tables' scalars and series)
+  const SK = { funded: "drawn", clawback: "preference" }, SER = { due: "due_cum", past_due: "past_due" };
+  function tbExpect(get, key) {
+    if (key === "frozen_due") { const d = tbExpect(get, "due"), c = tbExpect(get, "collected"), p = tbExpect(get, "past_due"); return d === null ? null : d - c - p; }
+    if (key === "unpaid") { const d = tbExpect(get, "due"), c = tbExpect(get, "collected"); return d === null ? null : d - c; }
+    let v = TB.figures.full[key]; if (v === undefined || v === null) return null;
+    const sk = SK[key] || key, se = SER[key];
+    for (let i = 0; i < N; i++) {
+      const n = D.nodes[i], at = n.atoms; if (!at) continue;
+      const d = get(i), j = n.jev;
+      for (let a = 0; a < n.branches.length; a++) {
+        const dl = d[a] - j[a]; if (!dl) continue;
+        if (se) { const s = (n.series[n.branches[a]] || {})[se]; if (s) v += dl * s[s.length - 1]; }
+        else v += dl * ((at.d[n.branches[a]] || {})[sk] || 0);
+      }
+    }
+    return v;
+  }
+  const expect = (probs, key) => { if (TB) return tbExpect((i) => dist(i), key); const x = D.paths.scalars[key]; if (!x) return null; let s = 0; for (let i = 0; i < P; i++) s += probs[i] * x[i]; return s; };
   const BE = D.bank.edges || [];
   const bankProbs = (get) => BE.map((e) => { let p = 1; for (let j = 0; j < e.length; j += 2) p *= get(e[j])[e[j + 1]]; return p; });
   const bexpect = (bp, key) => {
@@ -73,7 +97,7 @@
   function recompute() { probs = pathProbs((k) => dist(k)); bprobs = bankProbs((k) => dist(k)); }
 
   // --- the figures: central from the paths here; a variant's from the server (/reweight) ----------------------------
-  const KEYS = ["funded", "due", "collected", "past_due", "frozen_due", "not_yet_due", "petition_p", "clawback", "stayed"];
+  const KEYS = ["funded", "due", "collected", "past_due", "frozen_due", "not_yet_due", "petition_p", "clawback", "stayed", "atm_proceeds", "offering_proceeds"];
   const variant = (id = S.assumption) => (D.assumptions || []).find((a) => a.id === id);
   function figures() {
     const r = {}, b = {}, v = S.assumption !== "central" ? variant() : null;
@@ -103,7 +127,8 @@
 
   // --- 1. situation -----------------------------------------------------------------------------------------------
   const notes = ((D.dispute || {}).notes || [])[0] || {};
-  const claimBranch = ((D.verdict || {}).branches || []).find((b) => b.key === "claimant_theory");
+  const claimBranch = ((D.verdict || {}).branches || []).find((b) => b.key === "claimant_theory")
+    || (((D.verdict || {}).branches || []).filter((b) => b.kind === "top").map((b) => ({ lo: b.booked }))[0]);  // J1b: the claimant's amount books the top band
   function renderSituation() {
     const L = W.line, l = D.line || {}, inst = l.installments || [];
     const owed = inst.reduce((s, x) => s + x[1], 0);
@@ -185,15 +210,81 @@
     host.innerHTML = `<svg class="ladder" viewBox="0 0 ${Wd} ${H}" style="height:${H}px">${g}</svg>
       <div class="lg"><span><i style="background:var(--teal);height:3px;vertical-align:3px"></i>${esc(W.forecast.cum_mean)}</span>${pts.length ? `<span><i style="background:#5fa69d;width:2px;height:12px;vertical-align:-1px"></i>${esc(W.forecast.cum_range)}</span>` : ""}</div>`;
   }
+  // the borrower's available cash (never below zero under daily processing) and, as their own series, its arrears by
+  // class (stacked): what the day's cash could not pay
+  const ACOL = { slope: "#9b1c1c", settlement: "#e0582a", notes_interest: "#e3a008", judgment: "#7a4f9a", operating: "#4d7c5a" };
+  function cashChart(host) {
+    const C = W.cash, Wd = host.clientWidth || 1000, H = 260, m = { l: 56, r: 16, t: 12, b: 28 }, w = Wd - m.l - m.r, h = H - m.t - m.b, days = D.dates.length;
+    const dly = S.event.daily, mean = dly.cash_mean, lo = dly.cash_p5, hi = dly.cash_p95, need = D.need_mean || [], AR = S.event.arrears;
+    const cls = AR ? Object.keys(C.classes).filter((k) => AR[k] && AR[k].some((v) => v > 0)) : [];
+    let base = new Array(days).fill(0); const stack = [];
+    for (const k of cls) { const top = base.map((b, t) => b + AR[k][t]); stack.push([k, base, top]); base = top; }
+    const ymin = Math.min(0, ...lo), raw = 1.08 * Math.max(...hi, ...mean, ...need, ...base) - ymin || 1, mag = 10 ** Math.floor(Math.log10(raw / 4));
+    const step = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((s) => s * mag).find((s) => s * 4 >= raw), y0 = Math.floor(ymin / step) * step, top = y0 + step * 4;
+    const X = (t) => m.l + (w * t) / (days - 1), Y = (v) => m.t + h - (h * (v - y0)) / (top - y0);
+    const line = (ys) => ys.map((v, t) => `${t ? "L" : "M"}${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join("");
+    const area = (up, dn) => `${line(up)}${dn.map((v, t) => [t, v]).reverse().map(([t, v]) => `L${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join("")}Z`;
+    let g = "";
+    for (let k = 0; k <= 4; k++) { const v = y0 + step * k; g += `<line x1="${m.l}" x2="${m.l + w}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v === 0 ? "#c9cdd2" : "#eceef0"}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${money(v)}</text>`; }
+    D.dates.forEach((d, t) => { if (d.endsWith("-01")) g += `<text x="${X(t)}" y="${H - 8}" text-anchor="middle">${MON[+d.slice(5, 7) - 1]}</text>`; });
+    g += `<path d="${area(hi, lo)}" fill="#dde4ec"/>`;
+    g += stack.map(([k, b, t]) => `<path d="${area(t, b)}" fill="${ACOL[k] || "#999"}" fill-opacity=".75"/>`).join("");
+    if (need.length === days) g += `<path d="${line(need)}" fill="none" stroke="#6b7178" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+    g += `<path d="${line(mean)}" fill="none" stroke="var(--teal)" stroke-width="2.2"/>`;
+    g += `<line class="chx" y1="${m.t}" y2="${m.t + h}" stroke="#9aa0a8" visibility="hidden"/><rect class="chov" x="${m.l}" y="${m.t}" width="${w}" height="${h}" fill="transparent"/>`;
+    const sw = (col, bar) => `<i style="background:${col};${bar ? "height:3px;vertical-align:3px" : ""}"></i>`;
+    host.innerHTML = `<svg class="ladder" viewBox="0 0 ${Wd} ${H}" style="height:${H}px">${g}</svg>
+      <div class="lg"><span>${sw("var(--teal)", 1)}${esc(C.mean)}</span><span>${sw("#dde4ec")}${esc(C.range)}</span>${need.length === days ? `<span>${sw("#6b7178", 1)}${esc(C.need)}</span>` : ""}
+      ${cls.map((k) => `<span>${sw(ACOL[k] || "#999")}${esc(C.arrears)}: ${esc(C.classes[k])}</span>`).join("")}</div>${AR ? "" : `<p class="mute small">${esc(C.unavailable)}</p>`}`;
+    const svg = host.querySelector("svg"), hov = svg.querySelector(".chov"), hx = svg.querySelector(".chx");
+    hov.onmousemove = (ev) => {
+      const r = hov.getBoundingClientRect(), t = Math.max(0, Math.min(days - 1, Math.round(((ev.clientX - r.left) / r.width) * (days - 1))));
+      hx.setAttribute("x1", X(t)); hx.setAttribute("x2", X(t)); hx.setAttribute("visibility", "visible");
+      const parts = cls.filter((k) => AR[k][t] > 0).map((k) => `${C.classes[k]} ${money(AR[k][t])}`).join(", ");
+      showTip(ev, esc(fill(C.hover, { date: fdate(D.dates[t]), mean: money(mean[t]), lo: money(lo[t]), hi: money(hi[t]) }))
+        + (parts ? `<br>${esc(fill(C.hover_arrears, { total: money(base[t]), parts }))}` : ""));
+    };
+    hov.onmouseleave = () => { hx.setAttribute("visibility", "hidden"); hideTip(); };
+  }
+  // equity financing: at-the-market proceeds (the reduction's per-path means, variant-aware) and the offering (N1):
+  // the share of outcomes in which one closes by a date, from each path's close steps (central paths)
+  const RAISED = (D.financing || {}).raised || [];
+  function raisedBy(t, pr = probs) {
+    let s = 0;
+    for (let i = 0; i < RAISED.length; i++) { let v = 0; for (const [d, c] of RAISED[i]) { if (d <= t) v = c; else break; } s += pr[i] * v; }
+    return s;
+  }
+  function firstClose(pr = probs) {  // the median first-close day over the outcomes with one by the horizon
+    const mass = new Map(); let tot = 0;
+    for (let i = 0; i < RAISED.length; i++) { let prev = 0; for (const [d, c] of RAISED[i]) { const x = pr[i] * (c - prev); mass.set(d, (mass.get(d) || 0) + x); tot += x; prev = c; } }
+    if (tot <= 0) return null; let acc = 0;
+    for (const d of [...mass.keys()].sort((a, b) => a - b)) { acc += mass.get(d); if (acc >= tot / 2) return d; }
+    return null;
+  }
+  function financingHtml(f) {
+    const F = W.financing, T0 = (D.financing || {}).terms || {}, central = S.assumption === "central";
+    const closed = central && RAISED.length ? raisedBy(D.dates.length - 1) : null, fc = central ? firstClose() : null;
+    const t = [[fill(F.atm), f.atm_proceeds == null ? "–" : money(f.atm_proceeds), F.atm_note + (f.atm_proceeds == null ? ` ${W.notes.unavailable}` : "")],
+      [fill(F.offering), pct(closed), fill(F.offering_note)]];
+    if (fc !== null) t.push([F.first_close, fdate(D.dates[fc]), ""]);
+    const terms = T0.net_cents ? `<p class="mute small">${esc(F.terms)}: ${esc(fill(F.terms_value, { net: money(T0.net_cents), gross: money(T0.gross_cents), days: T0.close_days ?? "–" }))}</p>` : "";
+    return `<div class="facts">${t.map(([k, v, n]) => `<div><span class="mute small${n ? " hastip" : ""}"${n ? ` data-tip="${esc(n)}"` : ""}>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>${terms}`;
+  }
   function renderForecast() {
     const sec = $("s-forecast"), f = figures().full;
     if (!sec.querySelector(".lad")) {
       sec.innerHTML = `<h2>${esc(fill(W.sections.forecast))}</h2><div class="tl"></div><h4 class="sub">${esc(W.forecast.chart)}</h4><div class="lad"></div><h4 class="sub">${esc(W.forecast.cum_chart)}</h4><div class="cum"></div>
+        <h4 class="sub">${esc(W.cash.chart)}</h4><p class="mute small cnote"></p><div class="cash"></div>
+        <div class="finw"><h4 class="sub">${esc(W.financing.title)}</h4><div class="fin"></div></div>
         <details class="assume"><summary>${esc(W.forecast.assumptions)}</summary><p class="mute small">${esc(W.forecast.assumptions_note)}</p>
         <dl class="common">${(D.common || []).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></details>`;
     }
     sec.querySelector(".tl").innerHTML = tileHtml(f);
-    ladder(sec.querySelector(".lad")); cumChart(sec.querySelector(".cum"));
+    sec.querySelector(".cnote").textContent = S.event.arrears ? W.cash.note : "";  // daily processing: cash never below zero
+    ladder(sec.querySelector(".lad")); cumChart(sec.querySelector(".cum")); cashChart(sec.querySelector(".cash"));
+    const hasFin = RAISED.some((r) => r.length) || f.atm_proceeds != null || !!((D.financing || {}).terms || {}).net_cents;
+    sec.querySelector(".finw").hidden = !hasFin;  // a run without the equity model has no financing block
+    sec.querySelector(".fin").innerHTML = financingHtml(f);
   }
 
   // --- steps of a path ------------------------------------------------------------------------------------------------
@@ -208,21 +299,40 @@
 
   // --- 3. how the lawsuit can resolve ---------------------------------------------------------------------------------
   const V = D.verdict || {};
+  // a verdict row's label: a banded class (J1b) by its kind and band, else the payload's own label
+  const bandLabel = (b) => (b.kind === "none" ? W.verdict.none : b.kind === "band" ? fill(W.verdict.band, { lo: money(b.lo), hi: money(b.hi) })
+    : b.kind === "top" ? fill(W.verdict.top, { lo: money(b.lo) }) : b.label);
   function verdictGroups() {
-    const bs = V.branches || [], groups = [{ k: -1, label: V.before, lo: null, hi: null }, ...bs.map((b, k) => ({ k, label: b.label, text: b.text, lo: b.lo, hi: b.hi })), { k: -2, label: W.resolve.other, lo: null, hi: null }];
-    const pp = D.paths.scalars.petition_p, co = D.paths.scalars.collected;
-    for (const g of groups) { g.p = 0; g.c = 0; g.f = 0; g.seq = new Map(); }
+    if (TB) return TB.verdict_groups.map((g) => {  // the tables' outcome sums under Jev's answers
+      const b = g.row || {}, banded = V.banded && b.kind;
+      const label = g.k === -1 ? V.before : banded ? bandLabel(b) : b.label || "";
+      const text = banded ? (b.kind === "none" ? "" : fill(W.verdict.booked, { amount: money(b.booked) })) : b.text || "";
+      return { k: g.k, label, text, lo: b.booked ?? b.lo ?? null, hi: b.booked ?? b.hi ?? null, p: g.p, c: g.c, f: g.f, r: g.r, s: g.s, follows: g.follows };
+    }).filter((g) => g.p > 1e-9);
+    const bs = V.branches || [], groups = [{ k: -1, label: V.before, lo: null, hi: null }, ...bs.map((b, k) => (V.banded
+      ? { k, label: bandLabel(b), step: b.step, text: b.kind === "none" ? "" : fill(W.verdict.booked, { amount: money(b.booked) }), lo: b.booked, hi: b.booked }
+      : { k, label: b.label, text: b.text, lo: b.lo, hi: b.hi })), { k: -2, label: W.resolve.other, lo: null, hi: null }];
+    const pp = D.paths.scalars.petition_p, co = D.paths.scalars.collected, ru = V.ruling || [];
+    for (const g of groups) { g.p = 0; g.c = 0; g.f = 0; g.r = 0; g.s = 0; g.seq = new Map(); }
     const at = new Map(groups.map((g) => [g.k, g]));
     for (let i = 0; i < P; i++) {
-      const g = at.get((V.path || [])[i] ?? -2); g.p += probs[i]; g.c += probs[i] * co[i]; g.f += probs[i] * pp[i];
-      const q = D.paths.seq[i]; g.seq.set(q, (g.seq.get(q) || 0) + probs[i]);
+      const g = at.get((V.path || [])[i] ?? -2), w = wt(probs, i); g.p += w; g.c += probs[i] * co[i]; g.f += probs[i] * pp[i];
+      if (ru[i] === 2) g.r += w; else if (ru[i] === 3) g.s += w;  // J2: reduced (and accepted), set aside
+      const q = D.paths.seq[i]; g.seq.set(q, (g.seq.get(q) || 0) + w);
     }
     return groups.filter((g) => g.p > 1e-9);
   }
+  const rulingText = (g) => (g.k < 0 || !(g.r + g.s) ? "–" : fill(W.verdict.ruling_value, { r: pct(g.r / g.p), s: pct(g.s / g.p) }));
+  function verdictNote() {  // the J1b bands and lines, above the verdict table
+    if (!V.banded) return "";
+    const L = V.lines || {}, lines = L.top ? fill(W.verdict.lines, { reach: money(L.reach), top: money(L.top), threshold: L.threshold ? money(L.threshold) : "–" }) : "";
+    return `<p class="mute small">${esc(fill(W.verdict.note))}${lines ? ` ${esc(lines)}.` : ""}</p>`;
+  }
   function follows(g) {
+    if (g.follows) return g.follows.map(([s, t]) => `<div>${esc(fill(W.resolve.of_outcome, { p: pct(s) }))} · ${esc(fill(t))}</div>`).join("");
     const top = [...g.seq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
     return top.map(([q, m]) => {
-      const st = stepsOf(q).steps.filter((s) => s.base !== g.label && s.base !== V.before);
+      const st = stepsOf(q).steps.filter((s) => s.base !== g.label && s.base !== g.step && s.base !== V.before);
       const txt = st.length ? st.map((s) => `${s.base}${s.when ? ` (${s.when})` : ""}`).join(" → ") : W.resolve.nothing;
       return `<div>${esc(fill(W.resolve.of_outcome, { p: pct(m / g.p) }))} · ${esc(txt)}</div>`;
     }).join("");
@@ -239,7 +349,7 @@
   const CLS = D.classes;
   const CCOL = ["#e3a008", "#e0582a", "#9b1c1c", "#4d7c5a", "#6b7280", "#5b7aa8", "#cfd4da", "#b8955a"];
   const isFiled = (k) => /^Filed/.test(CLS[k]);
-  function classProbs() { const c = new Float64Array(CLS.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
+  function classProbs() { if (TB) return Float64Array.from(TB.grid); const c = new Float64Array(CLS.length); for (let i = 0; i < P; i++) for (const [k, s] of D.paths.class[i]) c[k] += probs[i] * s; return c; }
   function apportion(shares, total = 100) {  // largest remainder
     const tot = shares.reduce((a, b) => a + b, 0) || 1, raw = shares.map((s) => (total * s) / tot), n = raw.map(Math.floor);
     let left = total - n.reduce((a, b) => a + b, 0);
@@ -291,12 +401,13 @@
   }
   function renderResolve() {
     const sec = $("s-resolve"), R = W.resolve, f = figures();
-    if (!sec.querySelector(".vt")) sec.innerHTML = `<h2>${esc(W.sections.resolve)}</h2><p class="mute small cn" hidden>${esc(W.assumption.path_note)}</p><h4 class="sub">${esc(R.verdict)}</h4><table class="vt"></table>
+    if (!sec.querySelector(".vt")) sec.innerHTML = `<h2>${esc(W.sections.resolve)}</h2><p class="mute small cn" hidden>${esc(W.assumption.path_note)}</p><h4 class="sub">${esc(R.verdict)}</h4>${verdictNote()}<table class="vt"></table>
       <h4 class="sub">${esc(R.attribution)}</h4><table class="at" style="max-width:760px"></table><h4 class="sub">${esc(R.when)}</h4><div class="wh"></div>
       <h4 class="sub">${esc(fill(R.grid))}</h4><p class="mute small">${esc(R.grid_note)}</p><div class="gd"></div>`;
     sec.querySelector(".cn").hidden = S.assumption === "central";
-    sec.querySelector(".vt").innerHTML = `<tr><th></th><th>${esc(R.p)}</th><th>${esc(R.judgment)}</th><th>${esc(R.collected)}</th><th>${esc(fill(R.filing))}</th><th style="text-align:left">${esc(R.follows)}</th></tr>`
-      + verdictGroups().map((g) => `<tr${g.k === -2 ? ' class="sub"' : ""}><td${g.text ? ` class="hastip" data-tip="${esc(cap(g.text))}"` : ""}><b>${esc(g.label)}</b></td><td><b>${pct(g.p)}</b></td><td>${esc(amountText(g))}</td><td>${money(g.c / g.p)}</td><td>${pct(g.f / g.p)}</td><td class="fl">${follows(g)}</td></tr>`).join("");
+    const rc = !!V.banded;  // the J2 column: the post-trial ruling's reduced and set-aside shares of each band
+    sec.querySelector(".vt").innerHTML = `<tr><th></th><th>${esc(R.p)}</th><th>${esc(R.judgment)}</th>${rc ? `<th>${esc(W.verdict.ruling)}</th>` : ""}<th>${esc(R.collected)}</th><th>${esc(fill(R.filing))}</th><th style="text-align:left">${esc(R.follows)}</th></tr>`
+      + verdictGroups().map((g) => `<tr${g.k === -2 ? ' class="sub"' : ""}><td${g.text ? ` class="hastip" data-tip="${esc(cap(g.text))}"` : ""}><b>${esc(g.label)}</b></td><td><b>${pct(g.p)}</b></td><td>${esc(amountText(g))}</td>${rc ? `<td>${esc(rulingText(g))}</td>` : ""}<td>${money(g.c / g.p)}</td><td>${pct(g.f / g.p)}</td><td class="fl">${follows(g)}</td></tr>`).join("");
     sec.querySelector(".at").innerHTML = `<tr><th></th><th>${esc(R.without)}</th><th>${esc(R.with)}</th><th>${esc(R.difference)}</th></tr>${attributionRows(f)}`;
     renderWhen(sec.querySelector(".wh"));
     sec.querySelector(".gd").innerHTML = gridHtml();
@@ -315,12 +426,20 @@
   });
   function nodeReach(i) {  // share of outcomes that meet node i: each path's probability is linear in the node's answer
     if (isBank(i)) return 1;
+    if (TB) return null;  // the tables carry no path masses per judgment
     const qs = D.nodes[i].branches.map((_, b) => pathProbs((k) => (k === i ? D.nodes[i].branches.map((__, c) => +(c === b)) : dist(k))));
-    let r = 0; for (let p = 0; p < P; p++) { let lo = Infinity, hi = -Infinity; for (const q of qs) { if (q[p] < lo) lo = q[p]; if (q[p] > hi) hi = q[p]; } r += hi - lo; }
+    let r = 0; for (let p = 0; p < P; p++) { let lo = Infinity, hi = -Infinity; for (const q of qs) { if (q[p] < lo) lo = q[p]; if (q[p] > hi) hi = q[p]; } r += (hi - lo) * (SH ? SH[p] : 1); }
     return Math.min(1, r / qs.length);
   }
   function effOf(i, at = null) {  // collections and the filing probability at 0%, the current answer (or `at`) and 100% of the selected branch
     const b = selB(i), get = (x) => (k) => (k === i ? withBranch(i, b, x) : dist(k));
+    if (TB) {
+      const v = (g) => [tbExpect(g, "collected"), tbExpect(g, "petition_p")];
+      const only = (d) => (k) => (k === i ? d : jevDist(k));
+      if (at) { const [c, f] = v(only(at)); return { at: c, fat: f }; }
+      const [c0, f0] = v(only(withBranch(i, b, 0))), [c1, f1] = v(only(withBranch(i, b, 1))), [c, f] = v(only(dist(i)));
+      return { lo: c0, hi: c1, at: c, flo: f0, fhi: f1, fat: f };
+    }
     if (at) { const g = (k) => (k === i ? at : dist(k)); if (isBank(i)) { const bp = bankProbs(g); return { at: bexpect(bp, "collected"), fat: bexpect(bp, "petition_p") }; }
       const pp = pathProbs(g); return { at: expect(pp, "collected"), fat: expect(pp, "petition_p") }; }
     const v = (x) => { if (isBank(i)) { const bp = bankProbs(get(x)); return [bexpect(bp, "collected"), bexpect(bp, "petition_p")]; }
@@ -356,7 +475,7 @@
       <h3>${esc(J.forecast)}</h3><div class="ans"><span id="${id}-blab"></span><span class="big" id="${id}-big"></span><span class="mute small" id="${id}-jev"></span></div>
       <div class="jbar" id="${id}-bar"></div><div class="slabs" id="${id}-slabs"></div>
       <div class="sw"><input type="range" id="${id}-slider" min="0" max="100" step="1" value="${Math.round(100 * dist(i)[b])}"><span class="jm" style="left:${100 * jevDist(i)[b]}%" title="Jev"></span></div>
-      <p class="mute small">${esc(J.drag)} <a href="#" id="${id}-reset"${n.key in S.overrides ? "" : " hidden"}>${esc(J.reset)}</a></p>
+      <p class="mute small">${esc(TB ? J.drag_one : J.drag)} <a href="#" id="${id}-reset"${n.key in S.overrides ? "" : " hidden"}>${esc(J.reset)}</a></p>
       <h3>${esc(J.effect)}</h3><p class="mute small" id="${id}-of"></p><table class="eff"><tr><th></th><th id="${id}-h0"></th><th class="j" id="${id}-hj"></th><th class="y" id="${id}-hy"></th><th id="${id}-h1"></th></tr>
         <tr><td>${esc(T("collected"))}</td><td id="${id}-lo"></td><td class="j" id="${id}-at"></td><td class="y" id="${id}-yat"></td><td id="${id}-hi"></td></tr>
         <tr><td>${esc(T("filing"))}</td><td id="${id}-flo"></td><td class="j" id="${id}-fat"></td><td class="y" id="${id}-yfat"></td><td id="${id}-fhi"></td></tr></table>
@@ -372,7 +491,8 @@
     $(`${id}-jev`).textContent = n.key in S.overrides ? fill(J.jev_said, { p: pct(jevDist(i)[b]) }) : "";
     $(`${id}-bar`).innerHTML = d.map((p, k) => `<i style="width:${100 * p}%;background:${BCOL[k % 3]}"></i>`).join("");
     $(`${id}-slabs`).innerHTML = `<span>${esc(n.branches.map((x, k) => `${blabel(i, x)} ${pct(d[k])}`).join(" · "))}</span>`;
-    $(`${id}-reach`).textContent = fill(J.reach, { p: pct(nodeReach(i)) });
+    const reach = nodeReach(i); $(`${id}-reach`).textContent = reach === null ? "" : fill(J.reach, { p: pct(reach) });
+    $(`${id}-slider`).value = Math.round(100 * d[b]);
     const ov = n.key in S.overrides, jv = ov ? effOf(i, jevDist(i)) : e;  // Jev's column at Jev's answer; the reader's beside it
     $(`${id}-h0`).textContent = "0%"; $(`${id}-h1`).textContent = "100%"; $(`${id}-of`).textContent = fill(J.of, { branch: bn }); $(`${id}-hj`).textContent = fill(J.at, { p: pct(jevDist(i)[b]) });
     $(`${id}-lo`).textContent = money(e.lo); $(`${id}-at`).textContent = money(jv.at); $(`${id}-hi`).textContent = money(e.hi);
@@ -384,7 +504,15 @@
   function bindCloseup(i, id) {
     const n = D.nodes[i], sl = $(`${id}-slider`);
     sl.onpointerdown = () => { if (!(i in dragBase)) dragBase[i] = dist(i).slice(); };
-    sl.oninput = () => { if (!(i in dragBase)) dragBase[i] = dist(i).slice(); S.overrides[n.key] = withBranch(i, selB(i), sl.value / 100, dragBase[i]); onChange(false); };
+    sl.oninput = () => {
+      if (!(i in dragBase)) dragBase[i] = dist(i).slice();
+      const changed = withBranch(i, selB(i), sl.value / 100, dragBase[i]);
+      if (TB) {
+        S.overrides = { [n.key]: changed };
+        for (const k of Object.keys(dragBase)) if (+k !== i) delete dragBase[k];
+      } else S.overrides[n.key] = changed;
+      onChange(false);
+    };
     sl.onchange = () => { delete dragBase[i]; onChange(true); };
     $(`${id}-reset`).onclick = (ev) => { ev.preventDefault(); delete S.overrides[n.key]; delete dragBase[i]; onChange(true); rebuildCloseups(); };
   }
@@ -413,7 +541,8 @@
   function tree() {
     const pp = D.paths.scalars.petition_p;
     const weigh = (t) => {
-      let m = 0, f = 0; for (const i of t.paths) { m += probs[i]; f += probs[i] * pp[i]; }
+      let m = 0, f = 0;
+      if (TB) { m = t.mass; f = t.filed; } else for (const i of t.paths) { m += wt(probs, i); f += probs[i] * pp[i]; }
       const node = { key: t.key, base: t.base, when: t.when, depth: t.depth, mass: m, filed: f, kids: [] };
       const mo = (k) => (k.base === "quiet" ? 98 : MON.indexOf(k.when) < 0 ? 97 : MON.indexOf(k.when));
       const kids = [...t.kids.values()].map(weigh).sort((a, b) => b.mass - a.mass), other = { key: "other", base: "other", when: "", depth: t.depth + 1, mass: 0, filed: 0, kids: [] };
@@ -423,9 +552,11 @@
       if (node.kids.length === 1 && node.kids[0].base === "quiet") node.kids = [];
       return node;
     };
-    const Tr = weigh(TRIE), share = (t, n) => { t.pct = n; if (t.kids.length) apportion(t.kids.map((k) => k.mass), n).forEach((v, j) => share(t.kids[j], v)); };
+    const Tr = weigh(TB ? TBTRIE : TRIE), share = (t, n) => { t.pct = n; if (t.kids.length) apportion(t.kids.map((k) => k.mass), n).forEach((v, j) => share(t.kids[j], v)); };
     share(Tr, 100); return Tr;
   }
+  // the tables page's prefix tree (tables_page.prefix_tree): the same node shape as TRIE, with its masses
+  const TBTRIE = TB ? (function conv(t, depth) { return { key: t.base || "root", base: t.base || "", when: t.when || "", depth, mass: t.mass, filed: t.filed, paths: [], kids: new Map((t.kids || []).filter((k) => depth < DEPTH).map((k) => [k.base, conv(k, depth + 1)])) }; })(TB.tree, 0) : null;
   const nodeLabel = (t) => (t.base === "quiet" ? W.resolve.nothing : t.base === "other" ? W.resolve.other : t.base);
   function wrap(text, max) { const out = [""]; for (const w of text.split(" ")) { const cur = last(out); if ((cur + " " + w).trim().length > max && cur) { if (out.length === 2) { out[1] += "…"; break; } out.push(w); } else out[out.length - 1] = (cur + " " + w).trim(); } return out; }
   function renderPaths(host) {
@@ -479,6 +610,17 @@
       bindCloseup(S.focus, "c");
     }
     updateCloseup(S.focus, "c"); renderPaths(sec.querySelector(".pt")); renderTornado(sec.querySelector(".tnd"));
+    if (TB) renderTypes(sec);
+  }
+  // the tables page: every judgment of one kind held to one answer (the tables' scalar settings: exact figures)
+  function renderTypes(sec) {
+    const J = W.judgment, T0 = TB.types, jev = TB.figures.full;
+    let host = sec.querySelector(".types");
+    if (!host) { sec.insertAdjacentHTML("beforeend", `<h4 class="sub">${esc(J.types)}</h4><p class="mute small">${esc(J.types_note)}</p><div class="types"></div>`); host = sec.querySelector(".types"); }
+    const name = (t) => fill(((W.decisions || {})[t.node] || {}).short || t.node.replace(/_/g, " "));
+    const rows = T0.map((t) => `<tr><td><b>${esc(name(t))}</b><span class="mute small"> · ${esc(fill(J.type_count, { n: t.count }))}</span></td><td>${money(jev.collected)} · ${pct(jev.petition_p)}</td>`
+      + `<td>${t.answers.map((a) => `<span class="ta"><b>${esc(fill(((W.decisions || {})[t.node] || {}).branches?.[a.answer] || a.answer.replace(/_/g, " ")))}</b> ${money(a.collected)} · ${pct(a.petition_p)}</span>`).join("")}</td></tr>`);
+    host.innerHTML = `<table class="at"><tr><th></th><th>${esc(fill(J.at, { p: "" })).trim()}</th><th>${esc(J.type_hundred)}</th></tr>${rows.join("")}</table>`;
   }
 
   // --- 5. one economic assumption -----------------------------------------------------------------------------------
@@ -514,6 +656,22 @@
   }
 
   // --- 6. what actually happened, and the footer --------------------------------------------------------------------
+  // the actual events on the model's branches (outcomes/<snapshot>.json model_map): the judgment's J1b band and its
+  // forecast probability; the offering's close date and the forecast share of outcomes with one closed by then
+  function revealMap(mm) {
+    const out = [], A = W.actual;
+    const vb = mm.verdict_band, bs = V.branches || [];
+    if (vb && V.banded && !TB) {
+      const amt = vb.amount_cents, k = bs.findIndex((b) => (b.kind === "top" ? amt > b.lo : b.kind === "band" ? amt > b.lo && amt <= b.hi : b.kind === "none" && amt === 0));
+      if (k >= 0) { let p = 0; for (let i = 0; i < P; i++) if (V.path[i] === k) p += wt(probs, i); out.push(fill(A.verdict, { amount: money(amt), band: bandLabel(bs[k]), p: pct(p) })); }
+    }
+    const oc = mm.offering_closed;
+    if (oc && RAISED.length) {
+      const t = D.dates.indexOf(oc.date);
+      if (t >= 0) out.push(fill(A.offering, { date: fyear(oc.date), p: pct(raisedBy(t)), q: pct(raisedBy(D.dates.length - 1)) }));
+    }
+    return out;
+  }
   function renderActual() {
     $("actual-h").textContent = W.sections.actual;
     const btn = $("actual"); if (!btn) return;
@@ -522,7 +680,8 @@
     const o = S.outcome, body = $("actual-body"); if (!S.reveal || !o) { body.innerHTML = ""; return; }
     const pd = o.petition && o.petition.date, t = pd ? D.dates.indexOf(pd) : -1, cum = S.event.daily.petition_cum_p;
     const filed = pd ? fill(t >= 0 ? W.actual.filed : W.actual.filed_after, { date: fyear(pd), p: pct(t >= 0 ? cum[t] : last(cum)) }) : "";
-    body.innerHTML = `<p>${esc(W.actual.intro)}</p>${filed ? `<p class="filed">${esc(filed)}</p>` : ""}
+    const mapped = revealMap(o.model_map || {});
+    body.innerHTML = `<p>${esc(W.actual.intro)}</p>${filed ? `<p class="filed">${esc(filed)}</p>` : ""}${mapped.map((x) => `<p class="filed">${esc(x)}</p>`).join("")}
       <ol class="events">${o.events.map((e) => `<li><span class="mute">${esc(fyear(e.date))}</span><span>${esc(e.description)}${e.source_url ? ` <a href="${esc(e.source_url)}" target="_blank" rel="noopener">${esc(W.actual.source)}</a>` : ""}</span></li>`).join("")}</ol>`;
   }
   function renderFoot() {
@@ -536,8 +695,26 @@
   // --- any change: figures recomputed here, the series (and a variant's figures) from the server ---------------------
   let ctrl = null, deb = null;
   function renderSeries() { renderForecast(); renderResolve(); renderActual(); }
+  // the tables page: the collected, due, past-due and outstanding series under the changed answers, from the
+  // judgments' series atoms; the monthly rows follow from the series
+  function tbSeries() {
+    const ev = JSON.parse(JSON.stringify(D.event)), dly = ev.daily, MAP = { collected: "collected_mean", due_cum: "contractual", past_due: "past_due_mean", outstanding: "outstanding_mean" };
+    for (let i = 0; i < N; i++) {
+      const n = D.nodes[i]; if (!n.series) continue;
+      const d = dist(i), j = n.jev;
+      for (let a = 0; a < n.branches.length; a++) {
+        const dl = d[a] - j[a], s = n.series[n.branches[a]]; if (!dl || !s) continue;
+        for (const [k, key] of Object.entries(MAP)) { const v = s[k]; if (v && dly[key]) for (let t = 0; t < v.length; t++) dly[key][t] += dl * v[t]; }
+      }
+    }
+    for (const k of Object.values(MAP)) if (dly[k]) dly[k] = dly[k].map(Math.round);
+    const due = dly.contractual.map((v, t) => v - (t ? dly.contractual[t - 1] : 0)), coll = dly.collected_mean.map((v, t) => v - (t ? dly.collected_mean[t - 1] : 0));
+    for (const r of ev.monthly) { let d = 0, c = 0; D.dates.forEach((x, t) => { if (x.startsWith(r.month)) { d += due[t]; c += coll[t]; } }); r.due = Math.round(d); r.collected = Math.round(c); }
+    S.event = ev;
+  }
   function refreshSeries() {
     clearTimeout(deb);
+    if (TB) { tbSeries(); renderSeries(); return; }
     deb = setTimeout(async () => {
       if (ctrl) ctrl.abort(); ctrl = new AbortController();
       try {

@@ -157,6 +157,45 @@
       "questions": [
         "record_item_supplied"
       ]
+    },
+    "event_forecast": {
+      "primitive": "noul+choice",
+      "trigger": "host, when the analysis is built: one request per question and situation",
+      "rules": [
+        "Forecast the outcome specified in the question at the stated decision time, conditional on the supplied situation. Treat the situation's events and amounts as given. Use the supplied evidence available by the evidence cutoff, preserving each source's author, date and status. Apply the supplied legal or contractual provisions where relevant. Estimate the probabilities of the defined outcomes."
+      ],
+      "state_contract": {
+        "historical_evidence": "Documents and data dated by the evidence cutoff, each with its author, date and status.",
+        "party_assertions": "What a party states or argues in its own interest, attributed to it.",
+        "court_findings": "What the court has ruled, ordered or found.",
+        "assumed_events": "The events, amounts, balances, terms and statuses given as the question's situation.",
+        "earlier_readings": "Readings of the record taken before the question, each with the date of its source."
+      },
+      "questions": [
+        "forecast_verdict_finding",
+        "forecast_verdict_amount",
+        "forecast_post_trial_motions",
+        "forecast_post_trial_ruling",
+        "forecast_remittitur_elected",
+        "forecast_claim_appeal",
+        "forecast_claim_settlement_offer",
+        "forecast_claim_settlement_accept",
+        "forecast_claim_execute_pre_ruling",
+        "forecast_claim_enforce_after_final",
+        "forecast_claim_registration_early",
+        "forecast_claim_stay_motion",
+        "forecast_claim_stay_approved",
+        "forecast_judgment_response",
+        "forecast_financing_at_floor",
+        "forecast_offering_closes",
+        "forecast_claim_petition_cash_out",
+        "forecast_claim_petition_on_notes",
+        "forecast_claim_holders_act_judgment",
+        "forecast_claim_holders_act_delisting",
+        "forecast_claim_holders_involuntary",
+        "forecast_bid_compliance",
+        "forecast_hearing_request"
+      ]
     }
   },
   "state_contract": {
@@ -1930,32 +1969,32 @@
     },
     {
       "id": "forecast_verdict_finding",
-      "version": "4.1.0",
-      "profile": "dispute_forecast",
+      "version": "5.0.0",
+      "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does the jury answer this question on its verdict form 'yes'?",
+      "question": "Does the jury answer {form_item} of the verdict form “Yes”?",
       "actor": "jury",
       "template": "pending_money_claim",
       "node": "verdict_finding",
-      "asked_when": "the question is reached on the verdict form given the earlier answers",
       "state_fields": [
         "case",
         "question",
         "standard",
         "record_items",
-        "path_facts",
-        "assumptions",
-        "evidence",
-        "readings"
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. state.question.form_question quotes the question on the jury's verdict form and state.question.earlier_answers the jury's answers to the form's earlier questions; state.question.asked, where present, says what the answer turns on.",
+        "instructions": "Does the jury answer {form_item} of the verdict form “Yes”?",
         "criteria": {
-          "true": "The jury answers the question 'yes'.",
-          "false": "The jury answers the question 'no'."
+          "true": "The jury answers {form_item} “Yes”.",
+          "false": "The jury answers {form_item} “No”."
         }
-      },
-      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+      }
     },
     {
       "id": "forecast_verdict_measure",
@@ -1988,92 +2027,95 @@
     },
     {
       "id": "forecast_post_trial_motions",
-      "version": "4.1.0",
-      "profile": "dispute_forecast",
+      "version": "5.0.0",
+      "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does the judgment debtor file timely post-trial motions (judgment as a matter of law, a new trial or remittitur) within 28 days of entry?",
-      "actor": "judgment debtor",
+      "question": "Does {company} file a motion under Rule 50(b) or Rule 59 challenging the judgment by {motion_deadline}?",
+      "actor": "{company}",
       "template": "pending_money_claim",
       "node": "post_trial_motions",
-      "asked_when": "a money judgment is entered and the company continued",
       "state_fields": [
         "case",
         "question",
         "standard",
         "record_items",
-        "path_facts",
-        "assumptions",
-        "evidence",
-        "readings"
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
+        "instructions": "Does {company} file a motion under Rule 50(b) or Rule 59 challenging the judgment by {motion_deadline}?",
         "criteria": {
-          "true": "The company files timely post-trial motions.",
-          "false": "The time for post-trial motions runs without a motion."
+          "true": "{company} files a motion under Rule 50(b) or Rule 59 challenging the judgment by {motion_deadline}.",
+          "false": "{company} files no motion under Rule 50(b) or Rule 59 by {motion_deadline}."
         }
-      },
-      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+      }
     },
     {
       "id": "forecast_post_trial_ruling",
-      "version": "4.1.0",
-      "profile": "dispute_forecast",
+      "version": "5.0.0",
+      "profile": "event_forecast",
       "primitive": "choice",
-      "question": "Does the court's ruling on the post-trial motions leave the money judgment standing, or set it aside (judgment as a matter of law on liability, or a new trial)?",
+      "question": "How does the court dispose of the pending post-trial motions as to the money judgment of {judgment_amount} entered on {judgment_entered_on}?",
       "actor": "court",
       "template": "pending_money_claim",
       "node": "post_trial_ruling",
-      "asked_when": "post-trial motions are filed and the ruling can fall inside the analysis period",
       "state_fields": [
         "case",
         "question",
         "standard",
         "record_items",
-        "path_facts",
-        "assumptions",
-        "evidence",
-        "readings"
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names.",
+        "instructions": "How does the court dispose of the pending post-trial motions as to the money judgment of {judgment_amount} entered on {judgment_entered_on}?",
         "criteria": {
-          "stands": "a money judgment stands (with or without a remittitur the claimant accepts)",
-          "set_aside": "no money judgment survives: judgment as a matter of law, or a new trial"
-        }
-      },
-      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+          "unchanged": "The money judgment stands as entered.",
+          "reduced": "The court reduces the money judgment to an amount from {reduced_low} to {reduced_high}, outright or on condition that {claimant} accepts it in place of a new trial.",
+          "set_aside": "No money judgment remains: the court grants judgment as a matter of law or a new trial."
+        },
+        "criteria_from_host": true
+      }
     },
     {
       "id": "forecast_judgment_response",
-      "version": "4.1.0",
-      "profile": "dispute_forecast",
+      "version": "5.0.0",
+      "profile": "event_forecast",
       "primitive": "choice",
-      "question": "How does the judgment debtor respond to the entered money judgment: pay it, file for bankruptcy, or continue (operate and contest it, including seeking a sale or new financing)?",
-      "actor": "judgment debtor",
+      "question": "What does {company} do on {decision_date}, {occasion}: pay the judgment balance of {amount_owed} in full, initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or none of these?",
+      "actor": "{company}",
       "template": "pending_money_claim",
       "node": "judgment_response",
-      "asked_when": "at entry, on each levy day before the levy, and on a ripe judgment default after it continued",
       "state_fields": [
         "case",
         "question",
         "standard",
         "record_items",
-        "path_facts",
-        "assumptions",
-        "evidence",
-        "readings"
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The options are state.question.branches; paying in full is among them where the company's cash covers the amount owed.",
+        "instructions": "What does {company} do on {decision_date}, {occasion}: pay the judgment balance of {amount_owed} in full, initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or none of these?",
         "criteria": {
-          "pay": "pays the amount owed",
-          "file": "files for bankruptcy",
-          "continue": "continues operating and contests the judgment, which includes seeking a sale or new financing"
+          "pay": "{company} pays the judgment balance of {amount_owed} in full on {decision_date}.",
+          "initiate_offering": "{company} initiates an underwritten offering of its common stock on the stated terms on {decision_date}.",
+          "file": "{company} files a voluntary petition on {decision_date}.",
+          "none": "{company} does none of these on {decision_date}."
         },
         "criteria_from_host": true
-      },
-      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+      }
     },
     {
       "id": "forecast_listing_kept",
@@ -2106,34 +2148,558 @@
     },
     {
       "id": "forecast_financing_at_floor",
-      "version": "4.1.0",
-      "profile": "dispute_forecast",
+      "version": "5.0.0",
+      "profile": "event_forecast",
       "primitive": "choice",
-      "question": "When its available cash first falls below its 30-day operating need, does the company raise equity, file for bankruptcy, or continue operating?",
-      "actor": "borrower",
-      "template": "bankruptcy_effects",
+      "question": "On {decision_date}, when its projected cash after scheduled payments of {projected_cash_after_payments} falls below its operating need of {operating_need_30_days} for the next month, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
       "node": "financing_at_floor",
-      "asked_when": "the cash floor falls inside the analysis period and the case sets the equity the company can raise",
       "state_fields": [
         "case",
         "question",
         "standard",
         "record_items",
-        "path_facts",
-        "assumptions",
-        "evidence",
-        "readings"
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
       ],
       "prompt": {
-        "instructions": "state.question is one decision by one actor in state.case, in the situation state.question.context describes. The items in state.assumptions hold. state.path_facts gives the dates, amounts and cash computed for this situation; state.standard gives the law or contract terms that govern the decision. Judge how the actor decides, from state.record_items, state.evidence and state.readings; state.readings are readings of the record, each taken from the passage in state.evidence that it names. The options are state.question.branches; raising equity is among them where the company can raise a positive amount in its situation (state.path_facts.equity_raise_available).",
+        "instructions": "On {decision_date}, when its projected cash after scheduled payments of {projected_cash_after_payments} falls below its operating need of {operating_need_30_days} for the next month, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
         "criteria": {
-          "raise_equity": "raises equity under its existing programs, in the amount state.path_facts gives as available",
-          "file": "files for bankruptcy",
-          "continue": "keeps operating without raising equity or filing"
+          "initiate_offering": "{company} initiates an underwritten offering of its common stock on the stated terms on {decision_date}.",
+          "file": "{company} files a voluntary petition on {decision_date}.",
+          "neither": "{company} does neither on {decision_date}."
         },
         "criteria_from_host": true
-      },
-      "application": "Code multiplies the answer along each path in chain order and never removes a branch for low probability; only arithmetic impossibility removes one."
+      }
+    },
+    {
+      "id": "forecast_verdict_amount",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does the amount entered on {form_item} of the verdict form exceed {threshold}?",
+      "actor": "jury",
+      "template": "pending_money_claim",
+      "node": "verdict_amount",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does the amount entered on {form_item} of the verdict form exceed {threshold}?",
+        "criteria": {
+          "true": "The amount entered on {form_item} exceeds {threshold}.",
+          "false": "The amount entered on {form_item} is {threshold} or less."
+        }
+      }
+    },
+    {
+      "id": "forecast_remittitur_elected",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+      "actor": "{claimant}",
+      "template": "pending_money_claim",
+      "node": "remittitur_elected",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+        "criteria": {
+          "true": "{claimant} accepts the remitted amount of {remitted_amount}.",
+          "false": "{claimant} does not accept the remitted amount."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_appeal",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {company} file a notice of appeal from the judgment by {appeal_deadline}?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "appeal",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {company} file a notice of appeal from the judgment by {appeal_deadline}?",
+        "criteria": {
+          "true": "{company} files a notice of appeal by {appeal_deadline}.",
+          "false": "{company} files no notice of appeal by {appeal_deadline}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_settlement_offer",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {company} offer {claimant} a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security, {interval}?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "settlement_offer",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {company} offer {claimant} a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security, {interval}?",
+        "criteria": {
+          "true": "{company} offers {claimant} these terms {interval}.",
+          "false": "{company} does not offer these terms {interval}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_settlement_accept",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {claimant} accept, by {settlement_date}, {company}'s offer of a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security?",
+      "actor": "{claimant}",
+      "template": "pending_money_claim",
+      "node": "settlement_accept",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {claimant} accept, by {settlement_date}, {company}'s offer of a settlement of {settlement_amount} paid in {installments} monthly installments from {settlement_date}, the first on that date, with the claim released on that date and no security?",
+        "criteria": {
+          "true": "{claimant} accepts these terms by {settlement_date}.",
+          "false": "{claimant} does not accept these terms by {settlement_date}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_execute_pre_ruling",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {claimant} initiate enforcement of the unpaid, unstayed judgment {interval}?",
+      "actor": "{claimant}",
+      "template": "pending_money_claim",
+      "node": "execute_pre_ruling",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {claimant} initiate enforcement of the unpaid, unstayed judgment {interval}?",
+        "criteria": {
+          "true": "{claimant} initiates enforcement {interval}: it applies for a writ of execution and for registration of the judgment in another district.",
+          "false": "{claimant} does not initiate enforcement {interval}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_enforce_after_final",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment {interval}?",
+      "actor": "{claimant}",
+      "template": "pending_money_claim",
+      "node": "enforce_after_final",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {claimant} apply for a writ of execution on the unpaid, unstayed judgment {interval}?",
+        "criteria": {
+          "true": "{claimant} applies for a writ of execution {interval}.",
+          "false": "{claimant} makes no application for a writ of execution {interval}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_registration_early",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does the court grant {claimant}'s application to register the judgment in another district?",
+      "actor": "court",
+      "template": "pending_money_claim",
+      "node": "registration_early",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does the court grant {claimant}'s application to register the judgment in another district?",
+        "criteria": {
+          "true": "The court grants registration in another district.",
+          "false": "The court does not grant registration."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_stay_motion",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {company} move for a stay of execution by {motion_date}, with the following proposed security: {security_offered}?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "stay_motion",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {company} move for a stay of execution by {motion_date}, with the following proposed security: {security_offered}?",
+        "criteria": {
+          "true": "{company} moves for a stay of execution by {motion_date}, with the following proposed security: {security_offered}.",
+          "false": "{company} makes no such motion by {motion_date}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_stay_approved",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does the court grant {company}'s requested stay of execution with the following security: {security_offered}?",
+      "actor": "court",
+      "template": "pending_money_claim",
+      "node": "stay_approved",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does the court grant {company}'s requested stay of execution with the following security: {security_offered}?",
+        "criteria": {
+          "true": "The court grants the stay with the following security: {security_offered}.",
+          "false": "The court does not grant the stay."
+        }
+      }
+    },
+    {
+      "id": "forecast_offering_closes",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does the specified offering close by {close_date}, delivering {net_proceeds} net on the stated terms?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "offering_closes",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does the specified offering close by {close_date}, delivering {net_proceeds} net on the stated terms?",
+        "criteria": {
+          "true": "The offering closes by {close_date}, delivering {net_proceeds} net on the stated terms.",
+          "false": "The offering does not close by {close_date}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_petition_cash_out",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "choice",
+      "question": "On {decision_date}, the first day an obligation would go unpaid without further financing, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "petition_cash_out",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "On {decision_date}, the first day an obligation would go unpaid without further financing, does {company} initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or neither?",
+        "criteria": {
+          "initiate_offering": "{company} initiates an underwritten offering of its common stock on the stated terms on {decision_date}.",
+          "file": "{company} files a voluntary petition on {decision_date}.",
+          "neither": "{company} does neither on {decision_date}."
+        },
+        "criteria_from_host": true
+      }
+    },
+    {
+      "id": "forecast_claim_petition_on_notes",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {company} file a voluntary petition on {decision_date}, the day the notes' principal and interest of {notes_balance_due} become due {notes_due_how}?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "petition_on_notes",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {company} file a voluntary petition on {decision_date}, the day the notes' principal and interest of {notes_balance_due} become due {notes_due_how}?",
+        "criteria": {
+          "true": "{company} files a voluntary petition on {decision_date}.",
+          "false": "{company} files no voluntary petition on {decision_date}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_holders_act_judgment",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Do the trustee or the holders of at least 25% in principal amount of the notes give notice of the judgment default and declare the notes due by {declaration_deadline}?",
+      "actor": "the trustee or the holders of at least 25% in principal amount of the notes",
+      "template": "pending_money_claim",
+      "node": "holders_act_judgment",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Do the trustee or the holders of at least 25% in principal amount of the notes give notice of the judgment default and declare the notes due by {declaration_deadline}?",
+        "criteria": {
+          "true": "Notice is given and the notes are declared due by {declaration_deadline}.",
+          "false": "The notes are not declared due by {declaration_deadline}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_holders_act_delisting",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "choice",
+      "question": "After the delisting default, do the trustee or the holders of at least 25% in principal amount of the notes declare the notes due by {declaration_deadline}?",
+      "actor": "the trustee or the holders of at least 25% in principal amount of the notes",
+      "template": "pending_money_claim",
+      "node": "holders_act_delisting",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "After the delisting default, do the trustee or the holders of at least 25% in principal amount of the notes declare the notes due by {declaration_deadline}?",
+        "criteria": {
+          "accelerate": "The notes are declared due by {declaration_deadline}.",
+          "neither": "The notes are not declared due by {declaration_deadline}."
+        }
+      }
+    },
+    {
+      "id": "forecast_claim_holders_involuntary",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Do noteholders with claims for the notes due, qualifying under 11 U.S.C. §303(b), file an involuntary petition against {company} on {decision_date}?",
+      "actor": "noteholders",
+      "template": "pending_money_claim",
+      "node": "holders_involuntary",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Do noteholders with claims for the notes due, qualifying under 11 U.S.C. §303(b), file an involuntary petition against {company} on {decision_date}?",
+        "criteria": {
+          "true": "Noteholders file an involuntary petition against {company} on {decision_date}.",
+          "false": "No involuntary petition is filed against {company} on {decision_date}."
+        }
+      }
+    },
+    {
+      "id": "forecast_bid_compliance",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "By {compliance_deadline}, does {company} regain compliance with the $1.00 minimum bid price requirement, a closing bid of at least $1.00 for 10 consecutive business days, by a reverse stock split or a rise in the price?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "bid_compliance",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "By {compliance_deadline}, does {company} regain compliance with the $1.00 minimum bid price requirement, a closing bid of at least $1.00 for 10 consecutive business days, by a reverse stock split or a rise in the price?",
+        "criteria": {
+          "true": "{company} regains compliance with the $1.00 minimum bid price requirement by {compliance_deadline}.",
+          "false": "{company} does not regain compliance by {compliance_deadline}."
+        }
+      }
+    },
+    {
+      "id": "forecast_hearing_request",
+      "version": "5.0.0",
+      "profile": "event_forecast",
+      "primitive": "noul",
+      "question": "Does {company} request a hearing before a Nasdaq Hearings Panel by {hearing_request_deadline}, within 7 days of the staff's delisting determination?",
+      "actor": "{company}",
+      "template": "pending_money_claim",
+      "node": "hearing_request",
+      "state_fields": [
+        "case",
+        "question",
+        "standard",
+        "record_items",
+        "situation",
+        "historical_evidence",
+        "party_assertions",
+        "court_findings",
+        "assumed_events",
+        "earlier_readings"
+      ],
+      "prompt": {
+        "instructions": "Does {company} request a hearing before a Nasdaq Hearings Panel by {hearing_request_deadline}, within 7 days of the staff's delisting determination?",
+        "criteria": {
+          "true": "{company} requests a hearing before a Hearings Panel by {hearing_request_deadline}.",
+          "false": "{company} makes no hearing request by {hearing_request_deadline}."
+        }
+      }
     }
   ],
   "retired_in_4_0_0": {
@@ -2177,8 +2743,7 @@
       ],
       "amount_finality": [
         "forecast_ts_damages_ruling",
-        "forecast_remittitur_accepted",
-        "forecast_post_trial_ruling"
+        "forecast_remittitur_accepted"
       ]
     },
     "reading_items": {

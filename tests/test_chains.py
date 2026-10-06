@@ -265,6 +265,8 @@ def test_an_increase_is_levied_only_once_its_own_stay_ends_and_the_original_at_o
     r = c.rows[ok]
     original = -c.ev.cash[r, first[ok]]
     assert (original <= c.entered * 1.05).all() and (original >= c.entered).all()  # the surviving amount, at once
+    assert (c.ev.cash[r, second[ok]] == 0).all()  # the later writ remains queued until its date
+    c.until(second + 1)
     assert (-c.ev.cash[r, second[ok]] >= total - c.entered).all()  # the increase, once enforceable
     assert (c.taken[ok] >= total).all()
 
@@ -392,7 +394,8 @@ def test_the_notes_petition_questions_get_the_facts_of_the_day_each_actor_may_fi
             for r in fc.facts[k]:
                 day = r["day"][r["day"] < N]
                 assert day.size and (day == at).all()
-                assert (r["triggers"]["judgment_default_ruling"] >= 10**6).all()  # only where the holders acted
+                # only where the holders acted (a trigger that never falls is stored as absent: forecast.pack_row)
+                assert (r["triggers"].get("judgment_default_ruling", np.full(1, 10**6)) >= 10**6).all()
 
 
 def test_delisting_is_a_default_on_its_date_and_the_repurchase_date_is_code(base, full):
@@ -649,10 +652,10 @@ class _Court(Chain):
         super().__init__(*a, **k)
         self.seen = []
 
-    def stay_security(self, motion, key, approved):
+    def stay_security(self, motion, key, approved, moved=False):
         approval = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, key)
         cash = self.cash_at(approval)
-        out = super().stay_security(motion, key, approved)
+        out = super().stay_security(motion, key, approved, moved=moved)
         self.seen.append((("stay_approved", key.split("_")[1]), out, cash, self.stay_offer.copy()))
         return out
 

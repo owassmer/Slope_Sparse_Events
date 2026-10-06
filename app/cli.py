@@ -102,6 +102,27 @@ def jev_check_cases() -> None:
     typer.echo(f"{report['agreement']}/{report['cases']} agree  ->  {report['path']}")
 
 
+@cli.command("analyze-case")
+def analyze_case(snapshot: str = typer.Argument(..., help="Dated case ID; uses its configured evidence, baseline and financing."),
+                 run: str | None = typer.Option(None, help="Reuse this completed agent-plus-Jev investigation."),
+                 pool: str | None = typer.Option(None, help="Saved pool directory or s3://bucket/prefix/pool; requires --run. Execute on the host that will reduce the paths."),
+                 processes: int = typer.Option(4, min=1, help="CPU processes for saved-pool reduction.")) -> None:
+    """Run evidence → investigation → Jev forecasts → financial analysis → page locally."""
+    from app.pipeline import FlowError
+    from app.pipeline import analyze_case as execute
+
+    try:
+        result = execute(snapshot, run_id=run, pool_dir=pool, processes=processes,
+                         progress=lambda stage: typer.echo(f"stage: {stage}"))
+    except FlowError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Complete: {result['run_id']}")
+    for name, path in result["artifacts"].items():
+        typer.echo(f"  {name}: {path}")
+    typer.echo(f"Run `slope viewer`, then open http://127.0.0.1:8000{result['page_route']}")
+
+
 @cli.command()
 def analyze(run: str = typer.Option(..., help="Recorded run ID (runs/recorded/<id>)."),
             root: str = typer.Option("", help="Directory holding the run (default runs/recorded)."),

@@ -35,10 +35,22 @@ from app.analysis.engine import (
     run,
     run_many,
 )
-from app.analysis.events import BANK, Basis, Draws, EventCash, bank_trace, event_trace
+from app.analysis.events import (
+    BANK,
+    BIG,
+    KINDS,
+    OBLIGATIONS,
+    PROCEEDS,
+    Basis,
+    Draws,
+    EventCash,
+    bank_trace,
+    event_trace,
+)
+from app.analysis.processor import ARREARS
 from app.analysis.setup import DRAWS, Setup
 from app.analysis.stats import expectation, weighted_quantiles
-from app.disputes.forecast import DisputePath, Judgment, distributions, joint_paths
+from app.disputes.forecast import DisputePath, Judgment, combo_mask, distributions, joint_paths
 from app.disputes.rules import load_model
 from app.domain.investigation import DisputeInstance
 from app.finance.bank import BankFeed
@@ -74,6 +86,13 @@ class EventModel:
     bank_judgments: dict[str, Judgment] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if any(p.classes for v in self.per.values() for ps in v.values() for p in ps):
+            from app.disputes.forecast import (
+                expand_classes,  # QUESTIONS §1 Grouping: each draw's own questions
+            )
+
+            known = set(self.judgments)
+            self.per = {i: {k: expand_classes(ps, known, DRAWS) for k, ps in v.items()} for i, v in self.per.items()}
         if not self.combos:
             self.combos = joint_paths(self.per, self.order) if self.order else self.bank_combos
 
@@ -145,6 +164,9 @@ CASH_BINS, COLLECTED_BINS, HEADROOM_BINS = 128, 128, 1024
 # Per-day sums over draws kept for every path (expectations reweight them exactly).
 DAILY = ("cash", "backup", "collected", "due_cum", "drawn", "fundings", "collections", "outstanding", "locked",
          "capacity", "petitioned", "frozen", "frozen_due", "past_due", "clawback")
+# Under daily processing also each arrears class's sum over draws at each day's end (processor.ARREARS), as
+# per_day['arrears_<class>']; under the equity model each channel's proceeds per draw (events.PROCEEDS), as means.
+ARREARS_KEYS = tuple(f"arrears_{c}" for c in ARREARS)
 
 
 @dataclass
@@ -238,36 +260,64 @@ class Reduction:
         self.hr_count = np.zeros(n)  # headroom values (trajectory x due date) per path, and how many are negative
         self.hr_negative = np.zeros(n)
         self.peak_day = np.zeros(n, dtype=np.int64)  # the day of the highest expected outstanding balance
+        # per path, the draws it follows (DisputePath.mask: a question asked per option group forks the path, each
+        # child on its group's draws); a path weighs p over them, each draw p/n (every draw's paths weigh 1)
+        self.mask = np.ones((n, draws), dtype=bool)
+        self.masked = False
 
-    def add(self, i: int, t: Trajectories) -> None:
-        for k, v in _scalars(t).items():
-            self.means.setdefault(k, np.zeros(self.n))[i] = float(v.mean())
+    def add(self, i: int, t: Trajectories, ev: EventCash | None = None, mask: np.ndarray | None = None) -> None:
+        """Reduce path i's trajectories `t`, run on the event cash `ev` (its equity proceeds, where it books any), on
+        the draws it follows (`mask`; None: every draw). Its scalars and per-day figures are sums over those draws
+        divided by the number of draws (so p x scalar is its share of the expectation), its histograms count them."""
+        if mask is not None and mask.all():
+            mask = None
+        on = (lambda a: a) if mask is None else (lambda a: a[mask])  # noqa: E731
+        if mask is not None:
+            self.mask[i], self.masked = mask, True
+        scalars = _scalars(t)
+        if ev is not None and ev.proceeds is not None:
+            scalars.update({k: ev.proceeds[k] for k in PROCEEDS})
+        for k, v in scalars.items():
+            self.means.setdefault(k, np.zeros(self.n))[i] = float(v.mean()) if mask is None \
+                else float(v[mask].sum()) / len(v)
         self.min_cash[i], self.min_headroom[i], self.collected[i] = t.min_cash, t.min_headroom, t.collected
         if self.need is not None:
             below = t.cash < self.need
-            self.floor_day[i] = np.where(below.any(axis=1), below.argmax(axis=1), -1)
-        idx, pet = np.arange(self.days), t.petition[:, None]
+            reached = below.any(axis=1) if mask is None else below.any(axis=1) & mask  # a draw off the path: weight 0
+            self.floor_day[i] = np.where(reached, below.argmax(axis=1), -1)
+        cash, due, coll, fund, outs = on(t.cash), on(t.due), on(t.collections), on(t.fundings), on(t.outstanding)
+        idx, pet = np.arange(self.days), on(t.petition)[:, None]
         by_day = (pet >= 0) & (pet <= idx)
         window = (pet >= 0) & (idx >= pet - PREFERENCE_DAYS) & (idx < pet)
-        cum_due, cum_coll = np.cumsum(t.due, axis=1), np.cumsum(t.collections, axis=1)
+        cum_due, cum_coll = np.cumsum(due, axis=1), np.cumsum(coll, axis=1)
         d = self.per_day
-        d["cash"][i] = t.cash.sum(axis=0)
-        d["backup"][i] = (t.cash + np.maximum(self.setup.facility_cents - t.capacity, 0)).sum(axis=0)
+        d["cash"][i] = cash.sum(axis=0)
+        d["backup"][i] = (cash + np.maximum(self.setup.facility_cents - on(t.capacity), 0)).sum(axis=0)
         d["collected"][i], d["due_cum"][i] = cum_coll.sum(axis=0), cum_due.sum(axis=0)
-        d["fundings"][i] = t.fundings.sum(axis=0)
+        d["fundings"][i] = fund.sum(axis=0)
         d["drawn"][i] = np.cumsum(d["fundings"][i])
-        d["collections"][i], d["outstanding"][i] = t.collections.sum(axis=0), t.outstanding.sum(axis=0)
-        d["locked"][i], d["capacity"][i] = t.locked.sum(axis=0), t.capacity.sum(axis=0)
+        d["collections"][i], d["outstanding"][i] = coll.sum(axis=0), outs.sum(axis=0)
+        d["locked"][i], d["capacity"][i] = on(t.locked).sum(axis=0), on(t.capacity).sum(axis=0)
         d["petitioned"][i] = by_day.sum(axis=0)
-        d["frozen"][i] = (by_day * t.stayed[:, None]).sum(axis=0)
+        d["frozen"][i] = (by_day * on(t.stayed)[:, None]).sum(axis=0)
         d["past_due"][i] = ((cum_due - cum_coll) * ~by_day).sum(axis=0)
         d["frozen_due"][i] = ((cum_due - cum_coll) * by_day).sum(axis=0)  # frozen installments already due
-        d["clawback"][i] = (t.collections * window).sum(axis=0)
-        self.counts["cash"].add(self.bins["cash"].flat(t.cash))
+        d["clawback"][i] = (coll * window).sum(axis=0)
+        if t.processed is not None:
+            by_class = on(t.processed.arrears).sum(axis=0)  # [days, ARREARS]
+            for j, k in enumerate(ARREARS_KEYS):
+                d.setdefault(k, np.zeros((self.n, self.days)))[i] = by_class[:, j]
+        self.counts["cash"].add(self.bins["cash"].flat(cash))
         self.counts["collected"].add(self.bins["collected"].flat(cum_coll))
-        self.counts["headroom"].add(self.bins["headroom"].flat(t.headroom, self.month_of_day[t.headroom_days]))
-        self.hr_count[i], self.hr_negative[i] = len(t.headroom), float((t.headroom < 0).sum())
+        hr = slice(None) if mask is None else mask[t.headroom_rows]
+        self.counts["headroom"].add(self.bins["headroom"].flat(t.headroom[hr], self.month_of_day[t.headroom_days[hr]]))
+        self.hr_count[i], self.hr_negative[i] = len(t.headroom[hr]), float((t.headroom[hr] < 0).sum())
         self.peak_day[i] = int(np.argmax(d["outstanding"][i]))
+
+    def draw_weights(self, probs: np.ndarray) -> np.ndarray:
+        """Each (path, draw)'s weight, [paths, draws]: p/n on the draws the path follows, else 0."""
+        w = np.asarray(probs, dtype=np.float64)[:, None] / self.draws
+        return w * self.mask if self.masked else np.broadcast_to(w, (len(w), self.draws))
 
     def finish(self) -> Reduction:
         for c in self.counts.values():
@@ -293,7 +343,7 @@ class Reduction:
         probs = np.asarray(probs, dtype=np.float64)
         e = self.expected(probs)
         live = probs > 0  # a zero-weight trajectory never moves a weighted quantile
-        w = np.repeat(probs[live] / self.draws, self.draws)
+        w = self.draw_weights(probs)[live].ravel()
         mq = weighted_quantiles(self.min_cash[live].ravel().astype(np.float64), w, QS)
         # headroom at each due date, pooled over (trajectory, due date), each weighted by its trajectory
         headroom, hw = None, probs @ self.hr_count
@@ -338,7 +388,11 @@ class Reduction:
         """When available cash first falls below the operating need, over the probability-weighted draws: the share
         that reaches it in the period and the median day (None where under half do)."""
         probs = np.asarray(probs, dtype=np.float64)
-        w = np.repeat(probs / probs.sum(), self.draws) / self.draws
+        if self.masked:
+            w = self.draw_weights(probs).ravel()
+            w = w / w.sum()
+        else:
+            w = np.repeat(probs / probs.sum(), self.draws) / self.draws
         day = self.floor_day.ravel()
         reached = day >= 0
         share = float(w[reached].sum())
@@ -352,7 +406,11 @@ class Reduction:
         """P5 / P50 / P95 of collected at the horizon, exact from each trajectory's total."""
         probs = np.asarray(probs, dtype=np.float64)
         live = probs > 0
-        w = np.repeat(probs[live] / probs[live].sum(), self.draws) / self.draws
+        if self.masked:
+            w = self.draw_weights(probs)[live].ravel()
+            w = w / w.sum()
+        else:
+            w = np.repeat(probs[live] / probs[live].sum(), self.draws) / self.draws
         return weighted_quantiles(self.collected[live].ravel().astype(np.float64), w, QS)
 
     def daily(self, probs: np.ndarray, collected_q: bool = True) -> dict:
@@ -393,21 +451,60 @@ BATCH = 8  # joint paths simulated together (engine.run_many)
 
 PACKED_BYTES = 256 * 2**20  # at most this much event cash kept (sparse) from the bin pass for the main pass
 
+_STORES: dict = {}
 
-def _pack(ev: EventCash) -> tuple:
-    """A combo's event cash, sparse (most draws and days book nothing): flat index and value of each non-zero."""
+
+def event_store(stress: bool) -> dict | None:
+    """(instance, steps) -> a path's event cash packed (`_pack`), as `event_trace` computes it on the analysis's draws
+    (stress: the adverse placement's), replayed on the runners (app/disputes/parallel.py `replay`) into the folder
+    SLOPE_EVENT_CASH. None where the variable is unset: every path is traced here."""
+    import os
+    import pickle
+    import zlib
+    from pathlib import Path
+
+    folder = os.environ.get("SLOPE_EVENT_CASH")
+    if not folder:
+        return None
+    if stress not in _STORES:
+        store: dict = {}
+        for f in sorted(Path(folder).rglob("ev*.pkl")):
+            part = pickle.loads(zlib.decompress(f.read_bytes()))
+            store.update(part["stress" if stress else "central"])
+        _STORES[stress] = store
+    return _STORES[stress]
+
+
+def _pack(ev: EventCash, kinds: bool = False) -> tuple:
+    """A combo's event cash, sparse (most draws and days book nothing): flat index and value of each non-zero. kinds:
+    also its cash by kind and the obligations' incurred days (the daily processor reads them). The equity proceeds
+    per draw (dense, small) ride as they are."""
+    xs = [ev.cash, ev.lock, ev.capacity, ev.petition + 1]  # petition: -1 (none) packs as zero
+    if kinds:
+        split = ev.split()
+        if split is None:
+            raise ValueError("daily cash processing needs the event cash by kind (EventCash.kinds)")
+        xs += [split[0][k] for k in KINDS] + [BIG - split[1][k] for k in OBLIGATIONS]  # BIG (none) packs as zero
     out = []
-    for x in (ev.cash, ev.lock, ev.capacity, ev.petition + 1):  # petition: -1 (none) packs as zero
+    for x in xs:
         i = np.flatnonzero(x)
         out += [i.astype(np.int32), x.ravel()[i]]
-    return tuple(out)
+    return tuple(out), ev.proceeds
 
 
-def _unpack(packed: tuple, draws: int, days: int) -> EventCash:
-    ev = EventCash.zeros(draws, days)
+def _unpack(pk: tuple, draws: int, days: int) -> EventCash:
+    packed, proceeds = pk
+    kinds = len(packed) > 8
+    ev = EventCash.zeros(draws, days, kinds=kinds)
     for j, x in enumerate((ev.cash, ev.lock, ev.capacity)):
         np.put(x, packed[2 * j], packed[2 * j + 1])
     np.put(ev.petition, packed[6], packed[7] - 1)
+    if kinds:
+        for j, k in enumerate(KINDS, 4):
+            np.put(ev.kinds[k], packed[2 * j], packed[2 * j + 1])
+        for j, k in enumerate(OBLIGATIONS, 4 + len(KINDS)):
+            np.put(ev.incurred[k], packed[2 * j], BIG - packed[2 * j + 1])
+    ev.proceeds = proceeds
     return ev
 
 
@@ -428,6 +525,29 @@ def _petition_at(line, t: Trajectories, petition: np.ndarray, peak: int) -> tupl
     np.add.at(contract, t.draw_rows[keep], booked[keep])
     window = (idx[None, :] >= pet[:, None] - PREFERENCE_DAYS) & before
     return contract - collected, (t.collections * window).sum(axis=1)
+
+
+def stress_rows(line, opening: int, setup: Setup, evs: list[EventCash]) -> list[dict]:
+    """Each path's event cash under adverse placement, run, and again with a petition on the day of its highest
+    expected outstanding balance (`Analysis._stress_rows`; the runners' replay computes the same)."""
+    if not evs:
+        return []
+    ts = run_many(line, opening, evs)
+    peaks = [int(np.argmax(t.outstanding.mean(axis=0))) for t in ts]
+    pts = [_petition_at(line, t, ev.petition, peak) for t, ev, peak in zip(ts, evs, peaks, strict=True)]
+    return [_stress_row(setup, t, pt, peak) for t, pt, peak in zip(ts, pts, peaks, strict=True)]
+
+
+def _stress_row(setup: Setup, t: Trajectories, pt: tuple[np.ndarray, np.ndarray], peak: int) -> dict:
+    stayed, preference = pt  # with a petition at the peak (_petition_at)
+    return {"min_cash_p5_cents": float(np.quantile(t.min_cash, 0.05)),
+            "min_cash_p50_cents": float(np.quantile(t.min_cash, 0.5)),
+            "uncollected_maturity_cents": float((t.stayed + t.uncollected).mean()),
+            "stayed_claim_cents": float(t.stayed.mean()), "lender_pv_cents": float(t.lender_pv.mean()),
+            "petition_at_peak": {"day": (setup.review + timedelta(days=peak + 1)).isoformat(),
+                                 "stayed_claim_mean_cents": float(stayed.mean()),
+                                 "stayed_claim_p95_cents": float(np.quantile(stayed, 0.95)),
+                                 "preference_exposed_mean_cents": float(preference.mean())}}
 
 
 class Analysis:
@@ -455,14 +575,15 @@ class Analysis:
 
             self.bank_r = make(len(model.bank_combos))
             for i, c in enumerate(model.bank_combos):
-                self.bank_r.add(i, run(self.line, self.opening, self._events("bank", i, c)))
+                ev = self._events("bank", i, c)
+                self.bank_r.add(i, run(self.line, self.opening, ev), ev, combo_mask(c, DRAWS))
             self.bank_r.finish()
             self.r = make(len(model.combos))
             for lo in range(0, len(model.combos), BATCH):  # a few paths at a time: dense arrays dropped once reduced
                 chunk = model.combos[lo:lo + BATCH]
                 evs = [self._events("path", i, c) for i, c in enumerate(chunk, lo)]
-                for i, t in enumerate(run_many(self.line, self.opening, evs), lo):
-                    self.r.add(i, t)
+                for i, (t, ev) in enumerate(zip(run_many(self.line, self.opening, evs), evs, strict=True), lo):
+                    self.r.add(i, t, ev, combo_mask(model.combos[i], DRAWS))
                     self._tick("simulate", i, len(model.combos))
             self.r.finish()
             self.means = self.r.means
@@ -484,6 +605,7 @@ class Analysis:
             self.ops, self.line.need, self.opening + setup.exposure.cash_cents, line=self.line))  # cash incl. the line's history
         self._draws.prefixes = {}  # the combos run depth-first: each walks only the steps after the shared prefix
         self._cache: dict = {}
+        self._store = event_store(stress)  # each path's event cash, replayed on the runners (parallel.replay)
         self._packed: dict = {}  # (kind, index) -> the bin pass's event cash, sparse, for the main pass
         self._shared = len(model.order) > 1
         self.instrument = next((f for d in model.disputes.values() for f in d.financing if f.status != "superseded"),
@@ -499,10 +621,15 @@ class Analysis:
         Each combo's event cash is kept, sparse, for the main pass (within PACKED_BYTES)."""
         lo_ev, hi_ev = np.zeros(self.days), np.zeros(self.days)
         for i, c in enumerate(combos, lo):
+            got = self._store.get((c[0].instance_id, c[0].steps)) if self._store and len(c) == 1 else None
+            if got is not None:  # replayed: the range over every draw, measured on the runner
+                np.minimum(lo_ev, got[1], out=lo_ev)
+                np.maximum(hi_ev, got[2], out=hi_ev)
+                continue
             ev = self.event_cash(c)
             if self._packed_bytes < PACKED_BYTES:
-                self._packed[(kind, i)] = pk = _pack(ev)
-                self._packed_bytes += sum(x.nbytes for x in pk) + 400
+                self._packed[(kind, i)] = pk = _pack(ev, self.setup.cash_processing == "daily")
+                self._packed_bytes += sum(x.nbytes for x in (*pk[0], *(pk[1] or {}).values())) + 400
             cum = np.cumsum(ev.cash - ev.lock, axis=1)
             np.minimum(lo_ev, cum.min(axis=0), out=lo_ev)
             np.maximum(hi_ev, cum.max(axis=0), out=hi_ev)
@@ -522,7 +649,9 @@ class Analysis:
         - available cash: the bank-only cash, moved by the cumulative event cash (a first pass over the event cash
           alone) and by at most the line's own swing (funded less collected lies between -fee x F and the limit);
         - headroom at a due date, per month: that month's cash range, less the need and at most all owed, and owed
-          is at most (1 + fee) x principal outstanding <= (1 + fee) x the highest limit."""
+          is at most (1 + fee) x principal outstanding <= (1 + fee) x the highest limit;
+        - a line opened before the review adds what its history still owes (Setup.exposure) to collections and to
+          owed."""
         self._packed, self._packed_bytes = {}, 0
         lo_ev, hi_ev = self._event_range("bank", self.model.bank_combos)  # min and max: exact in any order
         for lo in range(0, len(self.model.combos), BATCH):
@@ -531,6 +660,10 @@ class Analysis:
             np.maximum(hi_ev, b, out=hi_ev)
             for i in range(lo, min(lo + BATCH, len(self.model.combos))):
                 self._tick("bins", i, len(self.model.combos))
+        return self._bins_from(lo_ev, hi_ev)
+
+    def _bins_from(self, lo_ev: np.ndarray, hi_ev: np.ndarray) -> dict[str, Bins]:
+        """`_bins` from the per-day range of cumulative event cash (the runners' reduction reads the walk's)."""
         fee = (self.setup.fee_bps + 1) / 10_000  # + 1 bp covers the half-up cent on each draw
         lim = np.maximum.accumulate(self.line.limit.max(axis=0).astype(np.float64)) + 10_000
         first_due = self.line.due_idx[:, 0]
@@ -540,10 +673,11 @@ class Analysis:
             prev = coll[int(repayable.max())] if repayable.size else 0.0
             coll[t] = (1 + fee) * lim[t] + prev if repayable.size else 0.0
             fund[t] = lim[t] + coll[t] / (1 + fee)
-        coll = np.maximum.accumulate(coll) + 10_000
+        opened = self.setup.exposure.owed_cents  # a line opened before the review: its installments still owed
+        coll = np.maximum.accumulate(coll) + opened + 10_000
         margin = lim + fund * fee + 10_000
         lo, hi = self.bank.cash.min(axis=0) + lo_ev - margin, self.bank.cash.max(axis=0) + hi_ev + margin
-        owed = (1 + fee) * float(lim.max()) + 10_000
+        owed = (1 + fee) * float(lim.max()) + opened + 10_000
         low = lo - self.line.need[:, :self.days].max(axis=0) - owed
         h_lo = np.array([low[self.month_of_day == k].min() for k in range(len(self.months))])
         h_hi = np.array([hi[self.month_of_day == k].max() for k in range(len(self.months))])
@@ -555,6 +689,8 @@ class Analysis:
         for p in combo:
             key = (p.instance_id, p.steps)
             e = self._cache.get(key)
+            if e is None and self._store and not self._draws.stress and (got := self._store.get(key)) is not None:
+                e = _unpack(got[0], DRAWS, self.days)  # replayed on the runners: on the path's own draws (mask)
             if e is None and p.instance_id == BANK:
                 e = bank_trace(self.instrument, p.steps, self.setup, self.m, self._draws, self.sens).events
             elif e is None:
@@ -570,23 +706,12 @@ class Analysis:
 
     def _stress_rows(self, combos: list[tuple[DisputePath, ...]]) -> list[dict]:
         """Each path under adverse placement, and again with a petition on the day of its highest expected
-        outstanding balance."""
-        evs = [self.event_cash(c) for c in combos]
-        ts = run_many(self.line, self.opening, evs)
-        peaks = [int(np.argmax(t.outstanding.mean(axis=0))) for t in ts]
-        pts = [_petition_at(self.line, t, ev.petition, peak) for t, ev, peak in zip(ts, evs, peaks, strict=True)]
-        return [self._stress_row(t, pt, peak) for t, pt, peak in zip(ts, pts, peaks, strict=True)]
-
-    def _stress_row(self, t: Trajectories, pt: tuple[np.ndarray, np.ndarray], peak: int) -> dict:
-        stayed, preference = pt  # with a petition at the peak (_petition_at)
-        return {"min_cash_p5_cents": float(np.quantile(t.min_cash, 0.05)),
-                "min_cash_p50_cents": float(np.quantile(t.min_cash, 0.5)),
-                "uncollected_maturity_cents": float((t.stayed + t.uncollected).mean()),
-                "stayed_claim_cents": float(t.stayed.mean()), "lender_pv_cents": float(t.lender_pv.mean()),
-                "petition_at_peak": {"day": (self.setup.review + timedelta(days=peak + 1)).isoformat(),
-                                     "stayed_claim_mean_cents": float(stayed.mean()),
-                                     "stayed_claim_p95_cents": float(np.quantile(stayed, 0.95)),
-                                     "preference_exposed_mean_cents": float(preference.mean())}}
+        outstanding balance. A path replayed on the runners brings its row (`stress_rows`, the same computation)."""
+        got = [self._store.get((c[0].instance_id, c[0].steps)) if self._store and len(c) == 1 else None
+               for c in combos]
+        todo = [c for c, g in zip(combos, got, strict=True) if g is None]
+        fresh = iter(stress_rows(self.line, self.opening, self.setup, [self.event_cash(c) for c in todo]))
+        return [g if g is not None else next(fresh) for g in got]
 
     # --- summaries ---------------------------------------------------------------------------------
 
@@ -598,7 +723,7 @@ class Analysis:
         return {"metrics": r.metrics(probs), "daily": r.daily(probs)}
 
     def min_cash_quantile(self, probs: np.ndarray, q: float) -> float:
-        w = np.repeat(np.asarray(probs, dtype=np.float64) / DRAWS, DRAWS)
+        w = self.r.draw_weights(probs).ravel()
         return float(weighted_quantiles(self.r.min_cash.ravel().astype(np.float64), w, (q,))[0])
 
     def views(self, overrides: dict | None = None) -> dict:
@@ -630,7 +755,7 @@ class Analysis:
             rows.append({"index": i, "probability": float(probs[i]),
                          "paths": [{"dispute": p.instance_id, "outcome": p.outcome, "label": path_label(p)} for p in combo],
                          "min_cash_mean_cents": m["min_cash"],
-                         "min_cash_p5_cents": float(np.quantile(self.r.min_cash[i], 0.05)),
+                         "min_cash_p5_cents": float(np.quantile(self.r.min_cash[i][self.r.mask[i]], 0.05)),
                          "lender_pv_cents": m["lender_pv"], "dollar_days": m["dollar_days"],
                          "collected_cents": m["collected"], "stayed_claim_cents": m["stayed"],
                          "preference_exposed_cents": m["preference"], "petition_p": m["petition_p"],
