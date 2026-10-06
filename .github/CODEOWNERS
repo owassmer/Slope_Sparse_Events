@@ -6,3 +6,4 @@ scripts/         @owassmer
 .github/         @owassmer
 pyproject.toml   @owassmer
 uv.lock          @owassmer
+.pi/             @owassmer
