@@ -2116,23 +2116,97 @@ class Chain:
             kept &= ~gone
 
     # --- steps ---
+    def next_decisions(self, cursors, support=None):
+        """All enabled chain cursors dated without choosing or booking any answer."""
+        from app.analysis.frontier import next_decisions
+
+        return next_decisions(self, cursors, support)
+
+    def decision_day(self, node: str, ctx: str = "") -> np.ndarray:
+        """Answer-independent decision date on booked state (BIG: not enabled).
+
+        Unlike step/advance this never drains waiting answers, sizes security,
+        initiates an offering or books a writ. Cash dates are prospective until
+        all earlier frontier boundaries have been resolved. Read caches may fill.
+        Listing callers use listing_date: legacy listing bundles multiple dates.
+        """
+        full = lambda v: np.full(self.n, v, dtype=np.int64)  # noqa: E731
+        if node in RESPONSES:
+            return self.response_day(ctx).copy()
+        if node == "judgment_default":
+            ripe, on = self.judgment_default(ctx)
+            return np.where(on, ripe, BIG)
+        if node in DISTRESS:
+            if self.equity:
+                return self.distress_day(node, ctx).copy()
+            if node in FLOOR_NODES:
+                return self.tau() if node == "cash_floor" else self.cash_out()
+        if node == "settle":
+            start, end = self.settlement_window(ctx)
+            return np.where(end < 0, BIG, np.maximum(start, 0))
+        if node == "execute_pre_ruling":
+            return full(self.E0)
+        if node in ("registration_early", "stay"):
+            return full(self.E0) if ctx == "I1" else (self.F.copy() if node == "registration_early"
+                                                    else np.maximum(self.F, 0))
+        if node == "court_order":
+            kind, phase = ctx.split("_")
+            if kind not in ("stay", "registration"):
+                raise ValueError(f"Unknown court order {ctx}")
+            motion = full(self.E0) if phase == "I1" else (np.maximum(self.F, 0) if kind == "stay" else self.EF)
+            return motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, ctx)
+        if node in ("ruling", "post_trial_ruling"):
+            return self.F.copy()
+        if node == "appeal":
+            return np.where(self.AD < 0, BIG, np.maximum(self.F, 0))
+        if node == "enforce":
+            return np.maximum(self.EF, 0)
+        if node == "verdict":
+            return self.V.copy()
+        if node == "post_trial_motions":
+            return self.E_ix + int(self.m["rules"]["frcp_50b_59_deadline"]["value"])
+        if node == "listing_date":
+            if self.fin is None or self.fin.listing_deadline is None:
+                return full(BIG)
+            dates = self.listing_dates()
+            if self.equity:
+                day = dates["deadline"] if ctx == "compliance" else dates["hearing_request"]
+                pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
+                return np.where(day < pet, day, BIG)
+            gate = dates["hearing_request"] if ctx == "kept" else dates["vote_call"]
+            return np.where(self.marks["notes_due"] > gate, dates["hearing_request" if ctx == "kept" else ctx], BIG)
+        if node == "delisting_notes":
+            pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
+            alive = self.delisted < pet if self.pending or self.ordinary else self.live(self.delisted)
+            on = alive & (self.marks["notes_due"] > self.delisted) & (self.delisted < self.N)
+            return np.where(on, self.delisted, BIG)
+        if node == "notes_due_date":
+            due = self.marks["notes_due"]
+            route = self.holder_route_days_path if self.pending else self.holder_route_days()
+            return np.where(due < BIG, due + (route if ctx == "holders" else 0), BIG)
+        raise ValueError(f"No answer-independent decision date for {node}/{ctx}")
+
+    def settlement_window(self, ctx: str) -> tuple[np.ndarray, np.ndarray]:
+        """Existing settlement window, shared by date discovery and booking."""
+        full = lambda v: np.full(self.n, v, dtype=np.int64)  # noqa: E731
+        if ctx == "I0":
+            return full(-1), self.V
+        e1 = self.E_ix if self.pending else full(-1)
+        i4 = np.maximum(self.stayed_from, self.F) if self.pending else self.stayed_from
+        start = {"I1": e1, "I2": self.F, "I3": np.maximum(self.EF, self.AD), "I4": i4}[ctx]
+        end = {"I1": self.F, "I2": self.AD, "I3": full(self.N - 1), "I4": full(self.N - 1)}[ctx]
+        start = np.maximum(start, -1)
+        if ctx == "I3" and self.pending:
+            start = np.where(self.stayed_from <= start, BIG, start)
+        return start, end
+
     def step(self, node: str, ctx: str, branch: str) -> np.ndarray:
         """Book one step's effects; return its decision day per draw (BIG where it never arises)."""
         N, full = self.N, (lambda v: np.full(self.n, v, dtype=np.int64))
         # Dated pending writs are processed by advance/until, not structural walk order.
         if node == "settle":
-            if ctx == "I0":  # before the verdict: nothing is owed yet; the offer is capped at the claimed amount
-                start, end = full(-1), self.V
-            else:
-                e1 = self.E_ix if self.pending else full(-1)
-                # I4 after the ruling: a pending claim's stay approved before it (I1) opens no window before it
-                i4 = np.maximum(self.stayed_from, self.F) if self.pending else self.stayed_from
-                start = {"I1": e1, "I2": self.F, "I3": np.maximum(self.EF, self.AD), "I4": i4}[ctx]
-                end = {"I1": self.F, "I2": self.AD, "I3": full(N - 1), "I4": full(N - 1)}[ctx]
-            start = np.maximum(start, -1)  # an interval that began before the review date runs from it
+            start, end = self.settlement_window(ctx)
             cap = self.claimed() if ctx == "I0" else None
-            if ctx == "I3" and self.pending:
-                start = np.where(self.stayed_from <= start, BIG, start)
             self.settle(start, end, agreed=branch == "yes", cap=cap)  # a settlement releases the stay's security
             return np.where(end < 0, BIG, np.maximum(start, 0))  # a closed interval asks nothing
         if node == "execute_pre_ruling":
@@ -2346,11 +2420,15 @@ class Chain:
         if node == "notes_due_date" and self.waiting:  # a probe on the dates a waiting judgment default sets
             self.until(np.full(self.n, self.N, dtype=np.int64))
         if self.waiting or self.pending_levy is not None:  # book only what precedes this decision
-            probe = self.clone()
-            probe.waiting = []
-            probe.pending_levy = None
-            probe._pending_writs = []
-            d = probe.step(node, ctx, branch)
+            if node == "listing":  # legacy bundles: date the selected stage, without booking its answer
+                stage = "compliance" if self.equity else ("kept" if ctx == "kept" else
+                        "determination" if branch.startswith("delisted") else "vote_call")
+                d = self.decision_day("listing_date", stage)
+            else:
+                # Responses here historically see no pending writ: waiting levy
+                # responses take the waits() route above instead.
+                d = (np.full(self.n, BIG, dtype=np.int64) if answers_levy(node, ctx)
+                     else self.decision_day(node, ctx))
             # a step dated after the horizon comes after everything dated inside it; one that never arises, nothing
             self.until(np.where(d < self.N, d, np.where(d < BIG, self.N, -1)))
             if not answers_levy(node, ctx) and self.pending_levy is not None:  # unless a floor decision or the
