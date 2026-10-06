@@ -1,0 +1,8 @@
+# Paths only Owen merges: the purpose and guidance, the skills, the scripts, CI and tool configuration.
+AGENTS.md        @owassmer
+CLAUDE.md        @owassmer
+.agents/         @owassmer
+scripts/         @owassmer
+.github/         @owassmer
+pyproject.toml   @owassmer
+uv.lock          @owassmer

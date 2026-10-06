@@ -19,3 +19,4 @@ runs/recorded/*/analysis.json
 
 # Claude Code worktrees
 .claude/worktrees/
+.drive/
