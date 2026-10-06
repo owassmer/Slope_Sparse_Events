@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import akoustis_20240514_fixture as fx
 import numpy as np
+import pytest
 
 from app.analysis.events import event_trace, group_branches
 from app.disputes.forecast import _S, DisputePath, Forecaster, _Walk, path_mask
@@ -31,13 +32,15 @@ SAVED = (
 )
 
 
-def test_saved_floor_failure_is_rewalked_with_feasible_answer_domains(monkeypatch):
+@pytest.mark.parametrize('holder_answer', ['holders_file', 'accelerated', 'no'])
+def test_saved_floor_failure_is_rewalked_with_feasible_answer_domains(monkeypatch, holder_answer):
     d = fx.pending(instance_id='dispute_002')
     fc = Forecaster([d], {}, borrower='B', review=fx.REVIEW, horizon=fx.setup().horizon,
                     hydrate=lambda f: {}, model=fx.model(), setup=fx.setup(), basis=fx.basis())
     walk = _Walk(fc, d)
     row = 145
-    old = event_trace(d, DisputePath(d.instance_id, SAVED, '', ()), fc.setup, fc.m, fc.draws, fc.sens)
+    saved = SAVED[:-1] + (('judgment_default', 'I1', holder_answer),)
+    old = event_trace(d, DisputePath(d.instance_id, saved, '', ()), fc.setup, fc.m, fc.draws, fc.sens)
     floor = old.questions[9]
     assert old.questions[15]['day'][row] == 96
     assert any(init[row] == 96 and close[row] == 101 and closed[row]
@@ -45,6 +48,12 @@ def test_saved_floor_failure_is_rewalked_with_feasible_answer_domains(monkeypatc
     assert floor['day'][row] == 155
     assert floor['sit']['ledger'][row] == 0
     assert floor['groups'][row] == 0  # not a snapshot taken after this decision's answer
+    # The two saved petition_cash_out findings share the same earlier offering.
+    if holder_answer != 'holders_file':
+        cash_out = old.questions[11]
+        assert cash_out['day'][row] == 161
+        assert cash_out['groups'][row] == 0
+        assert 'initiate_offering' not in group_branches('cash_out', 0)
 
     # Rewalk every answer from the last prefix before the faulty scheduling,
     # without probabilities, model calls, or discarding inconvenient branches.

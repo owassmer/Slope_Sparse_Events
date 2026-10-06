@@ -65,3 +65,4 @@ reading output. One entry per observation, dated. Nothing here is fixed when it 
 ## 2026-10-06: running the loop
 - Coordinator: the first `scripts/work` on task 001-1 started twice in the same worktree (13:29 and 13:34), apparently from one command being run twice. Both were stopped and one restarted under a lock. If it recurs, `scripts/work` should refuse to start while another worker holds the worktree.
 - Coordinator: `scripts/verify`'s final check looked for lines starting `WORKS`, while the verifier wrote `- WORKS`, so a clean list would still have exited 1. Fixed with the live-run change (the check accepts both).
+- Task 001-1b: ripe responses must respect the pending-levy bound in `Chain._upto_dated`; the six saved payment paths now agree prefix-to-full. Do not rewalk yet: part1830010 draw 279 also exposes a day-74 ruling moving a floor from day 77/group 2 to day 179/group 0; full reproducer in `tasks/001-1b-result.md`.

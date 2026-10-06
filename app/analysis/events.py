@@ -2639,7 +2639,10 @@ class Chain:
             days = []
             for j, (_, node, _, done, ctx) in enumerate(self.waiting):
                 t = self.distress_day(node, ctx) if node in DISTRESS else self.waiting_day(node, ctx)
-                lim = before if levy is None or node in RESPONSES else np.minimum(before, levy)
+                # Only a levy-day response precedes its levy. The notes' ripe
+                # response must see any earlier levy, just like other decisions.
+                lim = before if levy is None or (node in RESPONSES and ctx != "ripe") \
+                    else np.minimum(before, levy)
                 cand = ~done & (True if every else t < lim)
                 better = cand & (t < best)
                 best, pick = np.where(better, t, best), np.where(better, j, pick)
