@@ -60,3 +60,7 @@ reading output. One entry per observation, dated. Nothing here is fixed when it 
 - Coordinator: to reach evidence search, the verifier ran `slope evidence build` (local, hash-checked, no billed call). That is a build step, and Owen's rule is that the verifier never triggers compute. Whether a local build counts is Owen's call.
 - Coordinator: the verifier's own notebook edit was discarded with its throwaway checkout. `scripts/verify` copies back only the list and the feature map.
 - Coordinator: six BROKEN lines on the product as it stands: the assumption radios (500 in a fresh checkout), the assumption section ignoring overrides, "Jev $771k" labelling an overridden value, the 20 Jun page blank (an old `page.json` shape), unknown override names silently ignored by `/reweight`, and evidence search before a build. The map is not yet checked against Owen's own use.
+
+## 2026-10-06: running the loop
+- Coordinator: the first `scripts/work` on task 001-1 started twice in the same worktree (13:29 and 13:34), apparently from one command being run twice. Both were stopped and one restarted under a lock. If it recurs, `scripts/work` should refuse to start while another worker holds the worktree.
+- Coordinator: `scripts/verify`'s final check looked for lines starting `WORKS`, while the verifier wrote `- WORKS`, so a clean list would still have exited 1. Fixed with the live-run change (the check accepts both).
