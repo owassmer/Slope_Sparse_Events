@@ -58,3 +58,25 @@ def test_partial_jobs_sum_across_all_draws_without_per_job_normalization():
     np.testing.assert_allclose(total, np.ones((3, draws)), atol=1e-10, rtol=0)
     broken = sum(value['d'] for _, value in pieces[:-1])
     assert not np.allclose(broken, 1)
+
+
+def test_inactive_draws_read_a_class_offering_the_paths_answers():
+    """Draws whose class record says the question is not live read a class offering the answers of the path's live
+    classes: the key-order first class here offers only file/neither, and the path answers initiate_offering
+    (financing_at_floor|floor3 in the 6 Oct pool raised KeyError 'initiate_offering')."""
+    from app.disputes.forecast import class_entry, class_firsts, expand_classes
+    nodes = {'q|#a.g0': SimpleNamespace(branches=('file', 'neither')),
+             'q|#b.g2': SimpleNamespace(branches=('initiate_offering', 'file', 'neither')),
+             'q|#c.g2': SimpleNamespace(branches=('initiate_offering', 'file', 'neither'))}
+    draws = 512
+    cls = np.array(['#b.g2' if i % 2 else None for i in range(draws)], dtype=object)  # live on odd draws only
+    entry = class_entry('q', cls, None)
+    paths = [DisputePath('d', (), 'done', (('q', answer),), classes=(entry,))
+             for answer in ('initiate_offering', 'file', 'neither')]
+    first = class_firsts(nodes)
+    assert first['q'] == 'q|#a.g0'
+    expanded = expand_classes(paths, nodes, draws, frozenset(), first)
+    assert {k for p in expanded for k, _ in p.edges} <= {'q|#b.g2', 'q|#c.g2'}
+    count, result = totals(paths, nodes, draws, frozenset(), distributions(nodes), first)
+    assert count == 3
+    np.testing.assert_allclose(result['d'], 1, atol=1e-10, rtol=0)

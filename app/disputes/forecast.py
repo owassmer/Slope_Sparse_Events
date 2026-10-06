@@ -433,7 +433,31 @@ def class_firsts(known, dead=frozenset()) -> dict:
         for k in dead:
             base = k.split("|" + CLASS_TAG)[0]
             first[k] = domains[base, tuple(known[k].branches)]
+    if isinstance(known, Mapping):
+        # By answer set: the class an inactive draw reads must offer exactly the answers the path's sibling paths
+        # take there (`expand_classes`), or the draw's answers do not sum to one (or the path's own answer is
+        # missing). ("by", base, answers) -> a class offering those answers (live first, then the first by key);
+        # ("full", base) -> every answer any class of the question offers.
+        for k in sorted(known):
+            if "|" + CLASS_TAG not in k:
+                continue
+            base = k.split("|" + CLASS_TAG)[0]
+            answers = frozenset(known[k].branches)
+            at = ("by", base, answers)
+            if at not in first or (first[at] in dead and k not in dead):
+                first[at] = k
+            first[("full", base)] = first.get(("full", base), frozenset()) | answers
     return first
+
+
+def inactive_class(k: str, tags: tuple, known, first: dict) -> str:
+    """The class tag a path's draws read for question k where its class record says the question is not live
+    there: a class offering the answers of the path's live classes (`tags`), so that the sibling paths' answers on
+    those draws sum to one; with no live class on the path, the class offering every answer. The answer books
+    nothing on those draws, so which class of that answer set is read does not change any figure."""
+    want = (frozenset().union(*(known[f"{k}|{t}"].branches for t in tags)) if tags
+            else first.get(("full", k))) if isinstance(known, Mapping) else None
+    return first.get(("by", k, want), first[k]).rsplit("|", 1)[1]
 
 
 def expand_classes(paths: list, known, n: int, dead=frozenset(), first: dict | None = None) -> list:
@@ -468,8 +492,8 @@ def expand_classes(paths: list, known, n: int, dead=frozenset(), first: dict | N
                 fixed[k] = f"{k}|{tags[0]}"
             else:
                 c = np.frombuffer(codes, dtype=np.int8).astype(np.int64)
-                if (c < 0).any():  # not live on these draws: the question's first class anywhere
-                    t0 = first[k].split("|")[-1]
+                if (c < 0).any():  # not live on these draws: a class offering the path's answers there
+                    t0 = inactive_class(k, tags, known, first)
                     tags = tags if t0 in tags else (*tags, t0)
                     c = np.where(c < 0, tags.index(t0), c)
                 cols.append((k, tags, c))
