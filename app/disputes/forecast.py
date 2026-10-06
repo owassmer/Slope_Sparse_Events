@@ -3030,6 +3030,8 @@ class _Walk:
         """The judgment default: the holders give notice and accelerate, then the issuer files, or else three holders
         file, or the notes stay due and unpaid. Paying the notes is removed by arithmetic."""
         f = self.fin
+        if any(st[:2] == ("judgment_default", phase) for st in s.steps):
+            return then(s)
         if f is None or not f.judgment_default_days or not self.arises(s, ("judgment_default", phase, "no")):
             return then(s)
         probe = ("judgment_default", phase, "no")
@@ -3156,6 +3158,7 @@ class _Walk:
         after = lambda y: self.notes_petition(y, "I1", self.ruling)  # noqa: E731
 
         if self.pend and self.reading() == "entered" and s.a4 == "seek" \
+                and not any(st[:2] == (self.resp, "ripe") for st in s.steps) \
                 and self.arises(s, (self.resp, "ripe", self.quiet)):
             return self.a4(s, "ripe", after, after)
         after(s)
@@ -3527,6 +3530,32 @@ class _Walk:
         day = self._listing_dates()['delisted_suspension']
         return ('delisted_suspension', day) if day < self.N else None
 
+    def _first_ripe(self, s: _S, probe, then) -> bool:
+        """Resolve the entered-judgment default before a later levy response or distress decision.
+
+        The I1 levy can follow the default date. Walking its response first (and inserting distress before
+        that response) would choose answer domains before an earlier offering has used the share capacity.
+        """
+        ripe = (self.resp, "ripe", self.quiet)
+        if not self.pend or not self.fc.equity or self.reading() != "entered" or s.a4 != "seek" \
+                or probe[:2] == ripe[:2] or probe[0] == "judgment_default" \
+                or any(st[:2] == ripe[:2] or st[0] in ("judgment_default", "post_trial_ruling") for st in s.steps):
+            return False
+        a, x = self._trace(s.steps + (ripe,)), self._trace(s.steps + (probe,))
+        day, at = a.day[-1], x.day[-1]
+        pet = np.where(a.petition < 0, np.iinfo(np.int64).max, a.petition)
+        parent = self.mask_of(s.steps)
+        parent = np.ones(self.fc.draws.n, dtype=bool) if parent is None else parent
+        before = parent & (day < at) & (at < self.N) & (day < pet) & (at < pet)
+        if not before.any():
+            return False
+        after = lambda y: self.notes_petition(y, "I1", then)  # noqa: E731
+        self.scoped(before, lambda: self.a4(s, "ripe", after, after))
+        rest = parent & ~before
+        if rest.any():
+            self.scoped(rest, lambda: then(s))
+        return True
+
     def _first_listing(self, s: _S, probe, then) -> bool:
         """Resolve only the next listing-stage decision, on draws where it precedes the parent decision."""
         if not self.fc.equity or not self.pend or self.d is None or probe[0] == 'listing_date' \
@@ -3588,10 +3617,33 @@ class _Walk:
     def distress(self, s: _S, outcome: str, then=None) -> None:
         """The distress loop: the first of the next decisions that arises inside the period before any petition is
         asked, and after each of its branches the loop again; where none arises, the path ends (or `then`)."""
-        for c in self._candidates(s):
-            if self.inside(s.steps + (c,)):
-                return self.ask_distress(s, c, outcome, then)
-        return self._end(s, outcome, then)
+        candidates, pick = self._next_distress(s)
+        for j, c in enumerate(candidates):
+            on = pick == j
+            if on.any():
+                self.scoped(on, lambda c=c: self.ask_distress(s, c, outcome, then))
+        rest = pick == -1
+        parent = self.mask_of(s.steps)
+        if parent is not None:
+            rest &= parent
+        if rest.any():
+            self.scoped(rest, lambda: self._end(s, outcome, then))
+
+    def _next_distress(self, s: _S):
+        """The earliest outstanding distress decision per draw, not merely the first in walk order."""
+        candidates = self._candidates(s)
+        best = np.full(self.fc.draws.n, self.N, dtype=np.int64)
+        pick = np.full(self.fc.draws.n, -1, dtype=np.int8)
+        parent = self.mask_of(s.steps)
+        for j, c in enumerate(candidates):
+            tr = self._trace(s.steps + (c,))
+            day = tr.day[-1]
+            pet = np.where(tr.petition < 0, np.iinfo(np.int64).max, tr.petition)
+            on = (day < best) & (day < pet)
+            if parent is not None:
+                on &= parent
+            best, pick = np.where(on, day, best), np.where(on, j, pick)
+        return candidates, pick
 
     def _first_distress(self, s: _S, probe, then) -> bool:
         """Ask earlier distress only on the draws where it precedes the actor's decision.
@@ -3603,11 +3655,12 @@ class _Walk:
         dx = x.day[-1]
         parent = self.mask_of(s.steps)
         parent = np.ones(self.fc.draws.n, dtype=bool) if parent is None else parent
-        for c in self._candidates(s):
+        candidates, pick = self._next_distress(s)
+        for j, c in enumerate(candidates):
             a = self._trace(s.steps + (c,))
             t = a.day[-1]
             pet = np.where(a.petition < 0, np.iinfo(np.int64).max, a.petition)
-            before = parent & (t < dx) & (dx < self.N) & (t < pet) & (dx < pet)
+            before = parent & (pick == j) & (t < dx) & (dx < self.N) & (t < pet) & (dx < pet)
             if not before.any():
                 continue
             rest = parent & ~before
@@ -3733,6 +3786,8 @@ class _Walk:
         some trajectory, so every later-dated question's facts include it; the question's situation keeps the model's
         rule (a condition holding on only some trajectories stays unstated). 4.0.0 asks them last, as recorded.
         Returns whether it asked one; `then` continues each of its branches."""
+        if self._first_ripe(s, probe, then):
+            return True
         if self._first_listing(s, probe, then):
             return True
         if self.fc.equity:
