@@ -32,7 +32,7 @@ echo "=== worker on $task ($WORKER) in $ws" > "$log"; echo "=== dispatched by se
 echo "=== steerable (pid $$): scripts/steer $run \"<message>\" (or --stop)" >> "$log"
 on_err() { echo "=== finished exit $1 (${0##*/} stopped at line $2)" >> "$log"; }
 trap 'on_err $? $LINENO' ERR
-stop_product() { DRIVE_STATE="$ws/.drive/state.json" tools/drive/drive stop >/dev/null 2>&1 || true; }
+stop_product() { DRIVE_STATE="$ws/.drive/state.json" tools/drive/drive stop >/dev/null 2>&1 || true; pkill -f "$ws/" 2>/dev/null || true; }  # and anything else the worker left running there
 # At most two workers run at once on this machine (each walk takes about a gigabyte); a third waits for a slot.
 slot=""; locks=/private/tmp/slope-locks; mkdir -p "$locks"
 alive() { [ -n "$1" ] && kill -0 "$1" 2>/dev/null; }
