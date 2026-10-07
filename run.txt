@@ -1,7 +1,9 @@
-# 001-4a: review-date chronological walk, independent no-skip and no-future checks; stream each history, stop after 15 minutes.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker chronological --root review --row 0 --order --seconds 900
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker chronological --root review --row 127 --order --seconds 900
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker chronological --root review --row 255 --order --seconds 900
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker chronological --root review --row 383 --order --seconds 900
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run pytest tests/test_chronological_walk.py -k domains_and_synthetic_mass
-# After 001-3a/3b/3c: the no-future check over the current walker's whole tree from the review date, eight draws, bounded to 15 minutes each.
+# Walk only, review-date whole trees; independent native draws, 1000s including setup, partial results streamed to var/diag/001-5b.
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 0 --seconds 1000
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 73 --seconds 1000
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 146 --seconds 1000
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 219 --seconds 1000
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 292 --seconds 1000
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 365 --seconds 1000
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 438 --seconds 1000
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 511 --seconds 1000

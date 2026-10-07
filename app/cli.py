@@ -5,6 +5,19 @@ import typer
 cli = typer.Typer(no_args_is_help=True, help="Slope external-event credit scenario module")
 
 
+@cli.command("measure-walk")
+def measure_walk(
+    row: int = typer.Option(0, min=0, max=511, help="Native draw in the 512-draw population."),
+    seconds: float = typer.Option(900, min=0.001, max=1000, help="Time budget including setup; no inline checks."),
+) -> None:
+    """Measure one draw's whole chronological tree from review; no model calls."""
+    import json
+
+    from app.analysis.walk_measurement import measure
+
+    typer.echo(json.dumps(measure(row=row, seconds=seconds)))
+
+
 @cli.command()
 def version() -> None:
     """Print the package version."""
