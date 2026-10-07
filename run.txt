@@ -1,5 +1,6 @@
-# 001-2a: single-draw jobs for the 20-minute runner limit; 355/404 reproduced the sign failure locally.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 355 --smoke-row 404
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 714 --smoke-row 404
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 470 --walker current --smoke-row 404
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 713 --walker current --smoke-row 404
+# 001-1o: whole current tree from review, independent native draws; partial counts survive RUN_MINUTES.
+# Counts describe completed history/question occurrences, not probabilities or a completed-tree census.
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 0
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 127
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 255
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 404

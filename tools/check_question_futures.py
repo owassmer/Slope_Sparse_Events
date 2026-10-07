@@ -10,11 +10,12 @@ import argparse
 import json
 import pickle
 import sys
-import time
-from collections import Counter
+from copy import copy
 from pathlib import Path
 
 import numpy as np
+
+from tools.measurement_stream import MeasurementStream, emitted_histories
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests'))
 from benchmark_chronological import root  # noqa: E402
@@ -65,46 +66,46 @@ def main():
     folder.mkdir(parents=True, exist_ok=True)
     stem = f'{args.walker}-{args.draws}-' + (str(native) if state is None else args.root)
     saved = folder / f'{stem}.pkl'
-    start = time.perf_counter()
-    if args.saved:
-        with saved.open('rb') as source:
-            nodes, grouped, out, records = pickle.load(source)
-        fc.nodes, fc.grouped = nodes, grouped
-    else:
-        walk = _Walk(fc, d) if state is None else ChronologicalWalk(fc, d)
-        with question_records(walk) as records:
-            if state is None:
-                walk.run()
-            else:
-                walk.run_from(state, np.ones(fc.draws.n, dtype=bool))
-        out = walk.out
-        with saved.open('wb') as target:
-            pickle.dump((fc.nodes, fc.grouped, out, records), target, protocol=pickle.HIGHEST_PROTOCOL)
-    walked = time.perf_counter() - start
-    print(json.dumps(dict(stage='walked', histories=len(out), seconds=walked)), flush=True)
-    counts, questions, kinds, examples, checked, violations = Counter(), Counter(), Counter(), {}, 0, 0
-    with (folder / f'{stem}-violations.jsonl').open('w') as target:
-        for row in range(fc.draws.n):
-            checker = FutureChecker(fc, d, row, records)
-            for p in out:
-                mask = path_mask(p, fc.draws.n)
+    metadata = dict(walker=args.walker, draws=fc.draws.n, native_row=native if args.draws == 1 else None,
+                    root=None if state is None else args.root, loaded_saved=args.saved,
+                    scope='whole tree from review' if state is None else 'saved root',
+                    counting='question occurrences in completed history/draws, not probability weighted')
+    with MeasurementStream(folder / f'{stem}.json', metadata) as stream:
+        def consume(p):
+            checks = []
+            mask = path_mask(p, fc.draws.n)
+            # Replay may create rebuilt nodes; do not let those alter the live walk.
+            replay_fc = copy(fc)
+            replay_fc.nodes, replay_fc.grouped = dict(fc.nodes), set(fc.grouped)
+            for row in range(fc.draws.n):
                 if mask is not None and not mask[row]:
                     continue
-                checked += 1
-                for v in checker.history(p):
-                    violations += 1
-                    counts[v['node']] += 1
-                    kinds[v['kind']] += 1
-                    examples.setdefault(v['node'], v)
-                    target.write(json.dumps(dict(row=row, **v)) + '\n')
-            questions.update(checker.checked)
-    result = dict(walker=args.walker, draws=fc.draws.n, native_row=native if args.draws == 1 else None,
-                  root=None if state is None else args.root, histories=len(out), history_draws=checked,
-                  violations=violations, kinds=dict(kinds), by_question_node=dict(counts),
-                  questions_checked=dict(questions), examples=examples,
-                  loaded_saved=args.saved, load_or_walk_seconds=walked, total_seconds=time.perf_counter() - start)
-    (folder / f'{stem}.json').write_text(json.dumps(result, indent=2) + '\n')
-    print(json.dumps({k: v for k, v in result.items() if k != 'examples'}), flush=True)
+                checker = FutureChecker(replay_fc, d, row, records)
+                try:
+                    bad = checker.history(p)
+                except AssertionError as exc:
+                    # Missing recording/replay coverage is unknown, never a pass.
+                    checks.append(dict(row=row, violations=[], check_error=str(exc)))
+                else:
+                    checks.append(dict(row=row, violations=bad, questions_checked=checker.checked))
+            stream.append(dict(history=stream.histories, steps=p.steps, outcome=p.outcome, checks=checks))
+
+        if args.saved:
+            with saved.open('rb') as source:
+                nodes, grouped, out, records = pickle.load(source)
+            fc.nodes, fc.grouped = nodes, grouped
+            for p in out:
+                consume(p)
+        else:
+            walk = _Walk(fc, d) if state is None else ChronologicalWalk(fc, d)
+            with question_records(walk) as records, emitted_histories(walk, consume):
+                if state is None:
+                    walk.run()
+                else:
+                    walk.run_from(state, np.ones(fc.draws.n, dtype=bool))
+            with saved.open('wb') as target:
+                pickle.dump((fc.nodes, fc.grouped, walk.out, records), target, protocol=pickle.HIGHEST_PROTOCOL)
+    print(json.dumps({k: v for k, v in stream.result.items() if k != 'examples'}), flush=True)
 
 
 if __name__ == '__main__':

@@ -127,48 +127,52 @@ def main():
                   setup_s=time.perf_counter() - t0)
     suffix = '' if args.smoke_row is None else f'-smoke{args.smoke_row}'
     target = OUT / f'{args.root}-{args.walker}{suffix}.json'
+    from tools.measurement_stream import MeasurementStream, emitted_histories
+
     result['status'] = 'started'
     target.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result), flush=True)
     start = time.perf_counter()
-    try:
+    with MeasurementStream(target, result) as stream:
+        if args.check:
+            sys.path.insert(0, str(Path('tests').resolve()))
+            from walk_order import Checker
+            checkers = {int(row): Checker(fc, d, int(row), len(state.steps))
+                        for row in np.flatnonzero(population)}
+
+        def consume(p):
+            checks = []
+            if args.check:
+                mask = path_mask(p, fc.draws.n)
+                for row, checker in checkers.items():
+                    if mask is None or mask[row]:
+                        from datetime import timedelta
+
+                        bad = checker.history(p)
+                        for violation in bad:
+                            violation['date'] = (fc.review + timedelta(days=int(violation['day']))).isoformat()
+                        checks.append(dict(row=row, violations=bad))
+            stream.append(dict(history=stream.histories, steps=p.steps, outcome=p.outcome,
+                               elapsed_s=time.perf_counter() - start, checks=checks))
+
         if args.walker == 'chronological':
             if r['chronological_unavailable']:
                 raise NotImplementedError(r['chronological_unavailable'])
             w = ChronologicalWalk(fc, d)
-            w.run_from(state, population)
+            with emitted_histories(w, consume):
+                w.run_from(state, population)
         else:
             w = old
             w._population, w._watch = population, watches
-            getattr(_Walk, r['continuation'])(w, state, *a, **kw)
+            with emitted_histories(w, consume):
+                getattr(_Walk, r['continuation'])(w, state, *a, **kw)
         result.update(status='walked', walk_s=time.perf_counter() - start, histories=len(w.out),
                       peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss *
                       (1 if sys.platform == 'darwin' else 1024))
-        target.write_text(json.dumps(result, indent=2) + '\n')
-        if args.check:
-            # The existing no-skip invariant replays one draw at a time; do not
-            # pretend a multi-draw history is a single-draw saved-root history.
-            sys.path.insert(0, str(Path('tests').resolve()))
-            from walk_order import Checker
-            start = time.perf_counter()
-            violations, checked = [], 0
-            for row in np.flatnonzero(population):
-                checker = Checker(fc, d, int(row), len(state.steps))
-                for p in w.out:
-                    mask = path_mask(p, fc.draws.n)
-                    if mask is None or mask[row]:
-                        checked += 1
-                        violations.extend(dict(row=int(row), **v) for v in checker.history(p))
-            result['check'] = dict(history_draws=checked, violations=len(violations),
-                                   examples=violations[:20], seconds=time.perf_counter() - start)
-            if violations:
-                raise RuntimeError(f'no-skip check: {len(violations)} violations')
-    except Exception as e:
-        result.update(status='failed', error=repr(e), elapsed_s=time.perf_counter() - start)
-        raise
-    finally:
-        target.write_text(json.dumps(result, indent=2) + '\n')
-        print(json.dumps(result), flush=True)
+        stream.result.update(result)
+        if stream.violations:
+            raise RuntimeError(f'no-skip check: {stream.violations} violations')
+    print(json.dumps(stream.result), flush=True)
 
 
 if __name__ == '__main__':
