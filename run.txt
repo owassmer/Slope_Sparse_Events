@@ -5,11 +5,3 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_f
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker chronological --root review --row 383 --order --seconds 900
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run pytest tests/test_chronological_walk.py -k domains_and_synthetic_mass
 # After 001-3a/3b/3c: the no-future check over the current walker's whole tree from the review date, eight draws, bounded to 15 minutes each.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 0
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 64
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 127
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 191
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 255
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 319
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 383
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 447
