@@ -48,7 +48,7 @@ cleanup() {
 trap cleanup EXIT
 
 # The product, from the committed code, with its own environment and the saved answers and snapshots.
-git archive HEAD -- app cases tools "$KIT" runs/recorded pyproject.toml uv.lock .python-version | tar -x -C "$product"
+git archive HEAD -- app cases tools "$KIT" runs/recorded pyproject.toml uv.lock .python-version README.md | tar -x -C "$product"
 mkdir -p "$product/outcomes" && cp outcomes/*.json "$product/outcomes/" 2>/dev/null || true
 for v in jev_cache evidence runs sweeps analysis; do [ -d "var/$v" ] && mkdir -p "$product/var" && cp -cR "var/$v" "$product/var/$v"; done
 (cd "$product" && uv sync --frozen --offline -q) >> "$log" 2>&1
