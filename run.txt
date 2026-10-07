@@ -1,16 +1,9 @@
-# 001-3c: date-local deferred facts and recurring settlement; four current trees from review, independent native draws.
-# Runner time limits retain incremental diagnostic counts; no cloud or judgment calls.
-# Counts describe completed history/question occurrences, not probabilities or a completed-tree census.
+# After 001-3a/3b/3c: the no-future check over the current walker's whole tree from the review date, eight draws, 20 minutes each.
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 0
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 64
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 127
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 191
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 255
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 404
-# 001-2b: diagnostic root-598 samples, one draw per command (20-minute runner limit).
-# The no-progress error now records the selected original draw IDs, date and history.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 0
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 7
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 8
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 63
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 145
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 279
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 383
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 319
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 383
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 447
