@@ -123,3 +123,61 @@ def test_floor_after_an_offering_that_closes_before_the_stay_approval():
     assert w.walk_groups(probe)[row] >= 0
     tr = w._raw(probe, True)
     assert (int(tr.day[-1][row]), int(tr.petition[row])) == (133, 159)
+
+
+def test_stay_resizes_when_a_waiting_decision_or_levy_changes_its_balance():
+    """none279 (draw 279): the stay approved on day 112 is sized on the balance after the day-77 levy and the waiting
+    offerings dated before it. Queuing them books nothing, so the cash version alone did not re-size the stay: on a
+    one-draw slice the stay kept its pre-levy security, and resuming the walk's cached whole-draw prefix then dated
+    the stay-window settlement (settle I4) never, with no offer, so the walk dropped a $2.1M question. The stay's
+    state on the draw must not depend on which other draws share the chain."""
+    from app.analysis.events import Trace, canon
+
+    prefix, row, _ = root_none279()
+    history = canon(prefix + (("post_trial_ruling", "", "unchanged"), ("appeal", "", "no"),
+                              ("judgment_response", "post", "@2=none"), ("cash_floor", "1", "@2=initiate_offering"),
+                              ("offering", "floor1", "yes"), ("judgment_response", "ripe", "@3=initiate_offering")))
+    w = walker()
+    fc = w.fc
+    whole = Chain(w.d, fc.setup, fc.m, fc.draws, fc.sens)
+    whole.instrument_cash()
+    one = whole.sliced(np.array([row]), fc.draws.sub(np.arange(512) == row))
+    tw, to = Trace(whole.ev), Trace(one.ev)
+    for step in history:
+        whole.advance(tw, *step)
+        one.advance(to, *step)
+        assert (int(whole.stayed_from[row]), int(whole.lock_amount[row])) == \
+            (int(one.stayed_from[0]), int(one.lock_amount[0])), step
+    # resume the whole-draw state on the draw alone, as the prefix cache does, and finish the walked history
+    resumed = whole.sliced(np.array([row]), fc.draws.sub(np.arange(512) == row))
+    tr = Trace(resumed.ev)
+    for step in (("offering", "ripe", "yes"), ("judgment_default", "I1", "holders_file"), ("settle", "I4", "no")):
+        resumed.advance(tr, *step)
+    assert (int(resumed.rec[0][-1][0]), int(resumed.settle_offer[0])) == (112, 210_454_192)
+
+
+def root_none279():
+    from benchmark_chronological import root
+
+    return root("none279")
+
+
+def test_walk_order_check_finds_the_skipped_stay_settlement():
+    """The check judges a history by its own dated facts: before the stay fix the chronological walk emitted this
+    none279 history without the day-112 stay-window settlement, which the check reports as missing; asking it
+    (either answer) leaves nothing pending and due."""
+    from types import SimpleNamespace
+
+    from walk_order import Checker
+
+    prefix, row, _ = root_none279()
+    w = walker()
+    check = Checker(w.fc, w.d, row, len(prefix))
+    h = prefix + (("post_trial_ruling", "", "unchanged"), ("appeal", "", "no"), ("judgment_response", "post", "@2=none"),
+                  ("cash_floor", "1", "@2=initiate_offering"), ("offering", "floor1", "yes"),
+                  ("judgment_response", "ripe", "@3=initiate_offering"), ("offering", "ripe", "yes"),
+                  ("judgment_default", "I1", "holders_file"))
+    assert check.history(SimpleNamespace(steps=h)) == [
+        dict(kind="missing", decision=["settle", "I4"], day=112, before=None, at=None)]
+    for answer in ("@1=no", "@1=yes"):
+        assert check.history(SimpleNamespace(steps=h + (("settle", "I4", answer),))) == []

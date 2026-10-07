@@ -1,8 +1,8 @@
-# 001-1f: the chronological walk beside the current walker, one saved root per job, and the focused tests
-uv run python tests/benchmark_chronological.py saved
-uv run python tests/benchmark_chronological.py none279
-uv run python tests/benchmark_chronological.py none383
-uv run python tests/benchmark_chronological.py offer7
-uv run python tests/benchmark_chronological.py other4
-uv run python tests/benchmark_chronological.py other5
-uv run pytest -p no:warnings tests/test_chronological_walk.py tests/test_decision_frontier.py tests/test_dated_answer_domains.py tests/test_ripe_after_levy.py
+# 001-1h: the chronological walk on each saved root, then the walk-order check on its own histories (report in var/diag/001-1h/<root>.json)
+uv run python tests/walk_order.py saved
+uv run python tests/walk_order.py none279
+uv run python tests/walk_order.py none383
+uv run python tests/walk_order.py offer7
+uv run python tests/walk_order.py other4
+uv run python tests/walk_order.py other5
+uv run pytest -p no:warnings tests/test_chronological_walk.py tests/test_decision_frontier.py tests/test_ripe_after_levy.py tests/test_cash_processing.py tests/test_decision_snapshots.py

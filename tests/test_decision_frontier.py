@@ -98,7 +98,9 @@ def test_day74_ruling_precedes_day77_floor():
     # The old replay books the pending day-77 levy to discover its day-77
     # floor. Discovery must not book that levy past the unresolved day-74 ruling.
     assert dates(frontier, 'levy')[279] == 77
-    assert dates(frontier, 'cash_floor', '1')[279] == 117  # booked cash only
+    # Booked cash only. The queued day-77 levy precedes the stay's day-112 approval, so the stay is sized after it
+    # and locks nothing (117 was the stale pre-levy lock, kept while queuing the levy booked no cash).
+    assert dates(frontier, 'cash_floor', '1')[279] == 179
     steps = NONE[:8] + (('cash_floor', '1', 'neither'),)
     replay = event_trace(chain.d, DisputePath(chain.iid, steps, '', ()), chain.s, chain.m, chain.dr)
     assert replay.day[-1][279] == 77

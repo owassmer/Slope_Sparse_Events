@@ -1822,7 +1822,7 @@ class Chain:
         causal: one pass settles it."""
         if not self.daily or not self.stays or self._restaying:
             return
-        key = self._owed_key()
+        key = self._stay_key()
         if self._stay_cv == self._cv and self.__dict__.get("_stay_owed") == key and not force:
             return
         self._stay_owed = key
@@ -1834,6 +1834,14 @@ class Chain:
         finally:
             self._restaying = False
         self._stay_cv = self._cv
+
+    def _stay_key(self) -> tuple:
+        """What a stay's sizing reads besides the booked event cash: the amount owed (`_owed_key`), and the waiting
+        decisions and pending levy dated before the approval that `seen_at` books into its balance. Neither books
+        anything when walked, so the cash version alone misses them (a one-draw slice then keeps a stale stay)."""
+        lv = self.pending_levy
+        return (self._owed_key(), tuple((w[0], w[2], w[3].tobytes()) for w in self.waiting),
+                None if lv is None else np.asarray(lv).tobytes())
 
     def bond_collateral(self, approval: np.ndarray) -> np.ndarray:
         """The bond (the path judgment plus §1961 interest over the appeal) times the collateral share."""
@@ -3032,7 +3040,7 @@ class Chain:
         new.dr, new.basis, new.n, new.rows, new._ev_own = dr, dr.basis, len(sel), np.arange(len(sel)), set()
         new._refresh_pending_levy()
         if "_stay_owed" in self.__dict__:  # the stays current here are current there (`restay`)
-            new._stay_owed = new._owed_key() if self._stay_owed == self._owed_key() else None
+            new._stay_owed = new._stay_key() if self._stay_owed == self._stay_key() else None
         if self._price_key is not None and self._price_key == self._owed_key():  # the price is current (`_reprice`)
             new._price_key = new._owed_key()
         return new
