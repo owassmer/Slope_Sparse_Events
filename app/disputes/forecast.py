@@ -742,7 +742,9 @@ def masked(p: _Prefix, m: np.ndarray | None) -> _Prefix:
 
 INTERVAL_PHRASES = {"I1": "before the post-trial ruling", "I2": "after the post-trial ruling, before the appeal deadline",
                     "I3": "judgment enforceable and unstayed, after the appeal deadline",
-                    "I4": "judgment stayed on approved security", "post": "after the post-trial ruling",
+                    "I4": "judgment stayed on approved security", "Istay": "a stay has taken effect before the ruling",
+                    "Iappeal": "the company has filed an appeal", "Ienforce": "the creditor has levied",
+                    "post": "after the post-trial ruling",
                     "ripe": "after the post-trial ruling, on the date the notes' judgment default ripens"}
 DELISTING_PHRASES = {"delisted_panel": "stock delisted on the Hearings Panel's decision",
                      "delisted_suspension": "stock delisted on suspension, with no hearing"}
@@ -2734,7 +2736,10 @@ class _Walk:
         moved = self.stay_court(s, approval, f"stay_{ctx}")
         for answer, branch, then in (("yes", "yes", then_yes), ("no", "denied", then_denied)):
             edge = composite([[(motion, "yes"), (approval, answer)]])
-            then(self.take(moved, ("stay", ctx, branch), (edge, "yes"), (motion,)))
+            # The motion is one before-answer question. Its neutral record above
+            # also represents the moved branches; their completed stay row is the
+            # court's later decision, not another motion record.
+            then(self.take(moved, ("stay", ctx, branch), (edge, "yes"), ()))
 
     def settle(self, s: _S, interval: str, then_no, then_yes=None) -> None:
         """A settlement exists only where its amount (cash above the 30-day need, capped at the amount owed) is
@@ -2903,7 +2908,8 @@ class _Walk:
         before the ruling on some trajectory (events.py debtor_response)."""
         if not self.arises(s, (self.resp, "I1", self.quiet)):
             return self.ripe_i1(s)
-        self.a4(s, "I1", self.ripe_i1, lambda y: self.emit(y, "petition"))
+        self.a4(s, "I1", lambda y: self.settle(y, "Ienforce", self.ripe_i1),
+                lambda y: self.emit(y, "petition"))
 
     def a4(self, s: _S, phase: str, then, on_file, i3: bool = False) -> None:
         """The company's response: on the levy day before the levy (I1, post), or at the post-ruling judgment
@@ -3173,6 +3179,11 @@ class _Walk:
     def ripe_i1(self, s: _S) -> None:
         """The judgment as entered (QUESTIONS §3.1 base): on the day the default becomes available the company
         responds (D2), then the holders decide (H1). The response books on its own day (events.py `waits`)."""
+        if self.pend and s.stayed and not any(st[:2] == ("settle", "Istay") for st in s.steps):
+            return self.settle(s, "Istay", self.ripe_after_stay)
+        self.ripe_after_stay(s)
+
+    def ripe_after_stay(self, s: _S) -> None:
         after = lambda y: self.notes_petition(y, "I1", self.ruling)  # noqa: E731
 
         if self.pend and self.reading() == "entered" and s.a4 == "seek" \
@@ -3248,7 +3259,7 @@ class _Walk:
         i0 = len(self.out)
         if self.pend:  # QUESTIONS §4.1 D5, §1 Depth: asked only where a later question reads the appeal
             w = _Watch({"appealed": self._raw(s.steps + (yes,), True).marks["appealed"]},
-                       nodes=frozenset({"enforce_after_final"}))  # its context, its levy day and J4 read the appeal
+                       nodes=frozenset({"enforce_after_final", "settlement_offer", "settlement_accept"}))
             if not self._watched(s, no, w, self.stay_post):
                 return  # not asked: the path books the no-appeal branch (the step, no edge)
         k = self.node("appeal", s.cls, s=s, probe=no, assumptions=("a money judgment remains outstanding",))
@@ -3256,9 +3267,12 @@ class _Walk:
             self.fc.record((k,), self._facts(s.steps + (yes,)))
             self.fc.record((k,), self._facts(s.steps + (no,)))
             self._edge_after(i0, len(s.edges), (k, "no"))
-            return self.stay_post(s.add(yes, (k, "yes"), appealed=True))
-        self.stay_post(self.take(s, yes, (k, "yes"), (k,), appealed=True))
+            return self.appeal_settlement(s.add(yes, (k, "yes"), appealed=True))
+        self.appeal_settlement(self.take(s, yes, (k, "yes"), (k,), appealed=True))
         self.stay_post(self.take(s, no, (k, "no"), (k,)))
+
+    def appeal_settlement(self, s: _S) -> None:
+        self.settle(s, "Iappeal", self.stay_post)
 
     def stay_post(self, s: _S) -> None:
         if s.stayed:

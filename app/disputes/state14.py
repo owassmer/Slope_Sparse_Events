@@ -1014,7 +1014,7 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     verdict = n.node in ("verdict_finding", "verdict_amount")
     # Routing tags remain part of identity. Current standing and dated actions
     # come from the question's engine snapshot, not a second account of status.
-    dated_tags = {"Ientry", "I1", "I2", "I3", "I4", "post", "ripe", "motions_pending", "motions_open",
+    dated_tags = {"Ientry", "I1", "I2", "I3", "I4", "Istay", "Iappeal", "Ienforce", "post", "ripe", "motions_pending", "motions_open",
                   "stay_pending", "stay_moved", "stay_denied", "stay_approved", "stay_resolved",
                   "stayed", "paid", "settled", "notes_due", "delisted", "levied", "unlevied", "executing"}
     history_tags = [tag for tag in tags if g is None or

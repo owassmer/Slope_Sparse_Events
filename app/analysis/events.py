@@ -2380,6 +2380,12 @@ class Chain:
                     if self.pending else full(-1))
         if ctx == "Ientry":
             return self.E_ix.copy(), deadline
+        if ctx == "Istay":
+            return np.where(self.stayed_from < self.F, self.stayed_from, BIG), self.F.copy()
+        if ctx == "Ienforce":
+            return self.marks["levied"].copy(), self.F.copy()
+        if ctx == "Iappeal":
+            return self.marks["appealed"].copy(), full(self.N - 1)
         e1 = deadline if self.pending else full(-1)
         i4 = np.maximum(self.stayed_from, self.F) if self.pending else self.stayed_from
         start = {"I1": e1, "I2": self.F, "I3": np.maximum(self.EF, self.AD), "I4": i4}[ctx]
@@ -3446,7 +3452,8 @@ class Chain:
         return {"day": day.copy(), "cash": self.decision_cash(day).copy(), "owed": self.owed_at(day).copy(),
                 "collateral": self.collateral_required.copy(), "petition": self.ev.petition.copy(),
                 "marks": _copied(self.marks_now()), "triggers": _copied(self.trigger_days()), "sit": sit,
-                "settle_offer": self.settle_offer.copy(), "stay_offer": self.stay_offer.copy(),
+                "settle_offer": self.settle_offer.copy() if node == "settle" else np.zeros(self.n, dtype=np.int64),
+                "stay_offer": self.stay_offer.copy() if node in ("stay", "court_order") else np.zeros(self.n, dtype=np.int64),
                 "raise_offer": self.offer_available(day),
                 "groups": self.option_group(node, day) if node in GROUPED else None}
 
