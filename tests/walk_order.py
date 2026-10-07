@@ -223,6 +223,240 @@ class Checker:
         return bad
 
 
+class FutureChecker:
+    """§1: an emitted question must be reconstructible without later answers.
+
+    `records` is the recording-boundary sidecar from question_history, not a
+    second walk. Early records identify their probe prefix; completed records
+    identify their entire emitted history. Same-day steps retain engine order.
+    Cached replays are shared only for identical histories/probes on this draw.
+    Unknown/unopened contexts are reported, never replaced with a guessed state.
+    """
+
+    def __init__(self, fc, d, row, records):
+        from collections import defaultdict
+
+        self.fc, self.d, self.row = fc, d, row
+        self.replayer = Checker(fc, d, row, 0)
+        from copy import copy
+
+        self.replayer.draws = copy(fc.draws)  # preserve native keyed uniforms, including SubDraws
+        self.replayer.draws.prefixes = None
+        self.records = defaultdict(list)
+        for (key, prefix, completed), blobs in records.items():
+            self.records[key].append((prefix, completed, blobs))
+        self.cache, self.rebuilt_cache = {}, {}
+        self.checked = {}
+
+    def snapshot(self, key, steps, index, probe, deferred):
+        identity = key, steps, index, probe, deferred
+        if identity not in self.rebuilt_cache:
+            if len(self.rebuilt_cache) >= 1024:
+                self.rebuilt_cache.pop(next(iter(self.rebuilt_cache)))
+            self.rebuilt_cache[identity] = self.rebuild(key, steps, index, probe, deferred)
+        return self.rebuilt_cache[identity]
+
+    def local(self, value):
+        """Select this native draw; keep typed missing values and exact cents."""
+        if isinstance(value, np.ndarray):
+            selected = value[self.row] if value.ndim and len(value) == self.fc.draws.n else value
+            return selected.tolist() if hasattr(selected, 'tolist') else selected
+        if isinstance(value, dict):
+            return {k: self.local(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [self.local(v) for v in value]
+        if isinstance(value, np.generic):
+            return value.item()
+        return value
+
+    def facts(self, row):
+        from app.analysis.events import BIG
+        from app.disputes.forecast import pack_row, unpack_row
+
+        # Canonicalize absence on this draw, not on its original pooled group.
+        # A trigger BIG here may have been retained because another draw had it.
+        one = {**row, 'day': np.where(self.replayer.mask, row['day'], BIG)}
+        return self.local(unpack_row(pack_row(one)))
+
+    def rebuild(self, key, steps, index, probe, deferred):
+        from app.disputes.forecast import _Walk, as_of, group_classes
+        from app.disputes.notes import NAMES, decision_row, record_row
+
+        fc, d = self.fc, self.d
+        base = key.split('|#', 1)[0]
+        node = fc.nodes[base]
+        before = steps[:index] + steps[index + 1:]  # every retained earlier-date event, not just traversal prefix
+        verdict = next((b for n, _, b in before if n == 'verdict'), '')
+        ruling = next((b for n, _, b in before if n == 'post_trial_ruling'), '')
+        label = 'award' + verdict.split(':')[1] if verdict.startswith('award:') else verdict or 'claimed'
+        if ruling.startswith('reduced:'):
+            label = 'reduced' + ruling.split(':')[1]
+        elif ruling == 'set_aside':
+            label = 'set_aside'
+        walk = _Walk(fc, d)
+        # Contexts are declarations, not facts supplied by the replay. Rebuild
+        # their amount/stage labels too: replaying an unchanged I1 key would
+        # silently preserve the very future-motion dependency being tested.
+        ctx = node.context.split('|') if node.context else []
+        ctx = [label if c.startswith(('award', 'reduced')) or c in ('claimed', 'set_aside') else c for c in ctx]
+        if node.node == 'judgment_response' and any(c in ('first', 'after_none', 'after_offer') for c in ctx):
+            dated = self.replayer.replay(steps, day_only=True)
+            own_day = int(_at(dated.day[index], self.row, fc.draws.n))
+            responses = [(int(_at(dated.day[i], self.row, fc.draws.n)), i, plain(b))
+                         for i, (n, _, b) in enumerate(steps) if i != index and n == 'judgment_response'
+                         and not b.startswith('@-1=')
+                         and (i < index or int(_at(dated.day[i], self.row, fc.draws.n)) < own_day)]
+            answer = max(responses)[2] if responses else None
+            after = 'after_offer' if answer == 'initiate_offering' else 'after_none' if answer == 'none' else 'first'
+            ctx = [after if c in ('first', 'after_none', 'after_offer') else c for c in ctx]
+        if node.node == 'enforce_after_final':
+            appealed = any(n == 'appeal' and plain(b) == 'yes' for n, _, b in before)
+            ctx = [('appealed' if appealed else 'final') if c in ('appealed', 'final') else c for c in ctx]
+        unopened = None
+        if ctx and ctx[0] in ('I1', 'I2', 'I4'):
+            motions = next((b for n, _, b in before if n == 'post_trial_motions'), None)
+            if d.stage == 'liability_pending':
+                if ctx[0] == 'I1' and motions != 'yes':
+                    unopened = 'I1 requires the post-trial motions answer yes'
+                elif ctx[0] == 'I2' and not ruling and motions != 'no':
+                    unopened = 'I2 requires the motions answer no or a post-trial ruling'
+                elif ctx[0] == 'I4' and not any(n == 'appeal' for n, _, _ in before):
+                    unopened = 'I4 requires the appeal decision'
+        # Remove historical tags and derive them anew from the dated row.
+        conditions = walk.situation_conditions(node.node)
+        ctx = [c for c in ctx if c not in conditions and c not in ('motions_pending', 'stay_pending', 'stay_denied')]
+        rebuilt_base = fc.node(d, node.node, *ctx, assumptions=node.assumptions, branches=node.branches)
+        if node.node in NAMES:
+            actor = 'holders' if node.node == 'holders_involuntary' else 'issuer'
+            row, tr = decision_row(fc, d, steps, index, actor, self.replayer.mask)
+            got = []
+            original = fc._keep_late
+            fc._keep_late = lambda k, p, r: got.append((k, r))
+            try:
+                record_row(fc, d, steps, rebuilt_base, index, row, tr)
+            finally:
+                fc._keep_late = original
+        else:
+            completed = fc.completed_probe(base, steps, index) if deferred else None
+            replay = completed if completed is not None else steps[:index] + (probe,) + steps[index + 1:]
+            at = len(replay) - 1 if completed is not None else index
+            path = DisputePath(self.d.instance_id, tuple(replay), '', ())
+            tr = event_trace(self.d, path, fc.setup, fc.m, self.replayer.draws, fc.sens,
+                             rows=tuple(self.replayer.mask for _ in replay))
+            raw = tr.questions.get(at)
+            if raw is None:
+                raw = dict(day=tr.day[at], cash=tr.cash[at], owed=tr.owed[at], collateral=tr.collateral[at],
+                           petition=tr.events.petition, settle_offer=tr.settle_offer, stay_offer=tr.stay_offer,
+                           triggers=tr.triggers, raise_offer=tr.raise_offer, sit=tr.situations.get(at),
+                           marks=tr.marks, groups=tr.groups.get(at))
+            row = as_of(raw)
+            cls = fc.dated_class(d, rebuilt_base, replay, row) if fc._classified(base) else None
+            if base in fc.grouped:
+                fc.grouped.add(rebuilt_base)
+                cls = group_classes(cls, row['groups'])
+            got = []
+            fc._split((rebuilt_base,), row, lambda k, r: got.append((k, r)), cls)
+        live = [(k, r) for k, r in got if fc.live(fc.nodes[k], r)[self.row]]
+        if not live:
+            return dict(key=None, cls=None, facts=None, unavailable='question not live after date-local replay')
+        if len(live) != 1:
+            raise AssertionError('multiple classes for one question/draw')
+        k, r = live[0]
+        return dict(key=None if unopened else k, cls=k.split('|#', 1)[1] if '|#' in k else None,
+                    facts=self.facts(r), **({'unavailable': unopened} if unopened else {}))
+
+    def history(self, p):
+        from datetime import timedelta
+
+        from app.disputes.forecast import atoms, unpack_row
+
+        fc, row = self.fc, self.row
+        mask = path_mask(p, fc.draws.n)
+        if mask is not None and not mask[row]:
+            return []
+        classes, inactive = {}, set()
+        slot = row if mask is None else int(mask[:row].sum())
+        for base, tags, codes in p.classes:
+            code = 0 if codes is None else int(np.frombuffer(codes, dtype=np.int8)[slot])
+            if code >= 0:
+                classes[base] = fc.class_key(base, tags[code])
+            else:
+                inactive.add(base)
+        keys = {classes.get(k, k) for edge, _ in p.edges for k in atoms(edge) if k not in inactive}
+        tr = self.replayer.replay(p.steps, day_only=True)
+        days = [int(_at(day, row, fc.draws.n)) for day in tr.day]
+        bad = []
+        for key in sorted(keys):
+            matches = []
+            for prefix, completed, blobs in self.records.get(key, ()):
+                if completed is not None:
+                    if completed != p.steps:
+                        continue
+                    index, probe = len(prefix), p.steps[len(prefix)]
+                else:
+                    if not prefix or p.steps[:len(prefix) - 1] != prefix[:-1]:
+                        continue
+                    index, probe = len(prefix) - 1, prefix[-1]
+                    if index >= len(p.steps) or p.steps[index][:2] != probe[:2]:
+                        continue
+                for blob in blobs:
+                    recorded = unpack_row(blob)
+                    if not fc.live(fc.nodes[key], recorded)[row]:
+                        continue
+                    matches.append((index, probe, completed is not None, blob, recorded))
+            # Some edge atoms are logical/composite prerequisites, not an asked
+            # event (e.g. verdict-form arithmetic); they have no dated record.
+            if not matches:
+                if fc.nodes[key].question_id not in fc.no_cash and ('|#' in key or not fc._classified(key)):
+                    raise AssertionError(f'No recorded occurrence for emitted question {key}')
+                continue
+            for index, probe, deferred, blob, recorded in matches:
+                name = fc.nodes[key].node
+                self.checked[name] = self.checked.get(name, 0) + 1
+                day = int(recorded['day'][row])
+                later = [i for i, at in enumerate(days) if at > day and i != index]
+                kept = tuple(s for i, s in enumerate(p.steps) if i not in later)
+                own = index - sum(i < index for i in later)
+                identity = (key, kept, own, probe, deferred, blob)
+                if identity not in self.cache:
+                    rebuilt = self.snapshot(key, kept, own, probe, deferred)
+                    original = dict(key=key, cls=key.split('|#', 1)[1] if '|#' in key else None,
+                                    facts=self.facts(recorded))
+                    changed = [k for k in original if original[k] != rebuilt[k]]
+                    if len(self.cache) >= 1024:
+                        self.cache.pop(next(iter(self.cache)))
+                    self.cache[identity] = (changed, rebuilt)
+                changed, rebuilt = self.cache[identity]
+                if changed:
+                    # Deletion witnesses, not a list of unrelated future steps:
+                    # each reported removal changed the reconstructed question.
+                    # Reverse traversal order preserves prerequisites longest;
+                    # all later steps are nevertheless removed by the end.
+                    remaining = list(range(len(p.steps)))
+                    previous = self.snapshot(key, p.steps, index, probe, deferred)
+                    recorded_question = dict(key=key, cls=key.split('|#', 1)[1] if '|#' in key else None,
+                                             facts=self.facts(recorded))
+                    dependencies = []
+                    for removed in reversed(later):
+                        remaining.remove(removed)
+                        part = tuple(p.steps[i] for i in remaining)
+                        after = self.snapshot(key, part, remaining.index(index), probe, deferred)
+                        delta = [k for k in changed if previous[k] == recorded_question[k]
+                                 and after[k] != recorded_question[k]]
+                        if delta:
+                            dependencies.append(dict(step=list(p.steps[removed]), day=days[removed],
+                                                     date=str(fc.review + timedelta(days=days[removed])),
+                                                     changed=delta))
+                        previous = after
+                    bad.append(dict(kind='future_conditioning' if dependencies else 'record_replay_mismatch',
+                                    question=key, node=fc.nodes[key].node, depends_on=dependencies,
+                                    date=str(fc.review + timedelta(days=day)), day=day,
+                                    changed=changed, later_steps=[dict(step=list(p.steps[i]), day=days[i],
+                                    date=str(fc.review + timedelta(days=days[i]))) for i in later],
+                                    recorded=dict(key=key, facts=self.facts(recorded)), rebuilt=rebuilt))
+        return bad
+
+
 def check(fc, d, out, row, prefix):
     c = Checker(fc, d, row, prefix)
     found, kinds, decisions = [], {}, {}

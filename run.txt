@@ -17,3 +17,10 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronolo
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 79 --walker current
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 470 --walker current
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 713 --walker current
+# 001-1n: no judgment/hydration calls; complete review-date tree and one saved chronological root.
+# Only queued here; no cloud work submitted by this task.
+# The full review-date tree is heavy even on one draw: do not run it on the Mac.
+# This diagnostic has no full-tree segment mode; cut-root runs omit the early settlement questions.
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --draws 1 --row 0
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --draws 512
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker chronological --root saved --draws 512
