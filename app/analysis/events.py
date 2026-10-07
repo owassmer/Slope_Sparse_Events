@@ -2710,6 +2710,10 @@ class Chain:
         moved = False
         tdone = next((w[3] for w in self.waiting if w[0] == target), None) if target is not None else None
         while self.waiting:
+            # A waiting booking can change an already chosen stay's security.
+            # Re-size before discovering the next cash trigger, not only at
+            # finish: otherwise a floor can disappear until after its probe.
+            self.restay()
             if tdone is not None:  # the target's day is known once it is booked on the trajectory
                 before = np.where(tdone, self.rec[0][target] + 1, self.N)
             best = np.full(self.n, BIG + 1, dtype=np.int64)

@@ -104,3 +104,22 @@ def test_saved_root_domains_and_synthetic_mass(prefix, row, cls):
     assert tr.questions[i]["day"][145] == 161
     assert tr.questions[i]["sit"]["ledger"][145] == 43_329_542
     assert tr.events.cash[145, 166] == 382_249_451
+
+
+def test_floor_after_an_offering_that_closes_before_the_stay_approval():
+    """other5 (draw 63): the ripe-response offering closes before the stay's day-117 approval. Its proceeds are
+    in the balance the stay's security is sized on, so the next floor is dated on the re-sized lock (day 133,
+    before the holders' petition on 159), in the question's replay as in the chronological walk's chain."""
+    from benchmark_chronological import root
+
+    prefix, row, cls = root("other5")
+    steps = prefix + (("post_trial_ruling", "", "unchanged"), ("settle", "I2", "no"), ("appeal", "", "no"),
+                      ("judgment_response", "ripe", "@2=initiate_offering"), ("offering", "ripe", "yes"),
+                      ("judgment_default", "I1", "holders_file"))
+    assert prefix[2] == ("judgment_response", "entry", "@3=initiate_offering")
+    w = walker()
+    w._population = np.arange(512) == row
+    probe = steps + (("cash_floor", "1", "neither"),)
+    assert w.walk_groups(probe)[row] >= 0
+    tr = w._raw(probe, True)
+    assert (int(tr.day[-1][row]), int(tr.petition[row])) == (133, 159)
