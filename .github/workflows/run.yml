@@ -18,7 +18,7 @@ jobs:
   run:
     needs: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 340
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 40
@@ -41,7 +41,8 @@ jobs:
           mkdir -p out
           echo "$CMD" > out/command.txt
           set -o pipefail
-          bash -c "$CMD" 2>&1 | tee out/log.txt
+          # Every line answers within its limit (RUN_MINUTES, default 20); what it wrote by then is still uploaded.
+          timeout --signal=TERM --kill-after=60 "${RUN_MINUTES:-20}m" bash -c "$CMD" 2>&1 | tee out/log.txt
       - if: always()
         uses: actions/upload-artifact@v4
         with:

@@ -19,6 +19,8 @@ Slope Sparse Events is a work sample for Russell, Slope's Head of Lending. He as
   every pull request.
 - Heavy computation (several walks, the full suite, anything over a few minutes or a gigabyte): put one command per
   line in `run.txt` and commit it; it runs on GitHub's runners, and its outputs come back under `var/remote/`.
+  Each line is stopped after 20 minutes, so design it to answer within that: sample, split across lines, and write
+  results as you go, so a line that is stopped still answers.
 - Run and use the product: `drive` (`drive --help`).
 
 ## How work is done here

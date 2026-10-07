@@ -32,7 +32,7 @@ nothing applied (`scripts/steer <run> --stop`); what you tell a worker this way 
 
 Heavy computation does not run on this Mac (8 GB, shared with other sessions): a worker puts it in `run.txt`, one
 command per line, and you run it on GitHub's runners with `scripts/remote <name>`, which pushes to `run/<name>`, waits,
-downloads each job's output to `var/remote/<name>/` and tells you when it finishes. GitHub's runners are free; AWS
+downloads each job's output to `var/remote/<name>/` and tells you when it finishes. No run is worth hours of waiting: a line has 20 minutes, so ask for the smallest run that answers the question, and act on partial results rather than waiting for a run to finish. GitHub's runners are free; AWS
 (personal account, profile `slope`, us-east-2) is paid, used only within a budget Owen has set, and never with
 automatic shutdown or termination. Stop an idle paid host yourself.
 Your own drive is `tools/drive/drive` (it can also start and stop the product).
