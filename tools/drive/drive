@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""drive: use the product as a user would.
+
+The product is the analysis page served over recorded runs, and the `slope` command line. You open pages, click,
+type values into fields and sliders, press keys, and read what the page shows; you send the product's HTTP routes as an
+API client would, and run its command line. The actions are the same for every feature.
+
+  drive see [--all] [--json]         What the page shows: its text, its numbered controls, and any errors.
+  drive open [path]                  Go to a path (/, /runs/<run>, ...) and show the page.
+  drive click <number|text>          Click a control by its number from `see`, or the first thing showing that text.
+  drive type <number|text> <value>   Text into a field, an option into a list, a value onto a slider.
+  drive press <key> [number|text]    Press a key (Enter, ArrowRight, ...), on a control if given.
+  drive send <METHOD> <path> [json]  An HTTP request to the product, as an API client would.
+  drive run [--timeout s] -- <args>  The product's command line: `slope <args>`.
+  drive status                       Where the product is running, and from which code.
+  drive restart                      Reopen the product from the current code (after you change it).
+{starter}
+What the product runs with has no route to a paid call: judgment-model requests are answered only from saved
+responses, and there are no cloud, Claude or GitHub credentials. A feature that fails for want of either is a finding,
+not something to work around. Errors say what to do next.
+"""
+
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+ROLE = os.environ.get("DRIVE_ROLE")  # set for a worker or verifier: the product is started for them
+HERE = Path(__file__).resolve().parent
+STARTER = """
+  drive start [--workspace <dir>] [--dry-run]   Start the product from a workspace's code (default this checkout),
+                                                with a headless browser on it.
+  drive stop [--dry-run]                        Stop the product and the browser.
+"""
+
+
+def top() -> Path:
+    out = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    return Path(out.stdout.strip()) if out.returncode == 0 else Path.cwd()
+
+
+def state_file() -> Path:
+    return Path(os.environ.get("DRIVE_STATE") or top() / ".drive" / "state.json")
+
+
+def state() -> dict | None:
+    p = state_file()
+    if not p.exists():
+        return None
+    s = json.loads(p.read_text())
+    try:
+        os.kill(s["pid"], 0)
+    except PermissionError:  # a role's sandbox may not signal the server, which is still there
+        return s
+    except OSError:
+        return None
+    return s
+
+
+def fail(msg: str) -> None:
+    print(f"drive: {msg}", file=sys.stderr)
+    sys.exit(2)
+
+
+def post(body: dict, timeout: int = 900) -> dict:
+    s = state()
+    if s is None:
+        fail("the product is not running" + ("; it is started for you, so tell the coordinator in your final message."
+                                            if ROLE else ". Run `drive start` first."))
+    req = urllib.request.Request(f"http://127.0.0.1:{s['control']}/", data=json.dumps(body).encode(), method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return json.loads(e.read() or b"{}")
+    except (urllib.error.URLError, ConnectionError) as e:
+        fail(f"the product's control port is not answering ({e}). Run `drive status`.")
+
+
+def emit(obj: dict, as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(obj, indent=1, default=str))
+        return
+    if "error" in obj:
+        print(f"drive: {obj['error']}", file=sys.stderr)
+        sys.exit(2)
+    for k, v in obj.items():
+        if k == "controls":
+            print("controls (use the number with click/type/press):")
+            runs: list[list[dict]] = []
+            for c in v:  # alike neighbours (same kind, label and link) print as one line
+                key = (c["kind"], c["label"], c.get("href"))
+                if runs and (runs[-1][0]["kind"], runs[-1][0]["label"], runs[-1][0].get("href")) == key:
+                    runs[-1].append(c)
+                else:
+                    runs.append([c])
+            for run in runs:
+                first, last = run[0], run[-1]
+                if len(run) > 2:
+                    print(f"  [{first['ref']}-{last['ref']}] {first['kind']}: {first['label'] or '(no label)'}"
+                          f"  ({len(run)} alike)")
+                    continue
+                for c in run:
+                    extra = " ".join(f"{a}={c[a]}" for a in ("value", "min", "max", "checked", "disabled", "href")
+                                     if c.get(a) not in (None, "", False))
+                    print(f"  [{c['ref']}] {c['kind']}: {c['label']}" + (f"  ({extra})" if extra else ""))
+        elif k in ("text", "body"):
+            print(f"--- {k} ---")
+            print(v)
+            print("--- end ---")
+        elif isinstance(v, list):
+            if v:
+                print(f"{k}:")
+                for item in v:
+                    print(f"  {item}")
+        else:
+            print(f"{k}: {v}")
+
+
+def start(opts: dict) -> dict:
+    if ROLE:
+        fail("the product is started for you; `drive restart` reopens it from your current code.")
+    ws = Path(opts.get("workspace") or top()).resolve()
+    sf = state_file()
+    if state():
+        return {"already running": state()["url"], "hint": "drive stop first to restart"}
+    cmd = ["uv", "run", "--quiet", "--script", str(HERE / "server.py"), str(ws), str(sf)]
+    if opts.get("dry-run"):
+        return {"would run": " ".join(cmd)}
+    sf.parent.mkdir(parents=True, exist_ok=True)
+    sf.unlink(missing_ok=True)
+    log = (sf.parent / "server.log").open("a")
+    proc = subprocess.Popen(cmd, cwd=ws, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    deadline = time.time() + int(opts.get("wait", 240))
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            fail(f"the product did not start; read {sf.parent / 'server.log'} and {sf.parent / 'product.log'}")
+        if state():
+            return {"started": state()["url"], "workspace": str(ws), "next": "drive open /"}
+        time.sleep(0.5)
+    fail(f"the product did not answer within {opts.get('wait', 240)} s; read {sf.parent / 'server.log'}")
+
+
+def parse(argv: list[str]) -> tuple[list[str], dict]:
+    args, opts, i = [], {}, 0
+    flags = {"dry-run", "all", "json", "help"}
+    while i < len(argv):
+        a = argv[i]
+        if a == "--":
+            args += argv[i + 1:]
+            break
+        if a.startswith("--"):
+            k = a[2:]
+            if k in flags or i + 1 >= len(argv):
+                opts[k] = True
+            else:
+                opts[k], i = argv[i + 1], i + 1
+        else:
+            args.append(a)
+        i += 1
+    return args, opts
+
+
+def main() -> None:
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help", "help"):
+        print(__doc__.format(starter="" if ROLE else STARTER))
+        return
+    cmd = sys.argv[1]
+    args, opts = parse(sys.argv[2:])
+    if cmd == "start":
+        return emit(start(opts), opts.get("json"))
+    if cmd == "stop":
+        if ROLE:
+            fail("the product is stopped for you when you finish.")
+        if state() is None:
+            return emit({"stopped": "nothing was running"}, opts.get("json"))
+        if opts.get("dry-run"):
+            return emit({"would stop": state()["url"]}, opts.get("json"))
+        return emit(post({"cmd": "stop"}), opts.get("json"))
+    if cmd not in ("see", "open", "click", "type", "press", "send", "run", "status", "restart"):
+        fail(f"unknown command {cmd!r}; drive --help lists them")
+    need = {"click": 1, "type": 2, "press": 1, "send": 2}
+    if len(args) < need.get(cmd, 0):
+        fail(f"`drive {cmd}` needs {need[cmd]} argument(s); drive --help shows them")
+    emit(post({"cmd": cmd, "args": args, "opts": {k: v for k, v in opts.items() if k != "json"}}), opts.get("json"))
+
+
+if __name__ == "__main__":
+    main()

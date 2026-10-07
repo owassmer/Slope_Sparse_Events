@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# scripts/worktree <outcome id>    A coordinator's own checkout for one outcome, beside the main one and ready to run.
+#
+# Checks out branch outcome/<id> (cut from main if it does not exist yet) in ../<repo>-<id>, syncs its Python
+# environment, clones the factory's Node dependencies and the main checkout's var/ (saved answers, snapshots) copy-on-
+# write. Each checkout keeps its own .runs/, so a coordinator working there is told only about its own runs. Prints the
+# folder.
+set -euo pipefail
+id="${1:?usage: scripts/worktree <outcome id>}"
+main="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd -P)"
+dir="$(dirname "$main")/$(basename "$main")-$id"
+[ -e "$dir" ] && { echo "$dir already exists" >&2; exit 2; }
+cd "$main"
+if git show-ref --verify --quiet "refs/heads/outcome/$id"; then git worktree add -q "$dir" "outcome/$id"
+else git worktree add -q -b "outcome/$id" "$dir" main; fi
+for m in tools/roles/node_modules; do [ -d "$main/$m" ] && cp -cR "$main/$m" "$dir/$m"; done
+[ -d "$main/var" ] && cp -cR "$main/var" "$dir/var"
+(cd "$dir" && uv sync --frozen -q)
+echo "$dir"

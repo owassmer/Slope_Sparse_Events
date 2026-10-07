@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# scripts/remote <name> [--attach <run id>]    Run each line of run.txt on its own GitHub runner (.github/workflows/run.yml).
+# Pushes the committed head to run/<name>, waits for the run, downloads every job's out/ to var/remote/<name>/, and
+# writes .runs/remote-<name>-<time>.log ending "=== finished exit <n>", so the coordinator is told when it is done.
+# Called by the coordinator; workers have no GitHub credentials. --attach follows a run already started.
+set -euo pipefail
+name="${1:?usage: scripts/remote <name> [--attach <run id>]}"
+root="$(git rev-parse --show-toplevel)"; cd "$root"
+[ -f run.txt ] || { echo "no run.txt: write one command per line first" >&2; exit 2; }
+git diff --quiet HEAD -- run.txt .github || { echo "commit run.txt first: the runners check out the commit" >&2; exit 2; }
+log=".runs/remote-$name-$(date +%Y%m%dT%H%M%S).log"; mkdir -p .runs
+sha="$(git rev-parse HEAD)"
+{
+  echo "=== remote run $name at ${sha:0:7}: $(grep -cv '^\s*\(#\|$\)' run.txt) jobs"
+  echo "=== dispatched by session ${PI_SESSION_ID:-none}"
+  echo "=== steerable (pid $BASHPID): not steerable; it follows a GitHub run"
+  if [ "${2:-}" = --attach ]; then id="$3"; else
+    git push -q --force origin "HEAD:refs/heads/run/$name"
+    for _ in $(seq 30); do
+      id="$(gh run list --branch "run/$name" --commit "$sha" --workflow run.yml --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+      [ -n "$id" ] && break; sleep 5
+    done
+  fi
+  echo "run https://github.com/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/actions/runs/$id"
+  set +e
+  gh run watch "$id" --interval 60 --exit-status > /dev/null 2>&1; status=$?
+  set -e
+  dest="var/remote/$name"; rm -rf "$dest"; mkdir -p "$dest"
+  gh run download "$id" --dir "$dest" > /dev/null 2>&1 || true
+  gh run view "$id" --json jobs --jq '.jobs[] | "\(.conclusion) \(.name)"'
+  echo "outputs: $dest"
+  echo "=== finished exit $status"
+} > "$log" 2>&1 &
+echo "remote run $name: $log"

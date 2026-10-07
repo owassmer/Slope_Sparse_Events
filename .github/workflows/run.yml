@@ -1,0 +1,52 @@
+name: run
+# Runs each line of run.txt as its own job on a GitHub runner, up to 40 at once, and uploads what it writes to out/.
+# Started by a push to a branch named run/<name>; nothing else starts it.
+on:
+  push:
+    branches: ['run/**']
+permissions:
+  contents: read
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      lines: ${{ steps.p.outputs.lines }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: p
+        run: echo "lines=$(python3 -c 'import json; print(json.dumps([l.strip() for l in open("run.txt") if l.strip() and not l.lstrip().startswith("#")]))')" >> "$GITHUB_OUTPUT"
+  run:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 40
+      matrix:
+        cmd: ${{ fromJSON(needs.plan.outputs.lines) }}
+    env:
+      CMD: ${{ matrix.cmd }}
+      SLOPE_JEV_CACHE_ONLY: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - name: Run the line
+        run: |
+          mkdir -p out
+          echo "$CMD" > out/command.txt
+          set -o pipefail
+          bash -c "$CMD" 2>&1 | tee out/log.txt
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: out-${{ strategy.job-index }}
+          path: |
+            out/
+            var/diag/
+          if-no-files-found: ignore
