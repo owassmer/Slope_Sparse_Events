@@ -20,5 +20,6 @@ set +e
 pi --mode json --no-session --approve --model "$WORKER" "Read AGENTS.md and $task. Make it true in the running
   product, then commit." | tee ".runs/$run.jsonl" | scripts/watch --render >> ".runs/$run.log"
 status=${PIPESTATUS[0]}; set -e
+.agents/skills/verify/drive stop >/dev/null 2>&1 || true   # a product the worker left running
 echo "=== finished exit $status" >> ".runs/$run.log"
 exit "$status"

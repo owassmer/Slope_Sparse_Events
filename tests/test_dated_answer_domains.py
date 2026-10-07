@@ -48,12 +48,19 @@ def test_saved_floor_failure_is_rewalked_with_feasible_answer_domains(monkeypatc
     assert floor['day'][row] == 155
     assert floor['sit']['ledger'][row] == 0
     assert floor['groups'][row] == 0  # not a snapshot taken after this decision's answer
-    # The two saved petition_cash_out findings share the same earlier offering.
+    # The saved petition_cash_out findings (day 161, group 0) came from a stale stay: sized at $0 before the day-96
+    # offering's day-101 proceeds were booked, so the day-161 writ levied $3.47M, then re-sized effective from 148.
+    # Sized on the dated balance ($3.09M on day 148, $370k above the need posted), the stay is effective from 148,
+    # the day-161 writ is stayed and takes nothing, and cash never runs out inside the horizon.
+    stay = old.stays[6]
+    assert stay['day'][row] == 148 and stay['cash'][row] == 309_260_877 and stay['stay_offer'][row] == 37_030_653
+    assert old.events.lock[row, 148] == 37_030_653
+    assert not old.events.kinds['levy'][row].any()
     if holder_answer != 'holders_file':
         cash_out = old.questions[11]
-        assert cash_out['day'][row] == 161
-        assert cash_out['groups'][row] == 0
-        assert 'initiate_offering' not in group_branches('cash_out', 0)
+        assert cash_out['day'][row] >= fc.days
+        assert cash_out['groups'][row] == -1
+    assert 'initiate_offering' not in group_branches('cash_out', 0)
 
     # Rewalk every answer from the last prefix before the faulty scheduling,
     # without probabilities, model calls, or discarding inconvenient branches.
