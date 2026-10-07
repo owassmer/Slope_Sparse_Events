@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# gates: lint and the full test suite, one full run at a time on this machine. It waits its turn while another full
+# run holds the machine's lock, and says so. The full suite takes over half an hour here; a focused run of the tests
+# you are working on (uv run pytest tests/<file>) needs no turn: use it while working. The full suite also runs in CI
+# and, for heavy work, on GitHub runners through run.txt. Run from the root of a checkout or workspace.
+set -uo pipefail
+locks=/private/tmp/slope-locks; lock="$locks/gates"
+mkdir -p "$locks" 2>/dev/null
+alive() { local pid="$1" err; [ -n "$pid" ] || return 1; err="$(kill -0 "$pid" 2>&1)" && return 0; [[ "$err" == *"not permitted"* ]]; }
+said=0
+until mkdir "$lock" 2>/dev/null; do
+  holder="$(cat "$lock/pid" 2>/dev/null)"
+  if [ -n "$holder" ] && ! alive "$holder"; then rm -rf "$lock"; continue; fi
+  [ "$said" = 1 ] || { echo "gates: another full run is going (pid ${holder:-?}); waiting for its turn"; said=1; }
+  sleep 5
+done
+echo $$ > "$lock/pid"
+trap 'rm -rf "$lock"' EXIT
+cd "${GATES_ROOT:-.}" && [ -f pyproject.toml ] || { echo "gates: no pyproject.toml here; run from the root of a checkout or workspace"; exit 2; }
+uv run ruff check . && uv run pytest -p no:warnings

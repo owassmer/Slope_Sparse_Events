@@ -6,3 +6,8 @@ scripts/         @owassmer
 .github/         @owassmer
 pyproject.toml   @owassmer
 uv.lock          @owassmer
+.pi/             @owassmer
+tools/drive/      @owassmer
+tools/roles/      @owassmer
+tools/feed/       @owassmer
+tools/gates/      @owassmer

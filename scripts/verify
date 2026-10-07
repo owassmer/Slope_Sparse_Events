@@ -1,42 +1,86 @@
 #!/usr/bin/env bash
 # scripts/verify <outcome file>    A fresh verifier checks the outcome against the running product.
+# scripts/verify --map             A fresh verifier finds every feature a user can reach and writes feature-map.md.
 # Exits 0 when every line of its list works. Called by the coordinator.
 #
-# The verifier works in a throwaway checkout of this commit with tasks/ removed and no .env within reach; it
-# writes its list and feature-map.md there, and this script copies both back and commits them.
+# The product runs from a copy of the committed code, started by this script outside any sandbox (drive's server). The
+# verifier gets its own workspace holding only AGENTS.md, the outcome, feature-map.md, the verify skill and drive, and
+# runs inside the role sandbox (tools/roles/sandbox.ts): it cannot read the product's code, the tasks, git, or anything
+# else outside its workspace, and drive is its only way into the product. Its list and the feature map are copied back
+# and committed; what it noticed is in its final message in the run log, for the coordinator.
+# While it runs, scripts/steer <run> "<message>" reaches the verifier (tools/roles/run.mjs drives Pi in RPC mode), and
+# scripts/steer <run> --stop ends it with no list committed.
+# The run streams to .runs/<run>.log and Pi's events to .runs/<run>.jsonl; the coordinator's session shows it live in a
+# Ghostty split (tools/feed/feed, opened by .pi/extensions/factory-runs.ts), and scripts/watch prints the log.
 set -euo pipefail
-outcome="${1:?usage: scripts/verify outcomes/<NNN>.md}"
-[ -f "$outcome" ] || { echo "scripts/verify: no outcome file $outcome" >&2; exit 2; }
-VERIFIER="claude-cli/claude-opus-5-5:high"   # a different family from the worker; change it here and nowhere else
+VERIFIER="claude-cli/claude-opus-5-5:high"    # a different family from the worker; change it here and nowhere else
+target="${1:?usage: scripts/verify outcomes/<id>.md | --map}"
+root="$(git rev-parse --show-toplevel)"; cd "$root"
 
-repo="$(git rev-parse --show-toplevel)"
-outcome="$(cd "$(dirname "$outcome")" && pwd)/$(basename "$outcome")"; outcome="${outcome#"$repo"/}"
-seen="${outcome%.md}.seen.md"
-scratch="$(mktemp -d)/product"
-git -C "$repo" worktree add --quiet --detach "$scratch" HEAD
+if [ "$target" = --map ]; then
+  seen=outcomes/map.seen.md
+  ask="Find every feature a user can reach in the running product: the analysis page over each recorded run, and the
+slope command line. Write feature-map.md: one line per feature you reached and the steps you took, and nothing you did
+not do in the product. Write $seen as a list, one line per behaviour you tried, each starting with WORKS or BROKEN,
+then what you did and what you saw."
+else
+  [ -f "$target" ] || { echo "no outcome file $target" >&2; exit 2; }
+  seen="${target%.md}.seen.md"
+  ask="Read $target. You did not write this change. Do, as a user, what the outcome says a user can do, then try the
+features that share a layer with what changed. Write $seen as a list, one line per behaviour you tried, each starting
+with WORKS or BROKEN, then what you did and what you saw. Update feature-map.md for each feature you reached."
+fi
+git diff --quiet HEAD -- . ':!tasks' ':!notebook.md' || { echo "commit first: the verifier checks the committed product" >&2; exit 2; }
+
+KIT=Slope_Credit_Scenario_Research_and_Design_Kit
+run="verify-$(basename "${target#--}" .md)-$(date +%Y%m%dT%H%M%S)"; mkdir -p .runs
+log="$root/.runs/$run.log"
+product="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/slope-product.XXXXXX")" && pwd -P)"
+ws="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/slope-verify.XXXXXX")" && pwd -P)"
+echo "=== verifier on $target ($VERIFIER) in $ws" > "$log"; echo "=== dispatched by session ${PI_SESSION_ID:-none}" >> "$log"; echo "run: .runs/$run.log"
+echo "=== steerable (pid $$): scripts/steer $run \"<message>\" (or --stop)" >> "$log"
+on_err() { echo "=== finished exit $1 (${0##*/} stopped at line $2)" >> "$log"; }
+trap 'on_err $? $LINENO' ERR
 cleanup() {
-  (cd "$scratch" && .agents/skills/verify/drive stop >/dev/null 2>&1) || true
-  git -C "$repo" worktree remove --force "$scratch" >/dev/null 2>&1 || true
+  DRIVE_STATE="$ws/.drive/state.json" tools/drive/drive stop >/dev/null 2>&1 || true
+  rm -rf "$product"
 }
 trap cleanup EXIT
-rm -rf "$scratch/tasks"
-cp "$repo/$outcome" "$scratch/$outcome"                       # the outcome as the coordinator wrote it
-[ -f "$repo/feature-map.md" ] && cp "$repo/feature-map.md" "$scratch/feature-map.md"
-rm -f "$scratch/$seen"
 
-# No route to a paid call: saved judgment answers only, no cloud or GitHub credentials.
-export SLOPE_JEV_CACHE_ONLY=1 AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null GH_CONFIG_DIR="$(mktemp -d)"
-unset AWS_PROFILE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN GH_TOKEN GITHUB_TOKEN
+# The product, from the committed code, with its own environment and the saved answers and snapshots.
+git archive HEAD -- app cases tools "$KIT" runs/recorded pyproject.toml uv.lock .python-version README.md | tar -x -C "$product"
+mkdir -p "$product/outcomes" && cp outcomes/*.json "$product/outcomes/" 2>/dev/null || true
+for v in jev_cache evidence runs sweeps analysis; do [ -d "var/$v" ] && mkdir -p "$product/var" && cp -cR "var/$v" "$product/var/$v"; done
+(cd "$product" && uv sync --frozen --offline -q) >> "$log" 2>&1
 
-(cd "$scratch" && pi -p --no-session --approve --model "$VERIFIER" "Read AGENTS.md and $outcome. You did not
-  write this change and must not read the diff, the git history or any file under tasks/. Use the verify skill
-  to do, as a user, what the outcome says a user can do, then try the features that share a layer with what
-  changed. Write $seen as a list, one line per behaviour you tried, each starting with WORKS or BROKEN, then
-  what you did and what you saw. Update feature-map.md for each feature you reached. Do not commit.")
+# The verifier's workspace.
+mkdir -p "$ws/outcomes" "$ws/skill" "$ws/.drive/bin"
+cp AGENTS.md "$ws/AGENTS.md"
+[ "$target" != --map ] && cp "$target" "$ws/$target"
+[ -f feature-map.md ] && cp feature-map.md "$ws/feature-map.md"
+cp .agents/skills/verify/SKILL.md "$ws/skill/SKILL.md"
+cp tools/drive/drive "$ws/.drive/bin/drive"
+DRIVE_STATE="$ws/.drive/state.json" tools/drive/drive start --workspace "$product" >> "$log" 2>&1 || { echo "=== finished exit 4 (the product did not start)" >> "$log"; exit 4; }
 
-[ -f "$scratch/$seen" ] || { echo "scripts/verify: the verifier wrote no $seen" >&2; exit 1; }
-cp "$scratch/$seen" "$repo/$seen"
-cp "$scratch/feature-map.md" "$repo/feature-map.md"
-git -C "$repo" add "$seen" feature-map.md
-git -C "$repo" commit --quiet -m "Verify $(basename "${outcome%.md}") on $(git -C "$repo" rev-parse --short HEAD)" || true
-grep -q '^WORKS' "$repo/$seen" && ! grep -q '^BROKEN' "$repo/$seen"
+node_dir="$(dirname "$(dirname "$(command -v node)")")"
+# The role's own exit status is handled below; the error trap would announce "finished" before the run had.
+trap - ERR; set +e
+(cd "$ws" && ROLE_WORKSPACE="$ws" ROLE_ALLOW_READ="$node_dir" DRIVE_ROLE=verifier DRIVE_STATE="$ws/.drive/state.json" \
+  node "$root/tools/roles/run.mjs" --inbox "$root/.runs/$run.steer" --prompt "You are the verifier. Use the verify skill. $ask
+Say at the end of your final message anything you noticed that would help the next agent." -- \
+  pi --mode rpc --no-session --no-extensions --no-skills --no-context-files --no-prompt-templates \
+    -e "$HOME/.pi/agent/extensions/claude-cli" -e "$root/tools/roles/sandbox.ts" --skill "$ws/skill/SKILL.md" \
+    --tools read,bash,edit,write --model "$VERIFIER" --append-system-prompt "$ws/AGENTS.md" 2>> "$log") \
+  | tee "$root/.runs/$run.jsonl" | scripts/watch --render >> "$log"
+status=${PIPESTATUS[0]}; set -e; trap 'on_err $? $LINENO' ERR
+[ "$status" -eq 7 ] && echo "=== stopped by the coordinator; no list committed" >> "$log"
+if [ "$status" -eq 0 ] && tail -n 20 "$root/.runs/$run.jsonl" | grep -q '"stopReason":"error"'; then status=5; echo "=== the model failed; see the error above" >> "$log"; fi
+[ "$status" -eq 0 ] || { echo "=== finished exit $status" >> "$log"; exit "$status"; }
+
+for f in "$seen" feature-map.md; do [ -f "$ws/$f" ] && mkdir -p "$(dirname "$f")" && cp "$ws/$f" "$f" && git add "$f"; done
+git diff --cached --quiet || git commit -q -m "Verifier: ${target#--}"
+cleanup; trap - EXIT
+rm -rf "$ws" "$ws.tmp"
+clean=1; grep -q '^\(- \)\?WORKS' "$seen" && ! grep -q '^\(- \)\?BROKEN' "$seen" && clean=0
+echo "=== finished exit $clean" >> "$log"
+exit "$clean"
