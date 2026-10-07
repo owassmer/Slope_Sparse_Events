@@ -397,7 +397,18 @@ class FutureChecker:
                     if not prefix or p.steps[:len(prefix) - 1] != prefix[:-1]:
                         continue
                     index, probe = len(prefix) - 1, prefix[-1]
-                    if index >= len(p.steps) or p.steps[index][:2] != probe[:2]:
+                    origin = probe[:2]
+                    if probe[0] == 'court_order':
+                        # Court facts are recorded on the order date, not the
+                        # motion/action date named by the emitted answer. Keep
+                        # the actual probe for reconstruction below.
+                        origin = {
+                            'registration_I1': ('registration_early', 'I1'),
+                            'registration_post': ('enforce', 'post'),
+                            'stay_I1': ('stay', 'I1'),
+                            'stay_post': ('stay', 'post'),
+                        }[probe[1]]
+                    if index >= len(p.steps) or p.steps[index][:2] != origin:
                         continue
                 for blob in blobs:
                     recorded = unpack_row(blob)

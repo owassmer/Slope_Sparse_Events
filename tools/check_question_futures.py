@@ -81,13 +81,10 @@ def main():
                 if mask is not None and not mask[row]:
                     continue
                 checker = FutureChecker(replay_fc, d, row, records)
-                try:
-                    bad = checker.history(p)
-                except AssertionError as exc:
-                    # Missing recording/replay coverage is unknown, never a pass.
-                    checks.append(dict(row=row, violations=[], check_error=str(exc)))
-                else:
-                    checks.append(dict(row=row, violations=bad, questions_checked=checker.checked))
+                # A missing occurrence or replay failure stops the diagnostic;
+                # it must not quietly turn emitted histories into unchecked rows.
+                bad = checker.history(p)
+                checks.append(dict(row=row, violations=bad, questions_checked=checker.checked))
             stream.append(dict(history=stream.histories, steps=p.steps, outcome=p.outcome, checks=checks))
 
         if args.saved:

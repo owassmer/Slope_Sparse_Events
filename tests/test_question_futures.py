@@ -39,6 +39,33 @@ def test_settlement_cannot_borrow_its_interval_from_later_motions(answer, interv
                for s in bad[0]['depends_on'])
 
 
+@pytest.mark.parametrize('context,step', [
+    ('I1', ('registration_early', 'I1', 'yes')),
+    ('I1', ('registration_early', 'I1', 'no')),
+    ('post', ('enforce', 'post', 'levy')),
+    ('post', ('enforce', 'post', 'none')),
+])
+def test_court_order_record_matches_its_emitted_action(context, step):
+    fc, d, state = sample('yes', row=1 if context == 'post' else 0)
+    if context == 'post':
+        state = state.add(('post_trial_ruling', '', 'unchanged'), None)
+        state = state.add(('appeal', '', 'yes'), None)
+    walk = _Walk(fc, d)
+    probe = ('court_order', 'registration_' + context, '')
+    with question_records(walk) as records:
+        key = walk.node('registration_early', context, state.cls, s=state, probe=probe)
+        walk.court(state, key, probe[1])
+        walk.emit(walk.take(state, step, (key, 'yes')), 'unresolved')
+    checker = FutureChecker(fc, d, 0, records)
+    checker.history(walk.out[0])
+    assert checker.checked['registration_early'] == 1
+    # Matching an order must retain its recorded court-date probe for replay,
+    # not substitute the emitted motion/action's date.
+    assert any(identity[3] == probe for identity in checker.rebuilt_cache)
+    with pytest.raises(AssertionError, match='No recorded occurrence'):
+        FutureChecker(fc, d, 0, {}).history(walk.out[0])
+
+
 @pytest.mark.parametrize('native', [0, 145, None])
 @pytest.mark.parametrize('later', [(), (('post_trial_motions', '', 'yes'),), (('post_trial_motions', '', 'no'),)])
 def test_date_local_question_keeps_native_uniforms_and_has_no_violation(native, later):
