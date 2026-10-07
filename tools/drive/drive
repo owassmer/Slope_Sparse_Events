@@ -20,6 +20,8 @@ responses, and there are no cloud, Claude or GitHub credentials. A feature that 
 not something to work around. Errors say what to do next.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import subprocess
