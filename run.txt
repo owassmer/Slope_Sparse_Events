@@ -1,59 +1,19 @@
-# 001-1j: a stay's security computed from the chain's state when read (no restay). Each line its own runner.
-# The chronological walk on each saved root, then the walk-order check on its own histories (var/diag/001-1h/<root>.json)
-uv run python tests/walk_order.py saved
-uv run python tests/walk_order.py none279
-uv run python tests/walk_order.py none383
-uv run python tests/walk_order.py offer7
-uv run python tests/walk_order.py other4
-uv run python tests/walk_order.py other5
-# The tests that pin the stay cases (other5, none279's day-112 settlement, draw 145's cash-out, 001-1f's until) and the stay sizing
-uv run pytest -p no:warnings --durations=10 tests/test_chronological_walk.py tests/test_dated_answer_domains.py tests/test_decision_frontier.py tests/test_ripe_after_levy.py tests/test_cash_processing.py tests/test_decision_snapshots.py tests/test_stay_sizing_reentrancy.py tests/test_stay_motion_history.py tests/test_dated_writs.py tests/test_views.py
-# The full suite, one test file per runner (known failing before this change: test_chains.py::test_each_court_ruling_on_a_motion_has_the_facts_of_its_own_day,
-# test_notes_decision.py::test_later_walked_settlement_restores_a_live_notes_decision, test_notes_decision.py::test_prompt_uses_actual_context_and_classes_override_stale_prefix)
-uv run ruff check .
-uv run pytest -p no:warnings --durations=10 tests/test_analysis.py
-uv run pytest -p no:warnings --durations=10 tests/test_appeal_state.py
-uv run pytest -p no:warnings --durations=10 tests/test_assumptions.py
-uv run pytest -p no:warnings --durations=10 tests/test_bank_row.py
-uv run pytest -p no:warnings --durations=10 tests/test_case_20240514.py
-uv run pytest -p no:warnings --durations=10 tests/test_chains.py
-uv run pytest -p no:warnings --durations=10 tests/test_clef_client.py
-uv run pytest -p no:warnings --durations=10 tests/test_collection_modes.py
-uv run pytest -p no:warnings --durations=10 tests/test_common_model.py
-uv run pytest -p no:warnings --durations=10 tests/test_continuation_capture.py
-uv run pytest -p no:warnings --durations=10 tests/test_court_before_answer.py
-uv run pytest -p no:warnings --durations=10 tests/test_dispute_reading.py
-uv run pytest -p no:warnings --durations=10 tests/test_equity_20240514.py
-uv run pytest -p no:warnings --durations=10 tests/test_evidence_snapshots.py
-uv run pytest -p no:warnings --durations=10 tests/test_finance.py
-uv run pytest -p no:warnings --durations=10 tests/test_forecast_optimizations.py
-uv run pytest -p no:warnings --durations=10 tests/test_investigation_tools.py
-uv run pytest -p no:warnings --durations=10 tests/test_jev_states.py
-uv run pytest -p no:warnings --durations=10 tests/test_line.py
-uv run pytest -p no:warnings --durations=10 tests/test_merge_fleet.py
-uv run pytest -p no:warnings --durations=10 tests/test_mission_isolation.py
-uv run pytest -p no:warnings --durations=10 tests/test_notes_decision.py
-uv run pytest -p no:warnings --durations=10 tests/test_notes_scope.py
-uv run pytest -p no:warnings --durations=10 tests/test_opening_exposure.py
-uv run pytest -p no:warnings --durations=10 tests/test_page_data_20240514.py
-uv run pytest -p no:warnings --durations=10 tests/test_path_archives.py
-uv run pytest -p no:warnings --durations=10 tests/test_pending_claim.py
-uv run pytest -p no:warnings --durations=10 tests/test_pipeline_engine.py
-uv run pytest -p no:warnings --durations=10 tests/test_pipeline.py
-uv run pytest -p no:warnings --durations=10 tests/test_pool_coverage.py
-uv run pytest -p no:warnings --durations=10 tests/test_pool_fleet.py
-uv run pytest -p no:warnings --durations=10 tests/test_pooled_flow.py
-uv run pytest -p no:warnings --durations=10 tests/test_prepared_question_wording.py
-uv run pytest -p no:warnings --durations=10 tests/test_question_mass_check.py
-uv run pytest -p no:warnings --durations=10 tests/test_question_petition.py
-uv run pytest -p no:warnings --durations=10 tests/test_question_preparation_transport.py
-uv run pytest -p no:warnings --durations=10 tests/test_question_refresh_fleet.py
-uv run pytest -p no:warnings --durations=10 tests/test_question_refresh.py
-uv run pytest -p no:warnings --durations=10 tests/test_reduce_fleet.py
-uv run pytest -p no:warnings --durations=10 tests/test_reduced_question_band.py
-uv run pytest -p no:warnings --durations=10 tests/test_saved_result_restore.py
-uv run pytest -p no:warnings --durations=10 tests/test_semantic_layer.py
-uv run pytest -p no:warnings --durations=10 tests/test_share_price.py
-uv run pytest -p no:warnings --durations=10 tests/test_tail_walk.py
-uv run pytest -p no:warnings --durations=10 tests/test_viewer.py
-uv run pytest -p no:warnings --durations=10 tests/test_walk_refinement.py
+# 001-1k: native cut-6 roots, 512 draws; one root/walker per runner.
+# IMPORTANT: only 12 native roots match ChronologicalWalk.run_from's current entry point.
+# See tools/measurements/001-1k/README.md. These cannot support a full-tree projection yet.
+# Each command also writes the complete skeleton inventory to var/diag/001-1k/roots.json.
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 79 --check
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 80
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 238
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 239
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 354
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 355
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 470 --check
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 471
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 599
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 713 --check
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 714
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 79 --walker current
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 470 --walker current
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 713 --walker current
