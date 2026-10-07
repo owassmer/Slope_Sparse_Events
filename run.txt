@@ -6,3 +6,4 @@ uv run python tests/walk_order.py offer7
 uv run python tests/walk_order.py other4
 uv run python tests/walk_order.py other5
 uv run pytest -p no:warnings tests/test_chronological_walk.py tests/test_decision_frontier.py tests/test_ripe_after_levy.py tests/test_cash_processing.py tests/test_decision_snapshots.py
+uv run pytest -p no:warnings tests/test_dated_answer_domains.py
