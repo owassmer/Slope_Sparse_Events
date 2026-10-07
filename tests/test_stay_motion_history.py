@@ -349,7 +349,7 @@ def test_inactive_deferred_question_keeps_original_domains_without_conditioning_
     np.testing.assert_array_equal(fc.canon_get(key, state.steps), domain)
 
 
-def test_prospective_settlement_retains_waiting_read_dependencies(case):  # noqa: F811
+def test_prospective_settlement_does_not_fire_later_waiting_answers(case):  # noqa: F811
     from app.analysis.events import Trace
 
     fc, dispute = case
@@ -360,23 +360,14 @@ def test_prospective_settlement_retains_waiting_read_dependencies(case):  # noqa
     approval = list(chain.stays.values())[-1]['approval']
     start, pricing = approval - 15, approval + 15
     before = {k: v.copy() for k, v in chain.__dict__.get('_vfired', {}).items()}
-    observed = []
-    seen_at = Chain.seen_at
-
-    def read(self, day, levy=False, **kw):
-        view = seen_at(self, day, levy, **kw)
-        if '_prospective_before' in self.__dict__ and np.array_equal(day, pricing):
-            observed.append((self.reads.copy(), {k: v.copy() for k, v in self._vfired.items()}))
-        return view
-
-    with patch.object(Chain, 'seen_at', read):
-        chain.settle(start, np.full(chain.n, chain.N - 1), False)
-    assert len(observed) == 1
-    horizon, fired = observed[0]
-    assert any((days < BIG).any() for days in fired.values())
-    assert (chain.reads >= horizon).all()
-    for index, days in fired.items():
-        np.testing.assert_array_equal(chain._vfired[index], np.minimum(before.get(index, BIG), days))
+    chain.settle(start, np.full(chain.n, chain.N - 1), False)
+    assert (chain.reads[pricing < chain.N] >= pricing[pricing < chain.N]).all()
+    # Pricing is a separate projection, not a booking of the waiting answer
+    # (nor a dependency on an answer between agreement and payment).
+    after = chain.__dict__.get('_vfired', {})
+    assert before.keys() == after.keys()
+    for index, days in before.items():
+        np.testing.assert_array_equal(after[index], days)
 
 
 def test_distress_order_uses_decision_day_and_preserves_later_cash_out(case):  # noqa: F811

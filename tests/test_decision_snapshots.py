@@ -61,8 +61,11 @@ def test_answers_do_not_change_their_own_conditioning(case, node, ctx, prefix, a
 def test_stay_approval_does_not_describe_its_own_approved_stay(case):
     prefix = AWARD + (("post_trial_motions", "", "yes"),)
     yes = trace(case, prefix + (("stay", "I1", "yes"),))
+    denied = trace(case, prefix + (("stay", "I1", "denied"),))
+    a, b = yes.questions[len(prefix)], denied.questions[len(prefix)]
+    # No motion has no court decision: its captured question stays on motion day.
     no = trace(case, prefix + (("stay", "I1", "no"),))
-    a, b = yes.questions[len(prefix)], no.questions[len(prefix)]
+    assert (no.questions[len(prefix)]["day"] < a["day"]).all()
     same_question(a, b)
     live = a["day"] < case[0].days
     assert live.any()
