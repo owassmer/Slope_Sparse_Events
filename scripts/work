@@ -15,8 +15,7 @@
 # Ghostty split (tools/feed/feed, opened by .pi/extensions/factory-runs.ts), and scripts/watch prints the log.
 set -euo pipefail
 task="${1:?usage: scripts/work tasks/<id>-<n>.md}"
-WORKER="claude-cli/claude-opus-5-5:medium"   # change the worker model here and nowhere else
-# Temporarily Claude while the Codex plan is at its usage limit (6 Oct); the worker is openai-codex/gpt-6-astra:medium.
+WORKER="openai-codex/gpt-6-astra:medium"     # change the worker model here and nowhere else
 root="$(git rev-parse --show-toplevel)"; cd "$root"
 [ -f "$task" ] || { echo "no task file $task; write it first" >&2; exit 2; }
 task_text="$(cat "$task")"
