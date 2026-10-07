@@ -6,6 +6,7 @@ No hydrate/judgment call is needed to enumerate or walk paths.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import pickle
@@ -50,12 +51,10 @@ def skeleton():
         w, s = caller['self'], caller['s']
         mask = w.mask_of(s.steps)
         population = np.ones(fc.draws.n, dtype=bool) if mask is None else mask.copy()
-        reason = ('not stayed' if not s.stayed else 'already ruled' if
-                  any(x[0] == 'post_trial_ruling' for x in s.steps) else
-                  'continuation not seeded by run_from' if caller['name'] not in ('a4_i1', 'ripe_i1') else None)
+        reason = None
         state = asdict(s)
         state['edge_count'] = len(state.pop('edges'))
-        calls.append((dict(index=len(calls), key=result[0], continuation=caller['name'],
+        calls.append((dict(name=prefix_name(s.steps), key=result[0], continuation=caller['name'],
                            state=state, prefix_steps=len(s.steps), supported_draws=int(population.sum()),
                            chronological_unavailable=reason),
                       (w, s, caller['a'], caller['kw'], population, list(w._watch))))
@@ -87,12 +86,18 @@ def skeleton():
     return fc, d, calls
 
 
+def prefix_name(steps):
+    """Content address: inventory insertions cannot rename a root."""
+    encoded = json.dumps(steps, separators=(',', ':')).encode()
+    return 'prefix-' + hashlib.sha256(encoded).hexdigest()[:16]
+
+
 def inventory(calls):
     roots = [r for r, _ in calls]
     eligible = sorted((r for r in roots if r['chronological_unavailable'] is None),
-                      key=lambda r: (r['supported_draws'], r['prefix_steps'], r['index']))
+                      key=lambda r: (r['supported_draws'], r['prefix_steps'], r['name']))
     positions = np.linspace(0, len(eligible) - 1, min(20, len(eligible)), dtype=int)
-    sample = [eligible[i]['index'] for i in positions]
+    sample = [eligible[i]['name'] for i in positions]
     report = dict(run=RUN, cut=CUT, draws=512, roots=roots, sample=sample,
                   size_measure='supported draw count, then prefix length; skeleton has no descendant counts',
                   unsupported_roots=sum(r['chronological_unavailable'] is not None for r in roots))
@@ -103,7 +108,7 @@ def inventory(calls):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('root', nargs='?', type=int)
+    parser.add_argument('root', nargs='?', help='prefix name from inventory')
     parser.add_argument('--walker', choices=['chronological', 'current'], default='chronological')
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--smoke-row', type=int, help='local wiring check only; not a 512-draw measurement')
@@ -118,7 +123,10 @@ def main():
     from app.disputes.chronological import ChronologicalWalk
     from app.disputes.forecast import _Walk, path_mask
 
-    r, (old, state, a, kw, population, watches) = calls[args.root]
+    matches = [item for item in calls if item[0]['name'] == args.root]
+    if not matches:
+        raise ValueError(f'unknown prefix: {args.root}')
+    r, (old, state, a, kw, population, watches) = matches[0]
     if args.smoke_row is not None:
         if not 0 <= args.smoke_row < fc.draws.n or not population[args.smoke_row]:
             raise ValueError('smoke row is outside root support')

@@ -53,7 +53,7 @@ def test_mixed_draws_are_partitioned_by_their_earliest_decision(monkeypatch):
     w.run_from(_S(steps=NONE[:8], cls="award1065000100", a4="seek", stayed=True, early=True), support)
     assert sizes == [4]
     assert asked == {Decision("post_trial_ruling"): [8], Decision("judgment_response", "I1"): [7],
-                     Decision("cash_floor", "1"): [6], Decision("judgment_response", "ripe"): [0]}
+                     Decision("settle", "Istay"): [6], Decision("judgment_response", "ripe"): [0]}
 
 
 def test_no_progress_guard_reports_the_selected_draw_and_history(monkeypatch):
@@ -187,7 +187,8 @@ def test_walk_order_check_finds_the_skipped_stay_settlement():
     prefix, row, _ = root_none279()
     w = walker()
     check = Checker(w.fc, w.d, row, len(prefix))
-    h = prefix + (("post_trial_ruling", "", "unchanged"), ("appeal", "", "no"), ("judgment_response", "post", "@2=none"),
+    h = prefix + (("post_trial_ruling", "", "unchanged"), ("settle", "I2", "no"),
+                  ("appeal", "", "no"), ("judgment_response", "post", "@2=none"),
                   ("cash_floor", "1", "@2=initiate_offering"), ("offering", "floor1", "yes"),
                   ("judgment_response", "ripe", "@3=initiate_offering"), ("offering", "ripe", "yes"),
                   ("judgment_default", "I1", "holders_file"))

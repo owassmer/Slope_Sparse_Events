@@ -1,8 +1,8 @@
-"""Experimental, unmerged walk below a saved stayed-registration prefix.
+"""Chronological walk from review or a native pending-claim prefix.
 
-Not used by Forecaster.paths. Question construction, grouping and completed-path
-booking remain _Walk's; only continuation selection uses the answer-free Chain
-frontier. No histories or financial states are interned.
+Question construction, grouping and completed-path booking remain _Walk's;
+state-derived chain heads compete on the answer-free Chain frontier.
+Forecaster.paths still uses the structural walk.
 """
 from dataclasses import replace
 
@@ -14,25 +14,20 @@ from app.disputes.forecast import _S, _Walk
 
 
 class ChronologicalWalk(_Walk):
-    """Local comparison walker for the saved pending-claim registration roots."""
+    """Select the earliest unresolved decision on each supported draw."""
 
     def run(self):
-        raise NotImplementedError("use run_from(state, support) for the saved-root comparison; production is unchanged")
+        return self.run_from(_S(cls="claimed"))
 
     def run_from(self, state: _S, support=None):
-        if not self.pend or not self.fc.equity or not state.stayed:
-            raise NotImplementedError("comparison roots must be stayed pending claims with equity")
-        if any(st[0] == "post_trial_ruling" for st in state.steps):
-            raise NotImplementedError("seed before the ruling")
+        if not self.pend or not self.fc.equity:
+            raise NotImplementedError("requires a pending claim with equity")
         chain = Chain(self.d, self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens)
         chain.instrument_cash()
         trace = Trace(chain.ev)
         for step in state.steps:
             chain.advance(trace, *step)
-        answered = {st[:2] for st in state.steps}
-        pending = tuple(d for d in (Decision("post_trial_ruling"), Decision(self.resp, "I1"),
-                                    Decision(self.resp, "ripe"), Decision("judgment_default", "I1"))
-                        if (d.node, d.ctx) not in answered)
+        pending = frozenset()  # decisions resolved without a booked step
         floors = [int(ctx) for node, ctx, _ in state.steps if node == "cash_floor"]
         state = replace(state, k=max(floors, default=0) + 1,
                         out="done" if any(st[0] == "cash_out" for st in state.steps) else state.out,
@@ -41,7 +36,7 @@ class ChronologicalWalk(_Walk):
         self._population = support  # retain the root population for subsequent path replay, as _Walk does
         mask = self.mask_of(state.steps)  # the supplied history is replayed only to seed its support
         mask = np.ones(chain.n, dtype=bool) if mask is None else mask
-        self.scoped(mask, lambda: self._loop(state, chain, pending, "unresolved",
+        self.scoped(mask, lambda: self._loop(state, chain, pending, self._outcome(state),
                                             np.full(chain.n, -1, dtype=np.int64), mask, np.arange(chain.n)))
         return self.out
 
@@ -54,30 +49,137 @@ class ChronologicalWalk(_Walk):
     def _resume(self, s, add=(), outcome=None, close=False):
         return self._continuations[-1](s, add, outcome, close)
 
-    # These are continuation exits from the unchanged question constructors.
+    # Constructor exits return to the scheduler, not a nested question.
     def post(self, s):
-        # A writ already queued before the ruling can levy after it. The I1
-        # response then ceases to apply; its post-ruling response is still owed.
-        self._resume(s, (Decision("settle", "I2"), Decision(self.resp, "post")))
+        self._resume(s)
+
+    entry = post
+    entry_settlement = post
+    motions = post
+    q1 = post
+    stay_i1 = post
+    j9_stayed = post
+    j9_i1 = post
+    a4_i1 = post
+    ripe_i1 = post
+    ripe_after_stay = post
+    ruling = post
+    appeal_settlement = post
+    stayed_tail = post
+    ripe_post = post
 
     def notes_petition(self, s, phase, then):
-        self._resume(s, (Decision("judgment_default", phase), Decision("settle", "I2"),
-                         Decision(self.resp, "post")))
+        self._resume(s)
+
+    def settle(self, s, interval, then_no, then_yes=None):
+        self._resume(s)
+
+    def i3(self, s, pending=False, then=None):
+        self._resume(s)
+
+    def a4_post(self, s, then, i3=False):
+        self._resume(s)
 
     def tail(self, s, outcome):
         self._resume(s, outcome=outcome, close=True)
 
     def stay_post(self, s):
-        if not s.stayed:
-            raise NotImplementedError("unstayed post-ruling continuation")
-        self._resume(s, (Decision("settle", "I4"),))
+        self._resume(s)
 
     def _end(self, s, outcome, then):
         self._resume(s, outcome=outcome)
 
+    def _outcome(self, s):
+        for node, _, answer in reversed(s.steps):
+            b = plain(answer)
+            if node == 'settle' and b == 'yes':
+                return 'settled'
+            if node == self.resp and b in ('pay', 'file'):
+                return 'paid' if b == 'pay' else 'petition'
+            if node == 'post_trial_ruling' and b == 'set_aside':
+                return 'set_aside'
+            if node == 'verdict':
+                branches = self.fc.m['templates']['pending_money_claim']['verdict_branches']
+                if b in branches and not branches[b]['judgment']:
+                    return 'no_judgment'
+        return 'unresolved'
+
+    def _pending(self, s, absent):
+        """Derive chain heads from answers; absent decisions have no booked step."""
+        answers = {(n, c): plain(b) for n, c, b in s.steps}
+        done = set(answers) | {(d.node, d.ctx) for d in absent}
+        result = []
+
+        def has(n, c=""):
+            return (n, c) in done
+
+        def add(n, c=""):
+            if not has(n, c):
+                result.append(Decision(n, c))
+
+        closed = any(n == "settle" and b == "yes" for (n, _), b in answers.items())
+        closed |= answers.get(("post_trial_ruling", "")) == "set_aside"
+        closed |= any(n == self.resp and b in ("pay", "file") for (n, _), b in answers.items())
+        verdict = answers.get(("verdict", "I0"))
+        if verdict is not None:
+            branches = self.fc.m["templates"]["pending_money_claim"]["verdict_branches"]
+            closed |= verdict in branches and not branches[verdict]["judgment"]
+        if closed:
+            return ()
+        if not has("settle", "I0"):
+            add("settle", "I0")
+        elif verdict is None:
+            add("verdict", "I0")
+        else:
+            add(self.resp, "entry")
+            if has(self.resp, "entry"):
+                if not has("post_trial_motions"):
+                    add("settle", "Ientry")
+                add("post_trial_motions")
+                motion = answers.get(("post_trial_motions", ""))
+                ruled = has("post_trial_ruling")
+                if motion == "yes":
+                    if not has("execute_pre_ruling", "I1"):
+                        add("settle", "I1")
+                    add("execute_pre_ruling", "I1")
+                    add("post_trial_ruling")
+                    if answers.get(("execute_pre_ruling", "I1")) == "yes":
+                        add("stay", "I1")
+                        if has("stay", "I1"):
+                            add("registration_early", "I1")
+                    if has("registration_early", "I1") and not ruled:
+                        add(self.resp, "I1")
+                    if answers.get(("stay", "I1")) == "yes":
+                        add("settle", "Istay")
+                    if has(self.resp, "I1"):
+                        add("settle", "Ienforce")
+                if motion is not None:
+                    if s.a4 == "seek":
+                        add(self.resp, "ripe")
+                    add("judgment_default", "I1")
+                if motion == "no" or ruled:
+                    if not has("appeal"):
+                        add("settle", "I2")
+                    add("appeal")
+                    if str(answers.get(("post_trial_ruling", ""), "")).startswith("reduced"):
+                        add("judgment_default", "ruling")
+                    if has("appeal"):
+                        if s.appealed:
+                            add("settle", "Iappeal")
+                        if not s.stayed:
+                            add("stay", "post")
+                        if s.stayed or has("stay", "post"):
+                            add("settle", "I4" if s.stayed else "I3")
+                            if answers.get(("stay", "I1")) != "yes":
+                                add("enforce", "post")
+                            add("judgment_default", "post")
+                    if s.a4 != "closed":
+                        add(self.resp, "post")
+        return tuple(result)
+
     def _cursors(self, s, pending):
         legal, notes = [], []
-        for d in pending:
+        for d in self._pending(s, pending):
             if d.node == self.resp and (s.a4 == "closed" or (d.ctx == "ripe" and s.a4 != "seek")):
                 continue
             (notes if d.node == "judgment_default" or d.ctx == "ripe" else legal).append(d)
@@ -87,8 +189,9 @@ class ChronologicalWalk(_Walk):
                 listing.append(Decision("listing_date", "compliance"))
         elif (p := self._pending_delisting(s)) is not None:
             notes.append(Decision("delisting_notes", p[0]))
-        return Cursors(tuple(legal), tuple(Decision(n, c) for n, c, _ in self._candidates(s)),
-                       tuple(listing), tuple(notes))
+        unresolved = lambda ds: tuple(d for d in ds if d not in pending)  # noqa: E731
+        return Cursors(unresolved(legal), unresolved(Decision(n, c) for n, c, _ in self._candidates(s)),
+                       unresolved(listing), unresolved(notes))
 
     def _loop(self, s, chain, pending, outcome, committed, mask, rows):
         if not mask.any():
@@ -120,7 +223,7 @@ class ChronologicalWalk(_Walk):
                     before.until(np.where(local_on, candidate.day + 1, -1))
                     return self._loop(s, before, pending, outcome, boundary, on, rows)
                 d = candidate.decision
-                remaining = tuple(x for x in pending if x != d)
+                remaining = pending | {d}
 
                 def child(y, add=(), result=None, close=False):
                     booked = before.clone()
@@ -128,8 +231,7 @@ class ChronologicalWalk(_Walk):
                     for step in y.steps[len(s.steps):]:
                         booked.advance(tr, *step)
                     booked.until(np.where(local_on, candidate.day + 1, -1))
-                    todo = () if close else remaining
-                    todo = tuple(dict.fromkeys((*todo, *add)))
+                    todo = remaining
                     if y.steps == s.steps and todo == pending:
                         raise RuntimeError(f"selected decision made no progress: {d}; "
                                            f"rows={np.flatnonzero(on).tolist()}, "
@@ -151,7 +253,10 @@ class ChronologicalWalk(_Walk):
         rest = np.zeros(self.fc.draws.n, dtype=bool)
         rest[rows[frontier.pick == -1]] = True
         if rest.any():
-            result = "motions_pending" if outcome == "unresolved" and Decision("post_trial_ruling") in pending else outcome
+            result = outcome
+            if result == "unresolved":
+                result = ("motions_pending" if Decision("post_trial_ruling") in self._pending(s, pending)
+                          else "stayed" if s.stayed else "unresolved")
             self.scoped(rest, lambda: self.emit(s, result))
 
     def equivalence(self, s, outcome, tr, mask):
@@ -178,11 +283,15 @@ class ChronologicalWalk(_Walk):
         if d.node == "judgment_default":
             return _Walk.notes_petition(self, s, d.ctx, again)
         if d.node == "settle":
-            next_ = Decision("appeal") if d.ctx == "I2" else Decision("judgment_default", "post")
-            return _Walk.settle(self, s, d.ctx,
-                                lambda y: self._resume(y, (next_,), "stayed" if d.ctx == "I4" else None))
-        if d.node == "appeal":
-            return _Walk.appeal(self, s)
+            return _Walk.settle(self, s, d.ctx, again)
+        methods = {"verdict": "verdict", "post_trial_motions": "motions",
+                   "execute_pre_ruling": "q1", "registration_early": "j9_i1", "appeal": "appeal"}
+        if d.node in methods:
+            return getattr(_Walk, methods[d.node])(self, s)
+        if d.node == "stay":
+            return (_Walk.stay_i1 if d.ctx == "I1" else _Walk.stay_post)(self, s)
+        if d.node == "enforce":
+            return _Walk.enforce(self, s, again)
         if d.node == "listing_date":
             return _Walk.listing(self, s, outcome, again, defer_delisting=True)
         if d.node == "delisting_notes":

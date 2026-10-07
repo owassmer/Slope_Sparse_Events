@@ -26,21 +26,15 @@ import akoustis_20240514_fixture as fx
 import numpy as np
 from benchmark_chronological import root
 
-from app.analysis.events import GROUPED, Chain, Draws, Trace, canon, event_trace, plain
+from app.analysis.events import GROUPED, Chain, Trace, canon, event_trace, plain
 from app.analysis.frontier import Cursors, Decision
 from app.disputes.forecast import DisputePath, Forecaster, path_mask
 
 RESP = "judgment_response"
-# what an answer opens next (the question rules as _Walk.post/appeal/stay_post/stayed_tail/ruling_pending walk them)
-OPENS = {("post_trial_ruling", "unchanged"): (Decision("settle", "I2"), Decision(RESP, "post")),
-         ("post_trial_ruling", "reduced"): (Decision("judgment_default", "ruling"), Decision("settle", "I2"),
-                                            Decision(RESP, "post")),
-         ("settle:I2", "no"): (Decision("appeal"),),
-         ("appeal", "*"): (Decision("settle", "I4"),),  # the comparison roots are stayed before the ruling
-         ("settle:I4", "no"): (Decision("judgment_default", "post"),)}
 # answers that end the dispute's open decisions (a set-aside, an agreed settlement, a payment, a filing)
 CLOSES = {("post_trial_ruling", "set_aside"), ("settle:I2", "yes"), ("settle:I4", "yes"), (RESP, "pay")}
-PROBE = {"settle": "no", RESP: "none", "post_trial_ruling": "unchanged", "appeal": "no", "judgment_default": "no",
+PROBE = {"verdict": "defense", "post_trial_motions": "no", "execute_pre_ruling": "no",
+         "stay": "no", "registration_early": "no", "enforce": "none", "settle": "no", RESP: "none", "post_trial_ruling": "unchanged", "appeal": "no", "judgment_default": "no",
          "cash_floor": "neither", "cash_out": "neither", "nonpayment": "due", "listing_date": "",
          "delisting_notes": "none"}
 
@@ -55,11 +49,13 @@ class State:
     floor: int = 1
     out: bool = False
     nonpayment: bool = False
+    stayed: bool = False
 
     def answer(self, node, ctx, b):
         d = Decision(node, ctx)
         if d in self.pending:
             self.pending.remove(d)
+        self.legal_answer(node, ctx, b)
         key = f"{node}:{ctx}" if node == "settle" else node
         kind = b.split(":")[0]
         if (key, kind) in CLOSES or (node == RESP and b == "file" and ctx != "ripe"):
@@ -67,9 +63,6 @@ class State:
             return
         if node == RESP:
             self.a4 = "seek" if b in ("none", "initiate_offering") else "closed"
-        for o in OPENS.get((key, kind), OPENS.get((key, "*"), ())):
-            if o not in self.pending:
-                self.pending.append(o)
         if node == "listing":
             self.listed, self.suspended = True, b == "suspended"
         elif node == "delisting_notes":
@@ -80,6 +73,55 @@ class State:
             self.out = True
         elif node == "nonpayment":
             self.nonpayment = True
+
+    def legal_answer(self, node, ctx, b):
+        """Independent question-rule transitions for a review-date history."""
+        opened = []
+        if node == 'settle' and b == 'yes' or node == RESP and b in ('pay', 'file'):
+            self.pending.clear()
+            return
+        if node == 'settle' and ctx == 'I0':
+            opened = [Decision('verdict', 'I0')]
+        elif node == 'verdict' and b.startswith('award:'):
+            opened = [Decision(RESP, 'entry')]
+        elif node == RESP and ctx == 'entry':
+            opened = [Decision('settle', 'Ientry'), Decision('post_trial_motions')]
+        elif node == 'post_trial_motions':
+            self.pending = [d for d in self.pending if d != Decision('settle', 'Ientry')]
+            opened = ([Decision('settle', 'I1'), Decision('execute_pre_ruling', 'I1'),
+                       Decision('post_trial_ruling')] if b == 'yes' else
+                      [Decision('settle', 'I2'), Decision('appeal'), Decision(RESP, 'post')])
+            opened += [Decision(RESP, 'ripe'), Decision('judgment_default', 'I1')]
+        elif node == 'execute_pre_ruling':
+            self.pending = [d for d in self.pending if d != Decision('settle', 'I1')]
+            opened = [Decision('stay', 'I1')] if b == 'yes' else []
+        elif node == 'stay':
+            self.stayed |= b == 'yes'
+            if ctx == 'I1':
+                opened = [Decision('registration_early', 'I1')]
+                if self.stayed:
+                    opened += [Decision('settle', 'Istay')]
+            else:
+                opened = [Decision('settle', 'I4' if self.stayed else 'I3'), Decision('enforce', 'post'),
+                          Decision('judgment_default', 'post')]
+        elif node == 'registration_early':
+            opened = [Decision(RESP, 'I1')]
+        elif node == RESP and ctx == 'I1':
+            opened = [Decision('settle', 'Ienforce')]
+        elif node == 'post_trial_ruling' and b != 'set_aside':
+            self.pending = [d for d in self.pending if d != Decision(RESP, 'I1')]
+            opened = [Decision('settle', 'I2'), Decision('appeal'), Decision(RESP, 'post')]
+            if b.startswith('reduced:'):
+                opened += [Decision('judgment_default', 'ruling')]
+        elif node == 'appeal':
+            self.pending = [d for d in self.pending if d != Decision('settle', 'I2')]
+            opened = ([Decision('settle', 'I4'), Decision('judgment_default', 'post')] if self.stayed else
+                      [Decision('stay', 'post')])
+            if b == 'yes':
+                opened.insert(0, Decision('settle', 'Iappeal'))
+        for decision in opened:
+            if decision not in self.pending:
+                self.pending.append(decision)
 
     def absent(self, d):
         """Resolved without a question: not due where its rules would ask it (the walk books no step)."""
@@ -118,7 +160,10 @@ class Checker:
     def __init__(self, fc, d, row, prefix):
         self.fc, self.d, self.row, self.prefix = fc, d, row, prefix
         self.n, self.N = fc.draws.n, fc.days
-        self.draws = Draws(fc.draws.n, basis=fc.draws.basis)  # prefixes None: every replay from scratch
+        from copy import copy
+
+        self.draws = copy(fc.draws)  # retain native draw IDs on a one-draw walk
+        self.draws.prefixes = None
         self.mask = np.arange(self.n) == row
         self.listing = any(f.status != "superseded" and f.listing_deadline is not None for f in d.financing)
         self._probes = {}
@@ -157,12 +202,10 @@ class Checker:
         ch.instrument_cash()
         ch = ch.sliced(np.array([row]), self.fc.draws.sub(self.mask))
         t = Trace(ch.ev)
-        st = State()
-        answered = {s[:2] for s in p.steps[:self.prefix]}
-        st.pending = [x for x in (Decision("post_trial_ruling"), Decision(RESP, "I1"), Decision(RESP, "ripe"),
-                                  Decision("judgment_default", "I1")) if (x.node, x.ctx) not in answered]
+        st = State(a4="", pending=[Decision('settle', 'I0')])
         st.floor = 1 + max((int(c) for nd, c, _ in p.steps[:self.prefix] if nd == "cash_floor"), default=0)
         for s in p.steps[:self.prefix]:
+            st.answer(s[0], s[1], plain(s[2]))
             ch.advance(t, *s)
         bad = []
         last = -1
