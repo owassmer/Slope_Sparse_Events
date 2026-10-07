@@ -131,7 +131,9 @@ class ChronologicalWalk(_Walk):
                     todo = () if close else remaining
                     todo = tuple(dict.fromkeys((*todo, *add)))
                     if y.steps == s.steps and todo == pending:
-                        raise RuntimeError(f"selected decision made no progress: {d}")
+                        raise RuntimeError(f"selected decision made no progress: {d}; "
+                                           f"rows={np.flatnonzero(on).tolist()}, "
+                                           f"day={candidate.day[local_on].tolist()}, steps={s.steps!r}")
                     # Resolve the existing grouped answer's population here,
                     # with question construction, not in frontier discovery.
                     child_mask = self.mask_of(y.steps)

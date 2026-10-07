@@ -56,6 +56,20 @@ def test_mixed_draws_are_partitioned_by_their_earliest_decision(monkeypatch):
                      Decision("cash_floor", "1"): [6], Decision("judgment_response", "ripe"): [0]}
 
 
+def test_no_progress_guard_reports_the_selected_draw_and_history(monkeypatch):
+    from app.analysis.frontier import Cursors
+
+    w = walker()
+    monkeypatch.setattr(w, "_cursors", lambda s, pending: Cursors(distress=(Decision("cash_out"),)))
+    monkeypatch.setattr(w, "_ask", lambda s, d, outcome: w._resume(s))
+    with pytest.raises(RuntimeError, match="selected decision made no progress") as caught:
+        w.run_from(_S(steps=NONE[:8], cls="award1065000100", a4="seek", stayed=True, early=True),
+                   np.arange(512) == 63)
+    assert "Decision(node='cash_out', ctx='')" in str(caught.value)
+    assert "rows=[63]" in str(caught.value)
+    assert f"steps={NONE[:8]!r}" in str(caught.value)
+
+
 def test_ruling_enables_response_to_an_existing_post_ruling_writ(monkeypatch):
     w = walker()
     asked = []

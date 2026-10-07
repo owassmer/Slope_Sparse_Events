@@ -5,3 +5,12 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_f
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 127
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 255
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 404
+# 001-2b: diagnostic root-598 samples, one draw per command (20-minute runner limit).
+# The no-progress error now records the selected original draw IDs, date and history.
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 0
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 7
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 8
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 63
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 145
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 279
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.measure_chronological 598 --smoke-row 383
