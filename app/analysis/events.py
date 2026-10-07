@@ -2975,28 +2975,26 @@ class Chain:
             self.raise_offer = self.late[max(self.late)]["raise_offer"]
         pet = self.ev.petition
         after = (pet[:, None] >= 0) & (np.arange(self.N)[None, :] >= pet[:, None])
+        # Project the final cash, not the working booking ledger. Later stay/question reads can
+        # rebook ATM sales: their delta must subtract the same receipts still held in `_atm`.
+        # Zeroing the ledger here used to make that subtraction a negative receipt at petition.
+        events = self.ev.frozen() if isinstance(self.ev, LiveEventCash) else copy.copy(self.ev)
         if after.any():  # §362: nothing is collected from or paid by the estate after the petition
-            arrays = dict(self._arrays())
-            zeroed = [x for x in ("cash", *(f"k:{k}" for k in KINDS)) if arrays[x][after].any()]
-            for x in zeroed:  # an array already zero there is left shared (copy-on-write) and its version kept
-                self._evw(x)[after] = 0
-            if zeroed:
-                self._touch(*zeroed)
+            events.cash = np.where(after, 0, events.cash)
+            events.kinds = {k: np.where(after, 0, a) for k, a in events.kinds.items()}
         if self.equity:  # each channel's receipts as booked above: the sales settled and the offerings closed before
             stop = np.where(pet < 0, BIG, pet)  # the petition (nothing after it)
             atm = np.zeros(self.n, dtype=np.int64) if self._atm is None else np.where(after, 0, self._atm).sum(axis=1)
             off = sum((np.where(o["closed"] & (o["close"] < stop), o["net"], 0) for o in self._offers),
                       np.zeros(self.n, dtype=np.int64))
-            self.ev.proceeds = {"atm_proceeds": atm.astype(np.int64), "offering_proceeds": off.astype(np.int64)}
+            events.proceeds = {"atm_proceeds": atm.astype(np.int64), "offering_proceeds": off.astype(np.int64)}
         if self.pending or self.ordinary:  # a dispute that ended (`resolve`) never re-adds its legal spend
             ended = np.arange(self.N)[None, :] >= self.resolved[:, None]
             back = np.where(after & ended, self.basis.legal, 0)
-            if back.any():  # all zero: nothing written, both arrays left shared (copy-on-write)
-                self._evw("cash")[...] -= back
-                self._evw("k:reduction")[...] -= back
-                self._touch("cash", "k:reduction")
-        # the trace keeps the lock as read now (a stay's security is the chain's state's, not a stored size)
-        tr.events = self.ev.frozen() if isinstance(self.ev, LiveEventCash) else self.ev
+            if back.any():
+                events.cash = events.cash - back
+                events.kinds = {**events.kinds, "reduction": events.kinds["reduction"] - back}
+        tr.events = events
         tr.cause = np.where(self.ev.petition >= 0, self.pet_cause, 0).astype(np.int8)
         tr.marks = {k: v.astype(np.int32) for k, v in self.marks_now().items()}
         tr.settle_offer, tr.stay_offer, tr.raise_offer = self.settle_offer, self.stay_offer, self.raise_offer
