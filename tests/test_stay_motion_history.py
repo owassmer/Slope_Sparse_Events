@@ -363,8 +363,8 @@ def test_prospective_settlement_retains_waiting_read_dependencies(case):  # noqa
     observed = []
     seen_at = Chain.seen_at
 
-    def read(self, day, levy=False):
-        view = seen_at(self, day, levy)
+    def read(self, day, levy=False, **kw):
+        view = seen_at(self, day, levy, **kw)
         if '_prospective_before' in self.__dict__ and np.array_equal(day, pricing):
             observed.append((self.reads.copy(), {k: v.copy() for k, v in self._vfired.items()}))
         return view

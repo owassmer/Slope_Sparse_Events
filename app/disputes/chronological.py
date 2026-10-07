@@ -116,10 +116,8 @@ class ChronologicalWalk(_Walk):
                 boundary[on] = candidate.day[local_on]
                 before = chain.clone()
                 before.until(np.where(local_on, candidate.day, -1))
-                before.restay()
                 if candidate.chain == "deterministic":
                     before.until(np.where(local_on, candidate.day + 1, -1))
-                    before.restay()
                     return self._loop(s, before, pending, outcome, boundary, on, rows)
                 d = candidate.decision
                 remaining = tuple(x for x in pending if x != d)
@@ -130,7 +128,6 @@ class ChronologicalWalk(_Walk):
                     for step in y.steps[len(s.steps):]:
                         booked.advance(tr, *step)
                     booked.until(np.where(local_on, candidate.day + 1, -1))
-                    booked.restay()  # as advance/finish: re-size already chosen security after waiting bookings
                     todo = () if close else remaining
                     todo = tuple(dict.fromkeys((*todo, *add)))
                     if y.steps == s.steps and todo == pending:

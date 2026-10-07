@@ -2693,7 +2693,7 @@ class _Walk:
 
     def stay_court(self, s: _S, key: str, ctx: str) -> _S:
         """The stay-approval question's facts. Under daily processing they come from each whole path (events.py
-        `restay`: the security is sized on the approval day's balance after every event dated before it, whatever
+        `_stay_effects`: the security is sized on the approval day's balance after every event dated before it, whatever
         the walk order, and is what the engine locks); otherwise from the court's own day on the prefix (`court`)."""
         if self.fc.setup is not None and self.fc.setup.cash_processing == "daily":
             return replace(s, late=s.late + ((key, len(s.steps)),))

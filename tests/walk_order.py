@@ -194,7 +194,6 @@ class Checker:
             for _ in range(32):  # resolve, as the walk does, the decisions found not due
                 view = ch.clone()
                 view.until(np.array([at], dtype=np.int64))  # every booking dated before this decision
-                view.restay()
                 f = view.next_decisions(st.cursors(self.listing))
                 mine = next((c for c in f.candidates if c.decision == me), None)
                 rank = (at, 9, 1 << 30) if mine is None else (at, mine.phase, mine.order)

@@ -57,13 +57,16 @@ def test_cached_security_and_subset_question_agree(case):  # noqa: F811
 
 
 def test_initial_sizing_still_releases_prior_stay_in_read(case):  # noqa: F811
+    """A later stay is sized on a read in which an earlier-dated end of the dispute releases the prior stay's
+    security: the prior lock is released in that read, the later stay's own lock is not in it, and with the
+    dispute ended by its approval the later stay locks nothing (the prior stay's lock is unchanged)."""
     fc, d = case
     chain = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
     tr = Trace(chain.ev)
     chain.advance(tr, *AWARD[0])
     chain.stay_security(np.full(chain.n, 10), "stay_I1", approved=True)
     prior_index = len(chain.rec[0])
-    prior = chain.stays[prior_index]
+    prior = chain.stay_facts(prior_index)
     supported = prior["lock"] > 0
     assert supported.any()
     chain.advance(tr, "appeal", "", "no")
@@ -72,23 +75,22 @@ def test_initial_sizing_still_releases_prior_stay_in_read(case):  # noqa: F811
     original_seen = Chain.seen_at
     observed = []
 
-    def releasing_read(self, bound, levy=False):
-        if self._sizing_stay == current_index and not self._restaying:
+    def releasing_read(self, bound, levy=False, **kw):
+        # the later stay's sizing read: on the chain without it, with the prior stay
+        if prior_index in self.stays and current_index not in self.stays and self is not chain:
             view = self.clone()
-            release = prior["approval"] + 1
+            release = prior["day"] + 1
             view.resolve(release, supported)
-            held = view.stays[prior_index]
+            held = view.stay_facts(prior_index)
             np.testing.assert_array_equal(held["rel"][supported], release[supported])
-            assert "lock" not in view.stays[current_index]
             np.testing.assert_array_equal(view.ev.lock[np.flatnonzero(supported), release[supported]],
                                           -prior["lock"][supported])
             observed.append(True)
             return view
-        return original_seen(self, bound, levy=levy)
+        return original_seen(self, bound, levy=levy, **kw)
 
     with patch.object(Chain, "seen_at", releasing_read):
         chain.stay_security(np.full(chain.n, 100), "stay_post", approved=True)
+        assert not chain.stay_facts(current_index)["lock"][supported].any()
     assert observed
-    assert chain._sizing_stay is None
-    assert not chain.stays[current_index]["lock"][supported].any()
-    np.testing.assert_array_equal(chain.stays[prior_index]["lock"], prior["lock"])
+    np.testing.assert_array_equal(chain.stay_facts(prior_index)["lock"], prior["lock"])

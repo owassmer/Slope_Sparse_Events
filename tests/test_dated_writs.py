@@ -118,7 +118,7 @@ def test_merge_comparison_ignores_walk_history(chain):
     other.takes.append((np.full(c.n, 120), np.zeros(c.n, dtype=np.int64)))
     other.writs.insert(0, (np.full(c.n, 120), np.zeros(c.n, dtype=np.int64)))
     other.takes.reverse()
-    other._stay_owed = ("a memo key from another history",)
+    other._stay_memo = (b"a memo key from another history", None)
     assert (c.divergence(other) == BIG).all()
     real = c.clone()  # a levy that takes cash is still a difference, from no later than its day
     amount = np.zeros(c.n, dtype=np.int64)
