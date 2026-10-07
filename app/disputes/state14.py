@@ -323,6 +323,8 @@ class Situation:
         return out
 
     def interval(self):
+        if self.d is not None and self.d.stage == "liability_pending" and "I0" not in self.tags:
+            return "; ".join((self.post_trial_ruling(), *self.appeal_events()))
         got = next((self.labels[t] for t in self.tags if t in self.labels and t.startswith("I")), None)
         if got is None and ({"final", "appealed"} & set(self.tags)):
             return "; ".join(("after the post-trial ruling", *self.appeal_events()))
@@ -334,6 +336,13 @@ class Situation:
         return [self.fc._component(c, {}) for c in self.d.components]
 
     def post_trial_ruling(self):
+        if self.d is not None and self.d.stage == "liability_pending":
+            filed = self._sit("motions_filed")[0]
+            deadline = self._sit("motions_deadline")[0]
+            if filed > self.day:
+                if self.day < deadline:
+                    return f"post-trial motions may be filed until {when(self.review, deadline)}"
+                return "no timely post-trial motions were filed; the judgment stands as entered"
         ruling = self._sit("ruling")[0]
         if ruling >= BIG:
             return "no post-trial motions were filed: the judgment is final as entered"
@@ -1005,8 +1014,8 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     verdict = n.node in ("verdict_finding", "verdict_amount")
     # Routing tags remain part of identity. Current standing and dated actions
     # come from the question's engine snapshot, not a second account of status.
-    dated_tags = {"I1", "I2", "I3", "I4", "post", "ripe", "motions_pending", "stay_pending", "stay_moved", "stay_denied",
-                  "stay_approved", "stay_resolved",
+    dated_tags = {"Ientry", "I1", "I2", "I3", "I4", "post", "ripe", "motions_pending", "motions_open",
+                  "stay_pending", "stay_moved", "stay_denied", "stay_approved", "stay_resolved",
                   "stayed", "paid", "settled", "notes_due", "delisted", "levied", "unlevied", "executing"}
     history_tags = [tag for tag in tags if g is None or
                     (tag not in dated_tags and not tag.startswith(("judgment_", "delisting_")))]

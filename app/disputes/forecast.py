@@ -290,9 +290,17 @@ def as_of(row: dict) -> dict:
             src = (marks if where == "marks" else sit).get(what)
             if name in t2 and per(t2[name]) and per(src):
                 t2[name] = np.where(later(src), BIG, t2[name]).astype(t2[name].dtype)
+        if per(sit.get("motions_filed")) and "appeal_deadline" in t2:
+            filed = sit["motions_filed"] <= day
+            ruled = sit["ruling"] <= day
+            t2["appeal_deadline"] = np.where(
+                filed, np.where(ruled, t2["appeal_deadline"], BIG), sit["entry_appeal_deadline"])
         out["triggers"] = t2
     if sit:
         s2 = dict(sit)
+        if per(sit.get("motions_filed")):
+            s2["motions_filed"] = np.where(sit["motions_filed"] <= day, sit["motions_filed"], BIG)
+            s2["ruling"] = np.where(sit["motions_filed"] <= day, sit["ruling"], BIG)
         for k in OUTCOME_DAYS:
             if per(sit.get(k)):
                 s2[k] = np.where(later(sit[k]), BIG, sit[k]).astype(sit[k].dtype)
@@ -2548,7 +2556,14 @@ class _Walk:
             never = set(conds) - held
             vocabulary.append("|".join(self._context_tags(s, conds, ctx, held, never)))
         out[live] = np.asarray(vocabulary, dtype=object)[inverse]
-        status = (row.get("sit") or {}).get("stay_status")
+        sit = row.get("sit") or {}
+        if "ruled" in conds and "motions_filed" in sit:
+            pending = (sit["motions_filed"] <= day) & (sit["ruling"] > day)
+            open_ = (sit["entry"] <= day) & (sit["motions_deadline"] > day) & ~pending
+            for tag, on in (("motions_pending", pending), ("motions_open", open_)):
+                on = live & on
+                out[on] = np.array(["|".join(filter(None, (str(text), tag))) for text in out[on]], dtype=object)
+        status = sit.get("stay_status")
         if "stay_moved" in conds and status is not None:
             for value in ("pending", "denied", "approved", "resolved"):
                 on = live & (status == value)
@@ -2582,7 +2597,7 @@ class _Walk:
                     continue
                 if c in held and state.cls not in ctx:
                     out.append(state.cls)
-                elif c in never and not any(x in INTERVAL_PHRASES for x in ctx):
+                elif c in never and not self.pend and not any(x in INTERVAL_PHRASES for x in ctx):
                     out.append("motions_pending")
             elif c not in held:
                 continue
@@ -2797,8 +2812,11 @@ class _Walk:
     def entry(self, s: _S) -> None:
         """The company's response on the day the judgment is entered (D2), then its post-trial motions (D1)."""
         if not self.arises(s, (self.resp, "entry", self.quiet)):
-            return self.motions(s)
-        self.a4(s, "entry", self.motions, lambda y: self.emit(y, "petition"))
+            return self.entry_settlement(s)
+        self.a4(s, "entry", self.entry_settlement, lambda y: self.emit(y, "petition"))
+
+    def entry_settlement(self, s: _S) -> None:
+        self.settle(s, "Ientry", self.motions)
 
     def motions(self, s: _S) -> None:
         probe = ("post_trial_motions", "", "no")
@@ -3233,7 +3251,7 @@ class _Walk:
                        nodes=frozenset({"enforce_after_final"}))  # its context, its levy day and J4 read the appeal
             if not self._watched(s, no, w, self.stay_post):
                 return  # not asked: the path books the no-appeal branch (the step, no edge)
-        k = self.node("appeal", s.cls, s=s, probe=no, assumptions=("a money award survives the ruling",))
+        k = self.node("appeal", s.cls, s=s, probe=no, assumptions=("a money judgment remains outstanding",))
         if self.pend:
             self.fc.record((k,), self._facts(s.steps + (yes,)))
             self.fc.record((k,), self._facts(s.steps + (no,)))
@@ -3296,7 +3314,7 @@ class _Walk:
         extra = ("stay_pending",) if pending and not self.pend else ()
         # These identify execution routes; the 14 May renderer derives appeal status from dated question facts.
         q3 = self.node("enforce_after_final", s.cls, "appealed" if s.appealed else "final", *extra,
-                       s=s, probe=none_step, assumptions=("the judgment is enforceable, unstayed and unpaid after the ruling",)
+                       s=s, probe=none_step, assumptions=("the judgment is enforceable, unstayed and unpaid",)
                        + (("the company has moved for a stay, not yet approved",) if extra else ()))
         if s.appealed and not s.early:
             j9 = self.node("registration_early", "post", s.cls, *extra, s=s,

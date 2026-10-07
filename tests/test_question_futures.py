@@ -31,12 +31,11 @@ def test_settlement_cannot_borrow_its_interval_from_later_motions(answer, interv
         walk.emit(walk.take(state, probe, (key, 'no'), (key,)), 'unresolved')
     checker = FutureChecker(fc, d, 0, records)
     bad = checker.history(walk.out[0])
-    assert len(bad) == 1
-    assert bad[0]['node'] == 'settlement_offer'
-    assert 'key' in bad[0]['changed']
-    assert bad[0]['rebuilt']['key'] is None
-    assert any(s['step'] == ['post_trial_motions', '', answer] and s['day'] > bad[0]['day']
-               for s in bad[0]['depends_on'])
+    assert bad == []
+    # Both occasions now follow the deadline decision; neither starts at entry.
+    tr = walk._trace(state.steps + (probe,))
+    motions_day = walk._trace(state.steps).day[-1]
+    assert (tr.day[-1] >= motions_day).all()
 
 
 @pytest.mark.parametrize('context,step', [

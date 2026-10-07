@@ -1,4 +1,5 @@
-# 001-1o: whole current tree from review, independent native draws; partial counts survive RUN_MINUTES.
+# 001-3a: post-entry state regression; four whole current trees from review, independent native draws.
+# Runner time limits retain incremental diagnostic counts; no cloud or judgment calls.
 # Counts describe completed history/question occurrences, not probabilities or a completed-tree census.
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 0
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_question_futures --walker current --row 127

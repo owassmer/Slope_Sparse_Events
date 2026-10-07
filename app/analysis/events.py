@@ -728,6 +728,7 @@ class Chain:
         self.ruling, never = {}, np.full(self.n, BIG, dtype=np.int64)
         self.F, self.A, self.AD, self.fee_day, self.EF, self.EI = (never.copy() for _ in range(6))
         self.E_ix, self.E0, self.e_ix = never.copy(), never.copy(), never.copy()
+        self.motions_filed = never.copy()
 
     def has_judgment(self) -> bool:
         return self.d is not None and (self.d.judgment_date is not None or (self.pending and self.entered > 0))
@@ -1131,6 +1132,7 @@ class Chain:
                 self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, "entry")
         self.e_ix = self.E_ix + int(self.m["rules"]["frcp_62a"]["value"]) + 1
         self.E0 = np.maximum(self.e_ix, 0)
+        self.AD = self.E_ix + int(self.m["rules"]["frap_4a1a"]["value"])
 
     def respond(self, booking: str, day: np.ndarray, cause: str = "enforcement", occasion: str = "") -> None:
         """One branch's booking (contract branch_bookings) on the decision day: pay the amount owed, a petition, a
@@ -2322,7 +2324,11 @@ class Chain:
         full = lambda v: np.full(self.n, v, dtype=np.int64)  # noqa: E731
         if ctx == "I0":
             return full(-1), self.V
-        e1 = self.E_ix if self.pending else full(-1)
+        deadline = (self.E_ix + int(self.m["rules"]["frcp_50b_59_deadline"]["value"])
+                    if self.pending else full(-1))
+        if ctx == "Ientry":
+            return self.E_ix.copy(), deadline
+        e1 = deadline if self.pending else full(-1)
         i4 = np.maximum(self.stayed_from, self.F) if self.pending else self.stayed_from
         start = {"I1": e1, "I2": self.F, "I3": np.maximum(self.EF, self.AD), "I4": i4}[ctx]
         end = {"I1": self.F, "I2": self.AD, "I3": full(self.N - 1), "I4": full(self.N - 1)}[ctx]
@@ -2488,15 +2494,18 @@ class Chain:
             filed = self.E_ix + int(self.m["rules"]["frcp_50b_59_deadline"]["value"])
             notice = int(self.m["rules"]["frap_4a1a"]["value"])
             if branch == "yes":  # one common lag for all the motions (sensitivity: the later of two draws)
+                self.motions_filed = filed.copy()
                 lag = self.dr.lag(self.m, self.iid, "common")
                 if self.sens.get("ruling_lag_days"):
                     lag = np.maximum(lag, self.dr.lag(self.m, self.iid, "second"))
                 self.F = filed + int(self.p("briefing_days_new_motion")) + lag
-            else:  # final as entered: the time to appeal runs from entry
-                self.F = self.E_ix.copy()
+            else:  # finality is learned at the deadline, never backdated to entry
+                self.F = filed.copy()
                 self.mark("ruled", filed)
-            self.AD = self.F + notice
-            self.A, self.EF, self.EI = self.F.copy(), self.F.copy(), self.F.copy()
+            self.AD = (self.F if branch == "yes" else self.E_ix) + notice
+            self.A = self.F.copy() if branch == "yes" else self.E_ix.copy()
+            self.EF = np.maximum(self.F, self.E0)
+            self.EI = self.EF.copy()
             return filed
         if node == "post_trial_ruling":
             if branch.startswith("reduced:"):  # J2 reduced, the remittitur accepted (C3): the surviving amount
@@ -3402,6 +3411,10 @@ class Chain:
                                if self.has_judgment() else np.full(self.n, BIG, dtype=np.int64)),
                      "ruling": np.asarray(self.F, dtype=np.int64).copy(), "delisted": self.delisted.copy(),
                      "stayed_from": np.asarray(self.stayed_from, dtype=np.int64).copy()}
+        if self.pending:
+            out["motions_filed"] = self.motions_filed.copy()
+            out["motions_deadline"] = self.E_ix + int(self.m["rules"]["frcp_50b_59_deadline"]["value"])
+            out["entry_appeal_deadline"] = self.E_ix + int(self.m["rules"]["frap_4a1a"]["value"])
         # Historical min-date marks cannot tell an old denied I1 motion from a
         # new post-ruling motion. The existing per-occasion records can.
         status = np.full(self.n, "not_requested", dtype=object)
