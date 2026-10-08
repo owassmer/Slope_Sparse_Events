@@ -1884,6 +1884,28 @@ class Chain:
             return self._stay_effects()["stays"][i]
         return self._stay_read[i]
 
+    def collateral_before(self, day: np.ndarray) -> np.ndarray:
+        """Read the latest stay motion strictly before each question's own day.
+
+        The motion establishes proposed terms even while approval is pending.
+        Without an earlier stay there is no inherited security requirement.
+        A stay's own court question supplies its separately sized security.
+        """
+        if not self.daily:
+            return self.collateral_required.copy()
+        latest = np.full(self.n, -1, dtype=np.int64)
+        selected = np.full(self.n, -1, dtype=np.int64)
+        for i, st in self.stays.items():
+            motion = st["motion"]
+            take = (motion < day) & (motion < self.N) & (motion >= latest)
+            latest = np.where(take, motion, latest)
+            selected = np.where(take, i, selected)
+        out = np.zeros(self.n, dtype=np.int64)
+        for i in np.unique(selected):
+            if i >= 0:
+                out = np.where(selected == i, self.stay_facts(int(i))["collateral"], out)
+        return out
+
     # what the stays' sizing does not read: memos and versions of other state (their inputs are read), each step's
     # record and transient reads (read back by the walk and the trace at the step and at `finish`, never by a read of
     # the state: `rec`, `grec`, `_grp`, `late`, `_last_node`, `_booked_to`, `_finished`, the offers and questions),
@@ -2665,7 +2687,7 @@ class Chain:
         if self._grp is not None:
             self.grec[len(self.rec[0])] = self._grp
         for lst, v in zip(self.rec, (day, self.decision_cash(day, before), self.owed_at(day),
-                                     self.collateral_required.copy()),
+                                     self.collateral_before(day)),
                           strict=True):
             lst.append(v)
         self._stay_effects()  # evaluated with the step, so a read-only read (the frontier) finds it computed
@@ -2869,7 +2891,7 @@ class Chain:
             lim = before if levy is None or (node in RESPONSES and ctx != "ripe") else np.minimum(before, levy)
             fire = (prior if floor else True) & ~done & (True if every else t < lim)
             if fire.any():
-                vals = (t, self.decision_cash(t), self.owed_at(t), self.collateral_required)
+                vals = (t, self.decision_cash(t), self.owed_at(t), self.collateral_before(t))
                 for lst, v in zip(self.rec, vals, strict=True):
                     lst[i] = np.where(fire, v, lst[i])
                 late = self.late[i]
@@ -2937,7 +2959,7 @@ class Chain:
                 if not fire.any():
                     continue
                 t = days[j]
-                vals = (t, self.decision_cash(t), self.owed_at(t), self.collateral_required)
+                vals = (t, self.decision_cash(t), self.owed_at(t), self.collateral_before(t))
                 for lst, v in zip(self.rec, vals, strict=True):
                     lst[i] = np.where(fire, v, lst[i])
                 late = self.late[i]
@@ -3450,7 +3472,7 @@ class Chain:
                     terms = {k: np.where(o["rows"], o["terms"][k], v) for k, v in terms.items()}
                 sit["offering_terms"] = terms
         return {"day": day.copy(), "cash": self.decision_cash(day).copy(), "owed": self.owed_at(day).copy(),
-                "collateral": self.collateral_required.copy(), "petition": self.ev.petition.copy(),
+                "collateral": self.collateral_before(day), "petition": self.ev.petition.copy(),
                 "marks": _copied(self.marks_now()), "triggers": _copied(self.trigger_days()), "sit": sit,
                 "settle_offer": self.settle_offer.copy() if node == "settle" else np.zeros(self.n, dtype=np.int64),
                 "stay_offer": self.stay_offer.copy() if node in ("stay", "court_order") else np.zeros(self.n, dtype=np.int64),

@@ -8,6 +8,40 @@ from walk_order import FutureChecker
 from app.disputes.forecast import _S, Forecaster, _Walk
 
 
+@pytest.mark.parametrize('answer', ['no', 'denied', 'yes'])
+def test_registration_collateral_excludes_later_stay(answer):
+    from app.analysis.events import Chain
+
+    fc, d, _ = sample()
+    steps = (
+        ('settle', 'I0', 'no'), ('verdict', 'I0', 'award:500000000:0:1000000000'),
+        ('judgment_response', 'entry', '@3=initiate_offering'), ('offering', 'entry', 'yes'),
+        ('settle', 'Ientry', 'no'), ('post_trial_motions', '', 'yes'), ('settle', 'I1', 'no'),
+        ('execute_pre_ruling', 'I1', 'yes'), ('stay', 'I1', 'denied'),
+    )
+
+    def chain(history):
+        c = Chain(d, fx.setup(), fx.model(), fc.draws)
+        c.run(history)
+        return c
+
+    earlier = chain(steps)
+    later = chain(steps + (('registration_early', 'I1', 'no'),
+                          ('post_trial_ruling', '', 'unchanged'), ('appeal', '', 'yes'),
+                          ('stay', 'post', answer)))
+    day = np.array([117])
+    expected = earlier.stay_facts(8)['collateral']
+    assert expected[0] == 534_293_846
+    np.testing.assert_array_equal(earlier.collateral_before(day), expected)
+    np.testing.assert_array_equal(later.collateral_before(day), expected)
+    np.testing.assert_array_equal(
+        later.question_row(day, 'court_order', 'registration_I1')['collateral'], expected)
+    # The later motion is excluded on its own day too, but visible afterward.
+    motion = later.stays[12]['motion']
+    np.testing.assert_array_equal(later.collateral_before(motion), expected)
+    np.testing.assert_array_equal(later.collateral_before(motion + 1), later.stay_facts(12)['collateral'])
+
+
 def sample(motions=None, row=0):
     d = fx.pending(instance_id='dispute_002')
     fc = Forecaster([d], {}, borrower='B', review=fx.REVIEW, horizon=fx.setup().horizon,
