@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # scripts/walk-next <wave name> [<next wave name>]    The next wave of the full-tree walk, from a finished wave's outputs.
+# WALK_SHARES=k splits each continuation into k shares (walk-tree --share i/k); WALK_PER_LINE=n packs n commands into a
+# runner line, run side by side (default 4, one per core).
 #
 # Reads var/remote/<wave>/out-*/var/walk-population/**/{piece.json,next.txt} (what scripts/remote downloaded), and
 # writes var/waves/<next>/: run.txt with every unfinished piece's continuation command, and each continuation's
@@ -15,7 +17,7 @@ elif [[ "$wave" =~ ^(.*[^0-9])([0-9]+)$ ]]; then next="${BASH_REMATCH[1]}$(( BAS
 else next="$wave-2"; fi
 out="var/waves/$next"; rm -rf "$out"; mkdir -p "$out/walk-resume/$next"
 python3 -I - "$src" "$out" "$next" <<'PY'
-import json, pathlib, re, shutil, sys
+import json, os, pathlib, re, shutil, sys
 src, out, nxt = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
 done = cont = 0
 lines = [f"# {nxt}: continuations of the unfinished pieces of {src.name}; each line within its runner limit."]
@@ -43,8 +45,14 @@ for piece in sorted(src.glob("out-*/var/walk-population/**/piece.json")):
             continue
         shutil.copyfile(resume, dest)
         cmd = cmd.replace(m.group(0), f"--resume walk-resume/{nxt}/{key}/piece.json")
-        cmd = re.sub(r"--output \S+", f"--output var/walk-population/{nxt}-{key}", cmd)
-        lines.append(cmd)
-(out / "run.txt").write_text("\n".join(lines) + "\n")
+        shares = int(os.environ.get("WALK_SHARES", "1"))
+        for i in range(shares):
+            c = re.sub(r"--output \S+", f"--output var/walk-population/{nxt}-{key}" + (f"-s{i}" if shares > 1 else ""), cmd)
+            lines.append(c + (f" --share {i}/{shares}" if shares > 1 else ""))
+import os
+per = int(os.environ.get("WALK_PER_LINE", "4"))
+cmds = [c for c in lines if not c.startswith("#")]
+packed = [" & ".join(f"( {c} )" for c in cmds[i:i + per]) + " ; wait" for i in range(0, len(cmds), per)]
+(out / "run.txt").write_text("\n".join(lines[:1] + packed) + "\n")
 print(f"{done} pieces finished, {cont} continue in {nxt}: {out}/run.txt")
 PY
