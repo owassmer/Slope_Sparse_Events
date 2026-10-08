@@ -10,7 +10,9 @@ set -euo pipefail
 wave="${1:?usage: scripts/walk-next <wave name> [<next wave name>]}"
 root="$(git rev-parse --show-toplevel)"; cd "$root"
 src="var/remote/$wave"; [ -d "$src" ] || { echo "no outputs for $wave in $src; run scripts/remote first" >&2; exit 2; }
-next="${2:-$(echo "$wave" | sed -E 's/w([0-9]+)$//')w$(( $(echo "$wave" | sed -E 's/.*w([0-9]+)$/\1/') + 1 ))}"
+if [ -n "${2:-}" ]; then next="$2"
+elif [[ "$wave" =~ ^(.*[^0-9])([0-9]+)$ ]]; then next="${BASH_REMATCH[1]}$(( BASH_REMATCH[2] + 1 ))"
+else next="$wave-2"; fi
 out="var/waves/$next"; rm -rf "$out"; mkdir -p "$out/walk-resume/$next"
 python3 -I - "$src" "$out" "$next" <<'PY'
 import json, pathlib, re, shutil, sys
