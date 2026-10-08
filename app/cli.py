@@ -13,6 +13,7 @@ def walk_tree(
     partitions: int = typer.Option(1, min=1),
     depth: int = typer.Option(6, min=1),
     resume: str | None = typer.Option(None, help="Prior piece.json; continue its unfinished branches."),
+    full_events: bool = typer.Option(False, help="Also write the uncompressed full events comparison stream."),
 ) -> None:
     """Walk all 512 draws together from review; no model calls. Stream bounded pieces."""
     import json
@@ -21,7 +22,8 @@ def walk_tree(
     from app.analysis.population_walk import walk_piece
 
     result = walk_piece(output=Path(output), seconds=seconds, partition=partition,
-                        partitions=partitions, depth=depth, resume=Path(resume) if resume else None)
+                        partitions=partitions, depth=depth, resume=Path(resume) if resume else None,
+                        full_events=full_events)
     typer.echo(json.dumps(result))
 
 

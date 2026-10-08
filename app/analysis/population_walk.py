@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import pickle
 import shlex
 import time
 from pathlib import Path
@@ -108,9 +107,13 @@ class PieceWalk(ChronologicalWalk):
             return super().emit(s, outcome)
 
 
-def walk_piece(*, output: Path, seconds=900, partition=0, partitions=1, depth=6, resume: Path | None = None):
-    """Stream native paths/facts and return the exact unfinished-route cover.
+def walk_piece(*, output: Path, seconds=900, partition=0, partitions=1, depth=6, resume: Path | None = None,
+               full_events=False):
+    """Stream compressed supported financial rows, paths and interned questions.
 
+    `full_events` additionally writes the original events.pkl for comparison.
+    Read either format with piece_store.read_events; financial records retain
+    native draw IDs and join paths by (steps, financial equivalence key).
     A partial piece is not a completed tree. Its next.txt commands are required
     work, not optional stress paths. Input checkpoints must be from this code.
     """
@@ -126,19 +129,30 @@ def walk_piece(*, output: Path, seconds=900, partition=0, partitions=1, depth=6,
         partition, partitions, depth = (saved[k] for k in ('partition', 'partitions', 'depth'))
     output.mkdir(parents=True, exist_ok=True)
     # Never overwrite already emitted data on an accidental retry.
-    stream = (output / 'events.pkl').open('xb')
+    from app.analysis.piece_store import PieceWriter
+
     fc, d = context()
+    writer = PieceWriter(output, fc.draws.n, full=full_events)
     w = PieceWalk(fc, d)
     w.configure(routes=routes, partition=partition, partitions=partitions, depth=depth,
                 stop=lambda: time.monotonic() - start >= seconds, watch_results=watch_results)
     record, late, emit = fc.record, fc._keep_late, w.emit
+    equivalence = w.equivalence
     seen = set()
     histories = history_draws = 0
     emitting = None
 
-    def put(kind, payload):
-        pickle.dump((kind, payload), stream, protocol=pickle.HIGHEST_PROTOCOL)
-        stream.flush()
+    put = writer.put
+
+    def financial(s, outcome, tr, mask):
+        from app.analysis.piece_store import financial_rows
+
+        key = equivalence(s, outcome, tr, mask)
+        # Keep the finished leaf, not a replay with potentially different support.
+        put('financial', (s.steps, key, financial_rows(tr, mask, fc.draws.n)))
+        return key
+
+    w.equivalence = financial
 
     def early(keys, tr):
         result = record(keys, tr)
@@ -184,11 +198,13 @@ def walk_piece(*, output: Path, seconds=900, partition=0, partitions=1, depth=6,
                                    class_range=fc.class_range, class_members=fc.class_members,
                                    remitted=fc.remitted, ev_range=getattr(fc, 'ev_range', None)))
     finally:
-        stream.close()
+        writer.close()
     result = dict(complete=not w.remaining, partition=partition, partitions=partitions, depth=depth,
                   remaining=w.remaining, watch_results=w.watch_results,
                   histories=histories, history_draws=history_draws,
-                  visited=w.visited, seconds=time.monotonic() - start)
+                  visited=w.visited, seconds=time.monotonic() - start,
+                  events_format='population-piece-v1',
+                  events_bytes=(output / 'events.pkl.gz').stat().st_size)
     (output / 'piece.json').write_text(json.dumps(result, indent=2) + '\n')
     if w.remaining:
         # One bounded command continues this cover. Repeat until complete, never
@@ -196,5 +212,6 @@ def walk_piece(*, output: Path, seconds=900, partition=0, partitions=1, depth=6,
         (output / 'next.txt').write_text(
             f'OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds {seconds} '
             f'--resume {shlex.quote(str(output / "piece.json"))} '
-            f'--output {shlex.quote(str(output / "next"))}\n')
+            f'--output {shlex.quote(str(output / "next"))}'
+            f'{" --full-events" if full_events else ""}\n')
     return result
