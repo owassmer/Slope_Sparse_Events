@@ -15,8 +15,7 @@
 # Ghostty split (tools/feed/feed, opened by .pi/extensions/factory-runs.ts), and scripts/watch prints the log.
 set -euo pipefail
 task="${1:?usage: scripts/work tasks/<id>-<n>.md}"
-WORKER="claude-cli/claude-opus-5-5:medium"   # change the worker model here and nowhere else
-# Temporarily Claude while the Codex plan is at its usage limit (6 Oct); the worker is openai-codex/gpt-6-astra:medium.
+WORKER="openai-codex/gpt-6-astra:medium"     # change the worker model here and nowhere else
 root="$(git rev-parse --show-toplevel)"; cd "$root"
 [ -f "$task" ] || { echo "no task file $task; write it first" >&2; exit 2; }
 task_text="$(cat "$task")"
@@ -33,7 +32,7 @@ echo "=== worker on $task ($WORKER) in $ws" > "$log"; echo "=== dispatched by se
 echo "=== steerable (pid $$): scripts/steer $run \"<message>\" (or --stop)" >> "$log"
 on_err() { echo "=== finished exit $1 (${0##*/} stopped at line $2)" >> "$log"; }
 trap 'on_err $? $LINENO' ERR
-stop_product() { DRIVE_STATE="$ws/.drive/state.json" tools/drive/drive stop >/dev/null 2>&1 || true; }
+stop_product() { DRIVE_STATE="$ws/.drive/state.json" tools/drive/drive stop >/dev/null 2>&1 || true; pkill -f "$ws/" 2>/dev/null || true; }  # and anything else the worker left running there
 # At most two workers run at once on this machine (each walk takes about a gigabyte); a third waits for a slot.
 slot=""; locks=/private/tmp/slope-locks; mkdir -p "$locks"
 alive() { [ -n "$1" ] && kill -0 "$1" 2>/dev/null; }
@@ -89,7 +88,9 @@ if [ "$status" -eq 0 ] && tail -n 20 "$root/.runs/$run.jsonl" | grep -q '"stopRe
 
 # Its product changes come back to the outcome's branch; anything else is refused.
 git -C "$ws" add -A
-changed="$(git -C "$ws" diff --cached --name-only "$base")"
+# var/ is the worker's data, not product: it always comes back beside the checkout's own, and never counts as a change.
+[ -d "$ws/var" ] && rsync -a "$ws/var/" var/ 2>/dev/null || true
+changed="$(git -C "$ws" diff --cached --name-only "$base" | grep -v '^var/' || true)"
 outside="$(printf '%s\n' "$changed" | grep -v -e '^app/' -e '^tests/' -e '^cases/' -e '^tools/[^/]*\.py$' -e "^$KIT/" -e '^runs/recorded/' -e '^run\.txt$' | grep -v '^$' || true)"
 if [ -n "$outside" ]; then
   echo "=== refused: changes outside the product, nothing applied (workspace kept at $ws):" >> "$log"
@@ -97,7 +98,7 @@ if [ -n "$outside" ]; then
   echo "=== finished exit 3" >> "$log"; exit 3
 fi
 if [ -n "$changed" ]; then
-  mkdir -p "$ws.tmp" && git -C "$ws" diff --cached --binary "$base" > "$ws.tmp/worker.patch"
+  mkdir -p "$ws.tmp" && git -C "$ws" diff --cached --binary "$base" -- . ":!var" > "$ws.tmp/worker.patch"
   # Workers on one outcome can run at once from the same commit; their changes merge, and a real conflict stops here.
   if ! git apply --index --3way "$ws.tmp/worker.patch" >> "$log" 2>&1; then
     echo "=== conflict applying the worker's changes; nothing committed (patch kept at $ws.tmp/worker.patch, workspace kept)" >> "$log"
@@ -109,8 +110,6 @@ if [ -n "$changed" ]; then
 else
   echo "=== no product changes" >> "$log"
 fi
-# The worker's var/ (diagnostics, saved answers) comes back beside the checkout's own.
-[ -d "$ws/var" ] && rsync -a "$ws/var/" var/ 2>/dev/null || true
 echo "=== finished exit $status" >> "$log"
 stop_product
 [ "$status" -eq 0 ] && rm -rf "$ws" "$ws.tmp"
