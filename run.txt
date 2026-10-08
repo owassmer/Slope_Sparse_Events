@@ -1,15 +1,7 @@
-# 001-6a: one-draw graphs, incremental JSON/JSONL in var/diag/001-6a; no judgment calls.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-state-graph --row 0 --seconds 1000
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-state-graph --row 73 --seconds 1000
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-state-graph --row 146 --seconds 1000
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_state_graph --row 0 --seconds 150
-# Fixed-count Knuth probes; safety limit includes setup. Check status=completed before interpreting intervals.
-# Independent native draws, no model calls; samples + incremental summaries in var/diag/001-5c.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 0 --probes 1000 --seconds 1000 --seed 20261001
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 73 --probes 1000 --seconds 1000 --seed 20261002
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 146 --probes 1000 --seconds 1000 --seed 20261003
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 219 --probes 1000 --seconds 1000 --seed 20261004
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 292 --probes 1000 --seconds 1000 --seed 20261005
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 365 --probes 1000 --seconds 1000 --seed 20261006
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 438 --probes 1000 --seconds 1000 --seed 20261007
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 511 --probes 1000 --seconds 1000 --seed 20261008
+# 001-6b: fixed-count decision-attributed Knuth probes; no model calls.
+# Each command has a 1000-second safety limit including setup, below 20 minutes.
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 146 --probes 1000 --seconds 1000 --seed 20261003 --output var/diag/001-6b
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 365 --probes 1000 --seconds 1000 --seed 20261006 --output var/diag/001-6b
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 438 --probes 1000 --seconds 1000 --seed 20261007 --output var/diag/001-6b
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 73 --probes 1000 --seconds 1000 --seed 20261002 --output var/diag/001-6b
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 511 --probes 1000 --seconds 1000 --seed 20261008 --output var/diag/001-6b

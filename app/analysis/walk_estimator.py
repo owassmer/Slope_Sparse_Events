@@ -27,6 +27,17 @@ class ProbeWalk(ChronologicalWalk):
         self.leaves = self.cost = self.shared_cost = 0
         self.top = None
         self.degrees = []
+        self.levels = []
+        self.occurrences = {}
+
+    def offer(self, s, occasion, then):
+        if not getattr(self, '_measuring', False):
+            return super().offer(s, occasion, then)
+        started = time.perf_counter()
+        try:
+            return super().offer(s, occasion, then)
+        finally:
+            self._offer_seconds += time.perf_counter() - started
 
     def _loop(self, *args):
         if self.intercept is not None:
@@ -34,20 +45,64 @@ class ProbeWalk(ChronologicalWalk):
         children = []
         self.intercept = children.append
         before = len(self.out)
+        self._offer_seconds = 0
+        self._measuring = True
         started = time.perf_counter()
         try:
             super()._loop(*args)
         finally:
+            self._measuring = False
             self.intercept = None
         cost = (time.perf_counter() - started) * self.weight
         self.cost += cost
         if self.top is None:
             self.shared_cost += cost
-        self.leaves += self.weight * (len(self.out) - before)
+        emitted = len(self.out) - before
+        self.leaves += self.weight * emitted
         self.out.clear()
         self.keys.clear()
         degree = len(children)
         self.degrees.append(degree)
+        # Pending contains the selected frontier decision even when its
+        # constructor books no step. Step deltas alone miss those decisions.
+        decisions = {d for child in children for d in child[2] - args[2]} if len(args) > 2 else set()
+        if len(decisions) > 1:
+            raise RuntimeError('one-draw probe encountered multiple frontier decisions')
+        decision = next(iter(decisions), None)
+        node = decision.node if decision else ('terminal' if not degree else 'deterministic')
+        context = decision.ctx if decision else ''
+        occurrence = self.occurrences.get(node, 0) + 1
+        self.occurrences[node] = occurrence
+        self.levels.append(dict(level=len(self.degrees) - 1, node=node, context=context,
+                                occurrence=occurrence, answers=degree, emitted=emitted,
+                                weight=self.weight, seconds=cost,
+                                extra_histories=self.weight * (degree + emitted - 1),
+                                answer_steps=[list(child[0].steps[len(args[0].steps):]) for child in children]))
+        level = self.levels[-1]
+        # Offering closure is nested inside the floor/response constructor,
+        # not a scheduler level. Split its fork surplus without changing the
+        # estimator's uniform sampling over flattened scheduler children.
+        prefixes = {}
+        for steps in level['answer_steps']:
+            for i, (n, ctx, answer) in enumerate(steps):
+                if n == 'offering':
+                    key = tuple(steps[:i])
+                    prefixes.setdefault((key, ctx), set()).add(answer)
+        if len(prefixes) > 1:
+            raise RuntimeError('one-draw expansion has multiple offering constructors; timing needs separate scopes')
+        components = []
+        for (_, ctx), answers in prefixes.items():
+            components.append(dict(node='offering_closes', context=ctx,
+                                   occurrence=1 + sum(n == 'offering' for n, _, _ in args[0].steps),
+                                   answers=len(answers), weight=self.weight,
+                                   extra_histories=self.weight * (len(answers) - 1),
+                                   seconds=self.weight * self._offer_seconds / len(prefixes)))
+        primary = {k: level[k] for k in ('node', 'context', 'occurrence', 'weight', 'answers',
+                                         'extra_histories', 'seconds')}
+        primary['extra_histories'] -= sum(c['extra_histories'] for c in components)
+        primary['seconds'] -= sum(c['seconds'] for c in components)
+        primary['answers'] -= sum(c['answers'] - 1 for c in components)
+        level['decisions'] = [primary, *components]
         if not degree:
             return
         chosen = self.rng.randrange(degree)
@@ -86,6 +141,38 @@ def interval(values):
                 if se is not None else None)
 
 
+def attribution(samples):
+    """Additive fork surplus, not overlapping descendant-subtree counts.
+
+    For each probe, 1 + sum(weight * (children + emitted - 1)) equals
+    its leaf estimate. Execution costs belong to the expanding decision,
+    including constructors; terminal emission is charged separately.
+    """
+    result = {}
+    for dimension in ('node', 'node_context', 'node_occurrence'):
+        totals = []
+        for sample in samples:
+            groups = {}
+            for level in (decision for expansion in sample.get('levels', []) for decision in expansion['decisions']):
+                key = level['node']
+                if dimension == 'node_context':
+                    key += ':' + level['context']
+                elif dimension == 'node_occurrence':
+                    key += ':' + str(level['occurrence'])
+                group = groups.setdefault(key, dict(extra_histories=0, seconds=0, visits=0))
+                for metric in ('extra_histories', 'seconds'):
+                    group[metric] += level[metric]
+                group['visits'] += level['weight']
+            totals.append(groups)
+        groups = {}
+        for key in sorted({key for total in totals for key in total}):
+            groups[key] = {metric: interval([total.get(key, {}).get(metric, 0) for total in totals])
+                           for metric in ('extra_histories', 'seconds', 'visits')}
+            groups[key]['probes_present'] = sum(key in total for total in totals)
+        result[dimension] = groups
+    return result
+
+
 def summarize(samples):
     total = sum(s['seconds'] for s in samples)
     branches = {}
@@ -95,7 +182,8 @@ def summarize(samples):
         branches[branch] = dict(probes=sum(s['top_branch'] == branch for s in samples),
                                 leaves=interval(leaves), seconds=interval(costs),
                                 cost_share=sum(costs) / total if total else None)
-    return dict(completed_probes=len(samples), leaves=interval([s['leaves'] for s in samples]),
+    return dict(completed_probes=len(samples), attribution=attribution(samples),
+                leaves=interval([s['leaves'] for s in samples]),
                 seconds=interval([s['seconds'] for s in samples]), top_branches=branches,
                 shared_seconds=interval([s['shared_seconds'] for s in samples]),
                 shared_cost_share=sum(s['shared_seconds'] for s in samples) / total if total else None)
@@ -122,6 +210,12 @@ def estimate(row=0, probes=200, seconds=900, seed=20261001, output=Path('var/dia
                   method='Uniform independent Knuth root-to-leaf probes; no model probabilities',
                   interval='Approximate 95% normal Monte Carlo interval; heavy tails may understate uncertainty. '
                            'Time-limited prefixes can be biased; use completed fixed-count runs for inference.',
+                  attribution_scope='One root history plus additive extra_histories equals estimated leaves. '
+                                    'Grouped by node, node/context and ordinal occurrence of node on path. '
+                                    'Answers are supported scheduler children, not nominal question options. '
+                                    'Nested offering closures split fork surplus and measured constructor time '
+                                    'from their initiating floor/response decision. This is accounting, not '
+                                    'a causal estimate of removing a decision.',
                   cost_scope='Scheduler plus terminal emission; excludes setup, replay/sampling overhead and '
                              'retention of all leaves. Warm caches; not a memory or wall-clock guarantee.')
 
@@ -161,7 +255,7 @@ def estimate(row=0, probes=200, seconds=900, seed=20261001, output=Path('var/dia
                 walk.run()
                 sample = dict(probe=i, leaves=walk.leaves, seconds=walk.cost,
                               shared_seconds=walk.shared_cost, top_branch=walk.top or 'unbranched',
-                              degrees=walk.degrees)
+                              degrees=walk.degrees, levels=walk.levels)
                 samples.append(sample)
                 stream.write(json.dumps(sample) + '\n')
                 stream.flush()
