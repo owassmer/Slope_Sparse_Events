@@ -1,68 +1,29 @@
-# Population chronology: all 512 draws stay together; partition by the first six scheduler transitions.
-# Each invocation stops after 900s plus bounded unwind, streams events.pkl, and writes piece.json.
-# complete=false is NOT a completed subtree: its next.txt contains the required continuation command.
-# Collect every partition and all its continuations before reduction. No cloud/model calls.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 0 --partitions 64 --seconds 900 --output var/walk-population/00
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 1 --partitions 64 --seconds 900 --output var/walk-population/01
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 2 --partitions 64 --seconds 900 --output var/walk-population/02
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 3 --partitions 64 --seconds 900 --output var/walk-population/03
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 4 --partitions 64 --seconds 900 --output var/walk-population/04
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 5 --partitions 64 --seconds 900 --output var/walk-population/05
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 6 --partitions 64 --seconds 900 --output var/walk-population/06
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 7 --partitions 64 --seconds 900 --output var/walk-population/07
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 8 --partitions 64 --seconds 900 --output var/walk-population/08
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 9 --partitions 64 --seconds 900 --output var/walk-population/09
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 10 --partitions 64 --seconds 900 --output var/walk-population/10
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 11 --partitions 64 --seconds 900 --output var/walk-population/11
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 12 --partitions 64 --seconds 900 --output var/walk-population/12
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 13 --partitions 64 --seconds 900 --output var/walk-population/13
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 14 --partitions 64 --seconds 900 --output var/walk-population/14
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 15 --partitions 64 --seconds 900 --output var/walk-population/15
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 16 --partitions 64 --seconds 900 --output var/walk-population/16
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 17 --partitions 64 --seconds 900 --output var/walk-population/17
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 18 --partitions 64 --seconds 900 --output var/walk-population/18
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 19 --partitions 64 --seconds 900 --output var/walk-population/19
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 20 --partitions 64 --seconds 900 --output var/walk-population/20
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 21 --partitions 64 --seconds 900 --output var/walk-population/21
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 22 --partitions 64 --seconds 900 --output var/walk-population/22
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 23 --partitions 64 --seconds 900 --output var/walk-population/23
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 24 --partitions 64 --seconds 900 --output var/walk-population/24
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 25 --partitions 64 --seconds 900 --output var/walk-population/25
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 26 --partitions 64 --seconds 900 --output var/walk-population/26
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 27 --partitions 64 --seconds 900 --output var/walk-population/27
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 28 --partitions 64 --seconds 900 --output var/walk-population/28
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 29 --partitions 64 --seconds 900 --output var/walk-population/29
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 30 --partitions 64 --seconds 900 --output var/walk-population/30
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 31 --partitions 64 --seconds 900 --output var/walk-population/31
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 32 --partitions 64 --seconds 900 --output var/walk-population/32
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 33 --partitions 64 --seconds 900 --output var/walk-population/33
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 34 --partitions 64 --seconds 900 --output var/walk-population/34
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 35 --partitions 64 --seconds 900 --output var/walk-population/35
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 36 --partitions 64 --seconds 900 --output var/walk-population/36
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 37 --partitions 64 --seconds 900 --output var/walk-population/37
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 38 --partitions 64 --seconds 900 --output var/walk-population/38
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 39 --partitions 64 --seconds 900 --output var/walk-population/39
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 40 --partitions 64 --seconds 900 --output var/walk-population/40
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 41 --partitions 64 --seconds 900 --output var/walk-population/41
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 42 --partitions 64 --seconds 900 --output var/walk-population/42
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 43 --partitions 64 --seconds 900 --output var/walk-population/43
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 44 --partitions 64 --seconds 900 --output var/walk-population/44
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 45 --partitions 64 --seconds 900 --output var/walk-population/45
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 46 --partitions 64 --seconds 900 --output var/walk-population/46
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 47 --partitions 64 --seconds 900 --output var/walk-population/47
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 48 --partitions 64 --seconds 900 --output var/walk-population/48
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 49 --partitions 64 --seconds 900 --output var/walk-population/49
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 50 --partitions 64 --seconds 900 --output var/walk-population/50
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 51 --partitions 64 --seconds 900 --output var/walk-population/51
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 52 --partitions 64 --seconds 900 --output var/walk-population/52
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 53 --partitions 64 --seconds 900 --output var/walk-population/53
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 54 --partitions 64 --seconds 900 --output var/walk-population/54
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 55 --partitions 64 --seconds 900 --output var/walk-population/55
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 56 --partitions 64 --seconds 900 --output var/walk-population/56
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 57 --partitions 64 --seconds 900 --output var/walk-population/57
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 58 --partitions 64 --seconds 900 --output var/walk-population/58
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 59 --partitions 64 --seconds 900 --output var/walk-population/59
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 60 --partitions 64 --seconds 900 --output var/walk-population/60
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 61 --partitions 64 --seconds 900 --output var/walk-population/61
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 62 --partitions 64 --seconds 900 --output var/walk-population/62
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --partition 63 --partitions 64 --seconds 900 --output var/walk-population/63
+# walk-c2: continuations of the unfinished pieces of walk-c1; each line within its runner limit.
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0001/piece.json --output var/walk-population/walk-c2-0001
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0002/piece.json --output var/walk-population/walk-c2-0002
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0003/piece.json --output var/walk-population/walk-c2-0003
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0004/piece.json --output var/walk-population/walk-c2-0004
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0005/piece.json --output var/walk-population/walk-c2-0005
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0006/piece.json --output var/walk-population/walk-c2-0006
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0007/piece.json --output var/walk-population/walk-c2-0007
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0008/piece.json --output var/walk-population/walk-c2-0008
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0009/piece.json --output var/walk-population/walk-c2-0009
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0010/piece.json --output var/walk-population/walk-c2-0010
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0011/piece.json --output var/walk-population/walk-c2-0011
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0012/piece.json --output var/walk-population/walk-c2-0012
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0013/piece.json --output var/walk-population/walk-c2-0013
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0014/piece.json --output var/walk-population/walk-c2-0014
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0015/piece.json --output var/walk-population/walk-c2-0015
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0016/piece.json --output var/walk-population/walk-c2-0016
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0017/piece.json --output var/walk-population/walk-c2-0017
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0018/piece.json --output var/walk-population/walk-c2-0018
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0019/piece.json --output var/walk-population/walk-c2-0019
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0020/piece.json --output var/walk-population/walk-c2-0020
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0021/piece.json --output var/walk-population/walk-c2-0021
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0022/piece.json --output var/walk-population/walk-c2-0022
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0023/piece.json --output var/walk-population/walk-c2-0023
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0024/piece.json --output var/walk-population/walk-c2-0024
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0025/piece.json --output var/walk-population/walk-c2-0025
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0026/piece.json --output var/walk-population/walk-c2-0026
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0027/piece.json --output var/walk-population/walk-c2-0027
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume walk-resume/walk-c2/0028/piece.json --output var/walk-population/walk-c2-0028

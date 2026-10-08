@@ -1,0 +1,91 @@
+{
+  "complete": false,
+  "partition": 57,
+  "partitions": 64,
+  "depth": 6,
+  "remaining": [
+    [
+      1,
+      4,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2,
+      3
+    ],
+    [
+      1,
+      4,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      3
+    ],
+    [
+      1,
+      4,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      4
+    ],
+    [
+      1,
+      4,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      2
+    ],
+    [
+      1,
+      4,
+      1
+    ],
+    [
+      1,
+      4,
+      2
+    ],
+    [
+      1,
+      4,
+      3
+    ],
+    [
+      1,
+      5
+    ],
+    [
+      1,
+      6
+    ]
+  ],
+  "watch_results": {
+    "[[1, 4, 0, 1, 1, 1], [[\"settle\", \"I0\", \"no\"], [\"verdict\", \"I0\", \"award:2397555350:2260000400:2535110300\"], [\"judgment_response\", \"entry\", \"@2=initiate_offering\"], [\"offering\", \"entry\", \"yes\"], [\"settle\", \"Ientry\", \"no\"], [\"post_trial_motions\", \"\", \"no\"], [\"settle\", \"I2\", \"no\"]], [\"appeal\", \"\", \"no\"]]": true
+  },
+  "histories": 3252,
+  "history_draws": 162331,
+  "visited": 4504,
+  "seconds": 900.950650191,
+  "events_format": "population-piece-v1",
+  "events_bytes": 74250930
+}
