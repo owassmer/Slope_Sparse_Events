@@ -16,6 +16,17 @@ from app.disputes.forecast import _S, _Walk, atoms
 class ChronologicalWalk(_Walk):
     """Select the earliest unresolved decision on each supported draw."""
 
+    def __init__(self, fc, dispute, *, bounds=None):
+        super().__init__(fc, dispute)
+        # Experimental declared scenarios; never enabled by the ordinary walk.
+        from app.disputes.recurrence import RecurrenceBounds
+        self.bounds = bounds or RecurrenceBounds()
+
+    def offer(self, s, occasion, then):
+        if self.bounds.reached('offering', s.steps):
+            return  # no further initiation branch, not a failed offering
+        return super().offer(s, occasion, then)
+
     def run(self):
         return self.run_from(_S(cls="claimed"))
 
@@ -392,6 +403,13 @@ class ChronologicalWalk(_Walk):
 
     def _ask(self, s, d, outcome):
         again = lambda y: self._resume(y)  # noqa: E731
+        if self.bounds.reached(d.node, s.steps):
+            if d.node == 'settle':
+                return again(s.add(('settle', d.ctx, 'no'), None))
+            if d.node == 'cash_floor':
+                return again(s.add(('cash_floor', d.ctx, 'neither'), None, k=s.k + 1))
+            if d.node == 'judgment_default':
+                return again(s.add(('judgment_default', d.ctx, 'no'), None))
         if d.node == self.resp:
             return _Walk.a4_grouped(self, s, d.ctx, again, again, False)
         if d.node == "post_trial_ruling":

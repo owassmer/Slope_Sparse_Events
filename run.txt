@@ -4,3 +4,41 @@
 # Exit 1 means gates were exported and failed/incomplete; exit 0 means arithmetic/coverage passed.
 # The two sampled semantic reviews remain separate, not automatically certified.
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --run-list "${POOL_RUN_LIST:?set to the all-wave run-id list}" --links "${POOL_LINKS:?set to legacy source-to-input_routes JSON}" --database tree-pool.sqlite --output var/tree-pool --seconds 900
+# 001-11a: cache-only, no model calls. Each line self-limits to 900 seconds, writes progress.
+# Not submitted by this task. Run report after collecting all outputs in one workspace.
+uv run slope estimate-walk --row 146 --scenario unbounded --probes 1000 --seconds 900 --output var/diag/001-11a/unbounded
+uv run slope estimate-walk --row 146 --scenario settlement --probes 1000 --seconds 900 --output var/diag/001-11a/settlement
+uv run slope estimate-walk --row 146 --scenario floor --probes 1000 --seconds 900 --output var/diag/001-11a/floor
+uv run slope estimate-walk --row 146 --scenario offerings --probes 1000 --seconds 900 --output var/diag/001-11a/offerings
+uv run slope estimate-walk --row 146 --scenario notes --probes 1000 --seconds 900 --output var/diag/001-11a/notes
+uv run slope estimate-walk --row 146 --scenario together --probes 1000 --seconds 900 --output var/diag/001-11a/together
+uv run slope estimate-walk --row 365 --scenario unbounded --probes 1000 --seconds 900 --output var/diag/001-11a/unbounded
+uv run slope estimate-walk --row 365 --scenario settlement --probes 1000 --seconds 900 --output var/diag/001-11a/settlement
+uv run slope estimate-walk --row 365 --scenario floor --probes 1000 --seconds 900 --output var/diag/001-11a/floor
+uv run slope estimate-walk --row 365 --scenario offerings --probes 1000 --seconds 900 --output var/diag/001-11a/offerings
+uv run slope estimate-walk --row 365 --scenario notes --probes 1000 --seconds 900 --output var/diag/001-11a/notes
+uv run slope estimate-walk --row 365 --scenario together --probes 1000 --seconds 900 --output var/diag/001-11a/together
+uv run slope estimate-walk --row 438 --scenario unbounded --probes 1000 --seconds 900 --output var/diag/001-11a/unbounded
+uv run slope estimate-walk --row 438 --scenario settlement --probes 1000 --seconds 900 --output var/diag/001-11a/settlement
+uv run slope estimate-walk --row 438 --scenario floor --probes 1000 --seconds 900 --output var/diag/001-11a/floor
+uv run slope estimate-walk --row 438 --scenario offerings --probes 1000 --seconds 900 --output var/diag/001-11a/offerings
+uv run slope estimate-walk --row 438 --scenario notes --probes 1000 --seconds 900 --output var/diag/001-11a/notes
+uv run slope estimate-walk --row 438 --scenario together --probes 1000 --seconds 900 --output var/diag/001-11a/together
+uv run slope estimate-walk --row 73 --scenario unbounded --probes 1000 --seconds 900 --output var/diag/001-11a/unbounded
+uv run slope estimate-walk --row 73 --scenario settlement --probes 1000 --seconds 900 --output var/diag/001-11a/settlement
+uv run slope estimate-walk --row 73 --scenario floor --probes 1000 --seconds 900 --output var/diag/001-11a/floor
+uv run slope estimate-walk --row 73 --scenario offerings --probes 1000 --seconds 900 --output var/diag/001-11a/offerings
+uv run slope estimate-walk --row 73 --scenario notes --probes 1000 --seconds 900 --output var/diag/001-11a/notes
+uv run slope estimate-walk --row 73 --scenario together --probes 1000 --seconds 900 --output var/diag/001-11a/together
+uv run slope estimate-walk --row 511 --scenario unbounded --probes 1000 --seconds 900 --output var/diag/001-11a/unbounded
+uv run slope estimate-walk --row 511 --scenario settlement --probes 1000 --seconds 900 --output var/diag/001-11a/settlement
+uv run slope estimate-walk --row 511 --scenario floor --probes 1000 --seconds 900 --output var/diag/001-11a/floor
+uv run slope estimate-walk --row 511 --scenario offerings --probes 1000 --seconds 900 --output var/diag/001-11a/offerings
+uv run slope estimate-walk --row 511 --scenario notes --probes 1000 --seconds 900 --output var/diag/001-11a/notes
+uv run slope estimate-walk --row 511 --scenario together --probes 1000 --seconds 900 --output var/diag/001-11a/together
+uv run slope measure-recurrence --row 146 --samples 300 --seconds 900
+uv run slope measure-recurrence --row 365 --samples 300 --seconds 900
+uv run slope measure-recurrence --row 438 --samples 300 --seconds 900
+uv run slope measure-recurrence --row 73 --samples 300 --seconds 900
+uv run slope measure-recurrence --row 511 --samples 300 --seconds 900
+uv run python -m app.analysis.recurrence_report var/diag/001-11a

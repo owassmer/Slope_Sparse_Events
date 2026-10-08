@@ -95,6 +95,7 @@ def estimate_walk(
     seconds: float = typer.Option(900, min=0.001, max=1000, help="Safety limit including setup."),
     seed: int = typer.Option(20261001, help="Sampling seed; not a model probability."),
     output: str = typer.Option('var/diag/001-5c', help="Directory for probe JSONL and attributed summary JSON."),
+    scenario: str = typer.Option('unbounded', help='unbounded, settlement, floor, offerings, notes, together'),
 ) -> None:
     """Estimate one draw's tree leaves and work with Knuth probes; no model calls."""
     import json
@@ -102,7 +103,24 @@ def estimate_walk(
 
     from app.analysis.walk_estimator import estimate
 
-    typer.echo(json.dumps(estimate(row=row, probes=probes, seconds=seconds, seed=seed, output=Path(output))))
+    typer.echo(json.dumps(estimate(row=row, probes=probes, seconds=seconds, seed=seed, output=Path(output),
+                                   scenario=scenario)))
+
+
+@cli.command('measure-recurrence')
+def measure_recurrence(
+    row: int = typer.Option(146, min=0, max=511),
+    samples: int = typer.Option(100, min=1),
+    seconds: float = typer.Option(900, min=0.001, max=1000),
+    output: str = typer.Option('var/diag/001-11a'),
+) -> None:
+    """Compare opt-in bounds with paired synthetic answers; no judgment calls."""
+    import json
+    from pathlib import Path
+
+    from app.analysis.recurrence_measurement import measure
+
+    typer.echo(json.dumps(measure(row=row, samples=samples, seconds=seconds, output=Path(output))))
 
 
 @cli.command()

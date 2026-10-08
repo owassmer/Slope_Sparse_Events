@@ -19,8 +19,8 @@ class ProbeWalk(ChronologicalWalk):
     replay and sampling overhead are not costs of an exhaustive walk.
     """
 
-    def __init__(self, fc, dispute, rng):
-        super().__init__(fc, dispute)
+    def __init__(self, fc, dispute, rng, *, bounds=None):
+        super().__init__(fc, dispute, bounds=bounds)
         self.rng = rng
         self.intercept = None
         self.weight = 1
@@ -29,8 +29,22 @@ class ProbeWalk(ChronologicalWalk):
         self.degrees = []
         self.levels = []
         self.occurrences = {}
+        self.touched = set()
+        self.touched_leaves = {}
+
+    def _ask(self, s, d, outcome):
+        from app.disputes.recurrence import SCENARIOS
+        self.touched.update(name for name, bound in SCENARIOS.items() if bound.reached(d.node, s.steps))
+        return super()._ask(s, d, outcome)
+
+    def emit(self, s, outcome):
+        super().emit(s, outcome)
+        for name in self.touched:
+            self.touched_leaves[name] = self.touched_leaves.get(name, 0) + self.weight
 
     def offer(self, s, occasion, then):
+        from app.disputes.recurrence import SCENARIOS
+        self.touched.update(name for name, bound in SCENARIOS.items() if bound.reached('offering', s.steps))
         if not getattr(self, '_measuring', False):
             return super().offer(s, occasion, then)
         started = time.perf_counter()
@@ -182,14 +196,21 @@ def summarize(samples):
         branches[branch] = dict(probes=sum(s['top_branch'] == branch for s in samples),
                                 leaves=interval(leaves), seconds=interval(costs),
                                 cost_share=sum(costs) / total if total else None)
-    return dict(completed_probes=len(samples), attribution=attribution(samples),
+    from app.disputes.recurrence import SCENARIOS
+    leaves_total = sum(s['leaves'] for s in samples)
+    touched_histories = {name: dict(
+        leaves=interval([s.get('touched_leaves', {}).get(name, 0) for s in samples]),
+        share=sum(s.get('touched_leaves', {}).get(name, 0) for s in samples) / leaves_total if leaves_total else None)
+        for name in SCENARIOS if name != 'unbounded'}
+    return dict(completed_probes=len(samples), touched_histories=touched_histories, attribution=attribution(samples),
                 leaves=interval([s['leaves'] for s in samples]),
                 seconds=interval([s['seconds'] for s in samples]), top_branches=branches,
                 shared_seconds=interval([s['shared_seconds'] for s in samples]),
                 shared_cost_share=sum(s['shared_seconds'] for s in samples) / total if total else None)
 
 
-def estimate(row=0, probes=200, seconds=900, seed=20261001, output=Path('var/diag/001-5c')):
+def estimate(row=0, probes=200, seconds=900, seed=20261001, output=Path('var/diag/001-5c'),
+             scenario='unbounded'):
     import os
     import signal
 
@@ -200,12 +221,15 @@ def estimate(row=0, probes=200, seconds=900, seed=20261001, output=Path('var/dia
 
     if not 0 <= row < 512 or probes < 2 or not 0 < seconds <= 1000:
         raise ValueError('row 0..511, probes >=2, seconds in (0,1000] required')
+    from app.disputes.recurrence import DECLARATIONS, SCENARIOS
+    bounds = SCENARIOS[scenario]
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     target = output / f'draw-{row}.json'
     started = time.perf_counter()
     samples = []
     result = dict(run=LEAD_RUN, native_row=row, seed=seed, requested_probes=probes,
+                  scenario=DECLARATIONS[scenario],
                   seconds_limit=seconds, status='running',
                   method='Uniform independent Knuth root-to-leaf probes; no model probabilities',
                   interval='Approximate 95% normal Monte Carlo interval; heavy tails may understate uncertainty. '
@@ -251,11 +275,11 @@ def estimate(row=0, probes=200, seconds=900, seed=20261001, output=Path('var/dia
         rng = random.Random(seed)
         with target.with_suffix('.jsonl').open('w') as stream:
             for i in range(probes):
-                walk = ProbeWalk(fc, d, rng)
+                walk = ProbeWalk(fc, d, rng, bounds=bounds)
                 walk.run()
                 sample = dict(probe=i, leaves=walk.leaves, seconds=walk.cost,
                               shared_seconds=walk.shared_cost, top_branch=walk.top or 'unbranched',
-                              degrees=walk.degrees, levels=walk.levels)
+                              degrees=walk.degrees, levels=walk.levels, touched_leaves=walk.touched_leaves)
                 samples.append(sample)
                 stream.write(json.dumps(sample) + '\n')
                 stream.flush()
