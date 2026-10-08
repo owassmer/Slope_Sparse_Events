@@ -27,7 +27,8 @@ Slope Sparse Events is a work sample for Russell, Slope's Head of Lending. He as
 An outcome is finished when it is true in the running product. Keep working until it is.
 Before a commitment that is costly to undo, re-read the purpose and your task.
 When something you expected does not happen, re-read your task before continuing.
-If you notice something that would help the next agent, say it at the end of your final message.
+If you notice something that would help the next agent, say it at the end of your final message. Measurements and
+reports go in `var/` (they come back with your run) or in that message; your commit carries only product code.
 
 **Isolation.** `case_eval_private.json`, `outcome_checks_synergy.json`, the facts registry, `outcomes/<case>.json`, and any source whose `mission_membership` is `outcome` never reach the investigating agent, the judgment model or the blind reviewer. The agent reaches evidence only through scoped tools built from the dated snapshot. This file, the alignment doc and `Jev_Pivot.md` are builder context and never enter an agent or judgment-model prompt. Forecast prompts forbid remembered facts about the parties or later events. Scenario assumptions and their rationale never enter the judgment model's inputs: code applies their rules, and the model sees the resulting situation and the sourced evidence. Scenario declarations state their substance, with source citations where they exist, and nothing about who decided them or when.
 
