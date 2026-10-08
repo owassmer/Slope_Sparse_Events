@@ -26,7 +26,7 @@ sha="$(git rev-parse HEAD)"
   gh run watch "$id" --interval 60 --exit-status > /dev/null 2>&1; status=$?
   set -e
   dest="var/remote/$name"; rm -rf "$dest"; mkdir -p "$dest"
-  gh run download "$id" --dir "$dest" > /dev/null 2>&1 || true
+  gh run download "$id" --pattern "out-*" --dir "$dest" > /dev/null 2>&1 || true   # never the heavy-* artifacts
   gh run view "$id" --json jobs --jq '.jobs[] | "\(.conclusion) \(.name)"'
   echo "outputs: $dest"
   echo "=== finished exit $status"

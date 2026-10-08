@@ -43,6 +43,7 @@ jobs:
           set -o pipefail
           # Every line answers within its limit (RUN_MINUTES, default 20); what it wrote by then is still uploaded.
           timeout --signal=TERM --kill-after=60 "${RUN_MINUTES:-20}m" bash -c "$CMD" 2>&1 | tee out/log.txt
+      # Small outputs (logs, summaries, continuation files) come back to the coordinator; heavy ones stay on GitHub.
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -50,5 +51,13 @@ jobs:
           path: |
             out/
             var/diag/
-            var/walk-population/
+            var/walk-population/**/*.json
+            var/walk-population/**/*.txt
+          if-no-files-found: ignore
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: heavy-${{ strategy.job-index }}
+          path: |
+            var/walk-population/**/*.pkl
           if-no-files-found: ignore
