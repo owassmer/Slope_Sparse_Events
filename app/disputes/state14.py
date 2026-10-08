@@ -721,6 +721,10 @@ class Situation:
             return "unavailable: another offering is pending"
         if int(self._g().at_rep("ledger", sit=True)) <= 0:
             return "unavailable: no share capacity is left"
+        terms = self._terms()
+        if "shelf_capacity" in terms and terms["gross"] > terms["shelf_capacity"]:
+            return (f"unavailable: Form S-3 I.B.6 leaves {usd(terms['shelf_capacity'])} of gross capacity; "
+                    f"the {usd(terms['gross'])} offering exceeds it and cannot be offered")
         try:  # the case's initiation rule (QUESTIONS §2.6): the proceeds against the shortfall they must cover
             net, short = (int(self._g().at_rep(k, sit=True)) for k in ("offer_available", "offer_shortfall"))
         except KeyError:  # a record without the rule's figures: the offering is among the answers

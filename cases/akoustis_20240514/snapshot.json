@@ -242,6 +242,16 @@
       "document_kind": "contract",
       "publisher": "SEC EDGAR"
     },
+    "akts_2023_09_19_def14a_full": {
+      "title": "Akoustis Technologies definitive proxy statement, 19 Sep 2023, complete filing including beneficial ownership (pp. 5-6)",
+      "document_kind": "sec_proxy_statement",
+      "publisher": "SEC EDGAR"
+    },
+    "akts_fy2023_10k_full": {
+      "title": "Akoustis Technologies FY2023 Form 10-K, filed 6 Sep 2023, complete filing",
+      "document_kind": "sec_annual_report",
+      "publisher": "SEC EDGAR"
+    },
     "akts_2023_09_19_def14a": {
       "title": "Akoustis Technologies definitive proxy statement for the 2 Nov 2023 annual meeting (DEF 14A), excerpt: notice, voting information and Proposal 3 (charter amendment increasing authorized shares)",
       "document_kind": "sec_proxy_statement",

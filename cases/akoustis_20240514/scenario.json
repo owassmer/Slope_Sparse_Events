@@ -72,6 +72,13 @@
       "value": "same_forecast",
       "basis": "Ordinary operating risk is the same forecast with the event, including its legal costs, given no cash effect. The dispute ends on the review date at no cost, so its legal spend stops from then; operations, the line, the coupon, the cash-floor decisions and the listing chain with the notes' delisting route are the same as in the forecast."
     },
+    "baby_shelf": {
+      "value": "annual_update",
+      "annual_update": "2024-09-06",
+      "nonaffiliate_shares": 95928273,
+      "affiliate_shares": 2741009,
+      "basis": "Law: Form S-3 I.B.6 and SEC Securities Act Forms C&DIs 114.02 (2009), 116.22 and 116.23 (2010). I.B.1 continues until the annual update; below USD 75M public float at that update, only one third of public float may be sold under I.B.6 in twelve months. Whole underwritten takedowns must fit immediately before initiation; only completed I.B.6 sales debit later capacity. Scenario: FY2024 10-K on 6 Sep 2024, the anniversary of the FY2023 filing (akts_fy2023_10k_full); not an observed future date. The full 19 Sep 2023 proxy (akts_2023_09_19_def14a_full, pp.5-6) lists all ten directors and executive officers: Shealy, Boller, Aichele, DenBaars, Geiss, McGuire, McMahon, Neal, Petock and Rudy. They count as affiliates because they direct or manage the company; no other controlling holder is identified and the proxy knows of no holder above 5%. Their 4,101,085 beneficial shares include 1,115,154 unissued option shares and 244,922 unvested RSU shares (footnotes 4-13), leaving 2,741,009 outstanding affiliate shares. Scenario holds these affiliate holdings fixed and subtracts them from the 8 May outstanding count of 98,669,282, projecting 95,928,273 non-affiliate shares throughout the forecast; neither subsequent issuance nor vesting changes this projected float share count. The FY2023 cover's USD 148.2M non-affiliate value is a historical value, not a share count. Float uses the path price at the annual update for eligibility and the current price immediately before each later takedown for capacity. The continuous ATM offering is resized at the update to the then lawful capacity; later takedowns and actual sales reduce its remaining room, with no upward resizing inside that takedown. No pre-update I.B.1 sales count as I.B.6 sales. Pending offerings reserve room against concurrent ATM sales but are not completed sales; failure releases it."
+    },
     "share_ledger": {
       "value": 58957268,
       "authorized": 175000000,
@@ -367,6 +374,16 @@
       "in_case_record": false
     },
     "akts_2022_06_notes_indenture": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_fy2023_10k_full": {
+      "author": "Akoustis Technologies",
+      "status": "company disclosure",
+      "in_case_record": false
+    },
+    "akts_2023_09_19_def14a_full": {
       "author": "Akoustis Technologies",
       "status": "company disclosure",
       "in_case_record": false

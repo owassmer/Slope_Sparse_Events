@@ -2,9 +2,19 @@
   "package": "Slope credit-event scenario research and design kit",
   "revision": "2",
   "status": "Research and design; not a built agent or lending application",
-  "primary_catalog_records": 103,
+  "primary_catalog_records": 105,
   "warning": "Build dated agent evidence stores. Do not expose this entire kit, outcomes or evaluator answers to investigator/reviewer runtimes.",
   "files": [
+    {
+      "path": "research/recent_cases/akoustis/akts_2023_09_19_def14a_full.htm",
+      "bytes": 1302645,
+      "sha256": "00dc55861603b1e51294f48593ef44fd724cbc6ebc7a382b73c20e704a053557"
+    },
+    {
+      "path": "research/recent_cases/akoustis/akts_fy2023_10k_full.htm",
+      "bytes": 1335337,
+      "sha256": "06d79995acabf6fe95862cc027c711226fb2773f6cbc3efb76160b7757750795"
+    },
     {
       "path": "research/barfresh_case/acquired_sources.json",
       "bytes": 8493,
@@ -547,13 +557,13 @@
     },
     {
       "path": "research/recent_cases/akoustis/design/DECOMPOSITION_20240514.md",
-      "bytes": 97333,
-      "sha256": "39a4197c9e26217d64012213b7eca9522387e23af3f95355666e588e1463af32"
+      "bytes": 97442,
+      "sha256": "ce7d1a9160b6d4b675cbfc2ed6f0ffdafaaa30bc5deeccb4398b87067250822b"
     },
     {
       "path": "research/recent_cases/akoustis/design/QUESTIONS_20240514.md",
-      "bytes": 44323,
-      "sha256": "7e3735d22c4866450e39cf37c435d4da58c680e20e252cbeacb7e79b69b47dd9"
+      "bytes": 46892,
+      "sha256": "5bd4e21a98220aafe84d25bf1bbf252b745bbc64c1a71a30282119aa5dcec58b"
     },
     {
       "path": "research/recent_cases/akoustis/design/acquisition_akoustis_20240514.md",
@@ -657,8 +667,8 @@
     },
     {
       "path": "research/revision_v2/contracts/dispute_model.json",
-      "bytes": 144960,
-      "sha256": "22dc74906fa84828b729ec2cedf54c63df55445eb3e353b94a377aa17039f93f"
+      "bytes": 145341,
+      "sha256": "3f2d2c3f4de127f7d5d0426eb86ded19a647f27e59944328975881f928a3dc0d"
     },
     {
       "path": "research/revision_v2/contracts/economic-effects.json",
@@ -677,8 +687,8 @@
     },
     {
       "path": "research/revision_v2/contracts/question_registry.json",
-      "bytes": 142721,
-      "sha256": "6720ca4853d92f10c05d4b3ddf0e0be4424e798371d42f30b1f1bd985a3ccd38"
+      "bytes": 142887,
+      "sha256": "ca03a9ab85192f9ba6d9542bc1d122da920512cb135f8e1800cebfd6ffa70a6c"
     },
     {
       "path": "research/revision_v2/contracts/synergy-decision-context.json",
@@ -712,8 +722,8 @@
     },
     {
       "path": "research/revision_v2/data/sources.json",
-      "bytes": 125674,
-      "sha256": "0453571a25779e1a7449d5fc618d8926484b9375e1832e4dd0b5dbe4b2fa4b47"
+      "bytes": 127476,
+      "sha256": "712bcd0c5826ba74ba90d8f5c44ba70e72dfbaa8b27daa1538ebecc98a6e708f"
     },
     {
       "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",

@@ -2703,6 +2703,40 @@
       }
     },
     {
+      "source_id": "akts_2023_09_19_def14a_full",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023077402/def14a0923_akoustistech.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_2023_09_19_def14a_full.htm",
+      "package_relative_path": "research/recent_cases/akoustis/akts_2023_09_19_def14a_full.htm",
+      "sha256": "00dc55861603b1e51294f48593ef44fd724cbc6ebc7a382b73c20e704a053557",
+      "bytes": 1302645,
+      "availability": {
+        "date": "2023-09-19", "precision": "day",
+        "accepted_at": "2023-09-18T18:01:34.000Z",
+        "basis": "SEC submissions JSON: filingDate (acceptanceDateTime kept as accepted_at)"
+      },
+      "event_dates": [{"type": "sec_filing", "date": "2023-09-19"}],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {"akoustis_20240514": "eligible"}
+    },
+    {
+      "source_id": "akts_fy2023_10k_full",
+      "case_id": "akoustis_qorvo_2024",
+      "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023074139/f10k2023_akoustistech.htm",
+      "original_relative_path": "research/recent_cases/akoustis/akts_fy2023_10k_full.htm",
+      "package_relative_path": "research/recent_cases/akoustis/akts_fy2023_10k_full.htm",
+      "sha256": "06d79995acabf6fe95862cc027c711226fb2773f6cbc3efb76160b7757750795",
+      "bytes": 1335337,
+      "availability": {
+        "date": "2023-09-06", "precision": "second",
+        "accepted_at": "2023-09-06T07:31:03.000Z",
+        "basis": "SEC submissions JSON acceptanceDateTime"
+      },
+      "event_dates": [{"type": "sec_filing", "date": "2023-09-06"}],
+      "relative_to_lead_cutoff": "eligible",
+      "mission_membership": {"akoustis_20240514": "eligible"}
+    },
+    {
       "source_id": "akts_2023_09_19_def14a",
       "case_id": "akoustis_qorvo_2024",
       "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023077402/def14a0923_akoustistech.htm",

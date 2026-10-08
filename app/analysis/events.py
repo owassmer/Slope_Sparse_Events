@@ -1392,6 +1392,9 @@ class Chain:
 
     def _atm_rebook_fast(self) -> tuple:
         """`_atm_rebook_py` compiled: (sold, cumulative sold, booking, its cumsum, change), writing no state."""
+        if "baby_shelf" in self.m["parameters"]:
+            from app.analysis.baby_shelf import atm_book
+            return atm_book(self)
         from app.analysis.k_atm import atm_book
         sale, settle, q, _ = self._atm_schedule()
         pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
@@ -1415,13 +1418,17 @@ class Chain:
         comm = int(self.m["parameters"]["atm_pace_bps"]["commission_bps"])
         have_old = self._atm is not None
         old = self._atm if have_old else np.zeros((1, 1), dtype=np.int64)
-        return atm_book(sale, stop, np.int64(q), np.int64(led), init, close, closed, shares, lock_on, np.int64(BIG),
+        result = atm_book(sale, stop, np.int64(q), np.int64(led), init, close, closed, shares, lock_on, np.int64(BIG),
                         np.int64(pricing_days), np.int64(lock_value), j, days, start, sp, use_close, close_price,
                         self.N, np.int64(comm), old, have_old)
+        return result[0], result[1] * q, *result[2:]
 
     def _atm_rebook_py(self) -> tuple:
         """The Python booking `_atm_rebook_fast` replaces (the shadow reference): (sold, cumulative sold, booking,
         its cumsum, change against the booking before), writing no state."""
+        if "baby_shelf" in self.m["parameters"]:
+            from app.analysis.baby_shelf import atm_book
+            return atm_book(self)
         sale, settle, q, _ = self._atm_schedule()
         pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
         stop = np.minimum(pet, self.delisted)
@@ -1441,7 +1448,7 @@ class Chain:
             new[:, days] = np.add.reduceat(np.where(ok[:, j], net, 0), start, axis=1)
         old = self._atm if self._atm is not None else np.zeros_like(new)
         delta = new - old
-        return ok, csold, new, np.cumsum(new, axis=1), delta
+        return ok, csold * q, new, np.cumsum(new, axis=1), delta
 
     def atm_to_date(self, day=None) -> np.ndarray:
         """Net at-the-market proceeds received (settled) by the day's end, in cents [draws]."""
@@ -1457,7 +1464,7 @@ class Chain:
             return np.zeros(self.n, dtype=np.int64)
         sale, _, q, _ = self._atm_schedule()
         i = np.searchsorted(sale, day, side="right")
-        return np.where(i > 0, self._atm_csold[self.rows, np.maximum(i - 1, 0)], 0).astype(np.int64) * q
+        return np.where(i > 0, self._atm_csold[self.rows, np.maximum(i - 1, 0)], 0).astype(np.int64)
 
     def ledger_left(self, day=None) -> np.ndarray:
         """Shares available on the day [draws]: the ledger less the at-the-market shares sold and the offerings'
@@ -1484,7 +1491,12 @@ class Chain:
         gross = np.where(binds, shares * price // 10_000, gross0)
         net = np.where(binds, gross * net0 // gross0, net0)
         return {"gross": gross, "costs": gross - net, "net": net, "price_cents_x1e4": price,
-                "shares": shares, "close_days": np.full(self.n, int(p["close_days"]))}
+                "shares": shares, "close_days": np.full(self.n, int(p["close_days"])),
+                "shelf_capacity": self.shelf_capacity(self._at if day is None else day)}
+
+    def shelf_capacity(self, day) -> np.ndarray:
+        from app.analysis.baby_shelf import capacity
+        return capacity(self, day)
 
     def offering_pending_on(self, day) -> np.ndarray:
         """An initiated offering has not reached its close date on the day [draws]."""
@@ -1511,7 +1523,8 @@ class Chain:
         day = self.per_draw(day)
         pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
         return ((day >= 0) & (day < self.N) & (day < pet) & (day < self.suspended) & (day < self.delisted)
-                & ~self.offering_pending_on(day) & (self.ledger_left(day) > 0))
+                & ~self.offering_pending_on(day) & (self.ledger_left(day) > 0)
+                & (self.offering_terms(day)["gross"] <= self.shelf_capacity(day)))
 
     def offer_available(self, day) -> np.ndarray:
         """The net proceeds of the offering the company would initiate on the day, before the day's decision is
