@@ -6,6 +6,7 @@ on:
     branches: ['run/**']
 permissions:
   contents: read
+  actions: read   # a line may download earlier runs' artifacts (gh run download), e.g. to pool the walk's pieces
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -26,6 +27,7 @@ jobs:
         cmd: ${{ fromJSON(needs.plan.outputs.lines) }}
     env:
       CMD: ${{ matrix.cmd }}
+      GH_TOKEN: ${{ github.token }}
       SLOPE_JEV_CACHE_ONLY: '1'
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
