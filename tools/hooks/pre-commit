@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Product changes reach a branch only through a worker (Owen, October 7). The coordinator once resolved a merge in
+# product files itself, and its "keep both sides" added rules to Handoff's instructions that no worker wrote and no one
+# reviewed (ported to Slope October 8; in Slope the coordinator had edited the kit's question standard by hand). So a
+# commit that changes the product (app/, tests/, cases/, the top-level tools/*.py, the kit, recorded runs, kept
+# sources) is refused unless:
+# - scripts/work is applying a worker's patch (it sets SLOPE_WORKER_APPLY), or
+# - it is a merge or cherry-pick whose product files are exactly what git's own merge produces, with nothing resolved
+#   or edited by hand there.
+# A product conflict is then a task for a worker. Installed for the repository by `git config core.hooksPath tools/hooks`
+# (scripts/worktree sets it).
+set -euo pipefail
+[ -n "${SLOPE_WORKER_APPLY:-}" ] && exit 0
+product=(app tests cases ':(glob)tools/*.py' Slope_Credit_Scenario_Research_and_Design_Kit runs/recorded research/sources)
+staged="$(git diff --cached --name-only -- "${product[@]}")"
+[ -z "$staged" ] && exit 0
+
+gitdir="$(git rev-parse --git-dir)"
+refuse() {
+  echo "pre-commit: this commit changes the product, and product changes come only through a worker." >&2
+  echo "  $1" >&2
+  echo "  Product files staged: $(printf '%s ' $staged | cut -c1-300)" >&2
+  echo "  Make it a task (scripts/work); a clean merge or cherry-pick passes on its own." >&2
+  exit 1
+}
+other=""; base=""
+if [ -f "$gitdir/MERGE_HEAD" ]; then other="$(head -1 "$gitdir/MERGE_HEAD")"
+elif [ -f "$gitdir/CHERRY_PICK_HEAD" ]; then other="$(cat "$gitdir/CHERRY_PICK_HEAD")"; base="$other^"
+else refuse "It is not a worker's patch, a merge or a cherry-pick."; fi
+
+# What git's own merge makes of these files, with no hand in it. It exits non-zero when any file conflicts; only a
+# conflict in a product file matters here (conflicts in the notebook or factory files are the coordinator's own).
+if [ -n "$base" ]; then out="$(git merge-tree --write-tree --name-only --merge-base="$base" HEAD "$other" 2>/dev/null || true)"
+else out="$(git merge-tree --write-tree --name-only HEAD "$other" 2>/dev/null || true)"; fi
+tree="$(printf '%s\n' "$out" | head -1)"
+[ -n "$tree" ] || refuse "Git could not work out the merge."
+conflicted="$(printf '%s\n' "$out" | sed -n '2,/^$/p' | grep -E '^(app/|tests/|cases/|tools/[^/]*\.py$|Slope_Credit_Scenario_Research_and_Design_Kit/|runs/recorded/|research/sources/)' || true)"
+[ -z "$conflicted" ] || refuse "Git's merge conflicts in product files ($(printf '%s ' $conflicted | cut -c1-200)), so the result there was resolved by hand."
+git diff --cached --quiet "$tree" -- "${product[@]}" || refuse "The staged product files differ from what git's own merge produces."
+exit 0

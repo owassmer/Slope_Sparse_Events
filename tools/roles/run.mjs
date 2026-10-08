@@ -12,7 +12,8 @@
 // The inbox is a JSONL file the coordinator appends to, one {"id","kind","message"} per line:
 //   kind "steer": Pi's `steer`, delivered after the current tool calls and before the next model call.
 //   kind "stop":  Pi's `abort`; the run ends with exit 7 and its work is not applied.
-// Each is acknowledged in the log as "=== steered (<id>): ..." or "=== stopped (<id>)", which scripts/steer waits for.
+// Each is acknowledged in the log as "=== steered (<id>): ..." or "=== stopped (<id>)", which scripts/steer waits for. A
+// steer asks the worker to say, in its next message, what it will change because of it.
 // The run ends when Pi reports `agent_settled` (no more automatic work): stdin closes and Pi exits with its own status.
 import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readSync, statSync, watch, writeFileSync } from "node:fs";
@@ -144,7 +145,11 @@ function readInbox() {
     if (entry.kind === "stop") {
       stopped = true;
       send({ id, type: "abort" });
-    } else send({ id, type: "steer", message: String(entry.message ?? "") });
+    } else {
+      // What a steer changes shows in the worker's visible text, readable in the log while the run goes (Owen, October 8:
+      // a steer's effect had been visible only in reasoning no one reads, or later in the report).
+      send({ id, type: "steer", message: `${String(entry.message ?? "")}\n\n(In your next message, say in a sentence or two what you will change because of this, or why nothing changes.)` });
+    }
   }
 }
 let watcher;
