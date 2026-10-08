@@ -1,9 +1,10 @@
-# Walk only, review-date whole trees; independent native draws, 1000s including setup, partial results streamed to var/diag/001-5b.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 0 --seconds 1000
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 73 --seconds 1000
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 146 --seconds 1000
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 219 --seconds 1000
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 292 --seconds 1000
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 365 --seconds 1000
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 438 --seconds 1000
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-walk --row 511 --seconds 1000
+# Fixed-count Knuth probes; safety limit includes setup. Check status=completed before interpreting intervals.
+# Independent native draws, no model calls; samples + incremental summaries in var/diag/001-5c.
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 0 --probes 1000 --seconds 1000 --seed 20261001
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 73 --probes 1000 --seconds 1000 --seed 20261002
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 146 --probes 1000 --seconds 1000 --seed 20261003
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 219 --probes 1000 --seconds 1000 --seed 20261004
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 292 --probes 1000 --seconds 1000 --seed 20261005
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 365 --probes 1000 --seconds 1000 --seed 20261006
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 438 --probes 1000 --seconds 1000 --seed 20261007
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 511 --probes 1000 --seconds 1000 --seed 20261008

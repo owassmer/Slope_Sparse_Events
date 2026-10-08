@@ -18,6 +18,21 @@ def measure_walk(
     typer.echo(json.dumps(measure(row=row, seconds=seconds)))
 
 
+@cli.command("estimate-walk")
+def estimate_walk(
+    row: int = typer.Option(0, min=0, max=511),
+    probes: int = typer.Option(200, min=2, help="Fixed number of independent probes."),
+    seconds: float = typer.Option(900, min=0.001, max=1000, help="Safety limit including setup."),
+    seed: int = typer.Option(20261001, help="Sampling seed; not a model probability."),
+) -> None:
+    """Estimate one draw's tree leaves and work with Knuth probes; no model calls."""
+    import json
+
+    from app.analysis.walk_estimator import estimate
+
+    typer.echo(json.dumps(estimate(row=row, probes=probes, seconds=seconds, seed=seed)))
+
+
 @cli.command()
 def version() -> None:
     """Print the package version."""
