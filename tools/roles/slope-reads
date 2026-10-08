@@ -1,0 +1,13 @@
+# Where the text Slope's investigating agent and its judgment model (Jev, Clef) read lives: the agent's instructions,
+# mission and tools, the questions put to the judgment model and how they are hydrated, and the question design they
+# follow. When a worker's change touches these, the coordinator's finish notice shows the whole diff of them, because
+# guidance that drifts into rules (or a later answer leaking into a question) lands here. One path or folder per line,
+# relative to the repository.
+app/agent/
+app/disputes/state14.py
+app/disputes/hydrate.py
+app/disputes/forecast.py
+app/disputes/interpret.py
+Slope_Credit_Scenario_Research_and_Design_Kit/research/revision_v2/contracts/question_registry.json
+Slope_Credit_Scenario_Research_and_Design_Kit/research/revision_v2/contracts/agent_config.json
+Slope_Credit_Scenario_Research_and_Design_Kit/research/recent_cases/akoustis/design/QUESTIONS_20240514.md

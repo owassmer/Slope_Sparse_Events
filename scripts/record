@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# scripts/record note [--from <entry id>...] "<line>"
+#                                  Append a line to notebook.md on main. --from names the session entries (Owen's
+#                                  messages) the line records, so the coordinator's memory can tell they are recorded.
+# scripts/record <file>...         Put these factory files, as they stand in this checkout, on main.
+#
+# Factory records (the notebook, AGENTS.md, .pi/, scripts/, tools/, the skills) have one home: main. When they rode on
+# outcome branches, the notebook split three ways and a fresh coordinator, grounding in main, missed a day of entries
+# (Owen, October 7). So the coordinator records through here: each record is committed to the branch factory-records,
+# in its own checkout beside the main one, and the branch's pull request is kept open for Owen to merge. Once he has
+# merged it, the next record starts the branch again from main. Outcome branches get the records when main is merged
+# into them. Prints what it committed and the pull request.
+set -euo pipefail
+[ $# -ge 1 ] || { sed -n '2,3p' "$0"; exit 2; }
+here="$(git rev-parse --show-toplevel)"
+main="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd -P)"
+dir="$(dirname "$main")/$(basename "$main")-records"
+branch=factory-records
+
+git -C "$main" fetch -q origin main
+open="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number' 2>/dev/null || true)"
+if [ ! -d "$dir" ]; then
+  if git -C "$main" show-ref --verify --quiet "refs/heads/$branch"; then git -C "$main" worktree add -q "$dir" "$branch"
+  else git -C "$main" worktree add -q -b "$branch" "$dir" origin/main; fi
+fi
+# With no pull request open, what was recorded has been merged (or closed): start again from main.
+[ -n "$open" ] || git -C "$dir" checkout -q -B "$branch" origin/main
+
+if [ "$1" = "note" ]; then
+  shift; from=()
+  while [ "${1:-}" = "--from" ]; do from+=("$2"); shift 2; done
+  line="$*"; [ -n "$line" ] || { echo "record: an empty note" >&2; exit 2; }
+  # Each --from is an entry of this session that Owen said or answered: looked up, never written from memory (the
+  # coordinator twice attached ids it had not looked up, October 8).
+  if [ ${#from[@]} -gt 0 ]; then
+    [ -n "${PI_SESSION_FILE:-}" ] && [ -f "$PI_SESSION_FILE" ] || { echo "record: --from needs the coordinator's session (PI_SESSION_FILE) to check the entries against" >&2; exit 2; }
+    for id in "${from[@]}"; do
+      python3 -I - "$PI_SESSION_FILE" "$id" <<'PY' || exit 2
+import json, sys
+path, want = sys.argv[1], sys.argv[2]
+for l in open(path):
+    try: e = json.loads(l)
+    except ValueError: continue
+    if e.get("id") != want: continue
+    m = e.get("message") or {}
+    asked = m.get("role") == "assistant" and any(c.get("type") == "toolCall" and c.get("name") in ("ask", "mcp__pi__ask") for c in m.get("content") or [] if isinstance(c, dict))
+    if m.get("role") == "user" or asked: sys.exit(0)
+    sys.exit(f"record: entry {want} is not a message of Owen's or a question he answered; look up the entry with recall")
+sys.exit(f"record: no entry {want} in this session; look it up with recall rather than writing it")
+PY
+    done
+    line="$line [entry ${from[*]}]"
+  fi
+  printf '%s\n' "$line" >> "$dir/notebook.md"
+  git -C "$dir" add notebook.md
+  what="Notebook: $(printf '%s' "$line" | cut -c1-60)…"
+else
+  for f in "$@"; do
+    rel="${f#./}"
+    case "$rel" in app/*|tests/*|cases/*|tools/*.py|Slope_Credit_Scenario_Research_and_Design_Kit/*|runs/recorded/*|research/sources/*) echo "record: $rel is product, which reaches main with its outcome" >&2; exit 2;; esac
+    [ -e "$here/$rel" ] || { echo "record: no $rel in $here" >&2; exit 2; }
+    mkdir -p "$dir/$(dirname "$rel")" && cp -p "$here/$rel" "$dir/$rel" && git -C "$dir" add "$rel"
+  done
+  what="Factory records: $*"
+fi
+if git -C "$dir" diff --cached --quiet; then echo "record: nothing new to record"; exit 0; fi
+git -C "$dir" commit -q -m "$what"
+git -C "$dir" push -q -u origin "$branch" 2>&1 | grep -v -i '^remote:' || true
+if [ -z "$open" ]; then
+  gh pr create --base main --head "$branch" --title "Factory records" \
+    --body "Notebook lines and factory files recorded by the coordinator (scripts/record). Kept open while records accrue; merge whenever." >/dev/null
+  open="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number')"
+fi
+echo "recorded on $branch ($(git -C "$dir" log -1 --format=%h)); pull request #$open"

@@ -33,11 +33,17 @@ fi
 git diff --quiet HEAD -- . ':!tasks' ':!notebook.md' || { echo "commit first: the verifier checks the committed product" >&2; exit 2; }
 
 KIT=Slope_Credit_Scenario_Research_and_Design_Kit
-run="verify-$(basename "${target#--}" .md)-$(date +%Y%m%dT%H%M%S)"; mkdir -p .runs
+run="${FACTORY_RUN:-verify-$(basename "${target#--}" .md)-$(date +%Y%m%dT%H%M%S)}"; mkdir -p .runs
+# A dispatch never holds the caller: after the checks above, the run carries on in the background under the same
+# name, and this prints where its log is (the coordinator is told when it finishes).
+if [ -z "${FACTORY_RUN:-}" ]; then
+  FACTORY_RUN="$run" nohup "$root/scripts/verify" "$@" </dev/null >/dev/null 2>&1 &
+  echo "run: .runs/$run.log"; exit 0
+fi
 log="$root/.runs/$run.log"
 product="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/slope-product.XXXXXX")" && pwd -P)"
 ws="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/slope-verify.XXXXXX")" && pwd -P)"
-echo "=== verifier on $target ($VERIFIER) in $ws" > "$log"; echo "=== dispatched by session ${PI_SESSION_ID:-none}" >> "$log"; echo "run: .runs/$run.log"
+echo "=== verifier on $target ($VERIFIER) in $ws" > "$log"; echo "=== dispatched by session ${PI_SESSION_ID:-none}" >> "$log"
 echo "=== steerable (pid $$): scripts/steer $run \"<message>\" (or --stop)" >> "$log"
 on_err() { echo "=== finished exit $1 (${0##*/} stopped at line $2)" >> "$log"; }
 trap 'on_err $? $LINENO' ERR

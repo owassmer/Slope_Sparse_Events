@@ -35,7 +35,7 @@ const FEED_TITLE = "⧉ ";
 
 const git = (cwd: string, ...a: string[]) => {
   try {
-    return execFileSync("git", a, { cwd, encoding: "utf8" }).trim();
+    return execFileSync("git", a, { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).trim();
   } catch {
     return "";
   }
@@ -85,9 +85,28 @@ function piRoot(): string | undefined {
   return undefined;
 }
 
+/**
+ * Every outcome checkout carries main's factory files (scripts/sync), so a merged factory pull request reaches each
+ * checkout without the coordinator remembering to put it there (Owen, October 8). Run at the start of a session, after
+ * each run finishes, and when a turn settles (at most once a minute); what it did shows as a notice when something
+ * changed or could not be brought into step.
+ */
+let lastSync = 0;
+export function syncCheckouts(cwd: string, o: { force?: boolean } = {}): string {
+  if (!o.force && Date.now() - lastSync < 60_000) return "";
+  lastSync = Date.now();
+  try {
+    return execFileSync(join(cwd, "scripts/sync"), [], { cwd, encoding: "utf8", timeout: 120_000 }).trim();
+  } catch (e: any) {
+    return String(e?.stdout ?? e?.message ?? e).trim();
+  }
+}
+const syncNews = (out: string) => out.split("\n").filter((l) => /brought to main|could not|uncommitted|not pushed/.test(l)).join("\n");
+
 export default function (pi: ExtensionAPI) {
   const watchers: FSWatcher[] = [];
   let timer: NodeJS.Timeout | null = null;
+  let redeliver: () => void = () => {};
   let live: ExtensionContext | null = null; // the current session's context, replaced on every session_start
   // This Pi's Ghostty pane belongs to the process, not to this runtime: kept across reloads, so a reload finds it
   // without probing (a fresh runtime's title writes reach the terminal only when Pi next redraws).
@@ -314,6 +333,8 @@ export default function (pi: ExtensionAPI) {
     // Every start (startup, reload, new, resume, fork) watches for the session now active.
     stop();
     live = ctx;
+    const startNews = syncNews(syncCheckouts(ctx.cwd, { force: true }));
+    if (startNews) pi.sendMessage({ customType: "factory-sync", content: `Factory files from main:\n${startNews}`, display: true }, { triggerTurn: false });
     const me = ctx.sessionManager.getSessionId();
     const checkouts = () =>
       git(ctx.cwd, "worktree", "list", "--porcelain")
@@ -331,6 +352,7 @@ export default function (pi: ExtensionAPI) {
         }
       });
     const told = new Set<string>();
+    const pending = new Map<string, string>();
     const shown = new Set<string>();
     const failed = new Set<string>();
 
@@ -363,6 +385,8 @@ export default function (pi: ExtensionAPI) {
       }
       told.add(file);
       const root = dirname(dirname(file));
+      // The run has ended, so its checkout can take what main has merged meanwhile.
+      const synced = syncNews(syncCheckouts(ctx.cwd, { force: true }));
       const end = run.end;
       const lines = [`Run ${runName(file)} in ${root} finished (${end}). Newest commit there: ${git(root, "log", "-1", "--format=%h %s")}.`];
       const target = /^=== verifier on (\S+)/.exec(text)?.[1];
@@ -375,8 +399,39 @@ export default function (pi: ExtensionAPI) {
           lines.push(`The verifier's list ${seen}: ${works} WORKS, ${broken} BROKEN.`);
         }
       }
+      // A worker's report and the whole of what was applied, so judging the work needs no fragments: what Slope's models read
+      // first, then everything else the commit changed, tests included (Owen, October 8: the rest was being fetched in
+      // pieces, which leaves the reading to habit).
+      const report = /^=== report\n([\s\S]*?)^=== end of report/m.exec(text)?.[1]?.trim();
+      if (/^=== worker on /m.test(text)) lines.push(report ? `The worker's report:\n${report}` : "The worker filed no report.");
+      const applied = /^=== applied to \S+ as ([0-9a-f]+)/m.exec(text)?.[1];
+      if (applied) {
+        const reads = existsSync(join(root, "tools/roles/slope-reads"))
+          ? readFileSync(join(root, "tools/roles/slope-reads"), "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))
+          : [];
+        const diff = reads.length ? git(root, "show", "--format=", applied, "--", ...reads) : "";
+        lines.push(diff ? `What Slope's models read changed (${applied}), in full:\n${diff}` : `Nothing Slope's models read changed in ${applied}.`);
+        const rest = git(root, "show", "--format=", applied, "--", ".", ...reads.map((r) => `:(exclude)${r}`));
+        lines.push(rest ? `Everything else the commit changed (${applied}), in full:\n${rest}` : `Nothing else changed in ${applied}.`);
+      }
+      if (synced) lines.push(`Factory files from main:\n${synced}`);
       lines.push(`Log: ${file}. Read it and carry on with the outcome.`);
-      pi.sendMessage({ customType: "factory-run", content: lines.join("\n"), display: true }, { triggerTurn: true, deliverAs: "followUp" });
+      deliver(file, lines.join("\n"));
+    };
+    // A notice sent while the session is working waits in Pi's queue, and an interrupt drops what is queued (Owen saw a
+    // finished run go unreported this way). So a notice counts as delivered only once it is in the session; until then
+    // it is sent again whenever the session settles.
+    const deliver = (file: string, content: string) => {
+      pending.set(file, content);
+      pi.sendMessage({ customType: "factory-run", content, display: true }, { triggerTurn: true, deliverAs: "followUp" });
+    };
+    redeliver = () => {
+      if (live !== ctx || pending.size === 0) return;
+      const said = JSON.stringify(ctx.sessionManager.getBranch().filter((e: any) => e.type === "custom_message" && e.customType === "factory-run").map((e: any) => e.content));
+      for (const [file, content] of [...pending]) {
+        if (said.includes(`Run ${runName(file)} in `)) pending.delete(file);
+        else pi.sendMessage({ customType: "factory-run", content, display: true }, { triggerTurn: true, deliverAs: "followUp" });
+      }
     };
 
     // Runs that had already finished when this session started were reported to the session that started them; runs
@@ -391,6 +446,15 @@ export default function (pi: ExtensionAPI) {
     check();
     notify(ctx, `Watching for runs this session dispatches${inGhostty ? ` (feeds: ${FEED_KEY})` : ""}`, "info");
 
+  });
+
+  pi.on("agent_settled", (_event, ctx) => {
+    try {
+      redeliver();
+    } catch {}
+    if (ctx?.mode !== "tui") return;
+    const news = syncNews(syncCheckouts(ctx.cwd));
+    if (news) pi.sendMessage({ customType: "factory-sync", content: `Factory files from main:\n${news}`, display: true }, { triggerTurn: false });
   });
 
   /** Hide the feeds of this session's runs, or show those still running (or the newest run, when none is). */

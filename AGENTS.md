@@ -29,6 +29,11 @@ Before a commitment that is costly to undo, re-read the purpose and your task.
 When something you expected does not happen, re-read your task before continuing.
 If you notice something that would help the next agent, say it at the end of your final message. Measurements and
 reports go in `var/` (they come back with your run) or in that message; your commit carries only product code.
+Tests are for exact limits and general properties; behaviour and judgment are shown by using the product.
+When the investigating agent or the judgment model does the wrong thing, first find what it did not understand and give
+it that understanding in what it reads (its instructions and mission, tool descriptions and what tools answer, the
+questions put to the judgment model), as the reason behind the work, not as the case that went wrong; a check in code is
+a second line, for exact and consequential limits.
 
 **Isolation.** `case_eval_private.json`, `outcome_checks_synergy.json`, the facts registry, `outcomes/<case>.json`, and any source whose `mission_membership` is `outcome` never reach the investigating agent, the judgment model or the blind reviewer. The agent reaches evidence only through scoped tools built from the dated snapshot. This file, the alignment doc and `Jev_Pivot.md` are builder context and never enter an agent or judgment-model prompt. Forecast prompts forbid remembered facts about the parties or later events. Scenario assumptions and their rationale never enter the judgment model's inputs: code applies their rules, and the model sees the resulting situation and the sourced evidence. Scenario declarations state their substance, with source citations where they exist, and nothing about who decided them or when.
 
