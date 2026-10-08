@@ -1,6 +1,6 @@
 """Chronological walk from review or a native pending-claim prefix.
 
-Question construction, grouping and completed-path booking remain _Walk's;
+Question construction and grouping remain _Walk's; terminal booking resumes the leaf;
 state-derived chain heads compete on the answer-free Chain frontier.
 Forecaster.paths still uses the structural walk.
 """
@@ -23,6 +23,7 @@ class ChronologicalWalk(_Walk):
         if not self.pend or not self.fc.equity:
             raise NotImplementedError("requires a pending claim with equity")
         chain = Chain(self.d, self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens)
+        chain.capture_questions = True  # preserve before-answer facts for terminal emission, not final-state guesses
         chain.instrument_cash()
         trace = Trace(chain.ev)
         for step in state.steps:
@@ -257,7 +258,31 @@ class ChronologicalWalk(_Walk):
             if result == "unresolved":
                 result = ("motions_pending" if Decision("post_trial_ruling") in self._pending(s, pending)
                           else "stayed" if s.stayed else "unresolved")
-            self.scoped(rest, lambda: self.emit(s, result))
+            self._leaf = chain, rows, rest
+            try:
+                self.scoped(rest, lambda: self.emit(s, result))
+            finally:
+                del self._leaf
+
+    def terminal_trace(self, s):
+        """Finish the owned leaf copy; historical question reconstruction is unchanged."""
+        from app.analysis.events import _trace_rows, _widen
+
+        if not hasattr(self, "_leaf"):  # graph materialization has histories, not live leaf chains
+            return super().terminal_trace(s)
+        chain, rows, mask = self._leaf
+        keep = mask[rows]
+        if keep.all():
+            chain = chain.clone()
+        else:
+            chain = chain.sliced(np.flatnonzero(keep), self.fc.draws.sub(mask))
+            rows = rows[keep]
+        tr = chain.finish(Trace(chain.ev))
+        chain.court_questions(tr, s.steps)
+        if len(rows) != self.fc.draws.n:
+            tr = _trace_rows(tr, lambda v, k: v if k == "events" else _widen(v, rows, self.fc.draws.n, k))
+            tr.rows = rows
+        return tr
 
     def equivalence(self, s, outcome, tr, mask):
         # Do not return a history whose later booking invalidates an earlier

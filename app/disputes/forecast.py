@@ -3900,14 +3900,17 @@ class _Walk:
         self._end(s.add(("cash_out", "", "yes"), (k, "yes"), floor="done", late=late), "petition", then)
         self._end(s.add(probe, (k, "no"), floor="done", late=late), outcome, then)
 
-    def emit(self, s: _S, outcome: str) -> None:
+    def terminal_trace(self, s):
         from app.analysis.events import event_trace
 
+        return event_trace(self.d, DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome="", edges=()),
+                           self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens, rows=self._rows(s.steps))
+
+    def emit(self, s: _S, outcome: str) -> None:
         m = self.mask_of(s.steps)
         tr = None
         if self.pend:  # the whole path's trace (on its trajectories): its late facts and its equivalence key
-            tr = event_trace(self.d, DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome="", edges=()),
-                             self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens, rows=self._rows(s.steps))
+            tr = self.terminal_trace(s)
             self.keys.append(self.equivalence(s, outcome, tr, m))
             # the range of the path's cumulative event cash less encumbrance on its draws, per day (the analysis's
             # histogram bins, core.Analysis._bins, read the tree's range: pool.control merges each process's)
