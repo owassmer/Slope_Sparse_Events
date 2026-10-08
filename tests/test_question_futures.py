@@ -53,16 +53,40 @@ def test_court_order_record_matches_its_emitted_action(context, step):
     probe = ('court_order', 'registration_' + context, '')
     with question_records(walk) as records:
         key = walk.node('registration_early', context, state.cls, s=state, probe=probe)
-        walk.court(state, key, probe[1])
-        walk.emit(walk.take(state, step, (key, 'yes')), 'unresolved')
+        walk.emit(state.add(step, (key, 'yes'), late=((key, len(state.steps)),)), 'unresolved')
     checker = FutureChecker(fc, d, 0, records)
-    checker.history(walk.out[0])
+    assert checker.history(walk.out[0]) == []
     assert checker.checked['registration_early'] == 1
-    # Matching an order must retain its recorded court-date probe for replay,
-    # not substitute the emitted motion/action's date.
-    assert any(identity[3] == probe for identity in checker.rebuilt_cache)
+    # The completed snapshot must still ask at the order, not the motion.
+    assert fc.completed_probe(key, walk.out[0].steps, len(state.steps))[-1] == probe
     with pytest.raises(AssertionError, match='No recorded occurrence'):
         FutureChecker(fc, d, 0, {}).history(walk.out[0])
+
+
+@pytest.mark.parametrize('native', [0, 127, 191, 383])
+@pytest.mark.parametrize('ruling', ['unchanged', 'set_aside'])
+def test_registration_uses_order_date_not_traversal_prefix(native, ruling):
+    fc, d, state = sample('yes', row=native)
+    walk = _Walk(fc, d)
+    order = walk._trace(state.steps + (('court_order', 'registration_I1', ''),)).day[-1][0]
+    ruling_day = walk._trace(state.steps + (('post_trial_ruling', '', ruling),)).day[-1][0]
+
+    def finish(s):
+        # These are visited later, but the ruling may precede the order date.
+        s = s.add(('post_trial_ruling', '', ruling), None)
+        s = s.add(('listing', '', 'compliant'), None)
+        walk.emit(s, 'unresolved')
+
+    walk.a4_i1 = walk.ripe_i1 = finish
+    with question_records(walk) as records:
+        walk.j9_i1(state)
+    assert len(walk.out) == 2
+    for path in walk.out:
+        checker = FutureChecker(fc, d, 0, records)
+        assert checker.history(path) == []
+        # A judgment already set aside cannot support a live registration question.
+        expected = 0 if ruling == 'set_aside' and ruling_day < order else 1
+        assert checker.checked.get('registration_early', 0) == expected
 
 
 @pytest.mark.parametrize('native', [0, 145, None])

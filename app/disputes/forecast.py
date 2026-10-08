@@ -1623,15 +1623,25 @@ class Forecaster:
         d = next((d for d in self.disputes if d.instance_id == node.instance_id), None)
         if d is None or d.stage != PENDING:
             return False
-        return node.node in ('stay_approved', 'financing_at_floor', 'petition_cash_out', 'offering_closes',
+        return node.node in ('stay_approved', 'registration_early', 'financing_at_floor', 'petition_cash_out', 'offering_closes',
                              'petition_on_notes', 'holders_involuntary', 'bid_compliance', 'hearing_request',
                              'holders_act_delisting') or (
             node.node == 'judgment_response' and node.context.split('|')[0] in ('ripe', 'post')) or (
             node.node in ('settlement_offer', 'settlement_accept') and node.context.split('|')[0] == 'I3')
 
     def completed_probe(self, key: str, steps: tuple, index: int) -> tuple | None:
-        """Neutral own action, retaining all other dated events for listing decisions."""
+        """Neutral own action, retaining other dated events for completed decision snapshots.
+
+        Registration is decided on the order day, not the motion day. A ruling or
+        settlement traversed later may already have changed the judgment by then.
+        """
         name = self.nodes[key].node
+        if name == 'registration_early':
+            phase = self.nodes[key].context.split('|')[0]
+            node, context, _ = steps[index]
+            neutral = (node, context, 'no' if node == 'registration_early' else 'none')
+            return steps[:index] + (neutral,) + steps[index + 1:] + (
+                ('court_order', 'registration_' + phase, ''),)
         if name not in ('bid_compliance', 'hearing_request', 'holders_act_delisting'):
             return None
         node, context, _ = steps[index]
@@ -2899,7 +2909,10 @@ class _Walk:
             return
         k = self.node("registration_early", "I1", *self.cx(s), s=s, probe=("court_order", "registration_I1", ""),
                       assumptions=("the creditor executes before finality",))
-        self.court(s, k, "registration_I1")
+        if self.pend:
+            s = replace(s, late=s.late + ((k, len(s.steps)),))
+        else:
+            self.court(s, k, "registration_I1")
         self.a4_i1(self.take(s, ("registration_early", "I1", "yes"), (k, "yes"), early=True))
         self.ripe_i1(self.take(s, ("registration_early", "I1", "no"), (k, "no")))
 
@@ -3334,7 +3347,10 @@ class _Walk:
             j9 = self.node("registration_early", "post", s.cls, *extra, s=s,
                            probe=("court_order", "registration_post", ""),
                            assumptions=("the creditor enforces before finality",))
-            self.court(s, j9, "registration_post")
+            if self.pend:
+                s = replace(s, late=s.late + ((j9, len(s.steps)),))
+            else:
+                self.court(s, j9, "registration_post")
             levy, none, keys = [[(q3, "yes"), (j9, "yes")]], [[(q3, "no")], [(q3, "yes"), (j9, "no")]], (q3,)
         else:
             levy, none, keys = [[(q3, "yes")]], [[(q3, "no")]], (q3,)
