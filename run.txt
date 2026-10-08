@@ -1,3 +1,8 @@
+# 001-6a: one-draw graphs, incremental JSON/JSONL in var/diag/001-6a; no judgment calls.
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-state-graph --row 0 --seconds 1000
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-state-graph --row 73 --seconds 1000
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope measure-state-graph --row 146 --seconds 1000
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.check_state_graph --row 0 --seconds 150
 # Fixed-count Knuth probes; safety limit includes setup. Check status=completed before interpreting intervals.
 # Independent native draws, no model calls; samples + incremental summaries in var/diag/001-5c.
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-walk --row 0 --probes 1000 --seconds 1000 --seed 20261001

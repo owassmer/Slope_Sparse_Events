@@ -18,6 +18,20 @@ def measure_walk(
     typer.echo(json.dumps(measure(row=row, seconds=seconds)))
 
 
+@cli.command("measure-state-graph")
+def measure_state_graph(
+    row: int = typer.Option(0, min=0, max=511),
+    seconds: float = typer.Option(180, min=0.001, max=1000),
+) -> None:
+    """Build one draw's chronological state graph; no judgment calls."""
+    import json
+    from pathlib import Path
+
+    from app.analysis.walk_measurement import measure
+
+    typer.echo(json.dumps(measure(row=row, seconds=seconds, graph=True, output=Path('var/diag/001-6a'))))
+
+
 @cli.command("estimate-walk")
 def estimate_walk(
     row: int = typer.Option(0, min=0, max=511),

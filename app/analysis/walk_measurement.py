@@ -42,7 +42,7 @@ class MeasuredWalk(ChronologicalWalk):
         return result
 
 
-def measure(row=0, seconds=900, run=LEAD_RUN, output=Path('var/diag/001-5b')):
+def measure(row=0, seconds=900, run=LEAD_RUN, output=Path('var/diag/001-5b'), graph=False):
     """Keep the actual walk and its outputs; no hydration, replay checks or pruning."""
     if not 0 <= row < 512 or not 0 < seconds <= 1000:
         raise ValueError('row must be 0..511; seconds must be positive and <=1000')
@@ -52,7 +52,7 @@ def measure(row=0, seconds=900, run=LEAD_RUN, output=Path('var/diag/001-5b')):
 
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
-    target = output / f'draw-{row}.json'
+    target = output / f'{"graph" if graph else "draw"}-{row}.json'
     started = time.perf_counter()
     last = started
     walk = None
@@ -64,7 +64,11 @@ def measure(row=0, seconds=900, run=LEAD_RUN, output=Path('var/diag/001-5b')):
 
     def snapshot(w=None):
         if w is not None:
-            result.update(histories=len(w.out), depth=w.depth, max_depth=w.max_depth)
+            if graph:
+                result.update(histories=w.graph.history_count(), distinct_states=len(w.graph.nodes),
+                              shared_continuations=w.graph.hits)
+            else:
+                result.update(histories=len(w.out), depth=w.depth, max_depth=w.max_depth)
         result.update(elapsed_seconds=time.perf_counter() - started,
                       peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss *
                       (1 if sys.platform == 'darwin' else 1024))
@@ -107,7 +111,17 @@ def measure(row=0, seconds=900, run=LEAD_RUN, output=Path('var/diag/001-5b')):
             fc.draws = fc.draws.sub(np.arange(fc.draws.n) == row)
             fc.draws.prefixes = {}
             result['setup_seconds'] = time.perf_counter() - started
-            walk = MeasuredWalk(fc, d, report)
+            if graph:
+                from app.disputes.state_graph import GraphWalk
+
+                class MeasuredGraph(GraphWalk):
+                    def _loop(self, *args):
+                        report(self, False)
+                        return super()._loop(*args)
+
+                walk = MeasuredGraph(fc, d)
+            else:
+                walk = MeasuredWalk(fc, d, report)
             walk.run()
             result['status'] = 'completed'
         except TimeLimit:
@@ -122,6 +136,7 @@ def measure(row=0, seconds=900, run=LEAD_RUN, output=Path('var/diag/001-5b')):
                 os.environ.pop('SLOPE_JEV_CACHE_ONLY', None)
             else:
                 os.environ['SLOPE_JEV_CACHE_ONLY'] = old_cache
-            result['final_count'] = len(walk.out) if walk is not None and result['status'] == 'completed' else None
+            result['final_count'] = ((walk.graph.history_count() if graph else len(walk.out))
+                                     if walk is not None and result['status'] == 'completed' else None)
             snapshot(walk)
     return result
