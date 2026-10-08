@@ -8,6 +8,8 @@
 set -euo pipefail
 id="${1:?usage: scripts/worktree <outcome id>}"
 main="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd -P)"
+# Product changes enter a branch only through a worker (tools/hooks/pre-commit); the setting is the repository's.
+git -C "$main" config core.hooksPath tools/hooks
 dir="$(dirname "$main")/$(basename "$main")-$id"
 [ -e "$dir" ] && { echo "$dir already exists" >&2; exit 2; }
 cd "$main"
