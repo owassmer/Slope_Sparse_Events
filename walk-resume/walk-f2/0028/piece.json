@@ -1,0 +1,147 @@
+{
+  "complete": false,
+  "partition": 143,
+  "partitions": 160,
+  "depth": 6,
+  "remaining": [
+    [
+      1,
+      5,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      0,
+      3,
+      3,
+      2,
+      0,
+      2
+    ],
+    [
+      1,
+      5,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      0,
+      3,
+      3,
+      2,
+      0,
+      3
+    ],
+    [
+      1,
+      5,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      0,
+      3,
+      3,
+      2,
+      1
+    ],
+    [
+      1,
+      5,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      0,
+      3,
+      3,
+      2,
+      2
+    ],
+    [
+      1,
+      5,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      0,
+      3,
+      3,
+      2,
+      3
+    ],
+    [
+      1,
+      5,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      1
+    ],
+    [
+      1,
+      5,
+      1,
+      1,
+      1,
+      1,
+      0,
+      2
+    ],
+    [
+      1,
+      5,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      5,
+      2
+    ],
+    [
+      1,
+      5,
+      3
+    ],
+    [
+      1,
+      6
+    ]
+  ],
+  "input_routes": [
+    []
+  ],
+  "watch_results": {
+    "[[1, 5, 1, 1, 1, 1], [[\"settle\", \"I0\", \"no\"], [\"verdict\", \"I0\", \"award:2672665250:2535110300:2810220200\"], [\"judgment_response\", \"entry\", \"@2=initiate_offering\"], [\"offering\", \"entry\", \"no\"], [\"settle\", \"Ientry\", \"no\"], [\"post_trial_motions\", \"\", \"no\"], [\"settle\", \"I2\", \"no\"]], [\"appeal\", \"\", \"no\"]]": true
+  },
+  "histories": 476,
+  "history_draws": 96242,
+  "recurrence_bounds": {
+    "settle": null,
+    "cash_floor": null,
+    "offering": 2,
+    "judgment_default": null
+  },
+  "visited": 848,
+  "seconds": 914.6040394759999,
+  "events_format": "population-piece-v1",
+  "events_bytes": 47044947
+}
