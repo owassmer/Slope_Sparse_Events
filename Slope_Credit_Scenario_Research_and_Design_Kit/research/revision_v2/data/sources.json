@@ -2708,8 +2708,9 @@
       "primary_url": "https://www.sec.gov/Archives/edgar/data/1584754/000121390023077402/def14a0923_akoustistech.htm",
       "original_relative_path": "research/recent_cases/akoustis/akts_2023_09_19_def14a_full.htm",
       "package_relative_path": "research/recent_cases/akoustis/akts_2023_09_19_def14a_full.htm",
-      "sha256": "00dc55861603b1e51294f48593ef44fd724cbc6ebc7a382b73c20e704a053557",
-      "bytes": 1302645,
+      "sha256": "33e20443de8527e3b0941012f1e5d69d89e8320ba13ad3b922ccc81746a20007",
+      "bytes": 1293563,
+      "kit_copy": "Excerpt of the EDGAR document: 'Submission of Future Stockholder Proposals and Nominations' is omitted as not bearing on any question. All other sections, including the beneficial ownership table and executive officers list, are unchanged.",
       "availability": {
         "date": "2023-09-19", "precision": "day",
         "accepted_at": "2023-09-18T18:01:34.000Z",

@@ -105,23 +105,7 @@ def test_akoustis_outcome_facts_are_absent(built, snap):
     for fact in probes:
         if fact not in unkitted:
             assert fact.lower() in later, f"probe {fact!r} is not in an outcome source"
-        if snap == "akoustis_20240514" and fact == "May 22, 2024":
-            # The full September 2023 proxy independently announced a shareholder-proposal
-            # deadline on this date. Keep the record; allow only that exact dated context,
-            # not the later judgment (nor an arbitrary occurrence in an admitted source).
-            with sqlite3.connect(out / f"{snap}.sqlite") as con:
-                hits = con.execute("SELECT source_id, text FROM sections WHERE lower(text) LIKE ?",
-                                   (f"%{fact.lower()}%",)).fetchall()
-                assert len(hits) == 1
-                source, text = hits[0]
-                assert source == "akts_2023_09_19_def14a_full"
-                assert text.count(fact) == 1
-                assert "stockholder desiring to present a proposal" in text
-                assert "Huntersville, North Carolina 28078 no later than May 22, 2024." in text
-                assert not con.execute("SELECT 1 FROM tables WHERE lower(rendered) LIKE ?",
-                                       (f"%{fact.lower()}%",)).fetchall()
-        else:
-            assert fact.lower().encode() not in raw
+        assert fact.lower().encode() not in raw
     if snap == "akoustis_20240620":  # the decision-date judgment itself is admissible: USD 38,595,023
         assert "$38,595,023" in stores[snap].read("ded_21cv1417_d602_judgment#s0000")["text"]
     else:  # the docket view stops at the review date; the full capture is not admitted
