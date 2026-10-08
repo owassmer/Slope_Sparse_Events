@@ -50,4 +50,5 @@ jobs:
           path: |
             out/
             var/diag/
+            var/walk-population/
           if-no-files-found: ignore
