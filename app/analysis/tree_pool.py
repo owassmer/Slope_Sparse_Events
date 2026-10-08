@@ -85,8 +85,13 @@ def ingest(db, directory, source, links=None):
     stream = directory / 'events.pkl.gz'
     if not stream.exists():
         stream = directory / 'events.pkl'
-    # Byte identity detects accidental resubmission, including renamed artifacts.
+    # Distinct shares can emit identical streams (including no histories).
+    # Bind byte identity to the input cover, while still rejecting renamed retries.
     h = hashlib.sha256()
+    cover = {k: meta.get(k) for k in ('partition', 'partitions', 'depth', 'input_routes')}
+    if cover['input_routes'] is not None:
+        cover['input_routes'] = sorted(cover['input_routes'])
+    h.update(json.dumps(cover, sort_keys=True).encode())
     with stream.open('rb') as f:
         for block in iter(lambda: f.read(1024 * 1024), b''):
             h.update(block)
@@ -169,17 +174,21 @@ def coverage(db):
     if missing:
         errors.append(f'missing top partitions: {missing}')
     for partition, group in by_partition.items():
-        pending = [[]]
+        pending = {()}
         unused = list(group)
-        while pending:
+        while unused:
+            # A continuation consumes any exact subset of the frontier. Its
+            # deferred descendants replace only that subset, not its siblings.
             matches = [p for p in unused if 'input_routes' in p[1]
-                       and sorted(p[1]['input_routes']) == sorted(pending)]
-            if len(matches) != 1:
-                errors.append(f'partition {partition}: gap or overlapping continuations ({len(matches)} matches)')
+                       and {tuple(r) for r in p[1]['input_routes']} <= pending]
+            if not matches:
                 break
             item = matches[0]
             unused.remove(item)
-            pending = item[1]['remaining']
+            pending.difference_update(tuple(r) for r in item[1]['input_routes'])
+            pending.update(tuple(r) for r in item[1]['remaining'])
+        if pending:
+            errors.append(f'partition {partition}: gap or overlapping continuations ({len(pending)} pending routes)')
         if unused:
             errors.append(f'partition {partition}: {len(unused)} unlinked pieces')
     overlaps = 0

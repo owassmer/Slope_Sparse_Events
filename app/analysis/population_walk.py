@@ -107,25 +107,43 @@ class PieceWalk(ChronologicalWalk):
             return super().emit(s, outcome)
 
 
+def share_routes(routes, share):
+    """Deterministic one-based, round-robin shares of a saved antichain."""
+    if share is None:
+        return routes
+    try:
+        i, k = (int(n) for n in share.split('/'))
+    except (ValueError, AttributeError):
+        raise ValueError('share must be i/k with 1 <= i <= k') from None
+    if not 1 <= i <= k:
+        raise ValueError('share must be i/k with 1 <= i <= k')
+    return routes[i - 1::k]
+
+
 def walk_piece(*, output: Path, seconds=900, partition=0, partitions=1, depth=6, resume: Path | None = None,
-               full_events=False):
+               full_events=False, share: str | None = None):
     """Stream compressed supported financial rows, paths and interned questions.
 
     `full_events` additionally writes the original events.pkl for comparison.
     Read either format with piece_store.read_events; financial records retain
     native draw IDs and join paths by (steps, financial equivalence key).
     A partial piece is not a completed tree. Its next.txt commands are required
-    work, not optional stress paths. Input checkpoints must be from this code.
+    work, not optional stress paths. ``share='i/k'`` selects one-based round-robin
+    branches from a resumed antichain; run all k shares in distinct directories.
+    Each output records only its own input routes. Its next.txt continues that
+    share without splitting it again. Empty shares are complete pieces.
     """
     if not 0 < seconds <= 1000 or not 0 <= partition < partitions or depth < 1:
         raise ValueError('invalid piece bounds')
+    if share is not None and resume is None:
+        raise ValueError('share requires resume')
     start = time.monotonic()
     routes = ((),)
     watch_results = {}
     if resume is not None:
         saved = json.loads(resume.read_text())
-        routes = saved['remaining']
-        watch_results = saved['watch_results']
+        routes = share_routes(saved['remaining'], share)
+        watch_results = saved.get('watch_results', {})
         partition, partitions, depth = (saved[k] for k in ('partition', 'partitions', 'depth'))
     output.mkdir(parents=True, exist_ok=True)
     # Never overwrite already emitted data on an accidental retry.

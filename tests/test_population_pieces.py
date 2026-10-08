@@ -1,6 +1,28 @@
 """A bounded piece must account for every unfinished branch, never a DFS truncation."""
-from app.analysis.population_walk import PieceWalk
+import pytest
+
+from app.analysis.population_walk import PieceWalk, share_routes, walk_piece
 from app.disputes.chronological import ChronologicalWalk
+
+
+@pytest.mark.parametrize('share', ['0/3', '4/3', '1/0', '1', 'a/2', '1/2/3'])
+def test_invalid_share(share):
+    with pytest.raises(ValueError, match='share must'):
+        share_routes([()], share)
+
+
+def test_share_requires_resume(tmp_path):
+    with pytest.raises(ValueError, match='share requires resume'):
+        walk_piece(output=tmp_path / 'unused', share='1/2')
+    assert not (tmp_path / 'unused').exists()
+
+
+def test_shares_cover_uneven_antichain_and_allow_empty_shares():
+    routes = [(i,) for i in range(5)]
+    for k in (1, 3, 8):
+        shares = [share_routes(routes, f'{i}/{k}') for i in range(1, k + 1)]
+        assert sorted(r for share in shares for r in share) == routes
+        assert max(map(len, shares)) - min(map(len, shares)) <= 1
 
 
 def test_pieces_cover_tree_once(monkeypatch):
@@ -78,3 +100,11 @@ def test_native_restart_preserves_histories_and_financial_keys():
     from collections import Counter
 
     assert Counter(first + second) == Counter(combined)
+
+    shared = []
+    for i in range(1, 4):
+        rest, paths, _ = run(share_routes(pending, f'{i}/3'), cut=set(remaining), watches=watches)
+        assert sorted(rest) == sorted(r for r in remaining
+                                     if any(r[:len(a)] == a for a in share_routes(pending, f'{i}/3')))
+        shared.extend(paths)
+    assert Counter(shared) == Counter(second)

@@ -50,6 +50,22 @@ def test_complete_continuations_order_independent_and_probability_all_draws(tmp_
         assert (q['histories'], q['draws'], q['history_draws']) == (2, 512, 1024)
 
 
+@pytest.mark.parametrize('failure', [None, 'gap', 'overlap'])
+def test_shared_continuations_and_nested_restarts(tmp_path, failure):
+    a = piece(tmp_path, 'root', [], remaining=((0,), (1,), (2,)))
+    b = piece(tmp_path, 'share1', [], input_routes=((0,), (2,)), remaining=((0, 1),))
+    c = piece(tmp_path, 'share2', [], input_routes=((1,),))
+    d = piece(tmp_path, 'restart', [], input_routes=((0, 1),))
+    empty = piece(tmp_path, 'empty', [], input_routes=())
+    with connect(tmp_path / 'shares.sqlite') as db:
+        for directory in [d, empty, b, a] + ([] if failure == 'gap' else [c]):
+            ingest(db, directory, directory.name)
+        if failure == 'overlap':
+            extra = piece(tmp_path, 'extra', [], input_routes=((2,),))
+            ingest(db, extra, 'extra')
+        assert coverage(db)['pass'] == (failure is None)
+
+
 def test_gap_overlap_and_missing_top_partition(tmp_path):
     a = piece(tmp_path, 'first', [path('yes')], remaining=((1,),), partitions=2)
     with connect(tmp_path / 'scratch.sqlite') as db:
