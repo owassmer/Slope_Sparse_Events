@@ -2844,7 +2844,7 @@ class Chain:
 
     def waits(self, node: str, ctx: str) -> bool:
         """The decisions booked on their own day on each trajectory, whatever the walk order: the cash floor and cash
-        exhaustion, and the company's response on the post-ruling levy day, which the walk may ask before the I3
+        exhaustion, and the company's response on either levy day, which the walk may ask before the I3
         settlement window that precedes it on some trajectories, and the notes' judgment default (the walk asks the
         pre-ruling one before a ruling that can set the judgment aside first). A pending claim (4.1.0) only: 4.0.0
         books each step as it is walked, the floor last, as recorded."""
@@ -2852,8 +2852,11 @@ class Chain:
             return True
         if self.ordinary:
             return node in FLOOR_NODES
+        # I1 must wait too: an earlier ripe-response offering can consume its
+        # capacity. Queue it rather than flushing at structural traversal time,
+        # so full replay also admits earlier decisions supplied later in the path.
         return self.pending and (node in FLOOR_NODES or node == "judgment_default" or (node in RESPONSES
-                                                                                     and ctx in ("post", "ripe")))
+                                                                                     and ctx in ("I1", "post", "ripe")))
 
     def waiting_day(self, node: str, ctx: str) -> np.ndarray:
         """A waiting non-floor step's day as of now (BIG: it does not arise on that trajectory)."""

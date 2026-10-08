@@ -2962,7 +2962,7 @@ class _Walk:
                       assumptions=(() if phase == "entry" else ("the judgment is enforceable, unstayed and unpaid",))
                       + when
                       + (("the company has moved for a stay, not yet approved",) if pending else ()), branches=branches)
-        late = self.pend and phase in ("post", "ripe")  # booked on its own day (events.py `waits`)
+        late = self.pend and phase in ("I1", "post", "ripe")  # booked on its own day (events.py `waits`)
         for b in branches:
             kw = {"a4": "seek" if b in self.again else "closed",
                   **({"resp": "offer" if b == "initiate_offering" else "none"} if self.pend else {})}
@@ -3014,7 +3014,7 @@ class _Walk:
         after = ("after_" + s.resp) if s.a4 == "seek" else "first"
         assumed = ((() if phase == "entry" else ("the judgment is enforceable, unstayed and unpaid",)) + when
                    + (("the company has moved for a stay, not yet approved",) if pending else ()))
-        late = phase in ("post", "ripe")  # booked on its own day (events.py `waits`)
+        late = phase in ("I1", "post", "ripe")  # booked on its own day (events.py `waits`)
         # At the ripe date the caller still owes the earlier-dated ruling chain.
         filed = on_file if phase == "ripe" else lambda z: self.tail(z, "petition")
         paid = lambda z: self.tail(z, "paid")  # noqa: E731

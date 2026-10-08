@@ -9,7 +9,7 @@ from test_ripe_after_levy import NONE
 from app.analysis.events import Chain, Draws, event_trace, plain
 from app.analysis.frontier import Decision
 from app.disputes.chronological import ChronologicalWalk
-from app.disputes.forecast import _S, Forecaster
+from app.disputes.forecast import _S, DisputePath, Forecaster
 
 
 def walker():
@@ -54,6 +54,38 @@ def test_mixed_draws_are_partitioned_by_their_earliest_decision(monkeypatch):
     assert sizes == [4]
     assert asked == {Decision("post_trial_ruling"): [8], Decision("judgment_response", "I1"): [7],
                      Decision("settle", "Istay"): [6], Decision("judgment_response", "ripe"): [0]}
+
+
+def test_pre_ruling_response_books_earlier_offering_before_offering_answers(monkeypatch):
+    # Continuation 0005, share 3/8: the ripe offering uses the capacity
+    # before I1. The response probe used to skip all waiting decisions.
+    prefix = (
+        ('settle', 'I0', 'no'),
+        ('verdict', 'I0', 'award:6752641200:2810220200:top'),
+        ('judgment_response', 'entry', '@2=initiate_offering'),
+        ('offering', 'entry', 'no'), ('settle', 'Ientry', 'no'),
+        ('post_trial_motions', '', 'yes'), ('settle', 'I1', 'no'),
+        ('execute_pre_ruling', 'I1', 'yes'), ('stay', 'I1', 'no'),
+        ('registration_early', 'I1', 'yes'),
+        ('judgment_response', 'ripe', '@2=initiate_offering'),
+        ('offering', 'ripe', 'yes'), ('judgment_default', 'I1', 'holders_file'),
+    )
+    w = walker()
+    probe = prefix + (('judgment_response', 'I1', 'none'),)
+    tr = event_trace(w.d, DisputePath(w.d.instance_id, probe, '', ()),
+                     w.fc.setup, w.fc.m, w.fc.draws, w.fc.sens)
+    row = 0
+    assert tr.questions[13]['groups'][row] == 0
+    assert tr.questions[13]['sit']['ledger'][row] == 0
+    assert w.walk_groups(probe)[row] == 0
+    offered = []
+    monkeypatch.setattr(w, 'take', lambda s, step, *args, **kwargs: s.add(step, None, **kwargs))
+    monkeypatch.setattr(w, 'tail', lambda s, outcome: offered.append(s.steps[-1][-1]))
+    monkeypatch.setattr(w, 'offer', lambda s, phase, then: offered.append('unexpected offering'))
+    w._population = np.arange(512) == row
+    state = _S(steps=prefix, cls='award6752641200', a4='seek', early=True, resp='offer')
+    w.a4_grouped(state, 'I1', lambda s: offered.append(s.steps[-1][-1]), None, False)
+    assert {plain(answer) for answer in offered} == {'file', 'none'}
 
 
 def test_no_progress_guard_reports_the_selected_draw_and_history(monkeypatch):
