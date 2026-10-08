@@ -18,9 +18,11 @@ class ChronologicalWalk(_Walk):
 
     def __init__(self, fc, dispute, *, bounds=None):
         super().__init__(fc, dispute)
-        # Experimental declared scenarios; never enabled by the ordinary walk.
         from app.disputes.recurrence import RecurrenceBounds
-        self.bounds = bounds or RecurrenceBounds()
+        self.bounds = RecurrenceBounds.from_model(fc.m, fc.sens) if bounds is None else bounds
+        if bounds is not None and 'offering_initiations' in fc.m['parameters']:
+            # Explicit comparison scenarios also govern the engine's answer domains.
+            fc.sens = {**fc.sens, 'offering_initiations': bounds.offering or 'unbounded'}
 
     def offer(self, s, occasion, then):
         if self.bounds.reached('offering', s.steps):

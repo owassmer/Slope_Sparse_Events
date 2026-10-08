@@ -1518,12 +1518,24 @@ class Chain:
             day >= self.suspended, "suspended", np.where(day >= self.hearing_requested, "hearing_requested",
                                                          "listed")))
 
+    def offering_bound_reached(self, day) -> np.ndarray:
+        """Count prior initiations on each draw, including failures, not future bookings."""
+        from app.disputes.recurrence import RecurrenceBounds
+
+        limit = RecurrenceBounds.from_model(self.m, self.sens).offering
+        day = self.per_draw(day)
+        count = np.zeros(self.n, dtype=np.int64)
+        if limit is not None:
+            for o in self._offers:
+                count += o['rows'] & (o['init'] >= 0) & (o['init'] < self.N) & (o['init'] <= day)
+        return count >= limit if limit is not None else np.zeros(self.n, dtype=bool)
+
     def offering_available(self, day) -> np.ndarray:
         """An offering can be initiated on the day [draws]: listed, no petition filed, none pending, capacity left."""
         day = self.per_draw(day)
         pet = np.where(self.ev.petition < 0, BIG, self.ev.petition)
         return ((day >= 0) & (day < self.N) & (day < pet) & (day < self.suspended) & (day < self.delisted)
-                & ~self.offering_pending_on(day) & (self.ledger_left(day) > 0)
+                & ~self.offering_pending_on(day) & ~self.offering_bound_reached(day) & (self.ledger_left(day) > 0)
                 & (self.offering_terms(day)["gross"] <= self.shelf_capacity(day)))
 
     def offer_available(self, day) -> np.ndarray:
@@ -3540,6 +3552,7 @@ class Chain:
                  else ("offering_pending",),
                  # the offering the company would initiate (0: none) and the shortfall it must cover (§2.6, Initiation)
                  "offer_available": ("offer_available", day), "offer_shortfall": ("offer_shortfall", day),
+                 "offering_bound_reached": ("offering_bound_reached", day),
                  "offerings": ("offerings",), "notes_due_day": ("notes_due_day",), "notes_due_how": ("notes_due_how",),
                  "arrears": ("arrears_by_class", day), "first_unpaid": ("first_unpaid",),
                  "nonpayment_day": ("nonpayment_day",)}

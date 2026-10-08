@@ -17,6 +17,22 @@ def test_share_requires_resume(tmp_path):
     assert not (tmp_path / 'unused').exists()
 
 
+def test_resume_rejects_unbounded_child_ordinals(tmp_path, monkeypatch):
+    import json
+
+    from test_chronological_walk import walker
+
+    from app.analysis import population_walk
+
+    w = walker()
+    monkeypatch.setattr(population_walk, 'context', lambda: (w.fc, w.d))
+    saved = tmp_path / 'piece.json'
+    saved.write_text(json.dumps(dict(remaining=[[0]], partition=0, partitions=1, depth=2)))
+    with pytest.raises(ValueError, match='recurrence bounds changed'):
+        walk_piece(output=tmp_path / 'new', resume=saved)
+    assert not (tmp_path / 'new' / 'events.pkl.gz').exists()
+
+
 def test_shares_cover_uneven_antichain_and_allow_empty_shares():
     routes = [(i,) for i in range(5)]
     for k in (1, 3, 8):

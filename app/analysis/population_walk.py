@@ -150,8 +150,11 @@ def walk_piece(*, output: Path, seconds=900, partition=0, partitions=1, depth=6,
     from app.analysis.piece_store import PieceWriter
 
     fc, d = context()
-    writer = PieceWriter(output, fc.draws.n, full=full_events)
     w = PieceWalk(fc, d)
+    bounds = vars(w.bounds)
+    if resume is not None and saved.get('recurrence_bounds', vars(type(w.bounds)())) != bounds:
+        raise ValueError('recurrence bounds changed; start a new walk instead of resuming child ordinals')
+    writer = PieceWriter(output, fc.draws.n, full=full_events)
     w.configure(routes=routes, partition=partition, partitions=partitions, depth=depth,
                 stop=lambda: time.monotonic() - start >= seconds, watch_results=watch_results)
     record, late, emit = fc.record, fc._keep_late, w.emit
@@ -219,7 +222,7 @@ def walk_piece(*, output: Path, seconds=900, partition=0, partitions=1, depth=6,
         writer.close()
     result = dict(complete=not w.remaining, partition=partition, partitions=partitions, depth=depth,
                   remaining=w.remaining, input_routes=routes, watch_results=w.watch_results,
-                  histories=histories, history_draws=history_draws,
+                  histories=histories, history_draws=history_draws, recurrence_bounds=bounds,
                   visited=w.visited, seconds=time.monotonic() - start,
                   events_format='population-piece-v1',
                   events_bytes=(output / 'events.pkl.gz').stat().st_size)

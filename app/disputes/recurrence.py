@@ -1,4 +1,4 @@
-"""Opt-in recurrence scenarios for chronological walk comparisons."""
+"""Case-declared recurrence bounds and explicit comparison scenarios."""
 from dataclasses import dataclass
 
 
@@ -12,6 +12,16 @@ class RecurrenceBounds:
     def __post_init__(self):
         if any(v is not None and (not isinstance(v, int) or v < 1) for v in vars(self).values()):
             raise ValueError('bounds must be positive integers or None')
+
+    @classmethod
+    def from_model(cls, model, sens=None):
+        from app.analysis.events import pval
+
+        key = 'offering_initiations'
+        if key not in model['parameters']:
+            return cls()
+        value = pval(model, key, (sens or {}).get(key, False))
+        return cls(offering=None if value == 'unbounded' else value)
 
     def reached(self, node, steps):
         limit = getattr(self, node, None)

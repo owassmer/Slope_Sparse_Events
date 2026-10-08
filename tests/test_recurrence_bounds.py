@@ -1,4 +1,4 @@
-"""Bounds change actions, not amounts/dates, and are absent by default."""
+"""Bounds change actions, not amounts/dates; the case caps offering initiations."""
 from types import SimpleNamespace
 
 import pytest
@@ -45,6 +45,52 @@ def test_offering_bound_removes_initiation_not_books_failure(monkeypatch):
     w.bounds = SCENARIOS['unbounded']
     w.offer(s, 'floor2', None)
     assert calls == [(w, s, 'floor2', None)]
+
+
+def test_case_bound_and_unbounded_sensitivity_reach_production(monkeypatch):
+    from test_chronological_walk import walker
+
+    w = walker()
+    assert w.bounds == RecurrenceBounds(offering=2)
+    seen = []
+    monkeypatch.setattr(ChronologicalWalk, 'run', lambda self: seen.append(self.bounds) or [])
+    assert w.fc.paths(w.d) == []
+    w.fc.sens['offering_initiations'] = True
+    assert w.fc.paths(w.d) == []
+    assert seen == [RecurrenceBounds(offering=2), RecurrenceBounds()]
+    assert RecurrenceBounds.from_model({'parameters': {}}) == RecurrenceBounds()
+
+
+def test_engine_counts_failed_initiations_per_draw_and_as_of_day():
+    import numpy as np
+    from test_chronological_walk import walker
+
+    from app.analysis.events import Chain
+    from app.disputes.state14 import Situation
+
+    w = walker()
+    ch = Chain(w.d, w.fc.setup, w.fc.m, w.fc.draws, w.fc.sens)
+    # Failed offerings consume no shares, but each initiation consumes one slot.
+    for i, day in enumerate((0, 10)):
+        ch.initiate(np.full(ch.n, day), str(i))
+        ch.offering_outcome(str(i), False)
+    assert len(ch._offers) == 2
+    assert not ch.offering_bound_reached(9).any()
+    assert ch.offering_bound_reached(10).all()
+    assert not ch.offering_available(20).any()
+    assert not ch.initiate(np.full(ch.n, 20), 'third').any()
+    sit = ch.c_situation(np.full(ch.n, 20))
+    assert sit['offering_bound_reached'].all()
+    fake = SimpleNamespace(_g=lambda: SimpleNamespace(at_rep=lambda *a, **k: True))
+    assert 'including failed offerings' in Situation.offering_unavailable_reason(fake)
+    ch.sens = {'offering_initiations': True}
+    assert not ch.offering_bound_reached(20).any()
+    assert ch.offering_available(20).all()
+    # A booking on another draw must not spend this draw's allowance.
+    ch.sens = {}
+    ch._offers[-1]['rows'][0] = False
+    assert not ch.offering_bound_reached(20)[0]
+    assert ch.offering_bound_reached(20)[1:].all()
 
 
 def test_signed_deltas_and_unknown_conditional_balance():

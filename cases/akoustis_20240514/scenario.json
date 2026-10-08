@@ -128,6 +128,11 @@
       "horizon_years": 1,
       "basis": "After the verdict the share price is set by a structural (Merton) model. Equity is a call on the firm's value with a strike of the notes' face plus the judgment amount owed on the day (the amount as entered, or as the post-trial ruling leaves it, less amounts paid or levied; after a settlement, its installments not yet due), over the horizon. Calibrated (KMV) on data public by 14 May 2024: the firm's value and asset volatility solve equity value = the close x shares outstanding and equity volatility = N(d1) x asset volatility x firm value / equity value. Before the verdict the price is the 14 May close. close_cents: the 14 May 2024 close, USD 0.44 (akts_daily_px_20240514). shares_outstanding: shares outstanding on 8 May 2024 (10-Q of 13 May 2024, cover). notes_face_cents: the convertible notes' principal, USD 44.0M. rate_bps: the 1-year U.S. Treasury par yield on 14 May 2024, 5.16% (U.S. Treasury, Daily Treasury Par Yield Curve Rates, 2024; home.treasury.gov). price_table: equity volatility, the annualised (x 252) sample standard deviation of the daily log returns of the closes over the 240 trading days of the table (1 Jun 2023 to 14 May 2024). horizon_years: one year."
     },
+    "offering_initiations": {
+      "value": 2,
+      "sensitivity": "unbounded",
+      "basis": "At most two underwritten offerings may be initiated within the forecast horizon, including offerings that fail to close. After the second initiation, no further offering may be initiated. This replaces an unbounded number of initiations; the sensitivity restores that unbounded walk. No other recurrence bound applies."
+    },
     "offering_materiality": {
       "value": "covers_shortfall",
       "sensitivity": "any_proceeds",
@@ -272,6 +277,12 @@
     "note": "Each alternative changes one setting from the central case. All other settings remain the same.",
     "central_label": "Central setting",
     "variants": [
+      {
+        "id": "offerings_unbounded",
+        "label": "Offerings: unbounded initiations, instead of at most two",
+        "parameters": ["offering_initiations"],
+        "note": "Central: at most two underwritten offerings initiated within the horizon, including failed offerings; thereafter initiation is unavailable. Alternative: no limit on the number of initiations. All other offering availability rules still apply."
+      },
       {
         "id": "cost_plan",
         "label": "Operating burn 30% lower from 15 May 2024, instead of the recent run rate",

@@ -710,6 +710,12 @@ class Situation:
         return f"{self._terms()['shares']:,} shares"
 
     def offering_unavailable_reason(self):
+        try:
+            bounded = self._g().at_rep("offering_bound_reached", sit=True)
+        except KeyError:  # older recorded situations predate the bound
+            bounded = False
+        if bool(bounded):
+            return "unavailable: the maximum number of offering initiations has been reached, including failed offerings"
         listing = str(self._g().at_rep("listing", sit=True))
         i, j = self._g().rep
         pet = int(self._g().rows[i]["petition"][j])
