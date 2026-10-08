@@ -48,7 +48,7 @@ for piece in sorted(src.glob("out-*/var/walk-population/**/piece.json")):
         shares = int(os.environ.get("WALK_SHARES", "1"))
         for i in range(shares):
             c = re.sub(r"--output \S+", f"--output var/walk-population/{nxt}-{key}" + (f"-s{i}" if shares > 1 else ""), cmd)
-            lines.append(c + (f" --share {i}/{shares}" if shares > 1 else ""))
+            lines.append(c + (f" --share {i + 1}/{shares}" if shares > 1 else ""))
 import os
 per = int(os.environ.get("WALK_PER_LINE", "4"))
 cmds = [c for c in lines if not c.startswith("#")]
