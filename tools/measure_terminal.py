@@ -1,7 +1,8 @@
 """Bounded local terminal-cost/collision and population-throughput measurement.
 
 No model calls, pruning, or replacement of financial calculations. Outputs stay
-in var/diag/001-7a. Each invocation is capped at 180 measured seconds.
+in var/diag/001-7a by default. The requested budget is at most 180 seconds;
+a cold solo draw may use up to two seconds to reach its first leaf.
 """
 # Closures are installed, run synchronously, and restored within each batch.
 # ruff: noqa: B023
@@ -26,7 +27,7 @@ class Deadline(Exception):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--mode', choices=('terminal', 'solo', 'population'), default='terminal')
-    p.add_argument('--size', type=int, choices=(1, 8, 64), default=1)
+    p.add_argument('--size', type=int, choices=(1, 8, 64, 512), default=1)
     p.add_argument('--seconds', type=float, default=120)
     p.add_argument('--output', default='var/diag/001-7a')
     a = p.parse_args()
@@ -172,7 +173,11 @@ def main():
             return result
 
         def looping(*args, **kwargs):
-            if time.perf_counter() - start >= budget:
+            elapsed = time.perf_counter() - start
+            # A cold native draw can need longer than 120/512 seconds to
+            # reach its first leaf. Include that cost rather than reporting
+            # throughput for only the easier 511 draws (still bounded at 2s).
+            if elapsed >= budget and (terminal_count or elapsed >= max(budget, 2)):
                 raise Deadline
             return loop(*args, **kwargs)
 

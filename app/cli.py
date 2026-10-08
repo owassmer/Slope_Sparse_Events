@@ -5,6 +5,26 @@ import typer
 cli = typer.Typer(no_args_is_help=True, help="Slope external-event credit scenario module")
 
 
+@cli.command("walk-tree")
+def walk_tree(
+    output: str = typer.Option(..., help="New directory for streamed paths, facts and unfinished branches."),
+    seconds: float = typer.Option(900, min=0.001, max=1000),
+    partition: int = typer.Option(0, min=0),
+    partitions: int = typer.Option(1, min=1),
+    depth: int = typer.Option(6, min=1),
+    resume: str | None = typer.Option(None, help="Prior piece.json; continue its unfinished branches."),
+) -> None:
+    """Walk all 512 draws together from review; no model calls. Stream bounded pieces."""
+    import json
+    from pathlib import Path
+
+    from app.analysis.population_walk import walk_piece
+
+    result = walk_piece(output=Path(output), seconds=seconds, partition=partition,
+                        partitions=partitions, depth=depth, resume=Path(resume) if resume else None)
+    typer.echo(json.dumps(result))
+
+
 @cli.command("measure-walk")
 def measure_walk(
     row: int = typer.Option(0, min=0, max=511, help="Native draw in the 512-draw population."),

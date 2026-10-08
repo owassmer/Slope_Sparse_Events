@@ -583,11 +583,15 @@ def walk(fc, d, procs: int, log=sys.stderr):
 
 
 def all_paths(fc, procs: int, log=sys.stderr) -> dict:
-    """`Forecaster.all_paths`, a pending claim's tree walked in `procs` processes."""
+    """Population chronology for equity claims; legacy process walk for other claims.
+
+    The structural continuation queue cannot resume the chronological frontier.
+    Bounded chronological runner pieces are exposed by ``slope walk-tree``.
+    """
     from app.disputes.forecast import PENDING
 
     return {d.instance_id: {"": walk(fc, d, procs, log) if d.stage == PENDING and d.borrower_role == "debtor"
-                            else fc.paths(d)} for d, _ in fc.ordered()}
+                            and not fc.equity else fc.paths(d)} for d, _ in fc.ordered()}
 
 
 def part_files(folder: str) -> dict[int, str]:

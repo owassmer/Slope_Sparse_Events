@@ -2,7 +2,7 @@
 
 Question construction and grouping remain _Walk's; terminal booking resumes the leaf;
 state-derived chain heads compete on the answer-free Chain frontier.
-Forecaster.paths still uses the structural walk.
+Forecaster.paths uses this population walk for pending claims with equity.
 """
 from dataclasses import replace
 
@@ -308,7 +308,11 @@ class ChronologicalWalk(_Walk):
                     cls = record(self.fc, self.d, state.steps, key, on, keep=keep)
                 else:
                     cls = self.fc.record_late(self.d, state.steps, ((key, index),), on, keep=keep).get(key)
-                self._dated_records += tuple(records)
+                # A population can reach this question on only some draws.
+                # Captured rows still cover the original population: retaining
+                # them unmasked would freeze the other draws' facts too soon.
+                self._dated_records += tuple((k, p, {**r, 'day': np.where(on, r['day'], BIG)})
+                                             for k, p, r in records)
                 if cls is not None:
                     prior = self._dated_classes.get(key)
                     if prior is not None:

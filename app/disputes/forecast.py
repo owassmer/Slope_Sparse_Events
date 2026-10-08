@@ -1529,7 +1529,10 @@ class Forecaster:
         if d.borrower_role != "debtor" or d.stage not in ("post_trial", "judgment_entered", "enforcement",
                                                            "appeal_filed", "appeal_pending", PENDING):
             return [DisputePath(instance_id=d.instance_id, steps=(), outcome="outside_chains", edges=())]
-        W = _Walk(self, d)
+        from app.disputes.chronological import ChronologicalWalk
+
+        walk_type = ChronologicalWalk if d.stage == PENDING and self.equity else _Walk
+        W = walk_type(self, d)
         if not W.pend:
             return W.run()
         while True:  # a pending claim: walk again where a whole path shows equity the floor's prefix did not
@@ -1543,7 +1546,7 @@ class Forecaster:
                 return merge_equivalent(out, W.keys, {k: n.branches for k, n in self.nodes.items()})
             self._raise_open |= more
             self.nodes, self.facts, self._late_seen, self.classed, self._qcls, self._qcanon = kept
-            W = _Walk(self, d)
+            W = walk_type(self, d)
 
     def all_paths(self) -> dict[str, dict[str, list[DisputePath]]]:
         return {d.instance_id: {"": self.paths(d)} for d, _ in self.ordered()}

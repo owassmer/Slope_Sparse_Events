@@ -1,4 +1,4 @@
-"""The experimental scheduler is separate from the production walk."""
+"""Chronological frontier ordering, answer domains and probability composition."""
 import akoustis_20240514_fixture as fx
 import numpy as np
 import pytest
