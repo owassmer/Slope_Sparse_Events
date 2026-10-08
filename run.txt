@@ -3,7 +3,6 @@
 # per artifact and arithmetic per 1000 histories. Only var/tree-pool/ is the return payload.
 # Exit 1 means gates were exported and failed/incomplete; exit 0 means arithmetic/coverage passed.
 # The two sampled semantic reviews remain separate, not automatically certified.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --run-list "${POOL_RUN_LIST:?set to the all-wave run-id list}" --links "${POOL_LINKS:?set to legacy source-to-input_routes JSON}" --database tree-pool.sqlite --output var/tree-pool --seconds 900
 # 001-11a: cache-only, no model calls. Each line self-limits to 900 seconds, writes progress.
 # Not submitted by this task. Run report after collecting all outputs in one workspace.
 uv run slope estimate-walk --row 146 --scenario unbounded --probes 1000 --seconds 900 --output var/diag/001-11a/unbounded
