@@ -1769,11 +1769,14 @@ class Forecaster:
         return out
 
     def record_late(self, d: DisputeInstance, steps: tuple, late: tuple, mask: np.ndarray | None = None,
-                    tr=None) -> dict:
-        """The facts of the state-triggered decisions on a whole path (the cash floor, cash exhaustion): the engine
-        books each on its own day on every trajectory, after the steps dated before it wherever the walk put them
-        (events.py `upto`), so its day and cash are known only once the path is. Kept once per distinct record at each
-        prefix that asks it, as `record` keeps one per prefix; on the path's trajectories (`mask`) only."""
+                    tr=None, keep=None) -> dict:
+        """Read dated decision facts on the supplied history and support.
+
+        The structural walker supplies its completed path to resolve earlier-dated
+        events traversed out of order. The chronological walker instead supplies
+        the reached prefix and a `keep` callback to retain the record at its date;
+        it never calls this reconstruction to rewrite frozen records at finishing.
+        """
         from app.analysis.events import BIG, event_trace
 
         def on(row: dict) -> dict:
@@ -1784,7 +1787,9 @@ class Forecaster:
 
         if tr is None:
             tr = event_trace(d, DisputePath(instance_id=d.instance_id, steps=steps, outcome="", edges=()), self.setup,
-                             self.m, self.draws, self.sens)
+                             self.m, self.draws, self.sens,
+                             rows=None if mask is None else tuple(mask for _ in steps))
+        store = self._keep_late if keep is None else keep
         classes: dict = {}
         for k, i in late:
             completed = self.completed_probe(k, steps, i)
@@ -1803,7 +1808,7 @@ class Forecaster:
                         if len(cache) >= self.SIBLINGS:
                             cache.pop(next(iter(cache)))
                         cache[identity] = row
-                got = self._split((k,), row, lambda key, r, i=i: self._keep_late(key, steps[:i], r),
+                got = self._split((k,), row, lambda key, r, i=i: store(key, steps[:i], r),
                                   self.dated_class(d, k, steps, row))
                 if got is not None:
                     classes[k] = got
@@ -1821,14 +1826,14 @@ class Forecaster:
                     if row.get('groups') is None:
                         raise ValueError(f'Missing dated option groups for {k}')
                     cls = group_classes(cls, row['groups'])
-                got = self._split((k,), row, lambda key, r, i=i: self._keep_late(key, steps[:i], r), cls)
+                got = self._split((k,), row, lambda key, r, i=i: store(key, steps[:i], r), cls)
                 if got is not None:
                     classes[k] = got
                 continue
             if i in tr.stays:  # a stay's approval (daily processing): the security sized on the whole path
                 got = self._split((k,), as_of(on({**tr.stays[i], "settle_offer": None, "raise_offer": None,
                                                   "sit": tr.situations.get(i), "marks": tr.marks})),
-                                  lambda key, r, i=i: self._keep_late(key, steps[:i], r), self.canon_get(k, steps))
+                                  lambda key, r, i=i: store(key, steps[:i], r), self.canon_get(k, steps))
                 if got is not None:
                     classes[k] = got
                 continue
@@ -1843,7 +1848,7 @@ class Forecaster:
                 if ((row["day"] < self.days) & (row["day"] < pet) & (info["raise_offer"] > 0)).any():
                     self._raise_more.add(steps[:i])
             # once per history and situation class: the decision day's facts, not the future's
-            got = self._split((k,), as_of(row), lambda key, r, i=i: self._keep_late(key, steps[:i], r),
+            got = self._split((k,), as_of(row), lambda key, r, i=i: store(key, steps[:i], r),
                               self.canon_get(k, steps))
             if got is not None:
                 classes[k] = got
@@ -3920,6 +3925,11 @@ class _Walk:
                 r = self.fc.__dict__.setdefault("ev_range", [np.zeros(self.N), np.zeros(self.N)])
                 np.minimum(r[0], cum.min(axis=0), out=r[0])
                 np.maximum(r[1], cum.max(axis=0), out=r[1])
+        late = self.terminal_questions(s, m, tr)
+        self.out.append(DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome=outcome, edges=s.edges,
+                                    mask=pack_mask(m), classes=self._classes_of(s.edges, s.steps, m, late or {})))
+
+    def terminal_questions(self, s, m, tr):
         pending = tuple((k, i) for k, i in s.late if not self.deferred_notes(k))
         late = self.fc.record_late(self.d, s.steps, pending, m, tr=tr) if pending else {}
         if self.pend:
@@ -3927,8 +3937,7 @@ class _Walk:
 
             for k in sorted({k for edge, _ in s.edges for k in atoms(edge) if self.deferred_notes(k)}):
                 late[k] = record(self.fc, self.d, s.steps, k, m)
-        self.out.append(DisputePath(instance_id=self.d.instance_id, steps=s.steps, outcome=outcome, edges=s.edges,
-                                    mask=pack_mask(m), classes=self._classes_of(s.edges, s.steps, m, late or {})))
+        return late
 
     def equivalence(self, s: _S, outcome: str, tr, m: np.ndarray | None) -> tuple:
         """The path's financial-equivalence key (QUESTIONS §1 Depth; `merge_equivalent`): its draws, and on them every

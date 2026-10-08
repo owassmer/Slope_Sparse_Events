@@ -85,7 +85,7 @@ def decision_row(fc, d, steps: tuple, index: int, actor: str, mask=None) -> tupl
     return result
 
 
-def record(fc, d, steps: tuple, key: str, mask=None):
+def record(fc, d, steps: tuple, key: str, mask=None, *, keep=None):
     """Reclassify one original note question from its complete before-action state.
 
     Context in a note question's old key is an identity, not authority for its
@@ -99,10 +99,10 @@ def record(fc, d, steps: tuple, key: str, mask=None):
     index = matches[0]
     actor = 'holders' if n.node == 'holders_involuntary' else 'issuer'
     row, tr = decision_row(fc, d, steps, index, actor, mask)
-    return record_row(fc, d, steps, key, index, row, tr)
+    return record_row(fc, d, steps, key, index, row, tr, keep=keep)
 
 
-def record_row(fc, d, steps, key, index, row, tr=None):
+def record_row(fc, d, steps, key, index, row, tr=None, *, keep=None):
     """Classify a previously calculated decision row without replaying its history."""
     n = fc.nodes[key]
     if tr is None:
@@ -133,4 +133,5 @@ def record_row(fc, d, steps, key, index, row, tr=None):
         tags = walk._tags(_S(steps=steps, cls=label), conds, (n.context.split('|')[0],), state, ())
         context[selected] = '|'.join((n.context.split('|')[0], *tags))
     row = {**row, 'note_context': context}
-    return fc._split((key,), row, lambda k, r: fc._keep_late(k, steps[:index], r), cls)
+    store = fc._keep_late if keep is None else keep
+    return fc._split((key,), row, lambda k, r: store(k, steps[:index], r), cls)

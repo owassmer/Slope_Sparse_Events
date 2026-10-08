@@ -8,9 +8,9 @@ from dataclasses import replace
 
 import numpy as np
 
-from app.analysis.events import GROUPED, Chain, Trace, group_branches, plain
+from app.analysis.events import BIG, GROUPED, Chain, Trace, group_branches, plain
 from app.analysis.frontier import Cursors, Decision
-from app.disputes.forecast import _S, _Walk
+from app.disputes.forecast import _S, _Walk, atoms
 
 
 class ChronologicalWalk(_Walk):
@@ -34,6 +34,9 @@ class ChronologicalWalk(_Walk):
                         out="done" if any(st[0] == "cash_out" for st in state.steps) else state.out,
                         np="done" if any(st[0] == "nonpayment" for st in state.steps) else state.np)
         self._continuations = []
+        self._dated_records = ()
+        self._dated_classes = {}
+        self._question_queue = ()
         self._population = support  # retain the root population for subsequent path replay, as _Walk does
         mask = self.mask_of(state.steps)  # the supplied history is replayed only to seed its support
         mask = np.ones(chain.n, dtype=bool) if mask is None else mask
@@ -223,6 +226,7 @@ class ChronologicalWalk(_Walk):
                 if candidate.chain == "deterministic":
                     before.until(np.where(local_on, candidate.day + 1, -1))
                     return self._loop(s, before, pending, outcome, boundary, on, rows)
+                self.freeze_due(s, boundary, on)
                 d = candidate.decision
                 remaining = pending | {d}
 
@@ -242,7 +246,20 @@ class ChronologicalWalk(_Walk):
                     child_mask = self.mask_of(y.steps)
                     child_mask = on if child_mask is None else on & child_mask
                     if child_mask.any():
-                        self._loop(y, booked, todo, outcome if result is None else result, boundary, child_mask, rows)
+                        records, classes = self.capture_decisions(s, y, child_mask)
+                        previous = self._dated_records, self._dated_classes, self._question_queue
+                        self._dated_classes = {**self._dated_classes, **classes}
+                        for key in classes:
+                            base_records = [r for k, _, r in records if k.split('|#', 1)[0] == key]
+                            day = (np.minimum.reduce([r['day'] for r in base_records]) if base_records
+                                   else np.full(self.fc.draws.n, BIG))
+                            index = next((i for k, i in y.late[len(s.late):] if k == key), len(s.steps))
+                            captured = tuple((k, p, r) for k, p, r in records if k.split('|#', 1)[0] == key)
+                            self._question_queue += ((key, index, day, y.steps, captured, classes[key]),)
+                        try:
+                            self._loop(y, booked, todo, outcome if result is None else result, boundary, child_mask, rows)
+                        finally:
+                            self._dated_records, self._dated_classes, self._question_queue = previous
 
                 self._continuations.append(child)
                 try:
@@ -250,7 +267,11 @@ class ChronologicalWalk(_Walk):
                 finally:
                     self._continuations.pop()
 
-            self.scoped(on, selected)
+            saved_questions = self._dated_records, self._dated_classes, self._question_queue
+            try:
+                self.scoped(on, selected)
+            finally:
+                self._dated_records, self._dated_classes, self._question_queue = saved_questions
         rest = np.zeros(self.fc.draws.n, dtype=bool)
         rest[rows[frontier.pick == -1]] = True
         if rest.any():
@@ -258,14 +279,80 @@ class ChronologicalWalk(_Walk):
             if result == "unresolved":
                 result = ("motions_pending" if Decision("post_trial_ruling") in self._pending(s, pending)
                           else "stayed" if s.stayed else "unresolved")
+            self.freeze_due(s, np.full(self.fc.draws.n, self.N), rest)
             self._leaf = chain, rows, rest
             try:
                 self.scoped(rest, lambda: self.emit(s, result))
             finally:
                 del self._leaf
 
+    def freeze_due(self, state, boundary, mask):
+        """Retain the reached-date record before advancing to the next answer.
+
+        Only composite questions can still be queued here. If earlier answers
+        have intervened since their origin, probe the reached prefix again; a
+        terminal history is never used to rewrite a previously frozen question.
+        """
+        from app.disputes.notes import record
+
+        remaining = []
+        for key, index, day, prefix, captured, initial_class in self._question_queue:
+            on = mask & (day <= boundary)
+            if on.any():
+                records = []
+                keep = lambda k, p, r, records=records: records.append((k, p, r))  # noqa: E731
+                if state.steps == prefix:
+                    records = captured
+                    cls = initial_class
+                elif self.deferred_notes(key):
+                    cls = record(self.fc, self.d, state.steps, key, on, keep=keep)
+                else:
+                    cls = self.fc.record_late(self.d, state.steps, ((key, index),), on, keep=keep).get(key)
+                self._dated_records += tuple(records)
+                if cls is not None:
+                    prior = self._dated_classes.get(key)
+                    if prior is not None:
+                        cls = np.where(on, cls, prior)
+                    self._dated_classes = {**self._dated_classes, key: cls}
+            outstanding = np.where(on, BIG, day)
+            if (outstanding < self.N).any():
+                remaining.append((key, index, outstanding, prefix, captured, initial_class))
+        self._question_queue = tuple(remaining)
+
+    def capture_decisions(self, before, after, mask):
+        """Capture date-local questions; queue composite questions until their date.
+
+        A constructor can include more than one question (e.g. an offering after
+        initiation). Preserve each question's own index, not the constructor's.
+        Court approval needs security sized on approval day; notes petitions need
+        the declaration and notice period first. Those questions wait at the
+        frontier, so intervening earlier decisions are included, never later ones.
+        Neutral probes project scheduled bookings from the reached prefix only.
+        """
+        from app.disputes.notes import record
+
+        records = []
+        keep = lambda k, p, r: records.append((k, p, r))  # noqa: E731
+        pending = tuple((k, i) for k, i in after.late[len(before.late):] if not self.deferred_notes(k))
+        classes = self.fc.record_late(self.d, after.steps, pending, mask, keep=keep) if pending else {}
+        old = {k for edge, _ in before.edges for k in atoms(edge)}
+        for k in sorted({k for edge, _ in after.edges for k in atoms(edge)} - old):
+            if self.deferred_notes(k):
+                classes[k] = record(self.fc, self.d, after.steps, k, mask, keep=keep)
+        return records, classes
+
+    def terminal_questions(self, s, mask, tr):
+        if not hasattr(self, "_leaf"):
+            return super().terminal_questions(s, mask, tr)
+        for key, prefix, row in self._dated_records:
+            if mask is not None:
+                row = {**row, "day": np.where(mask, row["day"], BIG),
+                       "petition": np.where(mask, row["petition"], 0)}
+            self.fc._keep_late(key, prefix, row)
+        return self._dated_classes
+
     def terminal_trace(self, s):
-        """Finish the owned leaf copy; historical question reconstruction is unchanged."""
+        """Finish the owned leaf copy without rebuilding the question records."""
         from app.analysis.events import _trace_rows, _widen
 
         if not hasattr(self, "_leaf"):  # graph materialization has histories, not live leaf chains
