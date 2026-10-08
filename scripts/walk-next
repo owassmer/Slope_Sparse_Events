@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# scripts/walk-next <wave name> [<next wave name>]    The next wave of the full-tree walk, from a finished wave's outputs.
+#
+# Reads var/remote/<wave>/out-*/var/walk-population/**/{piece.json,next.txt} (what scripts/remote downloaded), and
+# writes var/waves/<next>/: run.txt with every unfinished piece's continuation command, and each continuation's
+# piece.json under walk-resume/<next>/, with the commands' --resume paths pointing there. Then
+#   scripts/remote <next> --with var/waves/<next>
+# sends it. Prints how many pieces finished and how many continue. Called by the coordinator.
+set -euo pipefail
+wave="${1:?usage: scripts/walk-next <wave name> [<next wave name>]}"
+root="$(git rev-parse --show-toplevel)"; cd "$root"
+src="var/remote/$wave"; [ -d "$src" ] || { echo "no outputs for $wave in $src; run scripts/remote first" >&2; exit 2; }
+next="${2:-$(echo "$wave" | sed -E 's/w([0-9]+)$//')w$(( $(echo "$wave" | sed -E 's/.*w([0-9]+)$/\1/') + 1 ))}"
+out="var/waves/$next"; rm -rf "$out"; mkdir -p "$out/walk-resume/$next"
+python3 -I - "$src" "$out" "$next" <<'PY'
+import json, pathlib, re, shutil, sys
+src, out, nxt = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
+done = cont = 0
+lines = [f"# {nxt}: continuations of the unfinished pieces of {src.name}; each line within its runner limit."]
+for piece in sorted(src.glob("out-*/var/walk-population/**/piece.json")):
+    d = json.loads(piece.read_text())
+    if d.get("complete"):
+        done += 1
+        continue
+    nt = piece.with_name("next.txt")
+    if not nt.exists():
+        print(f"unfinished piece without next.txt: {piece}", file=sys.stderr)
+        continue
+    for cmd in [c.strip() for c in nt.read_text().splitlines() if c.strip() and not c.startswith("#")]:
+        m = re.search(r"--resume (\S+)", cmd)
+        if not m:
+            print(f"continuation without --resume: {cmd}", file=sys.stderr)
+            continue
+        cont += 1
+        key = f"{cont:04d}"
+        dest = out / "walk-resume" / nxt / key / "piece.json"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        resume = piece.parent / pathlib.Path(m.group(1)).name  # the piece's own state, beside its next.txt
+        if not resume.exists():
+            print(f"continuation state {resume} missing", file=sys.stderr)
+            continue
+        shutil.copyfile(resume, dest)
+        cmd = cmd.replace(m.group(0), f"--resume walk-resume/{nxt}/{key}/piece.json")
+        cmd = re.sub(r"--output \S+", f"--output var/walk-population/{nxt}-{key}", cmd)
+        lines.append(cmd)
+(out / "run.txt").write_text("\n".join(lines) + "\n")
+print(f"{done} pieces finished, {cont} continue in {nxt}: {out}/run.txt")
+PY
