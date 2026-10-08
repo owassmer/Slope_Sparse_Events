@@ -200,7 +200,7 @@ def walk_piece(*, output: Path, seconds=900, partition=0, partitions=1, depth=6,
     finally:
         writer.close()
     result = dict(complete=not w.remaining, partition=partition, partitions=partitions, depth=depth,
-                  remaining=w.remaining, watch_results=w.watch_results,
+                  remaining=w.remaining, input_routes=routes, watch_results=w.watch_results,
                   histories=histories, history_draws=history_draws,
                   visited=w.visited, seconds=time.monotonic() - start,
                   events_format='population-piece-v1',

@@ -1,5 +1,7 @@
 """Command-line entry point. Subcommands are added by each build step."""
 
+from typing import Annotated
+
 import typer
 
 cli = typer.Typer(no_args_is_help=True, help="Slope external-event credit scenario module")
@@ -25,6 +27,37 @@ def walk_tree(
                         partitions=partitions, depth=depth, resume=Path(resume) if resume else None,
                         full_events=full_events)
     typer.echo(json.dumps(result))
+
+
+@cli.command("pool-tree")
+def pool_tree(
+    output: str = typer.Option('var/tree-pool', help='Small exported catalog, gates and history samples.'),
+    database: str = typer.Option('tree-pool.sqlite', help='Runner-local restart database; do not return this artifact.'),
+    local: Annotated[list[str] | None, typer.Option(help='Read-only local piece directories.')] = None,
+    runs: Annotated[list[str] | None, typer.Option(help='GitHub run IDs; repeat for every wave.')] = None,
+    run_list: str | None = typer.Option(None, help='Text file: one GitHub run ID per line, all waves.'),
+    links: str | None = typer.Option(None, help='JSON source -> input_routes metadata for legacy checkpoints.'),
+    seconds: float = typer.Option(900, min=1, max=1000, help='Ingestion budget, checked between artifacts.'),
+    finish: bool = typer.Option(True, help='Export gates after ingestion; --no-finish only downloads/reduces.'),
+) -> None:
+    """Pool trusted walk pieces one artifact at a time, without judgment calls."""
+    import json
+    from pathlib import Path
+
+    from app.analysis.tree_pool import pool
+
+    run_ids = list(runs or [])
+    if run_list:
+        run_ids.extend(line.strip() for line in Path(run_list).read_text().splitlines()
+                       if line.strip() and not line.lstrip().startswith('#'))
+    result = pool(database=Path(database), output=Path(output), local=local or [], runs=run_ids,
+                  links=json.loads(Path(links).read_text()) if links else None,
+                  seconds=seconds, finish=finish)
+    typer.echo(json.dumps(result))
+    if result.get('status') in ('unfinished_ingest', 'unfinished_export'):
+        raise typer.Exit(2)
+    if 'coverage' in result and not all(result[k]['pass'] for k in ('coverage', 'probability', 'answers')):
+        raise typer.Exit(1)
 
 
 @cli.command("measure-walk")
