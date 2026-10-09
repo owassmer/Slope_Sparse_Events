@@ -41,3 +41,9 @@ uv run slope measure-recurrence --row 438 --samples 300 --seconds 900
 uv run slope measure-recurrence --row 73 --samples 300 --seconds 900
 uv run slope measure-recurrence --row 511 --samples 300 --seconds 900
 uv run python -m app.analysis.recurrence_report var/diag/001-11a
+# 001-13a: staged var/waves and var/remote inputs required. No model calls.
+# Calibration is fixed-count per matched complete single-share piece; progress survives the safety limit.
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-remaining --states 'var/waves/walk-f7/walk-resume/walk-f7/*/piece.json' --finished 'var/remote/walk-f7/**/piece.json' --calibration-limit 5 --calibration-offset 0 --probes 32 --seconds 1100 --output var/diag/001-13a/calibration-0
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-remaining --states 'var/waves/walk-f7/walk-resume/walk-f7/*/piece.json' --finished 'var/remote/walk-f7/**/piece.json' --calibration-limit 5 --calibration-offset 5 --probes 32 --seconds 1100 --output var/diag/001-13a/calibration-5
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-remaining --states 'var/waves/walk-f7/walk-resume/walk-f7/*/piece.json' --finished 'var/remote/walk-f7/**/piece.json' --calibration-limit 5 --calibration-offset 10 --probes 32 --seconds 1100 --output var/diag/001-13a/calibration-10
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope estimate-remaining --states 'var/waves/walk-f9/walk-resume/walk-f9/*/piece.json' --probes 16 --seconds 1100 --timing 'var/remote/walk-f[1-8]*/**/piece.json' --output var/diag/001-13a/walk-f9

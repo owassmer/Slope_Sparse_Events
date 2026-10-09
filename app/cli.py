@@ -30,6 +30,34 @@ def walk_tree(
     typer.echo(json.dumps(result))
 
 
+@cli.command("estimate-remaining")
+def estimate_remaining_command(
+    states: str = typer.Option(..., help='Glob of continuation piece.json files (quote the glob).'),
+    output: str = typer.Option('var/remaining-walk'),
+    finished: str | None = typer.Option(None, help='Glob of finished outputs: calibrate against matched full starting states.'),
+    timing: str | None = typer.Option(None, help='Glob of recorded output pieces for host-specific throughput conversions.'),
+    calibration_limit: int = typer.Option(20, min=1),
+    calibration_offset: int = typer.Option(0, min=0),
+    probes: int = typer.Option(200, min=2, help='Fixed probes; per matched piece in calibration mode.'),
+    seconds: float = typer.Option(1000, min=0.001, max=1100),
+    seed: int = typer.Option(13),
+) -> None:
+    """Estimate joint histories, history-draws and walking time below saved routes."""
+    import glob
+    import json
+
+    from app.analysis.remaining_walk import estimate_remaining
+
+    result = estimate_remaining(glob.glob(states, recursive=True), output=output,
+                                probes=probes, seconds=seconds, seed=seed,
+                                finished=glob.glob(finished, recursive=True) if finished else (),
+                                calibration_limit=calibration_limit, calibration_offset=calibration_offset,
+                                timing=glob.glob(timing, recursive=True) if timing else ())
+    typer.echo(json.dumps({k: v for k, v in result.items() if k != 'by_piece'}))
+    if result['status'] != 'completed':
+        raise typer.Exit(2)
+
+
 @cli.command("pool-tree")
 def pool_tree(
     output: str = typer.Option('var/tree-pool', help='Small exported catalog, gates and history samples.'),
