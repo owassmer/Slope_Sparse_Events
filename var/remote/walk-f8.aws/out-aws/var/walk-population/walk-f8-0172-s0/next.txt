@@ -1,0 +1,1 @@
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope walk-tree --seconds 900.0 --resume var/walk-population/walk-f8-0172-s0/piece.json --output var/walk-population/walk-f8-0172-s0/next
