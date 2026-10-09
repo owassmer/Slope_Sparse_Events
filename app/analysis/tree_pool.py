@@ -13,11 +13,14 @@ import json
 import math
 import pickle
 import random
+import shutil
 import sqlite3
 import subprocess
 import tempfile
 import time
 import zlib
+from concurrent.futures import ProcessPoolExecutor
+from contextlib import closing, nullcontext
 from dataclasses import asdict
 from functools import lru_cache
 from pathlib import Path
@@ -31,6 +34,7 @@ from app.disputes.forecast import (
     atoms,
     class_firsts,
     expand_classes,
+    lazy_row,
     path_mask,
     path_probability,
     unpack_row,
@@ -236,8 +240,8 @@ def answer_atoms(key, branch):
     return [(key, branch)]
 
 
-def export(db, output, *, seeds=(17, 91, 307), sample_size=32, seconds=900):
-    output.mkdir(parents=True, exist_ok=True)
+def accumulate(db, seeds, lower, upper):
+    """Independent, bounded history range; reduction order is fixed by row ID."""
     nodes = {k: pickle.loads(b) for k, b in db.execute('SELECT * FROM nodes')}
     first = class_firsts(nodes)
     dists = [random_dist(nodes, seed) for seed in seeds]
@@ -245,45 +249,42 @@ def export(db, output, *, seeds=(17, 91, 307), sample_size=32, seconds=900):
     counts, supports = {}, {}
     errors = []
     total_errors = 0
-    rng = random.Random(731)
-    samples = []
-    histories = last_id = 0
-    signature = digest(('dated-answers-v1', list(db.execute('SELECT id FROM pieces ORDER BY id')), seeds, sample_size))
-    saved = db.execute('SELECT state FROM evaluation WHERE signature=?', (signature,)).fetchone()
-    if saved:
-        (last_id, mass, counts, supports, errors, total_errors, samples, histories, rng_state) = pickle.loads(saved[0])
-        rng.setstate(rng_state)
+    histories = 0
+    @lru_cache(maxsize=8192)
+    def live_mask(key, qid):
+        blob = db.execute('SELECT blob FROM questions WHERE key=? AND hash=?', (key, qid)).fetchone()[0]
+        row = lazy_row(blob)
+        day, pet = row.get('day'), row.get('petition')
+        if not isinstance(day, np.ndarray):
+            return None
+        on = day < 1_000_000
+        if isinstance(pet, np.ndarray):
+            on &= (pet < 0) | (day < pet)
+        return on
+
     @lru_cache(maxsize=2048)
     def dated_records(pid, key):
-        out = []
-        for prefix, history, blob in db.execute(
-                'SELECT DISTINCT r.prefix,r.history,q.blob FROM refs r JOIN questions q '
-                'ON r.key=q.key AND r.hash=q.hash WHERE r.piece=? AND r.key=?', (pid, key)):
-            row = unpack_row(blob)
-            day, pet = row.get('day'), row.get('petition')
-            if not isinstance(day, np.ndarray):
+        # Many references share facts. Decode the two date arrays once per facts
+        # variant, and index support by exact history / legacy decision prefix.
+        legacy, exact = {}, {}
+        for prefix, history, qid in db.execute(
+                'SELECT DISTINCT prefix,history,hash FROM refs WHERE piece=? AND key=?', (pid, key)):
+            on = live_mask(key, qid)
+            if on is None:
                 continue
-            on = day < 1_000_000
-            if isinstance(pet, np.ndarray):
-                on &= (pet < 0) | (day < pet)
             pre = tuple(tuple(s) for s in (json.loads(prefix) or []))
             hist = json.loads(history)
             hist = None if hist is None else tuple(tuple(s) for s in hist)
-            out.append((pre if hist is not None else pre[:-1], hist, on))
-        return out
+            if hist is not None and hist[:len(pre)] != pre:
+                continue
+            target, index = (legacy, pre[:-1]) if hist is None else (exact, hist)
+            target[index] = target.get(index, np.zeros(512, bool)) | on
+        return legacy, exact
 
-    start = time.monotonic()
-    for row_id, pid, blob in db.execute('SELECT id,piece,blob FROM paths WHERE id>? ORDER BY id', (last_id,)):
+    for pid, blob in db.execute(
+            'SELECT piece,blob FROM paths WHERE id>? AND id<=? ORDER BY id', (lower, upper)):
         p = pickle.loads(zlib.decompress(blob))
         histories += 1
-        # Reservoir sampling is uniform over emitted histories, not probability weighted.
-        slot = len(samples) if len(samples) < sample_size else rng.randrange(histories)
-        if slot < sample_size:
-            packet = (pid, p)
-            if slot == len(samples):
-                samples.append(packet)
-            else:
-                samples[slot] = packet
         reached = {}
         try:
             for q in expand_classes([p], nodes, 512, first=first):
@@ -306,9 +307,12 @@ def export(db, output, *, seeds=(17, 91, 307), sample_size=32, seconds=900):
                 for i, tag in enumerate(tags):
                     rows = indexes if codes is None else indexes[np.frombuffer(codes, np.int8) == i]
                     available = np.zeros(512, bool)
-                    for prefix, history, on in dated_records(pid, base + '|' + tag):
-                        if p.steps[:len(prefix)] == prefix and (history is None or history == p.steps):
-                            available |= on
+                    legacy, exact = dated_records(pid, base + '|' + tag)
+                    if p.steps in exact:
+                        available |= exact[p.steps]
+                    for length in range(len(p.steps) + 1):
+                        if p.steps[:length] in legacy:
+                            available |= legacy[p.steps[:length]]
                     if not available[rows].all():
                         raise ValueError(f'no dated offered question for {base}|{tag} '
                                          f'on draws {rows[~available[rows]].tolist()}')
@@ -338,26 +342,113 @@ def export(db, output, *, seeds=(17, 91, 307), sample_size=32, seconds=900):
             for dist in dists:
                 for k in [k for k in dist if k.startswith('=')]:
                     del dist[k]
-            state = (row_id, mass, counts, supports, errors, total_errors, samples, histories, rng.getstate())
+    return mass, counts, supports, errors, total_errors, histories
+
+
+def accumulate_worker(task):
+    database, seeds, lower, upper = task
+    with closing(sqlite3.connect(f'{Path(database).resolve().as_uri()}?mode=ro', uri=True)) as db:
+        return accumulate(db, seeds, lower, upper)
+
+
+def write_catalog(db, target, keys, counts, draws):
+    with gzip.open(target, 'wt') as f:
+        for key in keys:
+            node = pickle.loads(db.execute('SELECT blob FROM nodes WHERE key=?', (key,)).fetchone()[0])
+            record = asdict(node)
+            record.pop('assumptions', None)
+            record.update(question_class=key.split('|#', 1)[1] if '|#' in key else node.cls,
+                          histories=counts.get(key, [0, 0])[0],
+                          history_draws=counts.get(key, [0, 0])[1], draws=draws.get(key, 0),
+                          facts_encoding='population ranges; distinct situations retained')
+            f.write(encode({'type': 'question', **record}) + '\n')
+            for qid, blob in db.execute('SELECT hash,blob FROM questions WHERE key=? ORDER BY hash', (key,)):
+                f.write(encode({'type': 'facts', 'key': key, 'id': qid,
+                                'facts': population_facts(unpack_row(blob))}) + '\n')
+
+
+def catalog_worker(task):
+    database, target, keys, counts, draws = task
+    with closing(sqlite3.connect(f'{Path(database).resolve().as_uri()}?mode=ro', uri=True)) as db:
+        write_catalog(db, target, keys, counts, draws)
+    return target
+
+
+def export(db, output, *, seeds=(17, 91, 307), sample_size=32, seconds=900, workers=1):
+    output.mkdir(parents=True, exist_ok=True)
+    nodes = {k: pickle.loads(b) for k, b in db.execute('SELECT * FROM nodes')}
+    first = class_firsts(nodes)
+    mass = np.zeros((len(seeds), 512))
+    counts, supports, errors = {}, {}, []
+    total_errors = histories = last_id = 0
+    signature = digest(('range-reduction-v2', list(db.execute('SELECT id FROM pieces ORDER BY id')), seeds))
+    saved = db.execute('SELECT state FROM evaluation WHERE signature=?', (signature,)).fetchone()
+    if saved:
+        last_id, mass, counts, supports, errors, total_errors, histories = pickle.loads(saved[0])
+    maximum = db.execute('SELECT COALESCE(MAX(id),0) FROM paths').fetchone()[0]
+    database = db.execute('PRAGMA database_list').fetchone()[2]
+    start = time.monotonic()
+    # Fixed ranges and ordered reduction make arithmetic identical at every worker
+    # count. Bound submitted work to one batch, including checkpoint/retry work.
+    with ProcessPoolExecutor(max_workers=workers) if workers > 1 else nullcontext() as executor:
+        while last_id < maximum:
+            ranges = [(lo, min(lo + 4096, maximum))
+                      for lo in range(last_id, min(last_id + 4096 * workers, maximum), 4096)]
+            results = (executor.map(accumulate_worker, [(database, seeds, lo, hi) for lo, hi in ranges])
+                       if executor else (accumulate(db, seeds, lo, hi) for lo, hi in ranges))
+            for (_, upper), result in zip(ranges, results, strict=True):
+                m, c, s, e, n, h = result
+                mass += m
+                for key, values in c.items():
+                    old = counts.setdefault(key, [0, 0])
+                    old[0] += values[0]
+                    old[1] += values[1]
+                    supports[key] = supports.get(key, np.zeros(512, bool)) | s[key]
+                errors.extend(e[:max(0, 50 - len(errors))])
+                total_errors += n
+                histories += h
+                last_id = upper
+            state = (last_id, mass, counts, supports, errors, total_errors, histories)
             with db:
                 db.execute('INSERT OR REPLACE INTO evaluation VALUES (?,?)',
                            (signature, pickle.dumps(state, protocol=5)))
             if time.monotonic() - start >= seconds:
                 return {'status': 'unfinished_export', 'histories': histories, 'next': 'repeat the same command'}
-    with gzip.open(output / 'catalog.jsonl.gz', 'wt') as f:
-        for key, node in sorted(nodes.items()):
-            record = asdict(node)
-            record.pop('assumptions', None)
-            record.update(question_class=key.split('|#', 1)[1] if '|#' in key else node.cls,
-                          histories=counts.get(key, [0, 0])[0],
-                          history_draws=counts.get(key, [0, 0])[1],
-                          draws=int(supports.get(key, np.zeros(512, bool)).sum()),
-                          facts_encoding='population ranges; distinct situations retained')
-            # Stream variants rather than retaining the whole catalog in RAM.
-            f.write(encode({'type': 'question', **record}) + '\n')
-            for qid, blob in db.execute('SELECT hash,blob FROM questions WHERE key=?', (key,)):
-                f.write(encode({'type': 'facts', 'key': key, 'id': qid,
-                                'facts': population_facts(unpack_row(blob))}) + '\n')
+    # Reservoir sample IDs only, not all blobs. Same sample in serial and parallel,
+    # independent of checkpoint boundaries; uniform over histories, not mass.
+    rng = random.Random(731)
+    sample_ids = []
+    for n, (row_id,) in enumerate(db.execute('SELECT id FROM paths ORDER BY id'), 1):
+        slot = len(sample_ids) if len(sample_ids) < sample_size else rng.randrange(n)
+        if slot < sample_size:
+            if slot == len(sample_ids):
+                sample_ids.append(row_id)
+            else:
+                sample_ids[slot] = row_id
+    samples = []
+    for row_id in sample_ids:
+        pid, blob = db.execute('SELECT piece,blob FROM paths WHERE id=?', (row_id,)).fetchone()
+        samples.append((pid, pickle.loads(zlib.decompress(blob))))
+    keys = sorted(nodes)
+    draws = {k: int(on.sum()) for k, on in supports.items()}
+    if workers == 1:
+        write_catalog(db, output / 'catalog.jsonl.gz', keys, counts, draws)
+    else:
+        # Facts expansion can be larger than history accumulation. Stream ordered
+        # gzip members from workers instead of sending population arrays over IPC.
+        with tempfile.TemporaryDirectory(prefix='catalog-', dir=output) as temp:
+            tasks = [(database, str(Path(temp) / f'{i}.gz'), keys[i:i + 32],
+                      {k: counts[k] for k in keys[i:i + 32] if k in counts},
+                      {k: draws[k] for k in keys[i:i + 32] if k in draws})
+                     for i in range(0, len(keys), 32)]
+            with ProcessPoolExecutor(max_workers=workers) as executor, (output / 'catalog.jsonl.gz').open('wb') as f:
+                for target in executor.map(catalog_worker, tasks):
+                    with open(target, 'rb') as part:
+                        shutil.copyfileobj(part, f)
+                    Path(target).unlink()
+            if not keys:
+                with gzip.open(output / 'catalog.jsonl.gz', 'wt'):
+                    pass
     with gzip.open(output / 'histories.jsonl.gz', 'wt') as f:
         for pid, p in samples:
             on = path_mask(p, 512)
@@ -442,14 +533,68 @@ def draw_facts(value, draw):
     return facts(value)
 
 
-def pool(*, database, output, local=(), runs=(), links=None, seconds=900, finish=True):
+def ingest_worker(task):
+    """Download and validate independently; return a compact SQLite shard to merge."""
+    shard, source, directory, remote, links, committed = task
+    with tempfile.TemporaryDirectory(prefix='slope-download-', dir=Path(shard).parent) as temp:
+        if remote:
+            run, names = remote
+            for name in names:
+                subprocess.run(['gh', 'run', 'download', str(run), '--name', name, '--dir', temp], check=True)
+            manifests = sorted(Path(temp).rglob('piece.json'))
+            if not manifests:
+                raise ValueError(f'{source}: no piece.json')
+            event_dirs = {p.parent for pattern in ('events.pkl', 'events.pkl.gz')
+                          for p in Path(temp).rglob(pattern)}
+            if event_dirs != {p.parent for p in manifests}:
+                raise ValueError(f'{source}: events and piece.json directories do not match')
+            directories = [(p.parent, f'{source}/{p.parent.relative_to(temp)}') for p in manifests]
+        else:
+            directories = [(Path(directory), source)]
+        with closing(connect(Path(shard))) as db:
+            for folder, label in directories:
+                # Also resume databases made by the older piece-at-a-time writer,
+                # which could commit a piece before its artifact source marker.
+                if label not in committed:
+                    ingest(db, folder, label, links)
+            with db:
+                db.execute('INSERT INTO sources VALUES (?)', (source,))
+    return shard
+
+
+def merge_shard(db, shard):
+    """Native bulk copy, no parent-process history unpickling; atomic source commit."""
+    db.execute('ATTACH DATABASE ? AS incoming', (str(shard),))
+    try:
+        with db:
+            duplicate = db.execute('SELECT source FROM incoming.pieces WHERE id IN (SELECT id FROM pieces)').fetchone()
+            if duplicate:
+                raise ValueError(f'duplicate piece: {duplicate[0]}')
+            for key, old, new in db.execute(
+                    'SELECT n.key,n.blob,i.blob FROM nodes n JOIN incoming.nodes i ON n.key=i.key'):
+                if pickle.loads(old) != pickle.loads(new):
+                    raise ValueError(f'question domain changed: {key}')
+            for table in ('pieces', 'sources', 'refs'):
+                db.execute(f'INSERT INTO {table} SELECT * FROM incoming.{table}')
+            for table in ('nodes', 'questions'):
+                db.execute(f'INSERT OR IGNORE INTO {table} SELECT * FROM incoming.{table}')
+            db.execute('INSERT INTO paths(piece,identity,mask,blob) '
+                       'SELECT piece,identity,mask,blob FROM incoming.paths ORDER BY id')
+    finally:
+        db.execute('DETACH DATABASE incoming')
+
+
+def pool(*, database, output, local=(), runs=(), links=None, seconds=900, finish=True, workers=1):
     """Restart at artifact boundaries. An interrupted artifact's DB transaction rolls back.
 
     --runs is ordered only for convenience; coverage uses input routes, not wave
-    order. Every heavy-N artifact is enumerated, fetched alone, read, and removed.
+    order. Pair heavy-N with out-N when present. Local roots may contain many
+    whole pieces. Independent validated shards are merged in stable input order.
     --links maps source identifiers (run/heavy-N/relative-directory, or local
     directory) to input_routes for legacy pieces whose writer did not save them.
     """
+    if workers < 1:
+        raise ValueError('workers must be positive')
     start = time.monotonic()
     with connect(database) as db:
         # Route links may arrive after the large artifacts have already been consumed.
@@ -462,38 +607,50 @@ def pool(*, database, output, local=(), runs=(), links=None, seconds=900, finish
                         raise ValueError(f'input routes changed: {source}')
                     meta['input_routes'] = routes
                     db.execute('UPDATE pieces SET meta=? WHERE id=?', (encode(meta), pid))
-        for directory in local:
-            source = str(directory)
-            if not db.execute('SELECT 1 FROM sources WHERE source=?', (source,)).fetchone():
-                ingest(db, Path(directory), source, links)
-                with db:
-                    db.execute('INSERT INTO sources VALUES (?)', (source,))
-        for run in runs:
+        jobs = []
+        directories = set()
+        for root in local:
+            manifests = sorted(Path(root).rglob('piece.json'))
+            if not manifests:
+                raise ValueError(f'{root}: no piece.json')
+            for manifest in manifests:
+                directory = manifest.parent
+                if directory.resolve() in directories:
+                    continue
+                directories.add(directory.resolve())
+                source = str(directory)
+                if not db.execute('SELECT 1 FROM sources WHERE source=?', (source,)).fetchone():
+                    jobs.append((source, directory, None))
+        for run in dict.fromkeys(runs):
             result = subprocess.run(['gh', 'api', f'repos/{{owner}}/{{repo}}/actions/runs/{run}/artifacts',
                                      '--paginate', '--jq', '.artifacts[].name'],
                                     check=True, capture_output=True, text=True)
-            names = sorted({s for s in result.stdout.splitlines() if s.startswith('heavy-')})
+            artifacts = set(result.stdout.splitlines())
+            names = sorted(s for s in artifacts if s.startswith('heavy-'))
             if not names:
                 raise ValueError(f'run {run}: no heavy artifacts')
             for name in names:
                 source = f'{run}/{name}'
                 if db.execute('SELECT 1 FROM sources WHERE source=?', (source,)).fetchone():
                     continue
-                if time.monotonic() - start >= seconds:
-                    return {'status': 'unfinished_ingest', 'next': 'repeat the same command', 'next_artifact': source}
-                with tempfile.TemporaryDirectory(prefix='slope-pool-') as temp:
-                    subprocess.run(['gh', 'run', 'download', str(run), '--name', name, '--dir', temp], check=True)
-                    manifests = sorted(Path(temp).rglob('piece.json'))
-                    if not manifests:
-                        raise ValueError(f'{source}: no piece.json')
-                    for manifest in manifests:
-                        label = f'{source}/{manifest.parent.relative_to(temp)}'
-                        # A retry after interruption can reuse already committed pieces.
-                        if not db.execute('SELECT 1 FROM pieces WHERE source=?', (label,)).fetchone():
-                            ingest(db, manifest.parent, label, links)
-                    with db:
-                        db.execute('INSERT INTO sources VALUES (?)', (source,))
+                small = name.replace('heavy-', 'out-', 1)
+                paired = [name, small] if small in artifacts else [name]
+                jobs.append((source, None, (run, paired)))
+        committed = {source for (source,) in db.execute('SELECT source FROM pieces')}
+        with tempfile.TemporaryDirectory(prefix='slope-pool-', dir=database.parent) as temp:
+            with ProcessPoolExecutor(max_workers=workers) if workers > 1 else nullcontext() as executor:
+                for offset in range(0, len(jobs), workers):
+                    if time.monotonic() - start >= seconds:
+                        return {'status': 'unfinished_ingest', 'next': 'repeat the same command',
+                                'next_artifact': jobs[offset][0]}
+                    tasks = [(str(Path(temp) / f'{i}.sqlite'), *job, links,
+                              {s for s in committed if s == job[0] or s.startswith(job[0] + '/')})
+                             for i, job in enumerate(jobs[offset:offset + workers], offset)]
+                    results = executor.map(ingest_worker, tasks) if executor else map(ingest_worker, tasks)
+                    for shard in results:
+                        merge_shard(db, shard)
+                        Path(shard).unlink()
         remaining = seconds - (time.monotonic() - start)
         if finish and remaining <= 0:
             return {'status': 'unfinished_export', 'next': 'repeat the same command'}
-        return export(db, output, seconds=remaining) if finish else {'status': 'ingested', 'database': str(database)}
+        return export(db, output, seconds=remaining, workers=workers) if finish else {'status': 'ingested', 'database': str(database)}

@@ -62,14 +62,15 @@ def estimate_remaining_command(
 def pool_tree(
     output: str = typer.Option('var/tree-pool', help='Small exported catalog, gates and history samples.'),
     database: str = typer.Option('tree-pool.sqlite', help='Runner-local restart database; do not return this artifact.'),
-    local: Annotated[list[str] | None, typer.Option(help='Read-only local piece directories.')] = None,
+    local: Annotated[list[str] | None, typer.Option(help='Read-only whole piece directories or roots containing pieces.')] = None,
     runs: Annotated[list[str] | None, typer.Option(help='GitHub run IDs; repeat for every wave.')] = None,
     run_list: str | None = typer.Option(None, help='Text file: one GitHub run ID per line, all waves.'),
     links: str | None = typer.Option(None, help='JSON source -> input_routes metadata for legacy checkpoints.'),
-    seconds: float = typer.Option(900, min=1, max=1000, help='Ingestion budget, checked between artifacts.'),
+    seconds: float = typer.Option(900, min=1, help='Budget checked between ingestion/export batches; raise on the pool host.'),
+    workers: int = typer.Option(1, min=1, help='Independent ingestion/export processes; use 128 on the pool host.'),
     finish: bool = typer.Option(True, help='Export gates after ingestion; --no-finish only downloads/reduces.'),
 ) -> None:
-    """Pool trusted walk pieces one artifact at a time, without judgment calls."""
+    """Pool trusted local pieces and paired GitHub artifacts, without judgment calls."""
     import json
     from pathlib import Path
 
@@ -81,7 +82,7 @@ def pool_tree(
                        if line.strip() and not line.lstrip().startswith('#'))
     result = pool(database=Path(database), output=Path(output), local=local or [], runs=run_ids,
                   links=json.loads(Path(links).read_text()) if links else None,
-                  seconds=seconds, finish=finish)
+                  seconds=seconds, finish=finish, workers=workers)
     typer.echo(json.dumps(result))
     if result.get('status') in ('unfinished_ingest', 'unfinished_export'):
         raise typer.Exit(2)

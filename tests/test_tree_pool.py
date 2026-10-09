@@ -184,3 +184,94 @@ def test_remote_downloads_one_artifact_at_a_time_and_only_deletes_temporary_copy
     # Restart skips previously downloaded sources.
     pool(database=tmp_path / 'scratch.sqlite', output=tmp_path / 'output', runs=['101', '102'])
     assert len(downloads) == 2
+
+
+def test_resume_legacy_piece_commit_without_source_marker(tmp_path):
+    a = piece(tmp_path, 'piece', [path('yes'), path('no')])
+    database = tmp_path / 'scratch.sqlite'
+    with connect(database) as db:
+        ingest(db, a, str(a))
+    report = pool(database=database, output=tmp_path / 'out', local=[a])
+    assert report['histories'] == 2
+    assert report['coverage']['pass']
+
+
+def test_parallel_pool_matches_serial_across_ranges_and_recursive_roots(tmp_path):
+    root = tmp_path / 'pieces'
+    root.mkdir()
+    paths = [DisputePath('d', (('choice', str(i), 'yes'),), 'done', (('q', 'yes'),))
+             for i in range(4200)]
+    piece(root, 'a', paths[:2100], remaining=((1,),))
+    piece(root, 'b', paths[2100:], input_routes=((1,),))
+    reports = []
+    for workers in (1, 2):
+        reports.append(pool(database=tmp_path / f'{workers}.sqlite',
+                            output=tmp_path / f'out-{workers}', local=[root], workers=workers))
+    assert reports[0] == reports[1]
+    assert reports[0]['coverage']['pass']
+    assert reports[0]['histories'] == 4200
+    for file in ('catalog.jsonl.gz', 'histories.jsonl.gz'):
+        with gzip.open(tmp_path / 'out-1' / file, 'rt') as a, gzip.open(tmp_path / 'out-2' / file, 'rt') as b:
+            assert a.read() == b.read()
+    resumed = pool(database=tmp_path / '2.sqlite', output=tmp_path / 'out-2', local=[root], workers=2)
+    assert resumed == reports[1]
+    # A checkpoint made with multiple workers can finish with one worker without
+    # repeating a range or changing the reservoir sample.
+    with connect(tmp_path / 'checkpoint.sqlite') as db:
+        for manifest in sorted(root.rglob('piece.json')):
+            ingest(db, manifest.parent, str(manifest.parent))
+        assert export(db, tmp_path / 'checkpoint', workers=2, seconds=0)['status'] == 'unfinished_export'
+        assert export(db, tmp_path / 'checkpoint', workers=1) == reports[0]
+
+
+@pytest.mark.parametrize('failure', ['duplicate', 'truncated', 'draws'])
+def test_parallel_ingestion_rejects_invalid_pieces(tmp_path, failure):
+    import shutil
+
+    root = tmp_path / 'pieces'
+    root.mkdir()
+    a = piece(root, 'a', [path('yes')], remaining=((1,),))
+    if failure == 'duplicate':
+        shutil.copytree(a, root / 'b')
+    else:
+        b = piece(root, 'b', [path('no')], input_routes=((1,),))
+        meta = json.loads((b / 'piece.json').read_text())
+        meta['histories' if failure == 'truncated' else 'history_draws'] += 1
+        (b / 'piece.json').write_text(json.dumps(meta))
+    with pytest.raises(ValueError, match='duplicate piece|truncated or inconsistent'):
+        pool(database=tmp_path / 'scratch.sqlite', output=tmp_path / 'out', local=[root], workers=2)
+
+
+@pytest.mark.parametrize('orphan', [False, True])
+def test_github_split_artifacts_and_local_wave_together(tmp_path, monkeypatch, orphan):
+    import shutil
+    from types import SimpleNamespace
+
+    a = piece(tmp_path, 'first', [path('yes')], remaining=((1,),))
+    local = tmp_path / 'aws'
+    local.mkdir()
+    piece(local, 'second', [path('no')], input_routes=((1,),))
+    downloads = []
+
+    def run(args, **kwargs):
+        if args[1] == 'api':
+            return SimpleNamespace(stdout='out-7\nheavy-7\n')
+        downloads.append(args[5])
+        dest = Path(args[-1]) / 'var' / 'walk-population' / 'first'
+        dest.mkdir(parents=True, exist_ok=True)
+        for file in (['events.pkl.gz'] if args[5] == 'heavy-7' else ['piece.json']):
+            shutil.copyfile(a / file, dest / file)
+        if orphan and args[5] == 'heavy-7':
+            other = dest.parent / 'missing-manifest'
+            other.mkdir()
+            shutil.copyfile(a / 'events.pkl.gz', other / 'events.pkl.gz')
+        return SimpleNamespace()
+
+    monkeypatch.setattr('app.analysis.tree_pool.subprocess.run', run)
+    if orphan:
+        with pytest.raises(ValueError, match='directories do not match'):
+            pool(database=tmp_path / 'scratch.sqlite', output=tmp_path / 'out', runs=['101'], local=[local])
+        return
+    result = pool(database=tmp_path / 'scratch.sqlite', output=tmp_path / 'out', runs=['101'], local=[local])
+    assert downloads == ['heavy-7', 'out-7']
+    assert all(result[k]['pass'] for k in ('coverage', 'probability', 'answers'))
