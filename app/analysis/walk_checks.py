@@ -318,7 +318,34 @@ class FutureChecker:
         # Canonicalize absence on this draw, not on its original pooled group.
         # A trigger BIG here may have been retained because another draw had it.
         one = {**row, 'day': np.where(self.replayer.mask, row['day'], BIG)}
-        return self.local(unpack_row(pack_row(one)))
+        facts = self.local(unpack_row(pack_row(one)))
+        # `offerings` is the settlement log, populated when a close is booked.
+        # A completed replay can contain a not-yet-closed entry (as_of masks its
+        # outcome to False), whereas a stopped replay has not appended it yet.
+        # Compare realized history here; pending state and proposed terms remain
+        # independently exact fields. Never discard a future initiation.
+        sit = facts.get('sit') or {}
+        if isinstance(sit.get('offerings'), list):
+            sit['offerings'] = [o for o in sit['offerings']
+                                if not (o[0] <= facts['day'] < o[1] and o[2] is False)]
+        return facts
+
+    @staticmethod
+    def equivalent(a, b, path=()):
+        """Exact facts, except SIMD/scalar rounding of the modeled share price.
+
+        Monetary cents, dates, classes and missing states remain exact. NumPy
+        full-population and one-draw price calculations differ by a few ULPs;
+        this is not a different dated fact or a financial tolerance.
+        """
+        import math
+
+        if isinstance(a, dict) and isinstance(b, dict):
+            return a.keys() == b.keys() and all(
+                FutureChecker.equivalent(a[k], b[k], path + (k,)) for k in a)
+        if path == ('sit', 'share_price') and isinstance(a, float) and isinstance(b, float):
+            return math.isfinite(a) and math.isfinite(b) and abs(a - b) <= 4 * max(math.ulp(a), math.ulp(b))
+        return a == b
 
     def rebuild(self, key, steps, index, probe, deferred):
         from app.disputes.forecast import _Walk, as_of, group_classes
@@ -340,7 +367,21 @@ class FutureChecker:
         # their amount/stage labels too: replaying an unchanged I1 key would
         # silently preserve the very future-motion dependency being tested.
         ctx = node.context.split('|') if node.context else []
-        ctx = [label if c.startswith(('award', 'reduced')) or c in ('claimed', 'set_aside') else c for c in ctx]
+        # A context can name an earlier, already known award (e.g. an I1
+        # application decided after a reduction). It is an identity, not the
+        # current balance: the dated row supplies that. Reject labels that need
+        # a removed future answer, but do not relabel a historical application.
+        known = {'claimed'}
+        for n, _, b in before:
+            if n == 'verdict':
+                known.add('award' + b.split(':')[1] if b.startswith('award:') else b)
+            elif n == 'post_trial_ruling':
+                if b.startswith('reduced:'):
+                    known.add('reduced' + b.split(':')[1])
+                elif b == 'set_aside':
+                    known.add(b)
+        ctx = [label if (c.startswith(('award', 'reduced')) or c in ('claimed', 'set_aside'))
+               and c not in known else c for c in ctx]
         if node.node == 'judgment_response' and any(c in ('first', 'after_none', 'after_offer') for c in ctx):
             dated = self.replayer.replay(steps, day_only=True)
             own_day = int(_at(dated.day[index], self.row, fc.draws.n))
@@ -467,7 +508,8 @@ class FutureChecker:
                 name = fc.nodes[key].node
                 self.checked[name] = self.checked.get(name, 0) + 1
                 day = int(recorded['day'][row])
-                later = [i for i, at in enumerate(days) if at > day and i != index]
+                later = [i for i, at in enumerate(days)
+                         if i != index and (at > day or (at == day and i > index))]
                 kept = tuple(s for i, s in enumerate(p.steps) if i not in later)
                 own = index - sum(i < index for i in later)
                 identity = (key, kept, own, probe, deferred, blob)
@@ -475,7 +517,7 @@ class FutureChecker:
                     rebuilt = self.snapshot(key, kept, own, probe, deferred)
                     original = dict(key=key, cls=key.split('|#', 1)[1] if '|#' in key else None,
                                     facts=self.facts(recorded))
-                    changed = [k for k in original if original[k] != rebuilt[k]]
+                    changed = [k for k in original if not self.equivalent(original[k], rebuilt[k])]
                     if len(self.cache) >= 1024:
                         self.cache.pop(next(iter(self.cache)))
                     self.cache[identity] = (changed, rebuilt)
@@ -494,8 +536,8 @@ class FutureChecker:
                         remaining.remove(removed)
                         part = tuple(p.steps[i] for i in remaining)
                         after = self.snapshot(key, part, remaining.index(index), probe, deferred)
-                        delta = [k for k in changed if previous[k] == recorded_question[k]
-                                 and after[k] != recorded_question[k]]
+                        delta = [k for k in changed if self.equivalent(previous[k], recorded_question[k])
+                                 and not self.equivalent(after[k], recorded_question[k])]
                         if delta:
                             dependencies.append(dict(step=list(p.steps[removed]), day=days[removed],
                                                      date=str(fc.review + timedelta(days=days[removed])),
