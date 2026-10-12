@@ -48,10 +48,73 @@ def test_real_recording_boundary(path):
         # proceeds when sizing collateral on a still later stay approval date.
         assert len(bad) == 1
         assert bad[0]['recorded']['facts']['collateral'] == 294_844_679
-        assert bad[0]['rebuilt']['facts']['collateral'] == 1_292_677_599
-        assert any(w['step'] == ['offering', 'ripe', 'yes'] for w in bad[0]['depends_on'])
+        # $12.93M was the old approval-day projection with the later answers
+        # removed. The pending requirement now uses the question's day itself,
+        # before both the later levy and the offering-funded payment.
+        assert bad[0]['rebuilt']['facts']['collateral'] == 1_804_744_761
     else:
-        assert bad == []
+        # These saved records also used approval-day collateral. Keep them
+        # untouched: under date-local sizing their only stale field is collateral.
+        assert len(bad) == 1
+    assert bad[0]['changed'] == ['facts']
+    original = bad[0]['recorded']['facts']
+    rebuilt = bad[0]['rebuilt']['facts']
+    assert FutureChecker.equivalent(
+        {k: v for k, v in original.items() if k != 'collateral'},
+        {k: v for k, v in rebuilt.items() if k != 'collateral'})
+
+
+def test_real_history_rerecorded_and_later_sizing_rejected():
+    from app.analysis.events import Chain
+
+    path = next(p for p in FIXTURES if '0002_168' in p.name)
+    fc, d, p, identity, old = load(path)
+    key, prefix, _ = identity
+    records = []
+    fc.record_late(d, p.steps, ((key.split('|#')[0], len(prefix)),),
+                   keep=lambda k, pre, row: records.append((k, pre, row)))
+    assert len(records) == 1
+    k, pre, row = records[0]
+    assert k == key
+    assert row['day'].tolist() == [98]
+    assert row['collateral'].tolist() == [1_804_744_761]
+    checker = FutureChecker(fc, d, 0, {(k, pre, p.steps): [pack_row(row)]})
+    assert checker.history(p) == []
+    assert checker.checked == {'judgment_response': 1}
+
+    # The actual approval still locks on day 133 using its then-current balance.
+    ch = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
+    ch.run(p.steps)
+    assert ch.stays[13]['approval'].tolist() == [133]
+    assert ch.stay_facts(13)['collateral'].tolist() == [294_844_679]
+    for history in (p.steps[:16], p.steps[:17], p.steps):
+        view = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
+        view.run(history)
+        assert view.collateral_before(np.array([98])).tolist() == [1_804_744_761]
+
+    planted = {**row, 'collateral': ch.stay_facts(13)['collateral']}
+    bad = FutureChecker(fc, d, 0, {(k, pre, p.steps): [pack_row(planted)]}).history(p)
+    assert len(bad) == 1
+    assert bad[0]['changed'] == ['facts']
+    assert bad[0]['rebuilt']['facts']['collateral'] == 1_804_744_761
+
+
+@pytest.mark.parametrize('answer', ['yes', 'denied', 'no'])
+def test_pending_requirement_does_not_read_a_later_sizing_memo(answer):
+    from app.analysis.events import Chain
+
+    path = next(p for p in FIXTURES if '0002_168' in p.name)
+    fc, d, p, _, _ = load(path)
+    steps = p.steps[:13] + (('stay', 'post', answer),) + p.steps[14:]
+    ch = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
+    ch.run(steps)
+    # Approved security is computed live; a denied/probe stay is memoised.
+    # Neither approval-day source belongs to the earlier question.
+    assert ch.stay_facts(13)['day'].tolist() == [133]
+    assert ch.collateral_before(np.array([98])).tolist() == [1_804_744_761]
+    # Once that date has passed, the historical approval basis remains available.
+    np.testing.assert_array_equal(ch.collateral_before(np.array([134])),
+                                  ch.bond_collateral(np.array([133])))
 
 
 def test_planted_future_cash_in_real_record_is_not_rounding():

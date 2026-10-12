@@ -30,16 +30,18 @@ def test_registration_collateral_excludes_later_stay(answer):
                           ('post_trial_ruling', '', 'unchanged'), ('appeal', '', 'yes'),
                           ('stay', 'post', answer)))
     day = np.array([117])
-    expected = earlier.stay_facts(8)['collateral']
-    assert expected[0] == 534_293_846
+    expected = earlier.bond_collateral(day)
+    assert expected[0] == 533_702_814  # pending: question day, not approval day
+    assert earlier.stay_facts(8)['collateral'][0] == 534_293_846
     np.testing.assert_array_equal(earlier.collateral_before(day), expected)
     np.testing.assert_array_equal(later.collateral_before(day), expected)
     np.testing.assert_array_equal(
         later.question_row(day, 'court_order', 'registration_I1')['collateral'], expected)
     # The later motion is excluded on its own day too, but visible afterward.
     motion = later.stays[12]['motion']
-    np.testing.assert_array_equal(later.collateral_before(motion), expected)
-    np.testing.assert_array_equal(later.collateral_before(motion + 1), later.stay_facts(12)['collateral'])
+    np.testing.assert_array_equal(later.collateral_before(motion),
+                                  later.bond_collateral(np.minimum(motion, later.stays[8]['approval'])))
+    np.testing.assert_array_equal(later.collateral_before(motion + 1), later.bond_collateral(motion + 1))
 
 
 def sample(motions=None, row=0):

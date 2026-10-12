@@ -1912,7 +1912,11 @@ class Chain:
     def collateral_before(self, day: np.ndarray) -> np.ndarray:
         """Read the latest stay motion strictly before each question's own day.
 
-        The motion establishes proposed terms even while approval is pending.
+        While approval is pending, size the proposed requirement on the question
+        day, not on a later approval balance (which can include later payments).
+        Once decided, retain approval-day sizing. Never inherit a sizing memo:
+        even an unapproved motion's memo may have been read on a later state.
+        This is a question read only; `_size_stay` still books on approval.
         Without an earlier stay there is no inherited security requirement.
         A stay's own court question supplies its separately sized security.
         """
@@ -1928,7 +1932,8 @@ class Chain:
         out = np.zeros(self.n, dtype=np.int64)
         for i in np.unique(selected):
             if i >= 0:
-                out = np.where(selected == i, self.stay_facts(int(i))["collateral"], out)
+                at = np.minimum(day, self.stays[int(i)]["approval"])
+                out = np.where(selected == i, self.bond_collateral(at), out)
         return out
 
     # what the stays' sizing does not read: memos and versions of other state (their inputs are read), each step's

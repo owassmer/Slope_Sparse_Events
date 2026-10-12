@@ -86,7 +86,7 @@ def test_registration_record_excludes_later_listing(monkeypatch):
             snapshots.append(pack_row(row))
             listing_answers.add(next(step[2] for step in s.steps if step[0] == "listing"))
             assert row["day"].tolist() == [123]
-            assert row["collateral"].tolist() == [544489152]
+            assert row["collateral"].tolist() == [534293846]  # question day, approval still pending
             # Rebuild only for the assertion, excluding the later listing answer.
             index = next(i for i, step in enumerate(s.steps) if step[0] == "registration_early")
             steps = tuple(step for step in s.steps if step[0] != "listing")
