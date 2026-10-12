@@ -1,18 +1,41 @@
-# 001-13c: bounded pooling. These are sequential STAGES, not one concurrent submission.
-# Generate an executable GitHub stage from the real walk run IDs (not present in this checkout):
-# uv run python -m app.analysis.tree_pool_jobs --phase nodes --run-list WALK_RUN_IDS --output run.txt
-# Submit nodes. Then generate node-union with --runs NODE_RUN (repeat for every submission).
-# Submit node-union alone. Then generate parts with the SAME --run-list and --node-run UNION_RUN.
-# Submit parts. Then generate combine with --runs PART_RUN (repeat for every submission).
-# Never submit a downstream stage before its inputs exist. Each generated part selects ONE heavy-N.
-# Node discovery and reduction need separate scratch databases. Keep partial.sqlite and pieces.json;
-# keep original heavy artifacts/local whole pieces for the later cash pass. No cash pass is implemented.
-# Later S3 arrivals use --local WHOLE_PIECE_ROOT in BOTH discovery and reduction planning.
-# The following real-piece trial is staged locally here, not available on a fresh GitHub runner.
-# Lines below run sequentially for the local trial; GitHub measurements need generated stages above.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --local var/pool-continuation --nodes-only --database var/diag/001-13c-v2/nodes-scratch.sqlite --output var/diag/001-13c-v2/nodes --workers 1 --seconds 120
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --local var/pool-continuation --partial --node-catalog var/diag/001-13c-v2/nodes/nodes.sqlite --database var/diag/001-13c-v2/scratch.sqlite --output var/diag/001-13c-v2/part --workers 1 --seconds 120
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --combine --local var/diag/001-13c-v2/part --database var/diag/001-13c-v2/measured-combined.sqlite --output var/diag/001-13c-v2/measured-combined
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --local var/diag/001-12e/walk --nodes-only --database var/diag/001-13c-second/nodes-scratch.sqlite --output var/diag/001-13c-second/nodes --workers 1 --seconds 120
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --local var/diag/001-12e/walk --partial --node-catalog var/diag/001-13c-second/nodes/nodes.sqlite --database var/diag/001-13c-second/scratch.sqlite --output var/diag/001-13c-second/part --workers 1 --seconds 120
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --combine --local var/diag/001-13c-second/part --database var/diag/001-13c-second/combined.sqlite --output var/diag/001-13c-second/combined
+# pool-t1-nodes: node discovery on walk-f34 (run 38195968528), one heavy artifact per line
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-0 --database scratch.sqlite --output var/pool/part-00000 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-1 --database scratch.sqlite --output var/pool/part-00001 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-10 --database scratch.sqlite --output var/pool/part-00002 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-11 --database scratch.sqlite --output var/pool/part-00003 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-12 --database scratch.sqlite --output var/pool/part-00004 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-13 --database scratch.sqlite --output var/pool/part-00005 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-14 --database scratch.sqlite --output var/pool/part-00006 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-15 --database scratch.sqlite --output var/pool/part-00007 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-16 --database scratch.sqlite --output var/pool/part-00008 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-17 --database scratch.sqlite --output var/pool/part-00009 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-18 --database scratch.sqlite --output var/pool/part-00010 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-19 --database scratch.sqlite --output var/pool/part-00011 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-2 --database scratch.sqlite --output var/pool/part-00012 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-20 --database scratch.sqlite --output var/pool/part-00013 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-21 --database scratch.sqlite --output var/pool/part-00014 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-22 --database scratch.sqlite --output var/pool/part-00015 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-23 --database scratch.sqlite --output var/pool/part-00016 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-24 --database scratch.sqlite --output var/pool/part-00017 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-25 --database scratch.sqlite --output var/pool/part-00018 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-26 --database scratch.sqlite --output var/pool/part-00019 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-27 --database scratch.sqlite --output var/pool/part-00020 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-28 --database scratch.sqlite --output var/pool/part-00021 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-29 --database scratch.sqlite --output var/pool/part-00022 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-3 --database scratch.sqlite --output var/pool/part-00023 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-30 --database scratch.sqlite --output var/pool/part-00024 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-31 --database scratch.sqlite --output var/pool/part-00025 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-32 --database scratch.sqlite --output var/pool/part-00026 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-33 --database scratch.sqlite --output var/pool/part-00027 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-34 --database scratch.sqlite --output var/pool/part-00028 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-35 --database scratch.sqlite --output var/pool/part-00029 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-36 --database scratch.sqlite --output var/pool/part-00030 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-37 --database scratch.sqlite --output var/pool/part-00031 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-38 --database scratch.sqlite --output var/pool/part-00032 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-39 --database scratch.sqlite --output var/pool/part-00033 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-4 --database scratch.sqlite --output var/pool/part-00034 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-5 --database scratch.sqlite --output var/pool/part-00035 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-6 --database scratch.sqlite --output var/pool/part-00036 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-7 --database scratch.sqlite --output var/pool/part-00037 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-8 --database scratch.sqlite --output var/pool/part-00038 --seconds 1000 --workers 4 --nodes-only
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-9 --database scratch.sqlite --output var/pool/part-00039 --seconds 1000 --workers 4 --nodes-only
