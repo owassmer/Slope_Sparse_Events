@@ -67,8 +67,14 @@ def pool_tree(
     run_list: str | None = typer.Option(None, help='Text file: one GitHub run ID per line, all waves.'),
     links: str | None = typer.Option(None, help='JSON source -> input_routes metadata for legacy checkpoints.'),
     seconds: float = typer.Option(900, min=1, help='Budget checked between ingestion/export batches; raise on the pool host.'),
-    workers: int = typer.Option(1, min=1, help='Independent ingestion/export processes; use 128 on the pool host.'),
+    workers: int = typer.Option(1, min=1, help='Independent processes; at most 4 on a GitHub runner.'),
     finish: bool = typer.Option(True, help='Export gates after ingestion; --no-finish only downloads/reduces.'),
+    artifact: Annotated[list[str] | None, typer.Option(help='Exact artifact names, e.g. heavy-0; repeat to bound a part.')] = None,
+    partial: bool = typer.Option(False, help='Write a mergeable reduction, not a whole-tree verdict.'),
+    combine: bool = typer.Option(False, help='Combine partials from --local roots or GitHub --runs (out-N only).'),
+    nodes_only: bool = typer.Option(False, help='First pass: extract/union node catalogs before evaluating parts.'),
+    node_catalog: str | None = typer.Option(None, help='Frozen union nodes.sqlite, shared by every part.'),
+    node_run: str | None = typer.Option(None, help='Download frozen union nodes.sqlite from this GitHub run, out-0.'),
 ) -> None:
     """Pool trusted local pieces and paired GitHub artifacts, without judgment calls."""
     import json
@@ -80,9 +86,30 @@ def pool_tree(
     if run_list:
         run_ids.extend(line.strip() for line in Path(run_list).read_text().splitlines()
                        if line.strip() and not line.lstrip().startswith('#'))
-    result = pool(database=Path(database), output=Path(output), local=local or [], runs=run_ids,
-                  links=json.loads(Path(links).read_text()) if links else None,
-                  seconds=seconds, finish=finish, workers=workers)
+    import subprocess
+    import tempfile
+
+    from app.analysis.tree_parts import combine as combine_parts
+
+    if partial and (combine or nodes_only):
+        raise typer.BadParameter('--combine, --partial and --nodes-only/--partial are mutually exclusive')
+    with tempfile.TemporaryDirectory(prefix='pool-nodes-') as temp:
+        if node_run:
+            if node_catalog:
+                raise typer.BadParameter('use --node-run or --node-catalog, not both')
+            subprocess.run(['gh', 'run', 'download', node_run, '--name', 'out-0', '--dir', temp], check=True)
+            catalogs = list(Path(temp).rglob('nodes.sqlite'))
+            if len(catalogs) != 1:
+                raise typer.BadParameter('node run out-0 must contain exactly one nodes.sqlite')
+            node_catalog = str(catalogs[0])
+        if combine:
+            result = combine_parts(database=Path(database), output=Path(output), local=local or [],
+                                   runs=run_ids, artifacts=artifact or [], nodes_only=nodes_only)
+        else:
+            result = pool(database=Path(database), output=Path(output), local=local or [], runs=run_ids,
+                          links=json.loads(Path(links).read_text()) if links else None,
+                          seconds=seconds, finish=finish, workers=workers, artifacts=artifact or [],
+                          partial=partial, node_catalog=node_catalog, nodes_only=nodes_only)
     typer.echo(json.dumps(result))
     if result.get('status') in ('unfinished_ingest', 'unfinished_export'):
         raise typer.Exit(2)

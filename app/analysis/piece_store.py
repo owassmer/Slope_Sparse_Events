@@ -99,8 +99,10 @@ def stored_events(path: Path):
     opener = gzip.open if path.suffix == '.gz' else open
     with opener(path, 'rb') as stream:
         while True:
-            try:
-                item = pickle.load(stream)
-            except EOFError:
+            # EOF is valid only between records, with an intact gzip trailer.
+            # Swallowing pickle/gzip EOFError also accepted a truncated final
+            # record (or missing trailer) after a classification was observed.
+            if not stream.peek(1):
                 return
+            item = pickle.load(stream)
             yield item

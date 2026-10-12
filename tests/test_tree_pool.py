@@ -275,3 +275,201 @@ def test_github_split_artifacts_and_local_wave_together(tmp_path, monkeypatch, o
     result = pool(database=tmp_path / 'scratch.sqlite', output=tmp_path / 'out', runs=['101'], local=[local])
     assert downloads == ['heavy-7', 'out-7']
     assert all(result[k]['pass'] for k in ('coverage', 'probability', 'answers'))
+
+
+def test_parts_equal_whole_exactly_and_duplicate_across_parts_stops(tmp_path):
+    from app.analysis.tree_parts import combine
+
+    root = tmp_path / 'input'
+    root.mkdir()
+    mask = np.arange(512) < 200
+    a = piece(root, 'a', [path('yes', mask)], remaining=((1,), (2,)))
+    b = piece(root, 'b', [path('no')], input_routes=((1,),))
+    c = piece(root, 'c', [path('yes', ~mask)], input_routes=((2,),))
+    whole = pool(database=tmp_path / 'whole.sqlite', output=tmp_path / 'whole', local=[root])
+    pool(database=tmp_path / 'nodes-scratch.sqlite', output=tmp_path / 'nodes', local=[root], nodes_only=True)
+    catalog = tmp_path / 'nodes/nodes.sqlite'
+    for i, inputs in enumerate(([b], [c, a])):
+        result = pool(database=tmp_path / f'scratch-{i}.sqlite', output=tmp_path / f'part-{i}',
+                      local=inputs, partial=True, node_catalog=catalog)
+        assert result['status'] == 'partial_ready'
+    result = combine(database=tmp_path / 'combine.sqlite', output=tmp_path / 'combined',
+                     local=[tmp_path / 'part-1', tmp_path / 'part-0'])
+    assert result == whole
+    for name in ('catalog.jsonl.gz', 'histories.jsonl.gz'):
+        with gzip.open(tmp_path / 'whole' / name, 'rt') as x, gzip.open(tmp_path / 'combined' / name, 'rt') as y:
+            assert x.read() == y.read()
+    assert (tmp_path / 'whole/pieces.json').read_bytes() == (tmp_path / 'combined/pieces.json').read_bytes()
+    with pytest.raises(ValueError, match='duplicate piece across parts'):
+        combine(database=tmp_path / 'duplicate.sqlite', output=tmp_path / 'bad',
+                local=[tmp_path / 'part-0', tmp_path / 'part-1', tmp_path / 'part-0'])
+
+
+@pytest.mark.parametrize('failure', ['gap', 'route_overlap', 'terminal_overlap', 'bad_answer', 'dated'])
+def test_partial_gate_failures_survive_combination(tmp_path, failure):
+    from dataclasses import replace
+
+    from app.analysis.tree_parts import combine
+
+    a = piece(tmp_path, 'a', [path('yes')], remaining=((1,),))
+    b = piece(tmp_path, 'b', [path('no' if failure != 'bad_answer' else 'bad')],
+              input_routes=((2,),) if failure in ('gap', 'route_overlap') else ((1,),))
+    if failure == 'terminal_overlap':
+        b = piece(tmp_path, 'overlap', [path('yes'), path('no')], input_routes=((1,),))
+    if failure == 'dated':
+        (b / 'events.pkl.gz').unlink()
+        w = PieceWriter(b, 512)
+        node = Node('q', 'd', 'choice', '', '', 'test', 'Choose', (), 'today', ('yes', 'no'))
+        w.put('nodes', {'q': node, 'q|#live': replace(node, key='q|#live')})
+        w.put('path', (replace(path('no'), classes=(('q', ('#live',), None),)), None))
+        w.put('classification', {})
+        w.close()
+    inputs = [a, b]
+    if failure == 'route_overlap':
+        inputs.append(piece(tmp_path, 'extra', [], input_routes=((2,),)))
+    pool(database=tmp_path / 'n.sqlite', output=tmp_path / 'nodes', local=inputs, nodes_only=True)
+    for i, p in enumerate(inputs):
+        pool(database=tmp_path / f's{i}.sqlite', output=tmp_path / f'part{i}', local=[p],
+             partial=True, node_catalog=tmp_path / 'nodes/nodes.sqlite')
+    result = combine(database=tmp_path / 'c.sqlite', output=tmp_path / 'out',
+                     local=[tmp_path / f'part{i}' for i in range(len(inputs))])
+    gate = 'answers' if failure in ('bad_answer', 'dated') else 'coverage'
+    assert not result[gate]['pass']
+
+
+def test_frozen_node_universe_required_and_domain_checked(tmp_path):
+    from dataclasses import replace
+
+    from app.analysis.tree_parts import combine
+
+    dirs = []
+    for i, tag in enumerate(('z', 'a')):
+        p = piece(tmp_path, tag, [path('yes')], partition=i, partitions=2)
+        (p / 'events.pkl.gz').unlink()
+        w = PieceWriter(p, 512)
+        node = Node('q', 'd', 'choice', '', '', 'test', 'Choose', (), 'today', ('yes', 'no'))
+        w.put('nodes', {'q': node, f'q|#{tag}': replace(node, key=f'q|#{tag}')})
+        w.put('path', (replace(path('yes'), classes=(('q', (), None),)), None))
+        w.put('classification', {})
+        w.close()
+        dirs.append(p)
+        pool(database=tmp_path / f'ns{i}.sqlite', output=tmp_path / f'n{i}', local=[p], nodes_only=True)
+    combine(database=tmp_path / 'nc.sqlite', output=tmp_path / 'nodes',
+            local=[tmp_path / 'n0', tmp_path / 'n1'], nodes_only=True)
+    for i, p in enumerate(dirs):
+        pool(database=tmp_path / f's{i}.sqlite', output=tmp_path / f'p{i}', local=[p], partial=True,
+             node_catalog=tmp_path / 'nodes/nodes.sqlite')
+    combined = combine(database=tmp_path / 'c.sqlite', output=tmp_path / 'out',
+                       local=[tmp_path / 'p0', tmp_path / 'p1'])
+    whole = pool(database=tmp_path / 'whole.sqlite', output=tmp_path / 'whole', local=dirs)
+    assert combined == whole
+    with pytest.raises(ValueError, match='absent or changed'):
+        pool(database=tmp_path / 'missing.sqlite', output=tmp_path / 'missing', local=[dirs[0]],
+             partial=True, node_catalog=tmp_path / 'n1/nodes.sqlite')
+    with connect(tmp_path / 'n0/nodes.sqlite') as db:
+        blob = db.execute('SELECT blob FROM nodes WHERE key=?', ('q',)).fetchone()[0]
+        import pickle
+        with db:
+            db.execute('UPDATE nodes SET blob=? WHERE key=?',
+                       (pickle.dumps(replace(pickle.loads(blob), branches=('other',))), 'q'))
+    with pytest.raises(ValueError, match='domain changed'):
+        combine(database=tmp_path / 'bad.sqlite', output=tmp_path / 'bad',
+                local=[tmp_path / 'n0', tmp_path / 'n1'], nodes_only=True)
+
+
+def test_priority_sample_is_global_bottom_k_not_a_quota_per_part(tmp_path):
+    from app.analysis.tree_parts import combine, summarize
+    from app.analysis.tree_parts import connect as part_connect
+
+    dirs = []
+    for i, size in enumerate((3, 97)):
+        dirs.append(piece(tmp_path, f'input{i}', [
+            DisputePath('d', (('choice', str(n + i * 100), 'yes'),), 'done', (('q', 'yes'),))
+            for n in range(size)], partition=i, partitions=2))
+    with connect(tmp_path / 'whole.sqlite') as db:
+        for p in dirs:
+            ingest(db, p, str(p))
+        export(db, tmp_path / 'whole', sample_size=10)
+    for i, p in enumerate(dirs):
+        with connect(tmp_path / f's{i}.sqlite') as db:
+            ingest(db, p, str(p))
+            summarize(db, tmp_path / f'p{i}/partial.sqlite', sample_size=10)
+    combine(database=tmp_path / 'c.sqlite', output=tmp_path / 'out',
+            local=[tmp_path / 'p1', tmp_path / 'p0'])
+    with part_connect(tmp_path / 'whole/partial.sqlite') as a, part_connect(tmp_path / 'c.sqlite') as b:
+        assert list(a.execute('SELECT * FROM samples ORDER BY priority')) == list(b.execute(
+            'SELECT * FROM samples ORDER BY priority'))
+    with gzip.open(tmp_path / 'out/histories.jsonl.gz', 'rt') as f:
+        records = [json.loads(line) for line in f]
+    assert len(records) == 10
+    # No fixed half-sample quota: the smaller part has only three histories.
+    assert sum(r['source'] == str(dirs[1]) for r in records) >= 7
+
+
+def test_partial_rejects_unfinished_and_wrong_counts(tmp_path):
+    from app.analysis.tree_parts import combine, summarize
+
+    a = piece(tmp_path, 'a', [path('yes')])
+    with connect(tmp_path / 's.sqlite') as db:
+        ingest(db, a, 'a')
+        assert summarize(db, tmp_path / 'p/partial.sqlite', seconds=0)['status'] == 'unfinished_export'
+    with pytest.raises(ValueError, match='incomplete'):
+        combine(database=tmp_path / 'c.sqlite', output=tmp_path / 'out', local=[tmp_path / 'p'])
+    meta = json.loads((a / 'piece.json').read_text())
+    meta['history_draws'] += 1
+    (a / 'piece.json').write_text(json.dumps(meta))
+    with pytest.raises(ValueError, match='truncated or inconsistent'):
+        pool(database=tmp_path / 'bad.sqlite', output=tmp_path / 'bad', local=[a], nodes_only=True)
+
+
+def test_part_planner_bounds_artifacts_and_uses_shared_nodes(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.analysis.tree_pool_jobs import commands
+
+    monkeypatch.setattr('app.analysis.tree_pool_jobs.subprocess.run',
+                        lambda *args, **kwargs: SimpleNamespace(stdout='heavy-0\nout-0\nheavy-1\nout-1\n'))
+    lines = commands(phase='parts', runs=['101', '102'], node_run='200')
+    assert len(lines) == 4
+    assert all(line.count('--artifact') == 1 and '--node-run 200' in line for line in lines)
+    assert '--runs 101 --artifact heavy-0' in lines[0]
+    assert len(commands(phase='combine', runs=['201', '202'])) == 1
+
+
+@pytest.mark.parametrize('compressed', [False, True])
+def test_truncated_stream_after_classification_still_stops(tmp_path, compressed):
+    import pickle
+
+    a = piece(tmp_path, 'a', [path('yes')])
+    if compressed:
+        file = a / 'events.pkl.gz'
+        file.write_bytes(file.read_bytes()[:-8])  # all records present, gzip trailer missing
+    else:
+        raw = gzip.decompress((a / 'events.pkl.gz').read_bytes())
+        (a / 'events.pkl.gz').unlink()
+        (a / 'events.pkl').write_bytes(raw + pickle.dumps(('ignored', {'x': 1}))[:-2])
+    with connect(tmp_path / 's.sqlite') as db, pytest.raises((EOFError, pickle.UnpicklingError)):
+        ingest(db, a, 'a')
+
+
+def test_artifact_selector_only_downloads_requested_pair(tmp_path, monkeypatch):
+    import shutil
+    from types import SimpleNamespace
+
+    a = piece(tmp_path, 'a', [path('yes'), path('no')])
+    downloads = []
+
+    def run(args, **kwargs):
+        if args[1] == 'api':
+            return SimpleNamespace(stdout='heavy-0\nout-0\nheavy-1\nout-1\n')
+        downloads.append(args[5])
+        dest = Path(args[-1]) / 'piece'
+        dest.mkdir(exist_ok=True)
+        file = 'events.pkl.gz' if args[5] == 'heavy-1' else 'piece.json'
+        shutil.copyfile(a / file, dest / file)
+        return SimpleNamespace()
+
+    monkeypatch.setattr('app.analysis.tree_pool.subprocess.run', run)
+    pool(database=tmp_path / 's.sqlite', output=tmp_path / 'nodes', runs=['101'],
+         artifacts=['heavy-1'], nodes_only=True)
+    assert downloads == ['heavy-1', 'out-1']
