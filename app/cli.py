@@ -71,7 +71,10 @@ def pool_tree(
     finish: bool = typer.Option(True, help='Export gates after ingestion; --no-finish only downloads/reduces.'),
     artifact: Annotated[list[str] | None, typer.Option(help='Exact artifact names, e.g. heavy-0; repeat to bound a part.')] = None,
     partial: bool = typer.Option(False, help='Write a mergeable reduction, not a whole-tree verdict.'),
-    combine: bool = typer.Option(False, help='Combine partials from --local roots or GitHub --runs (out-N only).'),
+    gates_only: bool = typer.Option(False, help='Partial retains gate inputs and sampled facts, not every population facts variant.'),
+    combine: bool = typer.Option(False, help='Combine partials from --local roots or GitHub heavy-N (nodes: out-N).'),
+    merge_only: bool = typer.Option(False, help='Intermediate combine level; emit a mergeable partial without final gates.'),
+    diagnostics: str = typer.Option('var/diag/tree-pool', help='Small status, timings and gate verdicts retained in out-N.'),
     nodes_only: bool = typer.Option(False, help='First pass: extract/union node catalogs before evaluating parts.'),
     node_catalog: str | None = typer.Option(None, help='Frozen union nodes.sqlite, shared by every part.'),
     node_run: str | None = typer.Option(None, help='Download frozen union nodes.sqlite from this GitHub run, out-0.'),
@@ -88,9 +91,15 @@ def pool_tree(
                        if line.strip() and not line.lstrip().startswith('#'))
     import subprocess
     import tempfile
+    import time
 
     from app.analysis.tree_parts import combine as combine_parts
 
+    started = time.monotonic()
+    if gates_only and not partial:
+        raise typer.BadParameter('--gates-only requires --partial')
+    if merge_only and (not combine or nodes_only):
+        raise typer.BadParameter('--merge-only requires --combine and cannot union nodes')
     if partial and (combine or nodes_only):
         raise typer.BadParameter('--combine, --partial and --nodes-only/--partial are mutually exclusive')
     with tempfile.TemporaryDirectory(prefix='pool-nodes-') as temp:
@@ -104,12 +113,24 @@ def pool_tree(
             node_catalog = str(catalogs[0])
         if combine:
             result = combine_parts(database=Path(database), output=Path(output), local=local or [],
-                                   runs=run_ids, artifacts=artifact or [], nodes_only=nodes_only)
+                                   runs=run_ids, artifacts=artifact or [], nodes_only=nodes_only,
+                                   merge_only=merge_only)
         else:
             result = pool(database=Path(database), output=Path(output), local=local or [], runs=run_ids,
                           links=json.loads(Path(links).read_text()) if links else None,
                           seconds=seconds, finish=finish, workers=workers, artifacts=artifact or [],
-                          partial=partial, node_catalog=node_catalog, nodes_only=nodes_only)
+                          partial=partial, node_catalog=node_catalog, nodes_only=nodes_only,
+                          gates_only=gates_only)
+    import shutil
+
+    result['wall_seconds'] = time.monotonic() - started
+    diag = Path(diagnostics)
+    diag.mkdir(parents=True, exist_ok=True)
+    (diag / 'result.json').write_text(json.dumps(result) + '\n')
+    for name in ('gates.json', 'combine-timing.json'):
+        source = Path(output) / name
+        if source.exists() and source.resolve() != (diag / name).resolve():
+            shutil.copyfile(source, diag / name)
     typer.echo(json.dumps(result))
     if result.get('status') in ('unfinished_ingest', 'unfinished_export'):
         raise typer.Exit(2)

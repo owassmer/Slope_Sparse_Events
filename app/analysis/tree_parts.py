@@ -2,8 +2,10 @@
 
 A node-union pass precedes reduction: inactive class substitution depends on the
 whole question universe. Each reduced piece retains its input cover, terminal
-identity/support, exact question variants and per-piece arithmetic, but no cash
-arrays or history references. Original run/artifact/local locators remain in
+identity/support and per-piece arithmetic, but no cash arrays or history references.
+Gate-only parts retain facts in the review sample, not the population catalog's
+expanded facts variants: all offered-answer/date checks already ran on every
+history before reduction. Original run/artifact/local locators remain in
 pieces for the later cash pass. Hash-priority sampling is uniform over histories,
 independent of part sizes, scheduling and traversal order.
 """
@@ -122,7 +124,7 @@ def trim_samples(db, size):
 
 
 def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
-              workers=1, node_catalog=None):
+              workers=1, node_catalog=None, gates_only=False):
     """Checkpoint complete pieces; arithmetic uses fixed per-piece 4096-row ranges.
 
     A partial is consumable only after all pieces have committed. Node catalogs
@@ -142,7 +144,7 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
             copy_nodes(catalog, db)
     signature = node_signature(db)
     settings = {'kind': 'tree-part-v2', 'nodes': signature, 'seeds': list(seeds),
-                'sample_size': sample_size}
+                'sample_size': sample_size, 'gates_only': gates_only}
     target = Path(target)
     database = db.execute('PRAGMA database_list').fetchone()[2]
     nodes = {k: pickle.loads(b) for k, b in db.execute('SELECT * FROM nodes')}
@@ -194,12 +196,13 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
                 out.executemany('INSERT INTO paths(piece,identity,mask,blob) VALUES (?,?,?,NULL)',
                                 ((pid, identity, mask) for identity, mask in db.execute(
                                     'SELECT identity,mask FROM paths WHERE piece=? ORDER BY id', (pid,))))
-                # Keep the catalog's exact rendering of every facts variant. Do
-                # population-array expansion and gzip compression on the workers,
+                # Optional full catalog: keep the exact rendering of every facts
+                # variant. Gate-only mode needs only sample facts and gate metrics.
+                # Do population-array expansion and gzip compression on the workers,
                 # not on the final runner. Gzip members concatenate losslessly.
                 for key, qid, blob in db.execute(
                         'SELECT DISTINCT q.key,q.hash,q.blob FROM questions q JOIN refs r '
-                        'ON q.key=r.key AND q.hash=r.hash WHERE r.piece=?', (pid,)):
+                        'ON q.key=r.key AND q.hash=r.hash WHERE r.piece=?', (pid,)) if not gates_only else ():
                     if out.execute('SELECT 1 FROM questions WHERE key=? AND hash=?', (key, qid)).fetchone():
                         continue
                     record = tree.encode({'type': 'facts', 'key': key, 'id': qid,
@@ -224,7 +227,9 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
                                'partial_bytes': target.stat().st_size}), flush=True)
         with out:
             put_config(out, 'complete', True)
+        metas = [json.loads(meta) for (meta,) in out.execute('SELECT meta FROM pieces')]
     return {'status': 'partial_ready', 'file': str(target), 'seconds': time.monotonic() - start,
+            'pieces': len(metas), 'histories': sum(m['histories'] for m in metas),
             'bytes': target.stat().st_size}
 
 
@@ -236,7 +241,7 @@ def merge_part(db, path, *, nodes_only=False):
             raise ValueError(f'incomplete or wrong kind of partial: {path}')
         old = config(db)
         if not nodes_only and old:
-            for key in ('nodes', 'seeds', 'sample_size', 'kind'):
+            for key in ('nodes', 'seeds', 'sample_size', 'kind', 'gates_only'):
                 if old.get(key) != cfg.get(key):
                     raise ValueError(f'partial {key} differs; all parts need the same frozen node catalog and settings')
         # Validate domains before any writes, even when all hashes agree.
@@ -247,14 +252,19 @@ def merge_part(db, path, *, nodes_only=False):
                     if db.execute('SELECT 1 FROM pieces WHERE id=?', (pid,)).fetchone():
                         raise ValueError(f'duplicate piece across parts: {source}')
                     db.execute('INSERT INTO pieces VALUES (?,?,?)', (pid, meta, source))
+                # Bulk SQLite copies avoid round-tripping millions of rows through Python.
+                # Detach after the transaction below; failed merges abort the job.
+                db.execute('ATTACH DATABASE ? AS part_input', (str(path),))
                 for table in ('metrics', 'samples'):
-                    db.executemany(f'INSERT INTO {table} VALUES (?,?)', incoming.execute(f'SELECT * FROM {table}'))
-                db.executemany('INSERT OR IGNORE INTO questions VALUES (?,?,?)', incoming.execute('SELECT * FROM questions'))
-                db.executemany('INSERT INTO paths(piece,identity,mask,blob) VALUES (?,?,?,NULL)',
-                               incoming.execute('SELECT piece,identity,mask FROM paths'))
+                    db.execute(f'INSERT INTO {table} SELECT * FROM part_input.{table}')
+                db.execute('INSERT OR IGNORE INTO questions SELECT * FROM part_input.questions')
+                db.execute('INSERT INTO paths(piece,identity,mask,blob) '
+                           'SELECT piece,identity,mask,NULL FROM part_input.paths')
                 trim_samples(db, cfg['sample_size'])
             for key, value in cfg.items():
-                put_config(db, key, value)
+                put_config(db, key, value if key != 'complete' else False)
+        if not nodes_only:
+            db.execute('DETACH DATABASE part_input')
 
 
 def finalize(database, output):
@@ -300,14 +310,16 @@ def finalize(database, output):
                               'scope': 'all native class-rewritten edge atoms, including composite complements; '
                                        'live class support must have matching dated question facts'},
                   'no_skip': review, 'no_future': review, 'histories': histories,
+                  'catalog_facts': 'sample_only' if cfg.get('gates_only') else 'all_variants',
                   'catalog_counts': 'terminal histories referencing question atoms; draws are unique native draws; '
                                     'history_draws counts repeated draw reach across histories'}
         (output / 'gates.json').write_text(json.dumps(report, indent=2) + '\n')
         return report
 
 
-def combine(*, database, output, local=(), runs=(), artifacts=(), nodes_only=False):
-    """Consume one small artifact at a time; never download heavy events here."""
+def combine(*, database, output, local=(), runs=(), artifacts=(), nodes_only=False,
+            merge_only=False):
+    """Consume one reduction artifact at a time; intermediate levels remain mergeable."""
     start = time.monotonic()
     database, output = Path(database), Path(output)
     if database.exists():
@@ -327,7 +339,8 @@ def combine(*, database, output, local=(), runs=(), artifacts=(), nodes_only=Fal
             result = subprocess.run(['gh', 'api', f'repos/{{owner}}/{{repo}}/actions/runs/{run}/artifacts',
                                      '--paginate', '--jq', '.artifacts[].name'],
                                     check=True, capture_output=True, text=True)
-            names = sorted(n for n in result.stdout.splitlines() if n.startswith('out-'))
+            prefix = 'out-' if nodes_only else 'heavy-'
+            names = sorted(n for n in result.stdout.splitlines() if n.startswith(prefix))
             if artifacts:
                 if set(artifacts) - set(names):
                     raise ValueError(f'{run}: missing requested summary artifacts')
@@ -346,9 +359,19 @@ def combine(*, database, output, local=(), runs=(), artifacts=(), nodes_only=Fal
                 print(tree.encode({'combined': found, 'bytes': database.stat().st_size}), flush=True)
         if not found:
             raise ValueError('no partials supplied')
+        with db:
+            put_config(db, 'complete', True)
         if nodes_only:
             return save_nodes(db, output / filename)
     merge_seconds = time.monotonic() - start
+    if merge_only:
+        target = output / 'partial.sqlite'
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.resolve() != database.resolve():
+            with closing(sqlite3.connect(database)) as src, closing(sqlite3.connect(target)) as dest:
+                src.backup(dest)
+        return {'status': 'partial_ready', 'parts': found, 'seconds': merge_seconds,
+                'bytes': target.stat().st_size}
     report = finalize(database, output)
     measurement = {'parts': found, 'pieces': report['coverage'].get('pieces'),
                    'histories': report['histories'], 'merge_seconds': merge_seconds,

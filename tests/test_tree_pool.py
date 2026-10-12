@@ -257,7 +257,13 @@ def test_github_split_artifacts_and_local_wave_together(tmp_path, monkeypatch, o
         if args[1] == 'api':
             return SimpleNamespace(stdout='out-7\nheavy-7\n')
         downloads.append(args[5])
-        dest = Path(args[-1]) / 'var' / 'walk-population' / 'first'
+        root = Path(args[-1])
+        if args[5] == 'heavy-7':
+            dest = root / 'first'
+        else:
+            dest = root / 'var' / 'walk-population' / 'first'
+            (root / 'out').mkdir()
+            (root / 'out' / 'log.txt').write_text('walk log')
         dest.mkdir(parents=True, exist_ok=True)
         for file in (['events.pkl.gz'] if args[5] == 'heavy-7' else ['piece.json']):
             shutil.copyfile(a / file, dest / file)
@@ -430,8 +436,9 @@ def test_part_planner_bounds_artifacts_and_uses_shared_nodes(monkeypatch):
     monkeypatch.setattr('app.analysis.tree_pool_jobs.subprocess.run',
                         lambda *args, **kwargs: SimpleNamespace(stdout='heavy-0\nout-0\nheavy-1\nout-1\n'))
     lines = commands(phase='parts', runs=['101', '102'], node_run='200')
-    assert len(lines) == 4
-    assert all(line.count('--artifact') == 1 and '--node-run 200' in line for line in lines)
+    assert len(lines) == 2
+    assert all(line.count('--artifact') == 2 and '--node-run 200' in line for line in lines)
+    assert all('--output var/pool/' in line and '--diagnostics var/diag/' in line for line in lines)
     assert '--runs 101 --artifact heavy-0' in lines[0]
     assert len(commands(phase='combine', runs=['201', '202'])) == 1
 

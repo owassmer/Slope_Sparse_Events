@@ -413,11 +413,22 @@ def ingest_worker(task):
             manifests = sorted(Path(temp).rglob('piece.json'))
             if not manifests:
                 raise ValueError(f'{source}: no piece.json')
-            event_dirs = {p.parent for pattern in ('events.pkl', 'events.pkl.gz')
-                          for p in Path(temp).rglob(pattern)}
-            if event_dirs != {p.parent for p in manifests}:
+            # upload-artifact strips a different common root for heavy and out.
+            # The piece folder, not the artifact-relative path, is the join key.
+            events = [p for pattern in ('events.pkl', 'events.pkl.gz')
+                      for p in Path(temp).rglob(pattern)]
+            manifest_map = {p.parent.name: p for p in manifests}
+            event_map = {p.parent.name: p for p in events}
+            if len(manifest_map) != len(manifests) or len(event_map) != len(events):
+                raise ValueError(f'{source}: duplicate piece folder or event stream')
+            if manifest_map.keys() != event_map.keys():
                 raise ValueError(f'{source}: events and piece.json directories do not match')
-            directories = [(p.parent, f'{source}/{p.parent.relative_to(temp)}') for p in manifests]
+            directories = []
+            for name, manifest in sorted(manifest_map.items()):
+                event = event_map[name]
+                if event.parent != manifest.parent:
+                    (manifest.parent / event.name).symlink_to(event.resolve())
+                directories.append((manifest.parent, f'{source}/{name}'))
         else:
             directories = [(Path(directory), source)]
         with closing(connect(Path(shard))) as db:
@@ -465,7 +476,7 @@ def export(db, output, *, seeds=(17, 91, 307), sample_size=32, seconds=900, work
 
 
 def pool(*, database, output, local=(), runs=(), links=None, seconds=900, finish=True, workers=1,
-         artifacts=(), partial=False, node_catalog=None, nodes_only=False):
+         artifacts=(), partial=False, node_catalog=None, nodes_only=False, gates_only=False):
     """Restart at artifact boundaries. An interrupted artifact's DB transaction rolls back.
 
     --runs is ordered only for convenience; coverage uses input routes, not wave
@@ -551,11 +562,14 @@ def pool(*, database, output, local=(), runs=(), links=None, seconds=900, finish
             return {'status': 'unfinished_export', 'next': 'repeat the same command'}
         if nodes_only:
             from app.analysis.tree_parts import save_nodes
-            return save_nodes(db, output / 'nodes.sqlite')
+            result = save_nodes(db, output / 'nodes.sqlite')
+            metas = [json.loads(meta) for (meta,) in db.execute('SELECT meta FROM pieces')]
+            return {**result, 'pieces': len(metas), 'histories': sum(m['histories'] for m in metas),
+                    'seconds': time.monotonic() - start}
         if partial:
             from app.analysis.tree_parts import summarize
             if node_catalog is None:
                 raise ValueError('--partial requires --node-catalog from the union of all node parts')
             return summarize(db, output / 'partial.sqlite', node_catalog=node_catalog,
-                             seconds=remaining, workers=workers)
+                             seconds=remaining, workers=workers, gates_only=gates_only)
         return export(db, output, seconds=remaining, workers=workers) if finish else {'status': 'ingested', 'database': str(database)}
