@@ -488,7 +488,7 @@ def export(db, output, *, seeds=(17, 91, 307), sample_size=32, seconds=900, work
 
 
 def pool(*, database, output, local=(), runs=(), links=None, seconds=900, finish=True, workers=1,
-         artifacts=(), partial=False, node_catalog=None, nodes_only=False, gates_only=False):
+         artifacts=(), partial=False, node_catalog=None, nodes_only=False, gates_only=False, history_ranges=()):
     """Restart at artifact boundaries. An interrupted artifact's DB transaction rolls back.
 
     --runs is ordered only for convenience; coverage uses input routes, not wave
@@ -499,6 +499,8 @@ def pool(*, database, output, local=(), runs=(), links=None, seconds=900, finish
     """
     if workers < 1:
         raise ValueError('workers must be positive')
+    if history_ranges and not partial:
+        raise ValueError('history ranges require --partial')
     if partial and node_catalog is None:
         raise ValueError('--partial requires --node-catalog from the union of all node parts')
     start = time.monotonic()
@@ -583,5 +585,5 @@ def pool(*, database, output, local=(), runs=(), links=None, seconds=900, finish
             if node_catalog is None:
                 raise ValueError('--partial requires --node-catalog from the union of all node parts')
             return summarize(db, output / 'partial.sqlite', node_catalog=node_catalog,
-                             seconds=remaining, workers=workers, gates_only=gates_only)
+                             seconds=remaining, workers=workers, gates_only=gates_only, history_ranges=history_ranges)
         return export(db, output, seconds=remaining, workers=workers) if finish else {'status': 'ingested', 'database': str(database)}

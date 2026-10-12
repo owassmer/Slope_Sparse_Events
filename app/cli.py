@@ -71,6 +71,7 @@ def pool_tree(
     finish: bool = typer.Option(True, help='Export gates after ingestion; --no-finish only downloads/reduces.'),
     artifact: Annotated[list[str] | None, typer.Option(help='Exact artifact names, e.g. heavy-0; repeat to bound a part.')] = None,
     partial: bool = typer.Option(False, help='Write a mergeable reduction, not a whole-tree verdict.'),
+    history_range: Annotated[list[str] | None, typer.Option(help='Partial only: piece-directory:start:stop, half-open history ordinals; boundaries multiples of 64 except piece end. Repeat for disjoint ranges.')] = None,
     gates_only: bool = typer.Option(False, help='Partial retains gate inputs and sampled facts, not every population facts variant.'),
     combine: bool = typer.Option(False, help='Combine partials from --local roots or GitHub heavy-N (nodes: out-N).'),
     merge_only: bool = typer.Option(False, help='Intermediate combine level; emit a mergeable partial without final gates.'),
@@ -120,7 +121,7 @@ def pool_tree(
                           links=json.loads(Path(links).read_text()) if links else None,
                           seconds=seconds, finish=finish, workers=workers, artifacts=artifact or [],
                           partial=partial, node_catalog=node_catalog, nodes_only=nodes_only,
-                          gates_only=gates_only)
+                          gates_only=gates_only, history_ranges=history_range or [])
     import shutil
 
     result['wall_seconds'] = time.monotonic() - started

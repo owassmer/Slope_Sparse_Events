@@ -436,8 +436,15 @@ def test_part_planner_bounds_artifacts_and_uses_shared_nodes(monkeypatch):
 
     from app.analysis.tree_pool_jobs import commands
 
-    monkeypatch.setattr('app.analysis.tree_pool_jobs.subprocess.run',
-                        lambda *args, **kwargs: SimpleNamespace(stdout='heavy-0\nout-0\nheavy-1\nout-1\n'))
+    def gh(args, **kwargs):
+        if args[1] == 'api':
+            return SimpleNamespace(stdout='heavy-0\nout-0\nheavy-1\nout-1\n')
+        folder = Path(args[-1]) / f'{args[3]}-{args[5]}'
+        folder.mkdir()
+        (folder / 'piece.json').write_text(json.dumps({'histories': 128, 'history_draws': 65536}))
+        return SimpleNamespace()
+
+    monkeypatch.setattr('app.analysis.tree_pool_jobs.subprocess.run', gh)
     lines = commands(phase='parts', runs=['101', '102'], node_run='200')
     assert len(lines) == 2
     assert all(line.count('--artifact') == 2 and '--node-run 200' in line for line in lines)

@@ -1,8 +1,9 @@
 """Mergeable tree reductions. Trusted pickle inputs, no model calls.
 
 A node-union pass precedes reduction: inactive class substitution depends on the
-whole question universe. Each reduced piece retains its input cover, terminal
-identity/support and per-piece arithmetic, but no cash arrays or history references.
+whole question universe. Each reduced range retains its piece's input cover,
+terminal identity/support and canonical block arithmetic, but no cash arrays or
+history references. Final combine requires every block of each piece exactly once.
 Gate-only parts retain facts in the review sample, not the population catalog's
 expanded facts variants: all offered-answer/date checks already ran on every
 history before reduction. Original run/artifact/local locators remain in
@@ -39,6 +40,8 @@ def connect(path):
         CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT);
         CREATE TABLE IF NOT EXISTS metrics (piece TEXT PRIMARY KEY, state BLOB);
         CREATE TABLE IF NOT EXISTS samples (priority TEXT PRIMARY KEY, record TEXT);
+        CREATE TABLE IF NOT EXISTS ranges (piece TEXT, lower INTEGER, upper INTEGER,
+                                           PRIMARY KEY(piece, lower));
     ''')
     return db
 
@@ -125,11 +128,11 @@ def trim_samples(db, size):
 
 
 def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
-              workers=1, node_catalog=None, gates_only=False):
-    """Checkpoint complete pieces; arithmetic uses fixed per-piece 64-row replay ranges.
+              workers=1, node_catalog=None, gates_only=False, history_ranges=()):
+    """Reduce selected half-open ordinal ranges, checkpointing canonical blocks.
 
-    A partial is consumable only after all pieces have committed. Node catalogs
-    must be frozen before evaluating any piece (including on restart).
+    Node catalogs must be frozen before evaluation. Full coverage is required at
+    final combine, not at intermediate merges (which may contain disjoint ranges).
     """
     start = time.monotonic()
     if node_catalog:
@@ -144,8 +147,9 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
                     raise ValueError(f'question domain absent or changed in node catalog: {key}')
             copy_nodes(catalog, db)
     signature = node_signature(db)
-    settings = {'kind': 'tree-part-v3', 'nodes': signature, 'seeds': list(seeds),
-                'sample_size': sample_size, 'gates_only': gates_only}
+    settings = {'kind': 'tree-part-v4', 'nodes': signature, 'seeds': list(seeds),
+                'sample_size': sample_size, 'gates_only': gates_only,
+                'selection': sorted(history_ranges)}
     target = Path(target)
     database = db.execute('PRAGMA database_list').fetchone()[2]
     nodes = {k: pickle.loads(b) for k, b in db.execute('SELECT * FROM nodes')}
@@ -158,90 +162,116 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
                 put_config(out, key, value)
             put_config(out, 'complete', False)
             copy_nodes(db, out)
-        # Commit each piece separately, so a killed line leaves usable progress.
+        # Canonical 64-history blocks are the arithmetic and coverage unit. Their
+        # order never depends on line boundaries, process scheduling or merge tiers.
+        selections = {}
+        for value in history_ranges:
+            name, lo, hi = value.rsplit(':', 2)
+            selections.setdefault(name, []).append((int(lo), int(hi)))
+        matched = set()
+        jobs = []
         for pid, meta, source in db.execute('SELECT * FROM pieces ORDER BY id'):
-            if out.execute('SELECT 1 FROM pieces WHERE id=?', (pid,)).fetchone():
+            name = Path(source).name
+            if selections and name not in selections:
                 continue
-            bounds = db.execute('SELECT MIN(id),MAX(id),COUNT(*) FROM paths WHERE piece=?', (pid,)).fetchone()
-            lower, maximum, count = bounds
-            state = zero(seeds)
-            if count:
-                lower -= 1
-                # Ingestion gives each piece a contiguous row range. Never silently
-                # include a different piece if a caller supplies a hand-edited DB.
-                if maximum - lower != count:
-                    raise ValueError('noncontiguous piece rows')
-                cache_key = tree.digest(('part-v3', pid, signature, seeds))
-                saved = db.execute('SELECT state FROM evaluation WHERE signature=?', (cache_key,)).fetchone()
-                if saved:
-                    lower, state = pickle.loads(saved[0])
-                with ProcessPoolExecutor(max_workers=workers) if workers > 1 else nullcontext() as executor:
-                    while lower < maximum:
-                        ranges = [(lo, min(lo + 64, maximum))
-                                  for lo in range(lower, min(lower + 64 * workers, maximum), 64)]
-                        batch_started = time.monotonic()
-                        tasks = [(database, seeds, lo, hi, True) for lo, hi in ranges]
-                        results = (executor.map(tree.accumulate_worker, tasks) if executor else
-                                   (tree.accumulate(db, seeds, lo, hi, check_histories=True) for lo, hi in ranges))
-                        for (_, upper), result in zip(ranges, results, strict=True):
-                            state = add(state, result)
-                            lower = upper
-                        print(tree.encode({'stage': 'history_checks', 'piece': pid,
-                                           'histories': sum(hi - lo for lo, hi in ranges),
-                                           'seconds': time.monotonic() - batch_started}), flush=True)
-                        with db:
-                            db.execute('INSERT OR REPLACE INTO evaluation VALUES (?,?)',
-                                       (cache_key, pickle.dumps((lower, state), protocol=5)))
-                        if time.monotonic() - start >= seconds:
-                            return {'status': 'unfinished_export', 'next': 'repeat on the same workspace',
-                                    'histories': state[-1]}
-            with out:
-                out.execute('INSERT INTO pieces VALUES (?,?,?)', (pid, meta, source))
-                out.execute('INSERT INTO metrics VALUES (?,?)', (pid, zlib.compress(pickle.dumps(state, protocol=5))))
-                out.executemany('INSERT INTO paths(piece,identity,mask,blob) VALUES (?,?,?,NULL)',
-                                ((pid, identity, mask) for identity, mask in db.execute(
-                                    'SELECT identity,mask FROM paths WHERE piece=? ORDER BY id', (pid,))))
-                # Optional full catalog: keep the exact rendering of every facts
-                # variant. Gate-only mode needs only sample facts and gate metrics.
-                # Do population-array expansion and gzip compression on the workers,
-                # not on the final runner. Gzip members concatenate losslessly.
-                for key, qid, blob in db.execute(
-                        'SELECT DISTINCT q.key,q.hash,q.blob FROM questions q JOIN refs r '
-                        'ON q.key=r.key AND q.hash=r.hash WHERE r.piece=?', (pid,)) if not gates_only else ():
-                    if out.execute('SELECT 1 FROM questions WHERE key=? AND hash=?', (key, qid)).fetchone():
-                        continue
-                    record = tree.encode({'type': 'facts', 'key': key, 'id': qid,
-                                          'facts': tree.population_facts(unpack_row(blob))}) + '\n'
-                    out.execute('INSERT INTO questions VALUES (?,?,?)',
-                                (key, qid, gzip.compress(record.encode(), mtime=0)))
-                candidates = heapq.nsmallest(sample_size, (
-                    (tree.digest(('sample-731', pid, ordinal)), row_id)
-                    for ordinal, (row_id,) in enumerate(db.execute(
-                        'SELECT id FROM paths WHERE piece=? ORDER BY id', (pid,)))))
-                cutoff = out.execute('SELECT MAX(priority) FROM samples').fetchone()[0]
-                full = out.execute('SELECT COUNT(*) FROM samples').fetchone()[0] >= sample_size
-                for priority, row_id in candidates:
-                    if full and cutoff is not None and priority > cutoff:
-                        continue
-                    blob = db.execute('SELECT blob FROM paths WHERE id=?', (row_id,)).fetchone()[0]
-                    record = sample_record(db, pid, pickle.loads(zlib.decompress(blob)), nodes)
-                    out.execute('INSERT INTO samples VALUES (?,?)', (priority, zlib.compress(record.encode())))
-                trim_samples(out, sample_size)
-            print(tree.encode({'piece': pid, 'source': source, 'histories': state[-1],
-                               'elapsed_seconds': time.monotonic() - start,
-                               'partial_bytes': target.stat().st_size}), flush=True)
+            matched.add(name)
+            lower, maximum, count = db.execute(
+                'SELECT MIN(id),MAX(id),COUNT(*) FROM paths WHERE piece=?', (pid,)).fetchone()
+            base = lower - 1 if count else 0
+            if count and maximum - base != count:
+                raise ValueError('noncontiguous piece rows')
+            selected = selections.get(name, [(0, count)])
+            seen = set()
+            for lo, hi in selected:
+                if not (0 <= lo <= hi <= count) or lo % 64 or (hi != count and hi % 64) or (lo == hi and count):
+                    raise ValueError('history range must use canonical 64-history boundaries')
+                for offset in range(lo, hi, 64) if count else [0]:
+                    if offset in seen:
+                        raise ValueError('duplicate history range')
+                    seen.add(offset)
+                    upper = min(offset + 64, count)
+                    if not out.execute('SELECT 1 FROM ranges WHERE piece=? AND lower=?', (pid, offset)).fetchone():
+                        jobs.append((pid, meta, source, base, offset, upper))
+        if selections.keys() - matched:
+            raise ValueError(f'unknown piece ranges: {sorted(selections.keys() - matched)}')
+        with ProcessPoolExecutor(max_workers=workers) if workers > 1 else nullcontext() as executor:
+            tasks = [(database, seeds, base + lo, base + hi, True)
+                     for _, _, _, base, lo, hi in jobs]
+            results = (bounded_results(executor, tasks, workers) if executor else
+                       ((i, tree.accumulate(db, seeds, lo, hi, check_histories=True))
+                        for i, (_, _, lo, hi, _) in enumerate(tasks)))
+            for index, state in results:
+                pid, meta, source, base, lo, hi = jobs[index]
+                with out:
+                    out.execute('INSERT OR IGNORE INTO pieces VALUES (?,?,?)', (pid, meta, source))
+                    out.execute('INSERT INTO ranges VALUES (?,?,?)', (pid, lo, hi))
+                    out.execute('INSERT INTO metrics VALUES (?,?)',
+                                (f'{pid}:{lo:012d}', zlib.compress(pickle.dumps(state, protocol=5))))
+                    out.executemany('INSERT INTO paths(piece,identity,mask,blob) VALUES (?,?,?,NULL)',
+                                    ((pid, identity, mask) for identity, mask in db.execute(
+                                        'SELECT identity,mask FROM paths WHERE piece=? AND id>? AND id<=? ORDER BY id',
+                                        (pid, base + lo, base + hi))))
+                    save_block_details(db, out, pid, base, lo, hi, nodes, sample_size, gates_only)
+                print(tree.encode({'stage': 'history_checks', 'piece': pid, 'range': [lo, hi],
+                                   'elapsed_seconds': time.monotonic() - start}), flush=True)
+                if time.monotonic() - start >= seconds:
+                    return {'status': 'unfinished_export', 'next': 'repeat on the same workspace'}
         with out:
             put_config(out, 'complete', True)
-        metas = [json.loads(meta) for (meta,) in out.execute('SELECT meta FROM pieces')]
+        histories = out.execute('SELECT COALESCE(SUM(upper-lower),0) FROM ranges').fetchone()[0]
+        pieces = out.execute('SELECT COUNT(*) FROM pieces').fetchone()[0]
     return {'status': 'partial_ready', 'file': str(target), 'seconds': time.monotonic() - start,
-            'pieces': len(metas), 'histories': sum(m['histories'] for m in metas),
-            'bytes': target.stat().st_size}
+            'pieces': pieces, 'histories': histories, 'bytes': target.stat().st_size}
+
+
+def bounded_results(executor, tasks, workers):
+    """Keep cores fed without queuing a whole line past its time budget."""
+    from concurrent.futures import FIRST_COMPLETED, wait
+    from itertools import islice
+
+    tasks = iter(enumerate(tasks))
+    pending = {executor.submit(tree.accumulate_worker, task): i for i, task in islice(tasks, workers)}
+    while pending:
+        done, _ = wait(pending, return_when=FIRST_COMPLETED)
+        for future in done:
+            yield pending.pop(future), future.result()
+            item = next(tasks, None)
+            if item is not None:
+                i, task = item
+                pending[executor.submit(tree.accumulate_worker, task)] = i
+
+
+def save_block_details(db, out, pid, base, lo, hi, nodes, sample_size, gates_only):
+    # Gzip members concatenate losslessly. Gate-only retains sampled facts.
+    for key, qid, blob in db.execute(
+            'SELECT DISTINCT q.key,q.hash,q.blob FROM questions q JOIN refs r '
+            'ON q.key=r.key AND q.hash=r.hash WHERE r.piece=?', (pid,)) if not gates_only else ():
+        if out.execute('SELECT 1 FROM questions WHERE key=? AND hash=?', (key, qid)).fetchone():
+            continue
+        record = tree.encode({'type': 'facts', 'key': key, 'id': qid,
+                              'facts': tree.population_facts(unpack_row(blob))}) + '\n'
+        out.execute('INSERT INTO questions VALUES (?,?,?)',
+                    (key, qid, gzip.compress(record.encode(), mtime=0)))
+    candidates = heapq.nsmallest(sample_size, (
+        (tree.digest(('sample-731', pid, ordinal)), row_id)
+        for ordinal, (row_id,) in enumerate(db.execute(
+            'SELECT id FROM paths WHERE piece=? AND id>? AND id<=? ORDER BY id',
+            (pid, base + lo, base + hi)), start=lo)))
+    cutoff = out.execute('SELECT MAX(priority) FROM samples').fetchone()[0]
+    full = out.execute('SELECT COUNT(*) FROM samples').fetchone()[0] >= sample_size
+    for priority, row_id in candidates:
+        if full and cutoff is not None and priority > cutoff:
+            continue
+        blob = db.execute('SELECT blob FROM paths WHERE id=?', (row_id,)).fetchone()[0]
+        record = sample_record(db, pid, pickle.loads(zlib.decompress(blob)), nodes)
+        out.execute('INSERT INTO samples VALUES (?,?)', (priority, zlib.compress(record.encode())))
+    trim_samples(out, sample_size)
 
 
 def merge_part(db, path, *, nodes_only=False):
     with closing(sqlite3.connect(path)) as incoming:
         cfg = config(incoming)
-        expected = 'nodes-v1' if nodes_only else 'tree-part-v3'
+        expected = 'nodes-v1' if nodes_only else 'tree-part-v4'
         if not cfg.get('complete') or cfg.get('kind') != expected:
             raise ValueError(f'incomplete or wrong kind of partial: {path}')
         old = config(db)
@@ -254,9 +284,14 @@ def merge_part(db, path, *, nodes_only=False):
             copy_nodes(incoming, db)
             if not nodes_only:
                 for pid, meta, source in incoming.execute('SELECT * FROM pieces'):
-                    if db.execute('SELECT 1 FROM pieces WHERE id=?', (pid,)).fetchone():
-                        raise ValueError(f'duplicate piece across parts: {source}')
-                    db.execute('INSERT INTO pieces VALUES (?,?,?)', (pid, meta, source))
+                    old_piece = db.execute('SELECT meta,source FROM pieces WHERE id=?', (pid,)).fetchone()
+                    if old_piece and old_piece != (meta, source):
+                        raise ValueError(f'piece metadata changed across ranges: {source}')
+                    for lo, hi in incoming.execute('SELECT lower,upper FROM ranges WHERE piece=?', (pid,)):
+                        if db.execute('SELECT 1 FROM ranges WHERE piece=? AND lower=?', (pid, lo)).fetchone():
+                            raise ValueError(f'duplicate piece range across parts: {source}:{lo}:{hi}')
+                        db.execute('INSERT INTO ranges VALUES (?,?,?)', (pid, lo, hi))
+                    db.execute('INSERT OR IGNORE INTO pieces VALUES (?,?,?)', (pid, meta, source))
                 # Bulk SQLite copies avoid round-tripping millions of rows through Python.
                 # Detach after the transaction below; failed merges abort the job.
                 db.execute('ATTACH DATABASE ? AS part_input', (str(path),))
@@ -277,8 +312,14 @@ def finalize(database, output):
     output.mkdir(parents=True, exist_ok=True)
     with closing(connect(database)) as db:
         cfg = config(db)
-        if not cfg.get('complete') or cfg.get('kind') != 'tree-part-v3':
+        if not cfg.get('complete') or cfg.get('kind') != 'tree-part-v4':
             raise ValueError('incomplete partial')
+        for pid, raw in db.execute('SELECT id,meta FROM pieces'):
+            count = json.loads(raw)['histories']
+            expected = [(lo, min(lo + 64, count)) for lo in range(0, count, 64)] if count else [(0, 0)]
+            actual = list(db.execute('SELECT lower,upper FROM ranges WHERE piece=? ORDER BY lower', (pid,)))
+            if actual != expected:
+                raise ValueError(f'missing or invalid piece range: {pid}')
         state = zero(cfg['seeds'])
         # Identical summation order for one pool, any grouping and any worker count.
         for (blob,) in db.execute('SELECT state FROM metrics ORDER BY piece'):

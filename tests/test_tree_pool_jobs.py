@@ -14,6 +14,11 @@ from app.cli import cli
 
 
 def test_generated_stages_with_real_upload_layout(tmp_path, monkeypatch):
+    # The checked reduction loads the recorded review context. Build it before
+    # moving into simulated runner workspaces, which contain only stage artifacts.
+    from app.analysis.tree_history_checks import HistoryChecks
+    fc = HistoryChecks.forecaster()
+    monkeypatch.setattr(HistoryChecks, 'forecaster', staticmethod(lambda: fc))
     monkeypatch.chdir(tmp_path)
     original = piece(tmp_path, 'walk-f34-0001', [path('yes'), path('no')])
     store = tmp_path / 'artifacts'
@@ -47,6 +52,8 @@ def test_generated_stages_with_real_upload_layout(tmp_path, monkeypatch):
         assert len(lines) == 1
         args = shlex.split(lines[0])
         result = runner.invoke(cli, args[args.index('pool-tree'):])
+        if result.exception:
+            raise result.exception
         assert result.exit_code == 0, result.output
         # Only workflow-kept paths survive into the next stage. Heavy's common
         # root may be var/ when both walk and pool are configured; rglob handles it.
@@ -118,10 +125,21 @@ def test_interrupted_merge_is_not_a_consumable_partial(tmp_path):
 
 
 def test_matrix_limit_and_bounded_groups(tmp_path):
+    manifests = tmp_path / 'manifests/out-0/large'
+    manifests.mkdir(parents=True)
+    (manifests / 'piece.json').write_text(json.dumps({'histories': 4000, 'history_draws': 2048000}))
     lines = commands(phase='parts', runs=['walk'], node_run='union',
-                     artifact_names=[f'heavy-{i}' for i in range(1500)])
-    assert len(lines) == 125
-    assert all(line.count('--artifact') == 12 for line in lines)
+                     artifact_names=['heavy-0'], manifest_roots=[tmp_path / 'manifests'])
+    assert len(lines) > 1
+    ranges = [shlex.split(line)[shlex.split(line).index('--history-range') + 1] for line in lines]
+    previous = 0
+    for value in ranges:
+        name, lo, hi = value.split(':')
+        lo, hi = int(lo), int(hi)
+        assert name == 'large' and lo == previous
+        assert (hi - lo) * 512 * .01 / 4 <= 600
+        previous = hi
+    assert previous == 4000
     larger = commands(phase='nodes', runs=['walk'],
                       artifact_names=[f'heavy-{i}' for i in range(6200)])
     files = write_jobs(larger, tmp_path / 'run.txt')
