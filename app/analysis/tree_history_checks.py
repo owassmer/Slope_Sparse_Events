@@ -50,6 +50,7 @@ class HistoryChecks:
         self.fc.grouped = {k.split('|#', 1)[0] for k in nodes if '|#' in k and '.g' in k.split('|#', 1)[1]}
         self.db = db
         self.checkers = OrderedDict()
+        self.arrays = OrderedDict()
         self.state = empty()
         self.local_blob = lru_cache(maxsize=4096)(self.local_blob)
         self.record_variants = lru_cache(maxsize=256)(self.record_variants)
@@ -72,7 +73,7 @@ class HistoryChecks:
     def local_blob(self, blob, row):
         def local(value):
             if isinstance(value, np.ndarray) and value.ndim and len(value) == self.fc.draws.n:
-                return value[row:row + 1]
+                return value[list(row)] if isinstance(row, tuple) else value[row:row + 1]
             if isinstance(value, dict):
                 return {k: local(v) for k, v in value.items()}
             if isinstance(value, tuple):
@@ -112,11 +113,10 @@ class HistoryChecks:
         self.batch([(pid, p)])
 
     def batch(self, histories):
-        """Transpose a bounded batch: keep a native draw's prefixes hot.
+        """Replay each history on its native support as one engine array.
 
-        All history/draw pairs are checked, including pairs after the example
-        limit is reached. Only execution order changes; reporting stays in input
-        history order and native-draw order.
+        Every pair is checked after the example cap too. cached=False retains
+        the uncached per-draw reference implementation.
         """
         work, results = {}, []
         known = {d.instance_id for d in self.fc.disputes}
@@ -128,6 +128,9 @@ class HistoryChecks:
             if p.instance_id not in known:
                 continue
             records = self.records(pid, p)
+            if self.cached:
+                self.array_history(p, rows, records, failures)
+                continue
             for slot, row in enumerate(rows):
                 work.setdefault((p.instance_id, int(row)), []).append((p, slot, records, failures))
         for (_, row), jobs in sorted(work.items()):
@@ -148,6 +151,68 @@ class HistoryChecks:
                             example['checks'] = failures[name]
                         result['examples'].append(example)
 
+    def verdict(self, p, row, name, bad):
+        """Uncapped verdict hook used by the real-piece equivalence benchmark."""
+
+    def array_history(self, p, rows, records, failures):
+        from functools import lru_cache
+
+        from app.analysis.array_history_checks import order_history
+        from app.analysis.check_replay import Replay
+
+        if not len(rows):
+            return
+        support = rows
+        identity = p.instance_id, tuple(support)
+        session = self.arrays.get(identity)
+        if session is None:
+            fc = copy(self.fc)
+            fc.nodes, fc.grouped = dict(self.fc.nodes), set(self.fc.grouped)
+            fc.draws = self.fc.draws.sub(np.isin(np.arange(self.fc.draws.n), support))
+            fc.draws.prefixes = None
+            d = next(d for d in fc.disputes if d.instance_id == p.instance_id)
+            replay = Replay(fc, d, fc.draws, capacity=64)
+            shared_replay = lru_cache(maxsize=64)(replay)
+            session = fc, d, shared_replay, {}, {}, OrderedDict(), {}
+            # Bound retained daily matrices by both support width and session
+            # count; consecutive wide histories can reuse their array prefixes.
+            self.arrays[identity] = session
+            while len(self.arrays) > 1 and (len(self.arrays) > 8 or
+                                          sum(len(k[1]) for k in self.arrays) > 128):
+                self.arrays.popitem(last=False)
+        elif identity in self.arrays:
+            self.arrays.move_to_end(identity)
+        fc, d, shared_replay, shared_rows, shared_decoded, order_states, futures = session
+        records = {key: [(pre, hist, [self.local_blob(blob, tuple(support)) for blob in blobs])
+                         for pre, hist, blobs in variants] for key, variants in records.items()}
+        local = replace(p, mask=None)
+        try:
+            orders = order_history(fc, d, local, shared_replay, order_states)
+        except Exception as exc:
+            orders = [[{'kind': 'replay_error', 'error': f'{type(exc).__name__}: {exc}'}] for _ in support]
+        for row in rows:
+            slot = int(np.searchsorted(support, row))
+            if slot not in futures:
+                future = FutureChecker(fc, d, slot, {}, explain=False)
+                future.shared_rows = shared_rows
+                future.shared_decoded = shared_decoded
+                future.replayer.prefix_replay = shared_replay
+                futures[slot] = future
+            future = futures[slot]
+            future.records = records
+            try:
+                bad_future = future.history(local)
+            except Exception as exc:
+                bad_future = [{'kind': 'replay_error', 'error': f'{type(exc).__name__}: {exc}'}]
+            for name, bad in (('no_future', bad_future), ('no_skip', orders[slot])):
+                self.verdict(p, int(row), name, bad)
+                if bad and len(failures[name]) < 5:
+                    failures[name].append({'draw': int(row), 'violations': bad[:5]})
+
+        for cache in (shared_rows, shared_decoded):
+            while len(cache) > 256:
+                cache.pop(next(iter(cache)))
+
     def draw_history(self, p, slot, row, records, failures):
         order, future = self.pair(p.instance_id, int(row))
         future.records = {key: [(pre, hist, [self.local_blob(blob, int(row)) for blob in blobs])
@@ -161,6 +226,7 @@ class HistoryChecks:
             except Exception as exc:
                 # Missing facts or an unreconstructible decision is not a pass.
                 bad = [{'kind': 'replay_error', 'error': f'{type(exc).__name__}: {exc}'}]
+            self.verdict(p, int(row), name, bad)
             if bad and len(failures[name]) < 5:
                 failures[name].append({'draw': int(row), 'violations': bad[:5]})
         # Probe cache is otherwise unbounded across millions of histories.

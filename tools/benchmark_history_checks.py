@@ -13,6 +13,7 @@ import zlib
 from pathlib import Path
 
 from app.analysis.tree_history_checks import HistoryChecks
+from app.disputes.forecast import path_mask
 
 
 class ComparedChecks(HistoryChecks):
@@ -22,25 +23,10 @@ class ComparedChecks(HistoryChecks):
         super().__init__(*args, **kwargs)
         self.verdicts = {}
 
-    def pair(self, instance, row):
-        pair = super().pair(instance, row)
-        for name, checker in zip(('no_skip', 'no_future'), pair, strict=True):
-            if getattr(checker, '_audited', False):
-                continue
-            original = checker.history
-
-            def history(p, original=original, name=name):
-                try:
-                    bad = original(p)
-                except Exception as exc:
-                    bad = [{'kind': 'replay_error', 'error': f'{type(exc).__name__}: {exc}'}]
-                identity = (instance, row, name, hashlib.sha256(pickle.dumps(p)).hexdigest())
-                digest = hashlib.sha256(json.dumps(bad, sort_keys=True).encode()).hexdigest()
-                self.verdicts.setdefault(identity, []).append(digest)
-                return bad
-
-            checker.history, checker._audited = history, True
-        return pair
+    def verdict(self, p, row, name, bad):
+        identity = (p.instance_id, row, name, hashlib.sha256(pickle.dumps(p)).hexdigest())
+        digest = hashlib.sha256(json.dumps(bad, sort_keys=True).encode()).hexdigest()
+        self.verdicts.setdefault(identity, []).append(digest)
 
 
 def main():
@@ -84,15 +70,20 @@ def main():
             seconds = time.perf_counter() - start
             result = dict(offset=args.offset + checked, histories=len(batch), seconds=seconds,
                           seconds_per_history=seconds / len(batch),
-                          history_draws=fast.state['no_future']['history_draws'])
+                          history_draws=fast.state['no_future']['history_draws'],
+                          draw_widths=[fast.fc.draws.n if p.mask is None else
+                                       int(path_mask(p, fast.fc.draws.n).sum()) for _, p in batch])
             if slow is not None:
+                out.write(json.dumps({**result, 'phase': 'array_timing'}) + '\n')
+                out.flush()
+                print(json.dumps({**result, 'phase': 'array_timing'}), flush=True)
                 slow.state = empty()
                 start = time.perf_counter()
                 for pid, path in batch:
                     slow.history(pid, path)
                 result.update(slow_seconds=time.perf_counter() - start,
                               identical=fast.state == slow.state and fast.verdicts == slow.verdicts,
-                              verdict_pairs=sum(map(len, fast.verdicts.values())))
+                              verdict_pairs=sum(map(len, fast.verdicts.values())), phase='compared')
                 if not result['identical']:
                     result.update(fast=fast.state, slow=slow.state)
             out.write(json.dumps(result) + '\n')

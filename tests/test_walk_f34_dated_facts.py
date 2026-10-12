@@ -39,10 +39,15 @@ def load(path):
 
 
 @pytest.mark.parametrize('path', FIXTURES, ids=lambda p: p.stem)
-@pytest.mark.parametrize('cached', [False, True])
+@pytest.mark.parametrize('cached', [False, True, 'array'])
 def test_real_recording_boundary(path, cached):
     fc, d, p, identity, facts = load(path)
-    checker = FutureChecker(fc, d, 0, {identity: [pack_row(facts)]}, cached=cached)
+    checker = FutureChecker(fc, d, 0, {identity: [pack_row(facts)]}, cached=cached is True)
+    if cached == 'array':
+        from app.analysis.check_replay import Replay
+
+        checker.shared_rows, checker.shared_decoded = {}, {}
+        checker.replayer.prefix_replay = Replay(fc, d, fc.draws)
     bad = checker.history(p)
     if '0002_168' in path.name:
         # A genuine leak: the ripe response borrows the later offering's
@@ -63,6 +68,13 @@ def test_real_recording_boundary(path, cached):
     assert FutureChecker.equivalent(
         {k: v for k, v in original.items() if k != 'collateral'},
         {k: v for k, v in rebuilt.items() if k != 'collateral'})
+    if '0002_168' not in path.name:
+        # These four false alarms predate date-local collateral sizing. With
+        # that one stale contractual field refreshed, both replay modes pass.
+        facts['collateral'] = np.array([rebuilt['collateral']], dtype=np.int64)
+        key, prefix, completed = identity
+        checker.records[key] = [(prefix, completed, [pack_row(facts)])]
+        assert checker.history(p) == []
 
 
 def test_real_history_rerecorded_and_later_sizing_rejected():
@@ -118,13 +130,19 @@ def test_pending_requirement_does_not_read_a_later_sizing_memo(answer):
                                   ch.bond_collateral(np.array([133])))
 
 
-@pytest.mark.parametrize('cached', [False, True])
+@pytest.mark.parametrize('cached', [False, True, 'array'])
 def test_planted_future_cash_in_real_record_is_not_rounding(cached):
     path = next(p for p in FIXTURES if 'holders_act_judgment' in p.name)
     fc, d, p, identity, facts = load(path)
     # Pretend a later receipt was already in cash on the question date.
     facts['cash'] = facts['cash'] + 1
-    bad = FutureChecker(fc, d, 0, {identity: [pack_row(facts)]}, cached=cached).history(p)
+    checker = FutureChecker(fc, d, 0, {identity: [pack_row(facts)]}, cached=cached is True)
+    if cached == 'array':
+        from app.analysis.check_replay import Replay
+
+        checker.shared_rows, checker.shared_decoded = {}, {}
+        checker.replayer.prefix_replay = Replay(fc, d, fc.draws)
+    bad = checker.history(p)
     assert len(bad) == 1
     assert bad[0]['recorded']['facts']['cash'] == bad[0]['rebuilt']['facts']['cash'] + 1
 

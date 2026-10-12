@@ -1,7 +1,20 @@
-# 001-14b: bounded cached/uncached comparison. Requires staging the existing real-piece
-# trial.sqlite on the runner; outputs flush after every 20 histories. Do not submit
-# the full population: the measured narrow-history rate still misses the budget.
-uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14b/compare300.jsonl --limit 300 --batch-size 20 --compare
+# 001-14c: array/reference comparisons, independently bounded below 20 minutes.
+# Requires staging the existing real-piece var/diag/001-13e/trial.sqlite.
+# Timing is flushed BEFORE the slow reference, so a timeout retains the array rate.
+# Run these comparison lines only, not the older pooling stages below.
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare000.jsonl --offset 0 --limit 60 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare060.jsonl --offset 60 --limit 20 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare080.jsonl --offset 80 --limit 20 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare100.jsonl --offset 100 --limit 20 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare120.jsonl --offset 120 --limit 20 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare140.jsonl --offset 140 --limit 20 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare160.jsonl --offset 160 --limit 20 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare180.jsonl --offset 180 --limit 20 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare200.jsonl --offset 200 --limit 20 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare220.jsonl --offset 220 --limit 20 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare240.jsonl --offset 240 --limit 20 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare260.jsonl --offset 260 --limit 20 --batch-size 20 --compare
+uv run python -m tools.benchmark_history_checks --database var/diag/001-13e/trial.sqlite --output var/diag/001-14c/compare280.jsonl --offset 280 --limit 20 --batch-size 20 --compare
 # 001-13e: bounded exhaustive replay trial; do NOT submit the full 8-million-history stage yet.
 # Run this line alone; checkpoint batches report histories and elapsed seconds even if unfinished.
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-0 --database var/diag/001-13e/scratch.sqlite --output var/diag/001-13e/part --diagnostics var/diag/001-13e/result --seconds 600 --workers 4 --partial --gates-only --node-run 38200807860

@@ -341,8 +341,15 @@ class FutureChecker:
     def recorded(self, key, blob):
         from app.disputes.forecast import unpack_row
 
-        row = unpack_row(blob)
-        return row, bool(self.fc.live(self.fc.nodes[key], row)[self.row]), self.facts(row)
+        decoded = getattr(self, 'shared_decoded', None)
+        if decoded is None:
+            row = unpack_row(blob)
+        else:
+            if blob not in decoded:
+                decoded[blob] = unpack_row(blob)
+            row = decoded[blob]
+        live = bool(self.fc.live(self.fc.nodes[key], row)[self.row])
+        return row, live, self.facts(row) if live else None
 
     def snapshot(self, key, steps, index, probe, deferred):
         identity = key, steps, index, probe, deferred
@@ -371,8 +378,27 @@ class FutureChecker:
 
         # Canonicalize absence on this draw, not on its original pooled group.
         # A trigger BIG here may have been retained because another draw had it.
-        one = {**row, 'day': np.where(self.replayer.mask, row['day'], BIG)}
-        facts = self.local(unpack_row(pack_row(one)))
+        live = row['day'][self.row] < BIG and (row['petition'][self.row] < 0 or
+                                               row['day'][self.row] < row['petition'][self.row])
+        if hasattr(self, 'shared_rows') and live:
+            # pack_row's canonical live-lane form without compressing and
+            # widening the entire array once for each lane.
+            facts = self.local(row)
+            if facts.get('triggers'):
+                facts['triggers'] = {k: v for k, v in sorted(facts['triggers'].items())
+                                     if not (isinstance(row['triggers'][k], np.ndarray) and
+                                             row['triggers'][k].shape[:1] == (self.fc.draws.n,) and v >= BIG)}
+            if (isinstance(row.get('groups'), np.ndarray) and
+                    row['groups'].shape[:1] == (self.fc.draws.n,) and facts['groups'] < 0):
+                facts['groups'] = None
+            sit = facts.get('sit') or {}
+            if isinstance(sit.get('offerings'), list):
+                sit['offerings'] = [o for o, raw in zip(sit['offerings'], row['sit']['offerings'], strict=True)
+                                    if not (isinstance(raw[0], np.ndarray) and
+                                            raw[0].shape[:1] == (self.fc.draws.n,) and o[0] >= BIG)]
+        else:
+            one = {**row, 'day': np.where(self.replayer.mask, row['day'], BIG)}
+            facts = self.local(unpack_row(pack_row(one)))
         # `offerings` is the settlement log, populated when a close is booked.
         # A completed replay can contain a not-yet-closed entry (as_of masks its
         # outcome to False), whereas a stopped replay has not appended it yet.
@@ -402,8 +428,7 @@ class FutureChecker:
         return a == b
 
     def rebuild(self, key, steps, index, probe, deferred):
-        from app.disputes.forecast import _Walk, as_of, group_classes
-        from app.disputes.notes import NAMES, decision_row, record_row
+        from app.disputes.forecast import _Walk
 
         fc, d = self.fc, self.d
         base = key.split('|#', 1)[0]
@@ -463,9 +488,33 @@ class FutureChecker:
         conditions = walk.situation_conditions(node.node)
         ctx = [c for c in ctx if c not in conditions and c not in ('motions_pending', 'stay_pending', 'stay_denied')]
         rebuilt_base = fc.node(d, node.node, *ctx, assumptions=node.assumptions, branches=node.branches)
+        identity = rebuilt_base, steps, index, probe, deferred
+        shared = getattr(self, 'shared_rows', None)
+        if shared is not None and identity in shared:
+            got = shared[identity]
+        else:
+            got = self.rebuild_rows(base, rebuilt_base, node, steps, index, probe, deferred)
+            if shared is not None:
+                shared[identity] = got
+        live = [(k, r) for k, r in got if fc.live(fc.nodes[k], r)[self.row]]
+        if not live:
+            return dict(key=None, cls=None, facts=None, unavailable='question not live after date-local replay')
+        if len(live) != 1:
+            raise AssertionError('multiple classes for one question/draw')
+        k, r = live[0]
+        return dict(key=None if unopened else k, cls=k.split('|#', 1)[1] if '|#' in k else None,
+                    facts=self.facts(r), **({'unavailable': unopened} if unopened else {}))
+
+    def rebuild_rows(self, base, rebuilt_base, node, steps, index, probe, deferred):
+        """Engine reconstruction shared across draws, before selecting any lane."""
+        from app.disputes.forecast import as_of, group_classes
+        from app.disputes.notes import NAMES, decision_row, record_row
+
+        fc, d = self.fc, self.d
         if node.node in NAMES:
             actor = 'holders' if node.node == 'holders_involuntary' else 'issuer'
-            row, tr = decision_row(fc, d, steps, index, actor, self.replayer.mask)
+            mask = None if hasattr(self, 'shared_rows') else self.replayer.mask
+            row, tr = decision_row(fc, d, steps, index, actor, mask)
             got = []
             original = fc._keep_late
             fc._keep_late = lambda k, p, r: got.append((k, r))
@@ -496,14 +545,7 @@ class FutureChecker:
                 cls = group_classes(cls, row['groups'])
             got = []
             fc._split((rebuilt_base,), row, lambda k, r: got.append((k, r)), cls)
-        live = [(k, r) for k, r in got if fc.live(fc.nodes[k], r)[self.row]]
-        if not live:
-            return dict(key=None, cls=None, facts=None, unavailable='question not live after date-local replay')
-        if len(live) != 1:
-            raise AssertionError('multiple classes for one question/draw')
-        k, r = live[0]
-        return dict(key=None if unopened else k, cls=k.split('|#', 1)[1] if '|#' in k else None,
-                    facts=self.facts(r), **({'unavailable': unopened} if unopened else {}))
+        return got
 
     def history(self, p):
         from datetime import timedelta
