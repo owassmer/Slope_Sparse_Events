@@ -125,6 +125,16 @@ class HistoryChecks:
         the uncached per-draw reference implementation.
         """
         work, results = {}, []
+        # Narrow leaves often differ in support while sharing the same engine
+        # prefix. Replay them on their batch's union, then judge only native lanes.
+        # Never broaden the checked population or count the extra engine lanes.
+        narrow = {}
+        if self.cached:
+            for _, p in histories:
+                mask = path_mask(p, self.fc.draws.n)
+                rows = np.arange(self.fc.draws.n) if mask is None else np.flatnonzero(mask)
+                if len(rows) < 8:
+                    narrow.setdefault(p.instance_id, set()).update(map(int, rows))
         known = {d.instance_id for d in self.fc.disputes}
         for pid, p in histories:
             on = path_mask(p, self.fc.draws.n)
@@ -135,7 +145,9 @@ class HistoryChecks:
                 continue
             records = self.records(pid, p)
             if self.cached:
-                self.array_history(p, rows, records, failures)
+                union = narrow.get(p.instance_id, ()) if len(rows) < 8 else ()
+                support = np.array(sorted(union)) if 0 < len(union) <= 64 else rows
+                self.array_history(p, rows, records, failures, support=support)
                 continue
             for slot, row in enumerate(rows):
                 work.setdefault((p.instance_id, int(row)), []).append((p, slot, records, failures))
@@ -184,7 +196,7 @@ class HistoryChecks:
             signature = json.dumps(fields, sort_keys=True)
             counts[signature] = counts.get(signature, 0) + 1
 
-    def array_history(self, p, rows, records, failures):
+    def array_history(self, p, rows, records, failures, *, support=None):
         from functools import lru_cache
 
         from app.analysis.array_history_checks import order_history
@@ -192,7 +204,7 @@ class HistoryChecks:
 
         if not len(rows):
             return
-        support = rows
+        support = rows if support is None else support
         identity = p.instance_id, tuple(support)
         session = self.arrays.get(identity)
         if session is None:
@@ -215,7 +227,14 @@ class HistoryChecks:
         fc, d, shared_replay, shared_rows, shared_decoded, order_states, futures = session
         records = {key: [(pre, hist, [self.local_blob(blob, tuple(support)) for blob in blobs])
                          for pre, hist, blobs in variants] for key, variants in records.items()}
-        local = replace(p, mask=None)
+        classes = []
+        for base, tags, codes in p.classes:
+            if codes is not None:
+                expanded = np.full(len(support), -1, dtype=np.int8)
+                expanded[np.searchsorted(support, rows)] = np.frombuffer(codes, dtype=np.int8)
+                codes = expanded.tobytes()
+            classes.append((base, tags, codes))
+        local = replace(p, mask=None, classes=tuple(classes))
         try:
             orders = order_history(fc, d, local, shared_replay, order_states)
         except Exception as exc:

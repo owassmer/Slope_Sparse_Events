@@ -77,6 +77,9 @@ def pool_tree(
     merge_only: bool = typer.Option(False, help='Intermediate combine level; emit a mergeable partial without final gates.'),
     diagnostics: str = typer.Option('var/diag/tree-pool', help='Small status, timings and gate verdicts retained in out-N.'),
     nodes_only: bool = typer.Option(False, help='First pass: extract/union node catalogs before evaluating parts.'),
+    checks_only: bool = typer.Option(False, help='Check this wave independently before node union; resumable checks.sqlite and checks.json.'),
+    check_part: Annotated[list[str] | None, typer.Option(help='Previously checked checks.sqlite; repeat for disjoint ranges. Reduction consumes these instead of replaying.')] = None,
+    check_run: Annotated[list[str] | None, typer.Option(help='Download checks.sqlite parts from these GitHub runs for reduction.')] = None,
     node_catalog: str | None = typer.Option(None, help='Frozen union nodes.sqlite, shared by every part.'),
     node_run: str | None = typer.Option(None, help='Download frozen union nodes.sqlite from this GitHub run, out-0.'),
 ) -> None:
@@ -103,7 +106,19 @@ def pool_tree(
         raise typer.BadParameter('--merge-only requires --combine and cannot union nodes')
     if partial and (combine or nodes_only):
         raise typer.BadParameter('--combine, --partial and --nodes-only/--partial are mutually exclusive')
+    if (check_part or check_run) and (not partial or checks_only):
+        raise typer.BadParameter('--check-part/--check-run require reduction --partial')
+    if checks_only and (nodes_only or partial):
+        raise typer.BadParameter('--checks-only is a separate stage')
     with tempfile.TemporaryDirectory(prefix='pool-nodes-') as temp:
+        checked = list(check_part or [])
+        for index, run in enumerate(check_run or []):
+            folder = Path(temp) / f'checks-{index}'
+            subprocess.run(['gh', 'run', 'download', run, '--pattern', 'heavy-*', '--dir', str(folder)], check=True)
+            paths = list(folder.rglob('checks.sqlite'))
+            if not paths:
+                raise typer.BadParameter(f'check run {run}: no checks.sqlite')
+            checked.extend(map(str, paths))
         if node_run:
             if node_catalog:
                 raise typer.BadParameter('use --node-run or --node-catalog, not both')
@@ -115,20 +130,21 @@ def pool_tree(
         if combine:
             result = combine_parts(database=Path(database), output=Path(output), local=local or [],
                                    runs=run_ids, artifacts=artifact or [], nodes_only=nodes_only,
-                                   merge_only=merge_only)
+                                   merge_only=merge_only, checks_only=checks_only)
         else:
             result = pool(database=Path(database), output=Path(output), local=local or [], runs=run_ids,
                           links=json.loads(Path(links).read_text()) if links else None,
                           seconds=seconds, finish=finish, workers=workers, artifacts=artifact or [],
                           partial=partial, node_catalog=node_catalog, nodes_only=nodes_only,
-                          gates_only=gates_only, history_ranges=history_range or [])
+                          gates_only=gates_only, history_ranges=history_range or [],
+                          checks_only=checks_only, check_parts=checked)
     import shutil
 
     result['wall_seconds'] = time.monotonic() - started
     diag = Path(diagnostics)
     diag.mkdir(parents=True, exist_ok=True)
     (diag / 'result.json').write_text(json.dumps(result) + '\n')
-    for name in ('gates.json', 'combine-timing.json'):
+    for name in ('gates.json', 'checks.json', 'combine-timing.json'):
         source = Path(output) / name
         if source.exists() and source.resolve() != (diag / name).resolve():
             shutil.copyfile(source, diag / name)

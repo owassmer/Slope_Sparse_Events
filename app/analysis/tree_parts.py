@@ -128,7 +128,8 @@ def trim_samples(db, size):
 
 
 def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
-              workers=1, node_catalog=None, gates_only=False, history_ranges=()):
+              workers=1, node_catalog=None, gates_only=False, history_ranges=(),
+              checks_only=False, check_parts=()):
     """Reduce selected half-open ordinal ranges, checkpointing canonical blocks.
 
     Node catalogs must be frozen before evaluation. Full coverage is required at
@@ -147,7 +148,8 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
                     raise ValueError(f'question domain absent or changed in node catalog: {key}')
             copy_nodes(catalog, db)
     signature = node_signature(db)
-    settings = {'kind': 'tree-part-v4', 'nodes': signature, 'seeds': list(seeds),
+    settings = {'kind': 'wave-checks-v1' if checks_only else 'tree-part-v4',
+                'external_checks': bool(check_parts), 'nodes': signature, 'seeds': list(seeds),
                 'sample_size': sample_size, 'gates_only': gates_only,
                 'selection': sorted(history_ranges)}
     target = Path(target)
@@ -155,7 +157,8 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
     nodes = {k: pickle.loads(b) for k, b in db.execute('SELECT * FROM nodes')}
     with closing(connect(target)) as out:
         old = config(out)
-        if old and any(old.get(k) != v for k, v in settings.items()):
+        if old and any(old.get(k, False if k == 'external_checks' else None) != v
+                       for k, v in settings.items()):
             raise ValueError('partial settings changed; use a new output directory')
         with out:
             for key, value in settings.items():
@@ -201,14 +204,31 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
                 out.execute('INSERT OR IGNORE INTO pieces VALUES (?,?,?)', (pid, meta, source))
             put_config(out, 'remaining_ranges', [f'{Path(source).name}:{lo}:{hi}'
                        for _, _, source, _, lo, hi in jobs])
+        from app.analysis.wave_checks import load_parts
+        saved_checks = load_parts(check_parts, selection={(pid, lo, hi) for pid, _, _, _, lo, hi in jobs}) if check_parts else None
         deadline = start + seconds
         with ProcessPoolExecutor(max_workers=workers) if workers > 1 else nullcontext() as executor:
-            tasks = [(database, seeds, base + lo, base + hi, True)
+            tasks = [(database, seeds, base + lo, base + hi,
+                      'only' if checks_only else (False if saved_checks is not None else True))
                      for _, _, _, base, lo, hi in jobs]
             results = (bounded_results(executor, tasks, workers, deadline) if executor else
                        serial_results(db, tasks, deadline))
             for index, (state, block_seconds) in results:
                 pid, meta, source, base, lo, hi = jobs[index]
+                from app.analysis.wave_checks import fingerprint
+                stamp = fingerprint(db, pid, base + lo, base + hi) if checks_only or saved_checks is not None else None
+                if saved_checks is not None:
+                    key = (pid, lo, hi)
+                    if key not in saved_checks or saved_checks[key][0] != stamp:
+                        raise ValueError(f'missing or changed checked range: {key}')
+                    checked = saved_checks[key][1]
+                    native_draws = sum(int.from_bytes(mask).bit_count() for (mask,) in db.execute(
+                        'SELECT mask FROM paths WHERE piece=? AND id>? AND id<=?', (pid, base + lo, base + hi)))
+                    if set(checked) != {'no_future', 'no_skip'} or any(
+                            row['histories'] != hi - lo or row['history_draws'] != native_draws
+                            for row in checked.values()):
+                        raise ValueError(f'incomplete history-draw checks: {key}')
+                    state = (*state[:5], checked, state[-1])
                 with out:
                     out.execute('INSERT OR IGNORE INTO pieces VALUES (?,?,?)', (pid, meta, source))
                     out.execute('INSERT INTO ranges VALUES (?,?,?)', (pid, lo, hi))
@@ -218,14 +238,18 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
                                     ((pid, identity, mask) for identity, mask in db.execute(
                                         'SELECT identity,mask FROM paths WHERE piece=? AND id>? AND id<=? ORDER BY id',
                                         (pid, base + lo, base + hi))))
-                    save_block_details(db, out, pid, base, lo, hi, nodes, sample_size, gates_only)
+                    if checks_only:
+                        put_config(out, f'fingerprint:{pid}:{lo}', stamp)
+                    else:
+                        save_block_details(db, out, pid, base, lo, hi, nodes, sample_size, gates_only)
                     remaining_ranges = [f'{Path(s).name}:{a}:{b}' for p, _, s, _, a, b in jobs
                                         if not out.execute('SELECT 1 FROM ranges WHERE piece=? AND lower=?',
                                                            (p, a)).fetchone()]
                     put_config(out, 'remaining_ranges', remaining_ranges)
                 draws = sum(int.from_bytes(mask).bit_count() for (mask,) in db.execute(
                     'SELECT mask FROM paths WHERE piece=? AND id>? AND id<=?', (pid, base + lo, base + hi)))
-                print(tree.encode({'stage': 'history_checks', 'piece': pid, 'source': source,
+                print(tree.encode({'stage': 'history_checks' if checks_only or saved_checks is None else 'reduction',
+                                   'piece': pid, 'source': source,
                                    'range': [lo, hi], 'history_draws': draws, 'block_seconds': block_seconds,
                                    'elapsed_seconds': time.monotonic() - start}), flush=True)
                 # Drain running blocks after the deadline instead of discarding them.
@@ -234,6 +258,9 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
         histories = out.execute('SELECT COALESCE(SUM(upper-lower),0) FROM ranges').fetchone()[0]
         pieces = out.execute('SELECT COUNT(*) FROM pieces').fetchone()[0]
         remaining_ranges = config(out)['remaining_ranges']
+    if checks_only:
+        from app.analysis.wave_checks import report
+        report(target)
     target.with_name('remaining.json').write_text(tree.encode(remaining_ranges) + '\n')
     return {'status': 'partial_ready', 'file': str(target), 'seconds': time.monotonic() - start,
             'pieces': pieces, 'histories': histories, 'bytes': target.stat().st_size,
@@ -247,11 +274,11 @@ def timed_block(task):
 
 
 def serial_results(db, tasks, deadline):
-    for i, (_, seeds, lo, hi, _) in enumerate(tasks):
+    for i, (_, seeds, lo, hi, checks) in enumerate(tasks):
         if i and time.monotonic() >= deadline:
             break
         start = time.monotonic()
-        state = tree.accumulate(db, seeds, lo, hi, check_histories=True)
+        state = tree.accumulate(db, seeds, lo, hi, check_histories=checks)
         yield i, (state, time.monotonic() - start)
 
 
@@ -299,15 +326,15 @@ def save_block_details(db, out, pid, base, lo, hi, nodes, sample_size, gates_onl
     trim_samples(out, sample_size)
 
 
-def merge_part(db, path, *, nodes_only=False):
+def merge_part(db, path, *, nodes_only=False, checks_only=False):
     with closing(sqlite3.connect(path)) as incoming:
         cfg = config(incoming)
-        expected = 'nodes-v1' if nodes_only else 'tree-part-v4'
+        expected = 'nodes-v1' if nodes_only else ('wave-checks-v1' if checks_only else 'tree-part-v4')
         if not cfg.get('complete') or cfg.get('kind') != expected:
             raise ValueError(f'incomplete or wrong kind of partial: {path}')
         old = config(db)
         if not nodes_only and old:
-            for key in ('nodes', 'seeds', 'sample_size', 'kind', 'gates_only'):
+            for key in (('kind',) if checks_only else ('nodes', 'seeds', 'sample_size', 'kind', 'gates_only')):
                 if old.get(key) != cfg.get(key):
                     raise ValueError(f'partial {key} differs; all parts need the same frozen node catalog and settings')
         # Validate domains before any writes, even when all hashes agree.
@@ -399,13 +426,13 @@ def finalize(database, output):
 
 
 def combine(*, database, output, local=(), runs=(), artifacts=(), nodes_only=False,
-            merge_only=False):
+            merge_only=False, checks_only=False):
     """Consume one reduction artifact at a time; intermediate levels remain mergeable."""
     start = time.monotonic()
     database, output = Path(database), Path(output)
     if database.exists():
         raise ValueError('combine needs a fresh database (prevents accidentally combining a part twice)')
-    filename = 'nodes.sqlite' if nodes_only else 'partial.sqlite'
+    filename = 'nodes.sqlite' if nodes_only else ('checks.sqlite' if checks_only else 'partial.sqlite')
     with closing(connect(database)) as db:
         found = 0
         for root in local:
@@ -414,7 +441,7 @@ def combine(*, database, output, local=(), runs=(), artifacts=(), nodes_only=Fal
             if not paths:
                 raise ValueError(f'{root}: no {filename}')
             for path in paths:
-                merge_part(db, path, nodes_only=nodes_only)
+                merge_part(db, path, nodes_only=nodes_only, checks_only=checks_only)
                 found += 1
         for run in runs:
             result = subprocess.run(['gh', 'api', f'repos/{{owner}}/{{repo}}/actions/runs/{run}/artifacts',
@@ -435,7 +462,7 @@ def combine(*, database, output, local=(), runs=(), artifacts=(), nodes_only=Fal
                     if not paths:
                         raise ValueError(f'{run}/{name}: no {filename}')
                     for path in paths:
-                        merge_part(db, path, nodes_only=nodes_only)
+                        merge_part(db, path, nodes_only=nodes_only, checks_only=checks_only)
                         found += 1
                 print(tree.encode({'combined': found, 'bytes': database.stat().st_size}), flush=True)
         if not found:
@@ -445,12 +472,15 @@ def combine(*, database, output, local=(), runs=(), artifacts=(), nodes_only=Fal
         if nodes_only:
             return save_nodes(db, output / filename)
     merge_seconds = time.monotonic() - start
-    if merge_only:
-        target = output / 'partial.sqlite'
+    if merge_only or checks_only:
+        target = output / filename
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.resolve() != database.resolve():
             with closing(sqlite3.connect(database)) as src, closing(sqlite3.connect(target)) as dest:
                 src.backup(dest)
+        if checks_only:
+            from app.analysis.wave_checks import report
+            return report(target, require_complete=not merge_only)
         return {'status': 'partial_ready', 'parts': found, 'seconds': merge_seconds,
                 'bytes': target.stat().st_size}
     report = finalize(database, output)

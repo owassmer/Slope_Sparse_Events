@@ -3134,7 +3134,7 @@ class Chain:
             return tr
         return self._snapshot_tail(tr, day_only)
 
-    def court_questions(self, tr: Trace, steps) -> None:
+    def court_questions(self, tr: Trace, steps, *, indices=None) -> None:
         """Read each court question before its answer and same-day waiting events.
 
         A completed path may already have booked that day's levy and distress.
@@ -3145,6 +3145,8 @@ class Chain:
         replaces the actual path's financial events.
         """
         for i, st in self.stays.items():
+            if indices is not None and i not in indices:
+                continue
             if (not self.captures(i) or steps[i][0] != "stay" or not st["moved"]
                     or "question" not in self.stay_facts(i)):
                 continue

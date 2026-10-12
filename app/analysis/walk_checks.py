@@ -534,7 +534,7 @@ class FutureChecker:
             at = len(replay) - 1 if completed is not None else index
             path = DisputePath(self.d.instance_id, tuple(replay), '', ())
             if self.replayer.prefix_replay is not None:
-                tr = self.replayer.prefix_replay(replay)
+                tr = self.replayer.prefix_replay(replay, question=at)
             else:
                 tr = event_trace(self.d, path, fc.setup, fc.m, self.replayer.draws, fc.sens,
                                  rows=tuple(self.replayer.mask for _ in replay))

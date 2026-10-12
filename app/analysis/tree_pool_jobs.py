@@ -1,7 +1,11 @@
 """Generate dependency stages, never submit a workflow.
 
-nodes --runs WALK -> node-union --runs NODES -> parts --runs WALK --node-run UNION
--> merge --runs PARTS -> combine --runs MERGE. Repeat merge for larger populations.
+checks --runs WAVE -> check-combine --runs CHECKS runs before node union.
+Then nodes --runs WALK -> node-union --runs NODES ->
+parts --runs WALK --node-run UNION --check-run CHECKS -> merge -> combine.
+Checks use the same canonical range packing and --remaining follow-ups as parts.
+The check budget starts at .3s/history and .03s/history-draw; measured rates can
+be supplied explicitly. These are planning rates, not runtime guarantees. Repeat merge for larger populations.
 Use identical walk/local inputs for nodes and parts. Local folders must be staged on
 runners before use. Outputs over 256 lines are split into numbered run.txt files;
 submit all files of a stage before generating its successor with all their run IDs.
@@ -19,25 +23,27 @@ from pathlib import Path
 
 
 def commands(*, phase, runs=(), local=(), node_run=None, workers=4, batch_size=None,
-             artifact_names=None, manifest_roots=(), seconds_per_draw=.05, remaining=None,
-             seconds_per_history=1.3):
+             artifact_names=None, manifest_roots=(), seconds_per_draw=None, remaining=None,
+             seconds_per_history=None, check_runs=()):
+    seconds_per_draw = (.03 if phase == 'checks' else .05) if seconds_per_draw is None else seconds_per_draw
+    seconds_per_history = (.3 if phase == 'checks' else 1.3) if seconds_per_history is None else seconds_per_history
     base = ['uv', 'run', 'slope', 'pool-tree']
     prefix = 'OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 '
-    if remaining is not None and phase != 'parts':
+    if remaining is not None and phase not in ('parts', 'checks'):
         raise ValueError('remaining ranges apply only to parts')
     if phase == 'parts' and not node_run:
         raise ValueError('parts require the frozen --node-run from node-union')
-    combine = phase in ('node-union', 'merge', 'combine')
+    combine = phase in ('node-union', 'merge', 'combine', 'check-combine')
     # Node discovery and intermediate merges are bounded by artifact count.
     # Checked parts instead pack canonical ranges by manifest history-draws.
     size = batch_size or (16 if phase == 'merge' else 12)
     if size < 1:
         raise ValueError('batch size must be positive')
     inputs = []
-    if phase == 'parts':
+    if phase in ('parts', 'checks'):
         inputs = reduction_inputs(runs, local, artifact_names, manifest_roots, workers,
                                   seconds_per_draw, remaining, seconds_per_history)
-    elif phase in ('node-union', 'combine'):
+    elif phase in ('node-union', 'combine', 'check-combine'):
         inputs = [[arg for run in runs for arg in ('--runs', str(run))]
                   + [arg for root in local for arg in ('--local', str(root))]]
     else:
@@ -73,14 +79,17 @@ def commands(*, phase, runs=(), local=(), node_run=None, workers=4, batch_size=N
         database = output + '/partial.sqlite' if phase == 'merge' else 'scratch.sqlite'
         args = base + source + ['--database', database, '--output', output,
                                 '--diagnostics', f'var/diag/pool-{i:05d}',
-                                '--seconds', '800' if phase == 'parts' else '1000',
+                                '--seconds', '800' if phase in ('parts', 'checks') else '1000',
                                 '--workers', str(workers)]
         if combine:
             args += ['--combine']
         if phase in ('nodes', 'node-union'):
             args += ['--nodes-only']
+        elif phase in ('checks', 'check-combine'):
+            args += ['--checks-only']
         elif phase == 'parts':
             args += ['--partial', '--gates-only', '--node-run', str(node_run)]
+            args += [arg for run in check_runs for arg in ('--check-run', str(run))]
         elif phase == 'merge':
             args += ['--merge-only']
         lines.append(prefix + shlex.join(args))
@@ -211,17 +220,18 @@ def write_jobs(lines, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--phase', choices=('nodes', 'node-union', 'parts', 'merge', 'combine'), required=True)
+    parser.add_argument('--phase', choices=('nodes', 'node-union', 'checks', 'check-combine', 'parts', 'merge', 'combine'), required=True)
     parser.add_argument('--runs', action='append', default=[])
     parser.add_argument('--run-list', type=Path)
     parser.add_argument('--local', action='append', default=[])
     parser.add_argument('--node-run')
+    parser.add_argument('--check-run', action='append', default=[])
     parser.add_argument('--workers', type=int, choices=range(1, 5), default=4)
     parser.add_argument('--batch-size', type=int)
-    parser.add_argument('--seconds-per-draw', type=float, default=.05,
-                        help='Measured worker-seconds/history-draw (default .05; 1.3s/history floor).')
-    parser.add_argument('--seconds-per-history', type=float, default=1.3,
-                        help='Measured narrow-history floor in worker seconds (default 1.3).')
+    parser.add_argument('--seconds-per-draw', type=float,
+                        help='Worker-seconds/history-draw (checks: .03; legacy reduction: .05).')
+    parser.add_argument('--seconds-per-history', type=float,
+                        help='Narrow-history worker-seconds floor (checks: .3; legacy reduction: 1.3).')
     parser.add_argument('--remaining', type=Path, action='append', default=[],
                         help='Stopped partial.sqlite, remaining.json or result.json; repeat for multiple lines.')
     parser.add_argument('--artifact-list', type=Path, help='Offline inventory: one heavy-N per line, for exactly one --runs.')
@@ -237,7 +247,7 @@ def main():
                      node_run=args.node_run, workers=args.workers, batch_size=args.batch_size,
                      artifact_names=args.artifact_list.read_text().splitlines() if args.artifact_list else None,
                      manifest_roots=args.manifest_root, seconds_per_draw=args.seconds_per_draw,
-                     seconds_per_history=args.seconds_per_history,
+                     seconds_per_history=args.seconds_per_history, check_runs=args.check_run,
                      remaining=[r for p in args.remaining for r in read_remaining(p)]
                      if args.remaining else None)
     files = write_jobs(lines, args.output)

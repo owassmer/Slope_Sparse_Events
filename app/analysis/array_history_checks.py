@@ -17,9 +17,7 @@ def order_history(fc, d, p, replay, cache=None):
     tr = replay(p.steps, light=True)
     days = [np.broadcast_to(day, (n,)) for day in tr.day]
     bounds = np.where(tr.events.petition < 0, N, np.minimum(N, tr.events.petition))
-    ch = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
-    ch.instrument_cash()
-    trace = Trace(ch.ev)
+    ch = None
     states = [State(a4='', pending=[Decision('settle', 'I0')]) for _ in range(n)]
     bad = [[] for _ in range(n)]
     last = np.full(n, -1)
@@ -47,7 +45,7 @@ def order_history(fc, d, p, replay, cache=None):
 
     start = 0
     if cache is not None:
-        for i in range(len(p.steps), 0, -1):
+        for i in range(len(p.steps), -1, -1):
             key = state_key(i)
             if key in cache:
                 saved_ch, states, bad, last = cache[key]
@@ -56,6 +54,12 @@ def order_history(fc, d, p, replay, cache=None):
                 cache.move_to_end(key)
                 start = i
                 break
+    if ch is None:
+        ch = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
+        ch.instrument_cash()
+        if cache is not None:
+            cache[state_key(0)] = ch.clone(), deepcopy(states), deepcopy(bad), last.copy()
+    trace = Trace(ch.ev)
     for i in range(start, len(p.steps) + 1):
         if cache is not None and i > start:
             cache[state_key(i)] = ch.clone(), deepcopy(states), deepcopy(bad), last.copy()

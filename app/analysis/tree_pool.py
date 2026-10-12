@@ -245,6 +245,9 @@ def answer_atoms(key, branch):
 
 def accumulate(db, seeds, lower, upper, *, check_histories=False):
     """Independent, bounded history range; reduction order is fixed by row ID."""
+    if check_histories == 'only':
+        from app.analysis.wave_checks import check_block
+        return check_block(db, seeds, lower, upper)
     nodes = {k: pickle.loads(b) for k, b in db.execute('SELECT * FROM nodes')}
     from app.analysis.tree_history_checks import HistoryChecks
 
@@ -363,7 +366,7 @@ def accumulate(db, seeds, lower, upper, *, check_histories=False):
 def accumulate_worker(task):
     database, seeds, lower, upper, *checks = task
     with closing(sqlite3.connect(f'{Path(database).resolve().as_uri()}?mode=ro', uri=True)) as db:
-        return accumulate(db, seeds, lower, upper, check_histories=bool(checks and checks[0]))
+        return accumulate(db, seeds, lower, upper, check_histories=checks[0] if checks else False)
 
 
 def write_catalog(db, target, keys, counts, draws):
@@ -488,7 +491,8 @@ def export(db, output, *, seeds=(17, 91, 307), sample_size=32, seconds=900, work
 
 
 def pool(*, database, output, local=(), runs=(), links=None, seconds=900, finish=True, workers=1,
-         artifacts=(), partial=False, node_catalog=None, nodes_only=False, gates_only=False, history_ranges=()):
+         artifacts=(), partial=False, node_catalog=None, nodes_only=False, gates_only=False, history_ranges=(),
+         checks_only=False, check_parts=()):
     """Restart at artifact boundaries. An interrupted artifact's DB transaction rolls back.
 
     --runs is ordered only for convenience; coverage uses input routes, not wave
@@ -499,7 +503,11 @@ def pool(*, database, output, local=(), runs=(), links=None, seconds=900, finish
     """
     if workers < 1:
         raise ValueError('workers must be positive')
-    if history_ranges and not partial:
+    if check_parts and not partial:
+        raise ValueError('check parts require partial reduction')
+    if checks_only and (partial or nodes_only or check_parts):
+        raise ValueError('checks-only is a separate stage')
+    if history_ranges and not (partial or checks_only):
         raise ValueError('history ranges require --partial')
     if partial and node_catalog is None:
         raise ValueError('--partial requires --node-catalog from the union of all node parts')
@@ -580,10 +588,11 @@ def pool(*, database, output, local=(), runs=(), links=None, seconds=900, finish
             metas = [json.loads(meta) for (meta,) in db.execute('SELECT meta FROM pieces')]
             return {**result, 'pieces': len(metas), 'histories': sum(m['histories'] for m in metas),
                     'seconds': time.monotonic() - start}
-        if partial:
+        if partial or checks_only:
             from app.analysis.tree_parts import summarize
-            if node_catalog is None:
+            if node_catalog is None and not checks_only:
                 raise ValueError('--partial requires --node-catalog from the union of all node parts')
-            return summarize(db, output / 'partial.sqlite', node_catalog=node_catalog,
-                             seconds=remaining, workers=workers, gates_only=gates_only, history_ranges=history_ranges)
+            return summarize(db, output / ('checks.sqlite' if checks_only else 'partial.sqlite'), node_catalog=node_catalog,
+                             seconds=remaining, workers=workers, gates_only=gates_only, history_ranges=history_ranges,
+                             checks_only=checks_only, check_parts=check_parts)
         return export(db, output, seconds=remaining, workers=workers) if finish else {'status': 'ingested', 'database': str(database)}
