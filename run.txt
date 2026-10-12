@@ -1,18 +1,2 @@
-# 001-13c: bounded pooling. These are sequential STAGES, not one concurrent submission.
-# Generate an executable GitHub stage from the real walk run IDs (not present in this checkout):
-# uv run python -m app.analysis.tree_pool_jobs --phase nodes --run-list WALK_RUN_IDS --output run.txt
-# Submit nodes. Then generate node-union with --runs NODE_RUN (repeat for every submission).
-# Submit node-union alone. Then generate parts with the SAME --run-list and --node-run UNION_RUN.
-# Submit parts. Then generate combine with --runs PART_RUN (repeat for every submission).
-# Never submit a downstream stage before its inputs exist. Each generated part selects ONE heavy-N.
-# Node discovery and reduction need separate scratch databases. Keep partial.sqlite and pieces.json;
-# keep original heavy artifacts/local whole pieces for the later cash pass. No cash pass is implemented.
-# Later S3 arrivals use --local WHOLE_PIECE_ROOT in BOTH discovery and reduction planning.
-# The following real-piece trial is staged locally here, not available on a fresh GitHub runner.
-# Lines below run sequentially for the local trial; GitHub measurements need generated stages above.
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --local var/pool-continuation --nodes-only --database var/diag/001-13c-v2/nodes-scratch.sqlite --output var/diag/001-13c-v2/nodes --workers 1 --seconds 120
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --local var/pool-continuation --partial --node-catalog var/diag/001-13c-v2/nodes/nodes.sqlite --database var/diag/001-13c-v2/scratch.sqlite --output var/diag/001-13c-v2/part --workers 1 --seconds 120
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --combine --local var/diag/001-13c-v2/part --database var/diag/001-13c-v2/measured-combined.sqlite --output var/diag/001-13c-v2/measured-combined
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --local var/diag/001-12e/walk --nodes-only --database var/diag/001-13c-second/nodes-scratch.sqlite --output var/diag/001-13c-second/nodes --workers 1 --seconds 120
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --local var/diag/001-12e/walk --partial --node-catalog var/diag/001-13c-second/nodes/nodes.sqlite --database var/diag/001-13c-second/scratch.sqlite --output var/diag/001-13c-second/part --workers 1 --seconds 120
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --combine --local var/diag/001-13c-second/part --database var/diag/001-13c-second/combined.sqlite --output var/diag/001-13c-second/combined
+# pool-t2-combine: 001-13d final combine of pool-t2-merge (run 38202522039)
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38202522039 --database scratch.sqlite --output var/pool/part-00000 --diagnostics var/diag/pool-00000 --seconds 1000 --workers 4 --combine
