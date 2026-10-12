@@ -248,7 +248,11 @@ class ChronologicalWalk(_Walk):
                     tr = Trace(booked.ev)
                     for step in y.steps[len(s.steps):]:
                         booked.advance(tr, *step)
-                    booked.until(np.where(local_on, candidate.day + 1, -1))
+                    # An answer can enable another decision before a same-day
+                    # booking (notably registration/enforcement -> levy response).
+                    # Return to the frontier before draining the day. Its phases
+                    # put the response before the writ and the writ before distress;
+                    # waiting answers are themselves deterministic boundaries.
                     todo = remaining
                     if y.steps == s.steps and todo == pending:
                         raise RuntimeError(f"selected decision made no progress: {d}; "

@@ -475,7 +475,13 @@ class FutureChecker:
             appealed = any(n == 'appeal' and plain(b) == 'yes' for n, _, b in before)
             ctx = [('appealed' if appealed else 'final') if c in ('appealed', 'final') else c for c in ctx]
         unopened = None
-        if ctx and ctx[0] in ('I1', 'I2', 'I4'):
+        if node.node == 'holders_act_judgment':
+            # Here I1 identifies the entered judgment's notes-default clock,
+            # opened after either motions answer, not the litigation interval
+            # while motions are pending. Its origin must still match the step.
+            if not ctx or steps[index][:2] != ('judgment_default', ctx[0]):
+                unopened = 'holders action requires its named judgment-default occasion'
+        elif ctx and ctx[0] in ('I1', 'I2', 'I4'):
             motions = next((b for n, _, b in before if n == 'post_trial_motions'), None)
             if d.stage == 'liability_pending':
                 if ctx[0] == 'I1' and motions != 'yes':

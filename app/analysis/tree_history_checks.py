@@ -12,7 +12,8 @@ from app.disputes.forecast import atoms, pack_row, path_mask, unpack_row
 
 
 def empty():
-    return {name: {'histories': 0, 'history_draws': 0, 'failed_histories': 0, 'examples': []}
+    return {name: {'histories': 0, 'history_draws': 0, 'failed_histories': 0, 'examples': [],
+                   'violation_counts': {}, 'categorized_history_draws': 0}
             for name in ('no_future', 'no_skip')}
 
 
@@ -21,6 +22,11 @@ def merge(a, b):
         for key in ('histories', 'history_draws', 'failed_histories'):
             a[name][key] += row[key]
         a[name]['examples'].extend(row['examples'][:max(0, 50 - len(a[name]['examples']))])
+        a[name]['categorized_history_draws'] = (a[name].get('categorized_history_draws', 0)
+                                                + row.get('categorized_history_draws', 0))
+        counts = a[name].setdefault('violation_counts', {})
+        for signature, count in row.get('violation_counts', {}).items():
+            counts[signature] = counts.get(signature, 0) + count
     return a
 
 
@@ -152,7 +158,31 @@ class HistoryChecks:
                         result['examples'].append(example)
 
     def verdict(self, p, row, name, bad):
-        """Uncapped verdict hook used by the real-piece equivalence benchmark."""
+        """Count every violation before either the draw or example cap.
+
+        Dates and amount-labelled keys vary across draws; retain the semantic
+        failure (including changed fact fields), not millions of dated examples.
+        These are violation counts, not counts of unique failed histories.
+        """
+        self.state[name]['categorized_history_draws'] += 1
+        counts = self.state[name]['violation_counts']
+        for violation in bad:
+            fields = {k: violation[k] for k in ('kind', 'node', 'decision', 'changed', 'error')
+                      if k in violation}
+            if 'before' in violation:
+                fields['before'] = violation['before'][:2] if violation['before'] else None
+            if 'step' in violation:
+                fields['step'] = violation['step'][:2]
+            rebuilt = violation.get('rebuilt', {})
+            if 'unavailable' in rebuilt:
+                fields['unavailable'] = rebuilt['unavailable']
+            if 'facts' in violation.get('changed', ()):
+                original = violation['recorded']['facts']
+                new = rebuilt['facts']
+                fields['fact_fields'] = ([k for k in original if not FutureChecker.equivalent(
+                    {k: original[k]}, {k: new.get(k)})] if original and new else ['unavailable'])
+            signature = json.dumps(fields, sort_keys=True)
+            counts[signature] = counts.get(signature, 0) + 1
 
     def array_history(self, p, rows, records, failures):
         from functools import lru_cache
