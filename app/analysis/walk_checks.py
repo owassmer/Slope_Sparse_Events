@@ -155,18 +155,33 @@ def _at(a, row, n):
 
 
 class Checker:
-    def __init__(self, fc, d, row, prefix):
+    def __init__(self, fc, d, row, prefix, *, cached=False):
         self.fc, self.d, self.row, self.prefix = fc, d, row, prefix
         self.n, self.N = fc.draws.n, fc.days
         from copy import copy
 
         self.draws = copy(fc.draws)  # retain native draw IDs on a one-draw walk
-        self.draws.prefixes = None
+        self.draws.prefixes = {} if cached else None
         self.mask = np.arange(self.n) == row
         self.listing = any(f.status != "superseded" and f.listing_deadline is not None for f in d.financing)
+        from collections import OrderedDict
+
+        self.order_states = OrderedDict() if cached else None
+        self.order_root = None
         self._probes = {}
+        self.prefix_replay = None
+        if cached and self.n == 1:
+            from app.analysis.check_replay import Replay
+
+            self.prefix_replay = Replay(fc, d, self.draws)
+        if cached:
+            from functools import lru_cache
+
+            self.replay = lru_cache(maxsize=256)(self.replay)
 
     def replay(self, steps, day_only=False):
+        if self.prefix_replay is not None:
+            return self.prefix_replay(steps, day_only=day_only, light=True)
         path = DisputePath(instance_id=self.d.instance_id, steps=tuple(steps), outcome="", edges=())
         return event_trace(self.d, path, self.fc.setup, self.fc.m, self.draws, self.fc.sens, day_only=day_only,
                            light=True, rows=tuple(self.mask for _ in steps))
@@ -196,9 +211,14 @@ class Checker:
         days = [int(_at(x, row, n)) for x in tr.day]
         pet = int(_at(tr.events.petition, row, n))
         bound = N if pet < 0 else min(N, pet)
-        ch = Chain(self.d, self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens)
-        ch.instrument_cash()
-        ch = ch.sliced(np.array([row]), self.fc.draws.sub(self.mask))
+        if self.order_root is None:
+            ch = Chain(self.d, self.fc.setup, self.fc.m, self.fc.draws, self.fc.sens)
+            ch.instrument_cash()
+            ch = ch.sliced(np.array([row]), self.fc.draws.sub(self.mask))
+            if self.order_states is not None:
+                self.order_root = ch.clone()
+        else:
+            ch = self.order_root.clone()
         t = Trace(ch.ev)
         st = State(a4="", pending=[Decision('settle', 'I0')])
         st.floor = 1 + max((int(c) for nd, c, _ in p.steps[:self.prefix] if nd == "cash_floor"), default=0)
@@ -207,7 +227,32 @@ class Checker:
             ch.advance(t, *s)
         bad = []
         last = -1
-        for i in range(self.prefix, len(p.steps) + 1):
+        start = self.prefix
+        if self.order_states is not None:
+            from copy import deepcopy
+
+            groups = tuple(None if i not in tr.groups else int(_at(tr.groups[i], row, n))
+                           for i in range(len(p.steps)))
+
+            def state_key(i):
+                # Whole-history replay may move an earlier date or the petition
+                # bound. Neither may be inferred from the traversal prefix.
+                return p.steps[:i], tuple(days[:i]), groups[:i], bound
+
+            for i in range(len(p.steps), self.prefix, -1):
+                key = state_key(i)
+                if key in self.order_states:
+                    saved_ch, saved_st, last, saved_bad = self.order_states[key]
+                    ch, st, bad = saved_ch.clone(), deepcopy(saved_st), list(saved_bad)
+                    t = Trace(ch.ev)
+                    start = i
+                    self.order_states.move_to_end(key)
+                    break
+        for i in range(start, len(p.steps) + 1):
+            if self.order_states is not None and i > start:
+                self.order_states[state_key(i)] = ch.clone(), deepcopy(st), last, list(bad)
+                if len(self.order_states) > 256:
+                    self.order_states.popitem(last=False)
             if i < len(p.steps):
                 node, ctx, b = p.steps[i]
                 if node == "offering":  # the offering's outcome, answered with the initiation that precedes it
@@ -274,21 +319,30 @@ class FutureChecker:
     Unknown/unopened contexts are reported, never replaced with a guessed state.
     """
 
-    def __init__(self, fc, d, row, records, *, explain=True):
+    def __init__(self, fc, d, row, records, *, explain=True, cached=False):
         from collections import defaultdict
 
         self.fc, self.d, self.row = fc, d, row
         self.explain = explain
-        self.replayer = Checker(fc, d, row, 0)
+        self.replayer = Checker(fc, d, row, 0, cached=cached)
         from copy import copy
 
         self.replayer.draws = copy(fc.draws)  # preserve native keyed uniforms, including SubDraws
-        self.replayer.draws.prefixes = None
+        self.replayer.draws.prefixes = {} if cached else None
         self.records = defaultdict(list)
         for (key, prefix, completed), blobs in records.items():
             self.records[key].append((prefix, completed, blobs))
         self.cache, self.rebuilt_cache = {}, {}
         self.checked = {}
+        from functools import lru_cache
+
+        self.recorded = lru_cache(maxsize=2048)(self.recorded)
+
+    def recorded(self, key, blob):
+        from app.disputes.forecast import unpack_row
+
+        row = unpack_row(blob)
+        return row, bool(self.fc.live(self.fc.nodes[key], row)[self.row]), self.facts(row)
 
     def snapshot(self, key, steps, index, probe, deferred):
         identity = key, steps, index, probe, deferred
@@ -424,8 +478,11 @@ class FutureChecker:
             replay = completed if completed is not None else steps[:index] + (probe,) + steps[index + 1:]
             at = len(replay) - 1 if completed is not None else index
             path = DisputePath(self.d.instance_id, tuple(replay), '', ())
-            tr = event_trace(self.d, path, fc.setup, fc.m, self.replayer.draws, fc.sens,
-                             rows=tuple(self.replayer.mask for _ in replay))
+            if self.replayer.prefix_replay is not None:
+                tr = self.replayer.prefix_replay(replay)
+            else:
+                tr = event_trace(self.d, path, fc.setup, fc.m, self.replayer.draws, fc.sens,
+                                 rows=tuple(self.replayer.mask for _ in replay))
             raw = tr.questions.get(at)
             if raw is None:
                 raw = dict(day=tr.day[at], cash=tr.cash[at], owed=tr.owed[at], collateral=tr.collateral[at],
@@ -451,7 +508,7 @@ class FutureChecker:
     def history(self, p):
         from datetime import timedelta
 
-        from app.disputes.forecast import atoms, unpack_row
+        from app.disputes.forecast import atoms
 
         fc, row = self.fc, self.row
         mask = path_mask(p, fc.draws.n)
@@ -494,17 +551,17 @@ class FutureChecker:
                     if index >= len(p.steps) or p.steps[index][:2] != origin:
                         continue
                 for blob in blobs:
-                    recorded = unpack_row(blob)
-                    if not fc.live(fc.nodes[key], recorded)[row]:
+                    recorded, live, facts = self.recorded(key, blob)
+                    if not live:
                         continue
-                    matches.append((index, probe, completed is not None, blob, recorded))
+                    matches.append((index, probe, completed is not None, blob, recorded, facts))
             # Some edge atoms are logical/composite prerequisites, not an asked
             # event (e.g. verdict-form arithmetic); they have no dated record.
             if not matches:
                 if fc.nodes[key].question_id not in fc.no_cash and ('|#' in key or not fc._classified(key)):
                     raise AssertionError(f'No recorded occurrence for emitted question {key}')
                 continue
-            for index, probe, deferred, blob, recorded in matches:
+            for index, probe, deferred, blob, recorded, facts in matches:
                 name = fc.nodes[key].node
                 self.checked[name] = self.checked.get(name, 0) + 1
                 day = int(recorded['day'][row])
@@ -516,7 +573,7 @@ class FutureChecker:
                 if identity not in self.cache:
                     rebuilt = self.snapshot(key, kept, own, probe, deferred)
                     original = dict(key=key, cls=key.split('|#', 1)[1] if '|#' in key else None,
-                                    facts=self.facts(recorded))
+                                    facts=facts)
                     changed = [k for k in original if not self.equivalent(original[k], rebuilt[k])]
                     if len(self.cache) >= 1024:
                         self.cache.pop(next(iter(self.cache)))
@@ -530,7 +587,7 @@ class FutureChecker:
                     remaining = list(range(len(p.steps)))
                     previous = self.snapshot(key, p.steps, index, probe, deferred) if self.explain else None
                     recorded_question = dict(key=key, cls=key.split('|#', 1)[1] if '|#' in key else None,
-                                             facts=self.facts(recorded))
+                                             facts=facts)
                     dependencies = []
                     for removed in reversed(later) if self.explain else ():
                         remaining.remove(removed)
@@ -549,7 +606,7 @@ class FutureChecker:
                                     date=str(fc.review + timedelta(days=day)), day=day,
                                     changed=changed, later_steps=[dict(step=list(p.steps[i]), day=days[i],
                                     date=str(fc.review + timedelta(days=days[i]))) for i in later],
-                                    recorded=dict(key=key, facts=self.facts(recorded)), rebuilt=rebuilt))
+                                    recorded=dict(key=key, facts=facts), rebuilt=rebuilt))
         return bad
 
 

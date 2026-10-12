@@ -287,12 +287,16 @@ def accumulate(db, seeds, lower, upper, *, check_histories=False):
             target[index] = target.get(index, np.zeros(512, bool)) | on
         return legacy, exact
 
+    check_batch = []
     for pid, blob in db.execute(
             'SELECT piece,blob FROM paths WHERE id>? AND id<=? ORDER BY id', (lower, upper)):
         p = pickle.loads(zlib.decompress(blob))
         histories += 1
         if checks is not None:
-            checks.history(pid, p)
+            check_batch.append((pid, p))
+            if len(check_batch) == 512:
+                checks.batch(check_batch)
+                check_batch.clear()
         reached = {}
         try:
             for q in expand_classes([p], nodes, 512, first=first):
@@ -350,6 +354,8 @@ def accumulate(db, seeds, lower, upper, *, check_histories=False):
             for dist in dists:
                 for k in [k for k in dist if k.startswith('=')]:
                     del dist[k]
+    if checks is not None and check_batch:
+        checks.batch(check_batch)
     state = mass, counts, supports, errors, total_errors, histories
     return (*state[:-1], checks.state, histories) if checks is not None else state
 

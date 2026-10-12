@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from app.analysis.tree_history_checks import HistoryChecks
-from app.analysis.walk_checks import FutureChecker
+from app.analysis.walk_checks import Checker, FutureChecker
 from app.disputes.forecast import DisputePath, Node, pack_row
 
 FIXTURES = sorted(Path(__file__).with_name('fixtures').glob('walk_f34_*.json'))
@@ -39,9 +39,10 @@ def load(path):
 
 
 @pytest.mark.parametrize('path', FIXTURES, ids=lambda p: p.stem)
-def test_real_recording_boundary(path):
+@pytest.mark.parametrize('cached', [False, True])
+def test_real_recording_boundary(path, cached):
     fc, d, p, identity, facts = load(path)
-    checker = FutureChecker(fc, d, 0, {identity: [pack_row(facts)]})
+    checker = FutureChecker(fc, d, 0, {identity: [pack_row(facts)]}, cached=cached)
     bad = checker.history(p)
     if '0002_168' in path.name:
         # A genuine leak: the ripe response borrows the later offering's
@@ -117,12 +118,13 @@ def test_pending_requirement_does_not_read_a_later_sizing_memo(answer):
                                   ch.bond_collateral(np.array([133])))
 
 
-def test_planted_future_cash_in_real_record_is_not_rounding():
+@pytest.mark.parametrize('cached', [False, True])
+def test_planted_future_cash_in_real_record_is_not_rounding(cached):
     path = next(p for p in FIXTURES if 'holders_act_judgment' in p.name)
     fc, d, p, identity, facts = load(path)
     # Pretend a later receipt was already in cash on the question date.
     facts['cash'] = facts['cash'] + 1
-    bad = FutureChecker(fc, d, 0, {identity: [pack_row(facts)]}).history(p)
+    bad = FutureChecker(fc, d, 0, {identity: [pack_row(facts)]}, cached=cached).history(p)
     assert len(bad) == 1
     assert bad[0]['recorded']['facts']['cash'] == bad[0]['rebuilt']['facts']['cash'] + 1
 
@@ -138,6 +140,17 @@ def test_pending_log_normalization_keeps_future_initiations_and_outcomes():
     assert checker.facts(facts)['sit']['offerings'][-1] == [100, 105, False]
     facts['sit']['offerings'][-1] = [np.array([99]), np.array([104]), np.array([True])]
     assert checker.facts(facts)['sit']['offerings'][-1] == [99, 104, True]
+
+
+def test_order_prefix_reuse_matches_uncached_including_truncated_histories():
+    from dataclasses import replace
+
+    path = next(p for p in FIXTURES if '0002_168' in p.name)
+    fc, d, p, _, _ = load(path)
+    fast, slow = Checker(fc, d, 0, 0, cached=True), Checker(fc, d, 0, 0)
+    histories = [p, replace(p, steps=p.steps[:-2]), replace(p, steps=p.steps[:-1]), p]
+    for history in histories:
+        assert fast.history(history) == slow.history(history)
 
 
 def test_only_price_roundoff_is_tolerated():
