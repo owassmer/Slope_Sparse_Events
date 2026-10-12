@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # scripts/walk-next <wave name> [<next wave name>]    The next wave of the full-tree walk, from a finished wave's outputs.
-# WALK_SHARES=k splits each continuation into k shares (walk-tree --share i/k; by default enough for about 160 walks,
-# 40 runner lines of 4, which is what GitHub runs at once); WALK_PER_LINE=n packs n commands into a
-# runner line, run side by side (default 4, one per core).
+# WALK_SHARES=k splits each continuation into k shares (walk-tree --share i/k; by default enough for about
+# WALK_CAPACITY walks, 160 being GitHub's 40 runner lines of 4; add the AWS hosts' cores when they run beside it);
+# WALK_PER_LINE=n packs n commands into a runner line, run side by side (default 4, one per core).
 #
-# Reads var/remote/<wave>/out-*/var/walk-population/**/{piece.json,next.txt} (what scripts/remote downloaded), and
+# Reads var/remote/<wave>{,.aws}/out-*/var/walk-population/**/{piece.json,next.txt} (what scripts/remote and
+# scripts/aws-wave downloaded), and
 # writes var/waves/<next>/: run.txt with every unfinished piece's continuation command, and each continuation's
 # piece.json under walk-resume/<next>/, with the commands' --resume paths pointing there. Then
 #   scripts/remote <next> --with var/waves/<next>
@@ -12,7 +13,7 @@
 set -euo pipefail
 wave="${1:?usage: scripts/walk-next <wave name> [<next wave name>]}"
 root="$(git rev-parse --show-toplevel)"; cd "$root"
-src="var/remote/$wave"; [ -d "$src" ] || { echo "no outputs for $wave in $src; run scripts/remote first" >&2; exit 2; }
+src="var/remote/$wave"; [ -d "$src" ] || [ -d "$src.aws" ] || { echo "no outputs for $wave in $src; run scripts/remote first" >&2; exit 2; }
 if [ -n "${2:-}" ]; then next="$2"
 elif [[ "$wave" =~ ^(.*[^0-9])([0-9]+)$ ]]; then next="${BASH_REMATCH[1]}$(( BASH_REMATCH[2] + 1 ))"
 else next="$wave-2"; fi
@@ -21,10 +22,23 @@ python3 -I - "$src" "$out" "$next" <<'PY'
 import json, os, pathlib, re, shutil, sys
 src, out, nxt = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
 done = cont = 0
-unfinished = sum(1 for p in src.glob("out-*/var/walk-population/**/piece.json") if not json.loads(p.read_text()).get("complete"))
+pieces = sorted(p for d in (src, src.with_name(src.name + ".aws")) if d.is_dir() for p in d.glob("out-*/var/walk-population/**/piece.json"))
+states = {p: json.loads(p.read_text()) for p in pieces}
+open_pieces = [p for p in pieces if not states[p].get("complete")]
+unfinished = len(open_pieces)
+capacity = int(os.environ.get("WALK_CAPACITY", "160"))
+# Shares go where the work is: each unfinished piece gets one walk, and the slots left over in a wave of about
+# WALK_CAPACITY walks go to the pieces with the most routes left, in proportion (so a wave fits in one round).
+left = {p: max(1, len(states[p].get("remaining") or [])) for p in open_pieces}
+spare = max(0, capacity - unfinished)
+total = sum(left.values()) or 1
+quota = {p: spare * left[p] / total for p in open_pieces}
+share_of = {p: 1 + int(quota[p]) for p in open_pieces}
+for p in sorted(open_pieces, key=lambda p: quota[p] - int(quota[p]), reverse=True)[: spare - sum(int(q) for q in quota.values())]:
+    share_of[p] += 1
 lines = [f"# {nxt}: continuations of the unfinished pieces of {src.name}; each line within its runner limit."]
-for piece in sorted(src.glob("out-*/var/walk-population/**/piece.json")):
-    d = json.loads(piece.read_text())
+for piece in pieces:
+    d = states[piece]
     if d.get("complete"):
         done += 1
         continue
@@ -47,7 +61,7 @@ for piece in sorted(src.glob("out-*/var/walk-population/**/piece.json")):
             continue
         shutil.copyfile(resume, dest)
         cmd = cmd.replace(m.group(0), f"--resume walk-resume/{nxt}/{key}/piece.json")
-        shares = int(os.environ.get("WALK_SHARES") or max(1, -(-160 // max(1, unfinished))))  # about 160 walks a wave: 40 runner lines of 4
+        shares = int(os.environ.get("WALK_SHARES") or share_of[piece])
         for i in range(shares):
             c = re.sub(r"--output \S+", f"--output var/walk-population/{nxt}-{key}" + (f"-s{i}" if shares > 1 else ""), cmd)
             lines.append(c + (f" --share {i + 1}/{shares}" if shares > 1 else ""))
