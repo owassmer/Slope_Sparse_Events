@@ -28,6 +28,7 @@ from pathlib import Path
 
 import numpy as np
 
+from app.analysis import tree_history_checks as history_checks
 from app.analysis import tree_pool as tree
 from app.disputes.forecast import atoms, class_firsts, expand_classes, path_mask, unpack_row
 
@@ -73,12 +74,12 @@ def save_nodes(db, target):
 
 
 def zero(seeds):
-    return np.zeros((len(seeds), 512)), {}, {}, [], 0, 0
+    return np.zeros((len(seeds), 512)), {}, {}, [], 0, history_checks.empty(), 0
 
 
 def add(a, b):
-    mass, counts, supports, errors, failures, histories = a
-    m, c, s, e, n, h = b
+    mass, counts, supports, errors, failures, checks, histories = a
+    m, c, s, e, n, other_checks, h = b
     mass += m
     for key, values in c.items():
         old = counts.setdefault(key, [0, 0])
@@ -86,7 +87,7 @@ def add(a, b):
         old[1] += values[1]
         supports[key] = supports.get(key, np.zeros(512, bool)) | s[key]
     errors.extend(e[:max(0, 50 - len(errors))])
-    return mass, counts, supports, errors, failures + n, histories + h
+    return mass, counts, supports, errors, failures + n, history_checks.merge(checks, other_checks), histories + h
 
 
 def sample_record(db, pid, p, nodes):
@@ -125,7 +126,7 @@ def trim_samples(db, size):
 
 def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
               workers=1, node_catalog=None, gates_only=False):
-    """Checkpoint complete pieces; arithmetic uses fixed per-piece 4096-row ranges.
+    """Checkpoint complete pieces; arithmetic uses fixed per-piece 64-row replay ranges.
 
     A partial is consumable only after all pieces have committed. Node catalogs
     must be frozen before evaluating any piece (including on restart).
@@ -143,7 +144,7 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
                     raise ValueError(f'question domain absent or changed in node catalog: {key}')
             copy_nodes(catalog, db)
     signature = node_signature(db)
-    settings = {'kind': 'tree-part-v2', 'nodes': signature, 'seeds': list(seeds),
+    settings = {'kind': 'tree-part-v3', 'nodes': signature, 'seeds': list(seeds),
                 'sample_size': sample_size, 'gates_only': gates_only}
     target = Path(target)
     database = db.execute('PRAGMA database_list').fetchone()[2]
@@ -170,20 +171,24 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
                 # include a different piece if a caller supplies a hand-edited DB.
                 if maximum - lower != count:
                     raise ValueError('noncontiguous piece rows')
-                cache_key = tree.digest(('part-v1', pid, signature, seeds))
+                cache_key = tree.digest(('part-v3', pid, signature, seeds))
                 saved = db.execute('SELECT state FROM evaluation WHERE signature=?', (cache_key,)).fetchone()
                 if saved:
                     lower, state = pickle.loads(saved[0])
                 with ProcessPoolExecutor(max_workers=workers) if workers > 1 else nullcontext() as executor:
                     while lower < maximum:
-                        ranges = [(lo, min(lo + 4096, maximum))
-                                  for lo in range(lower, min(lower + 4096 * workers, maximum), 4096)]
-                        tasks = [(database, seeds, lo, hi) for lo, hi in ranges]
+                        ranges = [(lo, min(lo + 64, maximum))
+                                  for lo in range(lower, min(lower + 64 * workers, maximum), 64)]
+                        batch_started = time.monotonic()
+                        tasks = [(database, seeds, lo, hi, True) for lo, hi in ranges]
                         results = (executor.map(tree.accumulate_worker, tasks) if executor else
-                                   (tree.accumulate(db, seeds, lo, hi) for lo, hi in ranges))
+                                   (tree.accumulate(db, seeds, lo, hi, check_histories=True) for lo, hi in ranges))
                         for (_, upper), result in zip(ranges, results, strict=True):
                             state = add(state, result)
                             lower = upper
+                        print(tree.encode({'stage': 'history_checks', 'piece': pid,
+                                           'histories': sum(hi - lo for lo, hi in ranges),
+                                           'seconds': time.monotonic() - batch_started}), flush=True)
                         with db:
                             db.execute('INSERT OR REPLACE INTO evaluation VALUES (?,?)',
                                        (cache_key, pickle.dumps((lower, state), protocol=5)))
@@ -236,7 +241,7 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
 def merge_part(db, path, *, nodes_only=False):
     with closing(sqlite3.connect(path)) as incoming:
         cfg = config(incoming)
-        expected = 'nodes-v1' if nodes_only else 'tree-part-v2'
+        expected = 'nodes-v1' if nodes_only else 'tree-part-v3'
         if not cfg.get('complete') or cfg.get('kind') != expected:
             raise ValueError(f'incomplete or wrong kind of partial: {path}')
         old = config(db)
@@ -272,13 +277,13 @@ def finalize(database, output):
     output.mkdir(parents=True, exist_ok=True)
     with closing(connect(database)) as db:
         cfg = config(db)
-        if not cfg.get('complete') or cfg.get('kind') != 'tree-part-v2':
+        if not cfg.get('complete') or cfg.get('kind') != 'tree-part-v3':
             raise ValueError('incomplete partial')
         state = zero(cfg['seeds'])
         # Identical summation order for one pool, any grouping and any worker count.
         for (blob,) in db.execute('SELECT state FROM metrics ORDER BY piece'):
             state = add(state, pickle.loads(zlib.decompress(blob)))
-        mass, counts, supports, errors, failures, histories = state
+        mass, counts, supports, errors, failures, checks, histories = state
         with (output / 'catalog.jsonl.gz').open('wb') as f:
             for key, blob in db.execute('SELECT * FROM nodes ORDER BY key'):
                 node = pickle.loads(blob)
@@ -309,10 +314,14 @@ def finalize(database, output):
                   'answers': {'pass': not failures, 'failed_histories': failures, 'examples': errors,
                               'scope': 'all native class-rewritten edge atoms, including composite complements; '
                                        'live class support must have matching dated question facts'},
-                  'no_skip': review, 'no_future': review, 'histories': histories,
+                  **{name: {**result, 'pass': not result['failed_histories'] and result['histories'] == histories}
+                     for name, result in checks.items()},
+                  'independent_replay': review, 'histories': histories,
                   'catalog_facts': 'sample_only' if cfg.get('gates_only') else 'all_variants',
                   'catalog_counts': 'terminal histories referencing question atoms; draws are unique native draws; '
                                     'history_draws counts repeated draw reach across histories'}
+        report['pass'] = all(report[name].get('pass', False)
+                             for name in ('coverage', 'probability', 'answers', 'no_future', 'no_skip'))
         (output / 'gates.json').write_text(json.dumps(report, indent=2) + '\n')
         return report
 

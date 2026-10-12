@@ -1,3 +1,6 @@
+# 001-13e: bounded exhaustive replay trial; do NOT submit the full 8-million-history stage yet.
+# Run this line alone; checkpoint batches report histories and elapsed seconds even if unfinished.
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run slope pool-tree --runs 38195968528 --artifact heavy-0 --database var/diag/001-13e/scratch.sqlite --output var/diag/001-13e/part --diagnostics var/diag/001-13e/result --seconds 600 --workers 4 --partial --gates-only --node-run 38200807860
 # 001-13c: bounded pooling. These are sequential STAGES, not one concurrent submission.
 # Generate an executable GitHub stage from the real walk run IDs (not present in this checkout):
 # uv run python -m app.analysis.tree_pool_jobs --phase nodes --run-list WALK_RUN_IDS --output run.txt

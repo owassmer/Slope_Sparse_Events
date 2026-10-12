@@ -243,9 +243,12 @@ def answer_atoms(key, branch):
     return [(key, branch)]
 
 
-def accumulate(db, seeds, lower, upper):
+def accumulate(db, seeds, lower, upper, *, check_histories=False):
     """Independent, bounded history range; reduction order is fixed by row ID."""
     nodes = {k: pickle.loads(b) for k, b in db.execute('SELECT * FROM nodes')}
+    from app.analysis.tree_history_checks import HistoryChecks
+
+    checks = HistoryChecks(db, nodes) if check_histories else None
     first = class_firsts(nodes)
     dists = [random_dist(nodes, seed) for seed in seeds]
     mass = np.zeros((len(seeds), 512))
@@ -288,6 +291,8 @@ def accumulate(db, seeds, lower, upper):
             'SELECT piece,blob FROM paths WHERE id>? AND id<=? ORDER BY id', (lower, upper)):
         p = pickle.loads(zlib.decompress(blob))
         histories += 1
+        if checks is not None:
+            checks.history(pid, p)
         reached = {}
         try:
             for q in expand_classes([p], nodes, 512, first=first):
@@ -345,13 +350,14 @@ def accumulate(db, seeds, lower, upper):
             for dist in dists:
                 for k in [k for k in dist if k.startswith('=')]:
                     del dist[k]
-    return mass, counts, supports, errors, total_errors, histories
+    state = mass, counts, supports, errors, total_errors, histories
+    return (*state[:-1], checks.state, histories) if checks is not None else state
 
 
 def accumulate_worker(task):
-    database, seeds, lower, upper = task
+    database, seeds, lower, upper, *checks = task
     with closing(sqlite3.connect(f'{Path(database).resolve().as_uri()}?mode=ro', uri=True)) as db:
-        return accumulate(db, seeds, lower, upper)
+        return accumulate(db, seeds, lower, upper, check_histories=bool(checks and checks[0]))
 
 
 def write_catalog(db, target, keys, counts, draws):

@@ -43,8 +43,11 @@ def test_complete_continuations_order_independent_and_probability_all_draws(tmp_
         report = export(db, tmp_path / 'output', sample_size=2)
         assert all(report[k]['pass'] for k in ('coverage', 'probability', 'answers'))
         assert np.allclose(report['probability']['sums'], 1)
-        assert report['no_skip']['status'] == 'sample_ready_for_review'
-        assert report['no_future']['status'] == 'sample_ready_for_review'
+        assert report['independent_replay']['status'] == 'sample_ready_for_review'
+        assert report['no_skip']['histories'] == 2
+        assert report['no_future']['histories'] == 2
+        assert not report['pass']  # synthetic dispute cannot be reconstructed
+        assert not report['no_future']['pass']
         with gzip.open(tmp_path / 'output/catalog.jsonl.gz', 'rt') as f:
             q = json.loads(next(f))
         assert (q['histories'], q['draws'], q['history_draws']) == (2, 512, 1024)
