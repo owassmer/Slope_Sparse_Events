@@ -194,13 +194,20 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
                         jobs.append((pid, meta, source, base, offset, upper))
         if selections.keys() - matched:
             raise ValueError(f'unknown piece ranges: {sorted(selections.keys() - matched)}')
+        # Each committed block is mergeable; retain untouched pieces for coverage checks.
+        with out:
+            put_config(out, 'complete', True)
+            for pid, meta, source, *_ in jobs:
+                out.execute('INSERT OR IGNORE INTO pieces VALUES (?,?,?)', (pid, meta, source))
+            put_config(out, 'remaining_ranges', [f'{Path(source).name}:{lo}:{hi}'
+                       for _, _, source, _, lo, hi in jobs])
+        deadline = start + seconds
         with ProcessPoolExecutor(max_workers=workers) if workers > 1 else nullcontext() as executor:
             tasks = [(database, seeds, base + lo, base + hi, True)
                      for _, _, _, base, lo, hi in jobs]
-            results = (bounded_results(executor, tasks, workers) if executor else
-                       ((i, tree.accumulate(db, seeds, lo, hi, check_histories=True))
-                        for i, (_, _, lo, hi, _) in enumerate(tasks)))
-            for index, state in results:
+            results = (bounded_results(executor, tasks, workers, deadline) if executor else
+                       serial_results(db, tasks, deadline))
+            for index, (state, block_seconds) in results:
                 pid, meta, source, base, lo, hi = jobs[index]
                 with out:
                     out.execute('INSERT OR IGNORE INTO pieces VALUES (?,?,?)', (pid, meta, source))
@@ -212,33 +219,57 @@ def summarize(db, target, *, seeds=(17, 91, 307), sample_size=32, seconds=900,
                                         'SELECT identity,mask FROM paths WHERE piece=? AND id>? AND id<=? ORDER BY id',
                                         (pid, base + lo, base + hi))))
                     save_block_details(db, out, pid, base, lo, hi, nodes, sample_size, gates_only)
-                print(tree.encode({'stage': 'history_checks', 'piece': pid, 'range': [lo, hi],
+                    remaining_ranges = [f'{Path(s).name}:{a}:{b}' for p, _, s, _, a, b in jobs
+                                        if not out.execute('SELECT 1 FROM ranges WHERE piece=? AND lower=?',
+                                                           (p, a)).fetchone()]
+                    put_config(out, 'remaining_ranges', remaining_ranges)
+                draws = sum(int.from_bytes(mask).bit_count() for (mask,) in db.execute(
+                    'SELECT mask FROM paths WHERE piece=? AND id>? AND id<=?', (pid, base + lo, base + hi)))
+                print(tree.encode({'stage': 'history_checks', 'piece': pid, 'source': source,
+                                   'range': [lo, hi], 'history_draws': draws, 'block_seconds': block_seconds,
                                    'elapsed_seconds': time.monotonic() - start}), flush=True)
-                if time.monotonic() - start >= seconds:
-                    return {'status': 'unfinished_export', 'next': 'repeat on the same workspace'}
+                # Drain running blocks after the deadline instead of discarding them.
         with out:
             put_config(out, 'complete', True)
         histories = out.execute('SELECT COALESCE(SUM(upper-lower),0) FROM ranges').fetchone()[0]
         pieces = out.execute('SELECT COUNT(*) FROM pieces').fetchone()[0]
+        remaining_ranges = config(out)['remaining_ranges']
+    target.with_name('remaining.json').write_text(tree.encode(remaining_ranges) + '\n')
     return {'status': 'partial_ready', 'file': str(target), 'seconds': time.monotonic() - start,
-            'pieces': pieces, 'histories': histories, 'bytes': target.stat().st_size}
+            'pieces': pieces, 'histories': histories, 'bytes': target.stat().st_size,
+            'selection_complete': not remaining_ranges, 'remaining_ranges': remaining_ranges}
 
 
-def bounded_results(executor, tasks, workers):
+def timed_block(task):
+    start = time.monotonic()
+    state = tree.accumulate_worker(task)
+    return state, time.monotonic() - start
+
+
+def serial_results(db, tasks, deadline):
+    for i, (_, seeds, lo, hi, _) in enumerate(tasks):
+        if i and time.monotonic() >= deadline:
+            break
+        start = time.monotonic()
+        state = tree.accumulate(db, seeds, lo, hi, check_histories=True)
+        yield i, (state, time.monotonic() - start)
+
+
+def bounded_results(executor, tasks, workers, deadline=float('inf')):
     """Keep cores fed without queuing a whole line past its time budget."""
     from concurrent.futures import FIRST_COMPLETED, wait
     from itertools import islice
 
     tasks = iter(enumerate(tasks))
-    pending = {executor.submit(tree.accumulate_worker, task): i for i, task in islice(tasks, workers)}
+    pending = {executor.submit(timed_block, task): i for i, task in islice(tasks, workers)}
     while pending:
         done, _ = wait(pending, return_when=FIRST_COMPLETED)
         for future in done:
             yield pending.pop(future), future.result()
-            item = next(tasks, None)
+            item = next(tasks, None) if time.monotonic() < deadline else None
             if item is not None:
                 i, task = item
-                pending[executor.submit(tree.accumulate_worker, task)] = i
+                pending[executor.submit(timed_block, task)] = i
 
 
 def save_block_details(db, out, pid, base, lo, hi, nodes, sample_size, gates_only):

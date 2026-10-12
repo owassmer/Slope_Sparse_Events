@@ -137,9 +137,23 @@ def test_matrix_limit_and_bounded_groups(tmp_path):
         name, lo, hi = value.split(':')
         lo, hi = int(lo), int(hi)
         assert name == 'large' and lo == previous
-        assert (hi - lo) * 512 * .01 / 4 <= 600
+        assert (hi - lo) * 512 * .05 / 4 <= 600
         previous = hi
     assert previous == 4000
+    faster = commands(phase='parts', runs=['walk'], node_run='union', seconds_per_draw=.02,
+                      artifact_names=['heavy-0'], manifest_roots=[tmp_path / 'manifests'])
+    assert len(faster) < len(lines)
+    followup = commands(phase='parts', runs=['walk'], node_run='union',
+                        artifact_names=['heavy-0'], manifest_roots=[tmp_path / 'manifests'],
+                        remaining=['large:128:192', 'large:256:320'])
+    args = [arg for line in followup for arg in shlex.split(line)]
+    assert [args[i + 1] for i, x in enumerate(args) if x == '--history-range'] == [
+        'large:128:192', 'large:256:320']
+    for rate in (0, -1, float('nan'), float('inf')):
+        with pytest.raises(ValueError, match='finite and positive'):
+            commands(phase='parts', node_run='union', seconds_per_draw=rate)
+    with pytest.raises(ValueError, match='noncanonical remaining'):
+        commands(phase='parts', node_run='union', remaining=['unknown:0:64'])
     larger = commands(phase='nodes', runs=['walk'],
                       artifact_names=[f'heavy-{i}' for i in range(6200)])
     files = write_jobs(larger, tmp_path / 'run.txt')

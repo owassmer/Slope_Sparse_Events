@@ -482,8 +482,8 @@ def export(db, output, *, seeds=(17, 91, 307), sample_size=32, seconds=900, work
     partial = output / 'partial.sqlite'
     result = summarize(db, partial, seeds=seeds, sample_size=sample_size,
                        seconds=seconds, workers=workers)
-    if result.get('status') == 'unfinished_export':
-        return result
+    if result.get('status') == 'unfinished_export' or not result.get('selection_complete', True):
+        return {**result, 'status': 'unfinished_export'}
     return finalize(partial, output)
 
 

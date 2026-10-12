@@ -10,16 +10,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import shlex
+import sqlite3
 import subprocess
 import tempfile
 from pathlib import Path
 
 
 def commands(*, phase, runs=(), local=(), node_run=None, workers=4, batch_size=None,
-             artifact_names=None, manifest_roots=()):
+             artifact_names=None, manifest_roots=(), seconds_per_draw=.05, remaining=None,
+             seconds_per_history=1.3):
     base = ['uv', 'run', 'slope', 'pool-tree']
     prefix = 'OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 '
+    if remaining is not None and phase != 'parts':
+        raise ValueError('remaining ranges apply only to parts')
     if phase == 'parts' and not node_run:
         raise ValueError('parts require the frozen --node-run from node-union')
     combine = phase in ('node-union', 'merge', 'combine')
@@ -30,7 +35,8 @@ def commands(*, phase, runs=(), local=(), node_run=None, workers=4, batch_size=N
         raise ValueError('batch size must be positive')
     inputs = []
     if phase == 'parts':
-        inputs = reduction_inputs(runs, local, artifact_names, manifest_roots, workers)
+        inputs = reduction_inputs(runs, local, artifact_names, manifest_roots, workers,
+                                  seconds_per_draw, remaining, seconds_per_history)
     elif phase in ('node-union', 'combine'):
         inputs = [[arg for run in runs for arg in ('--runs', str(run))]
                   + [arg for root in local for arg in ('--local', str(root))]]
@@ -67,7 +73,8 @@ def commands(*, phase, runs=(), local=(), node_run=None, workers=4, batch_size=N
         database = output + '/partial.sqlite' if phase == 'merge' else 'scratch.sqlite'
         args = base + source + ['--database', database, '--output', output,
                                 '--diagnostics', f'var/diag/pool-{i:05d}',
-                                '--seconds', '1000', '--workers', str(workers)]
+                                '--seconds', '800' if phase == 'parts' else '1000',
+                                '--workers', str(workers)]
         if combine:
             args += ['--combine']
         if phase in ('nodes', 'node-union'):
@@ -80,14 +87,23 @@ def commands(*, phase, runs=(), local=(), node_run=None, workers=4, batch_size=N
     return lines
 
 
-def reduction_inputs(runs, local, artifact_names, manifest_roots, workers):
+def reduction_inputs(runs, local, artifact_names, manifest_roots, workers,
+                     seconds_per_draw=.05, remaining=None, seconds_per_history=1.3):
     """Pack canonical blocks by manifest history-draws, not artifact count.
 
-    Budget 600 check seconds/core at the measured slow rate (10ms/draw),
-    leaving ~120s for ingestion in a 12-minute target, and 8 minutes slack.
-    Within a piece the manifest gives a mean, not a per-history distribution;
-    a 64-history task caps worker stragglers at 32,768 draws (~328 seconds).
+    Target 600 check seconds/core plus 120s ingestion. The walk-g1 logs
+    show width-dependent cost: use 50ms/draw with a 1.3s/history floor for
+    narrow histories (whose per-draw cost is much higher). These are elapsed
+    worker-slot estimates, not CPU counters or a runtime guarantee.
     """
+    if not math.isfinite(seconds_per_draw) or seconds_per_draw <= 0:
+        raise ValueError('seconds per draw must be finite and positive')
+    if not math.isfinite(seconds_per_history) or seconds_per_history < 0:
+        raise ValueError('seconds per history must be finite and nonnegative')
+    requested = None if remaining is None else set(remaining)
+    if requested is not None and len(requested) != len(remaining):
+        raise ValueError('duplicate remaining range')
+    matched = set()
     inventory = []
     for root in local:
         paths = sorted(Path(root).rglob('piece.json'))
@@ -119,7 +135,7 @@ def reduction_inputs(runs, local, artifact_names, manifest_roots, workers):
                     raise ValueError(f'{run}/{small}: no piece manifests; cannot size checked work')
                 inventory.extend((('--runs', str(run), '--artifact', name), p.parent.name,
                                   json.loads(p.read_text())) for p in paths)
-    budget = workers * 600 / .01
+    budget = workers * 600
     lines, sources, ranges, work = [], [], [], 0.0
 
     def flush():
@@ -137,7 +153,11 @@ def reduction_inputs(runs, local, artifact_names, manifest_roots, workers):
             raise ValueError(f'{name}: invalid history-draw counts')
         for lo in range(0, count, 64) if count else [0]:
             hi = min(lo + 64, count)
-            cost = draws * (hi - lo) / count if count else 0
+            key = f'{name}:{lo}:{hi}'
+            if requested is not None and key not in requested:
+                continue
+            matched.add(key)
+            cost = max(seconds_per_draw * draws / count, seconds_per_history) * (hi - lo) if count else 0
             new_source = source not in sources
             different_run = bool(sources and source[0] == '--runs' and sources[-1][0] == '--runs'
                                  and source[1] != sources[-1][1])
@@ -152,7 +172,27 @@ def reduction_inputs(runs, local, artifact_names, manifest_roots, workers):
                 ranges.append((name, lo, hi))
             work += cost
     flush()
+    if requested is not None and requested - matched:
+        raise ValueError(f'unknown or noncanonical remaining ranges: {sorted(requested - matched)}')
     return lines
+
+
+def read_remaining(path):
+    """SQLite is authoritative after a hard stop; JSON is the normal result."""
+    path = Path(path)
+    if path.suffix == '.sqlite':
+        with sqlite3.connect(f'{path.resolve().as_uri()}?mode=ro', uri=True) as db:
+            cfg = dict(db.execute('SELECT key,value FROM config'))
+        if not json.loads(cfg.get('complete', 'false')):
+            raise ValueError('remaining ranges require a valid partial')
+        value = json.loads(cfg['remaining_ranges'])
+    else:
+        value = json.loads(path.read_text())
+        if isinstance(value, dict):
+            value = value['remaining_ranges']
+    if not isinstance(value, list) or not all(isinstance(r, str) for r in value):
+        raise ValueError('remaining ranges must be a list of canonical range strings')
+    return value
 
 
 def write_jobs(lines, output):
@@ -178,6 +218,12 @@ def main():
     parser.add_argument('--node-run')
     parser.add_argument('--workers', type=int, choices=range(1, 5), default=4)
     parser.add_argument('--batch-size', type=int)
+    parser.add_argument('--seconds-per-draw', type=float, default=.05,
+                        help='Measured worker-seconds/history-draw (default .05; 1.3s/history floor).')
+    parser.add_argument('--seconds-per-history', type=float, default=1.3,
+                        help='Measured narrow-history floor in worker seconds (default 1.3).')
+    parser.add_argument('--remaining', type=Path, action='append', default=[],
+                        help='Stopped partial.sqlite, remaining.json or result.json; repeat for multiple lines.')
     parser.add_argument('--artifact-list', type=Path, help='Offline inventory: one heavy-N per line, for exactly one --runs.')
     parser.add_argument('--manifest-root', action='append', default=[],
                         help='Offline downloaded out-N manifest roots (must include out-N directory).')
@@ -190,7 +236,10 @@ def main():
     lines = commands(phase=args.phase, runs=runs, local=args.local,
                      node_run=args.node_run, workers=args.workers, batch_size=args.batch_size,
                      artifact_names=args.artifact_list.read_text().splitlines() if args.artifact_list else None,
-                     manifest_roots=args.manifest_root)
+                     manifest_roots=args.manifest_root, seconds_per_draw=args.seconds_per_draw,
+                     seconds_per_history=args.seconds_per_history,
+                     remaining=[r for p in args.remaining for r in read_remaining(p)]
+                     if args.remaining else None)
     files = write_jobs(lines, args.output)
     print(f'{len(lines)} lines in {len(files)} run(s): ' + ', '.join(map(str, files)))
     print('Submit only this stage; use ALL resulting run IDs to generate the next stage.')

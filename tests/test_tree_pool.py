@@ -309,7 +309,7 @@ def test_parts_equal_whole_exactly_and_duplicate_across_parts_stops(tmp_path):
         with gzip.open(tmp_path / 'whole' / name, 'rt') as x, gzip.open(tmp_path / 'combined' / name, 'rt') as y:
             assert x.read() == y.read()
     assert (tmp_path / 'whole/pieces.json').read_bytes() == (tmp_path / 'combined/pieces.json').read_bytes()
-    with pytest.raises(ValueError, match='duplicate piece across parts'):
+    with pytest.raises(ValueError, match='duplicate piece range across parts'):
         combine(database=tmp_path / 'duplicate.sqlite', output=tmp_path / 'bad',
                 local=[tmp_path / 'part-0', tmp_path / 'part-1', tmp_path / 'part-0'])
 
@@ -415,15 +415,16 @@ def test_priority_sample_is_global_bottom_k_not_a_quota_per_part(tmp_path):
     assert sum(r['source'] == str(dirs[1]) for r in records) >= 7
 
 
-def test_partial_rejects_unfinished_and_wrong_counts(tmp_path):
+def test_partial_keeps_last_finished_block_and_rejects_wrong_counts(tmp_path):
     from app.analysis.tree_parts import combine, summarize
 
     a = piece(tmp_path, 'a', [path('yes')])
     with connect(tmp_path / 's.sqlite') as db:
         ingest(db, a, 'a')
-        assert summarize(db, tmp_path / 'p/partial.sqlite', seconds=0)['status'] == 'unfinished_export'
-    with pytest.raises(ValueError, match='incomplete'):
-        combine(database=tmp_path / 'c.sqlite', output=tmp_path / 'out', local=[tmp_path / 'p'])
+        result = summarize(db, tmp_path / 'p/partial.sqlite', seconds=0)
+        assert result['status'] == 'partial_ready'
+        assert result['selection_complete']
+    combine(database=tmp_path / 'c.sqlite', output=tmp_path / 'out', local=[tmp_path / 'p'])
     meta = json.loads((a / 'piece.json').read_text())
     meta['history_draws'] += 1
     (a / 'piece.json').write_text(json.dumps(meta))
@@ -446,8 +447,8 @@ def test_part_planner_bounds_artifacts_and_uses_shared_nodes(monkeypatch):
 
     monkeypatch.setattr('app.analysis.tree_pool_jobs.subprocess.run', gh)
     lines = commands(phase='parts', runs=['101', '102'], node_run='200')
-    assert len(lines) == 2
-    assert all(line.count('--artifact') == 2 and '--node-run 200' in line for line in lines)
+    assert len(lines) == 8
+    assert all(line.count('--artifact') == 1 and '--node-run 200' in line for line in lines)
     assert all('--output var/pool/' in line and '--diagnostics var/diag/' in line for line in lines)
     assert '--runs 101 --artifact heavy-0' in lines[0]
     assert len(commands(phase='combine', runs=['201', '202'])) == 1
