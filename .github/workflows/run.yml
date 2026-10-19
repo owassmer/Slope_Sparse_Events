@@ -62,5 +62,4 @@ jobs:
           name: heavy-${{ strategy.job-index }}
           path: |
             var/walk-population/**/*.pkl*
-            var/pool/
           if-no-files-found: ignore
