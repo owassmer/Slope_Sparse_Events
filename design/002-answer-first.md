@@ -136,3 +136,39 @@ every replicate and report no width at all, and nothing compared the widths with
   split into dated decisions, and the no-skip check and the plain-engine replay run on every expanded history of each
   run (findings 5 and 6). The worst-path search evaluates a history on its own draws only (finding 7; the 002-2 worker
   was told).
+
+## The questions: the plan as of 28 October, after reading the chronological walk again
+
+The note above says every two-part decision becomes two dated decisions. Reading `app/disputes/chronological.py`
+again, that is not needed for dating, and it would be the largest change to the engine in the outcome: the walk already
+branches each two-part decision at its first date and freezes its later question's facts when the frontier reaches the
+later date (`capture_decisions`, `freeze_due`: "Those questions wait at the frontier, so intervening earlier decisions
+are included, never later ones"), and the engine already treats a motion as moved and unruled until its ruling day
+(`_prospective_before`). What answer-first needs from a two-part decision is a probability for its children before
+its later question can be asked (design review, finding 4). Two facts settle that without splitting:
+- pruning only needs an upper bound: a child's mass is at most its prefix probability times the first part's answer,
+  so a child is set aside only when that bound is below the threshold; both children are walked until the later
+  question is asked, at its own date, and the exact mass replaces the bound from then on;
+- sampling needs a guide, not the answer: until the later question is asked, the guide gives its two outcomes even
+  odds; a path's weight still uses the judgments at the end, so the guide costs precision, never correctness.
+The cost is walking both children between the two dates, which the run reports.
+
+So the question work is:
+1. **Node-local questions.** A question's facts come from the records of one point of the tree (the prefix at which
+   it is asked, the draws there in its class), not pooled over every prefix that reaches its key. The records already
+   carry their prefix (`_dated_records`: key, prefix, row); rendering groups by (key, prefix) instead of key, keeping
+   the representative trajectory and the ranges over that point's draws. A question's identity is its rendered
+   content, so identical questions at different points share one answer and no rendering is coarsened.
+2. **Asked when its facts freeze.** A question is put to the judge when its facts are complete: at capture for a
+   date-local question, at `freeze_due` for the later part of a two-part decision. Questions reached together are
+   asked together, and the walk resumes from the points they unblock.
+3. **A read-only view of the day.** Both leaks were a question's facts reading a value computed for a later day (a
+   stay's security sized on approval day; a day booked before a same-day decision was asked). The facts are built from
+   the chain as of the question's day with its forward projections (memoised later rulings and writs) removed, so a
+   later value cannot be read; where a fact needs a projection (a pending motion's proposed terms) it is sized from
+   that day, as 001-14a did for collateral.
+4. **Shown in every run:** walking again with every later answer changed leaves each question's facts byte-identical
+   (a test on the real case); the no-skip checker and the plain-engine replay run on every expanded history.
+5. **What reaches the judge is the definition:** the node specs (decision, timing, branches, situation keys) in
+   `dispute_model.json` and the question standard. They are listed in `tools/roles/definitions` as they are touched,
+   so each change is judged against its sources before it is committed.
