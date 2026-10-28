@@ -1975,7 +1975,10 @@ class Forecaster:
                                                              "p50": usd(int(np.quantile(cash, 0.5)))}}
         if n.node in NEED_NODES and need is not None:
             out["operating_need_30_days_at_decision"] = {"p50": usd(int(np.quantile(need(), 0.5)))}
-        if n.node == "financing_at_floor" and eq is not None:
+        # the 4.1.0 raise (equal daily amounts over raise_days) only where the case sets raise_capacity; under the
+        # 14 May model the floor's offering proceeds are stated by the question's situation (state14), and raise_days
+        # has no value (the crash an answer-first page reached on 28 October)
+        if n.node == "financing_at_floor" and eq is not None and self.raising:
             out["equity_raise_available"] = self.raise_facts(eq)
         if n.node in DATED and (dates := self._contract_dates(*dated)):
             out["contract_dates"] = dates
@@ -4215,7 +4218,7 @@ def bank_facts(fc: Forecaster, n: Node) -> dict:
                                        for k, p in (("p5", 0.05), ("p50", 0.5), ("p95", 0.95))},
                      "projected_available_cash_at_decision_date": {"p5": q(cash, 0.05), "p50": q(cash, 0.5)},
                      "operating_need_30_days_at_decision": {"p50": q(need, 0.5)}}
-            if n.node == "financing_at_floor" and eq is not None:
+            if n.node == "financing_at_floor" and eq is not None and fc.raising:  # as in ordinary_facts
                 facts["equity_raise_available"] = fc.raise_facts(eq[inside])
             coupon = {"day": day, "triggers": {"coupon": fc.bank_trace(()).triggers["coupon"]}}
             if dates := fc._contract_dates([coupon], [inside]):  # the coupon: a common borrower input
