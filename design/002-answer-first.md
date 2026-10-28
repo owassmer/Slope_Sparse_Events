@@ -172,3 +172,35 @@ So the question work is:
 5. **What reaches the judge is the definition:** the node specs (decision, timing, branches, situation keys) in
    `dispute_model.json` and the question standard. They are listed in `tools/roles/definitions` as they are touched,
    so each change is judged against its sources before it is committed.
+
+## After the review of the question plan (`002-questions-plan.review.md`): the split stands
+
+The plan above kept two-part decisions whole. The review showed why that fails, not for dating but for sampling:
+- A two-part branch decided at its first date already carries the later answer, whose probability depends on what
+  happens in between (approval after a financing that succeeded or failed). A point set aside before the later date
+  then has no exact mass (finding 2), and the records of the later question keep the first part's prefix, so
+  questions at different points pool again (finding 1).
+- Sampling with any guide other than the judgment itself makes each sampled observation the value times a likelihood
+  ratio, which the value's floor and ceiling do not bound (finding 3: two continuations both worth $100, sampled at
+  even odds, judged 0.99/0.01, give observations of $198 and $2). A distribution-free interval holds only where the
+  guide is the judgment.
+Both are answered by the original design: **every decision is branched at its own date, after its own question has
+been asked at that point of the tree.** Then the guide is the judgment wherever the walk branches, a set-aside point's
+mass is the product of answers already given, and a sampled continuation is drawn from the judged distribution
+itself, so its observation is the figure's value and lies between the point's floor and ceiling. For two-part
+decisions that means the first part (a motion moved, an acceleration declared, an offering initiated) is answered at
+its date and leaves a pending state, and the later part (the ruling, the petition, the close) is a decision of its own
+at its date. The engine already distinguishes moved-and-unruled before a ruling day (`_prospective_before`); the work
+is to make that pending state a booked state and the ruling a step of its own, for each kind in `deferred_decision`.
+
+The intervals, corrected:
+- **Width, not half-width** (finding 4): the requirement is a range no wider than 1% of the commitment, so the run
+  stops when every expected figure's half-width is at most 0.5%.
+- **Under the judgments as walked,** each stub's samples are drawn from the judged distribution, so its Hoeffding
+  half-width uses the figure's floor and ceiling at that point. **Under changed judgments** each observation carries the
+  ratio of new to old answers along its continuation; the bound uses the largest such ratio any continuation of the
+  stub can reach (the product, over the questions below it, of each changed question's largest ratio), so the range
+  widens with the change, and the page says when it passes 1% and the region needs walking again.
+- **Percentiles** (finding 5): the sampled tail also moves the probability below any value. The level tolerance Owen
+  set (P5 within P4.5 to P5.5) is checked the same way: a Hoeffding bound on the sampled mass below the reported value
+  (each stub's mass times an indicator, range one), and the run's stopping rule includes it.
