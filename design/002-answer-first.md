@@ -243,3 +243,13 @@ two kinds of range, each true:
   under the changed judgments (the same walk on the server, with every answer already cached), which restores a 99%
   range at those judgments.
 The guide stays the judgment itself (no reweighting of samples is relied on), and no likelihood ratio is used.
+
+After `002-reweight-ranges.review.md`:
+- **Percentiles after a change** take the same guaranteed form as expected figures: with ε the stubs' total mass under
+  the new judgments (exact), a percentile at level q lies between the walked distribution's quantiles at
+  (q - ε)/(1 - ε) and q/(1 - ε), whatever the stubs hold. Where that is wider than the level tolerance Owen set
+  (P4.5 to P5.5), the page offers a re-walk, as it does when an expected figure's guaranteed range passes 1%.
+- **A re-walk can reach questions never asked** (a branch the run gave no probability, or one no replicate visited),
+  so it asks the judge for them. With the stand-in judge that is free. With a real judgment model it is a billed call,
+  so a re-walk asks only within a spending limit Owen has set for the page, and otherwise shows the guaranteed range
+  and says which questions it would have to ask.
