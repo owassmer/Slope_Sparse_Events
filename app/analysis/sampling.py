@@ -16,7 +16,7 @@ each stub, the mean of its groups. Because every sampled decision is drawn with 
 where [lo, hi] are what any continuation of the stub can give the figure on that draw (`continuation_bounds`). The
 groups of a stub are independent and identically distributed; the stubs are independent of each other.
 
-The 99% range is then an empirical Bernstein bound on the sum over stubs, valid whatever the continuations hold:
+The 99% range is the intersection of the guaranteed range (below) with an empirical Bernstein bound on the sum over stubs, valid whatever the continuations hold:
 - Bernstein: with probability at least 1 - delta_mean, |estimate - figure| <= t, where
   t = M L / 3 + sqrt((M L / 3)^2 + 2 V L), L = ln(2 / delta_mean), M = max_s (B_s - A_s) / G_s and
   V = sum_s Var(Z_s) / G_s;
@@ -123,8 +123,11 @@ def ranges(values: dict[str, np.ndarray], weights: np.ndarray, stub: np.ndarray,
             z.append(zs)
             estimate += float(zs.mean())
         half = bernstein(z, a, b, confidence) if z else 0.0
-        out[f] = {"estimate": estimate, "range": [estimate - half, estimate + half], "half_width": half,
-                  "guaranteed": [float(x[head].sum() + a.sum()), float(x[head].sum() + b.sum())]}
+        guaranteed = [float(x[head].sum() + a.sum()), float(x[head].sum() + b.sum())]
+        # the guaranteed range holds always and the sampled one at the stated confidence, so their intersection holds
+        # at that confidence; with few groups per stub the sampled range is the wider of the two (verify-ranges4)
+        out[f] = {"estimate": estimate, "range": [max(estimate - half, guaranteed[0]), min(estimate + half, guaranteed[1])],
+                  "half_width": half, "sampled": [estimate - half, estimate + half], "guaranteed": guaranteed}
     return out
 
 
