@@ -90,9 +90,13 @@ declared as a scenario, with what it does to the figures stated.
 
 ## Compute
 
-Ask for the smallest run that answers the question, and measure before building: the size of a tree, the cost of a
-check, the concentration of probability. No run is worth hours of waiting, and a heavy run goes where it is free
-(GitHub's runners) before where it is paid. A design whose cost cannot be bounded before it runs is not yet a design.
+Build the thing and let its own run report its cost and coverage. Measure first only when the answer would lead to
+materially different work, and then with the smallest run that answers: say beforehand which decision it changes, and
+if none, do not run it. A measurement that needs machinery of its own is a project, not a measurement (October: the
+full walk became a campaign of waves, estimators and pooling for days, and a measurement of probability concentration
+on old partial walks grew to 4,075 commands and hit GitHub's API limit, while the design it was to inform was already
+chosen). No run is worth hours of waiting. The product runs on a laptop by design; heavy compute is not a substitute
+for a design whose cost is bounded.
 
 ## Verification and done
 
