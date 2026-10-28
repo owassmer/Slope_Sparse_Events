@@ -185,9 +185,21 @@ def _fetch(wave, artifact, mapping, into):
     root = Path('var/remote') / wave
     if (root / artifact).exists():
         return pair(root, artifact)
+    import shutil
+    import time
     for name in (artifact, artifact.replace('heavy-', 'out-')):
-        subprocess.run(['gh', 'run', 'download', str(run_id(wave, mapping)), '--name', name, '--dir', str(into / name)],
-                       check=True, capture_output=True)
+        # Forty lines downloading at once meet GitHub's limits (October 28: 33 of 40 lines stopped on a failed
+        # download), so a failed download is retried with growing waits, and its error is said when it gives up.
+        for wait in (5, 15, 30, 60, 120, 240, 0):
+            shutil.rmtree(into / name, ignore_errors=True)
+            done = subprocess.run(['gh', 'run', 'download', str(run_id(wave, mapping)), '--name', name,
+                                   '--dir', str(into / name)], capture_output=True, text=True)
+            if done.returncode == 0:
+                break
+            if not wait:
+                raise RuntimeError(f'{wave}/{name}: gh run download failed: {done.stderr.strip()[-500:]}')
+            print(f'{wave}/{name}: download failed ({done.stderr.strip()[-200:]}); again in {wait} s', flush=True)
+            time.sleep(wait)
     return pair(into, artifact)
 
 
