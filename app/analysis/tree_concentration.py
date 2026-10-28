@@ -42,21 +42,29 @@ def distributions(nodes):
 
 
 class Histogram:
-    def __init__(self):
+    """Per distribution and log-probability bin: how many histories, and how much probability, on each tracked draw.
+    draws: the native draws tracked (all 512 by default); a fixed sample keeps a partial summary small."""
+
+    def __init__(self, draws=None, width=WIDTH):
+        self.draws = np.arange(512) if draws is None else np.asarray(draws, dtype=np.int64)
+        self.width = width
         self.counts = {}
         self.mass = {}
 
     def add(self, distribution, probability, mask):
         if not 0 < probability <= 1 or not math.isfinite(probability):
             raise ValueError(f'zero/underflow or invalid probability: {probability}')
-        key = distribution, int(math.floor(-math.log(probability) / WIDTH))
+        key = distribution, int(math.floor(-math.log(probability) / self.width))
         if key not in self.counts:
-            self.counts[key] = np.zeros(512, dtype=np.int64)
-            self.mass[key] = np.zeros(512)
-        self.counts[key][mask] += 1
-        self.mass[key][mask] += probability
+            self.counts[key] = np.zeros(len(self.draws), dtype=np.int64)
+            self.mass[key] = np.zeros(len(self.draws))
+        on = mask[self.draws]
+        self.counts[key][on] += 1
+        self.mass[key][on] += probability
 
     def merge(self, other):
+        if self.width != other.width or not np.array_equal(self.draws, other.draws):
+            raise ValueError('histograms track different draws or bins')
         for key in other.counts:
             if key not in self.counts:
                 self.counts[key] = other.counts[key].copy()
@@ -67,14 +75,16 @@ class Histogram:
 
     def save(self, path):
         keys = sorted(self.counts)
+        n = len(self.draws)
         np.savez_compressed(path, keys=np.array(keys, dtype=np.int64).reshape(-1, 2),
-                            counts=np.array([self.counts[k] for k in keys], dtype=np.int64).reshape(-1, 512),
-                            mass=np.array([self.mass[k] for k in keys]).reshape(-1, 512))
+                            counts=np.array([self.counts[k] for k in keys], dtype=np.int64).reshape(-1, n),
+                            mass=np.array([self.mass[k] for k in keys]).reshape(-1, n),
+                            draws=self.draws, width=np.array(self.width))
 
     @classmethod
     def load(cls, path, distribution=None):
-        result = cls()
         with np.load(path) as data:
+            result = cls(data['draws'] if 'draws' in data else None, float(data['width']) if 'width' in data else WIDTH)
             for key, count, mass in zip(data['keys'], data['counts'], data['mass'], strict=True):
                 if distribution is None or key[0] == distribution:
                     result.counts[tuple(key)] = count.copy()
@@ -86,10 +96,11 @@ class Histogram:
             if selected is not None and distribution != selected:
                 continue
             keys = sorted(k for k in self.counts if k[0] == distribution)
-            counts = np.array([self.counts[k] for k in keys]).reshape(-1, 512)
-            masses = np.array([self.mass[k] for k in keys]).reshape(-1, 512)
+            n = len(self.draws)
+            counts = np.array([self.counts[k] for k in keys]).reshape(-1, n)
+            masses = np.array([self.mass[k] for k in keys]).reshape(-1, n)
             cumulative = masses.cumsum(axis=0)
-            for draw in range(512):
+            for draw in range(n):
                 total = float(cumulative[-1, draw]) if len(keys) else 0.
                 if total > 1 + 1e-8:
                     raise ValueError(f'walked probability exceeds one: {label}/{draw}: {total}')
@@ -103,12 +114,12 @@ class Histogram:
                             need = target - (cumulative[j - 1, draw] if j else 0)
                             b = keys[j][1]
                             # Widen by roundoff at bin boundaries.
-                            low_p = math.exp(-(b + 1) * WIDTH) * (1 - 1e-12)
-                            high_p = math.exp(-b * WIDTH) * (1 + 1e-12)
+                            low_p = math.exp(-(b + 1) * self.width) * (1 - 1e-12)
+                            high_p = math.exp(-b * self.width) * (1 + 1e-12)
                             n = int(counts[j, draw])
                             lo = before + min(n, max(1, math.ceil(need / high_p)))
                             hi = before + min(n, max(1, math.ceil(need / low_p)))
-                        yield dict(distribution=label, draw=draw, walked_mass=total,
+                        yield dict(distribution=label, draw=int(self.draws[draw]), walked_mass=total,
                                    histories=int(counts[:, draw].sum()), basis=basis, share=share,
                                    count_lower=lo, count_upper=hi)
 
@@ -125,9 +136,9 @@ def scan_nodes(streams):
     return nodes
 
 
-def measure(streams, nodes, lower=0, upper=None):
+def measure(streams, nodes, lower=0, upper=None, hist=None):
     first, dists = class_firsts(nodes), distributions(nodes)
-    hist = Histogram()
+    hist = Histogram() if hist is None else hist
     index = 0
     for stream in streams:
         for kind, payload in read_events(stream):
@@ -167,14 +178,15 @@ def tables(hist, output, distribution=None):
                     for name, percentile in (('median', 50), ('p90', 90), ('worst', 100)):
                         row[f'{field}_{name}'] = float(np.percentile(values, percentile)) if values else None
                     if field.startswith('count_'):
-                        row[f'history_draws_{field}'] = sum(values) if len(values) == 512 else None
+                        row[f'history_draws_{field}'] = sum(values) if len(values) == len(hist.draws) else None
                 summary.append(row)
     with (output / 'summary.csv').open('w') as f:
         writer = csv.DictWriter(f, fieldnames=list(summary[0]))
         writer.writeheader()
         writer.writerows(summary)
     (output / 'method.json').write_text(json.dumps(dict(
-        bin_log_width=WIDTH, seeds=SEEDS, draws=512,
+        bin_log_width=hist.width, seeds=SEEDS, draws=hist.draws.tolist(),
+        sampled_history_draws='With a draw sample, history_draws sums the sampled draws only; times 512/len(draws) estimates all.',
         counts='Lower/upper bounds on descending-probability cutoff; not interpolated counts.',
         history_draws='Sum of per-draw cutoffs; not union of distinct histories across draws.',
         percentiles='Linear percentiles over reachable draws only; empty absolute totals are unreachable.',

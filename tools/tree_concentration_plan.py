@@ -150,5 +150,128 @@ def main():
             measure(streams, pickle.loads(args.catalog.read_bytes()), args.lower, args.upper).save(args.output)
 
 
-if __name__ == '__main__':
+
+# ---- Packed lines (the coordinator, October 28): the staged plan above makes 4,075 commands in six dependent stages,
+# each restoring the last stage's files on fresh runners. The question needs two runs of 40 lines: every line takes a
+# share of the walk's artifacts (balanced by histories), finds their questions, and the catalogs are unioned; then every
+# line measures its share against the one catalog and writes one summary on a fixed sample of draws.
+
+LINES = BASE / 'lines'
+
+
+def plan_lines(lines, vintage, draws):
+    """Write the share lists and the two run.txt files for one walk vintage (h or f)."""
+    inventory = [r for r in json.loads((BASE / 'inventory.json').read_text()) if r['wave'].startswith(f'walk-{vintage}')]
+    shares = [[] for _ in range(lines)]
+    load = [0] * lines
+    for r in sorted(inventory, key=lambda r: -r['histories']):
+        i = load.index(min(load))
+        shares[i].append([r['wave'], r['artifact']])
+        load[i] += r['histories']
+    out = LINES / vintage
+    out.mkdir(parents=True, exist_ok=True)
+    for i, share in enumerate(shares):
+        (out / f'share-{i:02d}.json').write_text(json.dumps(share))
+    prefix = 'OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m tools.tree_concentration_plan '
+    (out / 'nodes.txt').write_text(f'# 001-15a nodes, walk-{vintage}: {lines} lines\n' + ''.join(
+        f'{prefix}line-nodes --share {out}/share-{i:02d}.json --output {out}/nodes-{i:02d}.pkl\n' for i in range(lines)))
+    (out / 'measure.txt').write_text(f'# 001-15a measure, walk-{vintage}: {lines} lines, {draws} draws\n' + ''.join(
+        f'{prefix}line-measure --share {out}/share-{i:02d}.json --catalog {out}/catalog.pkl --draws {draws} '
+        f'--output {out}/hist-{i:02d}.npz\n' for i in range(lines)))
+    print(f'{vintage}: {len(inventory)} artifacts, {sum(load):,} histories, per line {min(load):,}-{max(load):,}')
+
+
+def _fetch(wave, artifact, mapping, into):
+    root = Path('var/remote') / wave
+    if (root / artifact).exists():
+        return pair(root, artifact)
+    for name in (artifact, artifact.replace('heavy-', 'out-')):
+        subprocess.run(['gh', 'run', 'download', str(run_id(wave, mapping)), '--name', name, '--dir', str(into / name)],
+                       check=True, capture_output=True)
+    return pair(into, artifact)
+
+
+def _line_job(job):
+    mode, wave, artifact, catalog, draws = job
+    mapping = json.loads((BASE / 'run-ids.json').read_text())
+    from app.analysis.tree_concentration import Histogram
+    with tempfile.TemporaryDirectory(prefix='concentration-') as temporary:
+        streams = _fetch(wave, artifact, mapping, Path(temporary))
+        if mode == 'nodes':
+            return scan_nodes(streams)
+        nodes = pickle.loads(Path(catalog).read_bytes())
+        return measure(streams, nodes, hist=Histogram(draws, .01))
+
+
+def line(mode, share, output, catalog=None, draws=32, workers=4):
+    import multiprocessing as mp
+
+    import numpy as np
+
+    from app.analysis.tree_concentration import Histogram
+    sample = np.linspace(0, 511, draws).round().astype(int) if draws < 512 else None
+    jobs = [(mode, w, a, catalog, sample) for w, a in json.loads(Path(share).read_text())]
+    output.parent.mkdir(parents=True, exist_ok=True)
+    done = 0
+    with mp.get_context('spawn').Pool(workers) as pool:
+        if mode == 'nodes':
+            nodes = {}
+            for part in pool.imap_unordered(_line_job, jobs):
+                for key, node in part.items():
+                    if key in nodes and nodes[key] != node:
+                        raise ValueError(f'domain mismatch: {key}')
+                    nodes[key] = node
+                done += 1
+                print(f'{done}/{len(jobs)} artifacts, {len(nodes)} questions', flush=True)
+            output.write_bytes(pickle.dumps(nodes, protocol=5))
+        else:
+            hist = Histogram(sample, .01)
+            for part in pool.imap_unordered(_line_job, jobs):
+                hist.merge(part)
+                done += 1
+                print(f'{done}/{len(jobs)} artifacts', flush=True)
+                hist.save(output)       # as it goes, so a line stopped at its limit still answers for what it read
+            hist.save(output)
+
+
+def line_main(argv):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('mode', choices=('plan-lines', 'line-nodes', 'line-measure', 'catalog', 'tables'))
+    parser.add_argument('--vintage', choices=('h', 'f'))
+    parser.add_argument('--lines', type=int, default=40)
+    parser.add_argument('--draws', type=int, default=32)
+    parser.add_argument('--share', type=Path)
+    parser.add_argument('--catalog', type=Path)
+    parser.add_argument('--output', type=Path)
+    parser.add_argument('--inputs', nargs='*', type=Path)
+    args = parser.parse_args(argv)
+    if args.mode == 'plan-lines':
+        plan_lines(args.lines, args.vintage, args.draws)
+    elif args.mode in ('line-nodes', 'line-measure'):
+        line(args.mode.removeprefix('line-'), args.share, args.output, args.catalog, args.draws)
+    elif args.mode == 'catalog':
+        nodes = {}
+        for path in args.inputs:
+            for key, node in pickle.loads(path.read_bytes()).items():
+                if key in nodes and nodes[key] != node:
+                    raise ValueError(f'domain mismatch: {key}')
+                nodes[key] = node
+        args.output.write_bytes(pickle.dumps(nodes, protocol=5))
+        print(f'{len(nodes)} questions')
+    else:
+        from app.analysis.tree_concentration import Histogram, tables
+        hist = None
+        for path in args.inputs:
+            part = Histogram.load(path)
+            if hist is None:
+                hist = part
+            else:
+                hist.merge(part)
+        tables(hist, args.output)
+
+
+if __name__ == '__main__' and len(__import__('sys').argv) > 1 and __import__('sys').argv[1] in (
+        'plan-lines', 'line-nodes', 'line-measure', 'catalog', 'tables'):
+    line_main(__import__('sys').argv[1:])
+elif __name__ == '__main__':
     main()
