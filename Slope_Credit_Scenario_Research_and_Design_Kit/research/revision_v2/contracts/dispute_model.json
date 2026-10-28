@@ -1926,6 +1926,7 @@
           "residual_question": "forecast_bid_compliance",
           "actor": "{company}",
           "decision": "By {compliance_deadline}, does {company} regain compliance with the $1.00 minimum bid price requirement, a closing bid of at least $1.00 for 10 consecutive business days, by a reverse stock split or a rise in the price?",
+          "timing": "at the end of the last compliance period for the minimum bid price",
           "branches": [
             "yes",
             "no"
@@ -1956,6 +1957,7 @@
           "residual_question": "forecast_hearing_request",
           "actor": "{company}",
           "decision": "Does {company} request a hearing before a Nasdaq Hearings Panel by {hearing_request_deadline}, within 7 days of the staff's delisting determination?",
+          "timing": "within 7 days of the staff's delisting determination, where compliance was not regained",
           "branches": [
             "yes",
             "no"
@@ -2188,6 +2190,7 @@
           "residual_question": "forecast_offering_closes",
           "actor": "{company}",
           "decision": "Does the specified offering close by {close_date}, delivering {net_proceeds} net on the stated terms?",
+          "timing": "after each initiation of an offering, including one after an earlier offering did not close; it closes or not by its close date",
           "branches": [
             "yes",
             "no"

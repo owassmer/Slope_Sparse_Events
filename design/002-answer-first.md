@@ -110,3 +110,29 @@ about what precision a judgment needs, taken with the purpose, not a tuning knob
 ## Open
 
 - The page's levers by kind and domain: which kinds the page offers.
+
+## After the code review of 28 October (`002-walk-code.review.md`)
+
+Owen chose (28 October) the exact head and a sampled tail, each range a 99% interval within 1% of the commitment. The
+review showed that a t interval from eight replicates is not a 99% interval: a sampled tail can miss a rare loss in
+every replicate and report no width at all, and nothing compared the widths with the 1%. So:
+
+- **A valid interval, for any distribution.** Each stub (a prefix below the threshold) has an exact mass under the
+  current judgments (its prefix probability) and, per draw, a lowest and highest value any continuation can give the
+  figure, from the stub's own state and the line's rules (collections: at least what is booked at the stub, at most
+  that plus what is owed and every routed invoice still to come, funded at the fee; the same bounds 002-2 derives for
+  exposure). Replicates sample continuations independently across stubs, so the error of an expected figure has a
+  Hoeffding bound: 99% half-width sqrt(ln(200) / (2n) x sum over stubs of (mass x range x ratio)^2), where ratio is
+  the largest factor by which the current judgments raise a sampled continuation's weight over the judgments it was
+  sampled under (1 when unchanged). It holds whatever the tail holds, never collapses when a rare loss is missed, and
+  widens honestly when a changed judgment makes a thinly sampled region matter. The t table goes.
+- **The run meets the 1% or says it did not.** After the walk the run computes every expected figure's half-width;
+  while any exceeds 1% of the commitment and time remains, it adds replicates to the stubs that contribute most to the
+  sum, and the page states the widths reached. On the page, a changed judgment that pushes a width past 1% says so.
+- **What is fixed already:** a restored run keeps each path's divisor and replicate; the charts and server metrics use
+  the tiles' weights (no renormalising); the three question kinds lacking a timing statement have one, from the
+  standard (N1, D6a, D6b).
+- **Still to do, with the questions:** questions built from each node's own dated state, every deferred decision
+  split into dated decisions, and the no-skip check and the plain-engine replay run on every expanded history of each
+  run (findings 5 and 6). The worst-path search evaluates a history on its own draws only (finding 7; the 002-2 worker
+  was told).

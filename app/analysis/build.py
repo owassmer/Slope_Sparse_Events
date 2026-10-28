@@ -138,8 +138,13 @@ def _model_json(m: EventModel) -> dict:
 
 
 def _mask_json(p: DisputePath) -> dict:
-    """A path's draws (DisputePath.mask, hex), only where it follows some of them (a grouped question's fork)."""
-    return {} if p.mask is None else {"mask": p.mask.hex()}
+    """A path's draws (DisputePath.mask, hex), only where it follows some of them (a grouped question's fork), and
+    its sampling (divisor, replicate) where the answer-first walk sampled it: without them a restored run would weigh
+    a sampled path as walked exactly."""
+    out = {} if p.mask is None else {"mask": p.mask.hex()}
+    if p.replicate >= 0 or p.divisor != 1.0:
+        out.update(divisor=p.divisor, replicate=p.replicate)
+    return out
 
 
 def _judgments(data: dict) -> dict[str, Judgment]:
@@ -152,10 +157,12 @@ def model_from_json(data: dict) -> EventModel:
     judgments = _judgments(data["judgments"])
     bank = data.get("bank") or {"judgments": {}, "paths": []}
     mask = lambda p: bytes.fromhex(p["mask"]) if p.get("mask") else None  # noqa: E731
+    sampled = lambda p: {"divisor": p.get("divisor", 1.0), "replicate": p.get("replicate", -1)}  # noqa: E731
     bank_paths = [DisputePath(instance_id=BANK, steps=tuple(tuple(s) for s in p["steps"]), outcome=p["outcome"],
                               edges=tuple(tuple(e) for e in p["edges"]), mask=mask(p)) for p in bank["paths"]]
     per = {i: {c: [DisputePath(instance_id=i, steps=tuple(tuple(s) for s in p["steps"]), outcome=p["outcome"],
-                               edges=tuple(tuple(e) for e in p["edges"]), cls=p["cls"], mask=mask(p)) for p in ps]
+                               edges=tuple(tuple(e) for e in p["edges"]), cls=p["cls"], mask=mask(p), **sampled(p))
+                    for p in ps]
                for c, ps in cl.items()} for i, cl in data["paths"].items()}
     order = [(disputes[i], disputes[p] if p else None) for i, p in data["order"]]
     return EventModel(disputes, judgments, per, order, neutral=data.get("neutral"), bank_paths=bank_paths,

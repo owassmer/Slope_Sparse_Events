@@ -893,12 +893,13 @@ def collected_range(r, probs: np.ndarray, months: list[tuple[int, int]]) -> list
 
 
 def chart_view(r, probs: np.ndarray, months: list[tuple[int, int]]) -> dict | None:
-    """The daily series and monthly table the page draws, under `probs` (renormalised; None if they sum to zero)."""
+    """The daily series and monthly table the page draws, under `probs` as given: each path's weight on its own draws
+    (a probability, or the answer-first walk's importance weight), the weights the tiles use, so the charts and the
+    tiles are one estimate (renormalising, as this once did, halved masked paths and moved sampled ones; None if the
+    weights sum to zero)."""
     probs = np.asarray(probs, dtype=np.float64)
-    total = probs.sum()
-    if total <= 0:
+    if probs.sum() <= 0:
         return None
-    probs = probs / total
     d = r.daily(probs, collected_q=False)
     arrears = {k.removeprefix(ARREARS_PREFIX): np.rint((probs @ v) / r.draws).astype(np.int64).tolist()
                for k, v in r.per_day.items() if k.startswith(ARREARS_PREFIX)}  # the daily processor's, by class
@@ -1293,8 +1294,7 @@ def reweight(state: dict, overrides: dict[str, list[float]] | None) -> dict | No
     probs = model.probs(ov)
     out = chart_view(state["r"], probs, state["months"])
     if out is not None:  # the tiles too: an assumption variant's paths are not the page's (page.js reads its own)
-        p = probs / probs.sum()
-        out["metrics"] = {k: float(p @ v) for k, v in path_scalars(state["r"]).items()}
+        out["metrics"] = {k: float(probs @ v) for k, v in path_scalars(state["r"]).items()}
     bov = {k: {b: float(p) for b, p in zip(model.bank_judgments[k].distribution, v, strict=True)}
            for k, v in (overrides or {}).items() if k in model.bank_judgments}
     if out is not None and state.get("bank_r") is not None and model.bank_judgments:

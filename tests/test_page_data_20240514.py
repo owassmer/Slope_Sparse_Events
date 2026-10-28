@@ -81,12 +81,13 @@ def test_the_daily_arrears_are_the_processors_summed_over_draws(analysis):
     assert total > 0  # the check reaches arrears
 
 
-def test_the_reweighted_arrears_are_the_renormalised_weighted_sums(analysis):
-    """page.chart_view renormalises the path weights (3:7 reads as 0.3/0.7) and weights each path's daily sums."""
+def test_the_reweighted_arrears_are_the_weighted_sums(analysis):
+    """page.chart_view weights each path's daily sums by its weight as given, the weights the tiles use (no
+    renormalising: it would halve masked paths and move the answer-first walk's sampled ones)."""
     from app.analysis.page import chart_view
 
     a, _ = analysis
-    view = chart_view(a.r.for_reweight(), np.array([3.0, 7.0]), a.months)  # renormalised
+    view = chart_view(a.r.for_reweight(), np.array([0.3, 0.7]), a.months)
     last = {k: v[-1] for k, v in view["arrears"].items()}
     expect = {k.removeprefix("arrears_"): (0.3 * a.r.per_day[k][0, -1] + 0.7 * a.r.per_day[k][1, -1]) / a.r.draws
               for k in ARREARS_KEYS}
