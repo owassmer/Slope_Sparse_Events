@@ -171,8 +171,18 @@ def model_from_json(data: dict) -> EventModel:
                     for p in ps]
                for c, ps in cl.items()} for i, cl in data["paths"].items()}
     order = [(disputes[i], disputes[p] if p else None) for i, p in data["order"]]
+    import numpy as np
+
+    from app.analysis.setup import DRAWS
+    from app.disputes.forecast import path_mask
+
+    stubs = {i: [{"mask": path_mask(DisputePath(instance_id=i, steps=(), outcome="", edges=(),
+                                                mask=bytes.fromhex(t["mask"])), DRAWS),
+                  "day": np.asarray(t["day"], dtype=np.int64), "edges": t["edges"], "groups": t["groups"],
+                  "group_size": t["group_size"]} for t in ts]
+             for i, ts in (data.get("stubs") or {}).items()}
     return EventModel(disputes, judgments, per, order, neutral=data.get("neutral"), bank_paths=bank_paths,
-                      bank_judgments=_judgments(bank["judgments"]))
+                      bank_judgments=_judgments(bank["judgments"]), stubs=stubs)
 
 
 def _sens_rows(a: Analysis, model: EventModel, overrides: dict | None) -> list[dict]:
@@ -467,6 +477,10 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict],
         say(f"stress search: {stress_search['search']}")
     state = run_page(a, model, fc, borrower=borrower, snapshot_id=meta["snapshot_id"], stress_rows=data["stress"],
                      stress_search=stress_search)
+    precision = state["payload"]["meta"].get("precision")
+    if precision is not None:
+        say(f"precision: {'met' if precision['met'] else 'NOT met'}; level {precision['level']:.4f} against "
+            f"{precision['level_target']}; misses {precision['misses']}")
     (out / "page.json").write_text(json.dumps(state["payload"], default=str) + "\n")
     save_page_state(run_id, state)
     write_exchanges(out / "jev_log.jsonl.gz", exchanges)

@@ -128,13 +128,30 @@ class EventModel:
             ref = np.full((len(rows), width), len(pairs), dtype=np.int64)  # len(pairs): the factor 1
             for i, r in enumerate(rows):
                 ref[i, :len(r)] = r
-            enc = cache[name] = (len(combos), combos[0] if combos else None, list(pairs), np.asfortranarray(ref))
-        _, _, pairs, ref = enc
+            # the answer-first walk's sampled continuations (the edges after a stub's prefix): under changed
+            # judgments they keep the run's answers, so each stub keeps the conditional distribution it was sampled
+            # from and only its prefix mass changes (design/002-answer-first.md; reweighting the samples themselves
+            # is unbiased only on average and can put a figure outside its range)
+            frozen = np.zeros(ref.shape, dtype=bool)
+            for i, c in enumerate(combos):
+                at = 0
+                for p in c:
+                    if p.stub >= 0:
+                        frozen[i, at + self.stubs[p.instance_id][p.stub]["edges"]:at + len(p.edges)] = True
+                    at += len(p.edges)
+            enc = cache[name] = (len(combos), combos[0] if combos else None, list(pairs), np.asfortranarray(ref),
+                                 np.asfortranarray(frozen) if frozen.any() else None)
+        _, _, pairs, ref, frozen = enc
         dist = self._dist(overrides)
         vals = np.array([dist[k][b] for k, b in pairs] + [1.0], dtype=np.float64)
+        base = vals
+        if frozen is not None and overrides:
+            run = self._dist(None)
+            base = np.array([run[k][b] for k, b in pairs] + [1.0], dtype=np.float64)
         out = np.ones(len(combos))
         for j in range(ref.shape[1]):
-            out *= vals[ref[:, j]]
+            out *= vals[ref[:, j]] if frozen is None or base is vals else np.where(frozen[:, j], base[ref[:, j]],
+                                                                                    vals[ref[:, j]])
         div = self.__dict__.setdefault("_divisor", {})  # the answer-first walk's sampled paths
         if name not in div or div[name][0] is not (combos[0] if combos else None) or len(div[name][1]) != len(combos):
             div[name] = (combos[0] if combos else None,

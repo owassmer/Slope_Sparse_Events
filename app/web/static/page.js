@@ -63,7 +63,7 @@
       const m = probs.factor(D.paths.edges[v.path], v.start, v.end);
       lo += m * v.lo[key]; hi += m * v.hi[key];
     }
-    return Object.assign([Math.min(lo, shown), Math.max(hi, shown)], { kind: "guaranteed" });
+    return Object.assign([lo, hi], { kind: "guaranteed", shown });
   }
   // Derived ratios use the enclosing numerator/denominator ranges, never a range of rounded figures.
   function figureRange(pr, key) {
@@ -85,26 +85,38 @@
     const label = r.kind === "guaranteed"
       ? "With your change, the range that holds whatever the unwalked histories do"
       : `Range from sampling the less likely histories (${Math.round(100 * (1 - (r.kind === "sampled-pair" ? 2 : 1) * (1 - ((D.meta.level_tolerance || {}).confidence || 0.99))))}% confidence)`;
-    return `<span class="sampling-range">${esc(label)}: ${esc(text)}</span>`;
+    const miss = r.kind !== "guaranteed" && ((D.meta.precision || {}).misses || {})[key];
+    return `<span class="sampling-range">${esc(label)}: ${esc(text)}${miss ? ` · wider than the 1% the run aims for` : ""}</span>`;
   }
   const judgeNote = () => D.meta.judgments === "stand-in" ? `<p><strong>${esc(D.meta.judgments_note)}</strong></p>` : "";
   const jevDist = (i) => D.nodes[i].jev;
   const dist = (i, ov = S.overrides) => ov[D.nodes[i].key] || jevDist(i);
-  function pathProbs(get) {
+  // answers for every node and composite under `get`
+  function answers(get) {
     const node = []; for (let i = 0; i < N; i++) node.push(get(i));
     const comp = D.composites.map((conj) => {
       let y = 0;
       for (const c of conj) { let p = 1; for (const [n, b] of c) p *= node[n][b]; y += p; }
       y = Math.min(Math.max(y, 0), 1); return [y, 1 - y];
     });
+    return (e, j) => (e[j] >= 0 ? node[e[j]][e[j + 1]] : comp[-e[j] - 1][e[j + 1]]);
+  }
+  // A sampled path's continuation after its stub's prefix (D.paths.frozen[i] = [from, to) in its flat edges) keeps the
+  // run's answers under any change, as core.EventModel._weigh does: each stub keeps the conditional distribution it
+  // was sampled from and only its prefix mass moves, so every figure stays inside its guaranteed range.
+  const FROZEN = D.paths.frozen || null;
+  let RUNA = null;
+  function pathProbs(get) {
+    const at = answers(get);
+    if (FROZEN && !RUNA) RUNA = answers((i) => jevDist(i));
     const out = new Float64Array(P);
     for (let i = 0; i < P; i++) {
-      const e = D.paths.edges[i]; let p = 1;
-      for (let j = 0; j < e.length; j += 2) p *= e[j] >= 0 ? node[e[j]][e[j + 1]] : comp[-e[j] - 1][e[j + 1]];
+      const e = D.paths.edges[i], f = FROZEN && FROZEN[i]; let p = 1;
+      for (let j = 0; j < e.length; j += 2) p *= f && j >= f[0] && j < f[1] ? RUNA(e, j) : at(e, j);
       out[i] = DIV ? p / DIV[i] : p;  // the answer-first walk: a sampled path weighs its probability over its divisor
     }
     // the probability of a slice of a path's flat edges under the same answers (interval(): a stub's prefix mass)
-    out.factor = (e, a, b) => { let p = 1; for (let j = a; j < b; j += 2) p *= e[j] >= 0 ? node[e[j]][e[j + 1]] : comp[-e[j] - 1][e[j + 1]]; return p; };
+    out.factor = (e, a, b) => { let p = 1; for (let j = a; j < b; j += 2) p *= at(e, j); return p; };
     return out;
   }
   // a path's weight among all draws: p x the part of the draws it follows (a grouped question forks the path)

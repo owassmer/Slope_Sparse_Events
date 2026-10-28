@@ -58,3 +58,25 @@ def test_ranges_rejects_an_observation_outside_its_floor_and_ceiling():
     with pytest.raises(ValueError, match="leave its range"):
         sampling.ranges({"collected": np.array([50.0, 600.0])}, np.array([0.01, 0.01]), stub, group, groups, mass,
                         bounds)
+
+
+def test_a_changed_judgment_moves_each_stubs_mass_exactly_and_nothing_else():
+    """core.EventModel._weigh: a sampled continuation keeps the run's answers after its stub's prefix, so a changed
+    answer inside the stub cannot push a figure outside its range (the code review's case: a filing probability of
+    1.009 from two samples reweighted to 0.99)."""
+    from app.analysis.core import EventModel
+    from app.disputes.forecast import DisputePath, Judgment
+
+    def judged(key, dist):
+        return Judgment(key=key, instance_id="d", node=key, question_id=key, event=key, assumptions=(), window="",
+                        distribution=dist, observation_id="stand-in")
+
+    head = DisputePath(instance_id="d", steps=(), outcome="", edges=(("q1", "no"),))
+    sampled = [DisputePath(instance_id="d", steps=(("x", "", str(g)),), outcome="", edges=(("q1", "yes"), ("q2", "a")),
+                           divisor=0.5 * 2, stub=0, group=g) for g in (0, 1)]
+    model = EventModel({}, {"q1": judged("q1", {"yes": 0.009, "no": 0.991}), "q2": judged("q2", {"a": 0.5, "b": 0.5})},
+                       {}, [], combos=[(head,)] + [(p,) for p in sampled],
+                       stubs={"d": [{"edges": 1, "groups": 2, "group_size": 1}]})
+    np.testing.assert_allclose(model.probs(), [0.991, 0.0045, 0.0045])
+    np.testing.assert_allclose(model.probs({"q2": {"a": 0.99, "b": 0.01}}), [0.991, 0.0045, 0.0045])
+    np.testing.assert_allclose(model.probs({"q1": {"yes": 0.5, "no": 0.5}}), [0.5, 0.25, 0.25])

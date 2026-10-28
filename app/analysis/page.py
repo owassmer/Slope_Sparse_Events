@@ -805,31 +805,60 @@ TILES = ("funded", "due", "collected", "unpaid", "past_due", "frozen_due", "not_
          "stayed", "peak_outstanding", "avg_outstanding")
 
 
-def path_scalars(r) -> dict[str, np.ndarray]:
+def path_scalars(r, rounded: bool = True) -> dict[str, np.ndarray]:
     """Per path, the mean over its draws of each TILES figure. Payments due, past due and frozen by the end of the
     period are the per-day records' last day (core.Reduction.per_day). Amounts are whole cents; due and unpaid is
     payments due less collected and frozen is due and unpaid less past due, so on every path collected + due and
     unpaid = payments due and past due + frozen = due and unpaid exactly (the bridge's two parts reconcile). Not yet
     due is the analysis's own per-trajectory figure (engine: installments falling due after the horizon, zero where a
     petition froze the claim), so 'due' stays due by the horizon and the contractual total is never shown."""
-    last = {k: np.rint(r.per_day[k][:, -1] / r.draws) for k in ("due_cum", "past_due")}
-    collected = np.rint(r.means["collected"])
+    rint = np.rint if rounded else (lambda x: np.asarray(x, dtype=np.float64))  # unrounded: the ranges' arithmetic
+    last = {k: rint(r.per_day[k][:, -1] / r.draws) for k in ("due_cum", "past_due")}
+    collected = rint(r.means["collected"])
     unpaid = last["due_cum"] - collected
-    return {"funded": np.rint(r.means["drawn"]), "due": last["due_cum"], "collected": collected, "unpaid": unpaid,
+    return {"funded": rint(r.means["drawn"]), "due": last["due_cum"], "collected": collected, "unpaid": unpaid,
             "past_due": last["past_due"], "frozen_due": unpaid - last["past_due"],
-            "not_yet_due": np.rint(r.means["not_yet_due"]),  # installments due after the horizon, on no-filing draws
-            "petition_p": np.round(r.means["petition_p"], 4), "clawback": np.rint(r.means["preference"]),
-            "stayed": np.rint(r.means["stayed"]),  # owed on the filing day (balance at filing); zero with no filing
-            "peak_outstanding": np.rint(r.means["peak_outstanding"]),
+            "not_yet_due": rint(r.means["not_yet_due"]),  # installments due after the horizon, on no-filing draws
+            "petition_p": np.round(r.means["petition_p"], 4) if rounded else rint(r.means["petition_p"]),
+            "clawback": rint(r.means["preference"]),
+            "stayed": rint(r.means["stayed"]),  # owed on the filing day (balance at filing); zero with no filing
+            "peak_outstanding": rint(r.means["peak_outstanding"]),
             # the part of the draws each path follows (core.Reduction.mask): p x share weighs a count of paths
             "share": r.mask.mean(axis=1) if getattr(r, "masked", False) else np.ones(len(r.means["drawn"])),
-            "avg_outstanding": np.rint(r.means["avg_outstanding"]),
+            "avg_outstanding": rint(r.means["avg_outstanding"]),
             # equity proceeds by the horizon (QUESTIONS_20240514 §2.6), where the reduction records them
-            **{k: np.rint(r.means[k]) for k in EQUITY if k in r.means}}
+            **{k: rint(r.means[k]) for k in EQUITY if k in r.means}}
 
 
 EQUITY = ("atm_proceeds", "offering_proceeds")  # core.Reduction means: net at-the-market and offering proceeds
 ARREARS_PREFIX = "arrears_"  # core.Reduction per_day keys, one per processor.ARREARS class
+
+
+PRECISION_WIDTH = 0.01   # outcomes/002.md: an expected figure's range no wider than 1% of the commitment
+PRECISION_LEVEL = 0.005  # and a percentile within half a point of its level (P5 between P4.5 and P5.5)
+MONEY_RANGES = ("funded", "due", "collected", "unpaid", "past_due", "frozen_due", "not_yet_due", "clawback", "stayed",
+                "peak_outstanding", "avg_outstanding", "atm_proceeds", "offering_proceeds")
+
+
+def range_precision(ranges: dict, tolerance: dict, limit_cents: int) -> dict | None:
+    """Whether the run met the outcome's precision: every money figure's range no wider than 1% of the commitment
+    (the line's opening limit, the page's limit_cents), the filing probability's no wider than one point, and the cash and collected percentiles'
+    level tolerance within half a point; each figure that misses, by how much."""
+    if not ranges:
+        return None
+    limit = float(limit_cents)
+    misses = {}
+    for k, r in ranges.items():
+        if r.get("range") is None:
+            misses[k] = "no range: no ceiling holds"
+            continue
+        width = r["range"][1] - r["range"][0]
+        target = 0.01 if k == "petition_p" else PRECISION_WIDTH * limit if k in MONEY_RANGES else None
+        if target is not None and width > target:
+            misses[k] = f"range {width:,.4g} wide against {target:,.4g}"
+    level_ok = tolerance.get("level", 1.0) <= PRECISION_LEVEL
+    return {"met": not misses and level_ok, "width_target_cents": PRECISION_WIDTH * limit,
+            "level_target": PRECISION_LEVEL, "level": tolerance.get("level"), "level_met": level_ok, "misses": misses}
 
 
 def sampled_ranges(a, model, probs: np.ndarray) -> tuple[dict, dict, list, list]:
@@ -844,12 +873,13 @@ def sampled_ranges(a, model, probs: np.ndarray) -> tuple[dict, dict, list, list]
     D = a.r.draws
     keys = [(i, t) for i, ts in sorted(model.stubs.items()) for t in range(len(ts))]
     if not keys:
-        return {}, {}, [-1] * len(model.combos), []
+        return {}, {}, [-1] * len(model.combos), [], None
     index = {k: n for n, k in enumerate(keys)}
     groups = np.array([model.stubs[i][t]["groups"] for i, t in keys])
     dist = model._dist(None)
     n = len(model.combos)
     stub, group, prefix = np.full(n, -1), np.full(n, -1), np.zeros(n)
+    frozen: list = [None] * n  # per combo, its sampled continuation's slice of the flat edges (page.js pathProbs)
     masks = np.ones((n, D), dtype=bool)
     variants: dict = {}
     for c_ix, c in enumerate(model.combos):
@@ -866,6 +896,7 @@ def sampled_ranges(a, model, probs: np.ndarray) -> tuple[dict, dict, list, list]
                 v = variants.setdefault((s_ix, p.edges[:length]), {"path": c_ix, "start": 2 * start,
                                                                    "end": 2 * (start + length), "mask": np.zeros(D, bool)})
                 v["mask"] |= masks[c_ix]
+                frozen[c_ix] = [2 * (start + length), 2 * (start + len(p.edges))]
             start += len(p.edges)
     mass = sampling.check_masses(stub, group, groups, probs, masks, prefix)
     bounds = {}
@@ -874,7 +905,7 @@ def sampled_ranges(a, model, probs: np.ndarray) -> tuple[dict, dict, list, list]
         if any(b is None for b in per):
             continue
         bounds[f] = (np.stack([b[0] for b in per]), np.stack([b[1] for b in per]))
-    values = {k: v for k, v in path_scalars(a.r).items() if k != "share"}
+    values = {k: v for k, v in path_scalars(a.r, rounded=False).items() if k != "share"}
     out = sampling.ranges(values, probs, stub, group, groups, mass, bounds)
     cells = a.days * sum(a.r.bins[k].n for k in ("cash", "collected"))  # every (day, bin) a percentile reads
     # Daily cash and collected percentiles have one observation per trajectory, so the unwalked part's probability
@@ -889,7 +920,7 @@ def sampled_ranges(a, model, probs: np.ndarray) -> tuple[dict, dict, list, list]
         lo = {f: float(bounds[f][0][s_ix][v["mask"]].sum()) / D for f in bounds}
         hi = {f: float(bounds[f][1][s_ix][v["mask"]].sum()) / D for f in bounds}
         by_stub[s_ix].append({"path": v["path"], "start": v["start"], "end": v["end"], "lo": lo, "hi": hi})
-    return out, tolerance, stub.tolist(), by_stub
+    return out, tolerance, stub.tolist(), by_stub, frozen
 
 
 def bridge(bank: dict[str, float], research: dict[str, float]) -> dict[str, float]:
@@ -1018,7 +1049,8 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
     seq_ix = {named(s, names): i for s, i in seq_ix.items()}
     probs = model.probs() if probs is None else probs
     stand_in = any(j.observation_id == "stand-in" for j in model.judgments.values())
-    ranges, tolerance, path_stub, stubs = sampled_ranges(a, model, probs)
+    ranges, tolerance, path_stub, stubs, frozen = sampled_ranges(a, model, probs)
+    precision = range_precision(ranges, tolerance, int(a.line.limit[:, 0].min()))
     months = [f"{y}-{mo:02d}" for y, mo in a.months]
     inputs, scenario = case_inputs(snapshot_id)
     vb = verdict_block(fc, d0, lead)
@@ -1031,7 +1063,7 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                                     "A seeded stand-in answers every question (80% on one answer chosen by the "
                                     "question's key): it shows the method, and is no judgment about the case"
                                     if stand_in else ""),
-                 "ranges": ranges, "level_tolerance": tolerance,
+                 "ranges": ranges, "level_tolerance": tolerance, "precision": precision,
                  "probability_label": m["probability_label"]},
         "dates": [(setup.review + timedelta(days=t + 1)).isoformat() for t in range(a.days)], "months": months,
         "need_mean": np.rint(a.line.need.mean(axis=0)).astype(np.int64).tolist(),
@@ -1041,7 +1073,7 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                   # the answer-first walk (design/002-answer-first.md): a path's weight is its probability over its
                   # divisor; the set-aside point (stub) a sampled path came from (-1: walked exactly)
                   "divisor": [float(np.prod([p.divisor for p in c])) for c in model.combos],
-                  "stub": path_stub,
+                  "stub": path_stub, **({"frozen": frozen} if frozen else {}),
                   "seq": seqs,
                   "scalars": {k: v.tolist() for k, v in path_scalars(a.r).items()}},
         "classes": [named(label, names) for _, label in CLASSES], "sequences": list(seq_ix), "parties": names,
