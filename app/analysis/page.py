@@ -832,23 +832,58 @@ EQUITY = ("atm_proceeds", "offering_proceeds")  # core.Reduction means: net at-t
 ARREARS_PREFIX = "arrears_"  # core.Reduction per_day keys, one per processor.ARREARS class
 
 
-# Student's t at 0.995 by degrees of freedom: a 99% interval from the replicates' spread (no scipy here)
-T99 = {1: 63.657, 2: 9.925, 3: 5.841, 4: 4.604, 5: 4.032, 6: 3.707, 7: 3.499, 8: 3.355, 9: 3.250, 10: 3.169,
-       11: 3.106, 12: 3.055, 13: 3.012, 14: 2.977, 15: 2.947, 16: 2.921, 19: 2.861, 24: 2.797, 29: 2.756, 39: 2.708}
+def sampled_ranges(a, model, probs: np.ndarray) -> tuple[dict, dict, list, list]:
+    """Each expected figure's estimate and 99% range from the answer-first walk's sampled tail
+    (`app/analysis/sampling.py`), the percentiles' level tolerance, and what the page needs to bound a figure after a
+    judgment is changed: per combo its stub (global index, -1 walked exactly) and, per stub, its prefix variants (a
+    representative combo, where in its flat edges the stub's prefix lies, and each figure's floor and ceiling summed
+    over the variant's draws). Empty where the run walked everything exactly."""
+    from app.analysis import sampling
+    from app.disputes.forecast import combo_mask, path_probability
 
-
-def figure_interval(probs: np.ndarray, values: np.ndarray, replicate: np.ndarray, replicates: int
-                    ) -> tuple[float, float, float]:
-    """An expected figure under `probs` (each path's probability over its divisor) and its 99% interval from the
-    sampled tail: each replicate's own estimate is the exactly walked paths plus that replicate's paths at
-    `replicates` times their weight; the figure is their mean and the interval t x their standard error. Returns
-    (figure, low, high)."""
-    x = probs * values
-    head = float(x[replicate < 0].sum())
-    est = np.array([head + replicates * float(x[replicate == r].sum()) for r in range(replicates)])
-    mean = float(est.mean())
-    half = T99[replicates - 1] * float(est.std(ddof=1)) / np.sqrt(replicates)
-    return mean, mean - half, mean + half
+    D = a.r.draws
+    keys = [(i, t) for i, ts in sorted(model.stubs.items()) for t in range(len(ts))]
+    if not keys:
+        return {}, {}, [-1] * len(model.combos), []
+    index = {k: n for n, k in enumerate(keys)}
+    groups = np.array([model.stubs[i][t]["groups"] for i, t in keys])
+    dist = model._dist(None)
+    n = len(model.combos)
+    stub, group, prefix = np.full(n, -1), np.full(n, -1), np.zeros(n)
+    masks = np.ones((n, D), dtype=bool)
+    variants: dict = {}
+    for c_ix, c in enumerate(model.combos):
+        m = combo_mask(c, D)
+        if m is not None:
+            masks[c_ix] = m
+        start = 0
+        for p in c:
+            if p.stub >= 0:
+                s_ix = index[(p.instance_id, p.stub)]
+                length = model.stubs[p.instance_id][p.stub]["edges"]
+                stub[c_ix], group[c_ix] = s_ix, p.group
+                prefix[c_ix] = path_probability(p.edges[:length], dist)
+                v = variants.setdefault((s_ix, p.edges[:length]), {"path": c_ix, "start": 2 * start,
+                                                                   "end": 2 * (start + length), "mask": np.zeros(D, bool)})
+                v["mask"] |= masks[c_ix]
+            start += len(p.edges)
+    mass = sampling.check_masses(stub, group, groups, probs, masks, prefix)
+    bounds = {}
+    for f in a.stub_bounds_figures():
+        per = [a.stub_bounds[k].get(f) for k in keys]
+        if any(b is None for b in per):
+            continue
+        bounds[f] = (np.stack([b[0] for b in per]), np.stack([b[1] for b in per]))
+    values = {k: v for k, v in path_scalars(a.r).items() if k != "share"}
+    out = sampling.ranges(values, probs, stub, group, groups, mass, bounds)
+    cells = a.days * sum(a.r.bins[k].n for k in ("cash", "collected"))  # every (day, bin) a percentile reads
+    tolerance = {"level": sampling.level_tolerance(mass, groups, cells), "confidence": sampling.CONFIDENCE}
+    by_stub: list[list] = [[] for _ in keys]
+    for (s_ix, _), v in variants.items():
+        lo = {f: float(bounds[f][0][s_ix][v["mask"]].sum()) / D for f in bounds}
+        hi = {f: float(bounds[f][1][s_ix][v["mask"]].sum()) / D for f in bounds}
+        by_stub[s_ix].append({"path": v["path"], "start": v["start"], "end": v["end"], "lo": lo, "hi": hi})
+    return out, tolerance, stub.tolist(), by_stub
 
 
 def bridge(bank: dict[str, float], research: dict[str, float]) -> dict[str, float]:
@@ -977,10 +1012,7 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
     seq_ix = {named(s, names): i for s, i in seq_ix.items()}
     probs = model.probs() if probs is None else probs
     stand_in = any(j.observation_id == "stand-in" for j in model.judgments.values())
-    replicate = np.array([max((p.replicate for p in c), default=-1) for c in model.combos])
-    replicates = int(replicate.max()) + 1
-    intervals = {k: list(figure_interval(probs, v, replicate, replicates))
-                 for k, v in path_scalars(a.r).items() if k != "share"} if replicates > 1 else {}
+    ranges, tolerance, path_stub, stubs = sampled_ranges(a, model, probs)
     months = [f"{y}-{mo:02d}" for y, mo in a.months]
     inputs, scenario = case_inputs(snapshot_id)
     vb = verdict_block(fc, d0, lead)
@@ -993,8 +1025,7 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                                     "A seeded stand-in answers every question (80% on one answer chosen by the "
                                     "question's key): it shows the method, and is no judgment about the case"
                                     if stand_in else ""),
-                 "replicates": replicates, "t99": T99.get(replicates - 1) if replicates > 1 else None,
-                 "intervals": intervals,
+                 "ranges": ranges, "level_tolerance": tolerance,
                  "probability_label": m["probability_label"]},
         "dates": [(setup.review + timedelta(days=t + 1)).isoformat() for t in range(a.days)], "months": months,
         "need_mean": np.rint(a.line.need.mean(axis=0)).astype(np.int64).tolist(),
@@ -1002,9 +1033,9 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         "nodes": nodes, "composites": enc["composites"],
         "paths": {"edges": enc["paths"], "class": [[[cls_ix[c], round(v, 4)] for c, v in sh.items()] for sh in shares],
                   # the answer-first walk (design/002-answer-first.md): a path's weight is its probability over its
-                  # divisor; a sampled path's replicate (-1: walked exactly), whose spread is each figure's interval
+                  # divisor; the set-aside point (stub) a sampled path came from (-1: walked exactly)
                   "divisor": [float(np.prod([p.divisor for p in c])) for c in model.combos],
-                  "replicate": [max((p.replicate for p in c), default=-1) for c in model.combos],
+                  "stub": path_stub,
                   "seq": seqs,
                   "scalars": {k: v.tolist() for k, v in path_scalars(a.r).items()}},
         "classes": [named(label, names) for _, label in CLASSES], "sequences": list(seq_ix), "parties": names,
@@ -1015,6 +1046,7 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         "event": chart_view(a.r, probs, a.months),
         "collected_range": collected_range(a.r, probs, a.months),
         **({"stress": stress_search} if stress_search is not None else {}),
+        **({"stubs": stubs} if stubs else {}),  # page.js interval(): each figure's guaranteed range after a change
         "worst": [{**w, "class": named(w["class"], names)} for w in _worst(stress_rows, classes, seqs, list(seq_ix))]
         if stress_rows else [],
         "case_terms": case_terms(d0, setup.review, setup.horizon, m, links, {

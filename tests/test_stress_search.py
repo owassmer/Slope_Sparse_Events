@@ -113,7 +113,7 @@ def test_answer_first_page_contains_conditional_stress():
     from app.analysis.walk_measurement import LEAD_RUN
 
     ctx = run_context(LEAD_RUN, Path('runs/recorded'))
-    fc, model = judged_model(ctx, ctx['setup'], None, [], answer_first=dict(tau=2, replicates=2, seed=0))
+    fc, model = judged_model(ctx, ctx['setup'], None, [], answer_first=dict(tau=2, groups=2, group_size=1, seed=0))
     a = Analysis(ctx['feed'], ctx['setup'], model, dispute_model=ctx['m'])
     original_nodes = dict(fc.nodes)
     stress = search(a, fc, model, ctx['borrower'], samples=2)

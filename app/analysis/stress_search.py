@@ -114,7 +114,8 @@ def search(a, fc, model, borrower, *, samples=48, seed=731, seconds=420):
         if d.stage != 'liability_pending' or d.borrower_role != 'debtor':
             continue
         guide = Guide(fc, lambda key, branches: dict.fromkeys(branches, 1 / len(branches)))
-        walk = BoundedSearch(fc, d).configured(guide=guide, tau=2, replicates=samples, seed=seed)
+        walk = BoundedSearch(fc, d).configured(guide=guide, tau=2, groups=samples, min_groups=samples, group_size=1,
+                                               enumerate_days=0, seed=seed)
         paths = walk.run()
         sampled += len(paths)
         others = [p for p in model.combos[0] if p.instance_id != d.instance_id]

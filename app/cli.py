@@ -338,8 +338,12 @@ def analyze_case(snapshot: str = typer.Argument(..., help="Dated case ID; uses i
 @cli.command("run")
 def run_case(case: str = typer.Argument("akoustis_20240514", help="The case (cases/<case>)."),
              tau: float = typer.Option(0.01, help="Walk exactly every prefix at least this likely on some draw."),
-             replicates: int = typer.Option(8, min=2, help="Samplings of the less likely tail: their spread is each "
-                                                           "figure's 99% interval."),
+             groups: int = typer.Option(6, min=2, help="Independent groups for a set-aside point at the threshold "
+                                                       "with the whole horizon ahead (fewer for lighter, later ones)."),
+             min_groups: int = typer.Option(2, min=2, help="Groups for every set-aside point at least."),
+             group_size: int = typer.Option(4, min=1, help="Replicates per group, spread as a Latin hypercube."),
+             enumerate_days: int = typer.Option(30, min=0, help="Walk every answer of a decision this close to the "
+                                                                "horizon rather than sample it."),
              seed: int = typer.Option(0)) -> None:
     """The case's page from the answer-first walk (design/002-answer-first.md), with the seeded stand-in judge: a new
     run under var/runs beside a copy of the case's recorded investigation. View it with
@@ -348,12 +352,11 @@ def run_case(case: str = typer.Argument("akoustis_20240514", help="The case (cas
     import time
 
     from app.analysis.build import build, say
-    from app.analysis.page import T99
     from app.analysis.walk_measurement import LEAD_RUN
     from app.config import ROOT, VAR
 
-    if replicates - 1 not in T99:  # the interval's t quantile is tabled (no scipy)
-        raise typer.BadParameter(f"replicates must be one of {sorted(k + 1 for k in T99)}")
+    if groups < min_groups:
+        raise typer.BadParameter("--groups must be at least --min-groups")
     leads = {"akoustis_20240514": LEAD_RUN}  # the recorded investigation each case's page starts from
     if case not in leads:
         raise typer.BadParameter(f"no recorded investigation for {case}; known: {', '.join(leads)}")
@@ -362,7 +365,8 @@ def run_case(case: str = typer.Argument("akoustis_20240514", help="The case (cas
     shutil.copytree(ROOT / "runs" / "recorded" / leads[case], root / run_id)
     t0 = time.time()
     build(run_id, root, progress=lambda stage: say(stage),
-          answer_first={"tau": tau, "replicates": replicates, "seed": seed})
+          answer_first={"tau": tau, "groups": groups, "min_groups": min_groups, "group_size": group_size,
+                        "enumerate_days": enumerate_days, "seed": seed})
     typer.echo(f"{run_id}: {time.time() - t0:.0f} s; page at /runs/{run_id} "
                f"(SLOPE_RUNS_ROOT={root} uv run slope viewer)")
 

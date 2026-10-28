@@ -87,6 +87,9 @@ class EventModel:
     # (Forecaster.bank_paths), with their own judgments. With no dispute the augmented view is the bank view.
     bank_paths: list[DisputePath] = field(default_factory=list)
     bank_judgments: dict[str, Judgment] = field(default_factory=dict)
+    # the answer-first walk's set-aside points (stubs), by dispute: each one's draws ("mask"), first decision day per
+    # draw ("day"), prefix length in edges ("edges"), groups and replicates per group (answer_first.AnswerFirstWalk)
+    stubs: dict[str, list[dict]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if any(p.classes for v in self.per.values() for ps in v.values() for p in ps):
@@ -620,6 +623,7 @@ class Analysis:
                 evs = [events(c) for c in chunk]
                 for i, (t, ev) in enumerate(zip(run_many(self.line, self.opening, evs), evs, strict=True), lo):
                     self.r.add(i, t, ev, combo_mask(model.combos[i], DRAWS))
+                    self._stub_bounds(model, i, t, ev)
                     self._tick("simulate", i, len(model.combos))
             self._progress("bins", 0, len(model.combos))
             bins = self._bins_from(lo_ev, hi_ev)
@@ -636,6 +640,47 @@ class Analysis:
             self._cache.clear()
             self._draws.prefixes = {}
             self._packed = {}
+
+    def stub_bounds_figures(self) -> list[str]:
+        """The figures the stubs' bounds cover (every stub carries the same; none where nothing was sampled)."""
+        first = next(iter(getattr(self, "stub_bounds", {}).values()), {})
+        return sorted(first)
+
+    def _stub_bounds(self, model: EventModel, i: int, t: Trajectories, ev: EventCash) -> None:
+        """For a path the answer-first walk sampled, each figure's floor and ceiling over every continuation of its
+        stub (`continuation.continuation_bounds`), on the draws the path follows, into `self.stub_bounds[(dispute,
+        stub)]` = figure -> ([draws] floor, [draws] ceiling) (None where no ceiling holds). Every path of a stub shares
+        its event cash before the stub's first decision, so they must give the same bounds on the draws they share;
+        a path that does not stands as an error (the walk's prefix was not what the stub recorded)."""
+        sampled = [p for p in model.combos[i] if p.stub >= 0]
+        if not sampled:
+            return
+        if len(sampled) > 1:
+            raise ValueError("a joint path sampled in two disputes: the ranges assume one sampled dispute")
+        p = sampled[0]
+        table = model.stubs[p.instance_id][p.stub]
+        from app.analysis.continuation import continuation_bounds
+
+        got = continuation_bounds(self.line, t, ev, table["day"])
+        on = combo_mask(model.combos[i], DRAWS)
+        on = np.ones(DRAWS, dtype=bool) if on is None else on
+        store = self.__dict__.setdefault("stub_bounds", {}).setdefault((p.instance_id, p.stub), {})
+        seen = self.__dict__.setdefault("_stub_seen", {}).setdefault((p.instance_id, p.stub), np.zeros(DRAWS, bool))
+        for f, b in got.items():
+            if b is None:
+                store[f] = None
+                continue
+            lo, hi = (np.asarray(x, dtype=np.float64) for x in b)
+            if f not in store:
+                store[f] = (np.zeros(DRAWS), np.zeros(DRAWS))
+            if store[f] is None:
+                continue
+            both = seen & on
+            if not (np.array_equal(store[f][0][both], lo[both]) and np.array_equal(store[f][1][both], hi[both])):
+                raise ValueError(f"stub {p.stub}: two of its paths give different bounds for {f} on the draws they "
+                                 "share, so their event cash differs before the stub's first decision")
+            store[f][0][on], store[f][1][on] = lo[on], hi[on]
+        seen |= on
 
     def _prepare(self, feed: BankFeed, setup: Setup, model: EventModel, stress: bool, sens: dict | None,
                  dispute_model: dict | None, progress) -> None:

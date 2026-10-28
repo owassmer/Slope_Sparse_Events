@@ -96,11 +96,12 @@ class DisputePath:
     # per classed question on the path (`Forecaster.class_key`): (question key, its class tags, and per draw the path
     # follows, the index of its tag, int8 bytes; -1 where the question is not live there; None: one tag throughout)
     classes: tuple = ()
-    # the answer-first walk (app/disputes/answer_first.py): the probability with which the path was sampled times the
-    # number of replicates (1: walked exactly), so its weight on a draw is its probability divided by this; and which
-    # sampling it came from (-1: walked exactly)
+    # the answer-first walk (app/disputes/answer_first.py): the probability with which the path was sampled times its
+    # stub's groups and replicates per group (1: walked exactly), so its weight on a draw is its probability divided
+    # by this; the stub (set-aside point) and group it was sampled in (-1: walked exactly)
     divisor: float = 1.0
-    replicate: int = -1
+    stub: int = -1
+    group: int = -1
 
 
 def pack_mask(m: np.ndarray | None) -> bytes | None:
@@ -1553,6 +1554,8 @@ class Forecaster:
             out = W.run()
             more = self._raise_more - self._raise_open
             if not more:  # QUESTIONS §1 Depth: financially equivalent paths are one path
+                if hasattr(W, "stub_table"):  # the answer-first walk's set-aside points, by dispute
+                    self.__dict__.setdefault("stub_tables", {})[d.instance_id] = W.stub_table
                 return merge_equivalent(out, W.keys, {k: n.branches for k, n in self.nodes.items()})
             self._raise_open |= more
             self.nodes, self.facts, self._late_seen, self.classed, self._qcls, self._qcanon = kept

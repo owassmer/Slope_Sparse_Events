@@ -125,6 +125,8 @@ def _judgment_meta(j: Judgment, disputes: dict[str, DisputeInstance], order: dic
 
 
 def _model_json(m: EventModel) -> dict:
+    from app.disputes.forecast import pack_mask
+
     return {"disputes": {k: d.model_dump(mode="json") for k, d in m.disputes.items()},
             "judgments": {k: asdict(j) for k, j in m.judgments.items()},
             "paths": {i: {c: [{"steps": [list(s) for s in p.steps], "outcome": p.outcome,
@@ -132,6 +134,9 @@ def _model_json(m: EventModel) -> dict:
                           for c, ps in cl.items()} for i, cl in m.per.items()},
             "order": [[d.instance_id, parent.instance_id if parent else None] for d, parent in m.order],
             "neutral": m.neutral,
+            "stubs": {i: [{"mask": pack_mask(t["mask"]).hex(), "day": t["day"].tolist(), "edges": t["edges"],
+                           "groups": t["groups"], "group_size": t["group_size"]} for t in ts]
+                      for i, ts in m.stubs.items()},
             "bank": {"judgments": {k: asdict(j) for k, j in m.bank_judgments.items()},
                      "paths": [{"steps": [list(s) for s in p.steps], "outcome": p.outcome,
                                 "edges": [list(e) for e in p.edges], **_mask_json(p)} for p in m.bank_paths]}}
@@ -139,11 +144,11 @@ def _model_json(m: EventModel) -> dict:
 
 def _mask_json(p: DisputePath) -> dict:
     """A path's draws (DisputePath.mask, hex), only where it follows some of them (a grouped question's fork), and
-    its sampling (divisor, replicate) where the answer-first walk sampled it: without them a restored run would weigh
+    its sampling (divisor, stub, group) where the answer-first walk sampled it: without them a restored run would weigh
     a sampled path as walked exactly."""
     out = {} if p.mask is None else {"mask": p.mask.hex()}
-    if p.replicate >= 0 or p.divisor != 1.0:
-        out.update(divisor=p.divisor, replicate=p.replicate)
+    if p.stub >= 0 or p.divisor != 1.0:
+        out.update(divisor=p.divisor, stub=p.stub, group=p.group)
     return out
 
 
@@ -157,7 +162,8 @@ def model_from_json(data: dict) -> EventModel:
     judgments = _judgments(data["judgments"])
     bank = data.get("bank") or {"judgments": {}, "paths": []}
     mask = lambda p: bytes.fromhex(p["mask"]) if p.get("mask") else None  # noqa: E731
-    sampled = lambda p: {"divisor": p.get("divisor", 1.0), "replicate": p.get("replicate", -1)}  # noqa: E731
+    sampled = lambda p: {"divisor": p.get("divisor", 1.0), "stub": p.get("stub", -1),  # noqa: E731
+                         "group": p.get("group", -1)}
     bank_paths = [DisputePath(instance_id=BANK, steps=tuple(tuple(s) for s in p["steps"]), outcome=p["outcome"],
                               edges=tuple(tuple(e) for e in p["edges"]), mask=mask(p)) for p in bank["paths"]]
     per = {i: {c: [DisputePath(instance_id=i, steps=tuple(tuple(s) for s in p["steps"]), outcome=p["outcome"],
@@ -326,14 +332,26 @@ STAND_IN = "stand-in"  # a Judgment's observation_id when the seeded stand-in ju
 
 
 def stand_in_judgments(nodes: dict, classed: set) -> dict[str, Judgment]:
-    """The seeded stand-in judge's answer to every question (`answer_first.stand_in` on the question's base key, over
-    its own answers, so the walk's guide and the judgments agree): for building and keyless runs, never a judgment
-    about the case."""
+    """The seeded stand-in judge's answer to every question, for building and keyless runs, never a judgment about the
+    case. A question in a situation class (key `base|#class`) offers the answers open in that class; its answer is the
+    stand-in's answer to the base question renormalised over them, which is exactly what the answer-first walk samples
+    a draw of that class with (`answer_first._sample`: the guide renormalised over the children open to the draw), so
+    the walk samples with the judged probabilities (`sampling.check_masses`)."""
     from app.disputes.answer_first import stand_in
 
+    def answer(k, n):
+        base = k.split("|#")[0]
+        if base == k or base not in nodes:
+            return stand_in(base, n.branches)
+        full = stand_in(base, nodes[base].branches)
+        missing = [b for b in n.branches if b not in full]
+        if missing:
+            raise ValueError(f"{k}: answers {missing} are not answers of its base question {base}")
+        total = sum(full[b] for b in n.branches)
+        return {b: full[b] / total for b in n.branches}
+
     return {k: Judgment(key=k, instance_id=n.instance_id, node=n.node, question_id=n.question_id, event=n.event,
-                        assumptions=n.assumptions, window=n.window,
-                        distribution=stand_in(k.split("|#")[0], n.branches), observation_id=STAND_IN)
+                        assumptions=n.assumptions, window=n.window, distribution=answer(k, n), observation_id=STAND_IN)
             for k, n in nodes.items() if k not in classed}
 
 
@@ -342,7 +360,7 @@ def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None 
                  answer_first: dict | None = None) -> tuple[Forecaster, EventModel]:
     """The tree for `setup` (and the chains' parameter sensitivities `sens`), with Jev's answer to every question.
     A question whose facts are unchanged is answered from Jev's cache; one whose facts changed is asked again.
-    answer_first: the answer-first walk's settings (tau, replicates, seed; design/002-answer-first.md), with the
+    answer_first: the answer-first walk's settings (answer_first.AnswerFirstWalk.configure), with the
     seeded stand-in judge both guiding the walk and answering (jev is then unused)."""
     from app.agent.jev_profiles import DisputeProfile
 
@@ -361,7 +379,8 @@ def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None 
         judgments = stand_in_judgments(fc.nodes, fc.classed)
         bank_judgments = stand_in_judgments(fc.bank_nodes, set())
         model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered(),
-                           neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments)
+                           neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments,
+                           stubs=getattr(fc, "stub_tables", {}))
         return fc, model
     procs = walk_processes(ctx["meta"]["snapshot_id"])
     if procs > 1:  # the pending claim's tree on a subtree queue (app/disputes/parallel.py): the single walk's result

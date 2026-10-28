@@ -43,16 +43,27 @@
 
   // --- probability arithmetic -------------------------------------------------------------------------------------
   const N = D.nodes.length, P = D.paths.edges.length;
-  const DIV = D.paths.divisor || null, REP = D.paths.replicate || null, R = D.meta.replicates || 0;
-  // a figure's 99% interval from the sampled tail (page.figure_interval): each replicate's estimate is the exactly
-  // walked paths plus its own paths at R times their weight; t x the standard error of their mean
+  const DIV = D.paths.divisor || null, STUB = D.paths.stub || null, RANGES = D.meta.ranges || {};
+  // A figure's range (page.sampled_ranges, app/analysis/sampling.py). At the run's judgments: the 99% range from
+  // sampling the less likely histories. After a judgment is changed the samples were drawn under other answers, so
+  // no sampling claim holds: the range is the exactly walked paths plus each set-aside point's exact new mass times
+  // what any continuation can give the figure, widened to take in the figure shown if it falls outside.
+  let RUNP = null;
   function interval(probs, key) {
-    const x = D.paths.scalars[key]; if (!x || !REP || R < 2 || !D.meta.t99) return null;
-    let head = 0; const tail = new Float64Array(R);
-    for (let i = 0; i < P; i++) { const v = probs[i] * x[i]; if (REP[i] < 0) head += v; else tail[REP[i]] += v; }
-    const est = Array.from(tail, (t) => head + R * t), m = est.reduce((a, b) => a + b, 0) / R;
-    const sd = Math.sqrt(est.reduce((a, b) => a + (b - m) ** 2, 0) / (R - 1)), h = D.meta.t99 * sd / Math.sqrt(R);
-    return [m - h, m + h];
+    const r = RANGES[key]; if (!r || !r.range) return null;
+    if (!RUNP) RUNP = pathProbs((i) => jevDist(i));
+    let same = probs.length === RUNP.length;
+    for (let i = 0; same && i < P; i++) same = Math.abs(probs[i] - RUNP[i]) <= 1e-12 * Math.max(1, Math.abs(RUNP[i]));
+    if (same) return Object.assign([r.range[0], r.range[1]], { kind: "sampled" });
+    const x = D.paths.scalars[key]; if (!x || !STUB || !D.stubs || !probs.factor) return null;
+    let head = 0, shown = 0;
+    for (let i = 0; i < P; i++) { const v = probs[i] * x[i]; shown += v; if (STUB[i] < 0) head += v; }
+    let lo = head, hi = head;
+    for (const variants of D.stubs) for (const v of variants) {
+      const m = probs.factor(D.paths.edges[v.path], v.start, v.end);
+      lo += m * v.lo[key]; hi += m * v.hi[key];
+    }
+    return Object.assign([Math.min(lo, shown), Math.max(hi, shown)], { kind: "guaranteed" });
   }
   // Derived ratios use the enclosing numerator/denominator ranges, never a range of rounded figures.
   function figureRange(pr, key) {
@@ -60,8 +71,10 @@
     if (!ratio) return interval(pr, key);
     const a = interval(pr, ratio[0]), b = interval(pr, ratio[1]);
     if (!a || !b) return null;
-    if (b[0] <= 0) return [-Infinity, Infinity];
-    return [Math.max(0, a[0]) / b[1], a[1] / b[0]];
+    // two ranges each holding at 99% hold together at 98% (or both guaranteed, after a change)
+    const kind = a.kind === "guaranteed" && b.kind === "guaranteed" ? "guaranteed" : "sampled-pair";
+    if (b[0] <= 0) return Object.assign([-Infinity, Infinity], { kind });
+    return Object.assign([Math.max(0, a[0]) / b[1], a[1] / b[0]], { kind });
   }
   function rangeHtml(pr, key, fmt = money, subtract = 0) {
     if (S.assumption !== "central") return "";
@@ -69,7 +82,10 @@
     const lo = r[0] - subtract, hi = r[1] - subtract;
     const text = !Number.isFinite(lo) || !Number.isFinite(hi) ? "not bounded (denominator range includes zero)"
       : fmt(lo) === fmt(hi) ? "narrower than displayed rounding" : `${fmt(lo)} – ${fmt(hi)}`;
-    return `<span class="sampling-range">Range from sampling the less likely histories: ${esc(text)}</span>`;
+    const label = r.kind === "guaranteed"
+      ? "With your change, the range that holds whatever the unwalked histories do"
+      : `Range from sampling the less likely histories (${Math.round(100 * (1 - (r.kind === "sampled-pair" ? 2 : 1) * (1 - ((D.meta.level_tolerance || {}).confidence || 0.99))))}% confidence)`;
+    return `<span class="sampling-range">${esc(label)}: ${esc(text)}</span>`;
   }
   const judgeNote = () => D.meta.judgments === "stand-in" ? `<p><strong>${esc(D.meta.judgments_note)}</strong></p>` : "";
   const jevDist = (i) => D.nodes[i].jev;
@@ -87,6 +103,8 @@
       for (let j = 0; j < e.length; j += 2) p *= e[j] >= 0 ? node[e[j]][e[j + 1]] : comp[-e[j] - 1][e[j + 1]];
       out[i] = DIV ? p / DIV[i] : p;  // the answer-first walk: a sampled path weighs its probability over its divisor
     }
+    // the probability of a slice of a path's flat edges under the same answers (interval(): a stub's prefix mass)
+    out.factor = (e, a, b) => { let p = 1; for (let j = a; j < b; j += 2) p *= e[j] >= 0 ? node[e[j]][e[j + 1]] : comp[-e[j] - 1][e[j + 1]]; return p; };
     return out;
   }
   // a path's weight among all draws: p x the part of the draws it follows (a grouped question forks the path)
