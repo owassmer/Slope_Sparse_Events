@@ -23,12 +23,20 @@
  * - Recall: the recall tool returns past exchanges verbatim by the entry ids the understanding cites, so a reason can
  *   be re-read in its original context rather than trusted as a paraphrase.
  *
- * Ported from Handoff's factory (October 8). Nothing in it is specific to Slope except the reading of its factory records
- * (factoryStanding) and where its Cloudflare credentials are kept (secret).
+ * - Frame: the coordinator works each piece from a frame it writes from the purpose before opening the nearest thing
+ *   at hand: what must be true in the product when it is done, the whole of what bears and what each part is for, and
+ *   the unit and what it unifies or removes. A rule held far back in the context loses, at the moment of choosing, to the
+ *   file just opened (October 22: the coordinator wrote a second obligations.ts an hour after the rule against it went
+ *   into AGENTS.md). So the frame is kept in view: once the output since it last appeared passes a size, it is added
+ *   again after the current calls, as a message in the transcript (never edited in before a request, which would
+ *   discard the provider's cache).
+ *
+ * Ported from Handoff's factory (October 8, again October 28). Nothing in it is specific to Slope except the reading of
+ * its factory records (factoryStanding) and where its Cloudflare credentials are kept (secret).
  */
 import { execFile, execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { Type } from "typebox";
@@ -121,7 +129,10 @@ export function ledger(entries: Entry[]): Ledger {
     if (m.role === "toolResult") {
       const call = calls.get(m.toolCallId);
       const t = textOf(m.content);
-      if (call?.name === "ask") {
+      // A call the harness refused (a validation error) never reached Owen: it is no question of his to answer, and
+      // counting it left a question "open" that he had answered in its retry (October 9).
+      if (call?.name === "ask" && m.isError) L.asks = L.asks.filter((x) => x.callId !== m.toolCallId);
+      else if (call?.name === "ask") {
         const a = L.asks.find((x) => x.callId === m.toolCallId);
         const d = (m.details ?? {}) as { choice?: string; words?: string; talk?: boolean; explain?: boolean; dismissed?: boolean };
         if (a && (d.choice || d.words)) a.answer = { choice: d.choice, words: d.words, at };
@@ -162,8 +173,25 @@ export type Edit =
   | { op: "merge"; ids: string[]; text: string; stands: Item["stands"]; sources: string[] }
   | { op: "retire"; id: string; why: string };
 
-/** Applies edits to the items. An item no edit names is kept word for word: revision can only enter through an edit. */
-export function applyEdits(items: Item[], edits: Edit[]): { items: Item[]; retired: Array<{ item: Item; why: string }> } {
+/** What is wrong with an edit's shape, or null where it is whole: each op with the fields it needs. */
+export function editProblem(e: unknown): string | null {
+  const x = e as Record<string, unknown> | null;
+  const str = (k: string) => typeof x?.[k] === "string" && (x[k] as string).trim() !== "";
+  const strs = (k: string) => Array.isArray(x?.[k]) && (x![k] as unknown[]).every((v) => typeof v === "string");
+  if (!x || typeof x !== "object") return "an edit is an object";
+  if (x.op === "revise") return str("id") && str("text") && strs("sources") ? null : "revise needs id, text and sources (an array of entry ids)";
+  if (x.op === "retire") return str("id") && str("why") ? null : "retire needs id and why";
+  if (x.op === "merge") return strs("ids") && str("text") && str("stands") && strs("sources") ? null : "merge needs ids, text, stands and sources";
+  if (x.op === "add") return str("governs") && str("text") && str("stands") && strs("sources") ? null : "add needs governs, text, stands and sources";
+  return "op is revise, retire, merge or add";
+}
+
+/**
+ * Applies edits to the items. An item no edit names is kept word for word: revision can only enter through an edit. An
+ * edit whose shape is not whole is no edit: it changes nothing (one logged before edits were checked is passed over).
+ */
+export function applyEdits(items: Item[], all: Edit[]): { items: Item[]; retired: Array<{ item: Item; why: string }> } {
+  const edits = all.filter((e) => editProblem(e) === null);
   const byId = new Map(items.map((i) => [i.id, { ...i }]));
   const retired: Array<{ item: Item; why: string }> = [];
   const added: Item[] = [];
@@ -188,6 +216,17 @@ export function applyEdits(items: Item[], edits: Edit[]): { items: Item[]; retir
   return { items: groups.flatMap((g) => result.filter((i) => i.governs === g)), retired };
 }
 
+/** The custom entry of a revision the coordinator made between compactions (revise_understanding). */
+const REVISED = "understanding-revised";
+/** The understanding as it stands: the last compaction's, with the revisions made since applied in order. */
+export function currentUnderstanding(entries: Entry[]): Item[] | undefined {
+  const last = [...entries].reverse().find((e) => e.type === "compaction" && e.details?.understanding);
+  let items = last?.details?.understanding as Item[] | undefined;
+  const from = last ? entries.indexOf(last) : -1;
+  for (const e of entries.slice(from + 1)) if (e.type === "custom" && e.customType === REVISED && items) items = applyEdits(items, e.data.edits as Edit[]).items;
+  return items;
+}
+
 const STANDS: Record<Item["stands"], string> = { owen: "Owen", confirmed: "the coordinator's framing, confirmed by Owen", reading: "the coordinator's reading, not yet confirmed", commitment: "owed" };
 export function renderUnderstanding(items: Item[]): string {
   const groups = [...new Set(items.map((i) => i.governs))];
@@ -198,16 +237,17 @@ export const REVISION = `You revise the understanding a coordinator carries acro
 
 The understanding is the reasons Owen and the coordinator arrived at (about the product, about how work is delegated and judged, about how they work together) and what each currently owes the other. It is held as items. You see the current items and the whole conversation since the last compaction, so you can see each part of it in proportion to the whole; return edits to the items as JSON, never a new text.
 
-- keep an item that still holds as it is (you may omit keeps: an item no edit names is kept word for word).
-- revise an item the conversation refined or corrected; name the entry ids that changed it.
-- add an item for a reason or commitment the conversation established that no item holds.
-- merge items that turn out to be one reason.
-- retire an item whose basis has gone, or a commitment that was met, saying why.
+The understanding is one whole, kept in proportion: as few items as the reasons need, each general enough that the next case is an instance of it. It is revised toward that each time, so it does not grow with the conversation. Read the span first for what it shows of reasons the items already hold: a correction is usually a case of one, so revise that item to state the reason so it covers the case, in no more words than before where you can. Add an item only for a reason no item holds or could hold. Where items share a reason, merge them into one that states it. Retire what no longer bears on the work ahead, and commitments met. State each item in a few sentences: the reason, what it serves, and its scope. Its cases (a unit, a figure, a task number, what one run did) are evidence, kept by its sources, recall and the notebook, so an item names one only where the reason cannot be understood without it. Sources are the entries that established or changed the reason, not every entry that touched it. What is open is what one owes the other, not the steps of a plan (a task file holds those).
 
-Each item is a reason, not a rule: why it holds and what it serves, with the scope it was given. A rule without its reason gets followed after its basis is gone, which is the failure this exists to prevent. Read each of Owen's corrections for what it did: corrected one action, supplied a fact, set a lasting constraint, or moved the destination; a correction of one action that has since been applied is not an item. Mark where each item stands: "owen" (his own position), "confirmed" (the coordinator's framing Owen confirmed, often the clearer statement of what he meant), "reading" (the coordinator's, not yet confirmed), or "commitment" (something one owes the other, still open). Use Owen's words where his wording carries the meaning. Cite the entry ids (shown as [id]) each item rests on. Group items by what they govern with short group names; reuse the existing names. Leave out the history of mistakes (the notebook holds those) and what a file already holds in full (the purpose in AGENTS.md, outcomes in outcomes/, decisions in design/decisions.md); point to those where they bear on an item.
+- Name every item in exactly one edit (revise, merge or retire), so each is decided and none stays by being passed over. An item that stays is restated (revise), in a few sentences, as the reason it is now, with what the conversation added; one that is a case of another, or one reason with others, is merged into the item that states it.
+- revise an item the conversation refined or corrected, or that can be said more generally and shorter; name the entry ids that changed it.
+- merge items that are one reason, or cases of one.
+- retire an item whose basis has gone, a commitment that was met, or one another item now holds, saying why.
+- add an item only for a reason or commitment no item holds.
+
+Each item is a reason, not a rule: why it holds and what it serves, with the scope it was given. A rule without its reason gets followed after its basis is gone, which is the failure this exists to prevent. Read each of Owen's corrections for what it did: corrected one action, supplied a fact, set a lasting constraint, or moved the destination; a correction of one action that has since been applied is not an item. Mark where each item stands: "owen" (his own position), "confirmed" (the coordinator's framing Owen confirmed, often the clearer statement of what he meant), "reading" (the coordinator's, not yet confirmed), or "commitment" (something one owes the other, still open). Where an item stands and its ids say where it came from, not why it holds: state the reason in terms of the purpose, the domain's real practice and the history, so it holds for whoever reads it. Use Owen's words where his wording carries the meaning. Cite the entry ids (shown as [id]) each item rests on. Group items by what they govern with short group names; reuse the existing names. Leave out the history of mistakes (the notebook holds those) and what a file already holds in full (the purpose in AGENTS.md, outcomes in outcomes/, decisions in design/decisions.md); point to those where they bear on an item.
 
 Answer with only a JSON array of edits, each one of:
-{"op":"keep","id":"..."}
 {"op":"revise","id":"...","text":"...","stands":"...","sources":["..."]}
 {"op":"add","governs":"...","text":"...","stands":"...","sources":["..."]}
 {"op":"merge","ids":["...","..."],"text":"...","stands":"...","sources":["..."]}
@@ -216,7 +256,7 @@ Answer with only a JSON array of edits, each one of:
 export function revisionRequest(items: Item[], span: Exchange[], missed: Exchange[] = []): string {
   const convo = span.map((x) => `[${x.id}] ${x.who.toUpperCase()} ${x.at.slice(0, 16)}\n${x.text}`).join("\n\n");
   return `${REVISION}\n\n<items>\n${items.length ? renderUnderstanding(items) : "(none yet)"}\n</items>\n\n<conversation>\n${convo}\n</conversation>` +
-    (missed.length ? `\n\nAn independent check found the durable point of these messages of Owen's not carried by the items. Revise so it is, or retire what they superseded:\n${missed.map((x) => `[${x.id}] ${x.text}`).join("\n\n")}` : "");
+    (missed.length ? `\n\nAn independent check found the durable point of these messages of Owen's not carried by the items. Revise so the items carry it, usually by restating the item whose reason it is a case of, or retire what they superseded:\n${missed.map((x) => `[${x.id}] ${x.text}`).join("\n\n")}` : "");
 }
 
 export function parseEdits(text: string): Edit[] {
@@ -284,83 +324,17 @@ export async function uncarried(items: Item[], span: Exchange[], signal?: AbortS
 }
 
 
-// ---------------------------------------------------------------- what must be recorded before a turn settles
-
-/** Owen's messages since recording was first enforced in this session, with Clef's reading of whether each corrects the
- * coordinator. A correction is the coordinator's measure, so it goes in the notebook, citing the message. */
-export const READING = "owen-reading";
-export const ACTIVATED = "recording-enforced";
-
-export async function readOwen(entries: Entry[], signal?: AbortSignal): Promise<Array<{ entryId: string; yes: number; notRecorded: number }> | null> {
-  const start = entries.findIndex((e) => e.type === "custom" && e.customType === ACTIVATED);
-  if (start < 0) return [];
-  const read = new Set(entries.filter((e) => e.type === "custom" && e.customType === READING).map((e) => e.data?.entryId));
-  const unread: Array<{ id: string; text: string; before: string }> = [];
-  let lastCoordinator = "";
-  entries.forEach((e, i) => {
-    const m = e.type === "message" ? e.message : undefined;
-    if (m?.role === "assistant") { const t = textOf(m.content); if (t) lastCoordinator = t; }
-    if (i > start && m?.role === "user" && !read.has(e.id)) {
-      const t = textOf(m.content);
-      if (t) unread.push({ id: e.id, text: t, before: lastCoordinator.slice(-3000) });
-    }
-  });
-  if (!unread.length) return [];
-  const [account, token] = await Promise.all([secret("CLOUDFLARE_ACCOUNT_ID"), secret("CLOUDFLARE_API_TOKEN")]);
-  if (!account || !token) return null;
-  const out: Array<{ entryId: string; yes: number; notRecorded: number }> = [];
-  for (const x of unread) {
-    try {
-      const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/@cf/cloudflare/clef`, {
-        method: "POST", signal, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          model: "clef",
-          state: { coordinatorSaid: x.before, owenReplied: x.text },
-          questions: {
-            corrects: { type: "noul", instructions: "Owen supervises the coordinator, an agent that delegates his product work. Does Owen's reply correct how the coordinator worked or reasoned: point out a mistake, a wrong posture or reading, or something done short of what was meant?" },
-            notRecorded: { type: "noul", instructions: "Does Owen say that what he points out should not be recorded or noted?" },
-          },
-        }),
-      });
-      const body = (await res.json()) as any;
-      // A noul answer is one probability that the proposition holds.
-      const answers = (body?.result ?? body)?.answers ?? {};
-      const yes = answers.corrects?.noul;
-      const notRecorded = answers.notRecorded?.noul;
-      if (typeof yes !== "number" || typeof notRecorded !== "number") return null;
-      out.push({ entryId: x.id, yes, notRecorded });
-    } catch {
-      return null;
-    }
-  }
-  return out;
-}
-
 const roots = (cwd: string) => [cwd, ...run("git", ["worktree", "list", "--porcelain"], cwd).split("\n").filter((l) => l.startsWith("worktree ")).map((l) => l.slice(9))];
 
-/** What is owed to the record now: answers not yet in the files they named, and corrections with no notebook note citing
- * them (in any checkout, including the one scripts/record uses for main). */
-export function outstanding(entries: Entry[], cwd: string): { answers: Ask[]; corrections: string[] } {
-  const L = ledger(entries);
-  const rs = roots(cwd);
-  const changedSince = (path: string, at: string) => rs.some((r) => existsSync(join(r, path)) && statSync(join(r, path)).mtimeMs > Date.parse(at));
-  const exists = (path: string) => rs.some((r) => existsSync(join(r, path)));
-  const answers = L.asks.filter((a) => a.answer && a.recordTo.some((path) => exists(path) && !changedSince(path, a.answer!.at)));
-  const notebooks = rs.map((r) => join(r, "notebook.md")).filter((f) => existsSync(f)).map((f) => readFileSync(f, "utf8")).join("\n");
-  const corrections = entries
-    // Owed: a correction Owen has not said to leave unrecorded (both read by Clef; neither is the coordinator's call).
-    .filter((e) => e.type === "custom" && e.customType === READING && e.data?.yes >= 0.5 && !(e.data?.notRecorded >= 0.5))
-    .map((e) => String(e.data.entryId))
-    .filter((id) => !notebooks.includes(id));
-  return { answers, corrections };
-}
-
-export function owed(o: { answers: Ask[]; corrections: string[] }, entries: Entry[]): string {
-  const said = new Map(dialogue(entries).filter((x) => x.who === "owen").map((x) => [x.id, x.text]));
-  const lines: string[] = [];
-  for (const a of o.answers) lines.push(`- Owen's answer to "${a.question.slice(0, 120)}" (entry ${a.entryId}) is not yet in ${a.recordTo.join(", ")}.`);
-  for (const id of o.corrections) lines.push(`- Owen's correction (entry ${id}): "${(said.get(id) ?? "").slice(0, 200)}" has no notebook note. Record what happened as an observation: scripts/record note --from ${id} "<line>".`);
-  return lines.join("\n");
+/** The frame the coordinator is working from now: the last one written, with where it was written. */
+const FRAME = "frame";
+const FRAME_IN_VIEW = "frame-in-view";
+export function currentFrame(entries: Entry[]): { piece: string; text: string; at: number } | null {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i]!;
+    if (e.type === "custom" && e.customType === FRAME) return { piece: String(e.data?.piece ?? ""), text: String(e.data?.text ?? ""), at: i };
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------- the factory's records
@@ -385,9 +359,19 @@ export async function factoryStanding(cwd: string): Promise<string> {
     stateOf = (await import(join(main, "tools/feed/runs.mjs"))).runStateOf;
   } catch {}
   const going: string[] = [];
+  // CI on each checkout's head as GitHub ran it: whether a commit is green is read here, never from a report of it.
+  // Where GitHub does not answer, CI is said to be unknown, not taken as anything.
+  const ciRaw = run("gh", ["run", "list", "--limit", "100", "--json", "headSha,status,conclusion"], main);
+  const ciRuns = ciRaw ? (JSON.parse(ciRaw) as Array<{ headSha: string; status: string; conclusion: string }>) : null;
+  const ciOf = (sha: string) => {
+    if (!ciRuns) return "CI unknown (GitHub did not answer)";
+    const r = ciRuns.find((x) => x.headSha === sha);
+    return !r ? "CI not run on this commit" : r.status === "completed" ? `CI ${r.conclusion}` : `CI ${r.status}`;
+  };
   lines.push("Checkouts:");
   for (const c of checkouts) {
-    lines.push(`- ${basename(c.path!)} [${c.branch ?? "detached"}] ${run("git", ["log", "-1", "--format=%h %s"], c.path!).slice(0, 110)}`);
+    const head = run("git", ["rev-parse", "HEAD"], c.path!);
+    lines.push(`- ${basename(c.path!)} [${c.branch ?? "detached"}] ${run("git", ["log", "-1", "--format=%h %s"], c.path!).slice(0, 110)} (${ciOf(head)})`);
     const runs = join(c.path!, ".runs");
     if (stateOf && existsSync(runs)) for (const f of readdirSync(runs).filter((f) => f.endsWith(".log"))) {
       const s = stateOf(join(runs, f));
@@ -420,27 +404,22 @@ export function dispatchOutcomes(L: Ledger, cwd: string): Array<{ run: string; k
   });
 }
 
-/** The session's own open items, read exactly: questions Owen has not answered, answers whose record is not written. */
+/** The session's own open items, read exactly: questions Owen has not answered. */
 export function openFromLedger(L: Ledger, cwd: string): string {
   const unanswered = L.asks.filter((a) => !a.answer && !a.continued);
   const lines = ["## Open in the session (read from the session's entries)"];
   lines.push(unanswered.length ? "Questions to Owen not yet answered:" : "Questions to Owen not yet answered: none.", ...unanswered.map((a) => `- [${a.entryId}] ${a.question}`));
-  // An answer meant for a file is recorded once that file has changed since the answer, in any checkout (records go to
-  // main through their own checkout).
-  const roots = run("git", ["worktree", "list", "--porcelain"], cwd).split("\n").filter((l) => l.startsWith("worktree ")).map((l) => l.slice(9));
-  const changedSince = (path: string, at: string) => [cwd, ...roots].some((r) => existsSync(join(r, path)) && statSync(join(r, path)).mtimeMs > Date.parse(at));
-  // Only real repository paths are checked (questions asked before recordTo became paths named it in prose).
-  const exists = (path: string) => [cwd, ...roots].some((r) => existsSync(join(r, path)));
-  const unrecorded = L.asks.filter((a) => a.answer && a.recordTo.some((path) => exists(path) && !changedSince(path, a.answer!.at)));
-  if (unrecorded.length) lines.push("Answers not yet recorded where they were to go:", ...unrecorded.map((a) => `- [${a.entryId}] ${a.question} → ${a.recordTo.filter((path) => exists(path) && !changedSince(path, a.answer!.at)).join(", ")}`));
   return lines.join("\n");
 }
 
 // ---------------------------------------------------------------- the extension
 
-const KEEP_SPANS = 3; // tool output from the last three exchanges with Owen stays in context
+// Every request re-reads the whole context, cached or not, so tool output that stays after it was acted on is paid for
+// on every call after it: a long turn of work (hundreds of calls after one message of Owen's) grew the context from 60k
+// tokens to 660k. So what stays is the most recent output, by size, wherever Owen's messages fall.
+const KEEP_RECENT_CHARS = 160_000;
 // Pruning changes earlier messages, and a provider that reuses a live session (claude-cli) then starts afresh with the
-// whole transcript, uncached. So it happens rarely and in bulk: only once this much old output has gathered.
+// whole transcript, uncached. So it happens in bulk: only once this much older output has gathered.
 const PRUNE_AT_CHARS = 200_000;
 const STUB = (name: string, what: string) => `(${name} output dropped from context: ${what}. It is in the session file; re-derive it from its source if needed.)`;
 
@@ -489,6 +468,40 @@ export default function memory(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    name: "revise_understanding",
+    label: "Revise the understanding",
+    description: "Revise the understanding you carry between compactions now, by edits to its items (revise, merge, retire, add), as the compaction's revision does: to unify it, so it holds as few items as its reasons need. The edits apply at once to what the next compaction starts from; every id named must be an item of it. Returns the understanding as it now stands.",
+    parameters: Type.Object({ edits: Type.Array(Type.Any(), { description: "Edits as the compaction's revision gives them: {op: revise|merge|retire|add, ...}" }) }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      const items = currentUnderstanding(ctx.sessionManager.getBranch() as Entry[]) ?? [];
+      const problems = (params.edits as unknown[]).map((e, n) => [n, editProblem(e)] as const).filter(([, p]) => p);
+      if (problems.length) return { content: [{ type: "text", text: `Nothing was changed: ${problems.map(([n, p]) => `edit ${n + 1}: ${p}`).join("; ")}.` }], details: {} };
+      const ids = new Set(items.map((i) => i.id));
+      const named = (params.edits as Edit[]).flatMap((e) => (e.op === "merge" ? e.ids : "id" in e ? [e.id] : []));
+      const unknown = named.filter((id) => !ids.has(id));
+      if (unknown.length) return { content: [{ type: "text", text: `No item ${unknown.join(", ")} in the understanding; nothing was changed.` }], details: {} };
+      const { items: next, retired } = applyEdits(items, params.edits as Edit[]);
+      pi.appendEntry(REVISED, { edits: params.edits, at: new Date().toISOString() });
+      const text = renderUnderstanding(next);
+      return { content: [{ type: "text", text: `Revised: ${items.length} items (${renderUnderstanding(items).length} characters) to ${next.length} (${text.length}); ${retired.length} retired.\n\n${text}` }], details: {} };
+    },
+  });
+
+  pi.registerTool({
+    name: "frame",
+    label: "Frame",
+    description: "Set the frame you work the current piece from, written from the purpose before you open the nearest thing at hand. It says what is: what must be true in the running product when the piece is done, in the terms of the user who sees it (Russell, or a developer running a case); the whole of what bears on it, each existing thing with what it is for; the unit of the work and what it unifies or removes; and what would mean the frame no longer holds. It stays in view as you work. When it no longer holds, or Owen corrects the work, write it again whole from the purpose, saying what is true now. Show Owen each frame as you write it.",
+    parameters: Type.Object({
+      piece: Type.String({ description: "The piece of work, in a few words." }),
+      text: Type.String({ description: "The frame." }),
+    }),
+    async execute(_id, params) {
+      pi.appendEntry(FRAME, { piece: params.piece, text: params.text, at: new Date().toISOString() });
+      return { content: [{ type: "text", text: `Working from this frame (${params.piece}):\n${params.text}` }], details: {} };
+    },
+  });
+
+  pi.registerTool({
     name: "recall",
     label: "Recall",
     description: "Return past exchanges with Owen verbatim (his messages, your words, notices, questions and answers), by the entry ids the understanding cites (with the exchanges around them), or by a time range. Use it before acting on a reason whose context matters.",
@@ -512,14 +525,34 @@ export default function memory(pi: ExtensionAPI) {
     },
   });
 
+  // The frame in view: once the tool output since it last appeared passes this size, it is added again after the
+  // current calls, as a message of the transcript.
+  const FRAME_EVERY_CHARS = 120_000;
+  let framePending = false;
+  pi.on("turn_end", async (_event, ctx) => {
+    const branch = ctx.sessionManager.getBranch() as Entry[];
+    const f = currentFrame(branch);
+    if (!f) return;
+    let last = f.at;
+    branch.forEach((e, i) => { if ((e as any).type === "custom_message" && (e as any).customType === FRAME_IN_VIEW && i > last) last = i; });
+    if (framePending && last > f.at) framePending = false;
+    if (framePending) return;
+    const since = branch.slice(last + 1).reduce((n, e) => n + (e.type === "message" && e.message?.role === "toolResult" ? JSON.stringify(e.message.content ?? "").length : 0), 0);
+    if (since < FRAME_EVERY_CHARS) return;
+    framePending = true;
+    pi.sendMessage({ customType: FRAME_IN_VIEW, content: `The frame you are working from (${f.piece}); write it again with the frame tool when it no longer holds:\n${f.text}`, display: false }, { deliverAs: "steer" });
+  });
+
   // Prune: tool output older than the last few exchanges with Owen leaves the context.
   const pruned = new Set<string>();
   pi.on("turn_end", async (_event, ctx) => {
     const branch = ctx.sessionManager.getBranch() as Entry[];
-    const owenAt: number[] = [];
-    branch.forEach((e, i) => e.type === "message" && e.message?.role === "user" && owenAt.push(i));
-    const cutoff = owenAt.length > KEEP_SPANS ? owenAt[owenAt.length - KEEP_SPANS]! : -1;
-    if (cutoff < 0) return;
+    // The cutoff: the earliest tool result within the most recent KEEP_RECENT_CHARS of tool output.
+    let recent = 0, cutoff = branch.length;
+    for (let i = branch.length - 1; i >= 0 && recent < KEEP_RECENT_CHARS; i--) {
+      const m = branch[i]!.type === "message" ? branch[i]!.message : undefined;
+      if (m?.role === "toolResult") { recent += JSON.stringify(m.content ?? "").length; cutoff = i; }
+    }
     const calls = new Map<string, Part>();
     const entries: Array<{ type: "context_edit"; targetId: string; replacement: { content: string } }> = [];
     let size = 0;
@@ -530,7 +563,7 @@ export default function memory(pi: ExtensionAPI) {
       if (m?.role === "assistant") for (const p of parts(m.content)) if (p.type === "toolCall") calls.set(p.id!, p);
       if (i >= cutoff || m?.role !== "toolResult" || pruned.has(e.id)) return;
       const call = calls.get(m.toolCallId);
-      if (call?.name === "ask" || call?.name === "recall") return;
+      if (call?.name === "ask" || call?.name === "recall" || call?.name === "frame") return;
       const what = String(call?.arguments?.command ?? call?.arguments?.path ?? call?.name ?? "tool").replace(/\s+/g, " ").slice(0, 120);
       size += JSON.stringify(m.content ?? "").length;
       entries.push({ type: "context_edit", targetId: e.id, replacement: { content: STUB(call?.name ?? "tool", what) } });
@@ -543,7 +576,7 @@ export default function memory(pi: ExtensionAPI) {
     const { preparation, branchEntries, signal } = event;
     const model = ctx.model;
     if (!model) return;
-    const previous = [...(branchEntries as Entry[])].reverse().find((e) => e.type === "compaction" && e.details?.understanding)?.details?.understanding as Item[] | undefined;
+    const previous = currentUnderstanding(branchEntries as Entry[]);
     const keptFrom = (branchEntries as Entry[]).findIndex((e) => e.id === preparation.firstKeptEntryId);
     const lastCompaction = (branchEntries as Entry[]).map((e) => e.type).lastIndexOf("compaction");
     const span = dialogue((branchEntries as Entry[]).slice(lastCompaction + 1, keptFrom < 0 ? undefined : keptFrom));
@@ -569,6 +602,7 @@ export default function memory(pi: ExtensionAPI) {
         "## The understanding (revised at each compaction; cite and recall entry ids to re-read the original)",
         renderUnderstanding(items),
         openFromLedger(L, ctx.cwd),
+        ((f) => (f ? `## The frame being worked from (${f.piece})\n${f.text}` : ""))(currentFrame(branchEntries as Entry[])),
         `The full conversation is in Pi's session file${file ? ` (${file})` : ""}; recall returns any exchange verbatim. Where the factory stands follows this, read from the records.`,
         missed === null ? "(Clef could not be asked to check this revision.)" : "",
       ].filter(Boolean).join("\n\n");
@@ -584,43 +618,16 @@ export default function memory(pi: ExtensionAPI) {
     const records = roots(cwd).find((r) => r.endsWith("-records"));
     const unmerged = records ? run("git", ["-C", records, "diff", "origin/main..HEAD", "--", "notebook.md"], cwd).split("\n").filter((l) => l.startsWith("+- ")).map((l) => l.slice(1, 220)) : [];
     const recent = dispatchOutcomes(L, cwd).slice(-10).map((d) => `- ${d.run}: ${d.ended}`);
-    const o = outstanding(entries, cwd);
     const content = [
       await factoryStanding(cwd),
       openFromLedger(L, cwd),
       `## This session's recent dispatches, and how each ended\n${recent.join("\n") || "- none"}`,
       `## Notebook lines recorded but not yet merged into main\n${unmerged.join("\n") || "- none"}`,
-      o.answers.length || o.corrections.length ? `## Owed to the record\n${owed(o, entries)}` : "",
     ].filter(Boolean).join("\n\n");
     pi.sendMessage({ customType: "factory-standing", content, display: true }, { triggerTurn: false });
   };
   pi.on("session_compact", async (_event, ctx) => showStanding(ctx.cwd, ctx.sessionManager.getBranch() as Entry[]));
 
-  // Recording is not left to remembering (Owen, October 7): before a turn settles, Owen's new messages are read for
-  // corrections, and whatever is owed to the record holds the turn, once per item, with what to record and where. The
-  // delegation gate refuses to dispatch while anything is owed.
-  pi.on("session_start", async (_event, ctx) => {
-    if (ctx.mode !== "tui") return;
-    const entries = ctx.sessionManager.getBranch() as Entry[];
-    if (!entries.some((e) => e.type === "custom" && e.customType === ACTIVATED)) pi.appendEntry(ACTIVATED, { at: new Date().toISOString() });
-  });
-  const held = new Set<string>();
-  pi.on("agent_before_settle", async (event, ctx) => {
-    if (ctx.mode !== "tui") return undefined;
-    let entries = ctx.sessionManager.getBranch() as Entry[];
-    const readings = await readOwen(entries);
-    for (const r of readings ?? []) pi.appendEntry(READING, r);
-    if (readings?.length) entries = ctx.sessionManager.getBranch() as Entry[];
-    const o = outstanding(entries, ctx.cwd);
-    const fresh = { answers: o.answers.filter((a) => !held.has(a.entryId)), corrections: o.corrections.filter((id) => !held.has(id)) };
-    if (!fresh.answers.length && !fresh.corrections.length) return undefined;
-    for (const a of fresh.answers) held.add(a.entryId);
-    for (const id of fresh.corrections) held.add(id);
-    return {
-      entries: [{ type: "custom_message", customType: "recording-owed", display: true, content: `Before this turn ends, record what is owed:\n${owed(fresh, entries)}` }],
-      continue: true,
-    };
-  });
   pi.registerCommand("standing", {
     description: "Where the factory stands and what is open in the session, read from the records now",
     handler: async (_args, ctx) => showStanding(ctx.cwd, ctx.sessionManager.getBranch() as Entry[]),

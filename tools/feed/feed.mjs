@@ -25,6 +25,13 @@ function piRoot() {
   if (fromEnv && existsSync(join(fromEnv, "package.json"))) return fromEnv;
   const which = spawnSync("/bin/sh", ["-lc", "command -v pi"], { encoding: "utf8" }).stdout.trim();
   if (!which) throw new Error("cannot find Pi: set FEED_PI_ROOT to the @earendil-works/pi-coding-agent package folder");
+  // Pi's managed launcher (~/.pi/agent/bin/pi) runs the release named in install/current-version.
+  const agent = dirname(dirname(realpathSync(which)));
+  const current = join(agent, "install", "current-version");
+  if (existsSync(current)) {
+    const release = join(agent, "install", "releases", readFileSync(current, "utf8").trim(), "node_modules", "@earendil-works", "pi-coding-agent");
+    if (existsSync(join(release, "package.json"))) return release;
+  }
   let dir = dirname(realpathSync(which));
   while (dir !== "/") {
     const pkg = join(dir, "package.json");
@@ -57,8 +64,13 @@ const { log: LOG, jsonl: JSONL } = findRun(process.argv[2]);
 const RUN = basename(LOG, ".log");
 const PI = piRoot();
 const imp = (rel) => import(pathToFileURL(join(PI, rel)).href);
+/** A package Pi depends on: nested under Pi's own node_modules, or beside it where the install is flat. */
+const dep = (name, rel) => {
+  const nested = join(PI, "node_modules/@earendil-works", name, rel);
+  return pathToFileURL(existsSync(nested) ? nested : join(dirname(PI), name, rel)).href;
+};
 
-const tuiLib = await import(pathToFileURL(join(PI, "node_modules/@earendil-works/pi-tui/dist/index.js")).href).catch(
+const tuiLib = await import(dep("pi-tui", "dist/index.js")).catch(
   () => import("@earendil-works/pi-tui"),
 );
 const { Container, Spacer, Text, TruncatedText, ScrollView, VStack, ProcessTerminal, TuiAltScreen, setKeybindings, matchesKey, truncateToWidth, visibleWidth } = tuiLib;
@@ -71,7 +83,7 @@ const [components, statusMod, themeMod, themeCtl, renderers, settingsMod, keybin
   imp("dist/core/settings-manager.js"),
   imp("dist/core/keybindings.js"),
   imp("dist/config.js"),
-  import(pathToFileURL(join(PI, "node_modules/@earendil-works/pi-ai/dist/utils/json-parse.js")).href).catch(() => ({})),
+  import(dep("pi-ai", "dist/utils/json-parse.js")).catch(() => ({})),
 ]);
 const { AssistantMessageComponent, ToolExecutionComponent, UserMessageComponent, CompactionSummaryMessageComponent } = components;
 const { theme, getMarkdownTheme } = themeMod;
