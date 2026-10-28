@@ -43,6 +43,8 @@ a second line, for exact and consequential limits.
 
 ## Needs you
 Deleting data, changing a live schema, releasing, spending money (any billed call: the investigating agent, a
-judgment model, cloud compute, or a push that starts a workflow other than CI), merging, and any change to
-AGENTS.md, skills, tool configuration, the verify tooling, or CI. Cloud work uses only the personal AWS account
+judgment model, cloud compute, or a push that starts a workflow other than CI), merging the product's pull requests,
+any change to AGENTS.md or the skills, and any change that loosens a check on the coordinator's own work (the
+delegation gate, the review, the verify tooling, CI): a check its subject can change and merge is no check. The
+coordinator merges the factory's other pull requests on its own judgment. Cloud work uses only the personal AWS account
 (profile `slope`); never the `default` profile.

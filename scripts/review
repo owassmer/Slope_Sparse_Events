@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# scripts/review <brief file> [<file>...]    The other family reviews the coordinator's own plan or code.
+# scripts/review --definition                 The other family judges the staged change to the definition, now.
+# scripts/review --check                      Exits 0 when nothing in the definition is staged, or that staged change was
+#                                             judged HOLDS (the pre-commit hook, tools/hooks/pre-commit, runs this).
+#
+# Why (Owen, October 28, adopting Handoff's October 17-27 posture): the coordinator writes the product's code where the
+# work holds the design, so the check on that reasoning has to come from outside its model family, as the verifier's
+# does on an outcome. A review reads the plan and the code it names and reports what will not work, will not do what it
+# says, or adds a copy; the coordinator weighs each finding against the purpose and the settled design. It reports
+# findings and never fixes: suggested fixes from a reviewer who holds only what it is given tend to hedges and unknown
+# states, while its findings are usually sound (Handoff, October 18).
+# The definition is the litigation model's rules, questions and dated facts, as files listed in tools/roles/definitions;
+# until that list names any, nothing is gated and only briefs are reviewed.
+# The review is .runs/<run>.md, the log .runs/<run>.log; a feed opens on it, and scripts/steer <run> reaches it.
+# The whole script is one block, so bash reads all of it before running any.
+{
+set -euo pipefail
+MODEL="${REVIEW_MODEL:-openai-codex/gpt-6-astra:high}"   # the other family from the coordinator
+KIT=Slope_Credit_Scenario_Research_and_Design_Kit
+if [ "${1:-}" = --definition ] || [ "${1:-}" = --check ]; then
+  root="$(git rev-parse --show-toplevel)"; cd "$root"
+  DEF=()
+  [ -f tools/roles/definitions ] && while IFS= read -r l; do l="${l%%#*}"; l="$(echo "$l" | xargs)"; [ -n "$l" ] && DEF+=("$l"); done < tools/roles/definitions
+  if [ ${#DEF[@]} -eq 0 ]; then [ "$1" = --check ] || echo "No definition files are listed yet (tools/roles/definitions)."; exit 0; fi
+  diff="$(git diff --cached -- "${DEF[@]}")"
+  if [ -z "$diff" ]; then [ "$1" = --check ] || echo "Nothing in the definition is staged."; exit 0; fi
+  hash="$(printf '%s' "$diff" | shasum -a 256 | cut -c1-64)"
+  store="$(git rev-parse --git-common-dir)/review"; mkdir -p "$store"
+  verdict="$store/$hash"
+  if [ "$1" = --check ]; then
+    if [ -f "$verdict" ] && [ "$(grep -v '^[[:space:]]*$' "$verdict")" = HOLDS ]; then exit 0; fi
+    echo "The staged change to the definition has not been judged HOLDS by the other family: run scripts/review --definition." >&2
+    [ -f "$verdict" ] && { echo "Its verdict on this exact diff:" >&2; cat "$verdict" >&2; }
+    exit 1
+  fi
+  git diff --quiet -- "${DEF[@]}" || { echo "Stage all of the definition's changes first: the reviewer reads the files as staged." >&2; exit 2; }
+  posture=""; [ -f design/posture.md ] && posture="$(cat design/posture.md)"
+  prompt="You review a change to the definition of how a lawsuit against a borrower unfolds (the litigation model's rules,
+the questions a judgment model is asked and the dated facts each question shows) before it is committed. You did not
+write it, and your judgment is the only one it gets before it lands. Each statement the definition makes about the world
+carries its source: a passage from a file in this repository (a filing, a rule of court, a statute, a company document
+in $KIT), our reasoning marked as ours, or Owen's policy.
+
+Read each statement the change adds or alters beside its source: open the file and read the passage in its place. You may
+read any file in this repository (read, grep, find, ls). Answer with one line per finding.
+
+A finding blocks the change, and starts with BROKEN, where the definition would be false or unsupported:
+- a statement its source does not say, or says differently, or a passage that does not support the use made of it;
+- a rule, a value or a branch the change adds with no statement and source of its own;
+- a statement marked as our reasoning where a source states the matter;
+- anything that lets a question's facts depend on what happens after the question's own date;
+- something true of one case (a party, a date, an amount) written as a rule rather than as that case's data;
+- code in the change that computes, beside the definition, something the definition states.
+A finding about a case the repository's sources do not contain does not block: it starts with NOTED.
+
+A finding cites the passage it rests on, never a restatement of it. Report findings only, never fixes. If nothing blocks,
+answer the line HOLDS, after any NOTED lines. Say nothing else.
+
+<AGENTS.md>
+$(cat AGENTS.md)
+</AGENTS.md>
+
+<design/posture.md>
+$posture
+</design/posture.md>
+
+<the staged diff>
+$diff
+</the staged diff>"
+  echo "Judging the staged change to the definition ($MODEL)..." >&2
+  out="$(pi -p --no-session --no-extensions --no-skills --no-context-files --no-prompt-templates \
+    --tools read,grep,find,ls --model "$MODEL" "$prompt")"
+  printf '%s\n' "$out"
+  printf '%s\n' "$out" | grep '^NOTED' > "$verdict.noted" || true
+  if printf '%s\n' "$out" | grep -q '^BROKEN' || ! printf '%s\n' "$out" | grep -qx 'HOLDS'; then printf '%s\n' "$out" > "$verdict"; exit 1; fi
+  printf 'HOLDS\n' > "$verdict"
+  exit
+fi
+brief="${1:?usage: scripts/review <brief file> [<file>...]}"; shift
+root="$(git rev-parse --show-toplevel)"; cd "$root"
+[ -f "$brief" ] || { echo "review: no brief $brief" >&2; exit 2; }
+for f in "$@"; do [ -e "$f" ] || { echo "review: no $f" >&2; exit 2; }; done
+# Every path in the repository the brief names goes into the workspace with it, so the reviewer reads what its judgment
+# rests on (Handoff, October 18: a survey ran without the records it was about, named in the brief but not passed).
+named=()
+for p in $(grep -oE '(outcomes|tasks|design|cases|runs/recorded|var/diag|'"$KIT"')/[A-Za-z0-9._/-]*[A-Za-z0-9_]' "$brief" | sort -u); do
+  [ -e "$p" ] && named+=("$p")
+done
+set -- "$@" "${named[@]+"${named[@]}"}"
+git diff --quiet HEAD -- app tests cases design || { echo "commit first: the review reads the committed plan and code" >&2; exit 2; }
+
+run="${FACTORY_RUN:-review-$(basename "$brief" .md)-$(date +%Y%m%dT%H%M%S)}"; mkdir -p .runs
+if [ -z "${FACTORY_RUN:-}" ]; then
+  FACTORY_RUN="$run" nohup "$root/scripts/review" "$brief" "$@" </dev/null >/dev/null 2>&1 &
+  echo "run: .runs/$run.log"; exit 0
+fi
+log="$root/.runs/$run.log"
+ws="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/slope-review.XXXXXX")" && pwd -P)"
+echo "=== review $(basename "$brief") ($MODEL) in $ws" > "$log"; echo "=== dispatched by session ${PI_SESSION_ID:-none}" >> "$log"
+echo "=== steerable (pid $$): scripts/steer $run \"<message>\" (or --stop)" >> "$log"
+on_err() { echo "=== finished exit $1 (${0##*/} stopped at line $2)" >> "$log"; }
+trap 'on_err $? $LINENO' ERR
+
+parts=(app tests cases AGENTS.md pyproject.toml)
+for p in design tasks; do [ -n "$(git ls-tree --name-only HEAD "$p")" ] && parts+=("$p"); done
+git archive HEAD -- "${parts[@]}" $(git ls-tree --name-only HEAD 'tools/*.py') | tar -x -C "$ws"
+for f in "$@"; do mkdir -p "$ws/$(dirname "$f")" && cp -pR "$f" "$ws/$f"; done
+
+# The reviewer holds the posture too, so it judges with the intent behind the design.
+grounding=()
+[ -f "$ws/design/posture.md" ] && grounding+=(--append-system-prompt "$ws/design/posture.md")
+echo "=== grounding: ${grounding[*]+${grounding[*]}}" >> "$log"
+node_dir="$(dirname "$(dirname "$(command -v node)")")"
+trap - ERR; set +e
+(cd "$ws" && ROLE_WORKSPACE="$ws" ROLE_ALLOW_READ="$node_dir" \
+  node "$root/tools/roles/run.mjs" --inbox "$root/.runs/$run.steer" --prompt "$(cat "$brief")
+
+Also, for each change: where it keeps, adjusts, works around or defers to something that already exists (a rule, a
+number, a mechanism, a test, a record's shape, a review, a decision), say what that thing is for and whether its purpose
+holds here; name any the plan keeps or tunes without saying what it is for.
+
+Report findings only: what is wrong, the case that shows it, and the file, line or source passage it rests on. Do not
+propose fixes, alternatives or \"smaller changes\": the one who reads this writes the fix from the purpose and the
+settled design, which you do not hold whole.
+
+Write your review to review.md here; change nothing else." -- \
+  pi --mode rpc --no-session --no-extensions --no-skills --no-context-files --no-prompt-templates \
+    -e "$root/tools/roles/sandbox.ts" --tools read,bash,write --model "$MODEL" "${grounding[@]+"${grounding[@]}"}" 2>> "$log") \
+  | tee "$root/.runs/$run.jsonl" | scripts/watch --render >> "$log"
+status=${PIPESTATUS[0]}; set -e; trap 'on_err $? $LINENO' ERR
+[ "$status" -eq 0 ] || { echo "=== finished exit $status" >> "$log"; exit "$status"; }
+[ -s "$ws/review.md" ] || { echo "=== finished exit 3 (no review.md was written)" >> "$log"; exit 3; }
+cp "$ws/review.md" "$root/.runs/$run.md"
+echo "=== review: .runs/$run.md" >> "$log"
+rm -rf "$ws" "$ws.tmp"
+echo "=== finished exit 0" >> "$log"
+exit 0
+}
