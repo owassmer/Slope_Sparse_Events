@@ -17,6 +17,12 @@ Every question is built as the chronological walk builds it. What changes is whi
 The guide is the judge's answers on each question's base key (before its situation class): it decides only where
 sampling looks, never a path's weight, so a guide that differs from a class's own answer costs precision, not
 correctness. A child the guide gives no probability is never sampled, so the guide gives every answer some.
+
+Two-part decisions (a motion and its later ruling, an initiation and its close, an acceleration and the petitions
+after it) keep their later question waiting until its own day (`ChronologicalWalk._question_queue`, frozen by
+`freeze_due`). While one waits on a path, nothing there is set aside and nothing sampled: every child is walked
+(design/002-answer-first.md, "One rule instead of twelve splits"). So every set-aside point's mass is a product of
+answers already given, and every sampled decision is one whose own question was asked at that point.
 """
 from __future__ import annotations
 
@@ -26,7 +32,7 @@ from dataclasses import replace
 import numpy as np
 
 from app.disputes.chronological import ChronologicalWalk
-from app.disputes.forecast import COMPOSITE, Dist
+from app.disputes.forecast import COMPOSITE, Dist, atoms
 
 
 class Guide(Dist):
@@ -84,11 +90,21 @@ class AnswerFirstWalk(ChronologicalWalk):
             p *= self.guide[key][branch]
         return np.where(mask, p, 0.0)
 
+    def _window_open(self, mask) -> bool:
+        """A two-part decision's later question still waits on some of these draws."""
+        return any((day[mask] < self.N).any() for _key, _index, day, *_ in self._question_queue)
+
+    def _opens_window(self, parent, y) -> bool:
+        """The child `y` carries a two-part decision whose later question waits for its own day."""
+        new = [k for k, _ in y.late[len(parent.late):]]
+        new += [k for edge, _ in y.edges[len(parent.edges):] for k in atoms(edge)]
+        return any(self.fc.deferred_decision(k) or self.deferred_notes(k) for k in new if k in self.fc.nodes)
+
     def _loop(self, s, chain, pending, outcome, committed, mask, rows):
         if self._filter is not None:
             mask, self._filter = mask & self._filter, None
         if self._rep < 0 and mask.any() and (not self._watch or all(w.read for w in self._watch)) \
-                and self.mass(s, mask).max() < self.tau:
+                and not self._window_open(mask) and self.mass(s, mask).max() < self.tau:
             self.stubs += 1
             div = self._div
             try:
@@ -105,6 +121,8 @@ class AnswerFirstWalk(ChronologicalWalk):
         if self._rep < 0:
             return super()._ask(s, d, outcome)
         node = _Node(s)
+        population = self._population
+        node.take_all = self._window_open(np.ones(self.fc.draws.n, dtype=bool) if population is None else population)
         self._nodes.append(node)
         try:
             super()._ask(s, d, outcome)
@@ -119,6 +137,8 @@ class AnswerFirstWalk(ChronologicalWalk):
 
     def _resume(self, s, add=(), outcome=None, close=False):
         node = self._nodes[-1] if self._rep >= 0 and self._nodes else None
+        if node is not None and not node.take_all and self._opens_window(node.state, s):
+            node.take_all = True  # a child opens a window: the decision is walked whole, children captured so far too
         if node is None or node.take_all:
             return super()._resume(s, add, outcome, close)
         node.children.append((s, add, outcome, close))
@@ -128,6 +148,10 @@ class AnswerFirstWalk(ChronologicalWalk):
         each child is walked once per distinct sampling probability among the draws that took it (so a subtree's
         divisor is one number)."""
         if not node.children:
+            return
+        if node.take_all:  # whole after all (a window, or a later question reads this one): walk each captured child
+            for y, add, outcome, close in node.children:
+                super()._resume(y, add, outcome, close)
             return
         population = self._population
         population = np.ones(self.fc.draws.n, dtype=bool) if population is None else population
