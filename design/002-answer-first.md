@@ -225,3 +225,21 @@ on a path, the walk walks every child exactly:
   first part's prefix (finding 1), so questions at different points never pool.
 The engine and the twelve kinds stay as they are. The cost is walking windows exactly; the run reports it per kind,
 and only a kind whose window proves expensive is split in the engine.
+
+## Ranges after a judgment is changed (after `002-window-rule.review.md`)
+
+The window rule stands for the judgments the run walked under. The review showed that no bound from the run's samples
+can hold after a judgment is changed: a changed answer can make a region the samples never visited matter (an answer
+the judgment gave 0, finding 2; a question of the same kind at a point no replicate reached, finding 3), and the
+weighted observations are not bounded by the figure's floor and ceiling (finding 1). So the page's two states carry
+two kinds of range, each true:
+- **At the run's judgments:** each expected figure's 99% range from sampling (the Hoeffding bound over stubs, valid
+  because every sample is drawn from the judged distribution and lies between its stub's floor and ceiling).
+- **After a judgment is changed:** the exactly walked paths reweight exactly, and every stub's mass under the new
+  judgments is exact (the product of answers already given on its prefix). The figure's range is then guaranteed,
+  with no sampling claim: the walked part plus, for each stub, its new mass times its floor and its ceiling. The figure
+  shown inside it takes each stub's sampled average as it was, and the page says the unexplored part is estimated
+  under the run's judgments. Where the guaranteed range is wider than 1% of the commitment, the page offers a re-walk
+  under the changed judgments (the same walk on the server, with every answer already cached), which restores a 99%
+  range at those judgments.
+The guide stays the judgment itself (no reweighting of samples is relied on), and no likelihood ratio is used.
