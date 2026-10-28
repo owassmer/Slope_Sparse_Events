@@ -17,7 +17,8 @@ import { join } from "node:path";
 
 // Slope's tools/*.py and the outcome branch's older workflows are product, not factory, so only these are synced.
 const FACTORY = ["AGENTS.md", "CLAUDE.md", ".agents", ".github/CODEOWNERS", ".github/pull_request_template.md", ".github/workflows/run.yml",
-  ".pi", "scripts", "tools/drive", "tools/feed", "tools/gates", "tools/roles", "tools/hooks", "notebook.md"];
+  ".pi", "scripts", "tools/drive", "tools/feed", "tools/gates", "tools/roles", "tools/hooks", "notebook.md",
+  "design/posture.md"];  // the posture workers and reviewers read from their outcome checkout
 const check = process.argv.includes("--check");
 const git = (cwd, ...a) => execFileSync("git", a, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 const root = git(process.cwd(), "rev-parse", "--show-toplevel");
