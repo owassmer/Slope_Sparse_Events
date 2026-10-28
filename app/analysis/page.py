@@ -877,7 +877,13 @@ def sampled_ranges(a, model, probs: np.ndarray) -> tuple[dict, dict, list, list]
     values = {k: v for k, v in path_scalars(a.r).items() if k != "share"}
     out = sampling.ranges(values, probs, stub, group, groups, mass, bounds)
     cells = a.days * sum(a.r.bins[k].n for k in ("cash", "collected"))  # every (day, bin) a percentile reads
-    tolerance = {"level": sampling.level_tolerance(mass, groups, cells), "confidence": sampling.CONFIDENCE}
+    # Daily cash and collected percentiles have one observation per trajectory, so the unwalked part's probability
+    # bounds how far their level can move. Headroom's percentiles count one observation per trajectory and due date,
+    # and a continuation can add any number of due dates, so no such tolerance holds for them (design review of 28
+    # October, 002-ranges-code.review.md); and after a judgment is changed no percentile carries a claim.
+    tolerance = {"level": sampling.level_tolerance(mass, groups, cells), "confidence": sampling.CONFIDENCE,
+                 "applies_to": ["cash", "collected"], "at": "the run's judgments",
+                 "not_covered": {"headroom": "one observation per due date: the unwalked part can add any number"}}
     by_stub: list[list] = [[] for _ in keys]
     for (s_ix, _), v in variants.items():
         lo = {f: float(bounds[f][0][s_ix][v["mask"]].sum()) / D for f in bounds}

@@ -253,3 +253,13 @@ After `002-reweight-ranges.review.md`:
   so it asks the judge for them. With the stand-in judge that is free. With a real judgment model it is a billed call,
   so a re-walk asks only within a spending limit Owen has set for the page, and otherwise shows the guaranteed range
   and says which questions it would have to ask.
+
+## Percentiles, after `002-ranges-code.review.md`
+
+- At the run's judgments, the daily cash and collected percentiles (one observation per trajectory and day) hold to
+  the level tolerance `sampling.level_tolerance` reports. Headroom's percentiles count one observation per trajectory
+  and due date, and a continuation can add any number of due dates, so neither the stubs' probability nor the level
+  tolerance bounds them; the page says headroom's percentiles carry no tolerance.
+- After a judgment is changed no percentile range is promised: once the unwalked probability reaches the percentile's
+  level, the unwalked part can hold the whole tail below it (finding 1). The page says so, and a re-walk at the
+  changed judgments restores the claim.
