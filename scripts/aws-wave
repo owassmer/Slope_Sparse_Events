@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# scripts/aws-wave setup | up [<hosts> [<type>]] | run <name> --with <dir> | status | down
+#   Paid AWS hosts beside GitHub's runners for the walk's waves (Owen chose this on October 8, within outcome 001's
+#   budget). Personal account only (profile slope). Nothing shuts down or terminates on its own: `down` does it, and the
+#   coordinator runs it when the walk is done or the hosts sit idle.
+#   setup      finds or creates the bucket, the hosts' role (SSM, and the bucket's walk/ folder) and a security group
+#              with no inbound rules; writes var/aws-walk.json.
+#   up         launches <hosts> hosts of <type> (default 1 c7a.32xlarge; MARKET=spot for spot, else on demand), each with the repository cloned and its Python
+#              environment synced, and waits until AWS's command channel (SSM) reaches them.
+#   run        sends a wave: the head plus <dir> (as scripts/remote --with) goes to branch aws/<name> (no workflow runs
+#              there); the wave's lines are dealt across the hosts, each running one line per four cores, every line
+#              stopped at 20 minutes as on GitHub. Each host puts its pieces in s3://<bucket>/walk/; the small files
+#              (piece.json, next.txt) come back to var/remote/<name>.aws/, where scripts/walk-next reads them beside
+#              GitHub's. Writes .runs/aws-<name>-<time>.log ending "=== finished exit <n>".
+set -euo pipefail
+export AWS_PROFILE=slope AWS_REGION="${AWS_REGION:-us-east-2}" AWS_PAGER=""   # the account allows us-east-2 only
+root="$(git rev-parse --show-toplevel)"; cd "$root"
+main="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd -P)"
+cfg="$main/var/aws-walk.json"; mkdir -p var .runs "$main/var"
+get() { python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$cfg" "$1"; }
+REPO=https://github.com/owassmer/Slope_Sparse_Events.git
+
+case "${1:-}" in
+setup)
+  account="$(aws sts get-caller-identity --query Account --output text)"
+  bucket="$(aws s3api list-buckets --query "Buckets[?starts_with(Name, 'slope-walk-$account')].Name | [0]" --output text)"
+  [ "$bucket" != None ] || bucket="slope-walk-$account"
+  aws s3api head-bucket --bucket "$bucket" >/dev/null 2>&1 || {
+    if [ "$AWS_REGION" = us-east-1 ]; then aws s3api create-bucket --bucket "$bucket" >/dev/null
+    else aws s3api create-bucket --bucket "$bucket" --create-bucket-configuration "LocationConstraint=$AWS_REGION" >/dev/null; fi
+    aws s3api put-public-access-block --bucket "$bucket" --public-access-block-configuration \
+      BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true; }
+  role=slope-walk-host
+  aws iam get-role --role-name "$role" >/dev/null 2>&1 || {
+    aws iam create-role --role-name "$role" --assume-role-policy-document \
+      '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' >/dev/null
+    aws iam attach-role-policy --role-name "$role" --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore; }
+  aws iam put-role-policy --role-name "$role" --policy-name walk-bucket --policy-document "{\"Version\":\"2012-10-17\",\"Statement\":[
+    {\"Effect\":\"Allow\",\"Action\":[\"s3:PutObject\",\"s3:GetObject\"],\"Resource\":\"arn:aws:s3:::$bucket/walk/*\"},
+    {\"Effect\":\"Allow\",\"Action\":\"s3:ListBucket\",\"Resource\":\"arn:aws:s3:::$bucket\"}]}"
+  aws iam get-instance-profile --instance-profile-name "$role" >/dev/null 2>&1 || {
+    aws iam create-instance-profile --instance-profile-name "$role" >/dev/null
+    aws iam add-role-to-instance-profile --instance-profile-name "$role" --role-name "$role"; sleep 10; }
+  vpc="$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query 'Vpcs[0].VpcId' --output text)"
+  sg="$(aws ec2 describe-security-groups --filters Name=group-name,Values=slope-walk Name=vpc-id,Values="$vpc" --query 'SecurityGroups[0].GroupId' --output text)"
+  [ "$sg" != None ] || sg="$(aws ec2 create-security-group --group-name slope-walk --description 'walk hosts: no inbound' --vpc-id "$vpc" --query GroupId --output text)"
+  ami="$(aws ssm get-parameter --name /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id --query Parameter.Value --output text)"
+  printf '{"bucket":"%s","role":"%s","sg":"%s","ami":"%s","region":"%s"}\n' "$bucket" "$role" "$sg" "$ami" "$AWS_REGION" > "$cfg"
+  cat "$cfg" ;;
+
+up)
+  n="${2:-1}"; type="${3:-c7a.32xlarge}"
+  market=(); [ "${MARKET:-}" = spot ] && market=(--instance-market-options '{"MarketType":"spot","SpotOptions":{"SpotInstanceType":"one-time","InstanceInterruptionBehavior":"terminate"}}')
+  boot='#!/bin/bash
+set -eux
+export DEBIAN_FRONTEND=noninteractive HOME=/root
+apt-get update -qq && apt-get install -y -qq git curl unzip
+curl -LsSf https://astral.sh/uv/install.sh | sh
+curl -sSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/aws.zip && unzip -q /tmp/aws.zip -d /tmp && /tmp/aws/install
+git clone --quiet '"$REPO"' /opt/slope
+cd /opt/slope && /root/.local/bin/uv sync --locked -q
+touch /opt/slope-ready'
+  ids="$(aws ec2 run-instances --image-id "$(get ami)" --instance-type "$type" --count "$n" \
+    --iam-instance-profile "Name=$(get role)" --security-group-ids "$(get sg)" --associate-public-ip-address \
+    ${market[@]+"${market[@]}"} \
+    --metadata-options HttpTokens=required \
+    --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":150,"VolumeType":"gp3","DeleteOnTermination":true,"Encrypted":true}}]' \
+    --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=slope-walk-host}]' \
+    --user-data "$boot" --query 'Instances[].InstanceId' --output text)"
+  echo "launched: $ids"
+  for id in $ids; do
+    until [ "$(aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$id" --query 'length(InstanceInformationList)' --output text)" = 1 ]; do sleep 15; done
+    echo "$id reachable"
+  done ;;
+
+status)
+  aws ec2 describe-instances --filters Name=tag:Name,Values=slope-walk-host Name=instance-state-name,Values=pending,running,stopping,stopped \
+    --query 'Reservations[].Instances[].[InstanceId,InstanceType,State.Name,LaunchTime]' --output text ;;
+
+down)
+  ids="$(aws ec2 describe-instances --filters Name=tag:Name,Values=slope-walk-host Name=instance-state-name,Values=pending,running,stopping,stopped --query 'Reservations[].Instances[].InstanceId' --output text)"
+  [ -z "$ids" ] && { echo "no walk hosts"; exit 0; }
+  aws ec2 terminate-instances --instance-ids $ids --query 'TerminatingInstances[].[InstanceId,CurrentState.Name]' --output text ;;
+
+run)
+  name="${2:?usage: scripts/aws-wave run <name> --with <dir>}"; [ "${3:-}" = --with ] || { echo "run needs --with <dir>" >&2; exit 2; }
+  with="$(cd "${4:?--with needs a folder}" && pwd)"; [ -f "$with/run.txt" ] || { echo "$with has no run.txt" >&2; exit 2; }
+  hosts=($(aws ec2 describe-instances --filters Name=tag:Name,Values=slope-walk-host Name=instance-state-name,Values=running --query 'Reservations[].Instances[].[InstanceId,InstanceType]' --output text | tr '\t' ':'))
+  [ ${#hosts[@]} -gt 0 ] || { echo "no running walk hosts: scripts/aws-wave up first" >&2; exit 2; }
+  # The wave's commit, with each host's share of the lines (dealt in turn) beside run.txt.
+  tmp="$(mktemp -d)/wave"; git worktree add --quiet --detach "$tmp" HEAD
+  (cd "$with" && tar -cf - .) | (cd "$tmp" && tar -xf -)
+  grep -v '^\s*\(#\|$\)' "$with/run.txt" | awk -v n=${#hosts[@]} -v d="$tmp" '{ print > (d "/aws-lines-" ((NR-1)%n) ".txt") }'
+  git -C "$tmp" add -A -f . && git -C "$tmp" commit -q -m "AWS wave $name"
+  sha="$(git -C "$tmp" rev-parse HEAD)"; git worktree remove --force "$tmp"
+  git push -q --force origin "$sha:refs/heads/aws/$name"
+  bucket="$(get bucket)"; log=".runs/aws-$name-$(date +%Y%m%dT%H%M%S).log"
+  {
+    echo "=== aws wave $name at ${sha:0:7}: $(grep -cv '^\s*\(#\|$\)' "$with/run.txt") lines on ${#hosts[@]} hosts"
+    echo "=== dispatched by session ${PI_SESSION_ID:-none}"
+    echo "=== steerable (pid $BASHPID): not steerable; it follows AWS commands"
+    cmds=()
+    for i in "${!hosts[@]}"; do
+      id="${hosts[$i]%%:*}"; type="${hosts[$i]#*:}"
+      cores="$(aws ec2 describe-instance-types --instance-types "$type" --query 'InstanceTypes[0].VCpuInfo.DefaultVCpus' --output text)"
+      script="set -uo pipefail
+while [ ! -f /opt/slope-ready ]; do sleep 10; done
+export HOME=/root PATH=/root/.local/bin:/usr/local/bin:\$PATH OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 SLOPE_JEV_CACHE_ONLY=1
+cd /opt/slope && git fetch -q origin aws/$name && git checkout -q -f FETCH_HEAD && uv sync --locked -q
+uv run slope evidence build akoustis_20240514 > /tmp/evidence-$name.log 2>&1
+xargs -P $(( cores / 4 )) -d '\n' -n 1 bash -c 'timeout --signal=TERM --kill-after=60 20m bash -c \"\$1\" > /dev/null 2>&1; true' _ < aws-lines-$i.txt
+aws s3 sync var/walk-population/ s3://$bucket/walk/ --only-show-errors --exclude '*' --include '$name-*'
+echo lines-done"
+      cid="$(aws ssm send-command --instance-ids "$id" --document-name AWS-RunShellScript --timeout-seconds 600 \
+        --parameters "$(python3 -I -c 'import json,sys; print(json.dumps({"commands":["bash -s <<\x27SLOPE_WAVE\x27\n" + sys.argv[1] + "\nSLOPE_WAVE"],"executionTimeout":["7200"]}))' "$script")" \
+        --query Command.CommandId --output text)"
+      echo "host $id ($type, $cores cores): command $cid, $(wc -l < <(git show "$sha:aws-lines-$i.txt")) lines"; cmds+=("$id:$cid")
+    done
+    status=0
+    for c in "${cmds[@]}"; do
+      id="${c%%:*}"; cid="${c#*:}"
+      while :; do
+        s="$(aws ssm get-command-invocation --command-id "$cid" --instance-id "$id" --query Status --output text 2>/dev/null || echo Pending)"
+        case "$s" in Success) echo "host $id: done"; break;; Failed|Cancelled|TimedOut|Cancelling) echo "host $id: $s"; status=1; break;; esac
+        sleep 60
+      done
+    done
+    dest="var/remote/$name.aws/out-aws/var/walk-population"; rm -rf "var/remote/$name.aws"; mkdir -p "$dest"
+    aws s3 sync "s3://$bucket/walk/" "$dest/" --only-show-errors --exclude '*' --include "$name-*/*.json" --include "$name-*/*.txt"
+    echo "outputs: var/remote/$name.aws ($(find "$dest" -name piece.json | wc -l | tr -d ' ') pieces)"
+    echo "=== finished exit $status"
+  } > "$log" 2>&1 &
+  echo "aws wave $name: $log" ;;
+
+*) sed -n '2,16p' "$0"; exit 2 ;;
+esac
