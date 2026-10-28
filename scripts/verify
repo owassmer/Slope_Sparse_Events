@@ -13,7 +13,9 @@
 # The run streams to .runs/<run>.log and Pi's events to .runs/<run>.jsonl; the coordinator's session shows it live in a
 # Ghostty split (tools/feed/feed, opened by .pi/extensions/factory-runs.ts), and scripts/watch prints the log.
 set -euo pipefail
-VERIFIER="claude-cli/claude-opus-5-5:high"    # a different family from the worker; change it here and nowhere else
+# The other family from the coordinator, who now writes the product's core (Owen, October 28): no one judges their own
+# work. Change it here and nowhere else.
+VERIFIER="openai-codex/gpt-6-astra:high"
 target="${1:?usage: scripts/verify outcomes/<id>.md | --map}"
 root="$(git rev-parse --show-toplevel)"; cd "$root"
 
@@ -75,7 +77,7 @@ trap - ERR; set +e
   node "$root/tools/roles/run.mjs" --inbox "$root/.runs/$run.steer" --prompt "You are the verifier. Use the verify skill. $ask
 Say at the end of your final message anything you noticed that would help the next agent." -- \
   pi --mode rpc --no-session --no-extensions --no-skills --no-context-files --no-prompt-templates \
-    -e "$HOME/.pi/agent/extensions/claude-cli" -e "$root/tools/roles/sandbox.ts" --skill "$ws/skill/SKILL.md" \
+    -e "$root/tools/roles/sandbox.ts" --skill "$ws/skill/SKILL.md" \
     --tools read,bash,edit,write --model "$VERIFIER" --append-system-prompt "$ws/AGENTS.md" 2>> "$log") \
   | tee "$root/.runs/$run.jsonl" | scripts/watch --render >> "$log"
 status=${PIPESTATUS[0]}; set -e; trap 'on_err $? $LINENO' ERR
