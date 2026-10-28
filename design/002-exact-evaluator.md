@@ -84,3 +84,35 @@ The worst-path search and the provable bounds stay.
 - Memory for pass 1's records: one record per (question, draw, history reaching it); kept as running pools per key
   (the medoid and ranges `state14` needs) rather than every record, if the full tree's count requires it.
 - The ordinary view (no dispute cash) is a second, much smaller tree per draw, through the same code.
+
+## After the review of 28 October (`002-exact-evaluator.review.md`)
+
+1. **What a question is.** The question standard (QUESTIONS_20240514 §1, Grouping) defines a question as the decision
+   in its situation class, asked of every trajectory in that class, its facts one representative trajectory (the
+   medoid by decision date and cash) with the class's range beside each figure; the classes are what separate legal
+   status, the actions open and the ability to pay. That is what the judge reads, and the evaluator keeps it: a key's
+   records are pooled over every trajectory in its class, as `state14` does today. The earlier proposal to identify a
+   question at each reached point (`002-answer-first.md`, "Node-local questions") is withdrawn: it would be a new
+   standard, and with exhaustive enumeration it would make nearly every point its own question, beyond any judge's
+   budget. "Faithfully" here means no key is coarsened and none carries route detail that does not change what the
+   judge reads.
+2. **Deferred questions keep their own date.** The constructors branch some two-part decisions together at the
+   first date (a stay motion and its approval; acceleration, the issuer's and the holders' petitions); the later
+   question's record is taken when the walk reaches its own date (`freeze_due`), from the state then, so it includes
+   every earlier decision between and nothing later. The compiled walk is at that date with the state in hand, so it
+   records then; what goes is only the re-tracing of whole histories (`record_late` re-running the chain from the
+   review date), not the deferral.
+3. **Changing judgments.** Pass 2's per-question terms give any single changed judgment exactly and at once. Several
+   changed together interact (two answers that matter only jointly), so the page recomputes them by running pass 2
+   again on the server with the changed answers (exact; a minute or so), showing that it is doing so.
+4. **Percentiles** are read from histograms, within half a bin of the exact weighted percentile, as today; the page
+   states the bin width. Expectations are exact.
+5. **The worst feasible history** is found exactly in pass 2: every history's unrecovered amount and frozen claim
+   are accumulated over its feasible draws (keyed by its steps across the draws' trees), and the worst by the stress
+   ranking is kept. The sampled search goes.
+6. **512 operating draws** stay: they are the business's ordinary variation (the bank-data scenarios), which the
+   event tree's enumeration does not touch.
+7. **Draws walked apart.** The joint walk tags a question with the conditions that hold on every trajectory of its
+   prefix (`_Walk.node`, `situation`); walked one draw at a time, a condition holds or not on that draw. Where the two
+   differ, the keys differ. The walk component's fidelity check measures this on the real tree before anything is
+   built on it; if they differ, which is the standard's question comes to Owen with the cases.
