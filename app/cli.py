@@ -335,6 +335,35 @@ def analyze_case(snapshot: str = typer.Argument(..., help="Dated case ID; uses i
     typer.echo(f"Run `slope viewer`, then open http://127.0.0.1:8000{result['page_route']}")
 
 
+@cli.command("run")
+def run_case(case: str = typer.Argument("akoustis_20240514", help="The case (cases/<case>)."),
+             tau: float = typer.Option(0.01, help="Walk exactly every prefix at least this likely on some draw."),
+             replicates: int = typer.Option(8, min=2, help="Samplings of the less likely tail: their spread is each "
+                                                           "figure's 99% interval."),
+             seed: int = typer.Option(0)) -> None:
+    """The case's page from the answer-first walk (design/002-answer-first.md), with the seeded stand-in judge: a new
+    run under var/runs beside a copy of the case's recorded investigation. View it with
+    SLOPE_RUNS_ROOT=var/runs uv run slope viewer."""
+    import shutil
+    import time
+
+    from app.analysis.build import build, say
+    from app.analysis.walk_measurement import LEAD_RUN
+    from app.config import ROOT, VAR
+
+    leads = {"akoustis_20240514": LEAD_RUN}  # the recorded investigation each case's page starts from
+    if case not in leads:
+        raise typer.BadParameter(f"no recorded investigation for {case}; known: {', '.join(leads)}")
+    run_id = f"{case}-answer_first-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}"
+    root = VAR / "runs"
+    shutil.copytree(ROOT / "runs" / "recorded" / leads[case], root / run_id)
+    t0 = time.time()
+    build(run_id, root, progress=lambda stage: say(stage),
+          answer_first={"tau": tau, "replicates": replicates, "seed": seed})
+    typer.echo(f"{run_id}: {time.time() - t0:.0f} s; page at /runs/{run_id} "
+               f"(SLOPE_RUNS_ROOT={root} uv run slope viewer)")
+
+
 @cli.command()
 def analyze(run: str = typer.Option(..., help="Recorded run ID (runs/recorded/<id>)."),
             root: str = typer.Option("", help="Directory holding the run (default runs/recorded)."),

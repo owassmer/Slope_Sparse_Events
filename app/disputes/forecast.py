@@ -96,6 +96,11 @@ class DisputePath:
     # per classed question on the path (`Forecaster.class_key`): (question key, its class tags, and per draw the path
     # follows, the index of its tag, int8 bytes; -1 where the question is not live there; None: one tag throughout)
     classes: tuple = ()
+    # the answer-first walk (app/disputes/answer_first.py): the probability with which the path was sampled times the
+    # number of replicates (1: walked exactly), so its weight on a draw is its probability divided by this; and which
+    # sampling it came from (-1: walked exactly)
+    divisor: float = 1.0
+    replicate: int = -1
 
 
 def pack_mask(m: np.ndarray | None) -> bytes | None:
@@ -1532,6 +1537,11 @@ class Forecaster:
         from app.disputes.chronological import ChronologicalWalk
 
         walk_type = ChronologicalWalk if d.stage == PENDING and self.equity else _Walk
+        first = getattr(self, "answer_first", None)  # the answer-first walk's settings (design/002-answer-first.md)
+        if first is not None and walk_type is ChronologicalWalk:
+            from app.disputes.answer_first import AnswerFirstWalk
+
+            walk_type = lambda fc, d: AnswerFirstWalk(fc, d).configured(**first)  # noqa: E731
         W = walk_type(self, d)
         if not W.pend:
             return W.run()
@@ -1621,8 +1631,11 @@ class Forecaster:
         return cls
 
     def deferred_decision(self, key: str) -> bool:
-        """Question boundaries resolved by the engine after earlier-dated events are known."""
-        node = self.nodes[key]
+        """Question boundaries resolved by the engine after earlier-dated events are known. The ordinary view's
+        questions (`bank_nodes`) belong to no dispute, so none of them is deferred."""
+        node = self.nodes.get(key)
+        if node is None:
+            return False
         d = next((d for d in self.disputes if d.instance_id == node.instance_id), None)
         if d is None or d.stage != PENDING:
             return False
@@ -4038,10 +4051,19 @@ class _OrdinaryWalk(_Walk):
         self.N = fc.days
         self.pend = True
         self.seen: set = set()
+        # what `_Walk.__init__` sets that the distress chain reads without a dispute (its own init is not called, so
+        # these follow it: October 28, three fields added to _Walk since had broken this view)
+        self._population = None
+        self.keys: list = []
+        self.resp, self.quiet, self.seek = "judgment_response", "none", "none"
+        self.again = ("none", "initiate_offering")
 
     def run(self) -> list[DisputePath]:
         self.listing(_S(cls=""), "operating")
         return self.out
+
+    def _first_ripe(self, s: _S, probe, then) -> bool:
+        return False  # no judgment in the ordinary view, so no entered-judgment default to resolve first
 
     def _raw(self, steps, full: bool = False) -> _Prefix:
         return self.fc.bank_trace(tuple(steps), full, light=True)

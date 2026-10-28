@@ -825,6 +825,25 @@ EQUITY = ("atm_proceeds", "offering_proceeds")  # core.Reduction means: net at-t
 ARREARS_PREFIX = "arrears_"  # core.Reduction per_day keys, one per processor.ARREARS class
 
 
+# Student's t at 0.995 by degrees of freedom: a 99% interval from the replicates' spread (no scipy here)
+T99 = {1: 63.657, 2: 9.925, 3: 5.841, 4: 4.604, 5: 4.032, 6: 3.707, 7: 3.499, 8: 3.355, 9: 3.250, 10: 3.169,
+       11: 3.106, 12: 3.055, 13: 3.012, 14: 2.977, 15: 2.947, 16: 2.921, 19: 2.861, 24: 2.797, 29: 2.756, 39: 2.708}
+
+
+def figure_interval(probs: np.ndarray, values: np.ndarray, replicate: np.ndarray, replicates: int
+                    ) -> tuple[float, float, float]:
+    """An expected figure under `probs` (each path's probability over its divisor) and its 99% interval from the
+    sampled tail: each replicate's own estimate is the exactly walked paths plus that replicate's paths at
+    `replicates` times their weight; the figure is their mean and the interval t x their standard error. Returns
+    (figure, low, high)."""
+    x = probs * values
+    head = float(x[replicate < 0].sum())
+    est = np.array([head + replicates * float(x[replicate == r].sum()) for r in range(replicates)])
+    mean = float(est.mean())
+    half = T99[replicates - 1] * float(est.std(ddof=1)) / np.sqrt(replicates)
+    return mean, mean - half, mean + half
+
+
 def bridge(bank: dict[str, float], research: dict[str, float]) -> dict[str, float]:
     """What research adds to collections, in two parts (page.js bridgeLine): the change in payments due (Slope funds
     more or less, so more or fewer installments fall due) and the change in due and unpaid, sign reversed. Collected
@@ -949,6 +968,11 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                      earlier_plain=[named(t, names) for t in f["earlier_plain"]])
     seq_ix = {named(s, names): i for s, i in seq_ix.items()}
     probs = model.probs() if probs is None else probs
+    stand_in = any(j.observation_id == "stand-in" for j in model.judgments.values())
+    replicate = np.array([max((p.replicate for p in c), default=-1) for c in model.combos])
+    replicates = int(replicate.max()) + 1
+    intervals = {k: list(figure_interval(probs, v, replicate, replicates))
+                 for k, v in path_scalars(a.r).items() if k != "share"} if replicates > 1 else {}
     months = [f"{y}-{mo:02d}" for y, mo in a.months]
     inputs, scenario = case_inputs(snapshot_id)
     vb = verdict_block(fc, d0, lead)
@@ -956,14 +980,23 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
         "meta": {"borrower": borrower, "review": setup.review.isoformat(), "horizon": setup.horizon.isoformat(),
                  "limit_cents": int(a.line.limit[:, 0].min()), "fee_bps": setup.fee_bps,
                  "installments": setup.installments, "draws": a.ops.draws, "paths": len(model.combos),
-                 "judgments": "neutral" if neutral else "jev",
-                 "judgments_note": "No Jev answers yet: all questions at even odds" if neutral else "",
+                 "judgments": "neutral" if neutral else "stand-in" if stand_in else "jev",
+                 "judgments_note": ("No Jev answers yet: all questions at even odds" if neutral else
+                                    "A seeded stand-in answers every question (80% on one answer chosen by the "
+                                    "question's key): it shows the method, and is no judgment about the case"
+                                    if stand_in else ""),
+                 "replicates": replicates, "t99": T99.get(replicates - 1) if replicates > 1 else None,
+                 "intervals": intervals,
                  "probability_label": m["probability_label"]},
         "dates": [(setup.review + timedelta(days=t + 1)).isoformat() for t in range(a.days)], "months": months,
         "need_mean": np.rint(a.line.need.mean(axis=0)).astype(np.int64).tolist(),
         "pins": _pins(d0, m) if d0 is not None else {},
         "nodes": nodes, "composites": enc["composites"],
         "paths": {"edges": enc["paths"], "class": [[[cls_ix[c], round(v, 4)] for c, v in sh.items()] for sh in shares],
+                  # the answer-first walk (design/002-answer-first.md): a path's weight is its probability over its
+                  # divisor; a sampled path's replicate (-1: walked exactly), whose spread is each figure's interval
+                  "divisor": [float(np.prod([p.divisor for p in c])) for c in model.combos],
+                  "replicate": [max((p.replicate for p in c), default=-1) for c in model.combos],
                   "seq": seqs,
                   "scalars": {k: v.tolist() for k, v in path_scalars(a.r).items()}},
         "classes": [named(label, names) for _, label in CLASSES], "sequences": list(seq_ix), "parties": names,

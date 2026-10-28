@@ -129,7 +129,11 @@ class EventModel:
         out = np.ones(len(combos))
         for j in range(ref.shape[1]):
             out *= vals[ref[:, j]]
-        return out
+        div = self.__dict__.setdefault("_divisor", {})  # the answer-first walk's sampled paths
+        if name not in div or div[name][0] is not (combos[0] if combos else None) or len(div[name][1]) != len(combos):
+            div[name] = (combos[0] if combos else None,
+                         np.array([np.prod([p.divisor for p in c]) for c in combos], dtype=np.float64))
+        return out / div[name][1]
 
 
 def neutral_overrides(model: EventModel) -> dict[str, dict[str, float]]:

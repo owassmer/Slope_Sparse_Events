@@ -42,6 +42,17 @@
 
   // --- probability arithmetic -------------------------------------------------------------------------------------
   const N = D.nodes.length, P = D.paths.edges.length;
+  const DIV = D.paths.divisor || null, REP = D.paths.replicate || null, R = D.meta.replicates || 0;
+  // a figure's 99% interval from the sampled tail (page.figure_interval): each replicate's estimate is the exactly
+  // walked paths plus its own paths at R times their weight; t x the standard error of their mean
+  function interval(probs, key) {
+    const x = D.paths.scalars[key]; if (!x || !REP || R < 2 || !D.meta.t99) return null;
+    let head = 0; const tail = new Float64Array(R);
+    for (let i = 0; i < P; i++) { const v = probs[i] * x[i]; if (REP[i] < 0) head += v; else tail[REP[i]] += v; }
+    const est = Array.from(tail, (t) => head + R * t), m = est.reduce((a, b) => a + b, 0) / R;
+    const sd = Math.sqrt(est.reduce((a, b) => a + (b - m) ** 2, 0) / (R - 1)), h = D.meta.t99 * sd / Math.sqrt(R);
+    return [m - h, m + h];
+  }
   const jevDist = (i) => D.nodes[i].jev;
   const dist = (i, ov = S.overrides) => ov[D.nodes[i].key] || jevDist(i);
   function pathProbs(get) {
@@ -55,7 +66,7 @@
     for (let i = 0; i < P; i++) {
       const e = D.paths.edges[i]; let p = 1;
       for (let j = 0; j < e.length; j += 2) p *= e[j] >= 0 ? node[e[j]][e[j + 1]] : comp[-e[j] - 1][e[j + 1]];
-      out[i] = p;
+      out[i] = DIV ? p / DIV[i] : p;  // the answer-first walk: a sampled path weighs its probability over its divisor
     }
     return out;
   }

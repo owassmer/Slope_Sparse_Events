@@ -264,13 +264,14 @@ def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh:
 
 
 def build(run_id: str, root: Path, refresh: bool = False, *,
-          progress: Callable[[str], None] | None = None) -> dict:
-    """The run's analysis, page and Jev exchange log, written beside it."""
+          progress: Callable[[str], None] | None = None, answer_first: dict | None = None) -> dict:
+    """The run's analysis, page and Jev exchange log, written beside it. answer_first: the answer-first walk with
+    the seeded stand-in judge (`judged_model`)."""
     from app.agent import jev as jev_module
 
     jev_module.EXCHANGE_LOG = exchanges = []  # the run's Jev requests and responses, written beside it
     try:
-        return _build(run_id, root, refresh, exchanges, progress or (lambda stage: None))
+        return _build(run_id, root, refresh, exchanges, progress or (lambda stage: None), answer_first)
     finally:
         jev_module.EXCHANGE_LOG = None
 
@@ -314,10 +315,28 @@ def walk_processes(snapshot_id: str) -> int:
     return int(env) if env else WALK_PROCESSES.get(snapshot_id, 1)
 
 
+STAND_IN = "stand-in"  # a Judgment's observation_id when the seeded stand-in judge answered (answer_first.stand_in)
+
+
+def stand_in_judgments(nodes: dict, classed: set) -> dict[str, Judgment]:
+    """The seeded stand-in judge's answer to every question (`answer_first.stand_in` on the question's base key, over
+    its own answers, so the walk's guide and the judgments agree): for building and keyless runs, never a judgment
+    about the case."""
+    from app.disputes.answer_first import stand_in
+
+    return {k: Judgment(key=k, instance_id=n.instance_id, node=n.node, question_id=n.question_id, event=n.event,
+                        assumptions=n.assumptions, window=n.window,
+                        distribution=stand_in(k.split("|#")[0], n.branches), observation_id=STAND_IN)
+            for k, n in nodes.items() if k not in classed}
+
+
 def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None = None, *,
-                 progress: Callable[[str], None] | None = None) -> tuple[Forecaster, EventModel]:
+                 progress: Callable[[str], None] | None = None,
+                 answer_first: dict | None = None) -> tuple[Forecaster, EventModel]:
     """The tree for `setup` (and the chains' parameter sensitivities `sens`), with Jev's answer to every question.
-    A question whose facts are unchanged is answered from Jev's cache; one whose facts changed is asked again."""
+    A question whose facts are unchanged is answered from Jev's cache; one whose facts changed is asked again.
+    answer_first: the answer-first walk's settings (tau, replicates, seed; design/002-answer-first.md), with the
+    seeded stand-in judge both guiding the walk and answering (jev is then unused)."""
     from app.agent.jev_profiles import DisputeProfile
 
     fc = Forecaster(ctx["live"], ctx["findings"], borrower=ctx["borrower"], review=ctx["review"],
@@ -326,6 +345,17 @@ def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None 
                     slots=ctx["slots"], model=ctx["m"], sens=sens)
     if progress:
         progress("event_situations")
+    if answer_first is not None:
+        from app.disputes.answer_first import Guide, stand_in
+
+        fc.answer_first = {**answer_first, "guide": Guide(fc, stand_in)}
+        per = fc.all_paths()
+        bank_paths = fc.bank_paths()
+        judgments = stand_in_judgments(fc.nodes, fc.classed)
+        bank_judgments = stand_in_judgments(fc.bank_nodes, set())
+        model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered(),
+                           neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments)
+        return fc, model
     procs = walk_processes(ctx["meta"]["snapshot_id"])
     if procs > 1:  # the pending claim's tree on a subtree queue (app/disputes/parallel.py): the single walk's result
         from app.disputes import parallel
@@ -364,7 +394,7 @@ def _progress_log():
 
 
 def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict],
-           progress: Callable[[str], None]) -> dict:
+           progress: Callable[[str], None], answer_first: dict | None = None) -> dict:
     from app.agent.jev import JevAdapter
     from app.config import judgment_provider
 
@@ -372,12 +402,15 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict],
     ctx = run_context(run_id, root, refresh)
     meta, setup, borrower, feed, m = ctx["meta"], ctx["setup"], ctx["borrower"], ctx["feed"], ctx["m"]
     records: list = []
-    jev = JevAdapter(provider=judgment_provider(), run_id=f"{run_id}-analysis", use_cache=not refresh)
-    fc, model = judged_model(ctx, setup, jev, records, progress=progress)
+    # the stand-in answers an answer-first run: no judgment model, and so no credential (a keyless clone runs)
+    jev = None if answer_first is not None else JevAdapter(provider=judgment_provider(), run_id=f"{run_id}-analysis",
+                                                           use_cache=not refresh)
+    fc, model = judged_model(ctx, setup, jev, records, progress=progress, answer_first=answer_first)
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in ctx["live"] if d.status not in ("interpreted", "resolved")]
     say(f"tree: {len(model.combos)} paths, {len(model.bank_paths)} ordinary paths, {len(fc.nodes)} dispute "
-        f"nodes, {len(fc.bank_nodes)} ordinary nodes; walk {getattr(fc, 'walk_stats', {})}; Jev {jev.usage_summary()}")
+        f"nodes, {len(fc.bank_nodes)} ordinary nodes; walk {getattr(fc, 'walk_stats', {})}; "
+        f"Jev {jev.usage_summary() if jev is not None else 'not asked (stand-in)'}")
     progress("financial_analysis")
     t_a = time.time()
     a = Analysis(feed, setup, model, dispute_model=m, progress=_progress_log())
@@ -386,7 +419,7 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict],
     data["model"] = _model_json(model)
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
     data["base_setup"] = setup_json(setup)
-    data["jev"] = jev.usage_summary()
+    data["jev"] = jev.usage_summary() if jev is not None else {"judge": "stand-in"}
     out = root / run_id
     text = json.dumps(data, default=str, separators=(",", ":")).encode() + b"\n"  # compact: C encoder
     (out / "analysis.json").write_bytes(text)
