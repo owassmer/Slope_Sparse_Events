@@ -61,7 +61,7 @@ asks for. The walk's stopping adds a second, computational uncertainty, and each
 - a quantile at level q lies between the expanded distribution's quantiles at the levels the stub mass can shift it
   to, from (q - ε)/(1 - ε) to q/(1 - ε): exact as a statement about the level (P5 is between P4.5 and P5.5 at
   ε = 0.5%), and shown as the dollar range that implies, which is wide where the distribution has an atom at that
-  level (an honest width that the outcome's dollar tolerance cannot promise for quantiles; Owen to settle).
+  level (Owen, 28 October: the 1% dollar width holds for expected values; quantiles hold to this level tolerance).
 
 **Sound bounds come from the line's own limits** (finding 1). The line is reusable: freed capacity funds new invoices,
 fees put a funded amount above its principal, and the limit moves with trailing receipts. So the bounds are per draw,
@@ -109,6 +109,4 @@ about what precision a judgment needs, taken with the purpose, not a tuning knob
 
 ## Open
 
-- Quantile figures: the outcome's 1% dollar width holds for expectations; for quantiles the stopping uncertainty is a
-  probability level (Owen to settle).
 - The page's levers by kind and domain: which kinds the page offers.
