@@ -667,7 +667,7 @@ class Analysis:
         store = self.__dict__.setdefault("stub_bounds", {}).setdefault((p.instance_id, p.stub), {})
         seen = self.__dict__.setdefault("_stub_seen", {}).setdefault((p.instance_id, p.stub), np.zeros(DRAWS, bool))
         for f, b in got.items():
-            if b is None:
+            if b is None or b[0] is None or b[1] is None:  # no floor or no ceiling holds: that figure gets no range
                 store[f] = None
                 continue
             lo, hi = (np.asarray(x, dtype=np.float64) for x in b)
