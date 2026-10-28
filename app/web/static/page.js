@@ -8,7 +8,8 @@
   const $ = (id) => document.getElementById(id);
   const D = JSON.parse($("page-data").textContent);
   const API = document.body.dataset.api;
-  const W = await (await fetch("/static/words.json")).json();
+  const words = await (await fetch("/static/words.json")).json();
+  const W = D.meta.judgments === "stand-in" ? JSON.parse(JSON.stringify(words).replace(/Jev/g, "Stand-in")) : words;
   const S = { overrides: {}, sel: {}, event: D.event, bank: D.bank, assumption: "central", vm: null, compare: null, open: null, reveal: false, outcome: null, focus: null };
   window.__page = S;
   // The tables page (app/analysis/tables_page.py): a tree too large to carry path by path. Every figure comes from
@@ -53,6 +54,24 @@
     const sd = Math.sqrt(est.reduce((a, b) => a + (b - m) ** 2, 0) / (R - 1)), h = D.meta.t99 * sd / Math.sqrt(R);
     return [m - h, m + h];
   }
+  // Derived ratios use the enclosing numerator/denominator ranges, never a range of rounded figures.
+  function figureRange(pr, key) {
+    const ratio = { rate: ["collected", "due"], stayed_if: ["stayed", "petition_p"], clawback_if: ["clawback", "petition_p"] }[key];
+    if (!ratio) return interval(pr, key);
+    const a = interval(pr, ratio[0]), b = interval(pr, ratio[1]);
+    if (!a || !b) return null;
+    if (b[0] <= 0) return [-Infinity, Infinity];
+    return [Math.max(0, a[0]) / b[1], a[1] / b[0]];
+  }
+  function rangeHtml(pr, key, fmt = money, subtract = 0) {
+    if (S.assumption !== "central") return "";
+    const r = figureRange(pr, key); if (!r) return "";
+    const lo = r[0] - subtract, hi = r[1] - subtract;
+    const text = !Number.isFinite(lo) || !Number.isFinite(hi) ? "not bounded (denominator range includes zero)"
+      : fmt(lo) === fmt(hi) ? "narrower than displayed rounding" : `${fmt(lo)} – ${fmt(hi)}`;
+    return `<span class="sampling-range">Range from sampling the less likely histories: ${esc(text)}</span>`;
+  }
+  const judgeNote = () => D.meta.judgments === "stand-in" ? `<p><strong>${esc(D.meta.judgments_note)}</strong></p>` : "";
   const jevDist = (i) => D.nodes[i].jev;
   const dist = (i, ov = S.overrides) => ov[D.nodes[i].key] || jevDist(i);
   function pathProbs(get) {
@@ -148,7 +167,7 @@
       threshold: money(notes.default_threshold_cents), days: notes.default_days ?? "–", listing: notes.listing_deadline ? fyear(notes.listing_deadline) : "–" };
     const facts = [[W.facts.claim, vals.claim], [W.facts.cash, vals.cash], [W.facts.notes, vals.notes], [W.facts.listing, vals.listing]];
     $("s-situation").innerHTML = `<div class="sit"><div><h3>${esc(fill(W.sections.situation))} · ${esc(fyear(D.meta.review))}</h3><h1>${esc(D.meta.borrower)}</h1>
-        ${D.meta.judgments_note ? `<p class="mute small">${esc(D.meta.judgments_note)}</p>` : ""}
+        ${D.meta.judgments_note ? `<p><strong>${esc(D.meta.judgments_note)}</strong></p>` : ""}
         ${(D.narrative || []).map((t) => `<p>${esc(fill(t, vals))}</p>`).join("")}</div>
       <div class="line"><h3>${esc(L.title)}</h3><dl>
         <dt>${esc(L.limit)}</dt><dd>${money(D.meta.limit_cents)}<span class="mute small"> · ${esc(L.limit_note)}</span></dd>
@@ -169,7 +188,17 @@
       ["frozen_due", money(f.frozen_due)], ["not_yet_due", nyd ? "–" : money(f.not_yet_due), nyd ? W.notes.unavailable : ""],
       ["funded", money(f.funded)], ["filing", pct(f.petition_p)], ["stayed", money(f.stayed_if), "", money(f.stayed)],
       ["preference", money(f.clawback_if), "", money(f.clawback)]];
-    return `<div class="tiles">${t.map(([k, v, s, wt]) => `<div><span class="mute small${W.notes[k] ? " hastip" : ""}"${W.notes[k] ? ` data-tip="${esc(fill(W.notes[k], { weighted: wt ?? "" }))}"` : ""}>${esc(T(k))}</span><b>${esc(v)}</b>${s ? `<span class="sub">${esc(s)}</span>` : ""}</div>`).join("")}</div>`;
+    return `<div class="tiles">${t.map(([k, v, s, wt]) => `<div><span class="mute small${W.notes[k] ? " hastip" : ""}"${W.notes[k] ? ` data-tip="${esc(fill(W.notes[k], { weighted: wt ?? "" }))}"` : ""}>${esc(T(k))}</span><b>${esc(v)}</b>${rangeHtml(probs, ({ filing: "petition_p", stayed: "stayed_if", preference: "clawback_if" })[k] || k, k === "filing" ? pct : money)}${s ? `<span class="sub">${esc(s)}</span>${k === "collected" ? rangeHtml(probs, "rate", pct) : ""}` : ""}</div>`).join("")}</div>`;
+  }
+  function stressHtml() {
+    const s = D.stress; if (!s) return "";
+    const w = s.worst_found, b = s.bound;
+    return `<div class="line"><h3>Worst feasible history found · not probability-weighted</h3><p>${esc(s.note)}</p>
+      <p>${esc(w.sequence)}</p><p>${esc(w.figures_note)} Feasible on ${w.draws} operating draws.</p>
+      <dl><dt>Unrecovered at maturity</dt><dd>${money(w.unrecovered)}</dd><dt>Claim stayed at petition</dt><dd>${money(w.frozen)}</dd>
+      <dt>Ceiling · ${esc(b.measure)}</dt><dd>${money(b.any_feasible_subset_mean_cents)}</dd>
+      <dt>Ceiling on this history’s feasible draws</dt><dd>${money(b.winner_draws_mean_cents)}</dd></dl>
+      <p class="mute small">${esc(b.rule)}</p><details><summary>How the search worked</summary><p>${esc(s.search.method)}</p></details></div>`;
   }
   const monthEnd = (ym) => { let t = -1; D.dates.forEach((d, k) => { if (d.startsWith(ym)) t = k; }); return t; };
   function ladder(host) {
@@ -279,7 +308,7 @@
       [fill(F.offering), pct(closed), fill(F.offering_note)]];
     if (fc !== null) t.push([F.first_close, fdate(D.dates[fc]), ""]);
     const terms = T0.net_cents ? `<p class="mute small">${esc(F.terms)}: ${esc(fill(F.terms_value, { net: money(T0.net_cents), gross: money(T0.gross_cents), days: T0.close_days ?? "–" }))}</p>` : "";
-    return `<div class="facts">${t.map(([k, v, n]) => `<div><span class="mute small${n ? " hastip" : ""}"${n ? ` data-tip="${esc(n)}"` : ""}>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>${terms}`;
+    return `<div class="facts">${t.map(([k, v, n], i) => `<div><span class="mute small${n ? " hastip" : ""}"${n ? ` data-tip="${esc(n)}"` : ""}>${esc(k)}</span><b>${esc(v)}</b>${i === 0 ? rangeHtml(probs, "atm_proceeds") : ""}</div>`).join("")}</div>${terms}`;
   }
   function renderForecast() {
     const sec = $("s-forecast"), f = figures().full;
@@ -290,7 +319,7 @@
         <details class="assume"><summary>${esc(W.forecast.assumptions)}</summary><p class="mute small">${esc(W.forecast.assumptions_note)}</p>
         <dl class="common">${(D.common || []).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></details>`;
     }
-    sec.querySelector(".tl").innerHTML = tileHtml(f);
+    sec.querySelector(".tl").innerHTML = tileHtml(f) + stressHtml();
     sec.querySelector(".cnote").textContent = S.event.arrears ? W.cash.note : "";  // daily processing: cash never below zero
     ladder(sec.querySelector(".lad")); cumChart(sec.querySelector(".cum")); cashChart(sec.querySelector(".cash"));
     const hasFin = RAISED.some((r) => r.length) || f.atm_proceeds != null || !!((D.financing || {}).terms || {}).net_cents;
@@ -354,7 +383,7 @@
     return rows.map(([t, k, fmt, good]) => {
       const rd = (v) => (fmt === pct ? Math.round(100 * v) / 100 : Math.round(v / 1e5) * 1e5), a = f.ordinary[k], b = f.full[k], d = a === null || b === null ? null : rd(b) - rd(a);
       const cls = !d ? "" : (d > 0) === (good > 0) ? "good" : "bad";
-      return `<tr><td>${esc(T(t))}</td><td>${fmt(a)}</td><td>${fmt(b)}</td><td class="${cls}">${d === null ? "–" : fmt === money ? dmoney(d) : pts(d)}</td></tr>`;
+      return `<tr><td>${esc(T(t))}</td><td>${fmt(a)}</td><td>${fmt(b)}${rangeHtml(probs, k, fmt)}</td><td class="${cls}">${d === null ? "–" : fmt === money ? dmoney(d) : pts(d)}${a === null ? "" : rangeHtml(probs, k, fmt, a)}</td></tr>`;
     }).join("") + `<tr><td colspan="4" class="mute small" style="text-align:left">${esc(R.attribution_note)}</td></tr>`;
   }
   const CLS = D.classes;
@@ -483,9 +512,9 @@
     const quotes = (det.quotes || []).slice(0, 3).map((x) => `<blockquote><p>“${esc(x.quote)}”</p><cite>${esc(x.source)}${x.link ? ` · <a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(W.ui.source)}</a>` : ""}</cite></blockquote>`).join("");
     const ins = inputs(det.facts || {});
     return `<h3>${esc(J.question)} · <span class="nt">${esc(decShort(i))}</span></h3><p class="q">${esc(q)}</p>${asked}<p class="mute small" id="${id}-reach"></p>
-      <h3>${esc(J.forecast)}</h3><div class="ans"><span id="${id}-blab"></span><span class="big" id="${id}-big"></span><span class="mute small" id="${id}-jev"></span></div>
+      <h3>${esc(J.forecast)}</h3>${judgeNote()}<div class="ans"><span id="${id}-blab"></span><span class="big" id="${id}-big"></span><span class="mute small" id="${id}-jev"></span></div>
       <div class="jbar" id="${id}-bar"></div><div class="slabs" id="${id}-slabs"></div>
-      <div class="sw"><input type="range" id="${id}-slider" min="0" max="100" step="1" value="${Math.round(100 * dist(i)[b])}"><span class="jm" style="left:${100 * jevDist(i)[b]}%" title="Jev"></span></div>
+      <div class="sw"><input type="range" id="${id}-slider" min="0" max="100" step="1" value="${Math.round(100 * dist(i)[b])}"><span class="jm" style="left:${100 * jevDist(i)[b]}%" title="${D.meta.judgments === 'stand-in' ? 'Stand-in' : 'Jev'}"></span></div>
       <p class="mute small">${esc(TB ? J.drag_one : J.drag)} <a href="#" id="${id}-reset"${n.key in S.overrides ? "" : " hidden"}>${esc(J.reset)}</a></p>
       <h3>${esc(J.effect)}</h3><p class="mute small" id="${id}-of"></p><table class="eff"><tr><th></th><th id="${id}-h0"></th><th class="j" id="${id}-hj"></th><th class="y" id="${id}-hy"></th><th id="${id}-h1"></th></tr>
         <tr><td>${esc(T("collected"))}</td><td id="${id}-lo"></td><td class="j" id="${id}-at"></td><td class="y" id="${id}-yat"></td><td id="${id}-hi"></td></tr>
@@ -510,6 +539,14 @@
     $(`${id}-flo`).textContent = pct(e.flo); $(`${id}-fat`).textContent = pct(jv.fat); $(`${id}-fhi`).textContent = pct(e.fhi);
     document.querySelectorAll(`#${id}-hy, #${id}-yat, #${id}-yfat`).forEach((el) => { el.hidden = !ov; });
     $(`${id}-hy`).textContent = fill(J.yours, { p: pct(d[b]) }); $(`${id}-yat`).textContent = money(e.at); $(`${id}-yfat`).textContent = pct(e.fat);
+    if (!isBank(i) && !TB) {
+      const columns = { lo: withBranch(i, b, 0), hi: withBranch(i, b, 1), at: jevDist(i), yat: d };
+      for (const [col, answer] of Object.entries(columns)) {
+        const pp = pathProbs((k) => k === i ? answer : dist(k));
+        $(`${id}-${col}`).innerHTML += rangeHtml(pp, "collected");
+        $(`${id}-${col === 'yat' ? 'yfat' : 'f' + col}`).innerHTML += rangeHtml(pp, "petition_p", pct);
+      }
+    }
     $(`${id}-reset`).hidden = !(n.key in S.overrides);
   }
   function bindCloseup(i, id) {
@@ -613,7 +650,7 @@
   function renderJudgment(rebuild) {
     const sec = $("s-judgment"), J = W.judgment;
     if (!sec.querySelector(".card") || rebuild) {
-      sec.innerHTML = `<h2>${esc(W.sections.judgment)}</h2><p>${esc(J.jev)}</p><p class="mute small">${esc(J.why)}</p><div class="card"></div>
+      sec.innerHTML = `<h2>${esc(W.sections.judgment)}</h2><p>${esc(J.jev)}</p>${judgeNote()}<p class="mute small">${esc(J.why)}</p><div class="card"></div>
         <h4 class="sub">${esc(J.paths)}</h4><div class="pt"></div><h4 class="sub">${esc(J.tornado)}</h4><div class="tnd"></div>`;
       const c = sec.querySelector(".card"), html = closeupHtml(S.focus, "c"), cut = html.indexOf(`<h3>${esc(J.forecast)}</h3>`), cut2 = html.indexOf(`<h3>${esc(J.evidence)}</h3>`);
       const ins = html.indexOf(`<h3>${esc(J.inputs)}</h3>`), mid = html.slice(cut, ins >= 0 ? ins : cut2);  // left: question and inputs; right: forecast, effect, evidence
