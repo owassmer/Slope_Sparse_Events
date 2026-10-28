@@ -348,10 +348,9 @@ def run_case(case: str = typer.Argument("akoustis_20240514", help="The case (cas
     import time
 
     from app.analysis.build import build, say
+    from app.analysis.page import T99
     from app.analysis.walk_measurement import LEAD_RUN
     from app.config import ROOT, VAR
-
-    from app.analysis.page import T99
 
     if replicates - 1 not in T99:  # the interval's t quantile is tabled (no scipy)
         raise typer.BadParameter(f"replicates must be one of {sorted(k + 1 for k in T99)}")
