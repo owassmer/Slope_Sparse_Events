@@ -9,8 +9,9 @@ draws (cash, collections, outstanding, petitions, frozen claim, ...) and per-day
 and cumulative collections. Every expectation is exact (a probability-weighted sum of per-path means); a quantile of the
 daily cash or collections is read from the summed histograms, within one bin width of the exact weighted quantile;
 collected at the horizon and the lowest cash and headroom are exact, from per-draw values. The bins are fixed across
-paths per day (headroom per month), from a first pass over the event cash and the line's limit (not the invoices the
-borrower would route), so no trajectory falls outside them and a bin is small against what the line moves.
+paths per day (headroom per month), from event cash and the line's limit (not the invoices the borrower would route).
+Event bounds are accumulated during simulation; cash and due-date headroom samples are spooled to disk until those
+bounds are complete, then histogrammed without recomputing event cash or trajectories.
 
 Each trajectory (joint path p, operating draw d) has weight P(p) / draws. Every structurally feasible path is simulated,
 whatever its probability; a zero-probability path simply carries no weight in the distribution and stays in stress.
@@ -20,8 +21,10 @@ are identical.
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass, field
 from datetime import timedelta
+from tempfile import TemporaryFile
 
 import numpy as np
 
@@ -311,12 +314,29 @@ class Reduction:
             by_class = on(t.processed.arrears).sum(axis=0)  # [days, ARREARS]
             for j, k in enumerate(ARREARS_KEYS):
                 d.setdefault(k, np.zeros((self.n, self.days)))[i] = by_class[:, j]
-        self.counts["cash"].add(self.bins["cash"].flat(cash))
         self.counts["collected"].add(self.bins["collected"].flat(cum_coll))
         hr = slice(None) if mask is None else mask[t.headroom_rows]
-        self.counts["headroom"].add(self.bins["headroom"].flat(t.headroom[hr], self.month_of_day[t.headroom_days[hr]]))
+        headroom, months = t.headroom[hr], self.month_of_day[t.headroom_days[hr]]
+        spool = getattr(self, "_histogram_spool", None)
+        if spool is None:
+            self._histograms(cash, headroom, months)
+        else:
+            pickle.dump((cash, headroom, months), spool, protocol=5)
         self.hr_count[i], self.hr_negative[i] = len(t.headroom[hr]), float((t.headroom[hr] < 0).sum())
         self.peak_day[i] = int(np.argmax(d["outstanding"][i]))
+
+    def _histograms(self, cash: np.ndarray, headroom: np.ndarray, months: np.ndarray) -> None:
+        self.counts["cash"].add(self.bins["cash"].flat(cash))
+        self.counts["headroom"].add(self.bins["headroom"].flat(headroom, months))
+
+    def finish_histograms(self, bins: dict[str, Bins]) -> None:
+        """Bin the saved samples with the final ranges, one history in memory at a time."""
+        self.bins = bins
+        spool = self._histogram_spool
+        spool.seek(0)
+        for _ in range(self.n):
+            self._histograms(*pickle.load(spool))
+        del self._histogram_spool
 
     def draw_weights(self, probs: np.ndarray) -> np.ndarray:
         """Each (path, draw)'s weight, [paths, draws]: p/n on the draws the path follows, else 0."""
@@ -571,27 +591,48 @@ class Analysis:
                     for i in range(lo, len(self.stress_rows)):
                         self._tick("stress", i, len(model.combos))
                 return
-            bins = self._bins()
+            # Collections' bounds depend only on the line. Cash/headroom bins are
+            # finalised after simulation, using exactly the former bin pass's extrema.
+            lo_ev, hi_ev = np.zeros(self.days), np.zeros(self.days)
+            bins = self._bins_from(lo_ev, hi_ev)
+
+            def events(c):
+                ev = self.event_cash(c)
+                cum = np.cumsum(ev.cash - ev.lock, axis=1)
+                np.minimum(lo_ev, cum.min(axis=0), out=lo_ev)
+                np.maximum(hi_ev, cum.max(axis=0), out=hi_ev)
+                return ev
 
             def make(n: int) -> Reduction:
                 return Reduction(n, DRAWS, self.days, setup, self.line.limit, bins, self.month_of_day,
                                  need=self.line.need[:, :self.days])
 
+            self._progress("simulate", 0, len(model.combos))
             self.bank_r = make(len(model.bank_combos))
-            for i, c in enumerate(model.bank_combos):
-                ev = self._events("bank", i, c)
-                self.bank_r.add(i, run(self.line, self.opening, ev), ev, combo_mask(c, DRAWS))
-            self.bank_r.finish()
+            self.bank_r._histogram_spool = bank_spool = TemporaryFile()
             self.r = make(len(model.combos))
+            self.r._histogram_spool = path_spool = TemporaryFile()
+            for i, c in enumerate(model.bank_combos):
+                ev = events(c)
+                self.bank_r.add(i, run(self.line, self.opening, ev), ev, combo_mask(c, DRAWS))
             for lo in range(0, len(model.combos), BATCH):  # a few paths at a time: dense arrays dropped once reduced
                 chunk = model.combos[lo:lo + BATCH]
-                evs = [self._events("path", i, c) for i, c in enumerate(chunk, lo)]
+                evs = [events(c) for c in chunk]
                 for i, (t, ev) in enumerate(zip(run_many(self.line, self.opening, evs), evs, strict=True), lo):
                     self.r.add(i, t, ev, combo_mask(model.combos[i], DRAWS))
                     self._tick("simulate", i, len(model.combos))
+            self._progress("bins", 0, len(model.combos))
+            bins = self._bins_from(lo_ev, hi_ev)
+            self.bank_r.finish_histograms(bins)
+            self.bank_r.finish()
+            self.r.finish_histograms(bins)
             self.r.finish()
+            self._tick("bins", len(model.combos) - 1, len(model.combos))
             self.means = self.r.means
         finally:
+            for spool in (locals().get("bank_spool"), locals().get("path_spool")):
+                if spool is not None:
+                    spool.close()
             self._cache.clear()
             self._draws.prefixes = {}
             self._packed = {}
