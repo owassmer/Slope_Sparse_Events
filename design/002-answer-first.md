@@ -204,3 +204,24 @@ The intervals, corrected:
 - **Percentiles** (finding 5): the sampled tail also moves the probability below any value. The level tolerance Owen
   set (P5 within P4.5 to P5.5) is checked the same way: a Hoeffding bound on the sampled mass below the reported value
   (each stub's mass times an indicator, range one), and the run's stopping rule includes it.
+
+## One rule instead of twelve splits (28 October, evening)
+
+Splitting each of the twelve two-part kinds in the engine answers the question-plan review, but what its findings
+require is narrower: nothing may be set aside, and nothing sampled, between a two-part decision's first part and the
+day its later question is asked (its window). Finding 2 needs an exact mass at every set-aside point; finding 3 needs
+every sampled decision to be one whose own question has been asked at that point. Both hold if, while a window is open
+on a path, the walk walks every child exactly:
+- **No set-aside point inside a window.** The walk knows which later questions are still waiting on a path
+  (`ChronologicalWalk._question_queue`, frozen by `freeze_due` when the frontier reaches each one's day), so a point
+  with one waiting is never a stub. Every stub's prefix then has all its answers given: its mass is exact (finding 2).
+- **No sampling inside a window.** Inside a sampled continuation, a decision that opens a window (a child carrying a
+  deferred question) or is reached while one is open walks all its children, as a question read by a later one already
+  does (`_watched`). The window's paths are enumerated; their later answers, asked at their own points, sum to one
+  across each pair, so a replicate's observation is a convex combination of continuation values and lies between the
+  point's floor and ceiling. Every sampled decision outside a window has had its own question asked, so the guide is
+  the judgment (finding 3).
+- **A later question is identified by the point where it is asked** (the reached prefix at `freeze_due`), not by the
+  first part's prefix (finding 1), so questions at different points never pool.
+The engine and the twelve kinds stay as they are. The cost is walking windows exactly; the run reports it per kind,
+and only a kind whose window proves expensive is split in the engine.
