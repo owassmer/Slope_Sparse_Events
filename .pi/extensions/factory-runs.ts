@@ -41,6 +41,31 @@ const git = (cwd: string, ...a: string[]) => {
   }
 };
 type RunState = { state: "waiting" | "running" | "finished"; end?: string };
+
+/** Where a run's log says the session limit ended it: the reset as the limit gave it, and its instant from when the run ended. */
+export function limitReset(text: string, ended: Date): { said: string; at: Date | null } | null {
+  const m = /session limit \u00b7 resets (\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*\(([^)]+)\)/i.exec(text);
+  if (!m) return null;
+  return { said: `${m[1]}${m[2] ? `:${m[2]}` : ""}${m[3]} ${m[4]}`, at: resetInstant(Number(m[1]), Number(m[2] ?? 0), m[3]!.toLowerCase() as "am" | "pm", m[4]!, ended) };
+}
+
+/**
+ * The next instant a session limit's reset falls at: the clock time it gives ("10:40pm") in the time zone it names
+ * ("America/New_York"), today there or, where that has passed, tomorrow. Null where the zone is not one Intl knows.
+ */
+export function resetInstant(hour12: number, minute: number, half: "am" | "pm", zone: string, now = new Date()): Date | null {
+  if (hour12 < 1 || hour12 > 12 || minute > 59) return null;
+  const hour = (hour12 % 12) + (half === "pm" ? 12 : 0);
+  let f: Intl.DateTimeFormat;
+  try { f = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return null; }
+  const wall = (d: Date) => { const p = Object.fromEntries(f.formatToParts(d).map((x) => [x.type, x.value])); return Date.UTC(+p.year!, +p.month! - 1, +p.day!, +p.hour!, +p.minute!); };
+  // The zone's offset now, as wall time less the instant (to the minute), carries the wall time of the reset back to an instant.
+  const offset = wall(now) - Math.floor(now.getTime() / 60_000) * 60_000;
+  const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+  let at = Date.UTC(+p.year!, +p.month! - 1, +p.day!, hour, minute) - offset;
+  if (at <= now.getTime()) at += 24 * 60 * 60_000;
+  return new Date(at);
+}
 // Logs can vanish between listing and reading (a run cleaned up in any checkout); a log that cannot be read is skipped.
 const readLog = (file: string): string | null => {
   try {
@@ -101,7 +126,24 @@ export function syncCheckouts(cwd: string, o: { force?: boolean } = {}): string 
     return String(e?.stdout ?? e?.message ?? e).trim();
   }
 }
-const syncNews = (out: string) => out.split("\n").filter((l) => /brought to main|could not|uncommitted|not pushed/.test(l)).join("\n");
+/**
+ * What the sync did that the coordinator needs to hear, said once. Bringing a checkout to main is an event, told each time
+ * it happens. A checkout left as it is (uncommitted changes, not pushed, could not be brought) is a standing state that
+ * every sync reports again; told each time, it made a notice after nearly every turn (October 13), and a notice between
+ * the coordinator's reply and Owen's next message makes the model client rebuild the whole conversation without its
+ * cache. So a standing state is told when it first appears or changes, and not again while it stays the same.
+ */
+const toldState = new Map<string, string>();
+const syncNews = (out: string) => out.split("\n").filter((l) => {
+  const checkout = l.split(" [")[0] ?? l;
+  if (/brought to main/.test(l)) { toldState.delete(checkout); return true; }
+  if (!/could not|uncommitted|not pushed/.test(l)) { toldState.delete(checkout); return false; }
+  // The commit it is behind changes as main moves; the state is the rest of the line.
+  const state = l.replace(/\b[0-9a-f]{7,40}\b/g, "");
+  if (toldState.get(checkout) === state) return false;
+  toldState.set(checkout, state);
+  return true;
+}).join("\n");
 
 export default function (pi: ExtensionAPI) {
   const watchers: FSWatcher[] = [];
@@ -355,6 +397,8 @@ export default function (pi: ExtensionAPI) {
     const pending = new Map<string, string>();
     const shown = new Set<string>();
     const failed = new Set<string>();
+    // A running run's progress: how much of its log is more than failed model calls, and since when it has not grown.
+    const progress = new Map<string, { len: number; since: number; warned: boolean }>();
 
     // Called from a file watcher and a timer, where a throw would end Pi itself: nothing may escape it.
     const check = () => {
@@ -377,6 +421,21 @@ export default function (pi: ExtensionAPI) {
       // A run queued for a worker slot gets its feed when it starts.
       if (run.state === "waiting") return;
       if (run.state === "running") {
+        // A run whose model calls keep failing never fails outright: it retries for as long as the network is down, and
+        // 003-29 sat two days that way with nothing said (October 11). An hour with nothing but failed calls is told once,
+        // and told again only after it has moved since.
+        const failing = (l: string) => /✗ model error|… retrying/.test(l);
+        const len = text.split("\n").filter((l) => !failing(l)).join("\n").length;
+        const p = progress.get(file);
+        if (!p || p.len !== len) progress.set(file, { len, since: Date.now(), warned: false });
+        else if (!p.warned && Date.now() - p.since > 60 * 60_000 && failing(text.trimEnd().split("\n").pop() ?? "")) {
+          p.warned = true;
+          const last = text.trimEnd().split("\n").pop()!.trim();
+          pi.sendMessage({
+            customType: "factory-run-stalled", display: true,
+            content: `Run ${runName(file)} in ${dirname(dirname(file))} has done nothing for over an hour but retry failed model calls (last: ${last}). Find why (the network, the provider), and stop it to resume it once the cause is gone (scripts/steer ${runName(file)} --stop, then scripts/work <task> --resume ${runName(file)}).`,
+          }, { triggerTurn: true, deliverAs: "followUp" });
+        }
         if (!shown.has(file)) {
           shown.add(file);
           openFeed(ctx, file).catch((e) => notify(ctx, `Feed for ${runName(file)}: ${e?.message ?? e}`, "warning"));
@@ -403,20 +462,60 @@ export default function (pi: ExtensionAPI) {
       // first, then everything else the commit changed, tests included (Owen, October 8: the rest was being fetched in
       // pieces, which leaves the reading to habit).
       const report = /^=== report\n([\s\S]*?)^=== end of report/m.exec(text)?.[1]?.trim();
-      if (/^=== worker on /m.test(text)) lines.push(report ? `The worker's report:\n${report}` : "The worker filed no report.");
+      // Its beyond lines went to the outcome's held list (scripts/work), to be read with the verifier's findings.
+      const heldNote = /^=== beyond: (.*)$/m.exec(text)?.[1];
+      const shownReport = heldNote && report ? report.replace(/^beyond:\n[\s\S]*?(?=^(?:found):|(?![\s\S]))/m, `beyond: ${heldNote}\n\n`) : report;
+      if (/^=== worker on /m.test(text)) lines.push(shownReport ? `The worker's report:\n${shownReport}` : "The worker filed no report.");
       const applied = /^=== applied to \S+ as ([0-9a-f]+)/m.exec(text)?.[1];
+      // Whether the branch, with every run applied to it, still typechecks (scripts/work checks it after applying).
+      const broke = /^=== the branch does not typecheck with this applied:\n((?:.*error TS.*\n?)*)/m.exec(text);
+      if (broke) lines.push(`The branch does not typecheck with this applied:\n${broke[1]!.trim()}`);
       if (applied) {
-        const reads = existsSync(join(root, "tools/roles/slope-reads"))
-          ? readFileSync(join(root, "tools/roles/slope-reads"), "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))
+        const listed = (f: string) => existsSync(join(root, f))
+          ? readFileSync(join(root, f), "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))
           : [];
-        const diff = reads.length ? git(root, "show", "--format=", applied, "--", ...reads) : "";
+        // The definitions first (the property's world and the law's trees): every kind, link, action and reading lives
+        // there, so a change to how the world hangs together is read as that, whole, before anything built on it (Owen,
+        // October 15: 005's relationships were built outside the definition and reviewed diff by diff).
+        const defs = listed("tools/roles/definitions");
+        const defDiff = defs.length ? git(root, "show", "--format=", applied, "--", ...defs) : "";
+        if (defs.length) lines.push(defDiff ? `The definitions changed (${applied}), in full:\n${defDiff}` : `No definition changed in ${applied}.`);
+        const reads = listed("tools/roles/slope-reads");
+        const diff = reads.length ? git(root, "show", "--format=", applied, "--", ...reads, ...defs.map((r) => `:(exclude)${r}`)) : "";
         lines.push(diff ? `What Slope's models read changed (${applied}), in full:\n${diff}` : `Nothing Slope's models read changed in ${applied}.`);
-        const rest = git(root, "show", "--format=", applied, "--", ".", ...reads.map((r) => `:(exclude)${r}`));
+        const rest = git(root, "show", "--format=", applied, "--", ".", ...[...defs, ...reads].map((r) => `:(exclude)${r}`));
         lines.push(rest ? `Everything else the commit changed (${applied}), in full:\n${rest}` : `Nothing else changed in ${applied}.`);
       }
       if (synced) lines.push(`Factory files from main:\n${synced}`);
+      // A run the subscription's session limit ended stopped mid-work, and this session shares that subscription, so it
+      // was most likely stopped too: its notice arrives while it cannot act, and nothing else wakes it when the limit
+      // resets. 006-1f and 006-1g ended this way at 21:22 on October 18 and the night was lost until 11:25 (October 19).
+      // So the reset is a wake of its own: at the time the limit gives, this session is told which runs it ended.
+      const limit = limitReset(text, new Date());
+      if (limit) {
+        lines.push(`The subscription's session limit ended it (it resets at ${limit.said}): its work was applied unfinished. ${limit.at ? `This session is woken when it resets, ${limit.at.toISOString()}.` : "The reset time could not be read as a time in its zone, so no wake is set for it."}`);
+        if (limit.at) resumeAt(limit.at, `${runName(file)} in ${root}`);
+      }
       lines.push(`Log: ${file}. Read it and carry on with the outcome.`);
       deliver(file, lines.join("\n"));
+    };
+    // One wake per reset, naming every run that limit ended.
+    const resumes = new Map<number, { runs: string[]; timer: ReturnType<typeof setTimeout> }>();
+    const resumeAt = (at: Date, run: string) => {
+      const key = at.getTime();
+      const r = resumes.get(key);
+      if (r) { if (!r.runs.includes(run)) r.runs.push(run); return; }
+      const runs = [run];
+      // Two minutes past the reset, so the first call is not refused at the boundary.
+      const timer = setTimeout(() => {
+        resumes.delete(key);
+        if (live !== ctx) return;
+        pi.sendMessage({
+          customType: "factory-limit-reset", display: true,
+          content: `The subscription's session limit has reset (${at.toISOString()}). It ended these runs mid-work, each with its work applied unfinished: ${runs.join("; ")}. Read each log for where it stopped, judge what landed, and carry on with the outcome.`,
+        }, { triggerTurn: true, deliverAs: "followUp" });
+      }, Math.max(0, key - Date.now()) + 2 * 60_000);
+      resumes.set(key, { runs, timer });
     };
     // A notice sent while the session is working waits in Pi's queue, and an interrupt drops what is queued (Owen saw a
     // finished run go unreported this way). So a notice counts as delivered only once it is in the session; until then
@@ -436,7 +535,14 @@ export default function (pi: ExtensionAPI) {
 
     // Runs that had already finished when this session started were reported to the session that started them; runs
     // still going are shown (a feed already open for one is left as it is).
-    for (const file of logs()) if (stateOf(file)?.state === "finished") told.add(file);
+    for (const file of logs()) if (stateOf(file)?.state === "finished") {
+      told.add(file);
+      // A wake set for a reset is this runtime's; a reload or a new session sets it again from the logs, for any reset
+      // still ahead of a run the limit ended.
+      const text = readLog(file);
+      const limit = text !== null && mine(text) ? limitReset(text, statSync(file).mtime) : null;
+      if (limit?.at && limit.at.getTime() > Date.now()) resumeAt(limit.at, `${runName(file)} in ${dirname(dirname(file))}`);
+    }
     for (const root of checkouts()) {
       const runs = join(root, ".runs");
       if (existsSync(runs)) watchers.push(watch(runs, () => check()));

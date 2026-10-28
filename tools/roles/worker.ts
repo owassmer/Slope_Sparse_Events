@@ -7,7 +7,9 @@
  * reading its code. So:
  * - every request asks Codex for its detailed reasoning summary, the fullest account of its reasoning it gives;
  * - the worker ends with the report tool, whose fields are what the coordinator needs to judge the work: what changed
- *   and why, where it departed from the task and why, what it found. The run does not settle until it has reported.
+ *   and why, where it departed from the task and why, what of its done is not yet true, what it saw beyond its task, and
+ *   what it measured or learned. The run does not settle until it has reported. (notTrue and beyond from Handoff's
+ *   factory, October 14: "problems seen but not fixed" read as leave to leave a known defect.)
  * scripts/work puts the report in the run's log, and the coordinator's finish notice carries it; a run that ends without
  * one finishes with exit 8, its changes applied but not clean.
  */
@@ -36,7 +38,9 @@ export default function worker(pi: ExtensionAPI) {
     parameters: Type.Object({
       changed: Type.String({ description: "What you changed in the product and why: the understanding behind it, not a list of files." }),
       departures: Type.String({ description: "Where you departed from the task or its framing, or chose something it did not ask for, and why. Say 'none' only if there were none." }),
-      found: Type.String({ description: "What you found that the coordinator or the next agent needs: problems seen but not fixed, surprises, what you are unsure of." }),
+      notTrue: Type.String({ description: "What of your task's done is not true in the running product as you leave it, and what stands in the way. Whatever keeps it from being true is your task's work, wherever in the product it is, so this holds only what you could not make true: a decision that is not yours to make, or something you cannot reach from your workspace. 'none' where all of it is true." }),
+      beyond: Type.String({ description: "What you saw in the product that bears on none of your task's done but on something else the product claims, one line each, as you saw it. 'none' where nothing." }),
+      found: Type.String({ description: "What you measured or learned that the coordinator needs to decide what comes next (results, numbers, surprises, what you are unsure of), with where in var/ the full results are. Not defects you saw: a defect in your task's way is your work, and one beyond it goes in beyond." }),
     }),
     async execute(_id, params) {
       const dir = join(process.env.ROLE_WORKSPACE ?? process.cwd(), ".tmp");
@@ -140,7 +144,7 @@ export default function worker(pi: ExtensionAPI) {
     if (reported || reminded >= 3) return undefined;
     reminded++;
     return {
-      entries: [{ type: "custom_message", customType: "report-due", display: true, content: "Before you finish: call report with what you changed and why, where you departed from the task and why, and what you found." }],
+      entries: [{ type: "custom_message", customType: "report-due", display: true, content: "Before you finish: call report with what you changed and why, where you departed from the task and why, what of your task's done is not yet true and why, what you saw beyond it, and what you measured or learned." }],
       continue: true,
     };
   });

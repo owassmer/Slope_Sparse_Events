@@ -13,25 +13,32 @@
 # scripts/steer <run> --stop ends it with nothing applied.
 # The run streams to .runs/<run>.log and Pi's events to .runs/<run>.jsonl; the coordinator's session shows it live in a
 # Ghostty split (tools/feed/feed, opened by .pi/extensions/factory-runs.ts), and scripts/watch prints the log.
+# scripts/work --sees prints what the worker's workspace holds, one per line (the delegation gate's fresh reader is told).
+# The whole script is one block, so bash reads all of it before running any: a run lasts an hour, and the file changing
+# under it (an edit, factory files brought from main) can end a run before its work is applied (Handoff, October 12).
+{
 set -euo pipefail
-task="${1:?usage: scripts/work tasks/<id>-<n>.md}"
 WORKER="openai-codex/gpt-6-astra:medium"     # change the worker model here and nowhere else
 root="$(git rev-parse --show-toplevel)"; cd "$root"
+KIT=Slope_Credit_Scenario_Research_and_Design_Kit
+PRODUCT=(app tests cases tools/*.py "$KIT" runs/recorded)            # what the worker may change, with run.txt
+SEES=("${PRODUCT[@]}" AGENTS.md pyproject.toml uv.lock .python-version Slope_*.md Jev_Pivot.md README.md)
+[ -f run.txt ] && SEES+=(run.txt)
+# Sources kept by earlier workers (tools/roles/worker.ts, source_keep), once there are any.
+[ -n "$(git ls-tree --name-only HEAD research/sources)" ] && SEES+=(research/sources)
+# The posture the product is built from, once it is written, read by the worker in its system prompt.
+[ -n "$(git ls-tree --name-only HEAD design)" ] && SEES+=(design)
+if [ "${1:-}" = "--sees" ]; then printf '%s\n' "${SEES[@]}" var outcomes/*.json; exit 0; fi
+task="${1:?usage: scripts/work tasks/<id>-<n>.md}"
 [ -f "$task" ] || { echo "no task file $task; write it first" >&2; exit 2; }
 task_text="$(cat "$task")"
+git diff --quiet HEAD -- "${PRODUCT[@]}" || { echo "the product has uncommitted changes here; commit or clear them first" >&2; exit 2; }
 # Nothing is delegated unread: the coordinator's delegation gate leaves word of each text its fresh reader read
 # (.pi/extensions/delegation.ts). FACTORY_UNREAD=1 is for runs outside the coordinator's session (probes).
 read_mark=".runs/read/$(printf '%s' "$task_text" | shasum -a 256 | cut -d' ' -f1)"
 if [ -z "${FACTORY_RUN:-}" ] && [ -z "${FACTORY_UNREAD:-}" ] && [ ! -f "$read_mark" ]; then
   echo "$task has not been read by the fresh reader in this text: dispatch it on its own (scripts/work $task) so it is read first" >&2; exit 9
 fi
-KIT=Slope_Credit_Scenario_Research_and_Design_Kit
-PRODUCT=(app tests cases tools/*.py "$KIT" runs/recorded)            # what the worker may change, with run.txt
-git diff --quiet HEAD -- "${PRODUCT[@]}" || { echo "the product has uncommitted changes here; commit or clear them first" >&2; exit 2; }
-SEES=("${PRODUCT[@]}" AGENTS.md pyproject.toml uv.lock .python-version Slope_*.md Jev_Pivot.md README.md)
-[ -f run.txt ] && SEES+=(run.txt)
-# Sources kept by earlier workers (tools/roles/worker.ts, source_keep), once there are any.
-[ -n "$(git ls-tree --name-only HEAD research/sources)" ] && SEES+=(research/sources)
 
 run="${FACTORY_RUN:-work-$(basename "${task%.md}")-$(date +%Y%m%dT%H%M%S)}"; mkdir -p .runs
 # A dispatch never holds the caller: after the checks above, the run carries on in the background under the same
@@ -60,13 +67,25 @@ until [ -n "$slot" ]; do
 done
 [ -z "${waited:-}" ] || echo "=== got a worker slot" >> "$log"
 trap 'stop_product; rm -rf "$slot"' EXIT
+# A run with the disk nearly full fails partway and looks like a code failure, so it waits for room and says why.
+free_gb() { df -g "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}'; }
+until [ "$(free_gb)" -ge 5 ]; do
+  [ -n "${noroom:-}" ] || echo "=== waiting for disk space: $(free_gb) GB free, 5 GB needed" >> "$log"; noroom=1; sleep 60
+done
 
 # The workspace: the product and what explains it, as a fresh repository, with its own environment.
 git archive HEAD -- "${SEES[@]}" | tar -x -C "$ws"
 mkdir -p "$ws/outcomes" && cp outcomes/*.json "$ws/outcomes/" 2>/dev/null || true    # the viewer's reveal files
 [ -d var ] && cp -cR var "$ws/var"                                                    # saved answers, snapshots, diagnostics
 printf '.venv/\nvar/\n.drive/\n.tmp/\n__pycache__/\n.ruff_cache/\n.pytest_cache/\n' > "$ws/.gitignore"
-(cd "$ws" && uv sync --frozen --offline -q) >> "$log" 2>&1
+# The workspace installs offline from uv's cache; a package that has left the cache stops the run here, saying so
+# (October 28: numba and claude-agent-sdk had left it after two idle weeks). `uv sync --frozen` with the network, in a
+# fresh copy of the branch holding its source, puts them back.
+(cd "$ws" && uv sync --frozen --offline -q) >> "$log" 2>&1 || {
+  echo "=== finished exit 4 (the workspace's Python environment could not be installed offline: a package has left uv's cache; uv sync --frozen in a fresh copy of the branch restores it)" >> "$log"; exit 4; }
+# Copies keep each file's date, and macOS deletes files in the temp folder older than three days every night (Handoff,
+# October 12: it emptied a worker's dependencies mid-run). Dated now, they last the run.
+find "$ws/.venv" "$ws/var" -exec touch -h {} + 2>/dev/null || true
 mkdir -p "$ws/.drive/bin" && cp tools/drive/drive "$ws/.drive/bin/drive" && cp tools/gates/gates "$ws/.drive/bin/gates"
 git -C "$ws" init -q && git -C "$ws" add -A && \
   GIT_CONFIG_GLOBAL=/dev/null git -C "$ws" -c user.name=worker -c user.email=worker@slope.local commit -q -m base
@@ -79,6 +98,12 @@ node_dir="$(dirname "$(dirname "$(command -v node)")")"
 uv_reads="$(dirname "$(command -v uv)"):$HOME/.local/share/uv/python"
 ext=(); [[ "$WORKER" == claude-cli/* ]] && ext=(-e "$HOME/.pi/agent/extensions/claude-cli")
 main_checkout="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd -P)"
+# The task and the posture go in the system prompt, which survives compaction where a read file does not: a task line
+# lost to compaction is where a worker reaches for the cheapest green (Handoff, October 18).
+grounding=()
+[ -f "$ws/design/posture.md" ] && grounding+=(--append-system-prompt "$ws/design/posture.md")
+mkdir -p "$ws/.tmp"; { echo "# Your task, as dispatched"; echo; printf '%s\n' "$task_text"; } > "$ws/.tmp/task.md"
+grounding+=(--append-system-prompt "$ws/.tmp/task.md")
 # The role's own exit status is handled below; the error trap would announce "finished" before the run had.
 trap - ERR; set +e
 (cd "$ws" && ROLE_WORKSPACE="$ws" ROLE_ALLOW_READ="$node_dir:$uv_reads" \
@@ -90,7 +115,7 @@ trap - ERR; set +e
 $task_text" -- \
   pi --mode rpc --no-session --no-extensions --no-skills --no-context-files --no-prompt-templates \
     "${ext[@]}" -e "$root/tools/roles/sandbox.ts" -e "$root/tools/roles/worker.ts" --tools read,bash,edit,write,report,web_search,web_fetch,source_keep --model "$WORKER" \
-    --append-system-prompt "$ws/AGENTS.md" 2>> "$log") | tee "$root/.runs/$run.jsonl" | scripts/watch --render >> "$log"
+    --append-system-prompt "$ws/AGENTS.md" "${grounding[@]}" 2>> "$log") | tee "$root/.runs/$run.jsonl" | scripts/watch --render >> "$log"
 status=${PIPESTATUS[0]}; set -e; trap 'on_err $? $LINENO' ERR
 # Stopped by the coordinator (scripts/steer --stop): nothing it did is applied.
 if [ "$status" -eq 7 ]; then
@@ -102,7 +127,7 @@ if [ "$status" -eq 0 ] && tail -n 20 "$root/.runs/$run.jsonl" | grep -q '"stopRe
 
 # The worker's report (tools/roles/worker.ts) goes in the log, where the coordinator's finish notice reads it.
 if [ -f "$ws/.tmp/report.json" ]; then
-  { echo "=== report"; node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); for (const k of ["changed","departures","found"]) console.log(k + ":\n" + String(r[k] ?? "").trim() + "\n")' "$ws/.tmp/report.json"; echo "=== end of report"; } >> "$log"
+  { echo "=== report"; node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); for (const k of ["changed","departures","notTrue","beyond","found"]) if (r[k] !== undefined) console.log(k + ":\n" + String(r[k] ?? "").trim() + "\n")' "$ws/.tmp/report.json"; echo "=== end of report"; } >> "$log"
 else
   echo "=== no report filed" >> "$log"
   [ "$status" -eq 0 ] && status=8
@@ -124,7 +149,15 @@ if [ -n "$changed" ]; then
   # Workers on one outcome can run at once from the same commit; their changes merge, and a real conflict stops here.
   if ! git apply --index --3way "$ws.tmp/worker.patch" >> "$log" 2>&1; then
     echo "=== conflict applying the worker's changes; nothing committed (patch kept at $ws.tmp/worker.patch, workspace kept)" >> "$log"
-    git status --short -- "${PRODUCT[@]}" >> "$log"; echo "=== finished exit 6" >> "$log"; exit 6
+    git status --short -- "${PRODUCT[@]}" >> "$log"
+    # The outcome's checkout is shared by every run and by the coordinator, so the failed apply is taken back out of it
+    # (October 12: 001-14e's conflict was left in the checkout, half merged). The worker's changes stay in its workspace
+    # and the patch.
+    printf '%s\n' "$changed" | while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      if git cat-file -e "HEAD:$p" 2>/dev/null; then git checkout -q HEAD -- "$p"; else git rm -q --cached -f --ignore-unmatch -- "$p" >/dev/null; rm -f -- "$p"; fi
+    done
+    echo "=== finished exit 6" >> "$log"; exit 6
   fi
   msg="$(git -C "$ws" log --format=%B "$base"..HEAD 2>/dev/null | sed '/^$/N;/^\n$/D')"
   # The repository's commit hook lets product changes in only from here (tools/hooks/pre-commit).
@@ -137,3 +170,4 @@ echo "=== finished exit $status" >> "$log"
 stop_product
 [ "$status" -eq 0 ] && rm -rf "$ws" "$ws.tmp"
 exit "$status"
+}
