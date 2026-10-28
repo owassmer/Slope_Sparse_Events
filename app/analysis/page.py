@@ -223,7 +223,10 @@ def short_context(context: str, ranges: dict[str, tuple[int, int]]) -> str:
 
 def filing_cause(steps: tuple) -> str:
     """The class of a filing on this path: its first filing step (the claimant's enforcement if none is named)."""
+    from app.analysis.events import plain
+
     for node, _ctx, branch in steps:
+        branch = plain(branch)
         if node in ("debtor_response", "judgment_response") and branch == "file":
             return "filed_enforcement"
         if (node == "judgment_default" and branch in ("yes", "holders_file")) or (
@@ -404,8 +407,11 @@ def sequence(steps: tuple, day: list, petition: np.ndarray, review: date, days: 
     'Ruling leaves $38.6M (Nov) → {claimant} levies (Dec) → {company} files (5 Dec)'."""
     # Listed by date, not by the tree's order: a filing at the cash floor is a tail step in the tree but can fall
     # before a later decision on the same path.
+    from app.analysis.events import plain
+
     out: list[tuple[float, str]] = []
     for i, (node, ctx, branch) in enumerate(steps):
+        branch = plain(branch)
         text = step_phrase(node, ctx, branch, ranges)
         if text is None:
             continue
@@ -677,7 +683,8 @@ def drill_down(spec: dict, model: dict, question: str, facts: dict, judgment, ne
         steps.append({"tag": "Law", "text": "Notes: " + "; ".join(
             f"{a.replace('_', ' ')}: {_short_money(b) if a == 'principal' else _whole(b)}"
             for a, b in facts["notes"].items())})
-    steps.append({"tag": "Calculation", "text": f"When it is decided: {spec['timing']}"})
+    if spec.get("timing"):
+        steps.append({"tag": "Calculation", "text": f"When it is decided: {spec['timing']}"})
     steps += [{"tag": "Calculation", "text": line} for line in _fact_lines(facts)]
     steps += [{"tag": "Cash", "text": line} for line in mechanism(node, spec, model, setup)]
     quotes = []
@@ -908,7 +915,7 @@ def chart_view(r, probs: np.ndarray, months: list[tuple[int, int]]) -> dict | No
 
 
 def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool, stress_rows: list | None = None,
-                 probs: np.ndarray | None = None) -> dict:
+                 probs: np.ndarray | None = None, stress_search: dict | None = None) -> dict:
     from app.config import question_registry
 
     m, setup = a.m, a.setup
@@ -1007,6 +1014,7 @@ def page_payload(a, model, fc, *, borrower: str, snapshot_id: str, neutral: bool
                  **chart_view(a.bank_r, model.bank_probs(), a.months)},
         "event": chart_view(a.r, probs, a.months),
         "collected_range": collected_range(a.r, probs, a.months),
+        **({"stress": stress_search} if stress_search is not None else {}),
         "worst": [{**w, "class": named(w["class"], names)} for w in _worst(stress_rows, classes, seqs, list(seq_ix))]
         if stress_rows else [],
         "case_terms": case_terms(d0, setup.review, setup.horizon, m, links, {
@@ -1084,13 +1092,14 @@ def form_words(fc, n) -> dict:
     tags = [c for c in n.context.split("|") if c]
     q = qs[tags[0]]
     plain = q.get("plain", {})
-    out["answers"] = {a: VERDICT.get(q[a]) or plain.get(a, a) for a in ("yes", "no")}
+    out["answers"] = {a: VERDICT.get(q.get(a)) or plain.get(a, tag_text(a)) for a in n.branches}
     out["plain_asks"] = plain.get("asks", "")
     out["earlier_plain"] = []
-    for x in tags[1:]:
-        e, ans = x.split("=")
-        gloss = qs[e].get("plain", {}).get(ans, "")
-        out["earlier_plain"].append(f"{qs[e]['form']}: {ans.capitalize()}" + (f" ({gloss})" if gloss else ""))
+    tags = [x for x in tags[1:] if not x.startswith("X=")]  # X is the amount question's threshold, not an answer
+    for x, stated in zip(tags, out["earlier_answers"], strict=True):
+        e, ans = x.rsplit("=", 1)
+        gloss = qs.get(e, {}).get("plain", {}).get(ans, "")
+        out["earlier_plain"].append(stated + (f" ({gloss})" if gloss else ""))
     return out
 
 
@@ -1174,7 +1183,8 @@ def bank_rows(model, fc, m: dict, spec: dict, questions: dict, links: dict, neut
     for k, branches in zip(enc["keys"], enc["branches"], strict=True):
         j = model.bank_judgments[k]
         q = questions.get(j.question_id, j.event)
-        facts = j.path_facts or (bank_state(fc, fc.bank_nodes[k])["path_facts"] if k in fc.bank_nodes else {})
+        state = bank_state(fc, fc.bank_nodes[k]) if not j.path_facts and k in fc.bank_nodes else {}
+        facts = j.path_facts or state.get("path_facts", state.get("situation", {}))
         if ordinary:  # asked on the same record as the forecast: its record items, and its situation without the
             sp, ctx = spec[j.node], "|".join(k.split("|")[2:])  # dispute (page.js adds the no-cash-effect words)
             rows.append({"key": k, "node": j.node, "view": "bank", "ordinary": True, "question": q,

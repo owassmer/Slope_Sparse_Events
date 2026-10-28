@@ -422,7 +422,10 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict],
     t_a = time.time()
     a = Analysis(feed, setup, model, dispute_model=m, progress=_progress_log())
     say(f"analysis: {time.time() - t_a:.0f} s")
-    data = payload(feed, setup, model, meta_for(model, borrower, not_modelled), analysis=a)
+    # Answer-first stress is searched below on each history's feasible draws. The legacy
+    # adverse-placement pass replays every history on every draw, outside those answer domains.
+    data = payload(feed, setup, model, meta_for(model, borrower, not_modelled), analysis=a,
+                   stressed=[] if answer_first is not None else None)
     data["model"] = _model_json(model)
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
     data["base_setup"] = setup_json(setup)
@@ -436,7 +439,15 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict],
     scratch = VAR / "analysis" / run_id
     scratch.mkdir(parents=True, exist_ok=True)
     progress("page")
-    state = run_page(a, model, fc, borrower=borrower, snapshot_id=meta["snapshot_id"], stress_rows=data["stress"])
+    from app.analysis.stress_search import search
+
+    stress_search = None
+    if answer_first is not None:
+        progress("stress_search")
+        stress_search = search(a, fc, model, borrower)
+        say(f"stress search: {stress_search['search']}")
+    state = run_page(a, model, fc, borrower=borrower, snapshot_id=meta["snapshot_id"], stress_rows=data["stress"],
+                     stress_search=stress_search)
     (out / "page.json").write_text(json.dumps(state["payload"], default=str) + "\n")
     save_page_state(run_id, state)
     write_exchanges(out / "jev_log.jsonl.gz", exchanges)
@@ -446,14 +457,14 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict],
 
 
 def run_page(a: Analysis, model: EventModel, fc: Forecaster, *, borrower: str, snapshot_id: str,
-             stress_rows: list) -> dict:
+             stress_rows: list, stress_search: dict | None = None) -> dict:
     """The one-screen page for a recorded run (app/analysis/page.py), and the reduced state its reweight reads. The
     settings re-simulate the dev page only, so a run's page has none."""
     from app.analysis.page import page_payload
 
     neutral = not any(j.observation_id for j in model.judgments.values())  # no Jev answer at all: even odds
     p = page_payload(a, model, fc, borrower=borrower, snapshot_id=snapshot_id, neutral=neutral,
-                     stress_rows=stress_rows)
+                     stress_rows=stress_rows, stress_search=stress_search)
     p["settings"] = []
     p["meta"]["snapshot_id"] = snapshot_id
     return {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months}

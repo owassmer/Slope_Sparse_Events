@@ -525,7 +525,7 @@ def _petition_at(line, t: Trajectories, petition: np.ndarray, peak: int) -> tupl
     collected = (t.collections * before).sum(axis=1)
     booked = installment_amounts(t.draw_amounts, line.setup.fee_bps, line.setup.installments).sum(axis=1)
     keep = t.draw_days < pet[t.draw_rows]
-    contract = np.zeros(len(pet), dtype=np.int64)
+    contract = np.full(len(pet), line.setup.exposure.owed_cents, dtype=np.int64)
     np.add.at(contract, t.draw_rows[keep], booked[keep])
     window = (idx[None, :] >= pet[:, None] - PREFERENCE_DAYS) & before
     return contract - collected, (t.collections * window).sum(axis=1)
