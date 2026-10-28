@@ -15,6 +15,11 @@
 // Each is acknowledged in the log as "=== steered (<id>): ..." or "=== stopped (<id>)", which scripts/steer waits for. A
 // steer asks the worker to say, in its next message, what it will change because of it.
 // The run ends when Pi reports `agent_settled` (no more automatic work): stdin closes and Pi exits with its own status.
+// Except where the work settled on a transient failure of the model's provider (the network dropped, the provider
+// overloaded or rate-limited): Pi's own retry gives up within seconds, and a run that lasts hours would end on a blip (the
+// October 26 run: Renee's session died on three "fetch failed" in fifteen seconds, and the clock stood for three hours).
+// Then the run waits and prompts again, with growing waits, up to about forty minutes in all, and ends only if the
+// failure outlasts them. A failure that is not transient (a refused request, a bad model name) ends the run as before.
 import { spawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readSync, statSync, watch, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -45,6 +50,10 @@ let started = false; // Pi accepted the prompt; the inbox is read from then on (
 let running = false; // between the prompt starting a run and agent_settled
 let stopped = false;
 let ending = false;
+let lastError = null; // the error the last agent run ended on, if any
+let retries = 0;
+const RETRY_WAITS_MS = [15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 600_000, 600_000];
+const TRANSIENT = /fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|EPIPE|socket hang up|network|timed? ?out|\b(500|502|503|504|529)\b|overloaded|rate.?limit|too many requests|temporarily unavailable|server error/i;
 const pending = new Map(); // command id -> inbox entry awaiting Pi's response
 
 function end() {
@@ -82,7 +91,7 @@ function handle(rec, text) {
       process.stdout.write(JSON.stringify({ type: "session", version: 3, id: rec.data?.sessionId, timestamp: new Date().toISOString(), cwd: process.cwd() }) + "\n");
       running = true;
       send({ id: "prompt", type: "prompt", message: prompt });
-    } else if (rec.id === "prompt") {
+    } else if (rec.id === "prompt" || String(rec.id).startsWith("prompt-retry-")) {
       if (!rec.success) {
         note(`Pi refused the prompt: ${one(rec.error, 400)}`);
         end();
@@ -107,8 +116,25 @@ function handle(rec, text) {
     return;
   }
   process.stdout.write(text + "\n");
+  if (rec.type === "agent_end") {
+    const last = Array.isArray(rec.messages) ? rec.messages.at(-1) : undefined;
+    lastError = last?.stopReason === "error" ? String(last.errorMessage ?? "error") : null;
+    if (!lastError) retries = 0;
+  }
+  if (rec.type === "auto_retry_end" && rec.success === false && rec.finalError) lastError = String(rec.finalError);
   if (rec.type === "agent_settled") {
     running = false;
+    if (lastError && !stopped && TRANSIENT.test(lastError) && retries < RETRY_WAITS_MS.length) {
+      const wait = RETRY_WAITS_MS[retries++];
+      note(`the model's provider failed (${one(lastError, 120)}); waiting ${Math.round(wait / 1000)} s, then prompting again (attempt ${retries} of ${RETRY_WAITS_MS.length})`);
+      setTimeout(() => {
+        if (ending || stopped) return;
+        running = true;
+        send({ id: `prompt-retry-${retries}`, type: "prompt", message: "The last call to your model failed on a transient error of its provider and the run waited it out. Continue from where you were." });
+      }, wait);
+      return;
+    }
+    if (lastError && TRANSIENT.test(lastError)) note(`the model's provider failed ${retries} times over ${Math.round(RETRY_WAITS_MS.reduce((a, b) => a + b, 0) / 60_000)} minutes (${one(lastError, 120)}); the run ends`);
     end();
   }
 }

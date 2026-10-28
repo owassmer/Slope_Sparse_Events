@@ -17,4 +17,22 @@ done
 echo $$ > "$lock/pid"
 trap 'rm -rf "$lock"' EXIT
 cd "${GATES_ROOT:-.}" && [ -f pyproject.toml ] || { echo "gates: no pyproject.toml here; run from the root of a checkout or workspace"; exit 2; }
-uv run ruff check . && uv run pytest -p no:warnings
+# The whole output goes to a log, and a failure ends with what failed and where to read it, so a failed run is read,
+# not run again: the full suite takes over half an hour here, and running it again only to see which test failed (the
+# summary cut off by a tail) multiplies the wait (from Handoff's factory, October 13).
+log="$(mktemp "${TMPDIR:-/tmp}/gates.XXXXXX")"
+started=$SECONDS
+( uv run ruff check . && uv run pytest -p no:warnings -q -rfE ) > "$log" 2>&1
+status=$?
+took=$(( SECONDS - started ))
+if [ "$status" -eq 0 ]; then
+  tail -3 "$log"
+  echo "gates: passed in ${took}s (full output: $log)"
+else
+  echo "gates: FAILED in ${took}s. What failed:"
+  grep -E "^(FAILED|ERROR) |^[^ ]+\.py:[0-9]+:[0-9]+: [A-Z]+[0-9]+ " "$log" | head -40
+  tail -2 "$log"
+  echo "gates: full output: $log"
+  echo "gates: to look at one failure, run its file alone (no turn needed): uv run pytest tests/<file>"
+fi
+exit "$status"
