@@ -22,6 +22,9 @@ can see anything after its own date, shown by a test that changes every later an
 
 ## The design
 
+Revised after the other family's review of 28 October (`002-answer-first.review.md`, eight findings, cited by
+number below).
+
 **A question is a function of its own dated state.** At a node of the tree (a history's prefix, the decision the
 frontier selects, and the draws on that node in one situation class), the question's facts are built from that
 node's draws as they stand on the decision's day: the representative and ranges of `state14`, over those draws only,
@@ -31,12 +34,17 @@ over every history that reaches a key: pooled facts cannot be known until the wh
 the answers make improbable. What changes for the standard: a question's group (QUESTIONS_20240514 §1) becomes the
 draws on one node of the tree in one class, rather than every trajectory reaching the key.
 
-**Dated by construction.** The facts are taken from the chain at selection time (`selected` in the walk: `before`,
-booked until the candidate's day), before the answer and before anything later is booked. No queue of late records:
-a question that needs a later day's facts (court approval sized on approval day; a notes petition after its
-declaration and notice) is a decision at that later day in the frontier, built then. The proof is one test: for
-sampled questions on a walked tree, walk again with every later answer changed and find each question's facts
-byte-identical.
+**Dated by construction, every decision its own.** The facts are taken from the chain at selection time (`selected`
+in the walk: `before`, booked until the candidate's day), before the answer and before anything later is booked. No
+queue of late records and no composite edges: a decision whose answer is given later than its motion (a stay motion
+and the court's approval, sized on approval day; an acceleration, the issuer's filing and the holders' petition) is
+split into dated decisions of their own, each asked on its own day in the frontier with what stood then, so a child's
+probability never needs a question not yet asked (review finding 4: keeping today's deferral would leave the mass used
+for pruning undefined). Three things are shown, each by its own means: facts dated, by a test that walks again with
+every later answer changed and finds each question's facts byte-identical; no decision skipped and same-day order
+kept, by the independent no-skip checker (`app/analysis/walk_checks.py`) and the levy-day regression; the cash, by an
+independent replay through the plain engine. The answer-first tree is small, so these checks run on every expanded
+history of every run, not a sample (finding 5: invariance alone does not show a decision was asked).
 
 **Answer-first, in order of probability.** Each new question is put to the judge when reached; its answer gives each
 child a probability per draw (the parent's times the answer's, on the draws of that class). A child whose highest
@@ -45,20 +53,44 @@ their mass. Unanswered questions are gathered and asked together (concurrently f
 resumes from the stubs they unblock, through the walk's existing continuation routes, never re-walking. τ is lowered
 until the unexpanded mass on every draw is at most ε.
 
-**Every figure an interval.** Each figure is a probability-weighted sum over draws and histories. A stub's
-contribution lies between its mass times the figure's lowest and highest possible value under any continuation:
-collections between those already booked and everything still contractually due, exposure between zero and the
-commitment, each month's collections between zero and what that month could collect. So a figure's width is at most
-the stub mass times the figure's range, and ε is chosen from the outcome's 1% of the commitment: ε = 0.01 x
-commitment / (the widest figure's range). Expanded histories are exact.
+**Two kinds of range, kept apart** (finding 2). The page's spread (P5 and P95 of collections, P5 of headroom) is the
+dispersion of operating and event outcomes, the comparison with the business's ordinary ups and downs that the purpose
+asks for. The walk's stopping adds a second, computational uncertainty, and each figure carries it as follows:
+- an expectation (expected collections, exposure, a month's collections, a probability) lies between the expanded
+  part plus the stubs' mass at the figure's lowest and highest possible value: a dollar range;
+- a quantile at level q lies between the expanded distribution's quantiles at the levels the stub mass can shift it
+  to, from (q - ε)/(1 - ε) to q/(1 - ε): exact as a statement about the level (P5 is between P4.5 and P5.5 at
+  ε = 0.5%), and shown as the dollar range that implies, which is wide where the distribution has an atom at that
+  level (an honest width that the outcome's dollar tolerance cannot promise for quantiles; Owen to settle).
 
-**The worst feasible path,** by its own search: depth first over answers, ignoring probability, every answer one the
-question offers on its date, pruned where the collections already booked are no lower than the worst found
-(collections booked only grow along a path). It is shown beside the ranges, whatever its probability.
+**Sound bounds come from the line's own limits** (finding 1). The line is reusable: freed capacity funds new invoices,
+fees put a funded amount above its principal, and the limit moves with trailing receipts. So the bounds are per draw,
+from that draw's operating series and the line's rules, not from the commitment: the most a continuation can collect
+is what is booked plus every routed supplier invoice still to come on that draw funded at the fee, plus the opening
+schedule (to confirm in `app/analysis/engine.py` that routed invoices never depend on the event path); the most it can leave frozen is the contractual balance that funding implies; the least it collects is what
+is already booked. ε then follows from the widest per-draw range: ε = 0.01 x commitment / (that range). The engine's
+histogram approximation for quantiles stays and is stated (its fine bins are within half a bin of exact).
 
-**Changing a judgment.** The page's lever for a kind of question (for example, settlement at I1) sets that
-distribution on every question of the kind. Expanded histories reweight exactly; the stubs' mass is recomputed from
-their prefixes, so the ranges move and widen honestly if the change shifts mass into stubs.
+**The worst feasible path** (finding 3), by its own search, on the existing stress ranking (unrecovered at maturity,
+then the claim frozen at the worst petition), not on collections: depth first over answers, ignoring probability,
+every answer one the question offers on its date, pruned where a subtree's bound on that ranking (the same per-draw
+bounds) cannot exceed the worst found. Shown beside the ranges whatever its probability.
+
+**Changing a judgment** (finding 6). A lever is a kind of question in one answer domain (its node, and its option group
+where the domain depends on it, so a payment answer is never put where payment is not offered). It sets that
+distribution on every question of the kind and domain. Expanded histories reweight exactly; the stubs' mass is
+recomputed from their prefixes, so the ranges move and widen honestly if the change shifts mass into stubs.
+
+**The ordinary view** (finding 7). For this case the bank view is the same forecast with the dispute given no cash
+effect (`_OrdinaryWalk`), with its own distress, listing and notes decisions. It runs through the same answer-first
+walk, dated the same way, with its own ε and ranges; the lawsuit's effect carries the sum of both views' widths.
+
+**What is kept, and why** (finding 8). The 512 operating draws stay: they are the business's ordinary variation, which
+ε does not touch (ε bounds unexpanded event probability on each draw, not sampling of the draws). The representative
+trajectory (the medoid by decision date and cash) and the ranges beside it stay: they keep the shown facts on one
+real joint trajectory and expose the spread within the question's group. Questions merge only when their rendering is
+identical; the rendering is not coarsened to save questions. If the run shows too many questions, that is a decision
+about what precision a judgment needs, taken with the purpose, not a tuning knob.
 
 **Judges.** The real judgment model only on Owen's start. For building and for keyless runs, a seeded stand-in judge
 (`ForecastJudge`) whose answers are a deterministic function of the rendered question, and say so on the page.
@@ -72,13 +104,11 @@ their prefixes, so the ranges move and widen honestly if the change shifts mass 
    widths and time. That is the cost number; it decides whether the engine's speed (the `rust-native-core` port) is
    needed for the hour.
 5. The real judge on Owen's start, with the number of questions and a cost estimate first.
-6. Then the old full-tree machinery is deleted whole: the wave scripts, pooling stages, every-history checks,
-   estimators and concentration tools.
+6. Then the old full-tree machinery is deleted whole: the wave scripts, pooling stages, estimators and concentration
+   tools. The no-skip and dated-facts checkers stay and run on every expanded history.
 
-## Open, to settle while building
+## Open
 
-- Whether every composite question can be a dated decision of its own in the frontier; any that cannot keep the
-  existing deferral, still built from the chain at its own day.
-- The rendering's granularity, which decides how many questions merge. A question's answer must not hinge on figures
-  finer than a decision would; the run reports how many questions there are.
-- The page's levers by kind of question, and how the bank view's own walk (`_BankWalk`) sits beside this.
+- Quantile figures: the outcome's 1% dollar width holds for expectations; for quantiles the stopping uncertainty is a
+  probability level (Owen to settle).
+- The page's levers by kind and domain: which kinds the page offers.
