@@ -140,9 +140,42 @@ def shard_of_question(rkey: str, shards: int) -> int:
     return int.from_bytes(hashlib.sha256(rkey.encode()).digest()[:8], "big") % shards
 
 
+def reshard(src: Path, out: Path, shards: int, qt) -> None:
+    """One map line's members filed by question as rendered (`render`): `questions-<shard>.npz` holds the members of
+    the questions that fall to that shard, each with its question, so a reduce line reads only its own."""
+    rendered: dict[int, str] = {}
+    parts: dict[int, list] = {}
+    for path in sorted(Path(src).rglob("members-*.npz")):
+        part = np.load(path)
+        ids = part["ids"][:, 1]
+        uniq, first, inverse = np.unique(ids, return_index=True, return_inverse=True)
+        names = np.empty(len(uniq), dtype=object)
+        for j, (i, f) in enumerate(zip(uniq, first, strict=True)):
+            if int(i) not in rendered:
+                rendered[int(i)] = render(part["rows"][f], part["cls"][f], qt)
+            names[j] = rendered[int(i)]
+        member_names = names[inverse]
+        shard = np.array([shard_of_question(x, shards) for x in names], dtype=np.int64)[inverse]
+        for s in np.unique(shard):
+            sel = shard == s
+            parts.setdefault(int(s), []).append({**{k: part[k][sel] for k in part.files},
+                                                 "question": member_names[sel].astype(str)})
+    Path(out).mkdir(parents=True, exist_ok=True)
+    for s, ps in parts.items():
+        np.savez_compressed(Path(out) / f"questions-{s:03d}.npz",
+                            **{k: np.concatenate([p[k] for p in ps]) for k in ps[0]})
+
+
 def load(map_dir: Path, shard: int, shards: int, qt) -> dict[str, np.ndarray]:
     """The members of the questions (as rendered: `render`) that fall to this shard, from every map line's files: each
-    member once (a question, a draw and a record), with its question and the walk identity it was found under."""
+    member once (a question, a draw and a record), with its question and the walk identity it was found under. Filed
+    by question already (`reshard`, or pass 1 with `render`): only this shard's files are read."""
+    filed = sorted(Path(map_dir).rglob(f"questions-{shard:03d}.npz"))
+    if filed:
+        parts = [np.load(p) for p in filed]
+        out = {k: np.concatenate([p[k] for p in parts]) for k in parts[0].files}
+        out["question"] = out["question"].astype(object)
+        return _once(out)
     rendered: dict[int, str] = {}
     keep: dict[str, list] = {}
     files = sorted(Path(map_dir).rglob("members-*.npz"))
@@ -165,8 +198,12 @@ def load(map_dir: Path, shard: int, shards: int, qt) -> dict[str, np.ndarray]:
             for k in part.files:
                 keep.setdefault(k, []).append(part[k][sel])
             keep.setdefault("question", []).append(names[inverse][sel])
-    out = {k: np.concatenate(v) for k, v in keep.items()}
-    # each member once: a record reached under two of the walk's identities of one question is one situation
+    return _once({k: np.concatenate(v) for k, v in keep.items()})
+
+
+def _once(out: dict) -> dict:
+    """Each member once (a record reached under two of the walk's identities of one question is one situation), in
+    the order the reduce takes them: by question, then draw, then record digest."""
     order = np.lexsort((out["ids"][:, 0], out["draw"], out["question"]))
     q, dr, dg = out["question"][order], out["draw"][order], out["ids"][order, 0]
     first = np.ones(len(order), dtype=bool)
@@ -229,6 +266,10 @@ def main(argv=None) -> None:
     import sys
 
     args = argv or sys.argv[1:]
+    if args[0] == "reshard":  # reshard <src> <out> <shards>
+        _, _, qt, _ = context()
+        reshard(Path(args[1]), Path(args[2]), int(args[3]), qt)
+        return
     shard, shards, map_dir, out = int(args[0]), int(args[1]), Path(args[2]), Path(args[3])
     fc, d, qt, tk = context()
     members = load(map_dir, shard, shards, qt)

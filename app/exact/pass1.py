@@ -202,12 +202,18 @@ def questions_on(fc_all, d, draws, forced=(), log=print, shards: int = 0, out_di
             found.update((key, klass) for key in question_keys.keys(row, qt))
         out["questions"] |= found
         out["reads"] |= reads
-        if shards:
-            shard = shard_of(mem.ids[:, 1], shards)
+        if shards:  # filed by question as the judge reads it (`pool.render`): a reduce line reads only its own
+            from app.exact import pool
+
+            names = {int(i): pool.render(mem.rows[j], mem.cls[j], qt) for i, j in
+                     zip(mem.ids[first, 1], first, strict=True)}
+            member_names = np.array([names[int(i)] for i in mem.ids[:, 1]], dtype=str)
+            shard = np.array([pool.shard_of_question(x, shards) for x in member_names], dtype=np.int64)
             for s in range(shards):
                 sel = shard == s
                 parts.setdefault(s, []).append((np.full(int(sel.sum()), int(draw), np.int16), mem.rows[sel],
-                                                mem.cls[sel], mem.ids[sel], mem.ints[sel], mem.floats[sel]))
+                                                mem.cls[sel], mem.ids[sel], mem.ints[sel], mem.floats[sel],
+                                                member_names[sel]))
         out["draws"][int(draw)] = {"nodes": nodes, "leaves": leaves, "deepest": deepest, "occurrences": nq,
                                    "members": mem.count, "questions": len(found),
                                    "seconds": round(time.perf_counter() - t0, 1)}
@@ -217,8 +223,8 @@ def questions_on(fc_all, d, draws, forced=(), log=print, shards: int = 0, out_di
 
         for s, ps in parts.items():
             cols = [np.concatenate(c) for c in zip(*ps, strict=True)]
-            np.savez_compressed(Path(out_dir) / f"members-{s:03d}.npz", draw=cols[0], rows=cols[1], cls=cols[2],
-                                ids=cols[3], ints=cols[4], floats=cols[5])
+            np.savez_compressed(Path(out_dir) / f"questions-{s:03d}.npz", draw=cols[0], rows=cols[1], cls=cols[2],
+                                ids=cols[3], ints=cols[4], floats=cols[5], question=cols[6])
     return out
 
 

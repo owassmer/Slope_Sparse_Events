@@ -10,7 +10,7 @@ from app.exact import pass1, pool
 
 def test_every_question_of_a_draw_has_its_state(tmp_path):
     fc, d, qt, tk = pool.context()
-    pass1.questions_on(fc, d, [365], shards=4, out_dir=tmp_path, log=lambda s: None)
+    pass1.questions_on(fc, d, [365], shards=3, out_dir=tmp_path, log=lambda s: None)
     lines, ids, shared = [], set(), {}
     for shard in range(3):
         members = pool.load(tmp_path, shard, 3, qt)
