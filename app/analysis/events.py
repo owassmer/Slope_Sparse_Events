@@ -1678,8 +1678,9 @@ class Chain:
     def first_unpaid(self) -> np.ndarray:
         return self.processed()[1].copy()
 
-    def proposed_terms(self, decision: np.ndarray, payment: np.ndarray) -> dict:
-        """Project the existing formula using only answers reached on the proposal day.
+    def proposed_terms(self, decision: np.ndarray, payment: np.ndarray, processing: bool = False) -> dict:
+        """Project the existing formula using only answers reached on the proposal day. processing: the cash is the
+        payment day's balance at processing (a stay's security, QUESTIONS §2.5: `_size_stay`), else its close.
 
         Replay dated decisions, not final cash: undoing a later levy in the ledger
         alone would leave its effects on arrears, equity sales and security. An
@@ -1732,7 +1733,7 @@ class Chain:
             view._prospective_before = decision[sel]
             at = payment[sel]
             v = view.seen_at(at, levy=True)
-            cash, owed = v.cash_at(at), v.owed_at(at)
+            cash, owed = (v.processing_balance(at) if processing else v.cash_at(at)), v.owed_at(at)
             need = view.basis.need[view.rows, np.clip(at, 0, view.N - 1)]
             collateral = v.bond_collateral(at)
             live = v.live(at) & (at < view.N)
@@ -2037,7 +2038,10 @@ class Chain:
         approval, rel = st["approval"], self.release_at  # the release as the chain has it, before the read books
         v = self.seen_at(approval, levy=True, inplace=True)  # this chain is a copy made for the sizing
         collateral = v.bond_collateral(approval)
-        cash_a = v.cash_at(approval)
+        # The court's order is the approval day's first event (Owen, 29 October): the security is sized on that
+        # day's balance at processing (the day before's close and the day's receipts), before the day's obligations
+        # and decisions, the same cash every question that day states; the lock it books is then seen by all of them.
+        cash_a = v.processing_balance(approval)
         need_a = self.basis.need[self.rows, np.clip(approval, 0, self.N - 1)]
         covers = cash_a - need_a >= collateral
         live = v.live(approval) & (approval < self.N)
@@ -2710,7 +2714,7 @@ class Chain:
                        raise_offer=self.raise_offer.copy())
             if node == "stay" and self.daily:
                 approval = day + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, f"stay_{ctx}")
-                row["security_terms"] = facts.proposed_terms(day, approval)
+                row["security_terms"] = facts.proposed_terms(day, approval, processing=True)
                 row["stay_offer"] = row["security_terms"]["offer"].copy()
             if node == "settle":
                 row["sit"]["settlement_pricing"] = _copied(self.settlement_pricing)

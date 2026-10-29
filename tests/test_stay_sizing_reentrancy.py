@@ -51,7 +51,7 @@ def test_cached_security_and_subset_question_agree(case):  # noqa: F811
     for row in (warm, cold):
         assert row["day"][42] == 167
         assert row["marks"]["stayed"][42] == 153
-        assert row["cash"][42] == 183083039
+        assert row["cash"][42] == 179422027  # the security sized on the approval day's balance at processing
     for field in ("day", "cash", "owed", "petition"):
         np.testing.assert_array_equal(warm[field][mask], cold[field][mask])
 
@@ -91,6 +91,10 @@ def test_initial_sizing_still_releases_prior_stay_in_read(case):  # noqa: F811
 
     with patch.object(Chain, "seen_at", releasing_read):
         chain.stay_security(np.full(chain.n, 100), "stay_post", approved=True)
-        assert not chain.stay_facts(current_index)["lock"][supported].any()
+        # where the release precedes the later stay's approval (on a draw whose later stay is approved before the
+        # prior one's release, the dispute has not ended by then, and it may lock)
+        ended = supported & (prior["day"] + 1 <= chain.stays[current_index]["approval"])
+        assert ended.any()
+        assert not chain.stay_facts(current_index)["lock"][ended].any()
     assert observed
-    np.testing.assert_array_equal(chain.stay_facts(prior_index)["lock"], prior["lock"])
+    np.testing.assert_array_equal(chain.stay_facts(prior_index)["lock"][ended], prior["lock"][ended])

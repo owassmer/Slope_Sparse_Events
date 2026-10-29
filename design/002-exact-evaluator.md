@@ -180,9 +180,11 @@ question is conditioned on). Items:
 **Order within a day** (the frontier's, made complete):
 0. the stay approval: the court's order is read and its security sized and locked first, from the state after
    every event dated before the approval day (QUESTIONS §2.5), so every other item that day sees the lock, and the
-   lock depends on nothing that day (the Python sizes it on the approval day's closing cash, which includes that
-   day's other events, while those events read the lock: a same-day ruling changes the bond, and the lock the ruling
-   question read is not the one booked. Which balance the security is sized on is Owen's to confirm: issue below);
+   lock depends on nothing that day. The balance is the approval day's balance at processing (the day before's close
+   and the day's receipts, before its obligations and decisions): the same cash every question that day states (Owen,
+   29 October, choosing it over the day before's close and over the Python's closing cash of the approval day, which
+   included that day's other events while they read the lock). The Python is corrected to it (`_size_stay`, and
+   `proposed_terms(processing=True)` for the stay's proposed security);
 1. levy-day responses (answered or asked: phase 0 in `frontier.select`);
 2. the levy (the pending writs dated that day, in the order they were ordered);
 3. answered waiting decisions, in the order they were answered (phase 1; `_upto_dated` breaks ties by walk order);
