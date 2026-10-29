@@ -43,7 +43,8 @@ def record(ints, floats):
                                        for q in range(3)) for j in range(ints[r.OFFERING_COUNT])]
     if ints[r.HAS_SECURITY]:
         out['security_terms'] = {key: np.array([ints[r.SECURITY0 + j]], dtype=bool if key == 'live' else np.int64)
-                                 for j, key in enumerate(('day', 'cash', 'need', 'owed', 'collateral', 'offer', 'live'))}
+                                 for j, key in enumerate(('day', 'cash', 'need', 'owed', 'collateral', 'offer', 'live'))
+                                 if key != 'owed' or ints[r.HAS_SECURITY] != 2}
     if ints[r.HAS_PRICING]:
         out['sit']['settlement_pricing'] = {key: np.array([ints[r.PRICING0 + j]]) for j, key in
                                           enumerate(('day', 'cash', 'operating_need'))}

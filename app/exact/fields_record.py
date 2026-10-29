@@ -2,6 +2,8 @@
 
 Amounts and days are int64, as in Chain; share_price alone is float64.
 Optional fields have explicit presence columns, never a zero-as-unknown convention.
+HAS_SECURITY is 0 absent, 1 projected motion terms (including owed), or 2 direct
+court terms (owed remains top-level, not repeated inside security_terms).
 String columns index the vocabularies below. Band strings are losslessly represented
 by BAND_LO/BAND_HI (NONE means absent / open upper endpoint respectively).
 """
