@@ -77,7 +77,16 @@ for _name, _ix in INCURRED.items():
 # --- table counts ---------------------------------------------------------------------------------------------------
 N_TAKES = INCURRED0 + len(OBLIGATIONS)   # rows used in T_TAKES (Chain.takes)
 
-NI = N_TAKES + 1
+# --- blocks: each area's scalars live in its own range, defined in its own module (fields_<area>.py), so areas are
+# ported in parallel without touching one another's files. The core (this module) uses 0..99.
+S_EQUITY = 100        # fields_equity.py: share price, at-the-market sales, offerings, the ledger
+S_STAYS = 200         # fields_stays.py: stays and their security
+S_SETTLEMENT = 300    # fields_settlement.py: settlements
+S_NOTES = 400         # fields_notes.py: the notes, the judgment default, the holders' acts, listing
+S_DISTRESS = 500      # fields_distress.py: the cash floor, cash-out, nonpayment, the waiting decisions
+S_WALK = 600          # fields_walk.py: the walk's per-history flags (forecast._S) and the answers given
+NI = 700
+assert N_TAKES < S_EQUITY
 
 # --- per-day int64 arrays: the event cash (Chain.ev) ----------------------------------------------------------------
 D_CASH = 0            # Chain.ev.cash
@@ -87,10 +96,18 @@ D_KIND0 = 3
 D_KIND = {name: D_KIND0 + i for i, name in enumerate(KINDS)}  # Chain.ev.kinds[name]
 for _name, _ix in D_KIND.items():
     globals()[f"D_KIND_{_name.upper()}"] = _ix
-ND = D_KIND0 + len(KINDS)
+assert D_KIND0 + len(KINDS) <= 16
+# per-day blocks, as the scalars': the core uses 0..15
+D_EQUITY = 16         # 16..23
+D_STAYS = 24          # 24..31
+D_SETTLEMENT = 32     # 32..39
+D_NOTES = 40          # 40..47
+D_DISTRESS = 48       # 48..55
+ND = 56
 
-# --- per-day float64 arrays ------------------------------------------------------------------------------------------
-NP = 0
+# --- per-day float64 arrays (blocks: equity 0..3) ------------------------------------------------------------------
+P_EQUITY = 0
+NP = 4
 
 # --- tables ----------------------------------------------------------------------------------------------------------
 MAX_TAKES = 64        # Chain.takes: (day, amount) of each levy or payment; T_TAKES[i] = (day, amount)
