@@ -44,6 +44,7 @@ class Case:
     stay_restart_days: int    # parameter stay_restart_on_increase_days value
     stay_restart_whole: bool  # its mode (sensitivity or base) == "whole_amount"
     pending: bool             # Chain.pending
+    petition_lag: int = 0     # parameter petition_lag_days
 
     @classmethod
     def of(cls, chain) -> Case:
@@ -56,7 +57,7 @@ class Case:
                    entry_next_business_day=p("judgment_entry") == "next_business_day",
                    sensitive_lag=bool(chain.sens.get("ruling_lag_days")),
                    stay_restart_days=int(restart["value"]), stay_restart_whole=mode == "whole_amount",
-                   pending=bool(chain.pending))
+                   pending=bool(chain.pending), petition_lag=int(p("petition_lag_days")))
 
 
 def draw_constants(chain) -> np.ndarray:
@@ -202,3 +203,54 @@ def step_post_trial_motions(S, DC, yes, frcp_50b_59, briefing, frap_4a1a, sensit
     S[f.EF] = S[f.F] if S[f.F] > S[f.E0] else S[f.E0]
     S[f.EI] = S[f.EF]
     return filed
+
+
+# --- booking (Chain.book, pay, petition, resolve): what each writes on this draw ------------------------------------
+# The Chain's versions and memos (`_touch`, `_eq_v`, `_cv`) are not state: the compiled state is read directly.
+
+@njit(cache=True)
+def book(D, row, day, cents):
+    """`Chain.book` into the per-day array D[row]: inside the period and nonzero only."""
+    if day >= 0 and day < D.shape[1] and cents != 0:
+        D[row, day] += cents
+
+
+@njit(cache=True)
+def pay(S, D, day, cents, kind_row, incurred_ix, incurred):
+    """`Chain.pay`: the cash and its kind (D[kind_row]); an obligation (incurred_ix >= 0) also keeps the earliest day
+    it was incurred, where the amount is booked."""
+    book(D, f.D_CASH, day, cents)
+    book(D, kind_row, day, cents)
+    if incurred_ix >= 0 and day >= 0 and day < D.shape[1] and cents != 0 and incurred < S[incurred_ix]:
+        S[incurred_ix] = incurred
+
+
+@njit(cache=True)
+def petition(S, day, where, cause, lag, N):
+    """`Chain.petition` (cause: its PETITION_CAUSES index). Returns whether it is the petition now (the caller then
+    rebooks the at-the-market sales, which stop at a petition: `equity.atm_rebook`)."""
+    day = day + lag
+    cur = S[f.PETITION]
+    win = where and day >= 0 and day < N and (cur < 0 or day < cur)
+    if win:
+        S[f.PETITION] = day
+        S[f.PET_CAUSE] = cause
+    return win
+
+
+@njit(cache=True)
+def resolve(S, D, legal, day, where):
+    """`Chain.resolve`: the dispute ends on the day where it does (and inside the period): the stay's security is
+    released then (`release_lock` under daily processing: `release_at`), and the legal spend in the operating feed
+    (`legal`, this draw's, negative) stops from it, added back as a reduction."""
+    N = D.shape[1]
+    if not (where and day < N):
+        day = f.BIG
+    if where and day < N and day < S[f.RELEASE_AT]:
+        S[f.RELEASE_AT] = day
+    old = S[f.RESOLVED]
+    if day < old:
+        S[f.RESOLVED] = day
+    for t in range(max(S[f.RESOLVED], 0), min(old, N)):
+        D[f.D_CASH, t] -= legal[t]
+        D[f.D_KIND_REDUCTION, t] -= legal[t]
