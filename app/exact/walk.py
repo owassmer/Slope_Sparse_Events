@@ -120,6 +120,10 @@ def init(S):
     S[w.FLOOR_K], S[w.OUT_DONE], S[w.NP_DONE] = 1, 0, 0
     S[w.COMMITTED] = -1
     S[w.N_OFFERINGS] = 0
+    S[w.REG_POST_DAY] = S[w.HEARING_DAY] = BIG
+    S[w.VERDICT_IX] = -1
+    for o in range(4):
+        S[w.NOTES_DAY0 + o], S[w.NOTES_STAGE0 + o] = BIG, 0
 
 
 # --- the open decisions (ChronologicalWalk._pending and _cursors) -------------------------------------------------------
@@ -305,7 +309,7 @@ def frontier(st, k, wk):
             best_day, best_kind, best_which, best_rank = day, w.IT_WAITING, j, rank
     for j in range(S[a.N_STAYS]):
         row = st.stays[j]
-        if row[a.T_DONE] or not (row[a.T_APPROVED] or row[a.T_MOVED]):
+        if row[a.T_DONE] or row[a.T_OPEN] or not (row[a.T_APPROVED] or row[a.T_MOVED]):
             continue
         t = row[a.T_APPROVAL]
         if t < N and (t < best_day or (t == best_day and best_rank >= 0)):

@@ -468,7 +468,7 @@ def upto(st, k, before, every, levy_day):
         best, pick, approval = f.BIG + 1, -1, False
         for j in range(S[a.N_STAYS]):  # approvals first: the court's order is the day's first event
             row = st.stays[j]
-            if row[a.T_DONE] or not (row[a.T_APPROVED] or row[a.T_MOVED]):
+            if row[a.T_DONE] or row[a.T_OPEN] or not (row[a.T_APPROVED] or row[a.T_MOVED]):
                 continue
             t = row[a.T_APPROVAL]
             if (every or (t <= before and t <= levy_day)) and t < best:
@@ -583,7 +583,7 @@ def book_step(st, k, step):
             raise ValueError("stays table exhausted")
         st.stays[j, a.T_INDEX], st.stays[j, a.T_MOTION], st.stays[j, a.T_APPROVAL] = S[a.N_STEPS], motion, approval
         st.stays[j, a.T_APPROVED], st.stays[j, a.T_MOVED], st.stays[j, a.T_DONE] = br == a.YES, br != a.NO, 0
-        st.stays[j, a.T_LOCK], st.stays[j, a.T_EFFECTIVE] = 0, 0
+        st.stays[j, a.T_LOCK], st.stays[j, a.T_EFFECTIVE], st.stays[j, a.T_OPEN] = 0, 0, 0
         S[a.N_STAYS] = j + 1
         return motion
     if node == a.REGISTRATION:
@@ -660,7 +660,7 @@ def prepare(st, k, step):
     pending_stay = False
     for j in range(S[a.N_STAYS]):
         row = st.stays[j]
-        if not row[a.T_DONE] and (row[a.T_APPROVED] or row[a.T_MOVED]):
+        if not row[a.T_DONE] and not row[a.T_OPEN] and (row[a.T_APPROVED] or row[a.T_MOVED]):
             pending_stay = True
     if S[a.N_WAIT] > 0 or S[a.N_WRITS] > 0 or pending_stay:
         while True:  # a stay's approval ahead of the step's day: what precedes it, and it, first (its day may move)
@@ -670,7 +670,7 @@ def prepare(st, k, step):
             ahead = f.BIG
             for j in range(S[a.N_STAYS]):
                 row = st.stays[j]
-                if not row[a.T_DONE] and (row[a.T_APPROVED] or row[a.T_MOVED]):
+                if not row[a.T_DONE] and not row[a.T_OPEN] and (row[a.T_APPROVED] or row[a.T_MOVED]):
                     ahead = min(ahead, row[a.T_APPROVAL])
             if ahead > bound or ahead >= N:
                 break
