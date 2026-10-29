@@ -91,7 +91,13 @@ def jev_provider() -> JevProvider:
 JUDGMENT_PROVIDERS = {
     "clef": {"provider": "clef", "model": "clef", "price_usd_per_million_input_tokens": "0.24",
              "spend_cap_usd_per_run": "90.00", "max_physical_attempts": 65000},
+    # https://developers.openai.com/api/docs/pricing (standard, short context, 29 October 2026): input $0.10, cached
+    # input $0.01, cache writes $0.125 (30 minutes) and $0.25 (12 hours) per million tokens; output is not charged on
+    # /v1/decisions (https://developers.openai.com/api/docs/guides/decisions, Pricing and availability)
     "decisions": {"provider": "decisions", "model": "gpt-6-luna", "price_usd_per_million_input_tokens": "0.10",
+                  "price_usd_per_million_cached_input_tokens": "0.01",
+                  "price_usd_per_million_cache_write_30m_tokens": "0.125",
+                  "price_usd_per_million_cache_write_12h_tokens": "0.25",
                   "spend_cap_usd_per_run": "90.00", "max_physical_attempts": 65000},
 }
 JUDGMENTS = JUDGMENT_PROVIDERS["clef"]  # the default (SLOPE_JUDGMENT_PROVIDER selects another)

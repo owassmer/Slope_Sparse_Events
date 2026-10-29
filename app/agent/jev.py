@@ -128,16 +128,43 @@ class JevAdapter:
                                  or cfg["runtime"]["jev"]["spend_cap_usd_per_run"])
         self.price_per_token = Decimal(self.provider.price_usd_per_million or cfg["runtime"]["jev"][
             "provider_price_usd_per_million_input_tokens_at_design"]) / 10**6
+        # where the provider prices cached reads and cache writes apart (Decisions), each at its own rate; a request
+        # that may have been billed without a usage returned is reserved at the dearest rate a token can cost
+        self.rates = {k: Decimal(own[f"price_usd_per_million_{k}_tokens"]) / 10**6
+                      for k in ("cached_input", "cache_write_30m", "cache_write_12h")
+                      if f"price_usd_per_million_{k}_tokens" in own}
+        self.worst_per_token = max((self.price_per_token, *self.rates.values()))
         self.inflight_attempts = 0
         self.inflight_usd = Decimal(0)
         self.spent_usd = Decimal(0)
         self.requests = 0
         self.cache_hits = 0
 
+    def cost(self, usage: dict) -> Decimal | None:
+        """A request's cost from its usage: the provider's own figure where it gives one, else its input tokens at
+        their rates (cached reads and cache writes apart where the provider prices them apart); None without usage."""
+        if usage.get("cost") is not None:
+            return Decimal(str(usage["cost"]))
+        tokens = next((usage[k] for k in ("input_tokens", "prompt_tokens", "total_tokens") if k in usage), None)
+        if tokens is None:
+            return None
+        details = usage.get("input_tokens_details") or {}
+        if not self.rates or not details:
+            return Decimal(int(tokens)) * self.price_per_token
+        cached = int(details.get("cached_tokens") or 0)
+        ttl = details.get("cache_write_tokens_details") or {}
+        w30, w12 = int(ttl.get("ttl_30m_tokens") or 0), int(ttl.get("ttl_12h_tokens") or 0)
+        w12 += max(int(details.get("cache_write_tokens") or 0) - w30 - w12, 0)  # a write without its period: dearer
+        plain = int(tokens) - cached - w30 - w12  # cached reads and writes are counted within the input tokens
+        if plain < 0:
+            raise ConfigurationError(f"usage counts more cached and written tokens than input tokens: {usage}")
+        return (plain * self.price_per_token + cached * self.rates["cached_input"]
+                + w30 * self.rates["cache_write_30m"] + w12 * self.rates["cache_write_12h"])
+
     def _reserve(self, payload_chars: int) -> tuple[int, Decimal]:
         """Worst-case headroom check before dispatch; released after the request completes."""
         attempts = 1 + MAX_RETRIES
-        estimate = Decimal(payload_chars // 3 + 1) * self.price_per_token * attempts  # ~3 chars/token, conservative
+        estimate = Decimal(payload_chars // 3 + 1) * self.worst_per_token * attempts  # ~3 chars/token, conservative
         if self.physical_attempts + self.inflight_attempts + attempts > self.max_attempts:
             raise JevBudgetExceeded(f"Jev attempt ceiling reached ({self.max_attempts} physical attempts)")
         if self.spent_usd + self.inflight_usd + estimate > self.spend_cap:
@@ -175,20 +202,22 @@ class JevAdapter:
             reserved, estimate = self._reserve(
                 len(json.dumps(state)) + sum(len(q.model_dump_json()) for q in questions.values()))
             before = self.physical_attempts
+            per_attempt = estimate / (1 + MAX_RETRIES)
+            done = False
             try:
                 self.requests += 1
                 raw = (await self.client.system_one(state=state, questions=questions, model=self.provider.model,
                                                     response_model=_Raw)).model_dump(mode="json")
+                done = True
             finally:
                 self.inflight_attempts -= reserved
                 self.inflight_usd -= estimate
                 attempts_used = self.physical_attempts - before  # approximate under concurrency; totals are exact
-            usage = raw.get("usage") or {}
-            cost = usage.get("cost")
-            tokens = next((usage[k] for k in ("input_tokens", "prompt_tokens", "total_tokens") if k in usage), None)
-            self.spent_usd += (Decimal(str(cost)) if cost is not None else
-                               Decimal(int(tokens)) * self.price_per_token if tokens is not None
-                               else estimate / (1 + MAX_RETRIES))
+                # an attempt that returned no usage (a timeout, an error after the work) may still have been billed:
+                # it is counted at its worst case, so the spend cap covers every request that may have been charged
+                self.spent_usd += per_attempt * max(attempts_used - (1 if done else 0), 0)
+            cost = self.cost(raw.get("usage") or {})
+            self.spent_usd += cost if cost is not None else per_attempt
             now = datetime.now(UTC).isoformat()
             returned = raw.get("model")
             if not returned or self.provider.marker not in str(returned):
@@ -210,30 +239,111 @@ class JevAdapter:
                                              "questions": {q: v.model_dump(mode="json") for q, v in questions.items()},
                                              "state": state},
                                  "response": raw})
-        answers = raw.get("answers") or {}
+        return call, self._observations(call.call_id, profile, question_ids, entries, raw.get("answers") or {},
+                                        subject_ids)
+
+    def _observations(self, call_id: str, profile: str, question_ids, entries: dict, answers: dict,
+                      subject_ids: tuple[str, ...]) -> list[SemanticObservation]:
         observations = []
         for qid in question_ids:
             ans, entry = answers.get(qid) or {}, entries[qid]
             if entry["primitive"] == "noul":
                 value = ans.get("noul")
                 observations.append(SemanticObservation(
-                    observation_id=self.new_id("obs"), call_id=call.call_id, profile=profile, question_id=qid,
+                    observation_id=self.new_id("obs"), call_id=call_id, profile=profile, question_id=qid,
                     question_version=entry["version"], primitive="noul",
                     answer=None if value is None else value >= NOUL_THRESHOLD, noul_value=value, subject_ids=subject_ids))
             elif entry["primitive"] == "score":
                 probs = ans.get("probabilities")
                 observations.append(SemanticObservation(
-                    observation_id=self.new_id("obs"), call_id=call.call_id, profile=profile, question_id=qid,
+                    observation_id=self.new_id("obs"), call_id=call_id, profile=profile, question_id=qid,
                     question_version=entry["version"], primitive="score",
                     answer=None if not probs else str(max(probs, key=lambda k: probs[k])), score_value=ans.get("score"),
                     probabilities={str(k): v for k, v in probs.items()} if probs else None,
                     confidence=ans.get("confidence"), subject_ids=subject_ids))
             else:
                 observations.append(SemanticObservation(
-                    observation_id=self.new_id("obs"), call_id=call.call_id, profile=profile, question_id=qid,
+                    observation_id=self.new_id("obs"), call_id=call_id, profile=profile, question_id=qid,
                     question_version=entry["version"], primitive="choice", answer=ans.get("choice"),
                     probabilities=ans.get("probabilities"), confidence=ans.get("confidence"), subject_ids=subject_ids))
-        return call, observations
+        return observations
+
+    async def judge_batch(self, *, profile: str, shared_state: dict, items: list[tuple[str, dict, dict | None]],
+                          subject_ids: tuple[str, ...] = ()) -> list[SemanticObservation]:
+        """Several questions about one shared state (the case, the standard, the record items, the evidence), each
+        with its own parts (its question and situation): `items` is (question id, own parts, host-built criteria or
+        None). Decisions asks up to 400 in a request, each read on the shared input and its own parts alone; each
+        answer is cached by its own question and state, so a batch stopped part way resumes where it stopped. Returns
+        one observation per item, in order."""
+        from app.agent.decisions import MAX_QUESTIONS, split_state
+
+        if self.provider.name != "decisions":
+            raise ConfigurationError(f"{self.provider.name} asks one question per request: use judge")
+        if split_state(shared_state)[1]:
+            raise ConfigurationError("the shared state holds a question's own parts")
+        registry_version = question_registry()["registry_version"]
+        prepared, out = [], [None] * len(items)
+        for i, (qid, own, crit) in enumerate(items):
+            entry = registry_question(qid)
+            if crit is not None:
+                if not entry["prompt"].get("criteria_from_host"):
+                    raise ConfigurationError(f"{qid} does not take host-built criteria")
+                entry = {**entry, "prompt": {**entry["prompt"], "criteria": crit}}
+            q = build_question(entry)
+            key = canonical_sha256({"model": self.provider.model, "form": "batch", "shared": shared_state,
+                                    "own": own, "question": q.model_dump(mode="json")})
+            prepared.append((i, qid, entry, q, own, key))
+        pending = []
+        for i, qid, entry, q, own, key in prepared:
+            f = CACHE_DIR / f"{key}.json"
+            if self.use_cache and f.exists():
+                cached = json.loads(f.read_text())
+                self.cache_hits += 1
+                out[i] = self._observations(cached["raw"].get("call_id", key), profile, [qid], {qid: entry},
+                                            cached["raw"]["answers"], subject_ids)[0]
+            elif cache_only():
+                raise ConfigurationError(f"No saved Jev response for {profile} {qid} (SLOPE_JEV_CACHE_ONLY)")
+            else:
+                pending.append((i, qid, entry, q, own, key))
+        for start in range(0, len(pending), MAX_QUESTIONS):
+            chunk = pending[start:start + MAX_QUESTIONS]
+            names = {f"q{j}": item for j, item in enumerate(chunk)}
+            reserved, estimate = self._reserve(len(json.dumps(shared_state, default=str)) + sum(
+                len(json.dumps(own, default=str)) + len(q.model_dump_json()) for _, _, _, q, own, _ in chunk))
+            before, per_attempt, done = self.physical_attempts, estimate / (1 + MAX_RETRIES), False
+            try:
+                self.requests += 1
+                raw = (await self.client.batch(
+                    shared=shared_state, items=[(n, q.model_dump(mode="json"), own)
+                                                for n, (_, _, _, q, own, _) in names.items()],
+                    model=self.provider.model, response_model=_Raw)).model_dump(mode="json")
+                done = True
+            finally:
+                self.inflight_attempts -= reserved
+                self.inflight_usd -= estimate
+                used = self.physical_attempts - before
+                self.spent_usd += per_attempt * max(used - (1 if done else 0), 0)
+            cost = self.cost(raw.get("usage") or {})
+            self.spent_usd += cost if cost is not None else per_attempt
+            now = datetime.now(UTC).isoformat()
+            call_id = self.new_id("jev")
+            answers = raw.get("answers") or {}
+            for n, (i, qid, entry, _q, _own, key) in names.items():
+                item_raw = {"model": raw.get("model"), "call_id": call_id, "request_id": raw.get("id"),
+                            "answers": {qid: answers.get(n) or {}}}
+                if self.use_cache:
+                    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                    (CACHE_DIR / f"{key}.json").write_text(json.dumps({"raw": item_raw, "created_at": now}))
+                out[i] = self._observations(call_id, profile, [qid], {qid: entry}, item_raw["answers"],
+                                            subject_ids)[0]
+            if EXCHANGE_LOG is not None:
+                EXCHANGE_LOG.append({"adapter": self.run_id, "call_id": call_id, "profile": profile,
+                                     "question_ids": [qid for _, qid, *_ in chunk], "created_at": now,
+                                     "cache_hit": False, "registry_version": registry_version,
+                                     "request": {"model": self.provider.model, "shared": shared_state,
+                                                 "own": [own for *_, own, _ in chunk]},
+                                     "response": raw})
+        return out
 
     def usage_summary(self) -> dict[str, Any]:
         return {"provider": self.provider.name, "requests": self.requests, "cache_hits": self.cache_hits,
