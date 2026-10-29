@@ -89,3 +89,49 @@ def processing_balance(D, ln, day):
     t = min(max(day, 0), N - 1)
     prev = ln.outputs[0, t - 1] if t > 0 else ln.opening
     return prev + ln.ops_in[t] + D[f.D_KIND_INFLOW, t] - ln.lock[t] + D[f.D_KIND_LEVY, t]
+
+
+# --- the cash triggers (Chain.tau, cash_out, _fall_after), after `forward` from the review date -------------------
+
+@njit(cache=True)
+def tau(ln, first_unpaid, zero_floor, daily):
+    """`Chain.tau`: the first day available cash falls below the month's operating need (sensitivity cash_floor:
+    below zero, which under daily processing is the first obligation left unpaid), BIG if none."""
+    if daily and zero_floor:
+        return first_unpaid
+    for t in range(ln.outputs.shape[1]):
+        if ln.outputs[0, t] < (0 if zero_floor else ln.need[t]):
+            return t
+    return f.BIG
+
+
+@njit(cache=True)
+def cash_out(ln, first_unpaid, zero_floor, daily):
+    """`Chain.cash_out`: the first day available cash falls below zero (daily: the first obligation the processor
+    could not pay), BIG if none; with the floor already at zero, nothing further arises (BIG)."""
+    if zero_floor:
+        return f.BIG
+    if daily:
+        return first_unpaid
+    for t in range(ln.outputs.shape[1]):
+        if ln.outputs[0, t] < 0:
+            return t
+    return f.BIG
+
+
+@njit(cache=True)
+def fall_after(ln, prev, zero_floor):
+    """`Chain._fall_after`: the first day after `prev` that available cash falls below the floor having recovered to
+    it (at or above) after `prev`, BIG if none."""
+    N = ln.outputs.shape[1]
+    rec = f.BIG
+    for t in range(max(prev + 1, 0), N):
+        if ln.outputs[0, t] >= (0 if zero_floor else ln.need[t]):
+            rec = t
+            break
+    if rec >= N:
+        return f.BIG
+    for t in range(rec + 1, N):
+        if ln.outputs[0, t] < (0 if zero_floor else ln.need[t]):
+            return t
+    return f.BIG

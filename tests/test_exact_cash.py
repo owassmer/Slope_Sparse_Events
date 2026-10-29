@@ -16,7 +16,7 @@ DAYS = (-1, 0, 1, 20, 45, 90, 120, 150, 179, 10**6)
 
 @pytest.mark.parametrize("style", ["uniform", "long"])
 def test_cash_reads_match_the_python(monkeypatch, style):
-    counts = {"steps": 0, "runs": 0, "balance": 0, "resumed": 0}
+    counts = {"steps": 0, "runs": 0, "balance": 0, "resumed": 0, "triggers": 0}
     original = events.Chain.step
     lines, saved = {}, {}
 
@@ -27,6 +27,8 @@ def test_cash_reads_match_the_python(monkeypatch, style):
         cum, first, nonpay = ch.processed()
         lock = ch.lock_cash()
         bal = {t: ch.processing_balance(np.full(ch.n, t, dtype=np.int64)) for t in DAYS}
+        tau, out_ = ch.tau(), ch.cash_out()
+        fall = {p: ch._fall_after(np.full(ch.n, p, dtype=np.int64)) for p in (-1, 0, 30, 90, 150)}
         for r in range(ch.n):
             key = (id(ch.basis), r)
             if key not in lines:
@@ -37,6 +39,12 @@ def test_cash_reads_match_the_python(monkeypatch, style):
             got = cash.forward(S, D, lk, ln, ln.initial, 0)
             np.testing.assert_array_equal(ln.outputs[0], cum[r], err_msg=f"{node} {branch} draw {r}")
             assert got == (first[r], nonpay[r]), (node, branch, r)
+            zero = bool(ch.sens.get("cash_floor"))
+            assert cash.tau(ln, got[0], zero, True) == tau[r], (node, r)
+            assert cash.cash_out(ln, got[0], zero, True) == out_[r], (node, r)
+            for prev in (-1, 0, 30, 90, 150):
+                assert cash.fall_after(ln, prev, zero) == fall[prev][r], (node, prev, r)
+                counts["triggers"] += 1
             for t in DAYS:
                 assert cash.processing_balance(D, ln, t) == bal[t][r], (node, t, r)
                 counts["balance"] += 1
