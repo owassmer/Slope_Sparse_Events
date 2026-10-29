@@ -13,6 +13,7 @@ NOTES_DUE_HOW = S_NOTES + 1  # Chain.notes_due_how[r]
 HOW = ('', 'declared', 'automatic_j', 'repurchase')
 DECLARED = 1
 AUTOMATIC_J = 2
+REPURCHASE = 3
 STANDING = ('none', 'unpaid', 'stayed', 'levied_in_part', 'reduced', 'set_aside', 'paid', 'settled')
 CTX_I1, CTX_POST, CTX_RULING = range(3)
 READ_ENTERED, READ_POST, READ_BOTH = range(3)

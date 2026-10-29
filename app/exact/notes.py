@@ -308,7 +308,7 @@ def listing_legacy(S, N, dates, date_only, ctx, delist_key):
 def delisting_notes(S, D, coupons, c, eq, calendar, branch):
     """Chain.step('delisting_notes'): 0=no, 1=accelerated, 2=repurchase_unpaid,
     3=petition_delist, 4=petition_delist_holders, 5=petition_repurchase, 6=petition_repurchase_holders.
-    Python marks repurchases as 'declared', not 'repurchase'; preserve that definition.
+    Notes due on an unpaid repurchase are marked as such (QUESTIONS §2.3), not as declared.
     """
     day = S[f.DELISTED]
     pet = f.BIG if S[f.PETITION] < 0 else S[f.PETITION]
@@ -319,7 +319,7 @@ def delisting_notes(S, D, coupons, c, eq, calendar, branch):
     if branch in (1, 3, 4):
         mark(S, accel, on, n.DECLARED, D.shape[1])
     elif branch in (2, 5, 6):
-        mark(S, rep, on, n.DECLARED, D.shape[1])
+        mark(S, rep, on, n.REPURCHASE, D.shape[1])
     coupon_when_due(S, D, coupons)
     if branch in (3, 4, 5, 6):
         t = accel if branch in (3, 4) else rep

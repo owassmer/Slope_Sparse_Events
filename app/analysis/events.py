@@ -2557,7 +2557,9 @@ class Chain:
             if branch.startswith("petition_delist") or branch == "accelerated":
                 self.mark("notes_due", accel, open_)
             elif branch.startswith("petition_repurchase") or branch == "repurchase_unpaid":
+                self._how = "repurchase"  # due on the repurchase date, unpaid (QUESTIONS §2.3), not by declaration
                 self.mark("notes_due", rep, open_)
+                self._how = "declared"
             self.coupon_when_due()
             if branch == "petition_delist":
                 self.petition(accel, open_, cause="notes")
