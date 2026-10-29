@@ -24,7 +24,11 @@ OBL_INC = np.array([f.INCURRED[c] for c in OBLIGATIONS], dtype=np.int64)  # S fi
 # One draw's line: its immutable tables, the line state at the review date, the operating receipts and payments,
 # and the buffers a run writes (caller-owned, reused).
 Line = namedtuple("Line", "tables initial ops_in ops_out post levy out obl inc lock capacity outputs draws scratch "
-                          "state opening need")
+                          "state opening need seen seen_s last")
+# what a run reads (`event_rows`), kept from the last run so an unchanged read is not run again (`forward_if_changed`):
+# the D rows, then the lock
+SEEN_ROWS = np.array([f.D_KIND_INFLOW, f.D_KIND_LEVY, f.D_KIND_REDUCTION, f.D_CAPACITY, *[f.D_KIND[c] for c in
+                                                                                       OBLIGATIONS]], dtype=np.int64)
 
 
 def line_for(chain, r: int) -> Line:
@@ -42,7 +46,8 @@ def line_for(chain, r: int) -> Line:
                 np.zeros(days, np.int64), np.zeros(days, np.int64), np.zeros(days, np.int64),
                 np.zeros((nobl, days), np.int64), np.zeros(nobl, np.int64), np.zeros(days, np.int64),
                 np.zeros(days, np.int64), outputs, draws, scratch, state, int(chain.basis.opening),
-                np.ascontiguousarray(chain.basis.need[r], dtype=np.int64))
+                np.ascontiguousarray(chain.basis.need[r], dtype=np.int64),
+                np.zeros((len(SEEN_ROWS) + 1, days), np.int64), np.zeros(nobl + 1, np.int64), np.zeros(3, np.int64))
 
 
 @njit(cache=True)
@@ -72,6 +77,46 @@ def forward(S, D, lock, ln, saved, a):
     ls.restore(ln.state, saved)
     ls.advance(ln.state, ln.tables, cash, a, D.shape[1], ln.outputs, ln.draws, ln.scratch)
     return ln.state[ls.FIRST_UNPAID], ln.state[ls.NONPAYMENT]
+
+
+@njit(cache=True)
+def forward_if_changed(S, D, lock, ln):
+    """`forward` from the review date, unless everything it reads (the D rows `SEEN_ROWS`, the lock, the obligations'
+    incurred days, the petition) equals what the last run read, compared exactly: then the last run's outputs stand.
+    Returns (first unpaid day, §3.3 day)."""
+    same = ln.last[0] == 1
+    nr = SEEN_ROWS.size
+    if same:
+        for j in range(nr):
+            row = SEEN_ROWS[j]
+            for t in range(D.shape[1]):
+                if D[row, t] != ln.seen[j, t]:
+                    same = False
+                    break
+            if not same:
+                break
+    if same:
+        for t in range(D.shape[1]):
+            if lock[t] != ln.seen[nr, t]:
+                same = False
+                break
+    if same:
+        for c in range(OBL_INC.size):
+            if S[OBL_INC[c]] != ln.seen_s[c]:
+                same = False
+        if S[f.PETITION] != ln.seen_s[OBL_INC.size]:
+            same = False
+    if same:
+        return ln.last[1], ln.last[2]
+    fu, npd = forward(S, D, lock, ln, ln.initial, 0)
+    for j in range(nr):
+        ln.seen[j, :] = D[SEEN_ROWS[j]]
+    ln.seen[nr, :] = lock
+    for c in range(OBL_INC.size):
+        ln.seen_s[c] = S[OBL_INC[c]]
+    ln.seen_s[OBL_INC.size] = S[f.PETITION]
+    ln.last[0], ln.last[1], ln.last[2] = 1, fu, npd
+    return fu, npd
 
 
 @njit(cache=True)

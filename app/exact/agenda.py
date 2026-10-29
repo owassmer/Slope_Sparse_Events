@@ -94,7 +94,7 @@ def restay(st, k):
 def refresh(st, k):
     """Run the line on the event cash booked now (`Chain.processed`): the day's close, the first unpaid day, §3.3."""
     restay(st, k)
-    fu, npd = cash.forward(st.S, st.D, st.lockbuf, st.ln, st.ln.initial, 0)
+    fu, npd = cash.forward_if_changed(st.S, st.D, st.lockbuf, st.ln)
     st.S[a.CASH_FIRST_UNPAID] = fu
     st.S[a.CASH_NONPAYMENT] = npd
 

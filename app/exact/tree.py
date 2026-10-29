@@ -225,8 +225,6 @@ def settle_terms(st, k, ws, ctx):
 
 @njit(cache=True)
 def emit(S, out, nq, qn, ctx, extra, group, day, depth):
-    if nq >= out.shape[0]:
-        return nq + 1  # counted, not kept: the caller sizes the buffer
     out[nq, QN], out[nq, QCTX], out[nq, QCLS_KIND], out[nq, QCLS_VALUE] = qn, ctx, S[w.CLS_KIND], S[w.CLS_VALUE]
     out[nq, QEXTRA], out[nq, QGROUP], out[nq, QDAY], out[nq, QDEPTH] = extra, group, day, depth
     return nq + 1
@@ -658,9 +656,18 @@ def watch_read(st, tk, lv_dec, lv_watch, lv_read, lv_cf, L, qn, day, walk_read):
 
 
 @njit(cache=True)
-def explore(st, k, wk, tk, ws, sk, out, budget):
+def watch_key(S, d):
+    """The watched question's key (its node and amount class): QUESTIONS §1 Depth asks it wherever it arises when its
+    answer can change something on some trajectory, so whether it is asked is decided per key over every draw."""
+    qn = Q_APPEAL if d == w.DEC_APPEAL else Q_EXECUTE
+    return (np.int64(qn) << 56) | (S[w.CLS_KIND] << 52) | S[w.CLS_VALUE]
+
+
+@njit(cache=True)
+def explore(st, k, wk, tk, ws, sk, out, budget, forced, reads):
     """Pass 1 on the draw: every question occurrence (`out`, QCOLS columns; counted past its size) and the tree's size.
-    Returns (questions, nodes, leaves, deepest)."""
+    forced: the watched questions' keys (sorted) asked wherever they arise, because their answer was read on some
+    draw; reads: the keys read on this draw (written). Returns (questions, nodes, leaves, deepest, reads written)."""
     S = st.S
     walk.init(S)
     lv_dec = np.zeros(MAX_DEPTH, np.int64)
@@ -673,7 +680,8 @@ def explore(st, k, wk, tk, ws, sk, out, budget):
     lv_read = np.zeros(MAX_DEPTH, np.int64)
     lv_cf = np.full((MAX_DEPTH, 4), -1, np.int64)
     ans = np.zeros(MAX_ANS, np.int64)
-    L, nq, nodes, leaves, deepest = 0, 0, 0, 0, 0
+    qb = np.zeros((4, QCOLS), np.int64)  # the questions of one decision
+    L, nq, nodes, leaves, deepest, nr = 0, 0, 0, 0, 0, 0
     while True:
         d, day, m, g = next_question(st, k, wk, tk, ws, ans)
         if d >= 0:
@@ -681,12 +689,15 @@ def explore(st, k, wk, tk, ws, sk, out, budget):
                 raise ValueError("the walk is deeper than its stack")
             nodes += 1
             if nodes > budget:
-                return nq, nodes, leaves, deepest
+                return nq, nodes, leaves, deepest, nr
             save(st, sk, L)
             lv_dec[L], lv_day[L], lv_n[L], lv_group[L] = d, day, m, g
             lv_ans[L, :m] = ans[:m]
             lv_watch[L], lv_read[L] = W_NONE, 0
-            if watched(st, k, d):  # the no answer first, watching
+            wkey = watch_key(S, d) if watched(st, k, d) else np.int64(-1)
+            if wkey >= 0 and forced.size and forced[min(np.searchsorted(forced, wkey), forced.size - 1)] == wkey:
+                wkey = -1  # read on another draw: asked here too, both answers walked
+            if wkey >= 0:  # the no answer first, watching
                 lv_watch[L] = W_WALKING
                 lv_ans[L, 0], lv_ans[L, 1] = a.NO, a.YES
                 lv_cf[L, :] = -1
@@ -699,14 +710,15 @@ def explore(st, k, wk, tk, ws, sk, out, budget):
                     on = S[f.AD] >= 0 and core.live(S, t)
                     lv_cf[L, 0], lv_cf[L, 1] = f.MARK_APPEALED, t if on else BIG
             else:
-                q0 = nq
-                nq = questions(st, k, tk, d, day, g, out, nq, L)
-                walk_read = d == w.DEC_SETTLE0 + 7 or d == w.DEC_STAY0 + 1 or d == w.DEC_ENFORCE  # 'unstayed'
-                for q in range(q0, min(nq, out.shape[0])):
-                    watch_read(st, tk, lv_dec, lv_watch, lv_read, lv_cf, L, out[q, QN], day, walk_read)
+                nb = questions(st, k, tk, d, day, g, qb, 0, L)
                 if d == w.DEC_RULING and m == 4:  # the remittitur's election, put with the reduction
-                    vi = S[w.VERDICT_IX]
-                    nq = emit(S, out, nq, Q_REMITTITUR, 0, tk.reduced[vi, 0], -1, day, L)
+                    nb = emit(S, qb, nb, Q_REMITTITUR, 0, tk.reduced[S[w.VERDICT_IX], 0], -1, day, L)
+                walk_read = d == w.DEC_SETTLE0 + 7 or d == w.DEC_STAY0 + 1 or d == w.DEC_ENFORCE  # 'unstayed'
+                for q in range(nb):
+                    watch_read(st, tk, lv_dec, lv_watch, lv_read, lv_cf, L, qb[q, QN], day, walk_read)
+                    if nq < out.shape[0]:
+                        out[nq] = qb[q]
+                    nq += 1
             book(st, k, tk, ws, d, day, lv_ans[L, 0], True)
             lv_next[L] = 1
             L += 1
@@ -718,10 +730,16 @@ def explore(st, k, wk, tk, ws, sk, out, budget):
             if lv_watch[lvl] == W_WALKING and lv_next[lvl] == 1:
                 if lv_read[lvl]:  # read below: asked; its yes answer is walked too
                     lv_watch[lvl] = W_ASKED
+                    if nr < reads.size:
+                        reads[nr] = watch_key(sk.S[lvl], lv_dec[lvl])
+                    nr += 1
                     restore(st, sk, lvl)
-                    nq = questions(st, k, tk, lv_dec[lvl], lv_day[lvl], -1, out, nq, lvl)
-                    for q in range(nq - 1, min(nq, out.shape[0])):
-                        watch_read(st, tk, lv_dec, lv_watch, lv_read, lv_cf, lvl, out[q, QN], lv_day[lvl], False)
+                    nb = questions(st, k, tk, lv_dec[lvl], lv_day[lvl], -1, qb, 0, lvl)
+                    for q in range(nb):
+                        watch_read(st, tk, lv_dec, lv_watch, lv_read, lv_cf, lvl, qb[q, QN], lv_day[lvl], False)
+                        if nq < out.shape[0]:
+                            out[nq] = qb[q]
+                        nq += 1
                 else:
                     lv_watch[lvl] = W_NONE
                     lv_next[lvl] = lv_n[lvl] = 1
@@ -732,7 +750,7 @@ def explore(st, k, wk, tk, ws, sk, out, budget):
                 break
             L -= 1
         if L == 0:
-            return nq, nodes, leaves, deepest
+            return nq, nodes, leaves, deepest, nr
 
 
 # --- a history of the Python walk, followed through the dated walk (the check) -----------------------------------------

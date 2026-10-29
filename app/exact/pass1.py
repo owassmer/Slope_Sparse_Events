@@ -34,16 +34,35 @@ def case_tables(fc, d, ch0) -> tree.TK:
                    reduced=reduced, conds=conds, bound=int(ec.bound), notice=int(nc.notice))
 
 
-def explore(ch0, r: int, tk: tree.TK, budget: int = 10**9, qcap: int = 10**6):
-    """Pass 1 on draw row r: (questions [n, QCOLS], nodes, leaves, deepest)."""
+def explore(ch0, r: int, tk: tree.TK, budget: int = 10**9, qcap: int = 10**6, forced=()):
+    """Pass 1 on draw row r: (questions [n, QCOLS], nodes, leaves, deepest, the watched keys read on the draw).
+    forced: the watched keys read on some draw, asked wherever they arise (`depth`)."""
     k, ln = replay.constants(ch0, r)
     st = replay.state(ch0, r, ln)
     ws = replay.workspace(ch0, r, st)
     wk = walk.WK(listing=tk.listing)
     sk = tree.stack_for(st)
     out = np.zeros((qcap, tree.QCOLS), dtype=np.int64)
-    nq, nodes, leaves, deepest = tree.explore(st, k, wk, tk, ws, sk, out, budget)
-    return out[:min(nq, qcap)], nodes, leaves, deepest
+    reads = np.zeros(4096, dtype=np.int64)
+    forced = np.array(sorted(forced), dtype=np.int64)
+    nq, nodes, leaves, deepest, nr = tree.explore(st, k, wk, tk, ws, sk, out, budget, forced, reads)
+    if nr > reads.size:
+        raise ValueError("more watched reads than the buffer holds")
+    return out[:min(nq, qcap)], nodes, leaves, deepest, set(reads[:nr].tolist())
+
+
+def depth(run_draw) -> tuple[set, int]:
+    """QUESTIONS §1 Depth over the draws: `run_draw(forced) -> keys read` for each draw (all draws walked by the
+    caller); the watched questions read on some draw are asked on every draw where they arise, which can expose
+    further reads, so the draws are walked again until no new key is read. Returns (the keys asked, rounds)."""
+    forced: set = set()
+    rounds = 0
+    while True:
+        rounds += 1
+        read = run_draw(frozenset(forced))
+        if read <= forced:
+            return forced, rounds
+        forced |= read
 
 
 G = {"pay": tree.G_PAY, "initiate_offering": tree.G_OFFER, "file": tree.G_FILE, "none": tree.G_NONE,
