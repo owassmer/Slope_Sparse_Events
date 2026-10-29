@@ -59,10 +59,9 @@ class Product:
         from playwright.sync_api import sync_playwright
 
         self.pw = sync_playwright().start()
-        try:
-            self.browser = self.pw.chromium.launch(channel="chrome", headless=True)
-        except Exception:
-            self.browser = self.pw.chromium.launch(headless=True)
+        # Use Playwright's bundled Chromium, not the system Chrome (channel="chrome"): a headless instance of the
+        # system app hijacks the Chrome dock icon on macOS, so the user's real Chrome won't open while this runs.
+        self.browser = self.pw.chromium.launch(headless=True)
         self.page = self.browser.new_page(viewport={"width": 1440, "height": 1000})
         self.page.on("console", lambda m: self.errors.append(f"console {m.type}: {m.text} ({(m.location or {}).get('url', '')})")
                      if m.type in ("error", "warning") else None)
