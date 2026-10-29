@@ -25,20 +25,28 @@ def case_tables(fc, d, ch0) -> tree.TK:
                 reduced[i] = booked, lo, hi
     wlk = _Walk(fc, d)
     conds = np.zeros(len(w.QNODES), dtype=np.int64)
+    appeals = np.zeros(len(w.QNODES), dtype=np.bool_)
+    stays = np.zeros(len(w.QNODES), dtype=np.bool_)
     for q, name in enumerate(w.QNODES):
         if name in fc.spec:
-            for c in wlk.situation_conditions(name):
+            for c in set(wlk.situation_conditions(name)):
                 if c in MARKS:
                     conds[q] |= 1 << MARKS.index(c)
+        if name != "verdict":
+            node = fc.new_node(d, name)
+            appeals[q] = fc.uses_appeal_status(node) or name == "enforce_after_final"
+            stays[q] = fc.uses_stay_status(node)
     ec = replay.export_equity.config(ch0)
     nc = replay.export_notes.config(ch0)
     return tree.TK(listing=ch0.fin is not None and ch0.fin.listing_deadline is not None, verdicts=verdicts,
-                   reduced=reduced, conds=conds, bound=int(ec.bound), notice=int(nc.notice))
+                   reduced=reduced, conds=conds, bound=int(ec.bound), notice=int(nc.notice), appeals=appeals,
+                   stays=stays)
 
 
 def explore(ch0, r: int, tk: tree.TK, budget: int = 10**9, qcap: int = 10**6, forced=()):
-    """Pass 1 on draw row r: (questions [n, QCOLS], nodes, leaves, deepest, the watched keys read on the draw).
-    forced: the watched keys read on some draw, asked wherever they arise (`depth`)."""
+    """Pass 1 on draw row r: (questions [n, QCOLS], nodes, leaves, deepest, the watched keys read on the draw, the
+    classes [n, NC], per question its record's digest and identity [n, 2], the final cumulative event cash's range
+    (lo, hi) per day). forced: the watched keys read on some draw, asked wherever they arise (`depth`)."""
     k, ln = replay.constants(ch0, r)
     st = replay.state(ch0, r, ln)
     ws = replay.workspace(ch0, r, st)
@@ -46,14 +54,16 @@ def explore(ch0, r: int, tk: tree.TK, budget: int = 10**9, qcap: int = 10**6, fo
     sk = tree.stack_for(st)
     out = np.zeros((qcap, w.QCOLS), dtype=np.int64)
     cls = np.zeros((qcap, fr.NC), dtype=np.int64)
-    dig = np.zeros(qcap, dtype=np.int64)
+    dig = np.zeros((qcap, 2), dtype=np.int64)
     reads = np.zeros(4096, dtype=np.int64)
     forced = np.array(sorted(forced), dtype=np.int64)
-    nq, nodes, leaves, deepest, nr = tree.explore(st, k, wk, tk, ws, sk, out, cls, dig, budget, forced, reads)
+    ev_lo, ev_hi = np.zeros(ch0.N, np.int64), np.zeros(ch0.N, np.int64)
+    nq, nodes, leaves, deepest, nr = tree.explore(st, k, wk, tk, ws, sk, out, cls, dig, budget, forced, reads,
+                                                  ev_lo, ev_hi)
     if nr > reads.size:
         raise ValueError("more watched reads than the buffer holds")
     m = min(nq, qcap)
-    return out[:m], nodes, leaves, deepest, set(reads[:nr].tolist()), cls[:m], dig[:m]
+    return out[:m], nodes, leaves, deepest, set(reads[:nr].tolist()), cls[:m], dig[:m], (ev_lo, ev_hi)
 
 
 def depth(run_draw) -> tuple[set, int]:
@@ -164,3 +174,55 @@ def follow(fc, d, ch0, r: int, tk, steps, questions: bool = False):
     agenda.finish(st, k)
     out = (found[:nf], st, script, n1)
     return out + ((qout[:nq], iout[:nq], fout[:nq], cout[:nq]),) if questions else out
+
+
+def questions_on(fc_all, d, draws, forced=(), log=print) -> dict:
+    """Pass 1 on `draws` (indices among the 512), the case's tables from the whole population (`fc_all`: the award
+    partition is the case's, never a subset's): each draw's tree size, and the distinct questions as the judge reads
+    them (the rendered key and situation class: `question_keys`), with the watched keys read (`depth`)."""
+    import time
+
+    from app.analysis.events import Chain
+    from app.exact import oracle, question_keys
+
+    fc, _ = oracle.context(tuple(draws))
+    ch0 = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
+    ch0.instrument_cash()
+    tk = case_tables(fc_all, d, ch0)
+    qt = question_keys.case_tables(fc_all, d, ch0, tk)
+    out: dict = {"draws": {}, "questions": set(), "reads": set()}
+    for r, draw in enumerate(draws):
+        t0 = time.perf_counter()
+        q, nodes, leaves, deepest, reads, cls, dig, _ = explore(ch0, r, tk, qcap=4_000_000, forced=forced)
+        if len(q) < len(dig) or len(q) >= 4_000_000:
+            raise ValueError("more question occurrences than the buffer holds")
+        _, first = np.unique(dig[:, 1], return_index=True)
+        found = set()
+        for j in first:
+            row, code = q[j], cls[j]
+            klass = "" if row[w.QN] == w.Q_VERDICT else question_keys.situation_class(row, code, qt)
+            found.update((key, klass) for key in question_keys.keys(row, qt))
+        out["questions"] |= found
+        out["reads"] |= reads
+        out["draws"][int(draw)] = {"nodes": nodes, "leaves": leaves, "deepest": deepest, "occurrences": len(q),
+                                   "questions": len(found), "seconds": round(time.perf_counter() - t0, 1)}
+        log(f"draw {draw}: {out['draws'][int(draw)]}")
+    return out
+
+
+def main(argv=None) -> None:
+    """`python -m app.exact.pass1 <first> <last> <out.json>`: pass 1 on draws first..last (inclusive)."""
+    import json
+    import sys
+
+    from app.exact import oracle
+
+    first, last, path = (argv or sys.argv[1:])[:3]
+    fc_all, d = oracle._forecaster()
+    got = questions_on(fc_all, d, range(int(first), int(last) + 1), log=lambda s: print(s, flush=True))
+    with open(path, "w") as fh:
+        json.dump({"draws": got["draws"], "questions": sorted(got["questions"]), "reads": sorted(got["reads"])}, fh)
+
+
+if __name__ == "__main__":
+    main()

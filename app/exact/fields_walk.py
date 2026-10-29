@@ -85,7 +85,7 @@ QNODES = ("settlement_offer", "settlement_accept", "verdict", "post_trial_motion
  Q_BID, Q_HEARING, Q_HOLDERS_DELIST, Q_FLOOR, Q_CASH_OUT) = range(len(QNODES))
 # an occurrence: node, context (the interval, phase, occasion or origin), amount class (kind, value), extra (the
 # response's 'after'; 'entered_not_acted'; the remittitur's booked amount; enforce's 'appealed'), option group, day
-QCOLS = 8
-QN, QCTX, QCLS_KIND, QCLS_VALUE, QEXTRA, QGROUP, QDAY, QDEPTH = range(QCOLS)
+QCOLS = 9  # QNANS: how many answers the question offers (its distribution's length)
+QN, QCTX, QCLS_KIND, QCLS_VALUE, QEXTRA, QGROUP, QDAY, QDEPTH, QNANS = range(QCOLS)
 ORIGIN_NONPAYMENT = 4
 
