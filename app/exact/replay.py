@@ -97,7 +97,8 @@ def encode(ch, step) -> np.ndarray:
         else:
             spec = pending_template(ch.m)["verdict_branches"][b]
             amount = verdict_amount(ch.d, ch.m, b, ch.sens) if spec["judgment"] else 0
-            out[2:6] = a.V_BRANCH, bool(spec["judgment"]), amount, bool(spec.get("adverse"))
+            out[2:7] = a.V_BRANCH, bool(spec["judgment"]), amount, bool(spec.get("adverse")), list(
+                pending_template(ch.m)["verdict_branches"]).index(b)
     elif node == "post_trial_ruling":
         if b.startswith("reduced:"):
             out[2], out[3] = a.R_REDUCED, int(b.split(":")[1])
