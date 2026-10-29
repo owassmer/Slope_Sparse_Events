@@ -297,3 +297,34 @@ on how the walk branches.
 3. A stay approved on the day of another event: the trace shows the approval processed before every other item of
    that day, and its security sized on the balance at processing before them.
 4. Pass 1 on whole draws: the distinct questions and their count.
+
+## The judge's input: a question's facts pooled over the draws (29 October)
+
+**What the judge reads.** A question (its rendered key and situation class, `question_keys`) is asked once, on the
+14 May state `state14.build` writes: the case, the standard, the evidence routed to the decision, and the situation:
+one representative trajectory's joint facts (the medoid of the question's members by decision day and available cash)
+with the members' range beside each figure, and the members' counts on the grouping dimensions. Its members are the
+distinct (draw, record) pairs on which the question arises (identical situations get one answer however reached, so a
+record reached on one draw by two routes is one member). `state14` is used unchanged: given the members' records as
+rows, its state is the Python's by construction; the records themselves are the dated walk's (tasks 002-9, 002-10).
+
+**Size.** A draw has 14,000-48,000 distinct members (measured: draws 145 and 365), about 37 million over the 512
+draws, at 92 integers and a float each: too much to hold in one place, too much to pass whole between runs.
+
+**Map and reduce on GitHub** (`run.yml` lets a line download an earlier run's artifacts):
+1. Map (pass 1, 64 lines of 8 draws, the depth rule's forced keys given): each line writes its draws' members, distinct
+   by (question identity, record digest, draw), split by question identity into S shards, each shard a compressed file
+   of the members' rows (the question row, the class code, the record's integers and float, the draw); and the watched
+   keys read. If a read is new, the map runs again with it forced (the depth rule's next round).
+2. Reduce (S lines): each downloads its shard from every map output, groups the members by question identity, and for
+   each question builds its node (the walk's key, its class as the class tag, the branches its constructor offers:
+   the group's for a grouped question, `group_branches`) and its state (`state14.build` on the members as one row,
+   every member live), writing the questions with their states.
+3. The judge (on this Mac: 44,001 requests, network-bound): each question asked alone, its answer cached
+   (`var/jev_cache`), so a stopped run resumes.
+4. Pass 2 reads the answers by question identity.
+
+**Checks.** On followed histories, a question's state built from the dated walk's members equals `state14.build` on
+the same members' Python records (the decoded rows equal the Python's, 002-10); every question pass 2 meets has an
+answer (pass 2 raises on one it does not); every member is live by construction (asked inside the period before a
+petition).
