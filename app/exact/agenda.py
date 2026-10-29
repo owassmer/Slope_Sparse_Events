@@ -19,9 +19,13 @@ from app.exact import fields_agenda as a
 from app.exact import fields_equity as e
 from app.exact import fields_notes as n
 
-St = namedtuple("St", "S D P takes offers atm answers parts coupons wait stays rec scratch before ln")
+St = namedtuple("St", "S D P takes offers atm answers parts coupons wait stays rec steps scratch before lockbuf ln")
 K = namedtuple("K", "N bps pending frcp frap frcp62 briefing next_bd nbd sensitive_lag DC levy_lag petition_lag "
-                    "bond_years bond_share zero_floor ec nc sched lower ldates rep_cal legal opening ops_in")
+                    "bond_years bond_share zero_floor ec nc sched lower ldates rep_cal legal opening ops_in need "
+                    "noncash claimed settle_lag settle_end settle_count months")
+# a projection's workspace (`Chain.proposed_terms`): the state at the review date, and the view it is replayed into
+WS = namedtuple("WS", "init scratch")
+D_STAY_LOCK = f.D_STAYS  # every approved stay's lock on approval and its release (Chain.lock_cash less the booked lock)
 
 ENFORCEMENT = 1  # events.PETITION_CAUSES
 CASH_FLOOR_CAUSE = 3
@@ -30,9 +34,67 @@ CASH_FLOOR_CAUSE = 3
 # --- reads ------------------------------------------------------------------------------------------------------------
 
 @njit(cache=True)
+def size_stay(st, k, j):
+    """`Chain._size_stay` on the state now: (lock, effective) for stay j approved on its approval day: the bond
+    collateral where the balance at processing less the month's need covers it, else the balance above the need; never
+    more than that balance, and nothing on or after a petition or once the dispute has ended. After `forward`."""
+    S = st.S
+    approval = st.stays[j, a.T_APPROVAL]
+    collateral = bond_collateral(st, k, approval)
+    t = min(max(approval, 0), k.N - 1)
+    cash_a = cash.processing_balance(st.D, st.ln, approval)
+    covers = cash_a - k.need[t] >= collateral
+    live = core.live(S, approval) and approval < k.N
+    offer = max(cash_a - k.need[t], 0) if live and not covers else 0
+    effective = live and (covers or offer > 0 or k.noncash)
+    if approval > S[a.PROSPECTIVE]:
+        effective = False
+    lock = (collateral if covers else offer) if effective else 0
+    return lock, effective
+
+
+@njit(cache=True)
+def restay(st, k):
+    """`Chain._stay_effects`'s bookings from the stays sized so far: each approved stay's lock on approval, released
+    when the dispute ends (on approval where it had ended by then: nothing left to stay); the day the judgment is
+    stayed, the 'stayed' mark, the lock still held. Before `forward`."""
+    S, D, N = st.S, st.D, k.N
+    D[D_STAY_LOCK, :] = 0
+    rel = S[f.RELEASE_AT]
+    stayed, amount, day, stayed_from = f.BIG, 0, f.BIG, f.BIG
+    approved = False
+    for j in range(S[a.N_STAYS]):
+        row = st.stays[j]
+        if not row[a.T_APPROVED] or not row[a.T_DONE]:
+            continue
+        approved = True
+        approval, own = row[a.T_APPROVAL], row[a.T_LOCK]
+        held = own > 0 and rel < N
+        late = held and approval >= rel
+        if 0 <= approval < N and own != 0:
+            D[D_STAY_LOCK, approval] += own
+        r = approval if late else rel
+        if held and 0 <= r < N:
+            D[D_STAY_LOCK, r] -= own
+        if row[a.T_EFFECTIVE]:
+            stayed_from = min(stayed_from, approval)
+            if 0 <= approval < N and not late:
+                stayed = min(stayed, approval)
+        amount = 0 if held else own
+        day = approval if amount > 0 else f.BIG
+    S[f.STAYED_FROM] = stayed_from
+    if approved:
+        S[f.MARK_STAYED] = stayed
+        S[f.LOCK_AMOUNT], S[f.LOCK_DAY] = amount, day
+    for t in range(N):
+        st.lockbuf[t] = D[f.D_LOCK, t] + D[D_STAY_LOCK, t]
+
+
+@njit(cache=True)
 def refresh(st, k):
     """Run the line on the event cash booked now (`Chain.processed`): the day's close, the first unpaid day, §3.3."""
-    fu, npd = cash.forward(st.S, st.D, st.D[f.D_LOCK], st.ln, st.ln.initial, 0)
+    restay(st, k)
+    fu, npd = cash.forward(st.S, st.D, st.lockbuf, st.ln, st.ln.initial, 0)
     st.S[a.CASH_FIRST_UNPAID] = fu
     st.S[a.CASH_NONPAYMENT] = npd
 
@@ -43,14 +105,19 @@ def owed(st, k, day, enforceable):
 
 
 @njit(cache=True)
+def parts(st):
+    return st.parts[:st.S[a.N_PARTS]]
+
+
+@njit(cache=True)
 def eq(st, k):
-    return st.P, st.takes, st.parts, st.offers, st.atm, k.sched, k.ec, st.scratch
+    return st.P, st.takes, parts(st), st.offers, st.atm, k.sched, k.ec, st.scratch
 
 
 @njit(cache=True)
 def atm_rebook(st, k):
     """`Chain._atm_rebook`."""
-    equity.atm_rebook(st.S, st.D, st.P, st.takes, st.parts, st.offers, st.atm, k.sched,
+    equity.atm_rebook(st.S, st.D, st.P, st.takes, parts(st), st.offers, st.atm, k.sched,
                       st.coupons[:st.S[n.N_COUPONS]], k.ec, st.scratch)
 
 
@@ -192,7 +259,7 @@ def respond(st, k, booking, day, cause, occasion):
         mark(st, k, f.MARK_SEEKING, day, core.live(S, day))
     elif booking == a.B_OFFER:
         lower = k.lower[day] if 0 <= day < k.N else 0
-        equity.initiate(S, st.D, st.P, st.takes, st.parts, st.offers, st.atm, k.sched,
+        equity.initiate(S, st.D, st.P, st.takes, parts(st), st.offers, st.atm, k.sched,
                         st.coupons[:S[n.N_COUPONS]], st.answers, k.ec, st.scratch, day, lower, occasion)
 
 
@@ -228,13 +295,22 @@ def response_day(st, k, ctx):
 
 
 @njit(cache=True)
-def new_money_after(st, prev):
-    """`Chain._new_money_after`: an offering's close after `prev` (a stay's release: slice 2)."""
+def new_money_after(st, k, prev):
+    """`Chain._new_money_after`: an offering's close after `prev`, or the release of a stay's security."""
     out = f.BIG
     for j in range(st.S[e.N_OFFERS]):
         o = st.offers[j]
         if o[e.O_CLOSED] and o[e.O_CLOSE] > prev and o[e.O_CLOSE] < out:
             out = o[e.O_CLOSE]
+    rel = st.S[f.RELEASE_AT]
+    for j in range(st.S[a.N_STAYS]):
+        row = st.stays[j]
+        if not (row[a.T_APPROVED] and row[a.T_DONE]):
+            continue
+        held = row[a.T_LOCK] > 0 and rel < k.N
+        r = row[a.T_APPROVAL] if held and row[a.T_APPROVAL] >= rel else rel
+        if held and r > prev and r < out:
+            out = r
     return out
 
 
@@ -248,7 +324,7 @@ def wait_day(st, k, node, ctx):
         prev = S[a.FLOOR0 + ctx - 1]
         if prev >= f.BIG:
             return f.BIG
-        new = new_money_after(st, prev)
+        new = new_money_after(st, k, prev)
         return cash.fall_after(st.ln, new - 1, k.zero_floor) if new < f.BIG else f.BIG
     if node == a.CASH_OUT:
         return cash.cash_out(st.ln, S[a.CASH_FIRST_UNPAID], k.zero_floor, True)
@@ -338,7 +414,7 @@ def is_distress(node):
 def decide_waiting(st, k, node, ctx, branch, t):
     S = st.S
     if node == a.OFFERING:
-        equity.offering_outcome(S, st.D, st.P, st.takes, st.parts, st.offers, st.atm, k.sched,
+        equity.offering_outcome(S, st.D, st.P, st.takes, parts(st), st.offers, st.atm, k.sched,
                                 st.coupons[:S[n.N_COUPONS]], st.answers, k.ec, st.scratch, ctx, branch == a.YES)
     elif node == a.NONPAYMENT:
         notes.decide_nonpayment(S, st.D, st.coupons, k.nc, eq(st, k), t, branch)
@@ -364,13 +440,16 @@ def record(st, k, i, t):
 
 @njit(cache=True)
 def approval_due(st, k, j):
-    """A stay's approval comes due (slice 1: a stay not approved): a denial is marked where the judgment is live and
-    owed on the approval day (`_size_unapproved`)."""
+    """A stay's approval comes due, the day's first event: an approved stay's security is sized on the state now
+    (everything dated before the day booked) and locked (`restay`); a denial is marked where the judgment is live and
+    owed on the approval day (`_size_unapproved`). After `refresh`."""
     S = st.S
     row = st.stays[j]
-    row[a.T_DONE] = 1
     if row[a.T_APPROVED]:
-        raise NotImplementedError("an approved stay: slice 2")
+        row[a.T_LOCK], row[a.T_EFFECTIVE] = size_stay(st, k, j)
+        row[a.T_DONE] = 1
+        return
+    row[a.T_DONE] = 1
     if row[a.T_MOVED]:
         day = row[a.T_APPROVAL]
         on = core.live(S, day) and day < k.N and owed(st, k, day, False) > 0
@@ -392,7 +471,7 @@ def upto(st, k, before, every, levy_day):
             if row[a.T_DONE] or not (row[a.T_APPROVED] or row[a.T_MOVED]):
                 continue
             t = row[a.T_APPROVAL]
-            if (every or (t < before and t <= levy_day)) and t < best:
+            if (every or (t <= before and t <= levy_day)) and t < best:
                 best, pick, approval = t, j, True
         for j in range(S[a.N_WAIT]):
             w = st.wait[j]
@@ -504,9 +583,8 @@ def book_step(st, k, step):
             raise ValueError("stays table exhausted")
         st.stays[j, a.T_INDEX], st.stays[j, a.T_MOTION], st.stays[j, a.T_APPROVAL] = S[a.N_STEPS], motion, approval
         st.stays[j, a.T_APPROVED], st.stays[j, a.T_MOVED], st.stays[j, a.T_DONE] = br == a.YES, br != a.NO, 0
+        st.stays[j, a.T_LOCK], st.stays[j, a.T_EFFECTIVE] = 0, 0
         S[a.N_STAYS] = j + 1
-        if br == a.YES:
-            raise NotImplementedError("an approved stay: slice 2")
         return motion
     if node == a.REGISTRATION:
         motion = S[f.E0] if ctx == 0 else S[f.F]
@@ -558,17 +636,18 @@ def book_step(st, k, step):
 
 
 @njit(cache=True)
-def advance(st, k, step):
-    """`Chain.advance`: a waiting step queues for its own day; any other first books what precedes its day (the
-    waiting decisions and writs before it, a writ on its day unless a waiting floor or levy-day response comes first),
-    then books itself, the at-the-market sales are rebooked, and its record is kept (its cash: the balance at
-    processing before its own bookings)."""
+def prepare(st, k, step):
+    """`Chain.advance` before the step books: a waiting step queues for its own day (returns -1); any other first books
+    what precedes its day (the waiting decisions, the stays' approvals and the writs before it; a writ on its day unless
+    a waiting floor or levy-day response comes first), and the balance before its own bookings is kept for its record.
+    Returns the step's index."""
     S, N = st.S, k.N
     node, ctx = step[0], step[1]
     i = S[a.N_STEPS]
     if i >= a.MAX_STEPS:
         raise ValueError("step records exhausted")
     S[a.N_STEPS] = i + 1
+    st.steps[i, :] = step
     if waits(node, ctx):
         st.rec[i, 0], st.rec[i, 1], st.rec[i, 2], st.rec[i, 3] = f.BIG, 0, 0, 0
         j = S[a.N_WAIT]
@@ -577,16 +656,26 @@ def advance(st, k, step):
         st.wait[j, a.W_INDEX], st.wait[j, a.W_NODE], st.wait[j, a.W_CTX] = i, node, ctx
         st.wait[j, a.W_BRANCH], st.wait[j, a.W_DONE] = step[2], 0
         S[a.N_WAIT] = j + 1
-        return
+        return -1
     pending_stay = False
     for j in range(S[a.N_STAYS]):
         row = st.stays[j]
         if not row[a.T_DONE] and (row[a.T_APPROVED] or row[a.T_MOVED]):
             pending_stay = True
     if S[a.N_WAIT] > 0 or S[a.N_WRITS] > 0 or pending_stay:
-        refresh(st, k)
-        d = f.BIG if answers_levy(node, ctx) else decision_day(st, k, node, ctx)
-        until(st, k, d if d < N else (N if d < f.BIG else -1))
+        while True:  # a stay's approval ahead of the step's day: what precedes it, and it, first (its day may move)
+            refresh(st, k)
+            d = f.BIG if answers_levy(node, ctx) else decision_day(st, k, node, ctx)
+            bound = d if d < N else (N if d < f.BIG else -1)
+            ahead = f.BIG
+            for j in range(S[a.N_STAYS]):
+                row = st.stays[j]
+                if not row[a.T_DONE] and (row[a.T_APPROVED] or row[a.T_MOVED]):
+                    ahead = min(ahead, row[a.T_APPROVAL])
+            if ahead > bound or ahead >= N:
+                break
+            until(st, k, ahead)
+        until(st, k, bound)
         lv = pending_levy(st)
         if not answers_levy(node, ctx) and lv < f.BIG:
             if (0 <= d < f.BIG and lv <= d and lv < N and not next_floor(st, k) < lv
@@ -595,9 +684,20 @@ def advance(st, k, step):
     refresh(st, k)
     st.before[0, :] = st.ln.outputs[0]
     st.before[1, :] = st.D[f.D_KIND_INFLOW]
-    st.before[2, :] = st.D[f.D_LOCK]
+    st.before[2, :] = st.lockbuf
     st.before[3, :] = st.D[f.D_KIND_LEVY]
-    day = book_step(st, k, step)
+    return i
+
+
+@njit(cache=True)
+def conclude(st, k, step, i, proj):
+    """`Chain.advance` after `prepare`: the step booked (`proj`: an agreed settlement's projected terms, `project`),
+    the at-the-market sales rebooked, and its record kept (its cash: the balance at processing before its bookings)."""
+    N = k.N
+    if step[0] == a.SETTLE and step[2] == a.YES:
+        day = settle(st, k, step[1], proj)
+    else:
+        day = book_step(st, k, step)
     atm_rebook(st, k)
     refresh(st, k)
     t = min(max(day, 0), N - 1)
@@ -606,6 +706,140 @@ def advance(st, k, step):
     st.rec[i, 1] = prev + k.ops_in[t] + st.before[1, t] - st.before[2, t] + st.before[3, t]
     st.rec[i, 2] = owed(st, k, day, False)
     st.rec[i, 3] = collateral_before(st, k, day)
+
+
+NO_PROJECTION = (False, 0, 0)
+
+
+@njit(cache=True)
+def advance_plain(st, k, step):
+    """`advance` in a projection's view: an agreed settlement there is an earlier commitment, which no later
+    settlement question can follow (the agreement ends the dispute)."""
+    i = prepare(st, k, step)
+    if i < 0:
+        return
+    if step[0] == a.SETTLE and step[2] == a.YES:
+        raise NotImplementedError("an agreed settlement before a settlement question")
+    conclude(st, k, step, i, NO_PROJECTION)
+
+
+@njit(cache=True)
+def advance(st, k, step, ws):
+    """`Chain.advance`."""
+    i = prepare(st, k, step)
+    if i < 0:
+        return
+    proj = NO_PROJECTION
+    if step[0] == a.SETTLE and step[2] == a.YES:
+        start, end = settlement_window(st, k, step[1])
+        pd = end if k.settle_end else start + k.settle_lag
+        got = project(st, k, ws, i, max(start, 0), pd, False)
+        proj = (got[6], got[1], got[3])
+    conclude(st, k, step, i, proj)
+
+
+@njit(cache=True)
+def months_after(k, day, m):
+    return k.months[day, m] if 0 <= day < k.N else day
+
+
+@njit(cache=True)
+def settle(st, k, ctx, proj):
+    """`Chain.settle`, agreed (a pending claim, installments): the cash above the month's need on the settlement date,
+    as projected from the state on the decision day (`proj`: live, cash, owed), capped at the amount owed (before the
+    verdict, the amount claimed); paid in equal monthly installments from the settlement date, the claim released on
+    it, only where the amount is positive. Returns the decision day."""
+    S, N = st.S, k.N
+    start, end = settlement_window(st, k, ctx)
+    pd = end if k.settle_end else start + k.settle_lag
+    live, cash_p, owed_p = proj
+    ok = live and pd < N and start < N
+    need = k.need[min(max(pd, 0), N - 1)]
+    cap = k.claimed if ctx == 0 else owed_p
+    bound = min(max(cash_p - need, 0), cap) if ok else 0
+    ok = ok and bound > 0
+    count = k.settle_count
+    for m in range(count):
+        part = (bound // count + (bound % count if m == count - 1 else 0)) if ok else 0
+        day = months_after(k, pd, m)
+        core.pay(S, st.D, day, -part, f.D_KIND_SETTLEMENT, f.INCURRED_SETTLEMENT, pd)
+        j = S[a.N_PARTS]
+        if j >= a.MAX_PARTS:
+            raise ValueError("settlement parts table exhausted")
+        st.parts[j, 0], st.parts[j, 1] = day, part
+        S[a.N_PARTS] = j + 1
+    resolve(st, k, pd, ok and core.live(S, pd))
+    mark(st, k, f.MARK_SETTLED, pd, ok)
+    atm_rebook(st, k)
+    return f.BIG if end < 0 else max(start, 0)
+
+
+@njit(cache=True)
+def copy_into(dst, src):
+    """dst <- src, every array of the state (the line's buffers are each state's own scratch)."""
+    dst.S[:] = src.S
+    dst.D[:] = src.D
+    dst.P[:] = src.P
+    dst.takes[:] = src.takes
+    dst.offers[:] = src.offers
+    dst.atm[:] = src.atm
+    dst.answers[:] = src.answers
+    dst.parts[:] = src.parts
+    dst.coupons[:] = src.coupons
+    dst.wait[:] = src.wait
+    dst.stays[:] = src.stays
+    dst.rec[:] = src.rec
+    dst.steps[:] = src.steps
+    dst.lockbuf[:] = src.lockbuf
+
+
+@njit(cache=True)
+def project(st, k, ws, upto_index, decision, payment, processing):
+    """`Chain.proposed_terms` on this draw: the history replayed from the review date with only the answers reached by
+    the decision day (a step dated after it left out; a court's answer due after it not given: a stay not approved, a
+    registration not ordered, an appealed enforcement without its order), the waiting answers dropped, and the state
+    run to the payment day through what is already ordered (the writs). Returns (day, cash, need, owed, collateral,
+    offer, live) on the payment day; cash: its close (processing: its balance at processing, a stay's security)."""
+    S, N = st.S, k.N
+    view = ws.scratch
+    copy_into(view, ws.init)
+    for j in range(upto_index):
+        step = st.steps[j].copy()
+        node, br = step[0], step[2]
+        if st.rec[j, 0] > decision:
+            continue
+        if node == a.SETTLE and br != a.YES:
+            continue
+        if node == a.STAY:
+            approval = f.BIG
+            for q in range(S[a.N_STAYS]):
+                if st.stays[q, a.T_INDEX] == j:
+                    approval = st.stays[q, a.T_APPROVAL]
+            if approval > decision and br != a.NO:
+                step[2] = a.DENIED
+        elif node == a.REGISTRATION:
+            motion = S[f.E0] if step[1] == 0 else S[f.EF]
+            lag = k.DC[core.DC_LAG_REG_I1] if step[1] == 0 else k.DC[core.DC_LAG_REG_POST]
+            if motion + k.briefing + lag > decision:
+                step[2] = a.NO
+        elif node == a.ENFORCE and S[f.APPEALED]:
+            order = S[f.EF] + k.briefing + k.DC[core.DC_LAG_REG_POST]
+            if order > decision and S[f.EARLY_REGISTRATION] > decision:
+                step[2] = a.E_NONE
+        advance_plain(view, k, step)
+    until(view, k, decision)
+    view.S[a.N_WAIT] = 0
+    view.S[a.PROSPECTIVE] = decision
+    until(view, k, payment if payment < N else -1)
+    refresh(view, k)
+    t = min(max(payment, 0), N - 1)
+    cash_p = cash.processing_balance(view.D, view.ln, payment) if processing else cash.cash_at(view.ln, payment)
+    owed_p = owed(view, k, payment, False)
+    need = k.need[t]
+    collateral = bond_collateral(view, k, payment)
+    live = core.live(view.S, payment) and payment < N
+    offer = max(cash_p - need, 0) if live and cash_p - need < collateral else 0
+    return payment, cash_p, need, owed_p, collateral, offer, live
 
 
 @njit(cache=True)

@@ -5,7 +5,14 @@ from __future__ import annotations
 import numpy as np
 
 from app.analysis import baby_shelf
-from app.analysis.events import DISTRESS_BOOKINGS, pending_template, plain, pval, verdict_amount
+from app.analysis.events import (
+    DISTRESS_BOOKINGS,
+    pending_template,
+    plain,
+    pval,
+    settlement_terms,
+    verdict_amount,
+)
 from app.exact import agenda, cash, core, export_equity, export_notes
 from app.exact import fields as f
 from app.exact import fields_agenda as a
@@ -30,6 +37,9 @@ def constants(ch, r: int) -> agenda.K:
               else m["parameters"]["bond_collateral_share_bps"]["value"]) / 10_000)
     dates = export_notes.listing_dates(ch)
     ln = cash.line_for(ch, r)
+    mode, count = settlement_terms(m, sens)
+    if mode != "installments":
+        raise NotImplementedError(f"settlement terms {mode}: the dated walk books installments")
     return agenda.K(
         N=int(ch.N), bps=int(ch.bps), pending=True, frcp=case.frcp_50b_59, frap=case.frap_4a1a, frcp62=case.frcp_62a,
         briefing=case.briefing_days, next_bd=case.entry_next_business_day, nbd=int(core.entry_days(ch)[r]),
@@ -41,22 +51,37 @@ def constants(ch, r: int) -> agenda.K:
         lower=baby_shelf.year_start(ch, np.arange(ch.N)).astype(np.int64), ldates=dates,
         rep_cal=export_notes.repurchase_calendar(ch, [int(dates[n.DELIST_SUSP]), int(dates[n.DELIST_PANEL])]),
         legal=np.ascontiguousarray(ch.basis.legal[r], dtype=np.int64), opening=int(ch.basis.opening),
-        ops_in=ln.ops_in), ln
+        ops_in=ln.ops_in, need=np.ascontiguousarray(ch.basis.need[r], dtype=np.int64),
+        noncash=p("stay_security") == "noncash", claimed=int(ch.claimed()),
+        settle_lag=int(m["parameters"]["settlement_date_in_interval"]["value"]),
+        settle_end=bool(sens.get("settlement_date_in_interval")), settle_count=count,
+        months=np.array([[ch.months_after(np.array([t]), q)[0] for q in range(count)] for t in range(ch.N)],
+                        dtype=np.int64).reshape(ch.N, count)), ln
 
 
 def state(ch, r: int, ln) -> agenda.St:
     """The draw's state as the chain holds it (at the review date: after `instrument_cash`)."""
     S, D, P, takes, offers, atm, answers, parts, coupons = export_notes.notes_state(ch, r, OCCASION_IDS)
+    if len(ch.stays) or ch.waiting or ch._pending_writs or len(parts):
+        raise ValueError("the dated walk starts from the review date's state: no step walked")
     S[a.N_WRITS:a.WRITS0 + a.MAX_WRITS] = 0
     for k in range(1, a.MAX_FLOORS + 1):
         S[a.FLOOR0 + k] = f.BIG
-    S[a.CASH_FIRST_UNPAID] = S[a.CASH_NONPAYMENT] = f.BIG
+    S[a.CASH_FIRST_UNPAID] = S[a.CASH_NONPAYMENT] = S[a.PROSPECTIVE] = f.BIG
+    S[a.N_PARTS] = 0
     return agenda.St(S=S, D=np.ascontiguousarray(D), P=np.ascontiguousarray(P), takes=takes, offers=offers, atm=atm,
-                     answers=answers, parts=parts, coupons=coupons,
+                     answers=answers, parts=np.zeros((a.MAX_PARTS, 2), np.int64), coupons=coupons,
                      wait=np.zeros((a.MAX_WAIT, a.WCOLS), np.int64), stays=np.zeros((a.MAX_STAYS, a.TCOLS), np.int64),
-                     rec=np.zeros((a.MAX_STEPS, 4), np.int64), scratch=np.zeros(len(export_equity.atm_schedule(ch)),
-                                                                                np.int64),
-                     before=np.zeros((4, ch.N), np.int64), ln=ln)
+                     rec=np.zeros((a.MAX_STEPS, 4), np.int64), steps=np.zeros((a.MAX_STEPS, a.STEP_COLS), np.int64),
+                     scratch=np.zeros(len(export_equity.atm_schedule(ch)), np.int64),
+                     before=np.zeros((4, ch.N), np.int64), lockbuf=np.zeros(ch.N, np.int64), ln=ln)
+
+
+def workspace(ch, r: int, st: agenda.St) -> agenda.WS:
+    """A projection's workspace on the draw: the state at the review date and a view with its own line buffers."""
+    init = agenda.St(*(x.copy() if isinstance(x, np.ndarray) else x for x in st))
+    view = agenda.St(*(x.copy() if isinstance(x, np.ndarray) else x for x in st[:-1]), cash.line_for(ch, r))
+    return agenda.WS(init=init, scratch=view)
 
 
 def encode(ch, step) -> np.ndarray:

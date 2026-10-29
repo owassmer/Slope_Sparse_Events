@@ -17,6 +17,9 @@ N_STAYS = S_DISTRESS + 2      # rows used in the stays table (Chain.stays)
 N_STEPS = S_DISTRESS + 3      # steps walked (len(Chain.rec[0]))
 CASH_FIRST_UNPAID = S_DISTRESS + 5  # the last cash run's first unpaid day (Chain.processed()[1])
 CASH_NONPAYMENT = S_DISTRESS + 6   # the last cash run's §3.3 day (Chain.processed()[2])
+PROSPECTIVE = S_DISTRESS + 7  # a projection's decision day (Chain._prospective_before; BIG: not a projection)
+N_PARTS = S_DISTRESS + 8      # rows used in the settlement parts table (Chain.settlement_parts)
+MAX_PARTS = 48                # an agreed settlement's installments (12); a second agreement cannot follow one
 FLOOR0 = S_DISTRESS + 10      # Chain.floor_days[k] at FLOOR0 + k (BIG: not decided), k = 1..MAX_FLOORS
 MAX_FLOORS = 16               # a later fall needs new money after the last (an offering's close, a stay's release):
 #                               at most the two initiations and the stays, so far fewer than 16
@@ -30,8 +33,9 @@ WCOLS = 5
 MAX_WAIT = 32
 
 # --- the stays table (Chain.stays): motion, approval, the answer ------------------------------------------------------
-T_INDEX, T_MOTION, T_APPROVAL, T_APPROVED, T_MOVED, T_DONE = range(6)  # T_DONE: its approval item processed
-TCOLS = 6
+# T_DONE: its approval processed; T_LOCK: the security it locks, sized then; T_EFFECTIVE: the stay took effect
+T_INDEX, T_MOTION, T_APPROVAL, T_APPROVED, T_MOVED, T_DONE, T_LOCK, T_EFFECTIVE = range(8)
+TCOLS = 8
 MAX_STAYS = 8
 
 # --- each step's record (Chain.rec): day, cash, owed, collateral -------------------------------------------------------
