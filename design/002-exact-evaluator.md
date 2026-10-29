@@ -228,3 +228,46 @@ cash (no motion, a denied motion) stay apart where the judge reads them apart: i
 2. stays (motion, approval, security, the court's read) and settlements (window, projection, installments);
 3. the cursors (`_pending`, `_cursors`), the constructors as split decisions (`forecast._Walk`: which questions,
    answers and option groups, keys and situation classes) and pass 1.
+
+## The walk, compiled (slice 3, 29 October)
+
+**What it is.** `ChronologicalWalk` (app/disputes/chronological.py) on one draw: at each point the decisions the
+answers so far leave open (`_pending`, `_cursors`), each dated on the state now (`Chain.decision_day`), the earliest
+taken (`frontier.select`'s phases), the deterministic items (the levy, the answered decisions waiting for their day,
+a stay's approval) booked by the agenda, a question asked by its constructor (`_ask` → the `_Walk` method of its kind),
+and each answer's child walked, the state pushed before and popped after. The chronological walk overrides every
+`_Walk` continuation to return to the scheduler, so a constructor is one decision: its questions, its answers (with
+their edges and option groups) and the path flags (`_S`) each answer sets. That is what is ported, constructor by
+constructor: `settle`, `verdict`, `motions`, `q1`, `stay_i1`/`stay_post` (`stay_answers`), `j9_i1`, `appeal`,
+`enforce`, `a4_grouped` with `offer`, `ruling_pending`, `notes_petition`, `listing`, `delisting`, `ask_distress`,
+`nonpayment`, and the recurrence bounds (`_ask`'s `bounds.reached`).
+
+**Per draw, not per population.** The Python asks a question when it arises on some draw of the population and
+takes population-wide decisions in a few places (`settle`'s feasibility, `_closes_after`, `inside`, the option groups
+offered, the depth rule's watch). Per draw each becomes the draw's own condition. Figures are unchanged where the
+answer not asked books nothing on the draw (the depth rule's premise); which draws contribute records to a question
+can differ (item 7 above); the fidelity check measures it.
+
+**Not ported.** `joined` and `unfiled` merge sibling answers that book and read the same; the exact evaluator sums
+every history, so both are walked and their probabilities add (the merged edge is the union of the same disjoint
+conjunctions). `first`, `_first_ripe`, `_first_listing` and `_first_distress` are disabled in the chronological walk.
+
+**The depth rule** (`_watched`: the pre-ruling execution and the appeal are asked only where a later question reads
+them): the no-answer subtree is walked first with a watch; where a later question reads the event on the draw, the
+question is asked: the yes-answer subtree is walked and the no-subtree's accumulations are multiplied by the no
+answer's probability (pass 2 sums are linear in each history's weight, so this is exact); elsewhere the no-subtree
+stands with weight 1.
+
+**Question identity.** A question's key is its structural key (the node and its context: the interval, the amount
+class `_S.cls`, the occasion, the stage) and its class on the draw (the record's situation class: the judgment's band
+and standing, the notes, the listing, the offering, payment, the appeal and stay status where the question reads them,
+the context conditions held, the option group). The compiled walk emits integers: a structural key id (from a table
+built in Python from the case's vocabulary before the walk) and a class vector; Python renders both to the key and
+class strings `forecast` and `state14` use. A question's record (the dated facts state14 renders) is a fixed-width
+numeric row taken when its item comes up.
+
+**Checks.** Replay against the Python walk: every oracle history (`oracle.histories`: chronological-walk paths, both
+styles) driven through the compiled walk on each of its draws: at each step the compiled frontier selects the
+history's decision, constructs the same questions (structural keys), the same answer set and option groups, and the
+history's answer's edges; at the end each classed question's class on the draw equals the path's
+(`DisputePath.classes`). Then pass 1 on whole draws, with the count of distinct questions.
