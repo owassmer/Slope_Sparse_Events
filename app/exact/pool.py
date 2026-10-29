@@ -143,8 +143,8 @@ class _View:
 
 
 def states_of(fc, d, q: np.ndarray, klass: str, ints: np.ndarray, floats: np.ndarray, draws: np.ndarray, qt,
-              tk=None) -> list[tuple[str, dict]]:
-    """A question's node key and state, from its members (in a fixed order: by draw, then record), each read with its
+              tk=None) -> list[tuple[str, dict, tuple]]:
+    """A question's node key, state and the findings it cites, from its members (in a fixed order: by draw, then record), each read with its
     own draw's operating figures: one, or the verdict form's questions (each its own key, read on the same members).
     Every member must be one on which the question's situation holds (`Forecaster.live`)."""
     row = rows_of(ints, floats)
@@ -163,8 +163,8 @@ def states_of(fc, d, q: np.ndarray, klass: str, ints: np.ndarray, floats: np.nda
                 raise ValueError(f"{node}: {int((~live).sum())} of {len(live)} members on which the question does "
                                  "not arise")
             fc.facts[node] = [row]
-            st, _, _ = fc.state(fc.nodes[node])
-            out.append((node, st))
+            st, fids, _ = fc.state(fc.nodes[node])
+            out.append((node, st, fids))
     finally:
         fc.draws = real
     return out
@@ -178,10 +178,16 @@ def load(map_dir: Path, shard: int) -> dict[str, np.ndarray]:
     return {k: np.concatenate([p[k] for p in parts]) for k in parts[0].files}
 
 
-def reduce(fc, d, qt, members: dict[str, np.ndarray], out, log=print, tk=None) -> int:
-    """Each question of the members (by identity): its state, one JSON line to `out`. Returns how many. The members
+def reduce(fc, d, qt, members: dict[str, np.ndarray], out, log=print, tk=None, shared: dict | None = None) -> int:
+    """Each question of the members (by identity): its state, one JSON line to `out`: the state's own parts (its
+    question and situation) and, by its digest, its shared parts (the case, the standard, the record items and the
+    evidence, the same for every question about one decision: kept once in `shared`). Returns how many. The members
     are taken by question, then draw, then record digest, so a question's state does not depend on how the map split
     them (`state14.medoid` breaks ties by order)."""
+    from app.agent.decisions import split_state
+    from app.agent.jev import canonical_sha256
+
+    shared = {} if shared is None else shared
     ids = members["ids"][:, 1]
     order = np.lexsort((members["ids"][:, 0], members["draw"], ids))
     bounds = np.flatnonzero(np.diff(ids[order])) + 1
@@ -189,13 +195,17 @@ def reduce(fc, d, qt, members: dict[str, np.ndarray], out, log=print, tk=None) -
     for sel in np.split(order, bounds):
         q, code = members["rows"][sel[0]], members["cls"][sel[0]]
         klass = "" if q[w.QN] == w.Q_VERDICT else question_keys.situation_class(q, code, qt)
-        for key, st in states_of(fc, d, q, klass, members["ints"][sel], members["floats"][sel],
-                                 members["draw"][sel], qt, tk):
+        for key, st, fids in states_of(fc, d, q, klass, members["ints"][sel], members["floats"][sel],
+                                       members["draw"][sel], qt, tk):
             n = fc.nodes[key]
+            common, own = split_state(json.loads(json.dumps(st, default=str)))
+            digest = canonical_sha256(common)
+            shared.setdefault(digest, common)
             out.write(json.dumps({"id": int(ids[sel[0]]), "key": key, "question_id": n.question_id,
-                                  "branches": list(n.branches), "members": len(sel),
-                                  "draws": int(np.unique(members["draw"][sel]).size), "state": st},
-                                 default=str) + "\n")
+                                  "instance_id": n.instance_id, "findings": list(fids), "verdict": klass == "",
+                                  "branches": list(n.branches), "answers": int(q[w.QNANS]), "members": len(sel),
+                                  "draws": int(np.unique(members["draw"][sel]).size), "shared": digest,
+                                  "order": list(st), "own": own}) + "\n")
             count += 1
     log(f"{count} questions")
     return count
@@ -226,8 +236,16 @@ def main(argv=None) -> None:
     fc, d, qt, tk = context()
     members = load(map_dir, shard)
     out.parent.mkdir(parents=True, exist_ok=True)
+    shared: dict = {}
     with out.open("w") as fh:
-        reduce(fc, d, qt, members, fh, log=lambda s: print(s, flush=True), tk=tk)
+        reduce(fc, d, qt, members, fh, log=lambda s: print(s, flush=True), tk=tk, shared=shared)
+    out.with_suffix(".shared.json").write_text(json.dumps(shared))
+
+
+def state(line: dict, shared: dict) -> dict:
+    """A question's state from its reduce line and the shared parts, its keys in the order the builder wrote them."""
+    parts = {**shared[line["shared"]], **line["own"]}
+    return {k: parts[k] for k in line["order"]}
 
 
 if __name__ == "__main__":

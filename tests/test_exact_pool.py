@@ -11,19 +11,20 @@ from app.exact import pass1, pool
 def test_every_question_of_a_draw_has_its_state(tmp_path):
     fc, d, qt, tk = pool.context()
     got = pass1.questions_on(fc, d, [365], shards=4, out_dir=tmp_path, log=lambda s: None)
-    lines, ids, members_seen = [], set(), 0
+    lines, ids, members_seen, shared = [], set(), 0, {}
     for shard in range(4):
         members = pool.load(tmp_path, shard)
         assert (pass1.shard_of(members["ids"][:, 1], 4) == shard).all()
         ids |= set(members["ids"][:, 1].tolist())
         members_seen += len(members["ids"])
         out = io.StringIO()
-        pool.reduce(fc, d, qt, members, out, log=lambda s: None, tk=tk)
+        pool.reduce(fc, d, qt, members, out, log=lambda s: None, tk=tk, shared=shared)
         lines += [json.loads(x) for x in out.getvalue().splitlines()]
     assert members_seen == got["draws"][365]["members"]
     assert {x["id"] for x in lines} == ids
     for x in lines:
-        assert x["state"]["question"]["text"]
+        st = pool.state(x, shared)
+        assert st["question"]["text"] and list(st) == x["order"]
 
 
 def test_what_each_question_is_asked_on_is_the_walks():

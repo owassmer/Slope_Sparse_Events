@@ -111,3 +111,26 @@ def verdict_probs(fc, d, dist) -> np.ndarray:
     if abs(p.sum() - 1) > 1e-9:
         raise ValueError(f"the verdict classes' probabilities sum to {p.sum()}, not one")
     return p
+
+
+def from_answers(path) -> tuple[np.ndarray, np.ndarray, dict]:
+    """The judge's answers (`judge.answer_all`) as pass 2 reads them: each question identity's distribution over its
+    answers in the walk's order (qhash, qprob), and the verdict form's questions' answers by key (`verdict_probs`)."""
+    import json
+    from pathlib import Path
+
+    ids, probs, verdict = [], [], {}
+    for text in Path(path).open():
+        a = json.loads(text)
+        if a["verdict"]:
+            verdict[a["key"]] = dict(zip(a["branches"], a["distribution"], strict=True))
+            continue
+        p = np.zeros(tree.MAX_ANS)
+        p[:len(a["distribution"])] = a["distribution"]
+        ids.append(a["id"])
+        probs.append(p)
+    qhash = np.array(ids, dtype=np.int64)
+    if len(np.unique(qhash)) != len(qhash):
+        raise ValueError("a question identity answered twice")
+    order = np.argsort(qhash)
+    return qhash[order], np.array(probs)[order], verdict
