@@ -134,10 +134,22 @@ def render(q: np.ndarray, code: np.ndarray, qt) -> str:
     return key + "\t" + question_keys.situation_class(q, code, qt)
 
 
-def shard_of_question(rkey: str, shards: int) -> int:
+def _digest(rkey: str) -> bytes:
     import hashlib
 
-    return int.from_bytes(hashlib.sha256(rkey.encode()).digest()[:8], "big") % shards
+    return hashlib.sha256(rkey.encode()).digest()[:8]
+
+
+def shard_of_question(rkey: str, shards: int) -> int:
+    return int.from_bytes(_digest(rkey), "big") % shards
+
+
+def question_id(rkey: str) -> int:
+    """A rendered question's 64-bit identity (its text can run to tens of thousands of characters: the verdict form)."""
+    return int.from_bytes(_digest(rkey), "big", signed=True)
+
+
+HEAVY = Path("var/walk-population/questions")  # the run workflow keeps `*.pkl*` there on GitHub (`heavy-*` artifacts)
 
 
 def reshard(src: Path, out: Path, shards: int, qt) -> None:
@@ -154,15 +166,14 @@ def reshard(src: Path, out: Path, shards: int, qt) -> None:
             if int(i) not in rendered:
                 rendered[int(i)] = render(part["rows"][f], part["cls"][f], qt)
             names[j] = rendered[int(i)]
-        member_names = names[inverse]
+        qids = np.array([question_id(x) for x in names], dtype=np.int64)[inverse]
         shard = np.array([shard_of_question(x, shards) for x in names], dtype=np.int64)[inverse]
         for s in np.unique(shard):
             sel = shard == s
-            parts.setdefault(int(s), []).append({**{k: part[k][sel] for k in part.files},
-                                                 "question": member_names[sel].astype(str)})
+            parts.setdefault(int(s), []).append({**{k: part[k][sel] for k in part.files}, "question": qids[sel]})
     Path(out).mkdir(parents=True, exist_ok=True)
     for s, ps in parts.items():
-        np.savez_compressed(Path(out) / f"questions-{s:03d}.npz",
+        np.savez_compressed(Path(out) / f"questions-{s:03d}.pkl.npz",
                             **{k: np.concatenate([p[k] for p in ps]) for k in ps[0]})
 
 
@@ -170,12 +181,10 @@ def load(map_dir: Path, shard: int, shards: int, qt) -> dict[str, np.ndarray]:
     """The members of the questions (as rendered: `render`) that fall to this shard, from every map line's files: each
     member once (a question, a draw and a record), with its question and the walk identity it was found under. Filed
     by question already (`reshard`, or pass 1 with `render`): only this shard's files are read."""
-    filed = sorted(Path(map_dir).rglob(f"questions-{shard:03d}.npz"))
+    filed = sorted(Path(map_dir).rglob(f"questions-{shard:03d}*.npz"))
     if filed:
         parts = [np.load(p) for p in filed]
-        out = {k: np.concatenate([p[k] for p in parts]) for k in parts[0].files}
-        out["question"] = out["question"].astype(object)
-        return _once(out)
+        return _once({k: np.concatenate([p[k] for p in parts]) for k in parts[0].files})
     rendered: dict[int, str] = {}
     keep: dict[str, list] = {}
     files = sorted(Path(map_dir).rglob("members-*.npz"))
@@ -191,13 +200,13 @@ def load(map_dir: Path, shard: int, shards: int, qt) -> dict[str, np.ndarray]:
             i = int(i)
             if i not in rendered:
                 rendered[i] = render(part["rows"][f], part["cls"][f], qt)
-            names[j] = rendered[i]
-            mine[j] = shard_of_question(names[j], shards) == shard
+            names[j] = question_id(rendered[i])
+            mine[j] = shard_of_question(rendered[i], shards) == shard
         sel = mine[inverse]
         if sel.any():
             for k in part.files:
                 keep.setdefault(k, []).append(part[k][sel])
-            keep.setdefault("question", []).append(names[inverse][sel])
+            keep.setdefault("question", []).append(names[inverse][sel].astype(np.int64))
     return _once({k: np.concatenate(v) for k, v in keep.items()})
 
 

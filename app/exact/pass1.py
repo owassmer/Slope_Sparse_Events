@@ -178,7 +178,7 @@ def questions_on(fc_all, d, draws, forced=(), log=print, shards: int = 0, out_di
     """Pass 1 on `draws` (indices among the 512), the case's tables from the whole population (`fc_all`: the award
     partition is the case's, never a subset's): each draw's tree size, the distinct questions as the judge reads them
     (the rendered key and situation class: `question_keys`), the watched keys read (`depth`); with `shards`, each
-    draw's members written to `out_dir`, split by question identity (`shard_of`)."""
+    draw's members written to `out_dir`, filed by question as the judge reads it (`pool.render`)."""
     import time
 
     from app.analysis.events import Chain
@@ -207,8 +207,8 @@ def questions_on(fc_all, d, draws, forced=(), log=print, shards: int = 0, out_di
 
             names = {int(i): pool.render(mem.rows[j], mem.cls[j], qt) for i, j in
                      zip(mem.ids[first, 1], first, strict=True)}
-            member_names = np.array([names[int(i)] for i in mem.ids[:, 1]], dtype=str)
-            shard = np.array([pool.shard_of_question(x, shards) for x in member_names], dtype=np.int64)
+            member_names = np.array([pool.question_id(names[int(i)]) for i in mem.ids[:, 1]], dtype=np.int64)
+            shard = np.array([pool.shard_of_question(names[int(i)], shards) for i in mem.ids[:, 1]], dtype=np.int64)
             for s in range(shards):
                 sel = shard == s
                 parts.setdefault(s, []).append((np.full(int(sel.sum()), int(draw), np.int16), mem.rows[sel],
@@ -223,7 +223,7 @@ def questions_on(fc_all, d, draws, forced=(), log=print, shards: int = 0, out_di
 
         for s, ps in parts.items():
             cols = [np.concatenate(c) for c in zip(*ps, strict=True)]
-            np.savez_compressed(Path(out_dir) / f"questions-{s:03d}.npz", draw=cols[0], rows=cols[1], cls=cols[2],
+            np.savez_compressed(Path(out_dir) / f"questions-{s:03d}.pkl.npz", draw=cols[0], rows=cols[1], cls=cols[2],
                                 ids=cols[3], ints=cols[4], floats=cols[5], question=cols[6])
     return out
 
@@ -235,7 +235,8 @@ def shard_of(ids: np.ndarray, shards: int) -> np.ndarray:
 
 def main(argv=None) -> None:
     """`python -m app.exact.pass1 <first> <last> <out dir> [<shards> [<forced keys file>]]`: pass 1 on draws first..last
-    (inclusive), its summary to <out dir>/pass1-<first>.json and, with shards, its members split by question."""
+    (inclusive), its summary to <out dir>/pass1-<first>.json and, with shards, its members filed by question under
+    `pool.HEAVY` (kept on GitHub)."""
     import json
     import sys
     from pathlib import Path
@@ -246,10 +247,13 @@ def main(argv=None) -> None:
     first, last, out_dir = int(args[0]), int(args[1]), Path(args[2])
     shards = int(args[3]) if len(args) > 3 else 0
     forced = set(json.loads(Path(args[4]).read_text())) if len(args) > 4 else set()
+    from app.exact.pool import HEAVY
+
     out_dir.mkdir(parents=True, exist_ok=True)
+    HEAVY.mkdir(parents=True, exist_ok=True)
     fc_all, d = oracle._forecaster()
     got = questions_on(fc_all, d, range(first, last + 1), forced=forced, log=lambda s: print(s, flush=True),
-                       shards=shards, out_dir=out_dir)
+                       shards=shards, out_dir=HEAVY)  # the members stay on GitHub (`heavy-*`); the summary comes back
     (out_dir / f"pass1-{first:03d}.json").write_text(json.dumps(
         {"draws": got["draws"], "questions": sorted(got["questions"]), "reads": sorted(got["reads"]),
          "forced": sorted(forced)}))
