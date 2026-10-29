@@ -18,11 +18,12 @@ from collections import namedtuple
 import numpy as np
 from numba import njit
 
-from app.exact import agenda, cash, core, equity, notes, walk
+from app.exact import agenda, cash, core, equity, notes, qrecord, walk
 from app.exact import fields as f
 from app.exact import fields_agenda as a
 from app.exact import fields_equity as e
 from app.exact import fields_notes as n
+from app.exact import fields_record as fr
 from app.exact import fields_walk as w
 
 BIG = f.BIG
@@ -32,20 +33,40 @@ BIG = f.BIG
 # conditions (bitmask over events.MARKS); the offering bound; the holders' notice lag
 TK = namedtuple("TK", "listing verdicts reduced conds bound notice")
 
-# --- the questions, as pass 1 emits them -------------------------------------------------------------------------------
-QNODES = ("settlement_offer", "settlement_accept", "verdict", "post_trial_motions", "execute_pre_ruling",
-          "stay_motion", "stay_approved", "registration_early", "appeal", "enforce_after_final", "judgment_response",
-          "offering_closes", "post_trial_ruling", "remittitur_elected", "holders_act_judgment", "petition_on_notes",
-          "holders_involuntary", "bid_compliance", "hearing_request", "holders_act_delisting", "financing_at_floor",
-          "petition_cash_out")
-(Q_SETTLE_OFFER, Q_SETTLE_ACCEPT, Q_VERDICT, Q_MOTIONS, Q_EXECUTE, Q_STAY_MOTION, Q_STAY_APPROVED, Q_REGISTRATION,
- Q_APPEAL, Q_ENFORCE, Q_RESPONSE, Q_OFFERING, Q_RULING, Q_REMITTITUR, Q_HOLDERS_ACT, Q_PETITION_NOTES, Q_HOLDERS_INV,
- Q_BID, Q_HEARING, Q_HOLDERS_DELIST, Q_FLOOR, Q_CASH_OUT) = range(len(QNODES))
-# an occurrence: node, context (the interval, phase, occasion or origin), amount class (kind, value), extra (the
-# response's 'after'; 'entered_not_acted'; the remittitur's booked amount; enforce's 'appealed'), option group, day
-QCOLS = 8
-QN, QCTX, QCLS_KIND, QCLS_VALUE, QEXTRA, QGROUP, QDAY, QDEPTH = range(QCOLS)
-ORIGIN_NONPAYMENT = 4
+from app.exact.fields_walk import (  # noqa: E402  (the questions' vocabulary)
+    ORIGIN_NONPAYMENT,
+    Q_APPEAL,
+    Q_BID,
+    Q_CASH_OUT,
+    Q_ENFORCE,
+    Q_EXECUTE,
+    Q_FLOOR,
+    Q_HEARING,
+    Q_HOLDERS_ACT,
+    Q_HOLDERS_DELIST,
+    Q_HOLDERS_INV,
+    Q_MOTIONS,
+    Q_OFFERING,
+    Q_PETITION_NOTES,
+    Q_REGISTRATION,
+    Q_REMITTITUR,
+    Q_RESPONSE,
+    Q_RULING,
+    Q_SETTLE_ACCEPT,
+    Q_SETTLE_OFFER,
+    Q_STAY_APPROVED,
+    Q_STAY_MOTION,
+    Q_VERDICT,
+    QCLS_KIND,
+    QCLS_VALUE,
+    QCOLS,
+    QCTX,
+    QDAY,
+    QDEPTH,
+    QEXTRA,
+    QGROUP,
+    QN,
+)
 
 # --- answers ----------------------------------------------------------------------------------------------------------
 MAX_ANS = 8
@@ -664,10 +685,35 @@ def watch_key(S, d):
 
 
 @njit(cache=True)
-def explore(st, k, wk, tk, ws, sk, out, budget, forced, reads):
-    """Pass 1 on the draw: every question occurrence (`out`, QCOLS columns; counted past its size) and the tree's size.
-    forced: the watched questions' keys (sorted) asked wherever they arise, because their answer was read on some
-    draw; reads: the keys read on this draw (written). Returns (questions, nodes, leaves, deepest, reads written)."""
+def digest(ints, floats):
+    """A record's 64-bit digest (FNV-1a over its integers and its floats' bits)."""
+    h = np.uint64(14695981039346656037)
+    p = np.uint64(1099511628211)
+    for x in ints:
+        h = (h ^ np.uint64(x & 0xFFFFFFFFFFFFFFFF)) * p
+    for x in floats:
+        h = (h ^ np.float64(x).view(np.uint64)) * p
+    return np.int64(h)
+
+
+@njit(cache=True)
+def take(st, k, ws, q, out, cls_out, dig, nq, ints, floats, code):
+    """Keep question occurrence q: its row, its class and its record's digest (counted past the buffers' size)."""
+    qrecord.question(st, k, ws.scratch, q, ints, floats)
+    qrecord.klass(q, ints, code)
+    if nq < out.shape[0]:
+        out[nq] = q
+        cls_out[nq] = code
+        dig[nq] = digest(ints, floats)
+    return nq + 1
+
+
+@njit(cache=True)
+def explore(st, k, wk, tk, ws, sk, out, cls_out, dig, budget, forced, reads):
+    """Pass 1 on the draw: every question occurrence (`out`, QCOLS columns; its class `cls_out`; its record's digest
+    `dig`; counted past their size) and the tree's size. forced: the watched questions' keys (sorted) asked wherever
+    they arise, because their answer was read on some draw; reads: the keys read on this draw (written). Returns
+    (questions, nodes, leaves, deepest, reads written)."""
     S = st.S
     walk.init(S)
     lv_dec = np.zeros(MAX_DEPTH, np.int64)
@@ -681,6 +727,9 @@ def explore(st, k, wk, tk, ws, sk, out, budget, forced, reads):
     lv_cf = np.full((MAX_DEPTH, 4), -1, np.int64)
     ans = np.zeros(MAX_ANS, np.int64)
     qb = np.zeros((4, QCOLS), np.int64)  # the questions of one decision
+    ints = np.zeros(fr.NI, np.int64)
+    floats = np.zeros(fr.NF, np.float64)
+    code = np.zeros(fr.NC, np.int64)
     L, nq, nodes, leaves, deepest, nr = 0, 0, 0, 0, 0, 0
     while True:
         d, day, m, g = next_question(st, k, wk, tk, ws, ans)
@@ -716,9 +765,7 @@ def explore(st, k, wk, tk, ws, sk, out, budget, forced, reads):
                 walk_read = d == w.DEC_SETTLE0 + 7 or d == w.DEC_STAY0 + 1 or d == w.DEC_ENFORCE  # 'unstayed'
                 for q in range(nb):
                     watch_read(st, tk, lv_dec, lv_watch, lv_read, lv_cf, L, qb[q, QN], day, walk_read)
-                    if nq < out.shape[0]:
-                        out[nq] = qb[q]
-                    nq += 1
+                    nq = take(st, k, ws, qb[q], out, cls_out, dig, nq, ints, floats, code)
             book(st, k, tk, ws, d, day, lv_ans[L, 0], True)
             lv_next[L] = 1
             L += 1
@@ -737,9 +784,7 @@ def explore(st, k, wk, tk, ws, sk, out, budget, forced, reads):
                     nb = questions(st, k, tk, lv_dec[lvl], lv_day[lvl], -1, qb, 0, lvl)
                     for q in range(nb):
                         watch_read(st, tk, lv_dec, lv_watch, lv_read, lv_cf, lvl, qb[q, QN], lv_day[lvl], False)
-                        if nq < out.shape[0]:
-                            out[nq] = qb[q]
-                        nq += 1
+                        nq = take(st, k, ws, qb[q], out, cls_out, dig, nq, ints, floats, code)
                 else:
                     lv_watch[lvl] = W_NONE
                     lv_next[lvl] = lv_n[lvl] = 1
@@ -771,16 +816,18 @@ def scripted(st, script, n1, d):
 
 
 @njit(cache=True)
-def follow(st, k, wk, tk, ws, script, n1, found):
+def follow(st, k, wk, tk, ws, script, n1, found, qout, iout, fout, cout):
     """Walk the draw along a history's answers (`script` by decision id; the approvals at DEC_APPROVAL0 + phase;
     `n1` by occasion): at each question the scripted answer. found[i]: (finding, decision, day, the scripted answer):
     F_ASKED for each question asked as scripted; F_EXTRA a question the history does not ask on the draw; F_MISSING
     a decision the history asks that does not arise here; F_NOT_OFFERED a scripted answer not open here. Returns how
-    many findings."""
+    many findings. Each question asked: its row, record and class (qout, iout, fout, cout; the count is the last
+    finding's... see `pass1.follow`)."""
     S = st.S
     walk.init(S)
     ans = np.zeros(MAX_ANS, np.int64)
-    nf = 0
+    qb = np.zeros((4, QCOLS), np.int64)
+    nf, nq = 0, 0
     while True:
         agenda.refresh(st, k)
         kind, which, day = frontier(st, k, wk)
@@ -819,4 +866,15 @@ def follow(st, k, wk, tk, ws, script, n1, found):
         else:
             found[nf, 0], found[nf, 1], found[nf, 2], found[nf, 3] = F_ASKED, which, day, want
             nf += 1
+        nb = questions(st, k, tk, which, day, g, qb, 0, 0)
+        if which == w.DEC_RULING and m == 4:
+            nb = emit(S, qb, nb, Q_REMITTITUR, 0, tk.reduced[S[w.VERDICT_IX], 0], -1, day, 0)
+        for q in range(nb):
+            if nq >= qout.shape[0]:
+                raise ValueError("question buffer exhausted")
+            qout[nq] = qb[q]
+            qrecord.question(st, k, ws.scratch, qb[q], iout[nq], fout[nq])
+            qrecord.klass(qb[q], iout[nq], cout[nq])
+            nq += 1
+        found[found.shape[0] - 1, 0] = nq
         book(st, k, tk, ws, which, day, ans[pick], True)

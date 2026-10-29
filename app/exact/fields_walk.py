@@ -73,3 +73,19 @@ A4_OPEN, A4_SEEK, A4_CLOSED = range(3)
 IT_NONE, IT_DECISION, IT_LEVY, IT_WAITING, IT_APPROVAL = range(5)
 CH_LITIGATION, CH_DISTRESS, CH_LISTING, CH_NOTES, CH_DETERMINISTIC = range(5)
 MAX_ITEMS = 64
+
+# --- the questions, as pass 1 emits them (`tree.explore`) -------------------------------------------------------------
+QNODES = ("settlement_offer", "settlement_accept", "verdict", "post_trial_motions", "execute_pre_ruling",
+          "stay_motion", "stay_approved", "registration_early", "appeal", "enforce_after_final", "judgment_response",
+          "offering_closes", "post_trial_ruling", "remittitur_elected", "holders_act_judgment", "petition_on_notes",
+          "holders_involuntary", "bid_compliance", "hearing_request", "holders_act_delisting", "financing_at_floor",
+          "petition_cash_out")
+(Q_SETTLE_OFFER, Q_SETTLE_ACCEPT, Q_VERDICT, Q_MOTIONS, Q_EXECUTE, Q_STAY_MOTION, Q_STAY_APPROVED, Q_REGISTRATION,
+ Q_APPEAL, Q_ENFORCE, Q_RESPONSE, Q_OFFERING, Q_RULING, Q_REMITTITUR, Q_HOLDERS_ACT, Q_PETITION_NOTES, Q_HOLDERS_INV,
+ Q_BID, Q_HEARING, Q_HOLDERS_DELIST, Q_FLOOR, Q_CASH_OUT) = range(len(QNODES))
+# an occurrence: node, context (the interval, phase, occasion or origin), amount class (kind, value), extra (the
+# response's 'after'; 'entered_not_acted'; the remittitur's booked amount; enforce's 'appealed'), option group, day
+QCOLS = 8
+QN, QCTX, QCLS_KIND, QCLS_VALUE, QEXTRA, QGROUP, QDAY, QDEPTH = range(QCOLS)
+ORIGIN_NONPAYMENT = 4
+

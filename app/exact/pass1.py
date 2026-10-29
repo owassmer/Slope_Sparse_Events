@@ -4,6 +4,8 @@ from __future__ import annotations
 import numpy as np
 
 from app.analysis.events import MARKS
+from app.exact import fields_record as fr
+from app.exact import fields_walk as w
 from app.exact import replay, tree, walk
 
 
@@ -22,8 +24,8 @@ def case_tables(fc, d, ch0) -> tree.TK:
                 lo, hi, booked = band
                 reduced[i] = booked, lo, hi
     wlk = _Walk(fc, d)
-    conds = np.zeros(len(tree.QNODES), dtype=np.int64)
-    for q, name in enumerate(tree.QNODES):
+    conds = np.zeros(len(w.QNODES), dtype=np.int64)
+    for q, name in enumerate(w.QNODES):
         if name in fc.spec:
             for c in wlk.situation_conditions(name):
                 if c in MARKS:
@@ -42,13 +44,16 @@ def explore(ch0, r: int, tk: tree.TK, budget: int = 10**9, qcap: int = 10**6, fo
     ws = replay.workspace(ch0, r, st)
     wk = walk.WK(listing=tk.listing)
     sk = tree.stack_for(st)
-    out = np.zeros((qcap, tree.QCOLS), dtype=np.int64)
+    out = np.zeros((qcap, w.QCOLS), dtype=np.int64)
+    cls = np.zeros((qcap, fr.NC), dtype=np.int64)
+    dig = np.zeros(qcap, dtype=np.int64)
     reads = np.zeros(4096, dtype=np.int64)
     forced = np.array(sorted(forced), dtype=np.int64)
-    nq, nodes, leaves, deepest, nr = tree.explore(st, k, wk, tk, ws, sk, out, budget, forced, reads)
+    nq, nodes, leaves, deepest, nr = tree.explore(st, k, wk, tk, ws, sk, out, cls, dig, budget, forced, reads)
     if nr > reads.size:
         raise ValueError("more watched reads than the buffer holds")
-    return out[:min(nq, qcap)], nodes, leaves, deepest, set(reads[:nr].tolist())
+    m = min(nq, qcap)
+    return out[:m], nodes, leaves, deepest, set(reads[:nr].tolist()), cls[:m], dig[:m]
 
 
 def depth(run_draw) -> tuple[set, int]:
@@ -75,7 +80,6 @@ def script_of(fc, d, ch0, steps):
     (enforcement 'none': no request; 'set_aside': set aside outright)."""
     from app.analysis.events import plain
     from app.exact import fields_agenda as a
-    from app.exact import fields_walk as w
 
     script = np.full(w.N_DEC, tree.NO_STEP, dtype=np.int64)
     n1 = np.full(len(a.OCCASIONS), tree.NO_STEP, dtype=np.int64)
@@ -142,8 +146,9 @@ def script_of(fc, d, ch0, steps):
     return script, n1
 
 
-def follow(fc, d, ch0, r: int, tk, steps):
-    """The history `steps` followed on draw row r: (findings [n, 4], the state at the end)."""
+def follow(fc, d, ch0, r: int, tk, steps, questions: bool = False):
+    """The history `steps` followed on draw row r: (findings [n, 4], the state at the end, the script, the offering
+    outcomes; questions: also each question asked, (rows, records, floats, classes))."""
     from app.exact import agenda
 
     k, ln = replay.constants(ch0, r)
@@ -151,6 +156,11 @@ def follow(fc, d, ch0, r: int, tk, steps):
     ws = replay.workspace(ch0, r, st)
     script, n1 = script_of(fc, d, ch0, steps)
     found = np.zeros((512, 4), dtype=np.int64)
-    nf = tree.follow(st, k, walk.WK(listing=tk.listing), tk, ws, script, n1, found)
+    cap = 256
+    qout, iout = np.zeros((cap, w.QCOLS), np.int64), np.zeros((cap, fr.NI), np.int64)
+    fout, cout = np.zeros((cap, fr.NF), np.float64), np.zeros((cap, fr.NC), np.int64)
+    nf = tree.follow(st, k, walk.WK(listing=tk.listing), tk, ws, script, n1, found, qout, iout, fout, cout)
+    nq = int(found[-1, 0])
     agenda.finish(st, k)
-    return found[:nf], st, script, n1
+    out = (found[:nf], st, script, n1)
+    return out + ((qout[:nq], iout[:nq], fout[:nq], cout[:nq]),) if questions else out

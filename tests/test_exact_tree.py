@@ -41,7 +41,8 @@ def test_the_dated_walk_follows_the_python_histories(style):
             ch0.instrument_cash()
             tk = pass1.case_tables(fc0, d0, ch0)
             for r in range(ch0.n):
-                found, st, _, _ = pass1.follow(fc0, d0, ch0, r, tk, h.path.steps)
+                found, st, _, _, (qs, recs, _, cls) = pass1.follow(fc0, d0, ch0, r, tk, h.path.steps, questions=True)
+                counts["records"] += len(qs)
                 where = f"{style} seed {seed} draw {h.draws[r]} {h.path.steps}"
                 for kind, dec, _day, _want in found:
                     if kind == tree.F_ASKED:
