@@ -116,3 +116,36 @@ The worst-path search and the provable bounds stay.
    prefix (`_Walk.node`, `situation`); walked one draw at a time, a condition holds or not on that draw. Where the two
    differ, the keys differ. The walk component's fidelity check measures this on the real tree before anything is
    built on it; if they differ, which is the standard's question comes to Owen with the cases.
+
+## The frame (28 October)
+
+**The chain is draw-independent.** On random real histories (`app/exact/oracle.py`, uniform and "long"), a draw's
+event cash, petition, marks and per-step day, cash and owed are identical whether computed with 2, 3 or all 512
+draws (`tests/test_exact_oracle.py`). The per-draw design rests on this; the walk's tags (item 7) are checked with
+the walk.
+
+**State as a stack, no allocation.** Each draw's walk keeps its state in preallocated arrays with a leading depth
+axis (depth up to the longest history, about 40 decisions): scalars `I[depth, NI]` (int64) and `F[depth, NF]`
+(float64), per-day arrays `D[depth, ND, days]` (the event cash by kind, the lock, the capacity, the at-the-market
+booking) and `P[depth, NP, days]` (float: the share price), fixed-capacity tables for what the Python keeps as lists
+(takes, writs, settlement parts, offerings, coupons, pending writs, waiting decisions: `T_<name>[depth, rows, cols]`
+with their counts in `I`), the line's state (task 002-6), and the answers given so far (`A[depth, decisions]`, -1
+unanswered). Saving at a decision is copying slot d into d + 1 (a few tens of kilobytes, microseconds); restoring is
+moving back to d. Field indices are module constants in `app/exact/fields.py`, each with the Python attribute it
+holds, so numba compiles them as constants and each area adds its own.
+
+**The walk as a state machine.** The chronological walk already decides what is open from the answers given
+(`ChronologicalWalk._pending`, `_cursors`) and the order by date with explicit ties (`frontier.select`); those become
+compiled functions of `A` and the flags. Each decision kind's question (key parts as integers into tables built in
+Python once), its answers (option groups per draw), its booking (`Chain.step` and what it calls) and its children's
+flags (the `_S` fields) are compiled functions per decision kind.
+
+**Port order** (each against the oracle, per draw, every field, before the next):
+1. the line and the daily processor (task 002-6);
+2. the chain's core: judgment entry, interest and the amount owed, pay, levy, petition, resolve, the cash reads
+   (`cum`, `processing_balance`, `decision_cash`), marks;
+3. the equity block (share price, at-the-market sales under the baby shelf, offerings, the ledger);
+4. stays and their security; 5. settlements; 6. the notes, the judgment default and the holders' acts, listing;
+7. the cash floor, cash-out, nonpayment and the waiting decisions (`upto`, `until`, `next_floor`);
+8. the walk: cursors, frontier, constructors, keys and classes, the dated question records;
+9. pass 2 and the page.
