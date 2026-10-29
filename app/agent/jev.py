@@ -20,6 +20,7 @@ import json
 import os
 import uuid
 from collections.abc import Callable
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -47,6 +48,8 @@ CACHE_DIR = VAR / "jev_cache"
 # While a caller holds a list here, every exchange is appended to it: the request as the SDK receives it (model,
 # built questions, state) and Jev's raw response. `slope analyze` writes the run's exchanges beside the run.
 EXCHANGE_LOG: list[dict] | None = None
+# per request: its physical attempts (set by the request, counted by the HTTP hook in the same task)
+_ATTEMPTS: ContextVar[list[int] | None] = ContextVar("jev_attempts", default=None)
 
 
 def cache_only() -> bool:
@@ -103,6 +106,9 @@ class JevAdapter:
 
         async def count_attempt(_request) -> None:
             self.physical_attempts += 1
+            own = _ATTEMPTS.get()
+            if own is not None:  # the request's own count (requests run concurrently: the total is everyone's)
+                own[0] += 1
 
         http = httpx2.AsyncClient(timeout=60.0, event_hooks={"request": [count_attempt]})
         if self.provider.name == "clef":
@@ -201,7 +207,8 @@ class JevAdapter:
                 raise ConfigurationError(f"No saved Jev response for {profile} {question_ids} (SLOPE_JEV_CACHE_ONLY)")
             reserved, estimate = self._reserve(
                 len(json.dumps(state)) + sum(len(q.model_dump_json()) for q in questions.values()))
-            before = self.physical_attempts
+            mine = [0]
+            token = _ATTEMPTS.set(mine)
             per_attempt = estimate / (1 + MAX_RETRIES)
             done = False
             try:
@@ -212,7 +219,8 @@ class JevAdapter:
             finally:
                 self.inflight_attempts -= reserved
                 self.inflight_usd -= estimate
-                attempts_used = self.physical_attempts - before  # approximate under concurrency; totals are exact
+                _ATTEMPTS.reset(token)
+                attempts_used = mine[0]
                 # an attempt that returned no usage (a timeout, an error after the work) may still have been billed:
                 # it is counted at its worst case, so the spend cap covers every request that may have been charged
                 self.spent_usd += per_attempt * max(attempts_used - (1 if done else 0), 0)
@@ -267,83 +275,6 @@ class JevAdapter:
                     question_version=entry["version"], primitive="choice", answer=ans.get("choice"),
                     probabilities=ans.get("probabilities"), confidence=ans.get("confidence"), subject_ids=subject_ids))
         return observations
-
-    async def judge_batch(self, *, profile: str, shared_state: dict, items: list[tuple[str, dict, dict | None]],
-                          subject_ids: tuple[str, ...] = ()) -> list[SemanticObservation]:
-        """Several questions about one shared state (the case, the standard, the record items, the evidence), each
-        with its own parts (its question and situation): `items` is (question id, own parts, host-built criteria or
-        None). Decisions asks up to 400 in a request, each read on the shared input and its own parts alone; each
-        answer is cached by its own question and state, so a batch stopped part way resumes where it stopped. Returns
-        one observation per item, in order."""
-        from app.agent.decisions import MAX_QUESTIONS, split_state
-
-        if self.provider.name != "decisions":
-            raise ConfigurationError(f"{self.provider.name} asks one question per request: use judge")
-        if split_state(shared_state)[1]:
-            raise ConfigurationError("the shared state holds a question's own parts")
-        registry_version = question_registry()["registry_version"]
-        prepared, out = [], [None] * len(items)
-        for i, (qid, own, crit) in enumerate(items):
-            entry = registry_question(qid)
-            if crit is not None:
-                if not entry["prompt"].get("criteria_from_host"):
-                    raise ConfigurationError(f"{qid} does not take host-built criteria")
-                entry = {**entry, "prompt": {**entry["prompt"], "criteria": crit}}
-            q = build_question(entry)
-            key = canonical_sha256({"model": self.provider.model, "form": "batch", "shared": shared_state,
-                                    "own": own, "question": q.model_dump(mode="json")})
-            prepared.append((i, qid, entry, q, own, key))
-        pending = []
-        for i, qid, entry, q, own, key in prepared:
-            f = CACHE_DIR / f"{key}.json"
-            if self.use_cache and f.exists():
-                cached = json.loads(f.read_text())
-                self.cache_hits += 1
-                out[i] = self._observations(cached["raw"].get("call_id", key), profile, [qid], {qid: entry},
-                                            cached["raw"]["answers"], subject_ids)[0]
-            elif cache_only():
-                raise ConfigurationError(f"No saved Jev response for {profile} {qid} (SLOPE_JEV_CACHE_ONLY)")
-            else:
-                pending.append((i, qid, entry, q, own, key))
-        for start in range(0, len(pending), MAX_QUESTIONS):
-            chunk = pending[start:start + MAX_QUESTIONS]
-            names = {f"q{j}": item for j, item in enumerate(chunk)}
-            reserved, estimate = self._reserve(len(json.dumps(shared_state, default=str)) + sum(
-                len(json.dumps(own, default=str)) + len(q.model_dump_json()) for _, _, _, q, own, _ in chunk))
-            before, per_attempt, done = self.physical_attempts, estimate / (1 + MAX_RETRIES), False
-            try:
-                self.requests += 1
-                raw = (await self.client.batch(
-                    shared=shared_state, items=[(n, q.model_dump(mode="json"), own)
-                                                for n, (_, _, _, q, own, _) in names.items()],
-                    model=self.provider.model, response_model=_Raw)).model_dump(mode="json")
-                done = True
-            finally:
-                self.inflight_attempts -= reserved
-                self.inflight_usd -= estimate
-                used = self.physical_attempts - before
-                self.spent_usd += per_attempt * max(used - (1 if done else 0), 0)
-            cost = self.cost(raw.get("usage") or {})
-            self.spent_usd += cost if cost is not None else per_attempt
-            now = datetime.now(UTC).isoformat()
-            call_id = self.new_id("jev")
-            answers = raw.get("answers") or {}
-            for n, (i, qid, entry, _q, _own, key) in names.items():
-                item_raw = {"model": raw.get("model"), "call_id": call_id, "request_id": raw.get("id"),
-                            "answers": {qid: answers.get(n) or {}}}
-                if self.use_cache:
-                    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-                    (CACHE_DIR / f"{key}.json").write_text(json.dumps({"raw": item_raw, "created_at": now}))
-                out[i] = self._observations(call_id, profile, [qid], {qid: entry}, item_raw["answers"],
-                                            subject_ids)[0]
-            if EXCHANGE_LOG is not None:
-                EXCHANGE_LOG.append({"adapter": self.run_id, "call_id": call_id, "profile": profile,
-                                     "question_ids": [qid for _, qid, *_ in chunk], "created_at": now,
-                                     "cache_hit": False, "registry_version": registry_version,
-                                     "request": {"model": self.provider.model, "shared": shared_state,
-                                                 "own": [own for *_, own, _ in chunk]},
-                                     "response": raw})
-        return out
 
     def usage_summary(self) -> dict[str, Any]:
         return {"provider": self.provider.name, "requests": self.requests, "cache_hits": self.cache_hits,

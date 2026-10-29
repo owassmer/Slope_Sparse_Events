@@ -10,7 +10,7 @@ import pytest
 from typesafe_sdk import Choice, Noul, Score
 
 from app.agent import decisions
-from app.agent.decisions import _answer, _question, batch_body, returned_model, split_state
+from app.agent.decisions import _answer, _input, _question, returned_model
 from app.agent.jev import MAX_RETRIES, JevAdapter
 from app.config import judgment_provider
 from app.disputes.forecast import answer_distribution
@@ -55,17 +55,12 @@ def test_the_answering_model_is_the_one_the_provider_names():
             returned_model(data, "gpt-6-luna")
 
 
-def test_a_batch_keeps_each_questions_own_parts_with_it():
-    state = {"case": {"company": "C"}, "historical_evidence": ["e"], "question": {"text": "Q?"}, "situation": {"x": 1}}
-    shared, own = split_state(state)
-    assert set(shared) == {"case", "historical_evidence"} and set(own) == {"question", "situation"}
-    q = Noul(instructions="Does it?", criteria={"true": "Yes.", "false": "No."}).model_dump(mode="json")
-    body = batch_body("gpt-6-luna", shared, [("q0", q, own), ("q1", q, {"question": {"text": "R?"}})])
-    assert len(body["input"]) == 1 and '"historical_evidence"' in body["input"][0]["content"][0]["text"]
-    assert '"Q?"' in body["questions"][0]["instructions"] and '"R?"' not in body["questions"][0]["instructions"]
-    assert '"R?"' in body["questions"][1]["instructions"]
-    with pytest.raises(decisions.DecisionsError):
-        batch_body("gpt-6-luna", shared, [])
+def test_the_shared_evidence_comes_first_and_alone_is_cached():
+    state = {"question": {"text": "Q?"}, "case": {"company": "C"}, "historical_evidence": ["e"], "situation": {"x": 1}}
+    [msg] = _input(state)
+    first, second = msg["content"]
+    assert first["prompt_cache_breakpoint"] == {"mode": "explicit"} and '"historical_evidence"' in first["text"]
+    assert '"Q?"' not in first["text"] and second["data"] == {"question": {"text": "Q?"}, "situation": {"x": 1}}
 
 
 @pytest.fixture
@@ -85,9 +80,11 @@ def test_a_request_is_priced_by_what_each_token_costs(adapter):
 
 
 def test_attempts_that_may_have_been_billed_count_against_the_cap(adapter, monkeypatch):
+    from app.agent.jev import _ATTEMPTS
+
     class Failing:
         async def system_one(self, **k):
-            adapter.physical_attempts += 1 + MAX_RETRIES  # every attempt went out and timed out
+            _ATTEMPTS.get()[0] += 1 + MAX_RETRIES  # every attempt went out and timed out
             raise decisions.DecisionsError("timeout")
 
     adapter.client = Failing()
@@ -95,3 +92,23 @@ def test_attempts_that_may_have_been_billed_count_against_the_cap(adapter, monke
         asyncio.run(adapter.judge(profile="event_forecast", question_ids=["forecast_claim_settlement_offer"],
                                   state={"case": {}, "question": {"text": "Q?"}}))
     assert adapter.spent_usd > 0 and adapter.inflight_usd == 0
+
+
+def test_concurrent_requests_count_only_their_own_attempts(adapter):
+    """A request that succeeds first time is charged its usage alone, however many others are in flight."""
+    from app.agent.jev import _ATTEMPTS
+
+    class Quick:
+        async def system_one(self, **k):
+            _ATTEMPTS.get()[0] += 1
+            await asyncio.sleep(0.01)
+            return k["response_model"](model="gpt-6-luna", usage={"input_tokens": 100}, answers={})
+
+    adapter.client = Quick()
+
+    async def many():
+        await asyncio.gather(*(adapter.judge(profile="event_forecast", question_ids=["forecast_claim_settlement_offer"],
+                                             state={"case": {"n": i}, "question": {"text": "Q?"}}) for i in range(8)))
+
+    asyncio.run(many())
+    assert adapter.spent_usd == 8 * 100 * Decimal("0.10") / 10**6

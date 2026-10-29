@@ -13,6 +13,14 @@ are its own. The shared parts go first, as one text part marked as the only cach
 parts after it: a later question about the same decision reads the evidence from the cache (at a tenth of the input
 price) instead of sending it again, and nothing past the evidence is written to the cache (a write costs more than
 the input it holds). The judge reads the same keys and values either way.
+
+One question per request. The API takes up to 400 questions about one shared input, but a batch can share only the
+evidence: each question's own situation would have to go in its instructions. Asked so, real questions were answered
+differently (13 of the 14 May questions, 29 October: a bid-compliance question 0.52 alone, 0.13 with its situation in
+its instructions; a batch of one answered exactly as a batch of six, so the questions did not read one another: the
+placement of the facts moved the judgment). The judge is asked as the question standard is built, the facts as the
+state and the question as the question, so each question is its own request; the evidence it shares with the other
+questions about its decision is read from the cache.
 """
 from __future__ import annotations
 
@@ -82,34 +90,6 @@ def returned_model(data: dict, model: str) -> str:
     return got
 
 
-MAX_QUESTIONS = 400  # per request (the API's limit)
-
-
-def own_instructions(instructions: str, own: dict) -> str:
-    """A batched question's instructions: its own, then the parts of the state that are its own (the question and its
-    situation), to be read with the shared input's parts as one state."""
-    return (f"{instructions}\n\nThe state is the shared input's object together with this question's own parts:\n"
-            f"{json.dumps(own, ensure_ascii=False, default=str)}")
-
-
-def batch_body(model: str, shared: dict, items: list[tuple[str, dict, dict]]) -> dict:
-    """One request asking several questions about the same shared parts of the state (`SHARED`): each item is (its
-    name, its System One question, its own parts of the state). Each question is answered on the shared input and its
-    own instructions alone (the API evaluates each question against the shared input: a question does not read
-    another's)."""
-    if not 1 <= len(items) <= MAX_QUESTIONS:
-        raise DecisionsError(f"{len(items)} questions in one request: the API takes 1 to {MAX_QUESTIONS}")
-    content = [{"type": "input_text", "text": json.dumps(shared, ensure_ascii=False, default=str),
-                "prompt_cache_breakpoint": {"mode": "explicit"}}]
-    questions = []
-    for name, q, own in items:
-        dq = _question(name, q)
-        dq["instructions"] = own_instructions(dq["instructions"], own)
-        questions.append(dq)
-    return {"model": model, "input": [{"role": "user", "content": content}],
-            "prompt_cache_options": {"mode": "explicit"}, "questions": questions}
-
-
 def split_state(state: dict) -> tuple[dict, dict]:
     """A state's shared parts and its own."""
     shared = {k: state[k] for k in SHARED if k in state}
@@ -125,10 +105,6 @@ class DecisionsClient:
         body = {"model": model, "input": _input(state), "prompt_cache_options": {"mode": "explicit"},
                 "questions": [_question(name, q.model_dump(mode="json")) for name, q in questions.items()]}
         return await self._post(body, model, response_model)
-
-    async def batch(self, *, shared, items, model, response_model):
-        """Several questions about one shared state (`batch_body`)."""
-        return await self._post(batch_body(model, shared, items), model, response_model)
 
     async def _post(self, body, model, response_model):
         for attempt in range(self.max_retries + 1):
