@@ -141,6 +141,7 @@ class JevAdapter:
                       if f"price_usd_per_million_{k}_tokens" in own}
         self.worst_per_token = max((self.price_per_token, *self.rates.values()))
         self.inflight_attempts = 0
+        self.settled_attempts = 0  # the physical attempts of the requests finished
         self.inflight_usd = Decimal(0)
         self.spent_usd = Decimal(0)
         self.requests = 0
@@ -167,11 +168,14 @@ class JevAdapter:
         return (plain * self.price_per_token + cached * self.rates["cached_input"]
                 + w30 * self.rates["cache_write_30m"] + w12 * self.rates["cache_write_12h"])
 
-    def _reserve(self, payload_chars: int) -> tuple[int, Decimal]:
-        """Worst-case headroom check before dispatch; released after the request completes."""
+    def _reserve(self, payload_bytes: int) -> tuple[int, Decimal]:
+        """Worst-case headroom check before dispatch; released after the request completes. A token covers at least
+        one byte of what is sent (the byte-level tokenizers these models use), so the payload's bytes bound its tokens:
+        an attempt costs at most its bytes at the dearest rate a token can cost. The attempts are those of the requests
+        finished (`settled_attempts`) and every request in flight at its worst (all its retries)."""
         attempts = 1 + MAX_RETRIES
-        estimate = Decimal(payload_chars // 3 + 1) * self.worst_per_token * attempts  # ~3 chars/token, conservative
-        if self.physical_attempts + self.inflight_attempts + attempts > self.max_attempts:
+        estimate = Decimal(payload_bytes) * self.worst_per_token * attempts
+        if self.settled_attempts + self.inflight_attempts + attempts > self.max_attempts:
             raise JevBudgetExceeded(f"Jev attempt ceiling reached ({self.max_attempts} physical attempts)")
         if self.spent_usd + self.inflight_usd + estimate > self.spend_cap:
             raise JevBudgetExceeded(f"Jev spend cap ${self.spend_cap} would be exceeded")
@@ -205,8 +209,8 @@ class JevAdapter:
         else:
             if cache_only():
                 raise ConfigurationError(f"No saved Jev response for {profile} {question_ids} (SLOPE_JEV_CACHE_ONLY)")
-            reserved, estimate = self._reserve(
-                len(json.dumps(state)) + sum(len(q.model_dump_json()) for q in questions.values()))
+            reserved, estimate = self._reserve(len(json.dumps(state, default=str).encode()) + sum(
+                len(q.model_dump_json().encode()) for q in questions.values()))
             mine = [0]
             token = _ATTEMPTS.set(mine)
             per_attempt = estimate / (1 + MAX_RETRIES)
@@ -221,6 +225,7 @@ class JevAdapter:
                 self.inflight_usd -= estimate
                 _ATTEMPTS.reset(token)
                 attempts_used = mine[0]
+                self.settled_attempts += attempts_used
                 # an attempt that returned no usage (a timeout, an error after the work) may still have been billed:
                 # it is counted at its worst case, so the spend cap covers every request that may have been charged
                 self.spent_usd += per_attempt * max(attempts_used - (1 if done else 0), 0)

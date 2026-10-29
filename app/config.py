@@ -100,7 +100,10 @@ JUDGMENT_PROVIDERS = {
                   "price_usd_per_million_cache_write_12h_tokens": "0.25",
                   "spend_cap_usd_per_run": "90.00", "max_physical_attempts": 65000},
 }
-JUDGMENTS = JUDGMENT_PROVIDERS["clef"]  # the default (SLOPE_JUDGMENT_PROVIDER selects another)
+# The default (SLOPE_JUDGMENT_PROVIDER selects another): Decisions answers the 14 May questions (about 15,000 input
+# tokens each, most of them the evidence its cache holds) at about $0.0004 a question; Clef, at $0.24 a million
+# uncached, could not answer the case's 44,001 within its cap (29 October).
+JUDGMENTS = JUDGMENT_PROVIDERS["decisions"]
 
 
 def judgment_provider() -> JevProvider:

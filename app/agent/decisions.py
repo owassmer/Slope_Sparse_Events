@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+import re
 
 import httpx2
 
@@ -83,9 +84,10 @@ def _input(state: dict) -> list[dict]:
 
 
 def returned_model(data: dict, model: str) -> str:
-    """The model the provider says answered: the requested one or a dated snapshot of it, never assumed."""
+    """The model the provider says answered: the requested one or a dated snapshot of it (`<model>-YYYY-MM-DD`), never
+    assumed."""
     got = data.get("model")
-    if not isinstance(got, str) or not (got == model or got.startswith(model + "-")):
+    if not isinstance(got, str) or not (got == model or re.fullmatch(re.escape(model) + r"-\d{4}-\d{2}-\d{2}", got)):
         raise DecisionsError(f"Decisions answered as {got!r}, not {model!r}")
     return got
 

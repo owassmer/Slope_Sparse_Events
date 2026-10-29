@@ -50,7 +50,8 @@ def test_a_refusal_is_unknown_not_zero():
 def test_the_answering_model_is_the_one_the_provider_names():
     assert returned_model({"model": "gpt-6-luna"}, "gpt-6-luna") == "gpt-6-luna"
     assert returned_model({"model": "gpt-6-luna-2026-10-01"}, "gpt-6-luna") == "gpt-6-luna-2026-10-01"
-    for data in ({}, {"model": None}, {"model": "not-gpt-6-luna-other"}, {"model": "gpt-6-lunar"}):
+    for data in ({}, {"model": None}, {"model": "not-gpt-6-luna-other"}, {"model": "gpt-6-lunar"},
+                 {"model": "gpt-6-luna-other-model"}, {"model": "gpt-6-luna-2026-10"}):
         with pytest.raises(decisions.DecisionsError):
             returned_model(data, "gpt-6-luna")
 
@@ -112,3 +113,34 @@ def test_concurrent_requests_count_only_their_own_attempts(adapter):
 
     asyncio.run(many())
     assert adapter.spent_usd == 8 * 100 * Decimal("0.10") / 10**6
+
+
+def test_the_attempt_ceiling_counts_a_dispatched_attempt_once(monkeypatch):
+    """Two requests in flight within a ceiling of six: each may make three attempts, which six allow."""
+    monkeypatch.setenv("SLOPE_JUDGMENT_PROVIDER", "decisions")
+    monkeypatch.setenv("OPENAI_DECISIONS_API_KEY", "sk-test")
+    from app.agent.jev import _ATTEMPTS
+
+    jev = JevAdapter(run_id="t", provider=judgment_provider(), use_cache=False, max_attempts=6, spend_cap_usd="1.00")
+    started = asyncio.Event()
+
+    class Slow:
+        async def system_one(self, **k):
+            _ATTEMPTS.get()[0] += 1
+            jev.physical_attempts += 1
+            started.set()
+            await asyncio.sleep(0.02)
+            return k["response_model"](model="gpt-6-luna", usage={"input_tokens": 10}, answers={})
+
+    jev.client = Slow()
+
+    async def two():
+        ask = lambda i: jev.judge(profile="event_forecast", question_ids=["forecast_claim_settlement_offer"],  # noqa: E731
+                                  state={"case": {"n": i}, "question": {"text": "Q?"}})
+        first = asyncio.create_task(ask(0))
+        await started.wait()
+        await ask(1)
+        await first
+
+    asyncio.run(two())
+    assert jev.settled_attempts == 2
