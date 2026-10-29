@@ -8,7 +8,11 @@ decision the history answers comes up; the bookings at the end equal the Python'
 - an early registration ordered after a petition: the dated walk does not ask a court question after the petition
   (the Python books the order, which reaches nothing);
 - a writ that books nothing leaves a zero take in the Python;
-- a stay approved on the day of another event: the court's order is the day's first event (Owen, 29 October)."""
+- a stay approved on the day of another event: the court's order is the day's first event (Owen, 29 October);
+- a question about a judgment nothing is owed on at its date (the judgment paid, levied in full or set aside first):
+  the Python's walk answers some of these together with an earlier question (the court's answer to a stay motion
+  with the motion); the dated walk does not ask them, so the routes after them differ (the history-draw is set
+  apart)."""
 import collections
 
 import numpy as np
@@ -44,6 +48,9 @@ def test_the_dated_walk_follows_the_python_histories(style):
                 found, st, _, _, (qs, recs, _, cls) = pass1.follow(fc0, d0, ch0, r, tk, h.path.steps, questions=True)
                 counts["records"] += len(qs)
                 where = f"{style} seed {seed} draw {h.draws[r]} {h.path.steps}"
+                if any(kind == tree.F_MISSING and tree.owed_quiet(dec) != tree.NOT_OWED for kind, dec, *_ in found):
+                    counts["a question on nothing owed"] += 1
+                    continue
                 for kind, dec, _day, _want in found:
                     if kind == tree.F_ASKED:
                         counts["asked"] += 1

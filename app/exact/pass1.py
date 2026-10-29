@@ -43,27 +43,25 @@ def case_tables(fc, d, ch0) -> tree.TK:
                    stays=stays)
 
 
-def explore(ch0, r: int, tk: tree.TK, budget: int = 10**9, qcap: int = 10**6, forced=()):
-    """Pass 1 on draw row r: (questions [n, QCOLS], nodes, leaves, deepest, the watched keys read on the draw, the
-    classes [n, NC], per question its record's digest and identity [n, 2], the final cumulative event cash's range
-    (lo, hi) per day). forced: the watched keys read on some draw, asked wherever they arise (`depth`)."""
+def explore(ch0, r: int, tk: tree.TK, budget: int = 10**9, forced=(), capacity: int = 600_000):
+    """Pass 1 on draw row r: (its members (`tree.Members`, the first `count` rows), occurrences, nodes, leaves,
+    deepest, the watched keys read on the draw, the final cumulative event cash's range (lo, hi) per day). forced: the
+    watched keys read on some draw, asked wherever they arise (`depth`)."""
     k, ln = replay.constants(ch0, r)
     st = replay.state(ch0, r, ln)
     ws = replay.workspace(ch0, r, st)
     wk = walk.WK(listing=tk.listing)
     sk = tree.stack_for(st)
-    out = np.zeros((qcap, w.QCOLS), dtype=np.int64)
-    cls = np.zeros((qcap, fr.NC), dtype=np.int64)
-    dig = np.zeros((qcap, 2), dtype=np.int64)
+    mem = tree.members_for(capacity)
     reads = np.zeros(4096, dtype=np.int64)
     forced = np.array(sorted(forced), dtype=np.int64)
     ev_lo, ev_hi = np.zeros(ch0.N, np.int64), np.zeros(ch0.N, np.int64)
-    nq, nodes, leaves, deepest, nr = tree.explore(st, k, wk, tk, ws, sk, out, cls, dig, budget, forced, reads,
-                                                  ev_lo, ev_hi)
+    nq, nodes, leaves, deepest, nr = tree.explore(st, k, wk, tk, ws, sk, mem, budget, forced, reads, ev_lo, ev_hi)
     if nr > reads.size:
         raise ValueError("more watched reads than the buffer holds")
-    m = min(nq, qcap)
-    return out[:m], nodes, leaves, deepest, set(reads[:nr].tolist()), cls[:m], dig[:m], (ev_lo, ev_hi)
+    m = int(mem.count[0])
+    kept = tree.Members(None, None, None, mem.rows[:m], mem.cls[:m], mem.ids[:m], mem.ints[:m], mem.floats[:m], m)
+    return kept, nq, nodes, leaves, deepest, set(reads[:nr].tolist()), (ev_lo, ev_hi)
 
 
 def depth(run_draw) -> tuple[set, int]:
@@ -176,10 +174,11 @@ def follow(fc, d, ch0, r: int, tk, steps, questions: bool = False):
     return out + ((qout[:nq], iout[:nq], fout[:nq], cout[:nq]),) if questions else out
 
 
-def questions_on(fc_all, d, draws, forced=(), log=print) -> dict:
+def questions_on(fc_all, d, draws, forced=(), log=print, shards: int = 0, out_dir=None) -> dict:
     """Pass 1 on `draws` (indices among the 512), the case's tables from the whole population (`fc_all`: the award
-    partition is the case's, never a subset's): each draw's tree size, and the distinct questions as the judge reads
-    them (the rendered key and situation class: `question_keys`), with the watched keys read (`depth`)."""
+    partition is the case's, never a subset's): each draw's tree size, the distinct questions as the judge reads them
+    (the rendered key and situation class: `question_keys`), the watched keys read (`depth`); with `shards`, each
+    draw's members written to `out_dir`, split by question identity (`shard_of`)."""
     import time
 
     from app.analysis.events import Chain
@@ -191,37 +190,63 @@ def questions_on(fc_all, d, draws, forced=(), log=print) -> dict:
     tk = case_tables(fc_all, d, ch0)
     qt = question_keys.case_tables(fc_all, d, ch0, tk)
     out: dict = {"draws": {}, "questions": set(), "reads": set()}
+    parts: dict = {}
     for r, draw in enumerate(draws):
         t0 = time.perf_counter()
-        q, nodes, leaves, deepest, reads, cls, dig, _ = explore(ch0, r, tk, qcap=4_000_000, forced=forced)
-        if len(q) < len(dig) or len(q) >= 4_000_000:
-            raise ValueError("more question occurrences than the buffer holds")
-        _, first = np.unique(dig[:, 1], return_index=True)
+        mem, nq, nodes, leaves, deepest, reads, _ = explore(ch0, r, tk, forced=forced)
+        _, first = np.unique(mem.ids[:, 1], return_index=True)
         found = set()
         for j in first:
-            row, code = q[j], cls[j]
+            row, code = mem.rows[j], mem.cls[j]
             klass = "" if row[w.QN] == w.Q_VERDICT else question_keys.situation_class(row, code, qt)
             found.update((key, klass) for key in question_keys.keys(row, qt))
         out["questions"] |= found
         out["reads"] |= reads
-        out["draws"][int(draw)] = {"nodes": nodes, "leaves": leaves, "deepest": deepest, "occurrences": len(q),
-                                   "questions": len(found), "seconds": round(time.perf_counter() - t0, 1)}
+        if shards:
+            shard = shard_of(mem.ids[:, 1], shards)
+            for s in range(shards):
+                sel = shard == s
+                parts.setdefault(s, []).append((np.full(int(sel.sum()), int(draw), np.int16), mem.rows[sel],
+                                                mem.cls[sel], mem.ids[sel], mem.ints[sel], mem.floats[sel]))
+        out["draws"][int(draw)] = {"nodes": nodes, "leaves": leaves, "deepest": deepest, "occurrences": nq,
+                                   "members": mem.count, "questions": len(found),
+                                   "seconds": round(time.perf_counter() - t0, 1)}
         log(f"draw {draw}: {out['draws'][int(draw)]}")
+    if shards:
+        from pathlib import Path
+
+        for s, ps in parts.items():
+            cols = [np.concatenate(c) for c in zip(*ps, strict=True)]
+            np.savez_compressed(Path(out_dir) / f"members-{s:03d}.npz", draw=cols[0], rows=cols[1], cls=cols[2],
+                                ids=cols[3], ints=cols[4], floats=cols[5])
     return out
 
 
+def shard_of(ids: np.ndarray, shards: int) -> np.ndarray:
+    """A question identity's shard (all its members, from every draw, go to the same reduce line)."""
+    return (ids.astype(np.uint64) % np.uint64(shards)).astype(np.int64)
+
+
 def main(argv=None) -> None:
-    """`python -m app.exact.pass1 <first> <last> <out.json>`: pass 1 on draws first..last (inclusive)."""
+    """`python -m app.exact.pass1 <first> <last> <out dir> [<shards> [<forced keys file>]]`: pass 1 on draws first..last
+    (inclusive), its summary to <out dir>/pass1-<first>.json and, with shards, its members split by question."""
     import json
     import sys
+    from pathlib import Path
 
     from app.exact import oracle
 
-    first, last, path = (argv or sys.argv[1:])[:3]
+    args = argv or sys.argv[1:]
+    first, last, out_dir = int(args[0]), int(args[1]), Path(args[2])
+    shards = int(args[3]) if len(args) > 3 else 0
+    forced = set(json.loads(Path(args[4]).read_text())) if len(args) > 4 else set()
+    out_dir.mkdir(parents=True, exist_ok=True)
     fc_all, d = oracle._forecaster()
-    got = questions_on(fc_all, d, range(int(first), int(last) + 1), log=lambda s: print(s, flush=True))
-    with open(path, "w") as fh:
-        json.dump({"draws": got["draws"], "questions": sorted(got["questions"]), "reads": sorted(got["reads"])}, fh)
+    got = questions_on(fc_all, d, range(first, last + 1), forced=forced, log=lambda s: print(s, flush=True),
+                       shards=shards, out_dir=out_dir)
+    (out_dir / f"pass1-{first:03d}.json").write_text(json.dumps(
+        {"draws": got["draws"], "questions": sorted(got["questions"]), "reads": sorted(got["reads"]),
+         "forced": sorted(forced)}))
 
 
 if __name__ == "__main__":

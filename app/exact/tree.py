@@ -304,12 +304,38 @@ def opens_nothing(st, k):
     return approval >= end and levy >= end
 
 
+NOT_OWED = -99
+
+
+@njit(cache=True)
+def owed_quiet(d):
+    """For a decision about a judgment that must be owed to arise (`forecast.OWED`: the settlement after the verdict,
+    the pre-ruling execution, the stay motion and the court's answer, the registration orders, the response, the
+    enforcement request, the holders' act on the default), its quiet answer; else NOT_OWED."""
+    if d > w.DEC_SETTLE0 and d < w.DEC_VERDICT:
+        return a.NO
+    if d >= w.DEC_RESP0 and d < w.DEC_MOTIONS:
+        return G_NONE
+    if d == w.DEC_EXECUTE or d == w.DEC_STAY0 or d == w.DEC_STAY0 + 1 or d == w.DEC_REGISTRATION \
+            or d == w.DEC_REG_POST or (d >= w.DEC_JDEFAULT0 and d < w.DEC_ENFORCE):
+        return a.NO
+    if d >= w.DEC_APPROVAL0 and d < w.DEC_REG_POST:
+        return a.DENIED
+    if d == w.DEC_ENFORCE:
+        return a.E_NONE
+    return NOT_OWED
+
+
 @njit(cache=True)
 def options(st, k, wk, tk, ws, d, day, ans):
     """The answers open to decision d on the draw at `day` (in the Python constructor's order), how many, and whether
     the question is asked (False: it does not arise here; its one answer books as the constructor books it unasked).
     Also the option group (-1: none). After `agenda.refresh`."""
     S = st.S
+    quiet = owed_quiet(d)
+    if quiet != NOT_OWED and agenda.owed(st, k, day, False) <= 0:  # a question about a judgment nothing is owed on
+        ans[0] = quiet  # does not arise (QUESTIONS §1; `Forecaster.live`, OWED): its quiet answer, which books nothing
+        return 1, False, -1
     if d < w.DEC_VERDICT:  # settle
         bound = settle_terms(st, k, ws, d - w.DEC_SETTLE0)[0]
         if bound <= 0:
@@ -736,17 +762,46 @@ def digest(ints, floats):
     return np.int64(h)
 
 
+# a draw's distinct question members (a question identity and a record digest): the table that finds them (open
+# addressing, its size a power of two), and each member's question row, class, identity and digest, and record
+Members = namedtuple("Members", "tq td tix rows cls ids ints floats count")
+
+
+def members_for(capacity: int, slots: int = 1 << 21) -> Members:
+    import numpy as _np
+
+    from app.exact import fields_record as _fr
+
+    return Members(_np.zeros(slots, _np.int64), _np.zeros(slots, _np.int64), _np.full(slots, -1, _np.int64),
+                   _np.zeros((capacity, QCOLS), _np.int64), _np.zeros((capacity, _fr.NC), _np.int64),
+                   _np.zeros((capacity, 2), _np.int64), _np.zeros((capacity, _fr.NI), _np.int64),
+                   _np.zeros((capacity, _fr.NF), _np.float64), _np.zeros(1, _np.int64))
+
+
 @njit(cache=True)
-def take(st, k, tk, ws, q, out, cls_out, dig, nq, ints, floats, code):
-    """Keep question occurrence q: its row, its class, its record's digest and its identity (`qid`; counted past the
-    buffers' size)."""
+def take(st, k, tk, ws, q, mem, nq, ints, floats, code):
+    """Question occurrence q: its record and class; kept where its (identity, record) is new on the draw (a member).
+    Returns the occurrences counted."""
     qrecord.question(st, k, ws.scratch, q, ints, floats)
     klass(tk, q, ints, code)
-    if nq < out.shape[0]:
-        out[nq] = q
-        cls_out[nq] = code
-        dig[nq, 0] = digest(ints, floats)
-        dig[nq, 1] = qid(q, code)
+    d, h = digest(ints, floats), qid(q, code)
+    mask = mem.tq.size - 1
+    slot = (np.uint64(h) * np.uint64(0x9E3779B97F4A7C15) ^ np.uint64(d)) & np.uint64(mask)
+    j = np.int64(slot)
+    while mem.tix[j] >= 0:
+        if mem.tq[j] == h and mem.td[j] == d:
+            return nq + 1
+        j = (j + 1) & mask
+    m = mem.count[0]
+    if m >= mem.rows.shape[0] or 2 * (m + 1) > mem.tq.size:
+        raise ValueError("more members on the draw than the buffers hold")
+    mem.tq[j], mem.td[j], mem.tix[j] = h, d, m
+    mem.rows[m] = q
+    mem.cls[m] = code
+    mem.ids[m, 0], mem.ids[m, 1] = d, h
+    mem.ints[m] = ints
+    mem.floats[m] = floats
+    mem.count[0] = m + 1
     return nq + 1
 
 
@@ -763,11 +818,10 @@ def leaf_range(st, k, ev_lo, ev_hi):
 
 
 @njit(cache=True)
-def explore(st, k, wk, tk, ws, sk, out, cls_out, dig, budget, forced, reads, ev_lo, ev_hi):
-    """Pass 1 on the draw: every question occurrence (`out`, QCOLS columns; its class `cls_out`; its record's digest
-    `dig`; counted past their size) and the tree's size. forced: the watched questions' keys (sorted) asked wherever
-    they arise, because their answer was read on some draw; reads: the keys read on this draw (written). Returns
-    (questions, nodes, leaves, deepest, reads written)."""
+def explore(st, k, wk, tk, ws, sk, mem, budget, forced, reads, ev_lo, ev_hi):
+    """Pass 1 on the draw: every question occurrence, its distinct members kept (`mem`: `take`), and the tree's size.
+    forced: the watched questions' keys (sorted) asked wherever they arise, because their answer was read on some
+    draw; reads: the keys read on this draw (written). Returns (occurrences, nodes, leaves, deepest, reads written)."""
     S = st.S
     walk.init(S)
     lv_dec = np.zeros(MAX_DEPTH, np.int64)
@@ -820,7 +874,7 @@ def explore(st, k, wk, tk, ws, sk, out, cls_out, dig, budget, forced, reads, ev_
                 walk_read = d == w.DEC_SETTLE0 + 7 or d == w.DEC_STAY0 + 1 or d == w.DEC_ENFORCE  # 'unstayed'
                 for q in range(nb):
                     watch_read(st, tk, lv_dec, lv_watch, lv_read, lv_cf, L, qb[q, QN], day, walk_read)
-                    nq = take(st, k, tk, ws, qb[q], out, cls_out, dig, nq, ints, floats, code)
+                    nq = take(st, k, tk, ws, qb[q], mem, nq, ints, floats, code)
             book(st, k, tk, ws, d, day, lv_ans[L, 0], True)
             lv_next[L] = 1
             L += 1
@@ -841,7 +895,7 @@ def explore(st, k, wk, tk, ws, sk, out, cls_out, dig, budget, forced, reads, ev_
                     set_nans(qb, nb, 2)
                     for q in range(nb):
                         watch_read(st, tk, lv_dec, lv_watch, lv_read, lv_cf, lvl, qb[q, QN], lv_day[lvl], False)
-                        nq = take(st, k, tk, ws, qb[q], out, cls_out, dig, nq, ints, floats, code)
+                        nq = take(st, k, tk, ws, qb[q], mem, nq, ints, floats, code)
                 else:
                     lv_watch[lvl] = W_NONE
                     lv_next[lvl] = lv_n[lvl] = 1

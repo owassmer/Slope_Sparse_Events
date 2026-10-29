@@ -19,11 +19,11 @@ def test_the_weights_of_a_draws_histories_sum_to_one():
     ch0 = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
     ch0.instrument_cash()
     tk = pass1.case_tables(fc, d, ch0)
-    q, nodes, leaves, _, reads, _, dig, (lo, hi) = pass1.explore(ch0, 0, tk, qcap=3_000_000)
+    mem, _, nodes, leaves, _, reads, (lo, hi) = pass1.explore(ch0, 0, tk)
     lk = pass2.constants(ch0, pass2.bins(ch0, lo, hi))
     vprob = pass2.verdict_probs(fc, d, lambda key: {"yes": 0.3, "no": 0.7})
     for judge in (pass2.uniform, _skewed):
-        qhash, qprob = pass2.table(q, dig[:, 1], judge)
+        qhash, qprob = pass2.table(mem.rows, mem.ids[:, 1], judge)
         total, nleaves, acc = pass2.evaluate(ch0, 0, tk, lk, qhash, qprob, vprob, forced=reads)
         assert nleaves == leaves
         assert abs(total - 1.0) < 1e-9
