@@ -149,3 +149,65 @@ flags (the `_S` fields) are compiled functions per decision kind.
 7. the cash floor, cash-out, nonpayment and the waiting decisions (`upto`, `until`, `next_floor`);
 8. the walk: cursors, frontier, constructors, keys and classes, the dated question records;
 9. pass 2 and the page.
+
+## The dated walk (29 October)
+
+**What it replaces.** The Python books each answer's consequences when the walk reaches it, and then reconstructs
+what a read on an earlier day would have seen: `seen_at`, `until`, `upto` and `_upto_dated` book the answered
+decisions waiting for their own day into throwaway views; `_stay_effects`, `_without_stay` and `_size_stay` re-size
+every approved stay's security from the whole state on every read; `proposed_terms` projects settlement and stay
+terms by replaying the history with the later answers removed; `court_questions` re-reads the court's stay question
+by replaying the path to the approval day; `record_late`, `capture_decisions` and `freeze_due` re-trace a deferred
+question's record at its date; `_court_read_before`, `_prospective_before`, `_vfired` and `divergence` support these.
+Each exists because the reconstruction has to match a dated read. Both real walk faults came from this
+(a question read a ledger that held later events).
+
+**The compiled walk processes one draw in date order.** The state (S, D, P, the tables, and the line advanced to
+`today`) and a dated agenda:
+- the questions the cursors enable, each dated by `decision_day` on the state now;
+- answered decisions waiting for their own day (the cash floor, cash-out, nonpayment, the offering's outcome, the
+  levy-day and ripe responses, the judgment default), each dated on the state now by its own day function;
+- scheduled reads and bookings: the pending writs (the levy), each stay's approval (its security sized, the court's
+  question read, the lock booked), an offering's close. Bookings already dated (settlement installments, coupons,
+  the at-the-market sales) are in D.
+The loop takes the earliest item, ties broken as `frontier.select` breaks them (the levy-day response, then the levy,
+then other decisions, then cash-out) and, for an approval, as `court_questions` reads it (before the same day's
+waiting decisions and writs). It advances the line to the item's day; a deterministic item it books; a question it
+asks: the question's record is taken from the state now, and for each answer the state is pushed, the answer
+booked, the walk continued, and the state popped.
+
+**What becomes a plain read.**
+- `seen_at(day)`, `until(day)`: the state when the agenda reaches the day.
+- A stay's security: sized when its approval comes due, from the state then (QUESTIONS §2.5: on the approval day,
+  on the balance after every event dated before it, never more than that balance, none after a petition); booked in
+  D_LOCK then and released when the dispute ends. It is never re-sized: the walk inserts no decision before the day
+  already committed (`ChronologicalWalk._loop` raises on one), and no booking is dated before its decision's day, so
+  nothing dated before the approval can be booked once the agenda has passed it.
+- Proposed terms (a settlement offered on day d and paid from day p; a stay's proposed security): the state at d
+  copied, the court answers dated after d taken as not given (a stay not approved, a registration not ordered), the
+  waiting answers dropped, the line run forward to p with no new decision, and cash, owed and need read there. This is
+  what `proposed_terms` computes by replay; the state at d is the replay's result.
+- The court's stay question: read at the approval item.
+- A deferred question's record (an approval, the holders' petition after the declaration and notice): taken when its
+  item comes due.
+
+**Checks.**
+1. Dated by construction (QUESTIONS §1, Two dates): a question's record is taken before any later answer exists,
+   so changing every later answer leaves it byte-identical; tested on random histories with the later answers
+   changed.
+2. Against the Python, history by history: random histories of the real case (`oracle.histories`, both styles), the
+   compiled walk driven along each history's answers on each of its draws; every question's day, cash, owed,
+   collateral, petition, marks, triggers, situation and offers, and each history's event cash, lock, marks, petition
+   and cause, compared exactly. A disagreement is traced to its cause. A compiled fault is fixed. Where the Python
+   reads a state other than its own day's (a reconstruction that sees a later booking or misses an earlier one), the
+   standard (§1 Two dates; §2.5; §5, Date order) decides, and the class of difference goes to Owen with examples
+   before the compiled rule is taken, since it changes what the model computes.
+
+**Slices** (each checked as in 2 before the next):
+1. the agenda and its deterministic items: the writs and the waiting decisions with their day functions (`tau`,
+   `cash_out`, `_fall_after`, `_new_money_after`, `offering_day`, `nonpayment_day`, `response_day`,
+   `judgment_default`) and bookings (`decide_waiting`, `decide_distress`, `decide_floor`, `respond`, `book_default`);
+2. stays, their security and the court's read;
+3. settlements and the projected terms;
+4. the cursors (`_pending`, `_cursors`), the constructors (`forecast._Walk`: which questions, answers and option
+   groups, keys and situation classes) and pass 1.
