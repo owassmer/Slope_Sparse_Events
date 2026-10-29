@@ -66,6 +66,7 @@ def test_the_shared_evidence_comes_first_and_alone_is_cached():
 
 @pytest.fixture
 def adapter(monkeypatch):
+    monkeypatch.delenv("SLOPE_JEV_CACHE_ONLY", raising=False)  # these tests stand in for the provider
     monkeypatch.setenv("SLOPE_JUDGMENT_PROVIDER", "decisions")
     monkeypatch.setenv("OPENAI_DECISIONS_API_KEY", "sk-test")
     return JevAdapter(run_id="t", provider=judgment_provider(), use_cache=False, spend_cap_usd="1.00")
@@ -117,6 +118,7 @@ def test_concurrent_requests_count_only_their_own_attempts(adapter):
 
 def test_the_attempt_ceiling_counts_a_dispatched_attempt_once(monkeypatch):
     """Two requests in flight within a ceiling of six: each may make three attempts, which six allow."""
+    monkeypatch.delenv("SLOPE_JEV_CACHE_ONLY", raising=False)
     monkeypatch.setenv("SLOPE_JUDGMENT_PROVIDER", "decisions")
     monkeypatch.setenv("OPENAI_DECISIONS_API_KEY", "sk-test")
     from app.agent.jev import _ATTEMPTS
@@ -138,7 +140,7 @@ def test_the_attempt_ceiling_counts_a_dispatched_attempt_once(monkeypatch):
         ask = lambda i: jev.judge(profile="event_forecast", question_ids=["forecast_claim_settlement_offer"],  # noqa: E731
                                   state={"case": {"n": i}, "question": {"text": "Q?"}})
         first = asyncio.create_task(ask(0))
-        await started.wait()
+        await asyncio.wait_for(started.wait(), 5)
         await ask(1)
         await first
 
