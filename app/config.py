@@ -84,19 +84,31 @@ def jev_provider() -> JevProvider:
     raise ConfigurationError(f"Unknown JEV_PROVIDER {name!r}; expected 'openrouter' or 'typesafe'")
 
 
-# The decision model for every forecast and no-lawsuit judgment. Kept here, not in agent_config.json: the saved
-# walk and pool are bound to the contracts' hashes, and the model does not change what the questions are.
-JUDGMENTS = {"provider": "clef", "model": "clef", "price_usd_per_million_input_tokens": "0.24",
-             "spend_cap_usd_per_run": "90.00", "max_physical_attempts": 65000}
+# The decision models for forecast and no-lawsuit judgments, and their budgets. Kept here, not in agent_config.json:
+# the saved walk and pool are bound to the contracts' hashes, and the model does not change what the questions are.
+# Clef (Cloudflare Workers AI) and OpenAI's Decisions API (gpt-6-luna: uncached input priced, output free) take the
+# same request: a state and typed questions, a probability per option.
+JUDGMENT_PROVIDERS = {
+    "clef": {"provider": "clef", "model": "clef", "price_usd_per_million_input_tokens": "0.24",
+             "spend_cap_usd_per_run": "90.00", "max_physical_attempts": 65000},
+    "decisions": {"provider": "decisions", "model": "gpt-6-luna", "price_usd_per_million_input_tokens": "0.10",
+                  "spend_cap_usd_per_run": "90.00", "max_physical_attempts": 65000},
+}
+JUDGMENTS = JUDGMENT_PROVIDERS["clef"]  # the default (SLOPE_JUDGMENT_PROVIDER selects another)
 
 
 def judgment_provider() -> JevProvider:
     """The decision model for forecast and no-lawsuit judgments (SLOPE_JUDGMENT_PROVIDER, else agent_config
     runtime.judgments.provider). The recorded investigation and its record-item slots keep `jev_provider`."""
-    cfg = JUDGMENTS
-    name = (os.environ.get("SLOPE_JUDGMENT_PROVIDER") or cfg.get("provider") or "jev").lower()
-    if name != "clef":
+    name = (os.environ.get("SLOPE_JUDGMENT_PROVIDER") or JUDGMENTS["provider"]).lower()
+    cfg = JUDGMENT_PROVIDERS.get(name)
+    if cfg is None:
         return jev_provider()
+    if name == "decisions":
+        # its own key name: OPENAI_API_KEY would switch the coding agents to metered use (METERED_OVERRIDES)
+        return JevProvider("decisions", "OPENAI_DECISIONS_API_KEY", "https://api.openai.com/v1/decisions",
+                           cfg["model"], cfg["model"], marker=cfg["model"],
+                           price_usd_per_million=cfg["price_usd_per_million_input_tokens"])
     account = secret("CLOUDFLARE_ACCOUNT_ID") or os.environ.get("CORDON_CF_ACCOUNT")
     if not account:
         raise ConfigurationError("Clef requires CLOUDFLARE_ACCOUNT_ID (env or .env)")

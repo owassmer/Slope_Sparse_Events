@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict
 from typesafe_sdk import AsyncTypeSafeClient, Choice, Noul, RetryPolicy, Score
 
 from app.config import (
-    JUDGMENTS,
+    JUDGMENT_PROVIDERS,
     VAR,
     ConfigurationError,
     JevProvider,
@@ -109,6 +109,10 @@ class JevAdapter:
             from app.agent.clef import ClefClient
             self.client = ClefClient(url=self.provider.base_url, token=jev_credential(self.provider),
                                      max_retries=MAX_RETRIES, http_client=http)
+        elif self.provider.name == "decisions":
+            from app.agent.decisions import DecisionsClient
+            self.client = DecisionsClient(url=self.provider.base_url, token=jev_credential(self.provider),
+                                          max_retries=MAX_RETRIES, http_client=http)
         else:
             self.client = AsyncTypeSafeClient(
                 api_key=jev_credential(self.provider), base_url=self.provider.base_url,
@@ -116,7 +120,7 @@ class JevAdapter:
         self.run_id = run_id
         self.new_id = new_id or (lambda prefix: f"{prefix}_{uuid.uuid4().hex[:10]}")
         self.use_cache = use_cache
-        own = JUDGMENTS if self.provider.name == JUDGMENTS["provider"] else {}
+        own = JUDGMENT_PROVIDERS.get(self.provider.name, {})
         self.max_attempts = max_attempts or int(os.environ.get(
             "SLOPE_JEV_MAX_ATTEMPTS", own.get("max_physical_attempts",
                                               cfg["budgets"]["jev_max_physical_attempts_including_retries"])))
