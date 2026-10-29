@@ -9,7 +9,7 @@ from app.exact import pass1, pool
 
 
 def test_every_question_of_a_draw_has_its_state(tmp_path):
-    fc, d, qt = pool.context()
+    fc, d, qt, tk = pool.context()
     got = pass1.questions_on(fc, d, [365], shards=4, out_dir=tmp_path, log=lambda s: None)
     lines, ids, members_seen = [], set(), 0
     for shard in range(4):
@@ -18,9 +18,30 @@ def test_every_question_of_a_draw_has_its_state(tmp_path):
         ids |= set(members["ids"][:, 1].tolist())
         members_seen += len(members["ids"])
         out = io.StringIO()
-        pool.reduce(fc, d, qt, members, out, log=lambda s: None)
+        pool.reduce(fc, d, qt, members, out, log=lambda s: None, tk=tk)
         lines += [json.loads(x) for x in out.getvalue().splitlines()]
     assert members_seen == got["draws"][365]["members"]
     assert {x["id"] for x in lines} == ids
     for x in lines:
         assert x["state"]["question"]["text"]
+
+
+def test_what_each_question_is_asked_on_is_the_walks():
+    """Every question the Python walk creates on a sample of histories is asked on what the table says
+    (`pool.assumptions`)."""
+    from app.disputes.answer_first import AnswerFirstWalk, Guide
+    from app.exact import oracle
+
+    seen = 0
+    for seed in (3, 11):
+        fc, d = oracle.context((0, 145, 365))
+        guide = Guide(fc, lambda key, branches: dict.fromkeys(branches, 1 / len(branches)))
+        AnswerFirstWalk(fc, d).configured(guide=guide, tau=2, groups=6, min_groups=6, group_size=1, enumerate_days=0,
+                                          seed=seed).run()
+        for n in fc.nodes.values():
+            if "#" in n.key or n.node.startswith("verdict"):
+                continue
+            ctx = [c for c in n.context.split("|") if c]
+            assert n.assumptions == pool.assumptions(fc, n.node, ctx), (n.key, n.assumptions)
+            seen += 1
+    assert seen > 20

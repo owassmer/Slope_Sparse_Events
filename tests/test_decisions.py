@@ -144,3 +144,21 @@ def test_the_attempt_ceiling_counts_a_dispatched_attempt_once(monkeypatch):
 
     asyncio.run(two())
     assert jev.settled_attempts == 2
+
+
+def test_a_saved_answer_from_another_model_is_not_used(adapter, tmp_path, monkeypatch):
+    import json
+
+    from app.agent import jev
+    from app.agent.jev import build_question, canonical_sha256, registry_question
+
+    monkeypatch.setattr(jev, "CACHE_DIR", tmp_path)
+    adapter.use_cache = True
+    state = {"case": {}, "question": {"text": "Q?"}}
+    qid = "forecast_claim_settlement_offer"
+    q = build_question(registry_question(qid))
+    key = canonical_sha256({"model": adapter.provider.model, "state": state, "questions": {qid: q.model_dump(mode="json")}})
+    (tmp_path / f"{key}.json").write_text(json.dumps({"raw": {"model": "gpt-6-luna-other-model", "answers": {}},
+                                                      "created_at": "x"}))
+    with pytest.raises(jev.ConfigurationError):
+        asyncio.run(adapter.judge(profile="event_forecast", question_ids=[qid], state=state))

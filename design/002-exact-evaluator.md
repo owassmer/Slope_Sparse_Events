@@ -301,12 +301,21 @@ on how the walk branches.
 ## The judge's input: a question's facts pooled over the draws (29 October)
 
 **What the judge reads.** A question (its rendered key and situation class, `question_keys`) is asked once, on the
-14 May state `state14.build` writes: the case, the standard, the evidence routed to the decision, and the situation:
+14 May state `state14.build` writes: the case, the standard, the evidence routed to the decision, what the question is
+asked on (its constructor's assumptions: `pool.assumptions`, checked against the walk's nodes), and the situation:
 one representative trajectory's joint facts (the medoid of the question's members by decision day and available cash)
-with the members' range beside each figure, and the members' counts on the grouping dimensions. Its members are the
-distinct (draw, record) pairs on which the question arises (identical situations get one answer however reached, so a
-record reached on one draw by two routes is one member). `state14` is used unchanged: given the members' records as
-rows, its state is the Python's by construction; the records themselves are the dated walk's (tasks 002-9, 002-10).
+with the members' range beside each figure. Its members are the distinct (draw, record) pairs on which the question
+arises: identical situations get one answer however reached, so a record reached on one draw by two routes is one
+member. This is a choice, not the Python's pooling, which counts every route's occurrence: the representative can
+differ where routes repeat a record (the ranges do not). The members are taken in a fixed order (draw, then record),
+so the medoid's tie rule does not depend on the sharding. Each member reads its own draw's operating figures (the
+state builder indexes the operating need by position: the reduce gives it the members' draws' rows). Every member is
+one on which the question's situation holds (`Forecaster.live`: inside the period, before a petition, and for a
+question about an unpaid judgment, something owed: the dated walk does not ask such a question where nothing is owed,
+and the reduce raises on a member that is not live). A deferred question's key carries the amount class on its own
+date, not its origin's (the Python's walk asks the court's answer with the motion, under the motion's class). A
+remittitur's proposed amount and band and the verdict form's questions come from the case's tables
+(`fc.remitted`, `fc.verdict_classes`).
 
 **Size.** A draw has 14,000-48,000 distinct members (measured: draws 145 and 365), about 37 million over the 512
 draws, at 92 integers and a float each: too much to hold in one place, too much to pass whole between runs.
@@ -324,7 +333,7 @@ draws, at 92 integers and a float each: too much to hold in one place, too much 
    (`var/jev_cache`), so a stopped run resumes.
 4. Pass 2 reads the answers by question identity.
 
-**Checks.** On followed histories, a question's state built from the dated walk's members equals `state14.build` on
-the same members' Python records (the decoded rows equal the Python's, 002-10); every question pass 2 meets has an
-answer (pass 2 raises on one it does not); every member is live by construction (asked inside the period before a
-petition).
+**Checks.** Every question of a draw has its state (the reduce raises on a member that is not live, a missing
+field, a question it cannot render); what each question is asked on equals the Python walk's nodes'; every question
+pass 2 meets has an answer (pass 2 raises on one it does not). The records themselves were checked against the
+Python's field by field (002-9, 002-10).

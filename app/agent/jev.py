@@ -147,6 +147,20 @@ class JevAdapter:
         self.requests = 0
         self.cache_hits = 0
 
+    def _check_model(self, raw: dict) -> None:
+        """The answer is the pinned model's: for Decisions the requested model or its dated snapshot; else a build
+        whose identifier carries the pinned marker."""
+        returned = raw.get("model")
+        if self.provider.name == "decisions":
+            from app.agent.decisions import DecisionsError, returned_model
+
+            try:
+                returned_model(raw, self.provider.model)
+            except DecisionsError as error:
+                raise ConfigurationError(str(error)) from error
+        elif not returned or self.provider.marker not in str(returned):
+            raise ConfigurationError(f"Unexpected model {returned!r}; pinned {self.provider.pinned_build}")
+
     def cost(self, usage: dict) -> Decimal | None:
         """A request's cost from its usage: the provider's own figure where it gives one, else its input tokens at
         their rates (cached reads and cache writes apart where the provider prices them apart); None without usage."""
@@ -169,12 +183,13 @@ class JevAdapter:
                 + w30 * self.rates["cache_write_30m"] + w12 * self.rates["cache_write_12h"])
 
     def _reserve(self, payload_bytes: int) -> tuple[int, Decimal]:
-        """Worst-case headroom check before dispatch; released after the request completes. A token covers at least
-        one byte of what is sent (the byte-level tokenizers these models use), so the payload's bytes bound its tokens:
-        an attempt costs at most its bytes at the dearest rate a token can cost. The attempts are those of the requests
-        finished (`settled_attempts`) and every request in flight at its worst (all its retries)."""
+        """Headroom check before dispatch; released after the request completes. An attempt is reserved, and charged
+        where it returns no usage, at twice its payload's bytes at the dearest rate a token can cost: a token covers at
+        least a byte of text in the tokenizers these models use, and the doubling stands for the provider's framing,
+        which it does not publish. It is a margin, not a bound; the provider's own credit balance is the hard stop. The
+        attempts are those of the requests finished (`settled_attempts`) and every request in flight at its worst."""
         attempts = 1 + MAX_RETRIES
-        estimate = Decimal(payload_bytes) * self.worst_per_token * attempts
+        estimate = 2 * Decimal(payload_bytes) * self.worst_per_token * attempts
         if self.settled_attempts + self.inflight_attempts + attempts > self.max_attempts:
             raise JevBudgetExceeded(f"Jev attempt ceiling reached ({self.max_attempts} physical attempts)")
         if self.spent_usd + self.inflight_usd + estimate > self.spend_cap:
@@ -204,6 +219,7 @@ class JevAdapter:
         if self.use_cache and cache_file.exists():
             cached = json.loads(cache_file.read_text())
             raw, now = cached["raw"], cached["created_at"]
+            self._check_model(raw)  # a saved answer is the pinned model's too, or it is not used
             cache_hit = True
             self.cache_hits += 1
         else:
@@ -232,9 +248,7 @@ class JevAdapter:
             cost = self.cost(raw.get("usage") or {})
             self.spent_usd += cost if cost is not None else per_attempt
             now = datetime.now(UTC).isoformat()
-            returned = raw.get("model")
-            if not returned or self.provider.marker not in str(returned):
-                raise ConfigurationError(f"Unexpected model {returned!r}; pinned {self.provider.pinned_build}")
+            self._check_model(raw)
             if self.use_cache:
                 CACHE_DIR.mkdir(parents=True, exist_ok=True)
                 cache_file.write_text(json.dumps({"raw": raw, "created_at": now}))
