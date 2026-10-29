@@ -229,45 +229,71 @@ cash (no motion, a denied motion) stay apart where the judge reads them apart: i
 3. the cursors (`_pending`, `_cursors`), the constructors as split decisions (`forecast._Walk`: which questions,
    answers and option groups, keys and situation classes) and pass 1.
 
-## The walk, compiled (slice 3, 29 October)
+## The walk, compiled (slice 3, 29 October; revised after its review, `.runs/review-002-walk-20261029T104309.md`)
 
 **What it is.** `ChronologicalWalk` (app/disputes/chronological.py) on one draw: at each point the decisions the
 answers so far leave open (`_pending`, `_cursors`), each dated on the state now (`Chain.decision_day`), the earliest
-taken (`frontier.select`'s phases), the deterministic items (the levy, the answered decisions waiting for their day,
-a stay's approval) booked by the agenda, a question asked by its constructor (`_ask` → the `_Walk` method of its kind),
-and each answer's child walked, the state pushed before and popped after. The chronological walk overrides every
-`_Walk` continuation to return to the scheduler, so a constructor is one decision: its questions, its answers (with
-their edges and option groups) and the path flags (`_S`) each answer sets. That is what is ported, constructor by
-constructor: `settle`, `verdict`, `motions`, `q1`, `stay_i1`/`stay_post` (`stay_answers`), `j9_i1`, `appeal`,
-`enforce`, `a4_grouped` with `offer`, `ruling_pending`, `notes_petition`, `listing`, `delisting`, `ask_distress`,
-`nonpayment`, and the recurrence bounds (`_ask`'s `bounds.reached`).
+item taken (`frontier.select`'s phases, a stay's approval first on its day), the deterministic items (the levy, the
+answered decisions waiting for their day, a stay's approval) booked by the agenda, a question asked, and each answer's
+child walked, the state saved before and restored after. The scheduler is `app/exact/walk.py` (checked: it follows the
+Python walk's own histories step for step, booking identically).
 
-**Per draw, not per population.** The Python asks a question when it arises on some draw of the population and
-takes population-wide decisions in a few places (`settle`'s feasibility, `_closes_after`, `inside`, the option groups
-offered, the depth rule's watch). Per draw each becomes the draw's own condition. Figures are unchanged where the
-answer not asked books nothing on the draw (the depth rule's premise); which draws contribute records to a question
-can differ (item 7 above); the fidelity check measures it.
+**Elementary questions, each at its own date.** A `_Walk` constructor can hold several questions answered at
+different dates (the stay motion and its approval; the holders' acceleration, the issuer's petition and the holders'
+petition; the bid-price compliance and the hearing request; the enforcement request and the early-registration order)
+and the initiation and the offering's outcome. Each is its own agenda item at its own date, its record taken then:
+| constructor | questions, each at its date |
+|---|---|
+| `settle` | settlement_offer and settlement_accept, both at the window's start (one composite answer) |
+| `verdict` | the verdict questions (one composite answer per award class) at the verdict |
+| `motions`, `q1`, `appeal` | one question at its date |
+| `stay_answers` | stay_motion at the motion; stay_approved at the approval (court order) |
+| `j9_i1` | registration_early at the order date (the creditor's motion is assumed) |
+| `enforce` | enforce_after_final at finality; after an appealed 'yes' not registered early, registration_early (post) at the order date |
+| `a4_grouped` | the response, per option group, at its day; after 'initiate_offering', offering_closes at its close |
+| `ruling_pending` | post_trial_ruling and remittitur_elected at the ruling |
+| `notes_petition` | holders_act_judgment at the ripe date; petition_on_notes at the notes' due date; holders_involuntary at the holders' route date |
+| `listing` | bid_compliance at the deadline; hearing_request at its deadline |
+| `delisting` | holders_act_delisting at delisting; petition_on_notes and holders_involuntary at their dates |
+| `ask_distress` | financing_at_floor / petition_cash_out per option group at its day; offering_closes after an initiation |
+| `nonpayment` | petition_on_notes and holders_involuntary at the §3.3 day (one composite answer) |
+The offering recurrence bound is the model's restriction on available actions (`offering_initiations`, failed
+initiations counted); it removes the initiation where reached (`ChronologicalWalk.offer`), never forcing a quiet
+answer. The tables sized from it (`MAX_OFFERS`, `MAX_FLOORS`) raise when exceeded, so the 'unbounded' sensitivity
+stops loudly rather than truncating.
 
-**Not ported.** `joined` and `unfiled` merge sibling answers that book and read the same; the exact evaluator sums
-every history, so both are walked and their probabilities add (the merged edge is the union of the same disjoint
-conjunctions). `first`, `_first_ripe`, `_first_listing` and `_first_distress` are disabled in the chronological walk.
+**Case-level inputs.** The award partition (`verdict_lines`, `verdict_classes`: cut points from the reachable cash
+over all draws, booked amounts at band midpoints) and the reduced band (`reduced_band`) are one partition of the case
+shared by every draw: computed once in Python and passed as tables (each award class: its booked amount, band, the
+verdict questions' composite answer, and its reduced band). Never per draw.
 
-**The depth rule** (`_watched`: the pre-ruling execution and the appeal are asked only where a later question reads
-them): the no-answer subtree is walked first with a watch; where a later question reads the event on the draw, the
-question is asked: the yes-answer subtree is walked and the no-subtree's accumulations are multiplied by the no
-answer's probability (pass 2 sums are linear in each history's weight, so this is exact); elsewhere the no-subtree
-stands with weight 1.
+**Depth (QUESTIONS §1: a question is asked only where its answer can change cash, timing, an obligation or a later
+decision inside the horizon on some trajectory).** The Python decides it on the population of draws sharing the walk's
+prefix (`_Watch.read`, one flag; `_edge_after`), an artifact of the walk. The compiled walk decides it per question
+key, over every draw where that question arises, as the standard says: pass 1 walks each watched question's no-answer
+subtree and records on which keys a later question read the event (`_Watch`'s reads: the nodes, the walks, the
+conditions); the keys read on some draw are asked wherever they arise, both answers walked; pass 1 repeats until no new
+key is asked (each repetition only adds). Where both answers of an asked question book identically on a draw (an
+offering closing after the horizon), the draw is walked once with weight 1 and the question still recorded there.
 
-**Question identity.** A question's key is its structural key (the node and its context: the interval, the amount
-class `_S.cls`, the occasion, the stage) and its class on the draw (the record's situation class: the judgment's band
-and standing, the notes, the listing, the offering, payment, the appeal and stay status where the question reads them,
-the context conditions held, the option group). The compiled walk emits integers: a structural key id (from a table
-built in Python from the case's vocabulary before the walk) and a class vector; Python renders both to the key and
-class strings `forecast` and `state14` use. A question's record (the dated facts state14 renders) is a fixed-width
-numeric row taken when its item comes up.
+**No joining.** `joined` merges sibling answers that book the same into the first's label (`_same_after`, through
+`Chain.divergence`, which ignores facts-only state such as `hearing_requested`). The merged continuation then states the
+first label's situation to every later question on the other's trajectories: after a merged 'hearing', later questions
+are told the stock is listed. The compiled walk walks each answer (its probability is its own), so a later question
+states its own situation. `unfiled` is not on the pending-claim routes.
 
-**Checks.** Replay against the Python walk: every oracle history (`oracle.histories`: chronological-walk paths, both
-styles) driven through the compiled walk on each of its draws: at each step the compiled frontier selects the
-history's decision, constructs the same questions (structural keys), the same answer set and option groups, and the
-history's answer's edges; at the end each classed question's class on the draw equals the path's
-(`DisputePath.classes`). Then pass 1 on whole draws, with the count of distinct questions.
+**Pooling.** A question's members are its distinct (draw, record) pairs: the same record on the same draw reached by
+two routes is one situation (Owen: identical situations get one answer however reached), so the pool does not depend
+on how the walk branches.
+
+**Checks.**
+1. The scheduler: done (above).
+2. Each constructor, on the histories: every Python step maps to elementary answers (a stay 'yes' to motion 'yes'
+   and approval 'yes'; a joined label to each of its constituents); the walk driven along them books as the Python
+   does; a decision the frontier selects that the history does not answer must not arise on the draw by the compiled
+   constructor's own test (an extra question fails); a history step never reached fails (a missing one); each question
+   asked carries the Python path's question key and, on the draw, its class (`DisputePath.classes`), except where a
+   difference above (depth, joining, the dated record) explains it, counted by class.
+3. A stay approved on the day of another event: the trace shows the approval processed before every other item of
+   that day, and its security sized on the balance at processing before them.
+4. Pass 1 on whole draws: the distinct questions and their count.
