@@ -125,11 +125,11 @@ draws (`tests/test_exact_oracle.py`). The per-draw design rests on this; the wal
 the walk.
 
 **State as a stack, no allocation.** Each draw's walk keeps its state in preallocated arrays with a leading depth
-axis (depth up to the longest history, about 40 decisions): scalars `I[depth, NI]` (int64) and `F[depth, NF]`
+axis (depth up to the longest history, about 40 decisions): scalars `S[depth, NI]` (int64) and `F[depth, NF]`
 (float64), per-day arrays `D[depth, ND, days]` (the event cash by kind, the lock, the capacity, the at-the-market
 booking) and `P[depth, NP, days]` (float: the share price), fixed-capacity tables for what the Python keeps as lists
 (takes, writs, settlement parts, offerings, coupons, pending writs, waiting decisions: `T_<name>[depth, rows, cols]`
-with their counts in `I`), the line's state (task 002-6), and the answers given so far (`A[depth, decisions]`, -1
+with their counts in `S`), the line's state (task 002-6), and the answers given so far (`A[depth, decisions]`, -1
 unanswered). Saving at a decision is copying slot d into d + 1 (a few tens of kilobytes, microseconds); restoring is
 moving back to d. Field indices are module constants in `app/exact/fields.py`, each with the Python attribute it
 holds, so numba compiles them as constants and each area adds its own.
