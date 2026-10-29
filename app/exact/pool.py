@@ -117,7 +117,10 @@ def node_for(fc, d, key: str, q: np.ndarray, klass: str, tk=None) -> str:
     question with its group's own answers, `Forecaster.class_key`; a remittitur with its proposed amount and band,
     `fc.remitted`): its node key."""
     name, *ctx = key.split(":", 1)[1].split("|")
-    base = fc.node(d, name, *ctx, assumptions=assumptions(fc, name, ctx))
+    branches = None
+    if q[w.QN] == w.Q_RULING:  # a reduction is offered only where the award has a lower band (`_Walk.ruling_pending`)
+        branches = ("unchanged", "reduced", "set_aside") if q[w.QNANS] == 3 else ("unchanged", "set_aside")
+    base = fc.node(d, name, *ctx, assumptions=assumptions(fc, name, ctx), branches=branches)
     if q[w.QN] == w.Q_REMITTITUR:
         [i] = np.flatnonzero(tk.reduced[:, 0] == q[w.QEXTRA])[:1]
         fc.remitted[base] = tuple(int(x) for x in tk.reduced[i])  # booked, low, high

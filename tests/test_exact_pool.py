@@ -33,10 +33,11 @@ def test_what_each_question_is_asked_on_is_the_walks():
     from app.disputes.answer_first import AnswerFirstWalk, Guide
     from app.exact import oracle
 
-    seen = 0
-    for seed in (3, 11):
+    seen, kinds = 0, set()
+    for seed, style in ((3, "uniform"), (11, "long"), (19, "long")):
         fc, d = oracle.context((0, 145, 365))
-        guide = Guide(fc, lambda key, branches: dict.fromkeys(branches, 1 / len(branches)))
+        guide = Guide(fc, oracle._long if style == "long" else
+                      (lambda key, branches: dict.fromkeys(branches, 1 / len(branches))))
         AnswerFirstWalk(fc, d).configured(guide=guide, tau=2, groups=6, min_groups=6, group_size=1, enumerate_days=0,
                                           seed=seed).run()
         for n in fc.nodes.values():
@@ -45,4 +46,5 @@ def test_what_each_question_is_asked_on_is_the_walks():
             ctx = [c for c in n.context.split("|") if c]
             assert n.assumptions == pool.assumptions(fc, n.node, ctx), (n.key, n.assumptions)
             seen += 1
-    assert seen > 20
+            kinds.add(n.node)
+    assert seen >= 15 and len(kinds) >= 8, (seen, sorted(kinds))
