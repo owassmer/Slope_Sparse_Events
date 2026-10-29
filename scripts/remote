@@ -30,14 +30,30 @@ sha="${wave_sha:-$(git rev-parse HEAD)}"
       [ -n "$id" ] && break; sleep 5
     done
   fi
-  echo "run https://github.com/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/actions/runs/$id"
   set +e
-  gh run watch "$id" --interval 60 --exit-status > /dev/null 2>&1; status=$?
+  repo="$(until gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null; do sleep 30; done)"
+  echo "run https://github.com/$repo/actions/runs/$id"
+  # Finished only when GitHub says the run is completed: a network error is retried, never read as an ending
+  # (October 29: a dropped connection ended three watches with no finish line while their runs went on).
+  while :; do
+    state="$(gh run view "$id" --json status,conclusion --jq '.status + " " + (.conclusion // "")' 2>/dev/null)"
+    case "$state" in completed*) break ;; esac
+    sleep 60
+  done
+  status=1; [ "$state" = "completed success" ] && status=0
+  dest="var/remote/$name"
+  # every job's out-* artifact, or retried: a short download once fed a wave too few pieces (October 13)
+  want="$(until gh run view "$id" --json jobs --jq '[.jobs[] | select(.name != "plan")] | length' 2>/dev/null; do sleep 30; done)"
+  for _ in 1 2 3 4 5; do
+    rm -rf "$dest"; mkdir -p "$dest"
+    gh run download "$id" --pattern "out-*" --dir "$dest" > /dev/null 2>&1   # never the heavy-* artifacts
+    got="$(find "$dest" -mindepth 1 -maxdepth 1 -type d -name 'out-*' | wc -l | tr -d ' ')"
+    [ "$got" -ge "$want" ] && break
+    echo "downloaded $got of $want job outputs; retrying"; sleep 30
+  done
+  until gh run view "$id" --json jobs --jq '.jobs[] | "\(.conclusion) \(.name)"' 2>/dev/null; do sleep 30; done
   set -e
-  dest="var/remote/$name"; rm -rf "$dest"; mkdir -p "$dest"
-  gh run download "$id" --pattern "out-*" --dir "$dest" > /dev/null 2>&1 || true   # never the heavy-* artifacts
-  gh run view "$id" --json jobs --jq '.jobs[] | "\(.conclusion) \(.name)"'
-  echo "outputs: $dest"
+  echo "outputs: $dest ($got of $want jobs)"
   echo "=== finished exit $status"
 } > "$log" 2>&1 &
 echo "remote run $name: $log"
