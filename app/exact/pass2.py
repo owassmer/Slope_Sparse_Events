@@ -127,8 +127,9 @@ def from_answers(path) -> tuple[np.ndarray, np.ndarray, dict]:
             continue
         p = np.zeros(tree.MAX_ANS)
         p[:len(a["distribution"])] = a["distribution"]
-        ids.append(a["id"])
-        probs.append(p)
+        for i in a["ids"]:  # every walk identity the question answers for
+            ids.append(i)
+            probs.append(p)
     qhash = np.array(ids, dtype=np.int64)
     if len(np.unique(qhash)) != len(qhash):
         raise ValueError("a question identity answered twice")

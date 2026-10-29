@@ -10,18 +10,18 @@ from app.exact import pass1, pool
 
 def test_every_question_of_a_draw_has_its_state(tmp_path):
     fc, d, qt, tk = pool.context()
-    got = pass1.questions_on(fc, d, [365], shards=4, out_dir=tmp_path, log=lambda s: None)
-    lines, ids, members_seen, shared = [], set(), 0, {}
-    for shard in range(4):
-        members = pool.load(tmp_path, shard)
-        assert (pass1.shard_of(members["ids"][:, 1], 4) == shard).all()
+    pass1.questions_on(fc, d, [365], shards=4, out_dir=tmp_path, log=lambda s: None)
+    lines, ids, shared = [], set(), {}
+    for shard in range(3):
+        members = pool.load(tmp_path, shard, 3, qt)
+        assert all(pool.shard_of_question(x, 3) == shard for x in set(members["question"]))
         ids |= set(members["ids"][:, 1].tolist())
-        members_seen += len(members["ids"])
         out = io.StringIO()
         pool.reduce(fc, d, qt, members, out, log=lambda s: None, tk=tk, shared=shared)
         lines += [json.loads(x) for x in out.getvalue().splitlines()]
-    assert members_seen == got["draws"][365]["members"]
-    assert {x["id"] for x in lines} == ids
+    assert set().union(*(x["ids"] for x in lines)) == ids  # every walk identity answered for
+    keys = [x["key"] for x in lines]
+    assert len(keys) == len(set(keys))  # each question built once
     for x in lines:
         st = pool.state(x, shared)
         assert st["question"]["text"] and list(st) == x["order"]

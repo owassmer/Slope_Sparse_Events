@@ -14,59 +14,9 @@ from pathlib import Path
 
 import numpy as np
 
-from app.analysis.events import BIG
 from app.disputes.forecast import CLASS_TAG
 from app.exact import decode, question_keys
 from app.exact import fields_walk as w
-
-
-def _stack(values: list):
-    """Members' decoded values stacked into the one-row form the state reads: arrays concatenated; a value the same on
-    every member kept as it is; else one value per member."""
-    first = values[0]
-    if isinstance(first, dict):
-        keys = set().union(*(v.keys() for v in values))
-        if any(set(v) != keys for v in values):
-            raise ValueError(f"members' records differ in their fields: {sorted(keys)}")
-        return {k: _stack([v[k] for v in values]) for k in first}
-    if isinstance(first, np.ndarray):
-        return np.concatenate(values)
-    if all(v is None for v in values):
-        return None
-    if all(v == first for v in values):
-        return first
-    out = np.empty(len(values), dtype=object)
-    out[:] = values
-    return out
-
-
-def _offerings(members: list[dict]) -> list:
-    """The offering attempts on each member, padded to the most any member has with attempts that did not happen on
-    it (initiated never: `state14` reads the representative's, dated before its decision)."""
-    most = max(len(m["sit"]["offerings"]) for m in members)
-    out = []
-    for i in range(most):
-        cols = [[], [], []]
-        for m in members:
-            got = m["sit"]["offerings"]
-            a, c, ok = got[i] if i < len(got) else (np.array([BIG]), np.array([BIG]), np.array([False]))
-            cols[0].append(a)
-            cols[1].append(c)
-            cols[2].append(ok)
-        out.append(tuple(np.concatenate(x) for x in cols))
-    return out
-
-
-def rows_of(ints: np.ndarray, floats: np.ndarray) -> dict:
-    """A question's members (record integers [M, NI] and floats [M, NF]) as one row of M trajectories."""
-    members = [decode.record(ints[i], floats[i]) for i in range(len(ints))]
-    offers = _offerings(members)
-    for m in members:
-        m["sit"]["offerings"] = []
-    row = _stack(members)
-    row["sit"]["offerings"] = offers
-    return row
-
 
 ENFORCEABLE = "the judgment is enforceable, unstayed and unpaid"
 NONPAYMENT = "the notes are due and unpaid under Indenture §7.02 on the general nonpayment"
@@ -150,7 +100,7 @@ def states_of(fc, d, q: np.ndarray, klass: str, ints: np.ndarray, floats: np.nda
     """A question's node key, state and the findings it cites, from its members (in a fixed order: by draw, then record), each read with its
     own draw's operating figures: one, or the verdict form's questions (each its own key, read on the same members).
     Every member must be one on which the question's situation holds (`Forecaster.live`)."""
-    row = rows_of(ints, floats)
+    row = decode.rows(ints, floats)
     if q[w.QN] in (w.Q_PETITION_NOTES, w.Q_HOLDERS_INV):  # the notes question's own context (`notes.record_row`)
         context = next((p[3:] for p in klass.split(".") if p.startswith("ctx")), "")
         row["note_context"] = np.full(len(ints), bytes.fromhex(context).decode(), dtype=object)
@@ -173,38 +123,82 @@ def states_of(fc, d, q: np.ndarray, klass: str, ints: np.ndarray, floats: np.nda
     return out
 
 
-def load(map_dir: Path, shard: int) -> dict[str, np.ndarray]:
-    """Every map line's members of one shard."""
-    parts = [np.load(p) for p in sorted(Path(map_dir).rglob(f"members-{shard:03d}.npz"))]
-    if not parts:
-        raise FileNotFoundError(f"no members of shard {shard} under {map_dir}")
-    return {k: np.concatenate([p[k] for p in parts]) for k in parts[0].files}
+def render(q: np.ndarray, code: np.ndarray, qt) -> str:
+    """A question as the judge reads it: its key and situation class (the verdict form: its questions' keys). Several
+    of the walk's identities can render one question (the identity holds detail the question does not state): their
+    members are one question's."""
+    keys = question_keys.keys(q, qt)
+    if q[w.QN] == w.Q_VERDICT:
+        return "\t".join(sorted(keys))
+    [key] = keys
+    return key + "\t" + question_keys.situation_class(q, code, qt)
+
+
+def shard_of_question(rkey: str, shards: int) -> int:
+    import hashlib
+
+    return int.from_bytes(hashlib.sha256(rkey.encode()).digest()[:8], "big") % shards
+
+
+def load(map_dir: Path, shard: int, shards: int, qt) -> dict[str, np.ndarray]:
+    """The members of the questions (as rendered: `render`) that fall to this shard, from every map line's files: each
+    member once (a question, a draw and a record), with its question and the walk identity it was found under."""
+    rendered: dict[int, str] = {}
+    keep: dict[str, list] = {}
+    files = sorted(Path(map_dir).rglob("members-*.npz"))
+    if not files:
+        raise FileNotFoundError(f"no members under {map_dir}")
+    for path in files:
+        part = np.load(path)
+        ids = part["ids"][:, 1]
+        uniq, first, inverse = np.unique(ids, return_index=True, return_inverse=True)
+        mine = np.zeros(len(uniq), dtype=bool)
+        names = np.empty(len(uniq), dtype=object)
+        for j, (i, f) in enumerate(zip(uniq, first, strict=True)):
+            i = int(i)
+            if i not in rendered:
+                rendered[i] = render(part["rows"][f], part["cls"][f], qt)
+            names[j] = rendered[i]
+            mine[j] = shard_of_question(names[j], shards) == shard
+        sel = mine[inverse]
+        if sel.any():
+            for k in part.files:
+                keep.setdefault(k, []).append(part[k][sel])
+            keep.setdefault("question", []).append(names[inverse][sel])
+    out = {k: np.concatenate(v) for k, v in keep.items()}
+    # each member once: a record reached under two of the walk's identities of one question is one situation
+    order = np.lexsort((out["ids"][:, 0], out["draw"], out["question"]))
+    q, dr, dg = out["question"][order], out["draw"][order], out["ids"][order, 0]
+    first = np.ones(len(order), dtype=bool)
+    first[1:] = (q[1:] != q[:-1]) | (dr[1:] != dr[:-1]) | (dg[1:] != dg[:-1])
+    return {k: v[order][first] for k, v in out.items()}
 
 
 def reduce(fc, d, qt, members: dict[str, np.ndarray], out, log=print, tk=None, shared: dict | None = None) -> int:
-    """Each question of the members (by identity): its state, one JSON line to `out`: the state's own parts (its
-    question and situation) and, by its digest, its shared parts (the case, the standard, the record items and the
-    evidence, the same for every question about one decision: kept once in `shared`). Returns how many. The members
-    are taken by question, then draw, then record digest, so a question's state does not depend on how the map split
-    them (`state14.medoid` breaks ties by order)."""
+    """Each question of the members (as rendered: `load`): its state, one JSON line to `out`: the walk identities it
+    answers for (pass 2 reads its answer under each), its own parts (its question and situation) and, by its digest,
+    its shared parts (the case, the standard, the record items and the evidence, the same for every question about one
+    decision: kept once in `shared`). Returns how many lines. The members come by question, then draw, then record
+    digest (`load`), so a question's state does not depend on how the map split them (`state14.medoid` breaks ties by
+    order)."""
     from app.agent.decisions import split_state
     from app.agent.jev import canonical_sha256
 
     shared = {} if shared is None else shared
-    ids = members["ids"][:, 1]
-    order = np.lexsort((members["ids"][:, 0], members["draw"], ids))
-    bounds = np.flatnonzero(np.diff(ids[order])) + 1
+    names = members["question"]
+    bounds = np.flatnonzero(names[1:] != names[:-1]) + 1
     count = 0
-    for sel in np.split(order, bounds):
+    for sel in np.split(np.arange(len(names)), bounds):
         q, code = members["rows"][sel[0]], members["cls"][sel[0]]
         klass = "" if q[w.QN] == w.Q_VERDICT else question_keys.situation_class(q, code, qt)
+        ids = sorted({int(x) for x in members["ids"][sel, 1]})
         for key, st, fids in states_of(fc, d, q, klass, members["ints"][sel], members["floats"][sel],
                                        members["draw"][sel], qt, tk):
             n = fc.nodes[key]
             common, own = split_state(json.loads(json.dumps(st, default=str)))
             digest = canonical_sha256(common)
             shared.setdefault(digest, common)
-            out.write(json.dumps({"id": int(ids[sel[0]]), "key": key, "question_id": n.question_id,
+            out.write(json.dumps({"ids": ids, "key": key, "question_id": n.question_id,
                                   "instance_id": n.instance_id, "findings": list(fids), "verdict": klass == "",
                                   "branches": list(n.branches), "answers": int(q[w.QNANS]), "members": len(sel),
                                   "draws": int(np.unique(members["draw"][sel]).size), "shared": digest,
@@ -231,13 +225,13 @@ def context():
 
 
 def main(argv=None) -> None:
-    """`python -m app.exact.pool <shard> <map dir> <out.jsonl>`: the states of one shard's questions."""
+    """`python -m app.exact.pool <shard> <shards> <map dir> <out.jsonl>`: the states of one shard's questions."""
     import sys
 
     args = argv or sys.argv[1:]
-    shard, map_dir, out = int(args[0]), Path(args[1]), Path(args[2])
+    shard, shards, map_dir, out = int(args[0]), int(args[1]), Path(args[2]), Path(args[3])
     fc, d, qt, tk = context()
-    members = load(map_dir, shard)
+    members = load(map_dir, shard, shards, qt)
     out.parent.mkdir(parents=True, exist_ok=True)
     shared: dict = {}
     with out.open("w") as fh:

@@ -47,7 +47,7 @@ async def answer_all(reduce_dir: Path, out: Path, log=print) -> dict:
             raise ValueError(f"{line['key']}: {len(branches)} answers, the walk offers {line['answers']}")
         o = await prof.forecast(line["question_id"], st, (line["instance_id"], *line["findings"]), branches)
         dist = answer_distribution(line["key"], branches, o)
-        return {"id": line["id"], "key": line["key"], "verdict": line["verdict"], "branches": list(branches),
+        return {"ids": line["ids"], "key": line["key"], "verdict": line["verdict"], "branches": list(branches),
                 "distribution": [dist[b] for b in branches], "confidence": o.confidence}
 
     with out.open("w") as fh:
