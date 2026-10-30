@@ -83,3 +83,15 @@ def test_an_unknown_answer_stops_the_walk(draw):
     prob[:] = np.nan
     with pytest.raises(ValueError, match="unknown"):
         pass2.evaluate(ch0, 0, tk, lk, ans._replace(qprob=prob), vprob, forced=reads)
+
+
+def test_the_worst_feasible_history_is_found_whatever_its_probability(draw):
+    """The worst history (the most left uncollected) is the same under any judge: every answer is walked, a
+    zero-probability one too."""
+    fc, d, ch0, tk, mem, leaves, reads, lk, nclasses, vprob = draw
+    got = []
+    for judge in (pass2.uniform, _skewed):
+        ans = pass2.table(mem.rows, mem.ids[:, 1], judge, nclasses)
+        _, _, acc = pass2.evaluate(ch0, 0, tk, lk, ans, vprob, forced=reads)
+        got.append(acc["worst"][0])
+    assert got[0] == got[1] and got[0]["history"]

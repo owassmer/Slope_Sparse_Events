@@ -1034,6 +1034,11 @@ def decision_probs(d, m, ans, nb, P, vprob, out):
         raise ValueError("a decision's answer probabilities do not sum to one")
 
 
+# the worst feasible history (core.stress, stress_search.rank): the most left uncollected at the horizon (the stayed
+# claim and what is not yet collected), then the largest stayed claim; every answer walked, whatever its probability
+I_UNRECOVERED, I_STAYED = leaf.SC["unrecovered"], leaf.SC["stayed"]
+
+
 @njit(cache=True)
 def decision_grads(d, m, nb, P, G):
     """Each answer's probability (`decision_probs`) differentiated by each of the decision's questions' answer
@@ -1087,7 +1092,7 @@ def _close(lvl, lv_n, lv_p, lv_w, lv_E, lv_nq, lv_pair, lv_nans, lv_G, lv_verdic
 
 @njit(cache=True)
 def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase, forced, day_acc, sc, h_cash, h_coll,
-             h_head, h_low, h_floor, ev_lo, ev_hi, T, root, repeats):
+             h_head, h_low, h_floor, ev_lo, ev_hi, T, root, repeats, worst, worst_hist):
     """Pass 2 on the draw: every history walked, its probability the product of its answers' (`qprob` rows by
     question identity `qhash`, sorted; the verdict's classes `vprob`), each leaf's figures added weighted by it
     (`leaf.accumulate`). Every answer is walked, a zero-probability one too, and every leaf's figures computed: a
@@ -1097,8 +1102,9 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase,
     `leaf.nf`) accumulates d figures / d P[question i, answer a], summed over the question's occurrences; the verdict's
     classes at T[vbase + class]. A figure moves exactly by sum (P' - P) T for any change to the answers of one
     decision, provided no history holds two of its questions: a decision (qdec) met again on a history adds the weight
-    reaching it to repeats[decision]. root accumulates the draw's expected figure vector. An unknown answer (NaN) stops
-    the walk where it is met. Returns (the total weight, which is one, and the leaves)."""
+    reaching it to repeats[decision]. root accumulates the draw's expected figure vector. worst (unrecovered, stayed,
+    depth) and worst_hist (decision, day, answer per level) hold the worst feasible history met so far (`I_UNRECOVERED`).
+    An unknown answer (NaN) stops the walk where it is met. Returns (the total weight, which is one, and the leaves)."""
     S = st.S
     walk.init(S)
     nf = T.shape[1]
@@ -1172,6 +1178,11 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase,
         leaves += 1
         total += weight
         leaf.accumulate(st, k, lk, weight, day_acc, sc, h_cash, h_coll, h_head, h_low, h_floor, ev_lo, ev_hi, F)
+        if F[I_UNRECOVERED] > worst[0] or (F[I_UNRECOVERED] == worst[0] and F[I_STAYED] > worst[1]):
+            worst[0], worst[1], worst[2] = F[I_UNRECOVERED], F[I_STAYED], L
+            for up in range(L):
+                worst_hist[up, 0], worst_hist[up, 1] = lv_dec[up], lv_day[up]
+                worst_hist[up, 2] = lv_ans[up, lv_next[up] - 1]
         if L == 0:
             root += F
             return total, leaves

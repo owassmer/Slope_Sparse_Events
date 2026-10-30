@@ -98,10 +98,14 @@ def evaluate(ch0, r: int, tk: tree.TK, lk: leaf.LK, ans: Answers, vprob: np.ndar
                                  "low": Bins(lk.low_lo, lk.low_w, lk.nbins_low)})
         nf = leaf.nf(months_of(ch0))
         acc.update(T=np.zeros((ans.rows, nf)), root=np.zeros(nf), repeats=np.zeros(len(ans.decisions)))
+    worst, hist = np.array([-np.inf, -np.inf, 0.0]), np.zeros((tree.MAX_DEPTH, 3), np.int64)
     total, leaves = tree.evaluate(st, k, walk.WK(listing=tk.listing), tk, ws, sk, lk, ans.qhash, ans.qprob, ans.qpair,
                                   ans.qdec, vprob, ans.vbase, np.array(sorted(forced), dtype=np.int64), acc["day"],
                                   acc["scalars"], acc["cash"], acc["collected"], acc["headroom"], acc["low"],
-                                  acc["floor"], acc["ev_lo"], acc["ev_hi"], acc["T"], acc["root"], acc["repeats"])
+                                  acc["floor"], acc["ev_lo"], acc["ev_hi"], acc["T"], acc["root"], acc["repeats"],
+                                  worst, hist)
+    acc.setdefault("worst", []).append({"unrecovered": float(worst[0]), "stayed": float(worst[1]),
+                                        "history": hist[:int(worst[2])].tolist()})
     return total, leaves, acc
 
 
@@ -255,7 +259,7 @@ def line(first: int, last: int, answers_path, range_files, forced, out_dir, heav
         total, leaves, acc = evaluate(ch0, r, tk, lk, ans, vprob, forced, acc)
         if abs(total - 1.0) > 1e-9:
             raise ValueError(f"draw {draw}: the histories' weights sum to {total}")
-        per[draw] = {"leaves": leaves, "seconds": round(time.perf_counter() - t0, 1)}
+        per[draw] = {"leaves": leaves, "seconds": round(time.perf_counter() - t0, 1), "worst": acc["worst"][-1]}
         log(f"draw {draw}: {per[draw]}")
     if (acc["ev_lo"] < lo).any() or (acc["ev_hi"] > hi).any():
         raise ValueError("a leaf's event cash outside pass 1's range: the bins would clip it")
@@ -289,6 +293,13 @@ def combine(out_files, term_files, out_path) -> dict:
         got[k] = parts[0][k]
     for k in ("day", "scalars", "cash", "collected", "headroom", "low", "floor", "root", "repeats"):
         got[k] = np.sum([p[k] for p in parts], axis=0)
+    import json
+
+    worst = max(((int(d), v["worst"]) for f in sorted(out_files) for d, v in
+                 json.loads(Path(f).with_suffix(".json").read_text())["draws"].items()),
+                key=lambda x: (x[1]["unrecovered"], x[1]["stayed"]))  # the worst feasible history over the draws
+    got.update(worst_draw=worst[0], worst_unrecovered=worst[1]["unrecovered"], worst_stayed=worst[1]["stayed"],
+               worst_history=np.array(worst[1]["history"], dtype=np.int64).reshape(-1, 3))
     got["ev_lo"] = np.min([p["ev_lo"] for p in parts], axis=0)
     got["ev_hi"] = np.max([p["ev_hi"] for p in parts], axis=0)
     T = None
