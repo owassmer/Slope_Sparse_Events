@@ -16,6 +16,7 @@ import sys
 import time
 from pathlib import Path
 
+from app.agent.decisions import DecisionsError
 from app.disputes.forecast import answer_distribution
 from app.exact import pool
 
@@ -46,7 +47,11 @@ async def answer_all(reduce_dir: Path, out: Path, log=print, limit: int | None =
         branches = tuple(line["branches"])
         if not line["verdict"] and len(branches) != line["answers"]:
             raise ValueError(f"{line['key']}: {len(branches)} answers, the walk offers {line['answers']}")
-        o = await prof.forecast(line["question_id"], st, (line["instance_id"], *line["findings"]), branches)
+        try:
+            o = await prof.forecast(line["question_id"], st, (line["instance_id"], *line["findings"]), branches)
+        except DecisionsError as error:  # the provider failed after its retries: not answered; a rerun asks it again
+            log(f"not answered (provider failure): {line['key'][:120]}: {str(error)[:120]}")
+            return None
         try:
             dist = answer_distribution(line["key"], branches, o)
         except RuntimeError:  # refused or no probability: an unknown, recorded as such (pass 2 will not read it)
@@ -55,22 +60,28 @@ async def answer_all(reduce_dir: Path, out: Path, log=print, limit: int | None =
         return {"ids": line["ids"], "key": line["key"], "verdict": line["verdict"], "branches": list(branches),
                 "distribution": [dist[b] for b in branches], "confidence": o.confidence}
 
-    refused = 0
+    refused = failed = 0
     with out.open("w") as fh:
         for lo in range(0, len(items), batch):
             for got in await asyncio.gather(*(one(line, st) for line, st in items[lo:lo + batch])):
+                if got is None:
+                    failed += 1
+                    continue
                 fh.write(json.dumps(got) + "\n")
                 refused += bool(got.get("refused"))
             done = min(lo + batch, len(items))
-            log(f"{time.time() - t0:7.0f}s {done}/{len(items)} asked, {refused} refused; {jev.usage_summary()}")
-    return {**jev.usage_summary(), "refused": refused}
+            log(f"{time.time() - t0:7.0f}s {done}/{len(items)} asked, {refused} refused, {failed} not answered; "
+                f"{jev.usage_summary()}")
+    return {**jev.usage_summary(), "refused": refused, "not_answered": failed}
 
 
 def main(argv=None) -> None:
     """`python -m app.exact.judge <reduce dir> <answers.jsonl> [<first n questions>]`"""
     args = argv or sys.argv[1:]
     limit = int(args[2]) if len(args) > 2 else None
-    print(asyncio.run(answer_all(Path(args[0]), Path(args[1]), log=lambda s: print(s, flush=True), limit=limit)))
+    got = asyncio.run(answer_all(Path(args[0]), Path(args[1]), log=lambda s: print(s, flush=True), limit=limit))
+    print(got)
+    sys.exit(1 if got["not_answered"] else 0)  # a rerun asks only those (the rest come from the cache)
 
 
 if __name__ == "__main__":

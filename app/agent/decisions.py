@@ -31,7 +31,7 @@ import re
 
 import httpx2
 
-RETRY_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
+RETRY_STATUS = {408, 409, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524}  # 52x: the provider's edge (Cloudflare)
 # the state's parts that are the same for every question about one decision (state14.build, Forecaster.built)
 SHARED = ("case", "standard", "record_items", "historical_evidence", "party_assertions", "court_findings", "evidence")
 
