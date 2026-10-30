@@ -189,11 +189,13 @@ def questions_on(fc_all, d, draws, forced=(), log=print, shards: int = 0, out_di
     ch0.instrument_cash()
     tk = case_tables(fc_all, d, ch0)
     qt = question_keys.case_tables(fc_all, d, ch0, tk)
-    out: dict = {"draws": {}, "questions": set(), "reads": set()}
+    out: dict = {"draws": {}, "questions": set(), "reads": set(), "range": None}
     parts: dict = {}
     for r, draw in enumerate(draws):
         t0 = time.perf_counter()
-        mem, nq, nodes, leaves, deepest, reads, _ = explore(ch0, r, tk, forced=forced)
+        mem, nq, nodes, leaves, deepest, reads, (lo, hi) = explore(ch0, r, tk, forced=forced)
+        out["range"] = (lo, hi) if out["range"] is None else (np.minimum(out["range"][0], lo),
+                                                                np.maximum(out["range"][1], hi))
         _, first = np.unique(mem.ids[:, 1], return_index=True)
         found = set()
         for j in first:
@@ -235,8 +237,9 @@ def shard_of(ids: np.ndarray, shards: int) -> np.ndarray:
 
 def main(argv=None) -> None:
     """`python -m app.exact.pass1 <first> <last> <out dir> [<shards> [<forced keys file>]]`: pass 1 on draws first..last
-    (inclusive), its summary to <out dir>/pass1-<first>.json and, with shards, its members filed by question under
-    `pool.HEAVY` (kept on GitHub)."""
+    (inclusive), its summary to <out dir>/pass1-<first>.json, the range of the final cumulative event cash over its
+    draws (what pass 2's bins span: `pass2.bins`) to <out dir>/range-<first>.npz and, with shards, its members filed by
+    question under `pool.HEAVY` (kept on GitHub)."""
     import json
     import sys
     from pathlib import Path
@@ -254,6 +257,7 @@ def main(argv=None) -> None:
     fc_all, d = oracle._forecaster()
     got = questions_on(fc_all, d, range(first, last + 1), forced=forced, log=lambda s: print(s, flush=True),
                        shards=shards, out_dir=HEAVY)  # the members stay on GitHub (`heavy-*`); the summary comes back
+    np.savez(out_dir / f"range-{first:03d}.npz", lo=got["range"][0], hi=got["range"][1])
     (out_dir / f"pass1-{first:03d}.json").write_text(json.dumps(
         {"draws": got["draws"], "questions": sorted(got["questions"]), "reads": sorted(got["reads"]),
          "forced": sorted(forced)}))
