@@ -1035,14 +1035,73 @@ def decision_probs(d, m, ans, nb, P, vprob, out):
 
 
 @njit(cache=True)
-def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, vprob, forced, day_acc, sc, h_cash, h_coll, h_head, ev_lo,
-             ev_hi):
+def decision_grads(d, m, nb, P, G):
+    """Each answer's probability (`decision_probs`) differentiated by each of the decision's questions' answer
+    probabilities: G[q, j, a] = d out[j] / d P[q, a], with every composite written so that each product holds at most one
+    answer of each question (a settlement's 'no': not offered, or offered and refused), which is the composite's own
+    value wherever each question's answers sum to one. A figure is then affine in each question's distribution, and
+    `evaluate`'s terms move it exactly. The verdict's classes are terms of their own (`evaluate`)."""
+    G[:nb, :m, :] = 0.0
+    if d < w.DEC_VERDICT and m == 2:  # a settlement: offered and accepted; else not offered, or offered and refused
+        G[0, 0, 0], G[1, 0, 0] = P[1, 0], P[0, 0]
+        G[0, 1, 1], G[0, 1, 0], G[1, 1, 1] = 1.0, P[1, 1], P[0, 0]
+    elif d == w.DEC_VERDICT:
+        return
+    elif d == w.DEC_RULING and m == 4:  # unchanged; reduced and accepted; reduced and refused; set aside
+        G[0, 0, 0] = 1.0
+        G[0, 1, 1], G[1, 1, 0] = P[1, 0], P[0, 1]
+        G[0, 2, 1], G[1, 2, 1] = P[1, 1], P[0, 1]
+        G[0, 3, 2] = 1.0
+    elif d == w.DEC_NONPAYMENT:  # the issuer files; the holders file; the notes are due
+        G[0, 0, 0] = 1.0
+        G[0, 1, 1], G[1, 1, 0] = P[1, 0], P[0, 1]
+        G[0, 2, 1], G[1, 2, 1] = P[1, 1], P[0, 1]
+    else:
+        for j in range(m):
+            G[0, j, j] = 1.0
+
+
+@njit(cache=True)
+def _close(lvl, lv_n, lv_p, lv_w, lv_E, lv_nq, lv_pair, lv_nans, lv_G, lv_verdict, lv_ans, vbase, T, Ebar):
+    """A level whose answers are all walked: its expected figures from the node (Ebar), and its questions' terms: the
+    weight reaching it times, for each question's answer, the sum over the decision's answers of the derivative times
+    the expected figures under that answer."""
+    m, W = lv_n[lvl], lv_w[lvl]
+    Ebar[:] = 0.0
+    for j in range(m):
+        Ebar += lv_p[lvl, j] * lv_E[lvl, j]
+    if W == 0.0:
+        return
+    if lv_verdict[lvl]:
+        for j in range(m):
+            T[vbase + lv_ans[lvl, j]] += W * lv_E[lvl, j]
+        return
+    for q in range(lv_nq[lvl]):
+        base = lv_pair[lvl, q]
+        for x in range(lv_nans[lvl, q]):
+            for j in range(m):
+                g = lv_G[lvl, q, j, x]
+                if g != 0.0:
+                    T[base + x] += (W * g) * lv_E[lvl, j]
+
+
+@njit(cache=True)
+def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase, forced, day_acc, sc, h_cash, h_coll,
+             h_head, ev_lo, ev_hi, T, root, repeats):
     """Pass 2 on the draw: every history walked, its probability the product of its answers' (`qprob` rows by
     question identity `qhash`, sorted; the verdict's classes `vprob`), each leaf's figures added weighted by it
-    (`leaf.accumulate`). Every answer is walked, a zero-probability one too (it carries no weight here; what a changed
-    judgment reads is walked the same way). Returns (the total weight, which is one, and the leaves)."""
+    (`leaf.accumulate`). Every answer is walked, a zero-probability one too, and every leaf's figures computed: a
+    question's terms read the histories under each of its answers whatever their probability.
+
+    The terms (design/002-exact-evaluator.md, Changing judgments): T[qpair[i] + a] (row: a leaf's figure vector,
+    `leaf.nf`) accumulates d figures / d P[question i, answer a], summed over the question's occurrences; the verdict's
+    classes at T[vbase + class]. A figure moves exactly by sum (P' - P) T for any change to the answers of one
+    decision, provided no history holds two of its questions: a decision (qdec) met again on a history adds the weight
+    reaching it to repeats[decision]. root accumulates the draw's expected figure vector. An unknown answer (NaN) stops
+    the walk where it is met. Returns (the total weight, which is one, and the leaves)."""
     S = st.S
     walk.init(S)
+    nf = T.shape[1]
     lv_dec = np.zeros(MAX_DEPTH, np.int64)
     lv_day = np.zeros(MAX_DEPTH, np.int64)
     lv_n = np.zeros(MAX_DEPTH, np.int64)
@@ -1050,12 +1109,21 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, vprob, forced, day_acc, sc
     lv_ans = np.zeros((MAX_DEPTH, MAX_ANS), np.int64)
     lv_p = np.zeros((MAX_DEPTH, MAX_ANS), np.float64)
     lv_w = np.zeros(MAX_DEPTH, np.float64)
+    lv_E = np.zeros((MAX_DEPTH, MAX_ANS, nf), np.float64)
+    lv_nq = np.zeros(MAX_DEPTH, np.int64)
+    lv_pair = np.zeros((MAX_DEPTH, 4), np.int64)
+    lv_nans = np.zeros((MAX_DEPTH, 4), np.int64)
+    lv_qdec = np.zeros((MAX_DEPTH, 4), np.int64)
+    lv_G = np.zeros((MAX_DEPTH, 4, MAX_ANS, MAX_ANS), np.float64)
+    lv_verdict = np.zeros(MAX_DEPTH, np.bool_)
     ans = np.zeros(MAX_ANS, np.int64)
     qb = np.zeros((4, QCOLS), np.int64)
     P = np.zeros((4, MAX_ANS), np.float64)
     ints = np.zeros(fr.NI, np.int64)
     floats = np.zeros(fr.NF, np.float64)
     code = np.zeros(fr.NC, np.int64)
+    F = np.zeros(nf, np.float64)
+    Ebar = np.zeros(nf, np.float64)
     L, weight, total, leaves = 0, 1.0, 0.0, 0
     while True:
         d, day, m, g = next_question(st, k, wk, tk, ws, ans)
@@ -1064,6 +1132,7 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, vprob, forced, day_acc, sc
                 raise ValueError("the walk is deeper than its stack")
             save(st, sk, L)
             lv_dec[L], lv_day[L], lv_w[L] = d, day, weight
+            lv_nq[L], lv_verdict[L] = 0, d == w.DEC_VERDICT
             wkey = watch_key(S, d) if watched(st, k, d) else np.int64(-1)
             if wkey >= 0 and not (forced.size and forced[min(np.searchsorted(forced, wkey), forced.size - 1)] == wkey):
                 lv_n[L] = 1  # asked nowhere: its no answer, with certainty (QUESTIONS §1 Depth)
@@ -1084,9 +1153,17 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, vprob, forced, day_acc, sc
                         raise ValueError("a question pass 1 did not find")
                     for j in range(qb[q, QNANS]):
                         P[q, j] = qprob[ix, j]
+                    lv_pair[L, q], lv_nans[L, q], lv_qdec[L, q] = qpair[ix], qb[q, QNANS], qdec[ix]
+                    lv_nq[L] = q + 1
+                    for up in range(L):  # the decision met before on this history
+                        for u in range(lv_nq[up]):
+                            if lv_qdec[up, u] == qdec[ix]:
+                                repeats[qdec[ix]] += weight
                 lv_n[L] = m
                 lv_ans[L, :m] = ans[:m]
                 decision_probs(d, m, ans, nb, P, vprob, lv_p[L])
+                decision_grads(d, m, lv_nq[L], P, lv_G[L])
+            lv_E[L, :lv_n[L]] = 0.0
             book(st, k, tk, ws, d, day, lv_ans[L, 0], True)
             weight = lv_w[L] * lv_p[L, 0]
             lv_next[L] = 1
@@ -1094,8 +1171,11 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, vprob, forced, day_acc, sc
             continue
         leaves += 1
         total += weight
-        if weight > 0.0:
-            leaf.accumulate(st, k, lk, weight, day_acc, sc, h_cash, h_coll, h_head, ev_lo, ev_hi)
+        leaf.accumulate(st, k, lk, weight, day_acc, sc, h_cash, h_coll, h_head, ev_lo, ev_hi, F)
+        if L == 0:
+            root += F
+            return total, leaves
+        lv_E[L - 1, lv_next[L - 1] - 1] += F
         while L > 0:
             lvl = L - 1
             if lv_next[lvl] < lv_n[lvl]:
@@ -1105,6 +1185,11 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, vprob, forced, day_acc, sc
                 weight = lv_w[lvl] * lv_p[lvl, j]
                 lv_next[lvl] += 1
                 break
+            _close(lvl, lv_n, lv_p, lv_w, lv_E, lv_nq, lv_pair, lv_nans, lv_G, lv_verdict, lv_ans, vbase, T, Ebar)
+            if lvl == 0:
+                root += Ebar
+            else:
+                lv_E[lvl - 1, lv_next[lvl - 1] - 1] += Ebar
             L -= 1
         if L == 0:
             return total, leaves

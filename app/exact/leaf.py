@@ -36,6 +36,12 @@ SCALAR_NAMES = ("lender_pv", "pv_fundings", "pv_collections", "dollar_days", "dr
                 "min_headroom_has", "headroom_count", "headroom_negative")
 NSC = len(SCALAR_NAMES)
 SC = {name: i for i, name in enumerate(SCALAR_NAMES)}
+
+
+def nf(months: int) -> int:
+    """A leaf's figure vector: the scalars, then each per-day row summed by month (row-major: row r, month m at
+    NSC + r * months + m). What a question's terms hold (`tree.evaluate`)."""
+    return NSC + NDAY * months
 PREFERENCE_DAYS = 90  # 11 U.S.C. §547(b)(4)(A) (engine.PREFERENCE_DAYS)
 
 # the analysis's constants on the draw: discount factors, the facility, the opening principal, the month of each day,
@@ -89,9 +95,19 @@ def _bin(x, lo, w, n):
 
 
 @njit(cache=True)
-def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, ev_lo, ev_hi):
+def _row(day, F, r, t, m, months, w, x):
+    """Day t's value x of per-day row r: added to the accumulators weighted by w, and to the leaf's vector by month."""
+    day[r, t] += w * x
+    F[NSC + r * months + m] += x
+
+
+@njit(cache=True)
+def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, ev_lo, ev_hi, F):
     """Run the line on the leaf's final event cash and add its figures, weighted by w, to the draw's accumulators;
-    widen the cumulative event cash range (ev_lo, ev_hi: what the bins span)."""
+    widen the cumulative event cash range (ev_lo, ev_hi: what the bins span); write the leaf's own figures, unweighted,
+    to F (`nf`)."""
+    F[:] = 0.0
+    months = (F.size - NSC) // NDAY
     finalize(st, k)
     agenda.restay(st, k)
     S, D, N, ln = st.S, st.D, k.N, st.ln
@@ -119,25 +135,26 @@ def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, ev_lo, ev_hi):
         cum_fund += fund
         by_day = petitioned and pet <= t
         window = petitioned and t >= pet - PREFERENCE_DAYS and t < pet
-        day[L_CASH, t] += w * c
-        day[L_BACKUP, t] += w * (c + max(lk.facility - out[6, t], 0))
-        day[L_COLLECTED, t] += w * cum_coll
-        day[L_DUE_CUM, t] += w * cum_due
-        day[L_FUNDINGS, t] += w * fund
-        day[L_COLLECTIONS, t] += w * coll
-        day[L_OUTSTANDING, t] += w * outs
-        day[L_LOCKED, t] += w * out[5, t]
-        day[L_CAPACITY, t] += w * out[6, t]
+        mo = lk.month[t]
+        _row(day, F, L_CASH, t, mo, months, w, c)
+        _row(day, F, L_BACKUP, t, mo, months, w, c + max(lk.facility - out[6, t], 0))
+        _row(day, F, L_COLLECTED, t, mo, months, w, cum_coll)
+        _row(day, F, L_DUE_CUM, t, mo, months, w, cum_due)
+        _row(day, F, L_FUNDINGS, t, mo, months, w, fund)
+        _row(day, F, L_COLLECTIONS, t, mo, months, w, coll)
+        _row(day, F, L_OUTSTANDING, t, mo, months, w, outs)
+        _row(day, F, L_LOCKED, t, mo, months, w, out[5, t])
+        _row(day, F, L_CAPACITY, t, mo, months, w, out[6, t])
         if by_day:
-            day[L_PETITIONED, t] += w
-            day[L_FROZEN, t] += w * (contract - collected)
-            day[L_FROZEN_DUE, t] += w * (cum_due - cum_coll)
+            _row(day, F, L_PETITIONED, t, mo, months, w, 1)
+            _row(day, F, L_FROZEN, t, mo, months, w, contract - collected)
+            _row(day, F, L_FROZEN_DUE, t, mo, months, w, cum_due - cum_coll)
         else:
-            day[L_PAST_DUE, t] += w * (cum_due - cum_coll)
+            _row(day, F, L_PAST_DUE, t, mo, months, w, cum_due - cum_coll)
         if window:
-            day[L_CLAWBACK, t] += w * coll
+            _row(day, F, L_CLAWBACK, t, mo, months, w, coll)
         for j in range(5):
-            day[L_ARREARS0 + j, t] += w * out[9 + j, t]
+            _row(day, F, L_ARREARS0 + j, t, mo, months, w, out[9 + j, t])
         pv_f += fund * lk.df[t]
         pv_c += coll * lk.df[t]
         dollar += outs
@@ -166,4 +183,5 @@ def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, ev_lo, ev_hi):
               1.0 if unrecovered == 0 else 0.0, float(out[0, N - 1]), float(atm), float(off),
               1.0 if head_n > 0 else 0.0, float(head_n), float(head_neg)):
         sc[i] += w * v
+        F[i] = v
         i += 1
