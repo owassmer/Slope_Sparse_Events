@@ -5,7 +5,7 @@ answers in the order the walk offers them (a yes-or-no question's first answer i
 branches'), written by question identity for pass 2. Every answer is cached (`var/jev_cache`), so a stopped run
 resumes; a question with no answer stops the run (an unknown is never a zero).
 
-`python -m app.exact.judge <reduce dir> <answers.jsonl>`
+`python -m app.exact.judge <reduce dir> <answers.jsonl> [<first n questions>]`
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def questions(reduce_dir: Path):
             yield line, pool.state(line, shared)
 
 
-async def answer_all(reduce_dir: Path, out: Path, log=print) -> dict:
+async def answer_all(reduce_dir: Path, out: Path, log=print, limit: int | None = None) -> dict:
     from app.agent.jev import JevAdapter
     from app.agent.jev_profiles import DisputeProfile
     from app.config import judgment_provider
@@ -37,7 +37,8 @@ async def answer_all(reduce_dir: Path, out: Path, log=print) -> dict:
     jev = JevAdapter(provider=judgment_provider(), run_id="exact-judge", use_cache=True,
                      spend_cap_usd=os.environ.get("SLOPE_JEV_CAP"))
     prof = DisputeProfile(jev, lambda kind, obj: None)
-    items = list(questions(reduce_dir))
+    # the questions about one decision together (their shared evidence, read from the provider's cache, stays warm)
+    items = sorted(questions(reduce_dir), key=lambda x: (x[0]["shared"], x[0]["key"]))[:limit]
     t0, done = time.time(), 0
     batch = int(os.environ.get("SLOPE_JEV_BATCH", "200"))
 
@@ -60,8 +61,10 @@ async def answer_all(reduce_dir: Path, out: Path, log=print) -> dict:
 
 
 def main(argv=None) -> None:
+    """`python -m app.exact.judge <reduce dir> <answers.jsonl> [<first n questions>]`"""
     args = argv or sys.argv[1:]
-    print(asyncio.run(answer_all(Path(args[0]), Path(args[1]), log=lambda s: print(s, flush=True))))
+    limit = int(args[2]) if len(args) > 2 else None
+    print(asyncio.run(answer_all(Path(args[0]), Path(args[1]), log=lambda s: print(s, flush=True), limit=limit)))
 
 
 if __name__ == "__main__":
