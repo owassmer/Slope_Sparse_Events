@@ -201,7 +201,8 @@ DUE_HOW = {"declared": "by declaration of the trustee or the holders",
 # The window a stage's question covers (QUESTIONS §1: intervals end on dates or changes of state, and a 'no' means the
 # event does not occur in the interval): from the question's own date to the date that ends it where that date is
 # known on the question's date, else the change of state that ends it (`agenda.settlement_window`, the walk's).
-WINDOW = {"Ientry": "from {day}, the day the judgment is entered, to the deadline for post-trial motions on {motions}",
+WINDOW = {"I0": "from {day}, before the jury's verdict",
+          "Ientry": "from {day}, the day the judgment is entered, to the deadline for post-trial motions on {motions}",
           "I1": "from {day}, while post-trial motions are pending, until the court rules on them",
           "Istay": "from {day}, while the judgment is stayed on approved security before the post-trial ruling, until the "
                    "court rules on the post-trial motions",
@@ -210,9 +211,15 @@ WINDOW = {"Ientry": "from {day}, the day the judgment is entered, to the deadlin
           "Iappeal": "from {day}, while the company's appeal is pending, through {end}",
           "I2": "from {day}, after the post-trial ruling or once the time for post-trial motions has run, to the "
                 "deadline to appeal on {appeal}",
-          "I3": "from {day}, with the judgment enforceable and unstayed after the deadline to appeal, through {end}",
+          "I3": "from {day}, once the deadline to appeal has arrived, with the judgment enforceable and unstayed, "
+                "through {end}",
           "I4": "from {day}, while the judgment is stayed on approved security, through {end}",
           "enforce_after_final": "from {day}, with the judgment enforceable and unstayed, through {end}"}
+# a stage whose end is not a date known on the question's date: a date at its end (a settlement priced there, a
+# sensitivity) is stated as the event, never as the date it falls on in the walk
+UNKNOWN_END = {"I0": "the day of the jury's verdict", "I1": "the day the court rules on the post-trial motions",
+               "Istay": "the day the court rules on the post-trial motions",
+               "Ienforce": "the day the court rules on the post-trial motions"}
 # a response question left with one action besides doing nothing: the nothing-answer is not taking that action
 WITHOUT = {"file": ("continue without filing", "{company} continues without filing a voluntary petition on "
                     "{decision_date}."),
@@ -345,7 +352,7 @@ class Situation:
 
     def interval(self):
         """The window the question's event may occur in, from its own date (`WINDOW`)."""
-        if self.d is not None and self.d.stage == "liability_pending" and "I0" not in self.tags:
+        if self.d is not None and self.d.stage == "liability_pending" and self.g is not None:
             stage = "enforce_after_final" if self.n.node == "enforce_after_final" else \
                 next((t for t in self.tags if t in WINDOW), None)
             if stage is None:
@@ -540,6 +547,9 @@ class Situation:
         return str(count)
 
     def settlement_date(self):
+        stage = next((t for t in self.tags if t in UNKNOWN_END), None)
+        if self.fc.sens.get("settlement_date_in_interval") and stage is not None:
+            return UNKNOWN_END[stage]  # at the stage's end, a day not known on the question's date
         if self.g is not None and "settlement_pricing" in self.g.rows[self.g.rep[0]]["sit"]:
             g = self._g()
             dates = g.rowwise(lambda r, x: r["sit"]["settlement_pricing"]["day"][x])

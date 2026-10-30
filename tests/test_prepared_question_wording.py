@@ -14,7 +14,8 @@ def test_grouped_question_and_provider_only_offer_recorded_actions():
     node = SimpleNamespace(node='judgment_response', branches=('file', 'none'))
     text = question_text(node, entry['prompt']['instructions'],
                          {'company': 'Company', 'decision_date': '28 Oct 2024', 'occasion': 'before the levy'})
-    assert text == 'What does Company do on 28 Oct 2024, before the levy: file a voluntary petition, or none of these?'
+    assert text == ('What does Company do on 28 Oct 2024, before the levy: file a voluntary petition, or continue '
+                    'without filing?')
     restricted = {**entry, 'prompt': {**entry['prompt'], 'criteria': {
         b: entry['prompt']['criteria'][b] for b in node.branches}}}
     provider = build_question(restricted).model_dump(mode='json')

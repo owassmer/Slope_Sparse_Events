@@ -77,7 +77,9 @@ def record(st, k, day, node, ctx, scratch, out, floats):
     out[r.RULING] = S[f.F] if filed else f.BIG
     out[r.MOTIONS_FILED] = S[f.MOTIONS_FILED] if filed else f.BIG
     out[r.MOTIONS_DEADLINE] = S[f.E_IX] + k.frcp
-    out[r.ENTRY_APPEAL_DEADLINE] = S[f.E_IX] + k.frap
+    # the deadline to appeal as the walk fixes it (FRAP 4(a)(1)(A), on the next court day: 26(a)(1)(C)), known
+    # beyond the analysis period too: the class and the question read the walk's date, never a recomputed one
+    out[r.ENTRY_APPEAL_DEADLINE] = core.court_day(k.court, S[f.E_IX] + k.frap) if S[f.E_IX] < f.BIG else f.BIG
     out[r.DELISTED] = S[f.DELISTED] if S[f.DELISTED] <= day else f.BIG
     out[r.STAYED_FROM] = S[f.STAYED_FROM] if S[f.STAYED_FROM] <= day else f.BIG
     latest, status = -1, 0
@@ -150,8 +152,7 @@ def record(st, k, day, node, ctx, scratch, out, floats):
     for j in range(2):
         ripe, on = notes.judgment_default(S, st.takes, k.nc, j)
         out[r.TRIGGER0 + j] = inside(ripe, k.N) if on else f.BIG
-    out[r.TRIGGER0 + 2] = ((inside(S[f.AD], k.N) if S[f.F] <= day else f.BIG)
-                          if filed else out[r.ENTRY_APPEAL_DEADLINE])
+    out[r.TRIGGER0 + 2] = ((S[f.AD] if S[f.F] <= day else f.BIG) if filed else out[r.ENTRY_APPEAL_DEADLINE])
     coupon = f.BIG
     for j in range(S[n.N_COUPONS]):
         c = st.coupons[j]
