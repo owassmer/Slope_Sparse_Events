@@ -5,6 +5,8 @@ counted once."""
 import io
 import json
 
+import numpy as np
+
 from app.exact import pass1, pool
 
 
@@ -14,7 +16,10 @@ def test_every_question_of_a_draw_has_its_state(tmp_path):
     lines, ids, shared = [], set(), {}
     for shard in range(3):
         members = pool.load(tmp_path, shard, 3, qt)
-        assert all(pool.shard_of_question(x, 3) == shard for x in set(members["question"]))
+        for i in np.unique(members["question"]):  # each question in its shard, under its text's identity
+            j = int(np.flatnonzero(members["question"] == i)[0])
+            text = pool.render(members["rows"][j], members["cls"][j], qt)
+            assert pool.shard_of_question(text, 3) == shard and pool.question_id(text) == i
         ids |= set(members["ids"][:, 1].tolist())
         out = io.StringIO()
         pool.reduce(fc, d, qt, members, out, log=lambda s: None, tk=tk, shared=shared)
