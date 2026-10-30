@@ -53,11 +53,12 @@ def test_distinct_parties_keep_distinct_roles():
         roles.Parties([{"as": "A", "names": ["X"]}, {"as": "B", "names": ["X"]}])
 
 
-def test_a_partys_own_defined_term_stays_its_own():
-    item = {"author": "Qorvo, Inc.", "quote": "The Company sued Akoustis. The Company expects to prevail."}
-    assert roles.apply(item, PARTIES)["quote"] == "The Claimant sued the Company. The Claimant expects to prevail."
-    titled = {"source": "Qorvo, Inc. Form 10-K", "quotes": ["The Company sued Akoustis."]}
-    assert roles.apply(titled, PARTIES)["quotes"] == ["The Claimant sued the Company."]
+def test_another_partys_the_company_stops_the_case():
+    for item in ({"author": "Qorvo, Inc.", "quote": "The Company sued Akoustis."},
+                 {"source": "Qorvo, Inc. Form 10-K", "quotes": ["The Company sued Akoustis."]},
+                 {"author": "Qorvo", "quote": "Qorvo quoted Akoustis: \u201cthe Company agrees not to sell\u201d"}):
+        with pytest.raises(roles.AmbiguousTerm):
+            roles.apply(item, PARTIES)
     own = {"author": "Akoustis Technologies", "quote": "The Company had cash of $15.2 million."}
     assert roles.apply(own, PARTIES)["quote"] == "The Company had cash of $15.2 million."
     # a person speaking is not a party whose document defines the term

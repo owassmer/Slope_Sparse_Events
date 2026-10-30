@@ -16,8 +16,9 @@ capitals, as whole words; the longest declared name first, across all roles (a c
 not read as "Alpha"). A role keeps the grammar around it: "the Akoustis defendants" -> "the Company defendants",
 "Akoustis' subsidiary" -> "the Company's subsidiary", a role that opens a sentence or quotation starts with a capital,
 and a name ending in a period that also ended a sentence leaves the period. Where a party's own document defines "the
-Company" as itself, the defined term becomes that party's role (`author`), so a claimant's filing never reads as the
-company's.
+Company" as a term of its own, whom it means cannot be told from who wrote or quoted it, so the case stops there
+(`AmbiguousTerm`) rather than give the judge a guess. Names must be proper names: a declared name is matched as written
+and in capitals, so an ordinary word declared as a name would be replaced wherever it occurs.
 """
 from __future__ import annotations
 
@@ -88,14 +89,17 @@ class Parties:
         return found.pop() if len(found) == 1 else None
 
 
+class AmbiguousTerm(ValueError):
+    """Another party's document uses the company's role as a term of its own: whom it means cannot be told."""
+
+
 def _walk(obj, fn: Callable[[str], str], author_role: str | None, parties: Parties):
     if isinstance(obj, str):
-        if author_role in parties.organisations and author_role != parties.company:
-            # the author's own defined term first: in its document, "the Company" is the author itself
-            term = parties.company[4:] if parties.company.lower().startswith("the ") else parties.company
-            obj = re.sub(rf"\b([Tt]he)\s+{re.escape(term)}\b",
-                         lambda m: (author_role[0].upper() if m.group(1) == "The" else author_role[0]) + author_role[1:],
-                         obj)
+        if (author_role in parties.organisations and author_role != parties.company and parties.company
+                and re.search(rf"\b[Tt]he\s+{re.escape(parties.company[4:])}\b", obj)):
+            # In another party's document "the Company" may be that party (its own defined term) or the company it
+            # quotes: attribution cannot tell which, and either guess can give the judge the wrong entity. Stop.
+            raise AmbiguousTerm(f"{author_role}'s document says {parties.company!r}: {obj[:160]!r}")
         return fn(obj)
     if isinstance(obj, list):
         return [_walk(x, fn, author_role, parties) for x in obj]
