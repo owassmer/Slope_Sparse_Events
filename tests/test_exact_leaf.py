@@ -77,11 +77,13 @@ def test_leaf_figures_match_the_analysis(style):
                                                    err_msg=f"{name} {where}")
                 for name in ("atm_proceeds", "offering_proceeds"):
                     assert acc["scalars"][leaf.SC[name]] == ev.proceeds[name][r], (name, where)
-                # the leaf's own vector (weight one): the scalars, and each day row by month
+                # the leaf's own vector (weight one): the scalars, and each day row by month (a flow summed, a stock
+                # at the month's last day)
                 np.testing.assert_array_equal(F[:leaf.NSC], acc["scalars"], err_msg=where)
                 _, month_of = pass2.calendar(ch0.s, ch0.N)
                 for i in range(leaf.NDAY):
-                    by_month = [acc["day"][i][month_of == m].sum() for m in range(pass2.months_of(ch0))]
+                    by_month = [acc["day"][i][month_of == m].sum() if i in leaf.FLOWS
+                                else acc["day"][i][month_of == m][-1] for m in range(pass2.months_of(ch0))]
                     np.testing.assert_allclose(F[leaf.NSC + i * len(by_month):leaf.NSC + (i + 1) * len(by_month)],
                                                by_month, rtol=1e-12, atol=1e-6, err_msg=where)
                 # the first day below the operating need (core.Reduction.floor_day; the last slot: never)

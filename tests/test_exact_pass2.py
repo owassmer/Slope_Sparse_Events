@@ -41,11 +41,15 @@ def test_the_weights_of_a_draws_histories_sum_to_one(draw):
         np.testing.assert_allclose(acc["collected"].sum(axis=1), total, rtol=1e-9)
         np.testing.assert_allclose(acc["low"].sum(axis=1), total, rtol=1e-9)
         assert abs(acc["floor"].sum() - total) < 1e-9
-        # the expected figure vector is the figures themselves: the scalars, and each day row summed by month
+        # the expected figure vector is the figures themselves: the scalars, and each day row by month (a flow
+        # summed, a stock at the month's last day)
         months = pass2.months_of(ch0)
         _, month_of = pass2.calendar(ch0.s, ch0.N)
         np.testing.assert_allclose(acc["root"][:leaf.NSC], acc["scalars"], rtol=1e-9, atol=1e-6)
         by_month = np.stack([acc["day"][:, month_of == m].sum(axis=1) for m in range(months)], axis=1)
+        ends = np.stack([acc["day"][:, month_of == m][:, -1] for m in range(months)], axis=1)
+        stock = np.array([i not in leaf.FLOWS for i in range(leaf.NDAY)])
+        by_month[stock] = ends[stock]
         np.testing.assert_allclose(acc["root"][leaf.NSC:].reshape(leaf.NDAY, months), by_month, rtol=1e-9, atol=1e-6)
         assert not acc["repeats"].any()
 

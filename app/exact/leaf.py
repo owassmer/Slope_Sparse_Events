@@ -40,14 +40,21 @@ SCALAR_NAMES = ("lender_pv", "pv_fundings", "pv_collections", "dollar_days", "dr
                 "o_filed_enforcement", "o_filed_notes", "o_filed_cash", "o_settled", "o_paid", "o_stayed",
                 "o_vacated", "o_unresolved",
                 # the post-trial ruling's answer (the verdict table's reduced and set-aside shares)
-                "ruling_reduced", "ruling_set_aside")
+                "ruling_reduced", "ruling_set_aside",
+                # one: a question's terms on it are the weight reaching the question (its reach)
+                "one")
 NSC = len(SCALAR_NAMES)
 SC = {name: i for i, name in enumerate(SCALAR_NAMES)}
 
 
+# per-day rows that are flows (a month's value is their sum over its days); the rest are stocks (its last day's value)
+FLOWS = (L_FUNDINGS, L_COLLECTIONS, L_CLAWBACK)
+
+
 def nf(months: int) -> int:
-    """A leaf's figure vector: the scalars, then each per-day row summed by month (row-major: row r, month m at
-    NSC + r * months + m). What a question's terms hold (`tree.evaluate`)."""
+    """A leaf's figure vector: the scalars, then each per-day row by month (row-major: row r, month m at
+    NSC + r * months + m): a flow's sum over the month, a stock's value on the month's last day in the period (what the
+    page's monthly table and month-end series read). What a question's terms hold (`tree.evaluate`)."""
     return NSC + NDAY * months
 PREFERENCE_DAYS = 90  # 11 U.S.C. §547(b)(4)(A) (engine.PREFERENCE_DAYS)
 
@@ -134,9 +141,13 @@ def _bin(x, lo, w, n):
 
 @njit(cache=True)
 def _row(day, F, r, t, m, months, w, x):
-    """Day t's value x of per-day row r: added to the accumulators weighted by w, and to the leaf's vector by month."""
+    """Day t's value x of per-day row r: added to the accumulators weighted by w, and to the leaf's vector by month (a
+    flow summed, a stock overwritten day by day, so the month's last day's value stays: `nf`)."""
     day[r, t] += w * x
-    F[NSC + r * months + m] += x
+    if r == L_FUNDINGS or r == L_COLLECTIONS or r == L_CLAWBACK:
+        F[NSC + r * months + m] += x
+    else:
+        F[NSC + r * months + m] = x
 
 
 @njit(cache=True)
@@ -184,14 +195,11 @@ def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, h_low, h_floor, h_
         _row(day, F, L_OUTSTANDING, t, mo, months, w, outs)
         _row(day, F, L_LOCKED, t, mo, months, w, out[5, t])
         _row(day, F, L_CAPACITY, t, mo, months, w, out[6, t])
-        if by_day:
-            _row(day, F, L_PETITIONED, t, mo, months, w, 1)
-            _row(day, F, L_FROZEN, t, mo, months, w, contract - collected)
-            _row(day, F, L_FROZEN_DUE, t, mo, months, w, cum_due - cum_coll)
-        else:
-            _row(day, F, L_PAST_DUE, t, mo, months, w, cum_due - cum_coll)
-        if window:
-            _row(day, F, L_CLAWBACK, t, mo, months, w, coll)
+        _row(day, F, L_PETITIONED, t, mo, months, w, 1 if by_day else 0)
+        _row(day, F, L_FROZEN, t, mo, months, w, contract - collected if by_day else 0)
+        _row(day, F, L_FROZEN_DUE, t, mo, months, w, cum_due - cum_coll if by_day else 0)
+        _row(day, F, L_PAST_DUE, t, mo, months, w, 0 if by_day else cum_due - cum_coll)
+        _row(day, F, L_CLAWBACK, t, mo, months, w, coll if window else 0)
         for j in range(5):
             _row(day, F, L_ARREARS0 + j, t, mo, months, w, out[9 + j, t])
         pv_f += fund * lk.df[t]
@@ -241,7 +249,7 @@ def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, h_low, h_floor, h_
         F[i] = v
         i += 1
     ruling = S[fw.ANS0 + fw.DEC_RULING]
-    for v in (1.0 if ruling == 1 or ruling == 2 else 0.0, 1.0 if ruling == 3 else 0.0):  # tree.RU_*
+    for v in (1.0 if ruling == 1 or ruling == 2 else 0.0, 1.0 if ruling == 3 else 0.0, 1.0):  # tree.RU_*; one
         sc[i] += w * v
         F[i] = v
         i += 1
