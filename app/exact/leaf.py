@@ -19,6 +19,7 @@ from app.analysis.events import KINDS
 from app.exact import agenda, cash
 from app.exact import fields as f
 from app.exact import fields_equity as e
+from app.exact import fields_walk as fw
 
 KIND_ROWS = np.array([f.D_KIND[c] for c in KINDS], dtype=np.int64)
 
@@ -33,7 +34,13 @@ SCALAR_NAMES = ("lender_pv", "pv_fundings", "pv_collections", "dollar_days", "dr
                 "collected", "stayed", "stayed_principal", "preference", "not_yet_due", "uncollected", "min_cash",
                 "petition_p", "shortfall_p", "shortfall", "peak_outstanding", "avg_outstanding", "peak_locked",
                 "peak_capacity", "unrecovered", "recovered_all", "horizon_cash", "atm_proceeds", "offering_proceeds",
-                "min_headroom_has", "headroom_count", "headroom_negative")
+                "min_headroom_has", "headroom_count", "headroom_negative",
+                # how the lawsuit stands at the period's end (page.outcome_shares, page.CLASSES): filed by the rule
+                # that booked the petition, else by what the engine booked (later rows win, as page.draw_classes)
+                "o_filed_enforcement", "o_filed_notes", "o_filed_cash", "o_settled", "o_paid", "o_stayed",
+                "o_vacated", "o_unresolved",
+                # the post-trial ruling's answer (the verdict table's reduced and set-aside shares)
+                "ruling_reduced", "ruling_set_aside")
 NSC = len(SCALAR_NAMES)
 SC = {name: i for i, name in enumerate(SCALAR_NAMES)}
 
@@ -93,6 +100,32 @@ def proceeds(st, k):
     return atm, off
 
 
+(O_FILED_ENFORCEMENT, O_FILED_NOTES, O_FILED_CASH, O_SETTLED, O_PAID, O_STAYED, O_VACATED,
+ O_UNRESOLVED) = range(8)
+N_OUTCOMES = 8
+
+
+@njit(cache=True)
+def outcome(S, N):
+    """The history's outcome class at the period's end (page.outcome_shares): a petition inside the period by its
+    cause (events.PETITION_CAUSES: enforcement, notes, cash floor); else what the engine booked by then, later rows
+    winning as page.draw_classes: an effective stay, the award vacated or set for a new trial, the judgment paid, a
+    settlement paid; else unresolved."""
+    pet = S[f.PETITION]
+    if 0 <= pet < N and S[f.PET_CAUSE] > 0:
+        return O_FILED_ENFORCEMENT + S[f.PET_CAUSE] - 1
+    out = O_UNRESOLVED
+    if S[f.MARK_STAYED] < N:
+        out = O_STAYED
+    if S[f.MARK_RULED] < N and S[f.RETRIAL]:
+        out = O_VACATED
+    if S[f.MARK_PAID] < N:
+        out = O_PAID
+    if S[f.MARK_SETTLED] < N:
+        out = O_SETTLED
+    return out
+
+
 @njit(cache=True)
 def _bin(x, lo, w, n):
     j = np.int64((x - lo) / w)
@@ -107,7 +140,7 @@ def _row(day, F, r, t, m, months, w, x):
 
 
 @njit(cache=True)
-def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, h_low, h_floor, ev_lo, ev_hi, F):
+def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, h_low, h_floor, h_raised, ev_lo, ev_hi, F):
     """Run the line on the leaf's final event cash and add its figures, weighted by w, to the draw's accumulators;
     widen the cumulative event cash range (ev_lo, ev_hi: what the bins span); write the leaf's own figures, unweighted,
     to F (`nf`)."""
@@ -186,6 +219,8 @@ def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, h_low, h_floor, ev
     else:
         h_low[LOW_HEAD, lk.nbins_low - 1] += w
     h_floor[floor] += w
+    raised = S[f.MARK_RAISED]
+    h_raised[raised if 0 <= raised < N else N] += w
     drawn = funded - lk.p0
     atm, off = proceeds(st, k)
     unrecovered = stayed + uncollected
@@ -196,6 +231,17 @@ def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, h_low, h_floor, ev
               float(max(-min_cash, 0)), float(peak_o), sum_o / N, float(peak_l), float(peak_c), float(unrecovered),
               1.0 if unrecovered == 0 else 0.0, float(out[0, N - 1]), float(atm), float(off),
               1.0 if head_n > 0 else 0.0, float(head_n), float(head_neg)):
+        sc[i] += w * v
+        F[i] = v
+        i += 1
+    cls = outcome(S, N)
+    for j in range(N_OUTCOMES):
+        v = 1.0 if j == cls else 0.0
+        sc[i] += w * v
+        F[i] = v
+        i += 1
+    ruling = S[fw.ANS0 + fw.DEC_RULING]
+    for v in (1.0 if ruling == 1 or ruling == 2 else 0.0, 1.0 if ruling == 3 else 0.0):  # tree.RU_*
         sc[i] += w * v
         F[i] = v
         i += 1

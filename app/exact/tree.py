@@ -1092,7 +1092,7 @@ def _close(lvl, lv_n, lv_p, lv_w, lv_E, lv_nq, lv_pair, lv_nans, lv_G, lv_verdic
 
 @njit(cache=True)
 def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase, forced, day_acc, sc, h_cash, h_coll,
-             h_head, h_low, h_floor, ev_lo, ev_hi, T, root, repeats, worst, worst_hist):
+             h_head, h_low, h_floor, h_raised, ev_lo, ev_hi, T, root, repeats, worst, worst_hist, vmass):
     """Pass 2 on the draw: every history walked, its probability the product of its answers' (`qprob` rows by
     question identity `qhash`, sorted; the verdict's classes `vprob`), each leaf's figures added weighted by it
     (`leaf.accumulate`). Every answer is walked, a zero-probability one too, and every leaf's figures computed: a
@@ -1102,7 +1102,8 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase,
     `leaf.nf`) accumulates d figures / d P[question i, answer a], summed over the question's occurrences; the verdict's
     classes at T[vbase + class]. A figure moves exactly by sum (P' - P) T for any change to the answers of one
     decision, provided no history holds two of its questions: a decision (qdec) met again on a history adds the weight
-    reaching it to repeats[decision]. root accumulates the draw's expected figure vector. worst (unrecovered, stayed,
+    reaching it to repeats[decision]. root accumulates the draw's expected figure vector; vmass the weight reaching
+    the verdict. worst (unrecovered, stayed,
     depth) and worst_hist (decision, day, answer per level) hold the worst feasible history met so far (`I_UNRECOVERED`).
     An unknown answer (NaN) stops the walk where it is met. Returns (the total weight, which is one, and the leaves)."""
     S = st.S
@@ -1177,7 +1178,8 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase,
             continue
         leaves += 1
         total += weight
-        leaf.accumulate(st, k, lk, weight, day_acc, sc, h_cash, h_coll, h_head, h_low, h_floor, ev_lo, ev_hi, F)
+        leaf.accumulate(st, k, lk, weight, day_acc, sc, h_cash, h_coll, h_head, h_low, h_floor, h_raised, ev_lo, ev_hi,
+                        F)
         if F[I_UNRECOVERED] > worst[0] or (F[I_UNRECOVERED] == worst[0] and F[I_STAYED] > worst[1]):
             worst[0], worst[1], worst[2] = F[I_UNRECOVERED], F[I_STAYED], L
             for up in range(L):
@@ -1197,6 +1199,8 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase,
                 lv_next[lvl] += 1
                 break
             _close(lvl, lv_n, lv_p, lv_w, lv_E, lv_nq, lv_pair, lv_nans, lv_G, lv_verdict, lv_ans, vbase, T, Ebar)
+            if lv_verdict[lvl]:
+                vmass[0] += lv_w[lvl]  # the weight reaching the verdict: E[figures | class] = T[class] / it
             if lvl == 0:
                 root += Ebar
             else:

@@ -76,7 +76,7 @@ def accumulators(ch0, b: dict[str, Bins]) -> dict[str, np.ndarray]:
     return {"day": np.zeros((leaf.NDAY, ch0.N)), "scalars": np.zeros(leaf.NSC),
             "cash": np.zeros((ch0.N, b["cash"].n)), "collected": np.zeros((ch0.N, b["collected"].n)),
             "headroom": np.zeros((len(months), b["headroom"].n)), "low": np.zeros((2, b["low"].n)),
-            "floor": np.zeros(ch0.N + 1), "ev_lo": np.zeros(ch0.N, np.int64), "ev_hi": np.zeros(ch0.N, np.int64)}
+            "floor": np.zeros(ch0.N + 1), "raised": np.zeros(ch0.N + 1), "vmass": np.zeros(1), "ev_lo": np.zeros(ch0.N, np.int64), "ev_hi": np.zeros(ch0.N, np.int64)}
 
 
 def months_of(ch0) -> int:
@@ -102,8 +102,8 @@ def evaluate(ch0, r: int, tk: tree.TK, lk: leaf.LK, ans: Answers, vprob: np.ndar
     total, leaves = tree.evaluate(st, k, walk.WK(listing=tk.listing), tk, ws, sk, lk, ans.qhash, ans.qprob, ans.qpair,
                                   ans.qdec, vprob, ans.vbase, np.array(sorted(forced), dtype=np.int64), acc["day"],
                                   acc["scalars"], acc["cash"], acc["collected"], acc["headroom"], acc["low"],
-                                  acc["floor"], acc["ev_lo"], acc["ev_hi"], acc["T"], acc["root"], acc["repeats"],
-                                  worst, hist)
+                                  acc["floor"], acc["raised"], acc["ev_lo"], acc["ev_hi"], acc["T"], acc["root"],
+                                  acc["repeats"], worst, hist, acc["vmass"])
     acc.setdefault("worst", []).append({"unrecovered": float(worst[0]), "stayed": float(worst[1]),
                                         "history": hist[:int(worst[2])].tolist()})
     return total, leaves, acc
@@ -268,8 +268,8 @@ def line(first: int, last: int, answers_path, range_files, forced, out_dir, heav
     Path(heavy_dir).mkdir(parents=True, exist_ok=True)
     np.savez_compressed(Path(heavy_dir) / f"terms-{first:03d}.npz", rows=rows, T=acc["T"][rows])
     np.savez_compressed(Path(out_dir) / f"pass2-{first:03d}.npz", draws=np.array(draws), **{
-        k: acc[k] for k in ("day", "scalars", "cash", "collected", "headroom", "low", "floor", "ev_lo", "ev_hi", "root",
-                            "repeats")},
+        k: acc[k] for k in ("day", "scalars", "cash", "collected", "headroom", "low", "floor", "raised", "vmass",
+                            "ev_lo", "ev_hi", "root", "repeats")},
         cash_lo=b["cash"].lo, cash_w=b["cash"].width, coll_lo=b["collected"].lo, coll_w=b["collected"].width,
         head_lo=b["headroom"].lo, head_w=b["headroom"].width, low_lo=b["low"].lo, low_w=b["low"].width)
     (Path(out_dir) / f"pass2-{first:03d}.json").write_text(json.dumps({"draws": per, "rows": int(ans.rows)}))
@@ -291,7 +291,7 @@ def combine(out_files, term_files, out_path) -> dict:
         if any(not np.array_equal(p[k], parts[0][k]) for p in parts):
             raise ValueError(f"the lines' bins differ ({k})")
         got[k] = parts[0][k]
-    for k in ("day", "scalars", "cash", "collected", "headroom", "low", "floor", "root", "repeats"):
+    for k in ("day", "scalars", "cash", "collected", "headroom", "low", "floor", "raised", "vmass", "root", "repeats"):
         got[k] = np.sum([p[k] for p in parts], axis=0)
     import json
 

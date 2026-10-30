@@ -11,6 +11,7 @@ import pytest
 from app.analysis import core
 from app.analysis.engine import run
 from app.analysis.events import Chain, event_trace
+from app.analysis.page import CAUSE_CLASS, draw_classes
 from app.exact import fields as f
 from app.exact import fields_agenda as a
 from app.exact import leaf, oracle, pass1, pass2, tree
@@ -44,7 +45,9 @@ def test_leaf_figures_match_the_analysis(style):
             ch0 = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
             ch0.instrument_cash()
             tk = pass1.case_tables(fc0, d0, ch0)
-            ev = event_trace(d, h.path, fc.setup, fc.m, fc.draws, fc.sens).events
+            tr = event_trace(d, h.path, fc.setup, fc.m, fc.draws, fc.sens)
+            ev = tr.events
+            classes = draw_classes(h.path.steps, tr.marks, ch0.N) if tr.marks else None
             line = ch0.basis.line
             t = run(line, ch0.basis.opening - ch0.s.exposure.cash_cents, ev)
             b = pass2.bins(ch0, np.zeros(ch0.N), np.zeros(ch0.N))
@@ -59,8 +62,8 @@ def test_leaf_figures_match_the_analysis(style):
                 acc = pass2.accumulators(ch0, b)
                 F = np.zeros(leaf.nf(pass2.months_of(ch0)))
                 leaf.accumulate(st, pass1.replay.constants(ch0, r)[0], lk, 1.0, acc["day"], acc["scalars"],
-                                acc["cash"], acc["collected"], acc["headroom"], acc["low"], acc["floor"], acc["ev_lo"],
-                                acc["ev_hi"], F)
+                                acc["cash"], acc["collected"], acc["headroom"], acc["low"], acc["floor"], acc["raised"],
+                                acc["ev_lo"], acc["ev_hi"], F)
                 day, sc = _expected(t, r, ch0.s, ch0.N, int(ch0.s.facility_cents))
                 where = f"{style} seed {seed} draw {h.draws[r]} {h.path.steps}"
                 for i, name in enumerate(leaf.DAILY_NAMES):
@@ -84,6 +87,11 @@ def test_leaf_figures_match_the_analysis(style):
                 # the first day below the operating need (core.Reduction.floor_day; the last slot: never)
                 below = t.cash[r] < line.need[r, :ch0.N]
                 assert acc["floor"][int(below.argmax()) if below.any() else ch0.N] == 1.0, where
+                # the outcome class at the period's end (page.outcome_shares: filed by cause, else draw_classes)
+                cause = int(tr.cause[r]) if tr.cause is not None else 0
+                want = CAUSE_CLASS[cause] if cause else (classes[r] if classes is not None else "unresolved")
+                got = [n for n in leaf.SCALAR_NAMES if n.startswith("o_") and acc["scalars"][leaf.SC[n]] == 1.0]
+                assert got == ["o_" + want], (got, want, where)
                 counts["history-draws"] += 1
     assert counts["history-draws"] > 0
     print(style, dict(counts))
