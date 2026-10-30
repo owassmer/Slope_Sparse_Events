@@ -102,9 +102,15 @@ The worst-path search and the provable bounds stay.
    every earlier decision between and nothing later. The compiled walk is at that date with the state in hand, so it
    records then; what goes is only the re-tracing of whole histories (`record_late` re-running the chain from the
    review date), not the deferral.
-3. **Changing judgments.** Pass 2's per-question terms give any single changed judgment exactly and at once. Several
-   changed together interact (two answers that matter only jointly), so the page recomputes them by running pass 2
-   again on the server with the changed answers (exact; a minute or so), showing that it is doing so.
+3. **Changing judgments** (Owen, 30 October). What Russell changes is a decision, as a lender thinks of it (the
+   claimant offers to settle while the appeal is pending), not one of its 38,956 questions, each of which carries a
+   sliver of the probability: he sets his odds against the judge's (twice as likely as the judge thinks), which scales
+   the judge's odds in every situation where the decision arises, so what the judge saw in each situation is kept.
+   One decision at a time, against the judge's forecast. Pass 2 records each question's exact term (each figure's
+   sum over the histories through each of its answers, divided by that answer's probability); a decision arising at
+   most once on a history moves every figure linearly in each of its questions' probabilities, so any change to it is
+   exact and instant from those terms. Several decisions changed together interact, which needs pair terms or a
+   rerun; not offered now.
 4. **Percentiles** are read from histograms, within half a bin of the exact weighted percentile, as today; the page
    states the bin width. Expectations are exact.
 5. **The worst feasible history** is found exactly in pass 2: every history's unrecovered amount and frozen claim
