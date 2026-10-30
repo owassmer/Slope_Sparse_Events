@@ -153,6 +153,18 @@ class DecisionsClient:
             try:
                 r = await self.http.post(self.url, json=body, headers=self.headers)
             except (httpx2.TimeoutException, httpx2.TransportError) as error:
+                if isinstance(error, (httpx2.ConnectError, httpx2.ConnectTimeout)):
+                    # no connection was made (the network or the name lookup failed): nothing reached the provider,
+                    # so nothing was billed; waited out like a rate limit, not counted as an attempt
+                    from app.agent.jev import _ATTEMPTS
+
+                    own = _ATTEMPTS.get()
+                    if own is not None:
+                        own[0] -= 1
+                    if waits < RATE_WAITS:
+                        waits += 1
+                        await asyncio.sleep(min(60.0, 5.0 * waits) + random.random())
+                        continue
                 if attempt == self.max_retries:
                     raise DecisionsError(f"Decisions transport failure: {error!r}") from error
             else:
