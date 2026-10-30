@@ -3551,7 +3551,7 @@ class Chain:
         if self.pending:
             out["motions_filed"] = self.motions_filed.copy()
             out["motions_deadline"] = self.E_ix + int(self.m["rules"]["frcp_50b_59_deadline"]["value"])
-            out["entry_appeal_deadline"] = self.E_ix + int(self.m["rules"]["frap_4a1a"]["value"])
+            out["entry_appeal_deadline"] = self.court_day(self.E_ix + int(self.m["rules"]["frap_4a1a"]["value"]))
         # Historical min-date marks cannot tell an old denied I1 motion from a
         # new post-ruling motion. The existing per-occasion records can.
         status = np.full(self.n, "not_requested", dtype=object)

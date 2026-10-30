@@ -50,7 +50,7 @@ def test_known_ruling_establishes_deadline_beyond_simulation_horizon():
            'sit': {'ruling': np.array([155])}}
     g = Group.of([row], [np.array([True])])
     s = Situation(fc, None, d, g, [], {})
-    assert s.appeal_deadline() == '16 Nov 2024'
+    assert s.appeal_deadline() == '18 Nov 2024'  # 30 days from the ruling: Saturday 16 Nov, so the Monday
     row['sit']['ruling'][:] = BIG
     assert s.appeal_deadline() == 'not applicable'
 
