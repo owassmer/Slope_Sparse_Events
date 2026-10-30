@@ -354,3 +354,12 @@ replaces them. The forecast is the model's judgment from the record as of the re
 it can draw on what it knows of them, including what happened later, which no instruction reliably keeps out. Asked
 both ways, real questions moved by up to 0.3, and most of the questions the judge declined were answered. The page
 keeps the names.
+
+What a case declares is the parties and their own circle: each party's legal and short names and their misspellings,
+its ticker, its insiders, products and licensors, the docket. Third parties (the court, counsel, experts, underwriters,
+noteholders) keep their names. The reasons (30 October, Owen asking the tradeoff to be weighed against the goal): a
+user adding their own case can declare the parties and their circle, but listing every person in a record is a heavy,
+error-prone burden for each case, and a name given the wrong role is a wrong-entity error; for a new lawsuit, the kind
+the product is for, there is no later outcome for the model to recall; and for a historical case such as this one, the
+case's substance identifies it to a model that knows it whatever third parties are named, so their names add little.
+The limit stated plainly: a backtest on a famous public case may still be recognised from its facts.
