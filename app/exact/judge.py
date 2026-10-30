@@ -5,7 +5,7 @@ answers in the order the walk offers them (a yes-or-no question's first answer i
 branches'), written by question identity for pass 2. Every answer is cached (`var/jev_cache`), so a stopped run
 resumes; a question with no answer stops the run (an unknown is never a zero).
 
-`python -m app.exact.judge <reduce dir> <answers.jsonl> [<first n questions>]`
+`python -m app.exact.judge <reduce dir> <answers.jsonl> <case> [<first n questions>]`
 """
 from __future__ import annotations
 
@@ -30,19 +30,23 @@ def questions(reduce_dir: Path):
             yield line, pool.state(line, shared)
 
 
-async def answer_all(reduce_dir: Path, out: Path, log=print, limit: int | None = None,
-                     case: str = "akoustis_20240514") -> dict:
+async def answer_all(reduce_dir: Path, out: Path, case: str, log=print, limit: int | None = None) -> dict:
     from app.agent.jev import JevAdapter
     from app.agent.jev_profiles import DisputeProfile
     from app.config import judgment_provider
 
     jev = JevAdapter(provider=judgment_provider(), run_id="exact-judge", use_cache=True,
                      spend_cap_usd=os.environ.get("SLOPE_JEV_CAP"))
+    from app.agent import roles
     from app.disputes.rules import load_model
 
-    prof = DisputeProfile(jev, lambda kind, obj: None, parties=load_model(case).get("case_parties"))
+    parties = load_model(case).get("case_parties")
+    prof = DisputeProfile(jev, lambda kind, obj: None, parties=parties)
     # the questions about one decision together (their shared evidence, read from the provider's cache, stays warm)
     items = sorted(questions(reduce_dir), key=lambda x: (x[0]["shared"], x[0]["key"]))[:limit]
+    for _, st in items[:1]:  # the case's parties are the states' own (another case's would leave these names in)
+        if roles.Parties(parties).role_of(st["case"]["company"]) != roles.Parties(parties).company:
+            raise ValueError(f"{case} does not declare {st['case']['company']!r} as its company")
     t0, done = time.time(), 0
     batch = int(os.environ.get("SLOPE_JEV_BATCH", "200"))
 
@@ -79,10 +83,11 @@ async def answer_all(reduce_dir: Path, out: Path, log=print, limit: int | None =
 
 
 def main(argv=None) -> None:
-    """`python -m app.exact.judge <reduce dir> <answers.jsonl> [<first n questions> [<case>]]`"""
+    """`python -m app.exact.judge <reduce dir> <answers.jsonl> <case> [<first n questions>]`"""
     args = argv or sys.argv[1:]
-    limit = int(args[2]) if len(args) > 2 and args[2] != "all" else None
-    got = asyncio.run(answer_all(Path(args[0]), Path(args[1]), log=lambda s: print(s, flush=True), limit=limit))
+    limit = int(args[3]) if len(args) > 3 else None
+    got = asyncio.run(answer_all(Path(args[0]), Path(args[1]), args[2], log=lambda s: print(s, flush=True),
+                                 limit=limit))
     print(got)
     sys.exit(1 if got["not_answered"] else 0)  # a rerun asks only those (the rest come from the cache)
 

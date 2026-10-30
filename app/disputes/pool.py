@@ -473,7 +473,11 @@ def judge(run_id: str, states: str, control_file: str, count_only: bool = False,
     # worst case, so the questions go in batches (SLOPE_JEV_BATCH) and the reserve stays a batch's
     jev = JevAdapter(provider=judgment_provider(), run_id=f"{run_id}-analysis", use_cache=True, spend_cap_usd=os.environ.get("SLOPE_JEV_CAP"))
     batch = int(os.environ.get("SLOPE_JEV_BATCH", "200"))
-    prof = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
+    from app.disputes.rules import load_model
+
+    snapshot = json.loads((root / run_id / "run.json").read_text())["snapshot_id"]
+    prof = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}),
+                          parties=load_model(snapshot).get("case_parties"))
 
     async def one(k: str) -> Judgment:
         n, x = nodes[k], got[k]

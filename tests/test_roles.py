@@ -1,11 +1,14 @@
-"""The parties named by their roles in what the judgment model reads (app/agent/roles.py): no declared name or
-identifier is left anywhere in the judge's state, in any case or position; a role that opens a sentence is capitalised;
-a possessive stays one; a case that declares no parties cannot be asked; and the page's state keeps the names."""
+"""The parties named by their roles in what the judgment model reads (app/agent/roles.py): no declared name is left in
+the judge's text, in any position or escaping; keys, numbers and other parties' names are kept; distinct parties keep
+distinct roles, the longest name first across roles; a party's own defined term stays its own; the grammar around a
+role holds; the question's own text is filled with roles; and a case that declares no parties cannot be asked, while
+the caller keeps the names."""
 import asyncio
 
 import pytest
 
 from app.agent import roles
+from app.agent.jev import build_question, registry_question
 from app.agent.jev_profiles import DisputeProfile
 from app.disputes.rules import load_model
 
@@ -17,24 +20,61 @@ def test_no_declared_name_is_left_anywhere():
                       "obligation": "an award of damages, D. Del. 1:21-cv-01417"},
              "question": {"text": "Does Akoustis Technologies, Inc. pay Qorvo, Inc.?",
                           "answers": {"yes": "Akoustis pays."}},
-             "historical_evidence": [{"text": "AKOUSTIS reported; Qorvo US, Inc. sued Akoustis' subsidiary "
-                                              "Akoustis, Inc. (QRVO v. AKTS); see akoustis.com",
-                                      "url": "https://www.sec.gov/Archives/akoustis/10q.htm"}]}
+             "historical_evidence": [{"text": "\nAKOUSTIS reported;\n\"Akoustis\" said Corvo's claims fail. "
+                                              "Qorvo US, Inc. sued the Akoustis defendants (QRVO v. AKTS); "
+                                              "Jeff Shealy testified about XBAW and Cornell."}]}
     out = roles.apply(state, PARTIES)
     assert roles.residue(out, PARTIES) == []
     assert out["question"]["text"] == "Does the Company pay the Claimant?"
     assert out["question"]["answers"]["yes"] == "The Company pays."
-    assert "the Company's subsidiary" in out["historical_evidence"][0]["text"]
+    text = out["historical_evidence"][0]["text"]
+    assert "the Company defendants" in text and "the the" not in text and '"The Company" said' in text
     assert out["case"]["obligation"] == "an award of damages, D. Del. [docket number]"
 
 
-def test_names_inside_words_are_kept():
-    assert roles.apply({"t": "Qorvonia and Akoustisian"}, PARTIES) == {"t": "Qorvonia and Akoustisian"}
+def test_only_text_changes():
+    parties = [{"as": "the Company", "names": ["Cash", "1417"]}]
+    assert roles.apply({"cash": 100, "Cash": 200, "amount": 1417, "flag": True}, parties) == \
+        {"cash": 100, "Cash": 200, "amount": 1417, "flag": True}
+
+
+def test_names_inside_words_and_ordinary_words_are_kept():
+    parties = [{"as": "the Company", "names": ["ON", "Akoustis"]}]
+    assert roles.apply({"t": "Payment on time; Akoustisian"}, parties) == {"t": "Payment on time; Akoustisian"}
+
+
+def test_distinct_parties_keep_distinct_roles():
+    parties = [{"as": "the Company", "names": ["Alpha"]}, {"as": "the Claimant", "names": ["Alpha Holdings"]}]
+    assert roles.apply("Alpha Holdings sued Alpha.", parties) == "The Claimant sued the Company."
+    out = roles.apply("Akoustis' subsidiary Akoustis, Inc. was sued.", PARTIES)
+    assert out == "The Company’s subsidiary the Company's subsidiary was sued."
+    with pytest.raises(ValueError, match="two roles"):
+        roles.Parties([{"as": "A", "names": ["X"]}, {"as": "B", "names": ["X"]}])
+
+
+def test_a_partys_own_defined_term_stays_its_own():
+    item = {"author": "Qorvo, Inc.", "quote": "The Company sued Akoustis. The Company expects to prevail."}
+    assert roles.apply(item, PARTIES)["quote"] == "The Claimant sued the Company. The Claimant expects to prevail."
+    own = {"author": "Akoustis Technologies", "quote": "The Company had cash of $15.2 million."}
+    assert roles.apply(own, PARTIES)["quote"] == "The Company had cash of $15.2 million."
+
+
+def test_the_grammar_around_a_role():
+    assert roles.apply("The borrower is Akoustis Technologies, Inc. It has no cash.", PARTIES) == \
+        "The borrower is the Company. It has no cash."
+    assert roles.apply("“Akoustis files.”", PARTIES) == "“The Company files.”"
+    assert roles.apply("'Akoustis' files.", PARTIES) == "'The Company' files."
+
+
+def test_the_questions_own_text_is_filled_with_roles():
+    q = build_question(registry_question("forecast_claim_registration_early"),
+                       lambda t: roles.fill(t, PARTIES)).model_dump(mode="json")
+    assert "{claimant}" not in q["instructions"] and "the Claimant" in q["instructions"]
 
 
 def test_a_case_without_parties_cannot_be_asked():
     with pytest.raises(roles.NoParties):
-        roles.apply({"t": "x"}, {})
+        roles.apply({"t": "x"}, [])
 
     class Jev:
         async def judge(self, **k):
@@ -57,4 +97,5 @@ def test_the_judge_reads_roles_and_the_caller_keeps_names():
     prof = DisputeProfile(Jev(), lambda kind, obj: None, parties=PARTIES)
     asyncio.run(prof.forecast("forecast_claim_settlement_offer", state, ("d",)))
     assert seen["state"]["question"]["text"] == "Does the Company file?"
+    assert seen["fill"]("{company} and {claimant}") == "the Company and the Claimant"
     assert state["question"]["text"] == "Does Akoustis file?"

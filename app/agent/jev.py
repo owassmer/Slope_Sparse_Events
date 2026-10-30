@@ -78,9 +78,10 @@ def registry_question(question_id: str) -> dict:
     raise KeyError(f"Unknown Jev question {question_id!r}")
 
 
-def build_question(entry: dict) -> Choice | Noul | Score:
+def build_question(entry: dict, fill: Callable[[str], str] | None = None) -> Choice | Noul | Score:
     """Registry mapping: the profile's rules (the global rules unless the profile states its own) prefixed to the
-    question's instructions; primitive from the entry."""
+    question's instructions; primitive from the entry. `fill`: applied to the instructions and every criterion (the
+    parties' placeholders filled with their roles: `roles.fill`)."""
     reg = question_registry()
     own = reg["profiles"].get(entry.get("profile", ""), {}).get("rules")
     rules = "\n".join(f"- {r}" for r in (own if own is not None else reg["global_rules"]))
@@ -89,11 +90,16 @@ def build_question(entry: dict) -> Choice | Noul | Score:
         instruction = ('Answer the question in state.question.text. Its state.question.answers gives the '
                        'available actions and their dated meanings; use only the answer options in the criteria.')
     instructions = f"{'Rules' if own is not None else 'Global rules'}:\n{rules}\n\nQuestion:\n{instruction}"
+    criteria = entry["prompt"]["criteria"]
+    if fill is not None:
+        instructions = fill(instructions)
+        criteria = ({k: fill(v) for k, v in criteria.items()} if isinstance(criteria, dict)
+                    else [fill(c) if isinstance(c, str) else c for c in criteria])
     if entry["primitive"] == "noul":
-        return Noul(instructions=instructions, criteria=entry["prompt"]["criteria"])
+        return Noul(instructions=instructions, criteria=criteria)
     if entry["primitive"] == "score":
-        return Score(instructions=instructions, criteria=entry["prompt"]["criteria"])
-    return Choice(instructions=instructions, criteria=entry["prompt"]["criteria"])
+        return Score(instructions=instructions, criteria=criteria)
+    return Choice(instructions=instructions, criteria=criteria)
 
 
 class JevAdapter:
@@ -201,7 +207,8 @@ class JevAdapter:
 
     async def judge(self, *, profile: str, question_ids: list[str], state: dict, subject_ids: tuple[str, ...] = (),
                     source_content_hashes: tuple[str, ...] = (),
-                    criteria: dict[str, dict[str, str] | list[str]] | None = None) -> tuple[JevCallRecord, list[SemanticObservation]]:
+                    criteria: dict[str, dict[str, str] | list[str]] | None = None,
+                    fill: Callable[[str], str] | None = None) -> tuple[JevCallRecord, list[SemanticObservation]]:
         """Ask independent questions about one state in a single request. `criteria` supplies host-built answer
         options for questions whose registry entry says so (e.g. a dispute model stage's transitions, or a factor's
         rubric)."""
@@ -211,7 +218,7 @@ class JevAdapter:
                 raise ConfigurationError(f"{qid} does not take host-built criteria")
             entries[qid] = {**entries[qid], "prompt": {**entries[qid]["prompt"], "criteria": crit}}
         registry_version = question_registry()["registry_version"]
-        questions = {qid: build_question(e) for qid, e in entries.items()}
+        questions = {qid: build_question(e, fill) for qid, e in entries.items()}
         # Key on the exact built question text and criteria, so an edit without a version bump cannot hit.
         cache_key = canonical_sha256({"model": self.provider.model, "state": state,
                                       "questions": {q: v.model_dump(mode="json") for q, v in questions.items()}})

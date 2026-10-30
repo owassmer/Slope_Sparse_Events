@@ -283,15 +283,15 @@ class DisputeProfile:
     the run store during an investigation, the analysis sidecar afterwards."""
 
     def __init__(self, jev: JevAdapter, record: Callable[[str, object], None], source_hashes: tuple[str, ...] = (),
-                 parties: dict[str, list[str]] | None = None) -> None:
+                 parties: list[dict] | None = None) -> None:
         """parties: the case's parties by role (`app/agent/roles.py`): a forecast names them only by their roles."""
         self.jev, self.record, self.hashes, self.parties = jev, record, source_hashes, parties
 
     async def _ask(self, profile: str, qids: list[str], state: dict, subject_ids: tuple[str, ...],
-                   criteria: dict | None = None) -> list[SemanticObservation]:
+                   criteria: dict | None = None, fill=None) -> list[SemanticObservation]:
         call, observations = await self.jev.judge(profile=profile, question_ids=qids, state=state,
                                                   subject_ids=subject_ids, source_content_hashes=self.hashes,
-                                                  criteria=criteria)
+                                                  criteria=criteria, fill=fill)
         self.record("jev_call", call)
         for o in observations:
             self.record("observation_recorded", o)
@@ -333,7 +333,10 @@ class DisputeProfile:
             self._forecast_sem = asyncio.Semaphore(max(1, int(os.environ.get("SLOPE_JEV_CONCURRENCY", str(FORECAST_CONCURRENCY)))))
         from app.agent import roles
 
-        state = roles.apply(state, self.parties)  # the judge reads the record, not what it knows of the parties
+        # the judge reads the record, not what it knows of the parties: every declared name by its role, in the
+        # state and in the question's own text
+        state = roles.apply(state, self.parties)
+        fill = lambda text: roles.fill(text, self.parties)  # noqa: E731
         async with self._forecast_sem:
-            [o] = await self._ask(entry["profile"], [question_id], state, subject_ids, criteria)
+            [o] = await self._ask(entry["profile"], [question_id], state, subject_ids, criteria, fill)
         return o

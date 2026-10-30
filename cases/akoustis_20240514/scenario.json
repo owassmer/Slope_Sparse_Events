@@ -11,27 +11,102 @@
     "principal_measure": "the claimed head-start measure of trade-secret unjust enrichment",
     "bid_price_on_review_date": "$0.44, the closing price on 14 May 2024, against the $1.00 minimum bid"
   },
-  "parties": {
-    "the Company": [
-      "Akoustis Technologies, Inc.",
-      "Akoustis Technologies",
-      "Akoustis, Inc.",
-      "Akoustis",
-      "AKTS"
-    ],
-    "the Claimant": [
-      "Qorvo US, Inc.",
-      "Qorvo, Inc.",
-      "Qorvo US",
-      "Qorvo",
-      "QRVO"
-    ],
-    "[docket number]": [
-      "1:21-cv-01417",
-      "21-cv-01417",
-      "21-1417"
-    ]
-  },
+  "parties": [
+    {
+      "as": "the Company",
+      "placeholder": "company",
+      "names": [
+        "Akoustis Technologies, Inc.",
+        "Akoustis Technologies, Inc",
+        "Akoustis Technologies",
+        "Akoustis",
+        "Acoustis",
+        "AKTS"
+      ]
+    },
+    {
+      "as": "the Company's subsidiary",
+      "names": [
+        "Akoustis, Inc.",
+        "Akoustis, Inc"
+      ]
+    },
+    {
+      "as": "the Claimant",
+      "placeholder": "claimant",
+      "names": [
+        "Qorvo US, Inc.",
+        "Qorvo, Inc.",
+        "Qorvo Inc.",
+        "Qorvo US",
+        "Qorvo",
+        "Corvo",
+        "Cuervo",
+        "QRVO"
+      ]
+    },
+    {
+      "as": "the Company's chief executive",
+      "names": [
+        "Jeffrey B. Shealy",
+        "Jeffrey Shealy",
+        "Jeff Shealy",
+        "Dr. Shealy",
+        "Mr. Shealy",
+        "Shealy",
+        "Jeff"
+      ]
+    },
+    {
+      "as": "a Company executive",
+      "names": [
+        "David Aichele",
+        "Dave Aichele",
+        "Aichele",
+        "Kenneth Boller",
+        "Ken Boller",
+        "Boller"
+      ]
+    },
+    {
+      "as": "the Company's university licensor",
+      "names": [
+        "Cornell University",
+        "Cornell"
+      ]
+    },
+    {
+      "as": "the Company's proprietary filter technology",
+      "names": [
+        "XBAW"
+      ]
+    },
+    {
+      "as": "an acquired filter business",
+      "names": [
+        "RFMi"
+      ]
+    },
+    {
+      "as": "an acquired semiconductor business",
+      "names": [
+        "GDSI"
+      ]
+    },
+    {
+      "as": "a town in New York",
+      "names": [
+        "Canandaigua"
+      ]
+    },
+    {
+      "as": "[docket number]",
+      "names": [
+        "1:21-cv-01417",
+        "21-cv-01417"
+      ]
+    }
+  ],
   "parameters": {
     "verdict_window": {
       "days": [
