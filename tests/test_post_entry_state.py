@@ -24,20 +24,20 @@ def test_entry_window_and_deadlines_do_not_depend_on_later_filing(answer):
     start, end = ch.settlement_window('Ientry')
     np.testing.assert_array_equal(start, entry)
     np.testing.assert_array_equal(end, entry + 28)
-    np.testing.assert_array_equal(ch.AD, entry + 30)
+    np.testing.assert_array_equal(ch.AD, ch.court_day(entry + 30))
     ch.step('post_trial_motions', '', answer)
     row = as_of({'day': entry, 'cash': ch.cash_at(entry),
                  'sit': ch.c_situation(entry), 'triggers': ch.trigger_days()})
-    np.testing.assert_array_equal(row['triggers']['appeal_deadline'], entry + 30)
+    np.testing.assert_array_equal(row['triggers']['appeal_deadline'], ch.court_day(entry + 30))
     assert (row['sit']['motions_filed'] == BIG).all()
     s = Situation(fc, None, d, Group.of([row], [np.array([True])]), ['Ientry'], {})
     assert 'may be filed until' in s.post_trial_ruling()
     if answer == 'no':
         np.testing.assert_array_equal(ch.F, entry + 28)
-        np.testing.assert_array_equal(ch.AD, entry + 30)
+        np.testing.assert_array_equal(ch.AD, ch.court_day(entry + 30))
         np.testing.assert_array_equal(ch.EF, entry + 31)
     else:
-        np.testing.assert_array_equal(ch.AD, ch.F + 30)
+        np.testing.assert_array_equal(ch.AD, ch.court_day(ch.F + 30))  # FRAP 26(a)(1)(C)
         np.testing.assert_array_equal(ch.settlement_window('I1')[0], entry + 28)
         filed = entry + 28
         row = as_of({'day': filed, 'cash': ch.cash_at(filed),
