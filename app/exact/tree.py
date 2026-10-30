@@ -327,6 +327,15 @@ def owed_quiet(d):
 
 
 @njit(cache=True)
+def final(st, day):
+    """The judgment has become final by the expiration of the time for appeal on the day (28 U.S.C. §1963): the
+    deadline has passed and no appeal was taken. An application to register it before it is final is then moot: the
+    creditor registers it as of right, and enforcement after finality takes it from there (`enforce`)."""
+    S = st.S
+    return S[f.AD] >= 0 and day > S[f.AD] and S[w.ANS0 + w.DEC_APPEAL] != w.OPEN and not S[w.APPEALED]
+
+
+@njit(cache=True)
 def options(st, k, wk, tk, ws, d, day, ans):
     """The answers open to decision d on the draw at `day` (in the Python constructor's order), how many, and whether
     the question is asked (False: it does not arise here; its one answer books as the constructor books it unasked).
@@ -402,6 +411,9 @@ def options(st, k, wk, tk, ws, d, day, ans):
     if d == w.DEC_LISTING:
         ans[0], ans[1] = a.YES, a.NO
         return 2, True, -1
+    if d == w.DEC_REGISTRATION and final(st, day):  # 28 U.S.C. §1963: registrable as of right once final
+        ans[0] = a.NO
+        return 1, False, -1
     ans[0], ans[1] = a.YES, a.NO  # motions, execution, registration, appeal, the defaults, the elementary questions
     return 2, True, -1
 

@@ -2382,10 +2382,10 @@
     },
     {
       "id": "forecast_claim_registration_early",
-      "version": "5.0.0",
+      "version": "5.1.0",
       "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does the court grant {claimant}'s application to register the judgment in another district?",
+      "question": "On {decision_date}, does the court grant {claimant}'s application to register the judgment in another district before the judgment is final?",
       "actor": "court",
       "template": "pending_money_claim",
       "node": "registration_early",
@@ -2402,10 +2402,10 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "Does the court grant {claimant}'s application to register the judgment in another district?",
+        "instructions": "On {decision_date}, does the court grant {claimant}'s application to register the judgment in another district before the judgment is final?",
         "criteria": {
-          "true": "The court grants registration in another district.",
-          "false": "The court does not grant registration."
+          "true": "On {decision_date}, the court grants registration in another district.",
+          "false": "On {decision_date}, the court does not grant registration."
         }
       }
     },
@@ -2440,10 +2440,10 @@
     },
     {
       "id": "forecast_claim_stay_approved",
-      "version": "5.0.0",
+      "version": "5.1.0",
       "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does the court grant {company}'s requested stay of execution with the following security: {security_offered}?",
+      "question": "On {decision_date}, does the court grant {company}'s requested stay of execution with the following security: {security_offered}?",
       "actor": "court",
       "template": "pending_money_claim",
       "node": "stay_approved",
@@ -2460,10 +2460,10 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "Does the court grant {company}'s requested stay of execution with the following security: {security_offered}?",
+        "instructions": "On {decision_date}, does the court grant {company}'s requested stay of execution with the following security: {security_offered}?",
         "criteria": {
-          "true": "The court grants the stay with the following security: {security_offered}.",
-          "false": "The court does not grant the stay."
+          "true": "On {decision_date}, the court grants the stay with the following security: {security_offered}.",
+          "false": "On {decision_date}, the court does not grant the stay."
         }
       }
     },

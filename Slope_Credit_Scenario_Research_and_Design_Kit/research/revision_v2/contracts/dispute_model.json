@@ -1127,6 +1127,7 @@
               "the company's liquidity and going-concern disclosures"
             ],
             "situation_keys": [
+              "decision_date",
               "judgment_amount",
               "amount_owed",
               "judgment_status",
@@ -1187,6 +1188,7 @@
               "the company's cash and going-concern disclosures"
             ],
             "situation_keys": [
+              "decision_date",
               "judgment_amount",
               "judgment_entered_on",
               "judgment_status",
