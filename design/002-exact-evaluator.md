@@ -346,3 +346,11 @@ right). Enforcement after finality is the creditor's own decision (`enforce_afte
 enforceable: whether it levies once the judgment is final, unstayed and unpaid); a moot application carries no further
 right to collect, so no writ is booked for it. One writ per route is the model's, as before: a creditor whose levy
 collected in part can obtain further writs, which the model does not book (a modelling bound to state as one).
+
+**The parties by their roles** (Owen, 30 October). Everything a forecast question carries names the parties only by
+their roles ("the Company", "the Claimant"; the docket withheld): the case declares each party's names and identifiers
+(`cases/<case>/scenario.json` parties), and the judge's boundary (`DisputeProfile.forecast`, `app/agent/roles.py`)
+replaces them. The forecast is the model's judgment from the record as of the review date; told who the parties are,
+it can draw on what it knows of them, including what happened later, which no instruction reliably keeps out. Asked
+both ways, real questions moved by up to 0.3, and most of the questions the judge declined were answered. The page
+keeps the names.
