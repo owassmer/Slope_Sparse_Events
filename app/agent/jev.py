@@ -118,7 +118,8 @@ class JevAdapter:
         elif self.provider.name == "decisions":
             from app.agent.decisions import DecisionsClient
             self.client = DecisionsClient(url=self.provider.base_url, token=jev_credential(self.provider),
-                                          max_retries=MAX_RETRIES, http_client=http)
+                                          max_retries=MAX_RETRIES, http_client=http,
+                                          tokens_per_minute=JUDGMENT_PROVIDERS["decisions"].get("tokens_per_minute"))
         else:
             self.client = AsyncTypeSafeClient(
                 api_key=jev_credential(self.provider), base_url=self.provider.base_url,

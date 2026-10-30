@@ -98,6 +98,9 @@ JUDGMENT_PROVIDERS = {
                   "price_usd_per_million_cached_input_tokens": "0.01",
                   "price_usd_per_million_cache_write_30m_tokens": "0.125",
                   "price_usd_per_million_cache_write_12h_tokens": "0.25",
+                  # the organization's limit (2,000,000 input tokens a minute, cached ones included: OpenAI's 429,
+                  # 29 October 2026), less a margin; the client paces requests under it
+                  "tokens_per_minute": 1_900_000,
                   "spend_cap_usd_per_run": "90.00", "max_physical_attempts": 65000},
 }
 # The default (SLOPE_JUDGMENT_PROVIDER selects another): Decisions answers the 14 May questions (about 15,000 input

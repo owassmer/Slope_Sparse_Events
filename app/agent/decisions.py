@@ -98,10 +98,46 @@ def split_state(state: dict) -> tuple[dict, dict]:
     return shared, {k: v for k, v in state.items() if k not in shared}
 
 
+class Pace:
+    """Input tokens sent in the last minute kept under the organization's limit (OpenAI counts every input token,
+    cached or not, against tokens per minute). A request's tokens are estimated as its body's bytes over four (more
+    than it uses: a question of 72,000 characters used 16,000 tokens)."""
+
+    def __init__(self, tokens_per_minute: int) -> None:
+        self.limit = tokens_per_minute
+        self.sent: list[tuple[float, int]] = []
+        self.lock = asyncio.Lock()
+
+    async def take(self, tokens: int) -> None:
+        import time
+
+        tokens = min(tokens, self.limit)
+        async with self.lock:
+            while True:
+                now = time.monotonic()
+                self.sent = [(t, n) for t, n in self.sent if now - t < 60.0]
+                if sum(n for _, n in self.sent) + tokens <= self.limit:
+                    self.sent.append((now, tokens))
+                    return
+                await asyncio.sleep(max(0.05, 60.0 - (now - self.sent[0][0])))
+
+
+RATE_WAITS = 30  # a request told to wait (rate limited) is sent again; it was not processed, so not billed
+
+
+def _retry_after(text: str) -> float:
+    m = re.search(r"try again in ([0-9.]+)\s*(ms|s)", text)
+    if not m:
+        return 2.0
+    return float(m.group(1)) / (1000 if m.group(2) == "ms" else 1) + 0.25
+
+
 class DecisionsClient:
-    def __init__(self, *, url: str, token: str, max_retries: int, http_client: httpx2.AsyncClient) -> None:
+    def __init__(self, *, url: str, token: str, max_retries: int, http_client: httpx2.AsyncClient,
+                 tokens_per_minute: int | None = None) -> None:
         self.url, self.max_retries, self.http = url, max_retries, http_client
         self.headers = {"Authorization": f"Bearer {token}"}
+        self.pace = Pace(tokens_per_minute) if tokens_per_minute else None
 
     async def system_one(self, *, state, questions, model, response_model):
         body = {"model": model, "input": _input(state), "prompt_cache_options": {"mode": "explicit"},
@@ -109,7 +145,11 @@ class DecisionsClient:
         return await self._post(body, model, response_model)
 
     async def _post(self, body, model, response_model):
-        for attempt in range(self.max_retries + 1):
+        tokens = len(json.dumps(body, default=str).encode()) // 4
+        waits, attempt = 0, 0
+        while attempt <= self.max_retries:
+            if self.pace is not None:
+                await self.pace.take(tokens)
             try:
                 r = await self.http.post(self.url, json=body, headers=self.headers)
             except (httpx2.TimeoutException, httpx2.TransportError) as error:
@@ -122,7 +162,17 @@ class DecisionsClient:
                                           usage=data.get("usage"),
                                           answers={a.get("name"): _answer(a) for a in data.get("answers") or ()})
                 exhausted = r.status_code == 429 and "credit_balance_exhausted" in r.text
+                if r.status_code == 429 and "rate_limit_exceeded" in r.text and waits < RATE_WAITS:
+                    from app.agent.jev import _ATTEMPTS
+
+                    own = _ATTEMPTS.get()
+                    if own is not None:  # refused unprocessed: not an attempt that may have been billed
+                        own[0] -= 1
+                    waits += 1
+                    await asyncio.sleep(_retry_after(r.text) + random.random())
+                    continue
                 if exhausted or r.status_code not in RETRY_STATUS or attempt == self.max_retries:
                     raise DecisionsError(f"Decisions HTTP {r.status_code}: {r.text[:500]}")
             await asyncio.sleep(min(30.0, 2 ** attempt + random.random()))
+            attempt += 1
         raise DecisionsError("unreachable")
