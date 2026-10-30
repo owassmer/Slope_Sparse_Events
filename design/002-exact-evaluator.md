@@ -337,3 +337,12 @@ draws, at 92 integers and a float each: too much to hold in one place, too much 
 field, a question it cannot render); what each question is asked on equals the Python walk's nodes'; every question
 pass 2 meets has an answer (pass 2 raises on one it does not). The records themselves were checked against the
 Python's field by field (002-9, 002-10).
+
+**Questions that do not arise at their own date** (29 October). Asked at its own date, a question can find its
+premise gone: a court's answer on a stay of a judgment nothing is owed on; an early registration once the judgment is
+final. Neither is asked; each books its quiet answer. Finality is the law's: the time for appeal has run (the deadline
+falls on a court day, FRAP 26(a)(1)(C)) and no appeal was taken (28 U.S.C. §1963: the judgment is then registrable as of
+right). Enforcement after finality is the creditor's own decision (`enforce_after_final`, asked when the judgment is
+enforceable: whether it levies once the judgment is final, unstayed and unpaid); a moot application carries no further
+right to collect, so no writ is booked for it. One writ per route is the model's, as before: a creditor whose levy
+collected in part can obtain further writs, which the model does not book (a modelling bound to state as one).
