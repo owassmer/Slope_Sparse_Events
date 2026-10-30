@@ -30,14 +30,17 @@ def questions(reduce_dir: Path):
             yield line, pool.state(line, shared)
 
 
-async def answer_all(reduce_dir: Path, out: Path, log=print, limit: int | None = None) -> dict:
+async def answer_all(reduce_dir: Path, out: Path, log=print, limit: int | None = None,
+                     case: str = "akoustis_20240514") -> dict:
     from app.agent.jev import JevAdapter
     from app.agent.jev_profiles import DisputeProfile
     from app.config import judgment_provider
 
     jev = JevAdapter(provider=judgment_provider(), run_id="exact-judge", use_cache=True,
                      spend_cap_usd=os.environ.get("SLOPE_JEV_CAP"))
-    prof = DisputeProfile(jev, lambda kind, obj: None)
+    from app.disputes.rules import load_model
+
+    prof = DisputeProfile(jev, lambda kind, obj: None, parties=load_model(case).get("case_parties"))
     # the questions about one decision together (their shared evidence, read from the provider's cache, stays warm)
     items = sorted(questions(reduce_dir), key=lambda x: (x[0]["shared"], x[0]["key"]))[:limit]
     t0, done = time.time(), 0
@@ -76,9 +79,9 @@ async def answer_all(reduce_dir: Path, out: Path, log=print, limit: int | None =
 
 
 def main(argv=None) -> None:
-    """`python -m app.exact.judge <reduce dir> <answers.jsonl> [<first n questions>]`"""
+    """`python -m app.exact.judge <reduce dir> <answers.jsonl> [<first n questions> [<case>]]`"""
     args = argv or sys.argv[1:]
-    limit = int(args[2]) if len(args) > 2 else None
+    limit = int(args[2]) if len(args) > 2 and args[2] != "all" else None
     got = asyncio.run(answer_all(Path(args[0]), Path(args[1]), log=lambda s: print(s, flush=True), limit=limit))
     print(got)
     sys.exit(1 if got["not_answered"] else 0)  # a rerun asks only those (the rest come from the cache)

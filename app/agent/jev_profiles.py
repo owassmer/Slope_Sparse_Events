@@ -282,8 +282,10 @@ class DisputeProfile:
     conditional forecasts (one request per forecast node and parent context). Calls and observations go to `record`:
     the run store during an investigation, the analysis sidecar afterwards."""
 
-    def __init__(self, jev: JevAdapter, record: Callable[[str, object], None], source_hashes: tuple[str, ...] = ()) -> None:
-        self.jev, self.record, self.hashes = jev, record, source_hashes
+    def __init__(self, jev: JevAdapter, record: Callable[[str, object], None], source_hashes: tuple[str, ...] = (),
+                 parties: dict[str, list[str]] | None = None) -> None:
+        """parties: the case's parties by role (`app/agent/roles.py`): a forecast names them only by their roles."""
+        self.jev, self.record, self.hashes, self.parties = jev, record, source_hashes, parties
 
     async def _ask(self, profile: str, qids: list[str], state: dict, subject_ids: tuple[str, ...],
                    criteria: dict | None = None) -> list[SemanticObservation]:
@@ -329,6 +331,9 @@ class DisputeProfile:
         # dispatch, so ~100 questions sent at once trip the cap on reservations alone.
         if getattr(self, "_forecast_sem", None) is None:
             self._forecast_sem = asyncio.Semaphore(max(1, int(os.environ.get("SLOPE_JEV_CONCURRENCY", str(FORECAST_CONCURRENCY)))))
+        from app.agent import roles
+
+        state = roles.apply(state, self.parties)  # the judge reads the record, not what it knows of the parties
         async with self._forecast_sem:
             [o] = await self._ask(entry["profile"], [question_id], state, subject_ids, criteria)
         return o

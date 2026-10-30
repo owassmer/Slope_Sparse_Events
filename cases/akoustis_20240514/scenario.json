@@ -11,6 +11,27 @@
     "principal_measure": "the claimed head-start measure of trade-secret unjust enrichment",
     "bid_price_on_review_date": "$0.44, the closing price on 14 May 2024, against the $1.00 minimum bid"
   },
+  "parties": {
+    "the Company": [
+      "Akoustis Technologies, Inc.",
+      "Akoustis Technologies",
+      "Akoustis, Inc.",
+      "Akoustis",
+      "AKTS"
+    ],
+    "the Claimant": [
+      "Qorvo US, Inc.",
+      "Qorvo, Inc.",
+      "Qorvo US",
+      "Qorvo",
+      "QRVO"
+    ],
+    "[docket number]": [
+      "1:21-cv-01417",
+      "21-cv-01417",
+      "21-1417"
+    ]
+  },
   "parameters": {
     "verdict_window": {
       "days": [
@@ -90,9 +111,15 @@
     },
     "atm_pace_bps": {
       "value": 2000,
-      "sensitivity": [1000, 2500],
+      "sensitivity": [
+        1000,
+        2500
+      ],
       "adv_cents": 33706943,
-      "adv_window": ["2024-03-15", "2024-05-14"],
+      "adv_window": [
+        "2024-03-15",
+        "2024-05-14"
+      ],
       "price_cents": 44,
       "commission_bps": 300,
       "first_sale": "2024-05-14",
@@ -280,7 +307,9 @@
       {
         "id": "offerings_unbounded",
         "label": "Offerings: unbounded initiations, instead of at most two",
-        "parameters": ["offering_initiations"],
+        "parameters": [
+          "offering_initiations"
+        ],
         "note": "Central: at most two underwritten offerings initiated within the horizon, including failed offerings; thereafter initiation is unavailable. Alternative: no limit on the number of initiations. All other offering availability rules still apply."
       },
       {
@@ -298,7 +327,9 @@
       {
         "id": "settlement_lump_sum",
         "label": "Settlement paid at once, instead of in 12 monthly installments",
-        "parameters": ["settlement_payment"],
+        "parameters": [
+          "settlement_payment"
+        ],
         "note": "Changes when a settlement's money leaves the company. Central: the settlement amount (the company's cash above its 30-day operating need, capped at the amount claimed) paid in 12 equal monthly installments, since a distressed company does not pay out its runway at once. Alternative: the same amount in one payment on the settlement date."
       },
       {
@@ -316,7 +347,9 @@
       {
         "id": "coupon_cash",
         "label": "June notes coupon paid in cash, instead of in shares",
-        "parameters": ["coupon_cash_share"],
+        "parameters": [
+          "coupon_cash_share"
+        ],
         "note": "Changes how the company pays the $1.32M notes coupon due 15 Jun 2024. Central: in shares, which the notes allow unless the company elects cash, and which its registered shares cover. Alternative: all in cash."
       },
       {

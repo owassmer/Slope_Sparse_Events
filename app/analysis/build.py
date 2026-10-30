@@ -400,7 +400,8 @@ def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None 
     else:
         per = fc.all_paths()
     bank_paths = fc.bank_paths()  # the bank view: the same distress decisions on the bank data alone
-    judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
+    judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}),
+                           parties=fc.m.get("case_parties"))
 
     async def ask_both() -> tuple[dict, dict]:  # one event loop: the adapter's HTTP client is bound to it
         return (await fc.judge(judge) if fc.nodes else {}), (await fc.judge_bank(judge) if fc.bank_nodes else {})
