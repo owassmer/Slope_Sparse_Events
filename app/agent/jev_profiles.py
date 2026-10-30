@@ -350,11 +350,13 @@ class DisputeProfile:
     @staticmethod
     def _asked_criteria(entry: dict, answers: dict, branches: tuple[str, ...] | None) -> dict:
         """The answers' meanings as asked, in the registry's criteria shape: a predicate's 'true' is the first answer
-        (`forecast.answer_distribution` reads its probability as the first branch's); a choice's are its options."""
+        (`forecast.answer_distribution` reads its probability as the first branch's); a choice's are its options in the
+        registry's order (state14 keeps it), so a question's options have one order whatever path asked it, which the
+        cache key (sorted) relies on."""
         if branches is None or set(answers) != set(branches):
             raise ValueError(f"the question's answers {list(answers)} are not the walk's {branches}")
         if entry["primitive"] == "noul":
             if list(answers) != list(branches) or len(branches) != 2:  # the first is the 'true'
                 raise ValueError(f"a yes-or-no question with answers {list(answers)}, the walk's {branches}")
             return {"true": answers[branches[0]], "false": answers[branches[1]]}
-        return {b: answers[b] for b in branches}
+        return dict(answers)

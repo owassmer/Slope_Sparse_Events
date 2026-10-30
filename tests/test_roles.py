@@ -104,17 +104,17 @@ def test_the_judge_reads_roles_and_the_caller_keeps_names():
             return type("C", (), {})(), [object()]
 
     state = {"case": {"company": "Akoustis Technologies, Inc."},
-             "question": {"text": "Does Qorvo offer Akoustis a settlement by 3 Jun 2024?",
-                          "answers": {"yes": "Qorvo offers it by 3 Jun 2024.", "no": "Qorvo makes no offer."}}}
+             "question": {"text": "Does Akoustis offer Qorvo a settlement by 3 Jun 2024?",
+                          "answers": {"yes": "Akoustis offers it by 3 Jun 2024.", "no": "Akoustis makes no offer."}}}
     prof = DisputeProfile(Jev(), lambda kind, obj: None, parties=PARTIES)
     asyncio.run(prof.forecast("forecast_claim_settlement_offer", state, ("d",), ("yes", "no")))
-    assert seen["state"]["question"]["text"] == "Does the Claimant offer the Company a settlement by 3 Jun 2024?"
+    assert seen["state"]["question"]["text"] == "Does the Company offer the Claimant a settlement by 3 Jun 2024?"
     # the judge is asked the question as asked (its blanks filled), in roles, the first answer its 'true'
     assert seen["asked"] == {"forecast_claim_settlement_offer": (
-        "Does the Claimant offer the Company a settlement by 3 Jun 2024?",
-        {"true": "The Claimant offers it by 3 Jun 2024.", "false": "The Claimant makes no offer."})}
+        "Does the Company offer the Claimant a settlement by 3 Jun 2024?",
+        {"true": "The Company offers it by 3 Jun 2024.", "false": "The Company makes no offer."})}
     assert seen["fill"]("{company} and {claimant}") == "The Company and the Claimant"
-    assert state["question"]["text"] == "Does Qorvo offer Akoustis a settlement by 3 Jun 2024?"
+    assert state["question"]["text"] == "Does Akoustis offer Qorvo a settlement by 3 Jun 2024?"
 
 
 def test_every_shipped_case_declares_its_parties():
