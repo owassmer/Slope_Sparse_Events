@@ -57,8 +57,10 @@ def test_leaf_figures_match_the_analysis(style):
                     counts["set apart"] += 1
                     continue
                 acc = pass2.accumulators(ch0, b)
+                F = np.zeros(leaf.nf(pass2.months_of(ch0)))
                 leaf.accumulate(st, pass1.replay.constants(ch0, r)[0], lk, 1.0, acc["day"], acc["scalars"],
-                                acc["cash"], acc["collected"], acc["headroom"], acc["ev_lo"], acc["ev_hi"])
+                                acc["cash"], acc["collected"], acc["headroom"], acc["low"], acc["floor"], acc["ev_lo"],
+                                acc["ev_hi"], F)
                 day, sc = _expected(t, r, ch0.s, ch0.N, int(ch0.s.facility_cents))
                 where = f"{style} seed {seed} draw {h.draws[r]} {h.path.steps}"
                 for i, name in enumerate(leaf.DAILY_NAMES):
@@ -72,6 +74,16 @@ def test_leaf_figures_match_the_analysis(style):
                                                    err_msg=f"{name} {where}")
                 for name in ("atm_proceeds", "offering_proceeds"):
                     assert acc["scalars"][leaf.SC[name]] == ev.proceeds[name][r], (name, where)
+                # the leaf's own vector (weight one): the scalars, and each day row by month
+                np.testing.assert_array_equal(F[:leaf.NSC], acc["scalars"], err_msg=where)
+                _, month_of = pass2.calendar(ch0.s, ch0.N)
+                for i in range(leaf.NDAY):
+                    by_month = [acc["day"][i][month_of == m].sum() for m in range(pass2.months_of(ch0))]
+                    np.testing.assert_allclose(F[leaf.NSC + i * len(by_month):leaf.NSC + (i + 1) * len(by_month)],
+                                               by_month, rtol=1e-12, atol=1e-6, err_msg=where)
+                # the first day below the operating need (core.Reduction.floor_day; the last slot: never)
+                below = t.cash[r] < line.need[r, :ch0.N]
+                assert acc["floor"][int(below.argmax()) if below.any() else ch0.N] == 1.0, where
                 counts["history-draws"] += 1
     assert counts["history-draws"] > 0
     print(style, dict(counts))
