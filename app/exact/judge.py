@@ -47,17 +47,23 @@ async def answer_all(reduce_dir: Path, out: Path, log=print, limit: int | None =
         if not line["verdict"] and len(branches) != line["answers"]:
             raise ValueError(f"{line['key']}: {len(branches)} answers, the walk offers {line['answers']}")
         o = await prof.forecast(line["question_id"], st, (line["instance_id"], *line["findings"]), branches)
-        dist = answer_distribution(line["key"], branches, o)
+        try:
+            dist = answer_distribution(line["key"], branches, o)
+        except RuntimeError:  # refused or no probability: an unknown, recorded as such (pass 2 will not read it)
+            return {"ids": line["ids"], "key": line["key"], "verdict": line["verdict"], "branches": list(branches),
+                    "refused": True}
         return {"ids": line["ids"], "key": line["key"], "verdict": line["verdict"], "branches": list(branches),
                 "distribution": [dist[b] for b in branches], "confidence": o.confidence}
 
+    refused = 0
     with out.open("w") as fh:
         for lo in range(0, len(items), batch):
             for got in await asyncio.gather(*(one(line, st) for line, st in items[lo:lo + batch])):
                 fh.write(json.dumps(got) + "\n")
+                refused += bool(got.get("refused"))
             done = min(lo + batch, len(items))
-            log(f"{time.time() - t0:7.0f}s {done}/{len(items)} answered; {jev.usage_summary()}")
-    return jev.usage_summary()
+            log(f"{time.time() - t0:7.0f}s {done}/{len(items)} asked, {refused} refused; {jev.usage_summary()}")
+    return {**jev.usage_summary(), "refused": refused}
 
 
 def main(argv=None) -> None:

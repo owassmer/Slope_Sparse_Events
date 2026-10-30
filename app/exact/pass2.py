@@ -122,6 +122,8 @@ def from_answers(path) -> tuple[np.ndarray, np.ndarray, dict]:
     ids, probs, verdict = [], [], {}
     for text in Path(path).open():
         a = json.loads(text)
+        if a.get("refused"):  # unknown: never a number; pass 2 raises where a history meets it
+            continue
         if a["verdict"]:
             verdict[a["key"]] = dict(zip(a["branches"], a["distribution"], strict=True))
             continue
