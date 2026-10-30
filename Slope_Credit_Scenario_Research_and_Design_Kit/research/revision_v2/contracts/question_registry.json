@@ -162,7 +162,8 @@
       "primitive": "noul+choice",
       "trigger": "host, when the analysis is built: one request per question and situation",
       "rules": [
-        "Forecast the outcome specified in the question at the stated decision time, conditional on the supplied situation. Treat the situation's events and amounts as given. Use the supplied evidence available by the evidence cutoff, preserving each source's author, date and status. Apply the supplied legal or contractual provisions where relevant. Estimate the probabilities of the defined outcomes."
+        "Forecast the outcome specified in the question at the stated decision time, conditional on the supplied situation. Treat the situation's events and amounts as given. Use the supplied evidence available by the evidence cutoff, preserving each source's author, date and status. Apply the supplied legal or contractual provisions where relevant. Estimate the probabilities of the defined outcomes.",
+        "The outcome is a future event the supplied record cannot settle: what is asked is your probability that it occurs. Thin evidence, evidence that points both ways, or an unusual situation is reflected in the probability you give, not a reason to decline; every question has an answer."
       ],
       "state_contract": {
         "historical_evidence": "Documents and data dated by the evidence cutoff, each with its author, date and status.",
@@ -2056,10 +2057,10 @@
     },
     {
       "id": "forecast_post_trial_ruling",
-      "version": "5.0.0",
+      "version": "5.1.0",
       "profile": "event_forecast",
       "primitive": "choice",
-      "question": "How does the court dispose of the pending post-trial motions as to the money judgment of {judgment_amount} entered on {judgment_entered_on}?",
+      "question": "On {decision_date}, how does the court dispose of the pending post-trial motions as to the money judgment of {judgment_amount} entered on {judgment_entered_on}?",
       "actor": "court",
       "template": "pending_money_claim",
       "node": "post_trial_ruling",
@@ -2076,7 +2077,7 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "How does the court dispose of the pending post-trial motions as to the money judgment of {judgment_amount} entered on {judgment_entered_on}?",
+        "instructions": "On {decision_date}, how does the court dispose of the pending post-trial motions as to the money judgment of {judgment_amount} entered on {judgment_entered_on}?",
         "criteria": {
           "unchanged": "The money judgment stands as entered.",
           "reduced": "The court reduces the money judgment to an amount from {reduced_low} to {reduced_high}, outright or on condition that {claimant} accepts it in place of a new trial.",
@@ -2208,10 +2209,10 @@
     },
     {
       "id": "forecast_remittitur_elected",
-      "version": "5.0.0",
+      "version": "5.1.0",
       "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+      "question": "On {decision_date}, does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
       "actor": "{claimant}",
       "template": "pending_money_claim",
       "node": "remittitur_elected",
@@ -2228,10 +2229,10 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "Does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+        "instructions": "On {decision_date}, does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
         "criteria": {
-          "true": "{claimant} accepts the remitted amount of {remitted_amount}.",
-          "false": "{claimant} does not accept the remitted amount."
+          "true": "On {decision_date}, {claimant} accepts the remitted amount of {remitted_amount}.",
+          "false": "On {decision_date}, {claimant} does not accept the remitted amount."
         }
       }
     },

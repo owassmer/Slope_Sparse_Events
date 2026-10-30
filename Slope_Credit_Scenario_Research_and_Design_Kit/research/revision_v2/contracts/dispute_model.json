@@ -2507,6 +2507,7 @@
               "the challenges to the damages method"
             ],
             "situation_keys": [
+              "decision_date",
               "judgment_amount",
               "judgment_entered_on",
               "pending_motions",
@@ -2679,6 +2680,7 @@
             "the relief the claimant seeks, including a permanent injunction"
           ],
           "situation_keys": [
+            "decision_date",
             "verdict_amount",
             "remitted_amount",
             "available_cash",
