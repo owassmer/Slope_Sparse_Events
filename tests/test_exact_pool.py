@@ -1,7 +1,7 @@
 """The judge's input from the dated walk (app/exact/pool.py): a draw's questions, from its members written by pass 1's
 map and read back by shard, each built into its state by the 14 May state builder: every question identity has its
-state (the verdict form: one per question of the form), each shard holds only its own questions, and every member is
-counted once."""
+state (the verdict form: one per question of the form), each shard holds only its own questions, every situation is
+built once, and every walk identity pass 1 found is answered for (a record reached under two identities, both)."""
 import io
 import json
 
@@ -20,10 +20,11 @@ def test_every_question_of_a_draw_has_its_state(tmp_path):
             j = int(np.flatnonzero(members["question"] == i)[0])
             text = pool.render(members["rows"][j], members["cls"][j], qt)
             assert pool.shard_of_question(text, 3) == shard and pool.question_id(text) == i
-        ids |= set(members["ids"][:, 1].tolist())
         out = io.StringIO()
         pool.reduce(fc, d, qt, members, out, log=lambda s: None, tk=tk, shared=shared)
         lines += [json.loads(x) for x in out.getvalue().splitlines()]
+    for f in tmp_path.glob("questions-*.npz"):  # the walk's own identities, as pass 1 wrote them
+        ids |= set(np.load(f)["ids"][:, 1].tolist())
     assert set().union(*(x["ids"] for x in lines)) == ids  # every walk identity answered for
     keys = [x["key"] for x in lines]
     assert len(keys) == len(set(keys))  # each question built once

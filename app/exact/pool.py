@@ -184,7 +184,7 @@ def load(map_dir: Path, shard: int, shards: int, qt) -> dict[str, np.ndarray]:
     filed = sorted(Path(map_dir).rglob(f"questions-{shard:03d}*.npz"))
     if filed:
         parts = [np.load(p) for p in filed]
-        return _once({k: np.concatenate([p[k] for p in parts]) for k in parts[0].files})
+        return _ordered({k: np.concatenate([p[k] for p in parts]) for k in parts[0].files})
     rendered: dict[int, str] = {}
     keep: dict[str, list] = {}
     files = sorted(Path(map_dir).rglob("members-*.npz"))
@@ -207,17 +207,15 @@ def load(map_dir: Path, shard: int, shards: int, qt) -> dict[str, np.ndarray]:
             for k in part.files:
                 keep.setdefault(k, []).append(part[k][sel])
             keep.setdefault("question", []).append(names[inverse][sel].astype(np.int64))
-    return _once({k: np.concatenate(v) for k, v in keep.items()})
+    return _ordered({k: np.concatenate(v) for k, v in keep.items()})
 
 
-def _once(out: dict) -> dict:
-    """Each member once (a record reached under two of the walk's identities of one question is one situation), in
-    the order the reduce takes them: by question, then draw, then record digest."""
+def _ordered(out: dict) -> dict:
+    """The members in the order the reduce takes them: by question, then draw, then record digest. Every member is
+    kept: a record reached under two of the walk's identities of one question is one situation (`reduce` builds it
+    once), and both identities are the question's, answered for alike."""
     order = np.lexsort((out["ids"][:, 0], out["draw"], out["question"]))
-    q, dr, dg = out["question"][order], out["draw"][order], out["ids"][order, 0]
-    first = np.ones(len(order), dtype=bool)
-    first[1:] = (q[1:] != q[:-1]) | (dr[1:] != dr[:-1]) | (dg[1:] != dg[:-1])
-    return {k: v[order][first] for k, v in out.items()}
+    return {k: v[order] for k, v in out.items()}
 
 
 def reduce(fc, d, qt, members: dict[str, np.ndarray], out, log=print, tk=None, shared: dict | None = None) -> int:
@@ -237,7 +235,11 @@ def reduce(fc, d, qt, members: dict[str, np.ndarray], out, log=print, tk=None, s
     for sel in np.split(np.arange(len(names)), bounds):
         q, code = members["rows"][sel[0]], members["cls"][sel[0]]
         klass = "" if q[w.QN] == w.Q_VERDICT else question_keys.situation_class(q, code, qt)
-        ids = sorted({int(x) for x in members["ids"][sel, 1]})
+        ids = sorted({int(x) for x in members["ids"][sel, 1]})  # every walk identity, a repeated record's too
+        dr, dg = members["draw"][sel], members["ids"][sel, 0]
+        once = np.ones(len(sel), dtype=bool)
+        once[1:] = (dr[1:] != dr[:-1]) | (dg[1:] != dg[:-1])
+        sel = sel[once]  # each situation (a draw's record) once
         for key, st, fids in states_of(fc, d, q, klass, members["ints"][sel], members["floats"][sel],
                                        members["draw"][sel], qt, tk):
             n = fc.nodes[key]
