@@ -47,7 +47,12 @@ PREFERENCE_DAYS = 90  # 11 U.S.C. §547(b)(4)(A) (engine.PREFERENCE_DAYS)
 # the analysis's constants on the draw: discount factors, the facility, the opening principal, the month of each day,
 # and the bins (lo, width per day or month; their counts)
 LK = namedtuple("LK", "df facility p0 month cash_lo cash_w coll_lo coll_w head_lo head_w nbins_cash nbins_coll "
-                      "nbins_head")
+                      "nbins_head low_lo low_w nbins_low")
+# the per-trajectory figures the page reads as percentiles or a first day (core.Reduction: min_cash, min_headroom,
+# floor_day): histograms of the lowest cash and the lowest headroom at a due date (one bin set each, `low_*`: row 0
+# the cash, row 1 the headroom, its last bin 'no due date'), and of the first day cash is below the operating need
+# (its last slot: never in the period)
+LOW_CASH, LOW_HEAD = 0, 1
 
 
 @njit(cache=True)
@@ -102,7 +107,7 @@ def _row(day, F, r, t, m, months, w, x):
 
 
 @njit(cache=True)
-def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, ev_lo, ev_hi, F):
+def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, h_low, h_floor, ev_lo, ev_hi, F):
     """Run the line on the leaf's final event cash and add its figures, weighted by w, to the draw's accumulators;
     widen the cumulative event cash range (ev_lo, ev_hi: what the bins span); write the leaf's own figures, unweighted,
     to F (`nf`)."""
@@ -128,6 +133,7 @@ def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, ev_lo, ev_hi, F):
     cum_due, cum_coll, cum_fund = 0, 0, 0
     pv_f, pv_c, dollar, min_cash, peak_o, sum_o, peak_l, peak_c = 0.0, 0.0, 0.0, out[0, 0], 0, 0, out[5, 0], out[6, 0]
     min_head, head_n, head_neg = np.iinfo(np.int64).max, 0, 0
+    floor = N
     for t in range(N):
         c, coll, fund, outs, due = out[0, t], out[1, t], out[2, t], out[3, t], out[4, t]
         cum_due += due
@@ -159,6 +165,8 @@ def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, ev_lo, ev_hi, F):
         pv_c += coll * lk.df[t]
         dollar += outs
         min_cash = min(min_cash, c)
+        if floor == N and c < k.need[t]:
+            floor = t
         peak_o = max(peak_o, outs)
         sum_o += outs
         peak_l = max(peak_l, out[5, t])
@@ -172,6 +180,12 @@ def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, ev_lo, ev_hi, F):
             min_head = min(min_head, hr)
             head_n += 1
             head_neg += hr < 0
+    h_low[LOW_CASH, _bin(min_cash, lk.low_lo[LOW_CASH], lk.low_w[LOW_CASH], lk.nbins_low)] += w
+    if head_n > 0:
+        h_low[LOW_HEAD, _bin(min_head, lk.low_lo[LOW_HEAD], lk.low_w[LOW_HEAD], lk.nbins_low - 1)] += w
+    else:
+        h_low[LOW_HEAD, lk.nbins_low - 1] += w
+    h_floor[floor] += w
     drawn = funded - lk.p0
     atm, off = proceeds(st, k)
     unrecovered = stayed + uncollected

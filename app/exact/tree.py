@@ -1087,7 +1087,7 @@ def _close(lvl, lv_n, lv_p, lv_w, lv_E, lv_nq, lv_pair, lv_nans, lv_G, lv_verdic
 
 @njit(cache=True)
 def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase, forced, day_acc, sc, h_cash, h_coll,
-             h_head, ev_lo, ev_hi, T, root, repeats):
+             h_head, h_low, h_floor, ev_lo, ev_hi, T, root, repeats):
     """Pass 2 on the draw: every history walked, its probability the product of its answers' (`qprob` rows by
     question identity `qhash`, sorted; the verdict's classes `vprob`), each leaf's figures added weighted by it
     (`leaf.accumulate`). Every answer is walked, a zero-probability one too, and every leaf's figures computed: a
@@ -1171,7 +1171,7 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase,
             continue
         leaves += 1
         total += weight
-        leaf.accumulate(st, k, lk, weight, day_acc, sc, h_cash, h_coll, h_head, ev_lo, ev_hi, F)
+        leaf.accumulate(st, k, lk, weight, day_acc, sc, h_cash, h_coll, h_head, h_low, h_floor, ev_lo, ev_hi, F)
         if L == 0:
             root += F
             return total, leaves

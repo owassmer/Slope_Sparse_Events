@@ -39,6 +39,8 @@ def test_the_weights_of_a_draws_histories_sum_to_one(draw):
         assert abs(total - 1.0) < 1e-9
         np.testing.assert_allclose(acc["cash"].sum(axis=1), total, rtol=1e-9)
         np.testing.assert_allclose(acc["collected"].sum(axis=1), total, rtol=1e-9)
+        np.testing.assert_allclose(acc["low"].sum(axis=1), total, rtol=1e-9)
+        assert abs(acc["floor"].sum() - total) < 1e-9
         # the expected figure vector is the figures themselves: the scalars, and each day row summed by month
         months = pass2.months_of(ch0)
         _, month_of = pass2.calendar(ch0.s, ch0.N)

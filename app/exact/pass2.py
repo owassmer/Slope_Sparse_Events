@@ -18,6 +18,8 @@ from app.analysis.events import EventCash
 from app.exact import fields_walk as w
 from app.exact import leaf, replay, tree, walk
 
+LOW_BINS = 1024  # the lowest cash and the lowest headroom of a trajectory (leaf.LOW_CASH, LOW_HEAD)
+
 
 def calendar(setup, days: int) -> tuple[list, np.ndarray]:
     from datetime import timedelta
@@ -51,8 +53,11 @@ def bins(ch0, lo_ev: np.ndarray, hi_ev: np.ndarray) -> dict[str, Bins]:
     low = lo - line.need[:, :days].max(axis=0) - owed
     h_lo = np.array([low[month_of_day == k].min() for k in range(len(months))])
     h_hi = np.array([hi[month_of_day == k].max() for k in range(len(months))])
+    # the lowest cash and the lowest headroom of a trajectory: one bin set each over every day's (month's) range; the
+    # headroom's last bin is 'no due date'
     return {"cash": Bins.spanning(lo, hi, CASH_BINS), "collected": Bins.spanning(np.zeros(days), coll, COLLECTED_BINS),
-            "headroom": Bins.spanning(h_lo, h_hi, HEADROOM_BINS)}
+            "headroom": Bins.spanning(h_lo, h_hi, HEADROOM_BINS),
+            "low": Bins.spanning(np.array([lo.min(), h_lo.min()]), np.array([hi.max(), h_hi.max()]), LOW_BINS)}
 
 
 def constants(ch0, b: dict[str, Bins]) -> leaf.LK:
@@ -62,15 +67,16 @@ def constants(ch0, b: dict[str, Bins]) -> leaf.LK:
                    p0=int(setup.exposure.principal_cents), month=month_of_day,
                    cash_lo=b["cash"].lo, cash_w=b["cash"].width, coll_lo=b["collected"].lo, coll_w=b["collected"].width,
                    head_lo=b["headroom"].lo, head_w=b["headroom"].width, nbins_cash=b["cash"].n,
-                   nbins_coll=b["collected"].n, nbins_head=b["headroom"].n)
+                   nbins_coll=b["collected"].n, nbins_head=b["headroom"].n, low_lo=b["low"].lo, low_w=b["low"].width,
+                   nbins_low=b["low"].n)
 
 
 def accumulators(ch0, b: dict[str, Bins]) -> dict[str, np.ndarray]:
     months, _ = calendar(ch0.s, ch0.N)
     return {"day": np.zeros((leaf.NDAY, ch0.N)), "scalars": np.zeros(leaf.NSC),
             "cash": np.zeros((ch0.N, b["cash"].n)), "collected": np.zeros((ch0.N, b["collected"].n)),
-            "headroom": np.zeros((len(months), b["headroom"].n)),
-            "ev_lo": np.zeros(ch0.N, np.int64), "ev_hi": np.zeros(ch0.N, np.int64)}
+            "headroom": np.zeros((len(months), b["headroom"].n)), "low": np.zeros((2, b["low"].n)),
+            "floor": np.zeros(ch0.N + 1), "ev_lo": np.zeros(ch0.N, np.int64), "ev_hi": np.zeros(ch0.N, np.int64)}
 
 
 def months_of(ch0) -> int:
@@ -88,13 +94,14 @@ def evaluate(ch0, r: int, tk: tree.TK, lk: leaf.LK, ans: Answers, vprob: np.ndar
     if acc is None:
         acc = accumulators(ch0, {"cash": Bins(lk.cash_lo, lk.cash_w, lk.nbins_cash),
                                  "collected": Bins(lk.coll_lo, lk.coll_w, lk.nbins_coll),
-                                 "headroom": Bins(lk.head_lo, lk.head_w, lk.nbins_head)})
+                                 "headroom": Bins(lk.head_lo, lk.head_w, lk.nbins_head),
+                                 "low": Bins(lk.low_lo, lk.low_w, lk.nbins_low)})
         nf = leaf.nf(months_of(ch0))
         acc.update(T=np.zeros((ans.rows, nf)), root=np.zeros(nf), repeats=np.zeros(len(ans.decisions)))
     total, leaves = tree.evaluate(st, k, walk.WK(listing=tk.listing), tk, ws, sk, lk, ans.qhash, ans.qprob, ans.qpair,
                                   ans.qdec, vprob, ans.vbase, np.array(sorted(forced), dtype=np.int64), acc["day"],
-                                  acc["scalars"], acc["cash"], acc["collected"], acc["headroom"], acc["ev_lo"],
-                                  acc["ev_hi"], acc["T"], acc["root"], acc["repeats"])
+                                  acc["scalars"], acc["cash"], acc["collected"], acc["headroom"], acc["low"],
+                                  acc["floor"], acc["ev_lo"], acc["ev_hi"], acc["T"], acc["root"], acc["repeats"])
     return total, leaves, acc
 
 
@@ -257,9 +264,10 @@ def line(first: int, last: int, answers_path, range_files, forced, out_dir, heav
     Path(heavy_dir).mkdir(parents=True, exist_ok=True)
     np.savez_compressed(Path(heavy_dir) / f"terms-{first:03d}.npz", rows=rows, T=acc["T"][rows])
     np.savez_compressed(Path(out_dir) / f"pass2-{first:03d}.npz", draws=np.array(draws), **{
-        k: acc[k] for k in ("day", "scalars", "cash", "collected", "headroom", "ev_lo", "ev_hi", "root", "repeats")},
+        k: acc[k] for k in ("day", "scalars", "cash", "collected", "headroom", "low", "floor", "ev_lo", "ev_hi", "root",
+                            "repeats")},
         cash_lo=b["cash"].lo, cash_w=b["cash"].width, coll_lo=b["collected"].lo, coll_w=b["collected"].width,
-        head_lo=b["headroom"].lo, head_w=b["headroom"].width)
+        head_lo=b["headroom"].lo, head_w=b["headroom"].width, low_lo=b["low"].lo, low_w=b["low"].width)
     (Path(out_dir) / f"pass2-{first:03d}.json").write_text(json.dumps({"draws": per, "rows": int(ans.rows)}))
     return acc
 
@@ -275,11 +283,11 @@ def combine(out_files, term_files, out_path) -> dict:
     got = {"draws": np.concatenate([p["draws"] for p in parts])}
     if len(np.unique(got["draws"])) != len(got["draws"]):
         raise ValueError("a draw in two lines")
-    for k in ("cash_lo", "cash_w", "coll_lo", "coll_w", "head_lo", "head_w"):
+    for k in ("cash_lo", "cash_w", "coll_lo", "coll_w", "head_lo", "head_w", "low_lo", "low_w"):
         if any(not np.array_equal(p[k], parts[0][k]) for p in parts):
             raise ValueError(f"the lines' bins differ ({k})")
         got[k] = parts[0][k]
-    for k in ("day", "scalars", "cash", "collected", "headroom", "root", "repeats"):
+    for k in ("day", "scalars", "cash", "collected", "headroom", "low", "floor", "root", "repeats"):
         got[k] = np.sum([p[k] for p in parts], axis=0)
     got["ev_lo"] = np.min([p["ev_lo"] for p in parts], axis=0)
     got["ev_hi"] = np.max([p["ev_hi"] for p in parts], axis=0)
