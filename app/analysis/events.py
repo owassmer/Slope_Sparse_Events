@@ -16,6 +16,7 @@ at most one limit's worth, are left out of this pre-engine figure). Stress mode 
 from __future__ import annotations
 
 import copy
+import functools
 import os
 import zlib
 from dataclasses import dataclass, field
@@ -717,14 +718,40 @@ class Chain:
     def ix(self, when: date) -> int:
         return (when - self.s.review).days - 1
 
-    def court_day(self, t) -> np.ndarray:
-        """The day index of the first day on or after day t the clerk's office is open (FRAP 26(a)(1)(C): a period
-        whose last day falls on a weekend or legal holiday runs to the next day that is not one), per draw."""
+    @functools.cached_property
+    def calendars(self):
+        """The case's district-court and appeal calendars (app/domain/court_calendar.py)."""
+        from app.domain.court_calendar import for_case
+
+        return for_case(self.m)
+
+    def _on_or_after(self, cal, t) -> np.ndarray:
         t = np.asarray(t, dtype=np.int64)
         out = t.copy()
         for v in np.unique(t[(t > -10_000) & (t < BIG)]):
-            out[t == v] = self.ix(next_business_day(self.s.review + timedelta(days=int(v) + 1)))
+            out[t == v] = self.ix(cal.on_or_after(self.s.review + timedelta(days=int(v) + 1)))
         return out
+
+    def court_day(self, t) -> np.ndarray:
+        """The day index of the first day on or after day t the clerk's office is open, on the appeal calendar
+        (FRAP 26(a)(1)(C), (a)(6): a period of the appellate rules whose last day falls on a weekend or legal holiday
+        runs to the next day that is not one), per draw."""
+        return self._on_or_after(self.calendars[1], t)
+
+    def district_day(self, t) -> np.ndarray:
+        """As `court_day`, on the district court's calendar (FRCP 6(a)(1)(C), (a)(6)): a period of the civil rules."""
+        return self._on_or_after(self.calendars[0], t)
+
+    def entry_day(self, v: int) -> int:
+        """The day index the clerk enters a judgment on a verdict on day v (judgment_entry next_business_day): the
+        first day after the verdict the district court's clerk's office is open."""
+        return self.ix(self.calendars[0].after(self.s.review + timedelta(days=int(v) + 1)))
+
+    def motions_deadline(self) -> np.ndarray:
+        """The last day for post-trial motions (Rules 50(b), 52(b), 59: 28 days after entry, counted under Rule 6(a)),
+        per draw; BIG before any entry."""
+        return np.where(self.E_ix < BIG, self.district_day(
+            self.E_ix + int(self.m["rules"]["frcp_50b_59_deadline"]["value"])), BIG)
 
     def _timeline_pending(self) -> None:
         """A pending claim: the verdict day V drawn per trajectory over the case's window (key (instance, verdict,
@@ -951,8 +978,9 @@ class Chain:
         notice = self.m["rules"]["frap_4a1a"]["value"]
         self.AD = self.court_day(self.A + notice)  # the appeal deadline, tolled to the last tolling order
         self.fee_day = np.max(fees, axis=0) if fees else np.full(self.n, BIG)
-        stay = self.m["rules"]["frcp_62a"]["value"]
-        e = max(d.judgment_date + timedelta(days=stay + 1), self.s.review) if d.judgment_date else self.s.review
+        stay = self.m["rules"]["frcp_62a"]["value"]  # Rule 62(a), counted under Rule 6(a); execution from the day after
+        e = max(self.calendars[0].on_or_after(d.judgment_date + timedelta(days=stay)) + timedelta(days=1),
+                self.s.review) if d.judgment_date else self.s.review
         self.E0 = max(self.ix(e), 0)  # execution may issue (Rule 62(a) ended; not before the day after review)
         self.e_ix = self.ix(e)
         self.EF = self.F.copy()  # the surviving amount is enforceable from the ruling
@@ -1134,13 +1162,13 @@ class Chain:
         """The judgment's entry E per trajectory (judgment_entry): the next business day after V (base), or with the
         post-verdict ruling (V + the motion deadline + briefing + a lag draw); execution from E + 31 (Rule 62(a))."""
         if self.p("judgment_entry") == "next_business_day":
-            nxt = {int(v): self.ix(business_days_after(self.s.review + timedelta(days=int(v) + 1), 1))
-                   for v in np.unique(self.V)}
+            nxt = {int(v): self.entry_day(int(v)) for v in np.unique(self.V)}
             self.E_ix = np.array([nxt[int(v)] for v in self.V], dtype=np.int64)
         else:
             self.E_ix = self.V + int(self.m["rules"]["frcp_50b_59_deadline"]["value"]) + int(
                 self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, "entry")
-        self.e_ix = self.E_ix + int(self.m["rules"]["frcp_62a"]["value"]) + 1
+        # Rule 62(a)'s automatic stay: 30 days after entry, counted under Rule 6(a); execution from the day after
+        self.e_ix = self.district_day(self.E_ix + int(self.m["rules"]["frcp_62a"]["value"])) + 1
         self.E0 = np.maximum(self.e_ix, 0)
         self.AD = self.court_day(self.E_ix + int(self.m["rules"]["frap_4a1a"]["value"]))
 
@@ -2414,7 +2442,7 @@ class Chain:
         if node == "verdict":
             return self.V.copy()
         if node == "post_trial_motions":
-            return self.E_ix + int(self.m["rules"]["frcp_50b_59_deadline"]["value"])
+            return self.motions_deadline()
         if node == "listing_date":
             if self.fin is None or self.fin.listing_deadline is None:
                 return full(BIG)
@@ -2441,8 +2469,7 @@ class Chain:
         full = lambda v: np.full(self.n, v, dtype=np.int64)  # noqa: E731
         if ctx == "I0":
             return full(-1), self.V
-        deadline = (self.E_ix + int(self.m["rules"]["frcp_50b_59_deadline"]["value"])
-                    if self.pending else full(-1))
+        deadline = self.motions_deadline() if self.pending else full(-1)
         if ctx == "Ientry":
             return self.E_ix.copy(), deadline
         if ctx == "Istay":
@@ -2616,7 +2643,7 @@ class Chain:
                     self.adverse_from = self.E_ix.copy()
             return self.V.copy()
         if node == "post_trial_motions":
-            filed = self.E_ix + int(self.m["rules"]["frcp_50b_59_deadline"]["value"])
+            filed = self.motions_deadline()
             notice = int(self.m["rules"]["frap_4a1a"]["value"])
             if branch == "yes":  # one common lag for all the motions (sensitivity: the later of two draws)
                 self.motions_filed = filed.copy()
@@ -3462,7 +3489,8 @@ class Chain:
         inside = lambda x: np.where((x >= 0) & (x < self.N), x, BIG).astype(np.int64)  # noqa: E731
         f = self.fin
         if self.d is not None:
-            out["appeal_deadline"] = inside(self.AD)
+            # a known deadline is a legal fact beyond the analysis period too (the questions read it, not the cash)
+            out["appeal_deadline"] = np.where((self.AD >= 0) & (self.AD < BIG), self.AD, BIG).astype(np.int64)
             if f is not None and f.judgment_default_days:
                 for key, ctx in (("judgment_default_entered", "I1"), ("judgment_default_ruling", "post")):
                     ripe, cond = self.judgment_default(ctx)
@@ -3543,16 +3571,18 @@ class Chain:
         array [n], a scalar or dict, or an Awaiting marker where the interface is not built on this branch."""
         day = np.asarray(day, dtype=np.int64)
         t = np.clip(day, 0, self.N - 1)  # the end of the decision day's processing (the question's cash is the row's)
+        entry = (np.broadcast_to(np.asarray(self.entry_ix(), dtype=np.int64), (self.n,)).copy()
+                 if self.has_judgment() else np.full(self.n, BIG, dtype=np.int64))
+        entered = entry <= day  # a judgment the clerk enters after the decision day is not yet a fact of it
         out: dict = {"cash_end": np.maximum(self.cash_at(t), 0), "owed": self.owed_at(day),
-                     "entry": (np.broadcast_to(np.asarray(self.entry_ix(), dtype=np.int64), (self.n,)).copy()
-                               if self.has_judgment() else np.full(self.n, BIG, dtype=np.int64)),
+                     "entry": np.where(entered, entry, BIG),
                      "ruling": np.asarray(self.F, dtype=np.int64).copy(), "delisted": self.delisted.copy(),
                      "stayed_from": np.asarray(self.stayed_from, dtype=np.int64).copy()}
         if self.pending:
             out["motions_filed"] = self.motions_filed.copy()
-            out["motions_deadline"] = self.E_ix + int(self.m["rules"]["frcp_50b_59_deadline"]["value"])
-            out["entry_appeal_deadline"] = np.where(  # none before a judgment is entered
-                self.E_ix < BIG, self.court_day(self.E_ix + int(self.m["rules"]["frap_4a1a"]["value"])), BIG)
+            out["motions_deadline"] = np.where(entered, self.motions_deadline(), BIG)
+            out["entry_appeal_deadline"] = np.where(  # none before the judgment is entered
+                entered, self.court_day(self.E_ix + int(self.m["rules"]["frap_4a1a"]["value"])), BIG)
         # Historical min-date marks cannot tell an old denied I1 motion from a
         # new post-ruling motion. The existing per-occasion records can.
         status = np.full(self.n, "not_requested", dtype=object)

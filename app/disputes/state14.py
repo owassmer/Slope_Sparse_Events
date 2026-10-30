@@ -171,15 +171,16 @@ def money(rep: int, group: np.ndarray | None = None) -> str:
     return text
 
 
-def court_day(review: date, t: np.ndarray) -> np.ndarray:
-    """The first day on or after each day index that is not a weekend or legal holiday (FRAP 26(a)(1)(C)), as
-    `Chain.court_day` and the dated walk fix a deadline; BIG stays BIG."""
-    from app.finance.calendar import next_business_day
+def court_day(m: dict, review: date, t: np.ndarray) -> np.ndarray:
+    """The first day on or after each day index the clerk's office is open on the case's appeal calendar
+    (FRAP 26(a)(1)(C), (a)(6)), as `Chain.court_day` and the dated walk fix a deadline; BIG stays BIG."""
+    from app.domain.court_calendar import for_case
 
+    cal = for_case(m)[1]
     t = np.asarray(t, dtype=np.int64)
     out = t.copy()
     for v in np.unique(t[(t >= 0) & (t < BIG)]):
-        out[t == v] = (next_business_day(review + timedelta(days=int(v) + 1)) - review).days - 1
+        out[t == v] = (cal.on_or_after(review + timedelta(days=int(v) + 1)) - review).days - 1
     return out
 
 
@@ -410,7 +411,8 @@ class Situation:
                 ruling = np.asarray(r["sit"]["ruling"])
                 known = (ruling >= 0) & (ruling < BIG) & (ruling <= r["day"])
                 out = np.where((out >= BIG) & known,  # the deadline the ruling fixes, as the walk does
-                               court_day(self.review, ruling + int(self.fc.m["rules"]["frap_4a1a"]["value"])), out)
+                               court_day(self.fc.m, self.review,
+                                         ruling + int(self.fc.m["rules"]["frap_4a1a"]["value"])), out)
             return out
         vals = g.rowwise(lambda r, x: dates(r)[x])
         i, j = g.rep

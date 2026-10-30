@@ -70,14 +70,9 @@ def draw_constants(chain) -> np.ndarray:
 
 
 def entry_days(chain) -> np.ndarray:
-    """[draws]: the entry day under next_business_day (`Chain._enter`): the next business day after the verdict, a
-    calendar computation done in Python per verdict day."""
-    from datetime import timedelta
-
-    from app.analysis.events import business_days_after
-
-    nxt = {int(v): chain.ix(business_days_after(chain.s.review + timedelta(days=int(v) + 1), 1))
-           for v in np.unique(chain.V)}
+    """[draws]: the entry day under next_business_day (`Chain.entry_day`): the first day after the verdict the district
+    court's clerk's office is open, a calendar computation done in Python per verdict day."""
+    nxt = {int(v): chain.entry_day(int(v)) for v in np.unique(chain.V)}
     return np.array([nxt[int(v)] for v in chain.V], dtype=np.int64)
 
 
@@ -141,9 +136,26 @@ def live(S, day):
 
 @njit(cache=True)
 def court_day(court, t):
-    """`Chain.court_day`: the first day on or after day t that is not a weekend or legal holiday (FRAP 26(a)(1)(C));
-    `court` maps each day index of the case's calendar to it (beyond it: t)."""
-    return court[t] if 0 <= t < court.size else t
+    """`Chain.court_day`: the first day on or after day t the clerk's office is open on the appeal calendar
+    (FRAP 26(a)(1)(C), (a)(6)); `court` (`court_table`): row 1 maps each day index of the case's declared calendar to
+    it. A day beyond the calendar the case declares cannot be counted."""
+    if t < 0 or t >= court.shape[1]:
+        raise ValueError("a court period ends beyond the calendar the case declares")
+    return court[1, t]
+
+
+@njit(cache=True)
+def district_day(court, t):
+    """`Chain.district_day`: as `court_day`, on the district court's calendar (FRCP 6(a)(1)(C), (a)(6)): row 0."""
+    if t < 0 or t >= court.shape[1]:
+        raise ValueError("a court period ends beyond the calendar the case declares")
+    return court[0, t]
+
+
+@njit(cache=True)
+def motions_deadline(S, frcp_50b_59, court):
+    """`Chain.motions_deadline`: the last day for post-trial motions, 28 days after entry under Rule 6(a)."""
+    return district_day(court, S[f.E_IX] + frcp_50b_59) if S[f.E_IX] < f.BIG else f.BIG
 
 
 @njit(cache=True)
@@ -153,7 +165,7 @@ def enter(S, DC, case_next_bd, entry_nbd, frcp_50b_59, briefing, frcp_62a, frap_
         S[f.E_IX] = entry_nbd
     else:
         S[f.E_IX] = DC[DC_V] + frcp_50b_59 + briefing + DC[DC_LAG_ENTRY]
-    S[f.EX_IX] = S[f.E_IX] + frcp_62a + 1
+    S[f.EX_IX] = district_day(court, S[f.E_IX] + frcp_62a) + 1  # Rule 62(a) under Rule 6(a); execution the day after
     S[f.E0] = S[f.EX_IX] if S[f.EX_IX] > 0 else 0
     S[f.AD] = court_day(court, S[f.E_IX] + frap_4a1a)
 
@@ -195,7 +207,7 @@ def mark(S, name_ix, day, where, N):
 @njit(cache=True)
 def step_post_trial_motions(S, DC, yes, frcp_50b_59, briefing, frap_4a1a, sensitive_lag, N, court):
     """`Chain.step('post_trial_motions', '', yes/no)`. Returns the filing deadline (the decision day)."""
-    filed = S[f.E_IX] + frcp_50b_59
+    filed = motions_deadline(S, frcp_50b_59, court)
     if yes:
         S[f.MOTIONS_FILED] = filed
         lag = DC[DC_LAG_COMMON]
@@ -263,6 +275,10 @@ def resolve(S, D, legal, day, where):
         D[f.D_KIND_REDUCTION, t] -= legal[t]
 
 
-def court_table(chain, span: int = 1200) -> np.ndarray:
-    """`court_day` for every day index 0..span of the chain's calendar (`Chain.court_day`)."""
-    return np.ascontiguousarray(chain.court_day(np.arange(span, dtype=np.int64)), dtype=np.int64)
+def court_table(chain) -> np.ndarray:
+    """[2, days]: `Chain.district_day` (row 0) and `Chain.court_day` (row 1) for every day index of the calendar the
+    case declares (its courts' `through`, less the days a period ending then would run past it)."""
+    through = chain.calendars[0].through
+    span = max((through - chain.s.review).days - 14, 0)  # a period ending in its last fortnight could run past it
+    t = np.arange(span, dtype=np.int64)
+    return np.ascontiguousarray(np.stack([chain.district_day(t), chain.court_day(t)]), dtype=np.int64)

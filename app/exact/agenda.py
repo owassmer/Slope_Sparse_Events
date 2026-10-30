@@ -345,7 +345,7 @@ def settlement_window(st, k, ctx):
     S, N = st.S, k.N
     if ctx == 0:  # I0
         return -1, S[f.V]
-    deadline = S[f.E_IX] + k.frcp
+    deadline = core.motions_deadline(S, k.frcp, k.court)
     if ctx == 1:  # Ientry
         return S[f.E_IX], deadline
     if ctx == 3:  # Istay
@@ -392,7 +392,7 @@ def decision_day(st, k, node, ctx):
     if node == a.VERDICT:
         return S[f.V]
     if node == a.MOTIONS:
-        return S[f.E_IX] + k.frcp
+        return core.motions_deadline(S, k.frcp, k.court)
     if node == a.LISTING:  # the listing's first stage: the compliance deadline
         pet = f.BIG if S[f.PETITION] < 0 else S[f.PETITION]
         return k.ldates[n.DEADLINE] if k.ldates[n.DEADLINE] < pet else f.BIG

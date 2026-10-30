@@ -808,5 +808,62 @@
       "status": "third-party record",
       "in_case_record": false
     }
+  },
+  "courts": {
+    "district": {
+      "court": "United States District Court for the District of Delaware (Wilmington)",
+      "rule": "FRCP 6(a)(6)(C): any day declared a holiday by the state where the district court is located",
+      "declared_holidays": [
+        {
+          "date": "2024-11-05",
+          "name": "the day of the General Election",
+          "source": "1 Del. C. § 501(a)(12)"
+        },
+        {
+          "date": "2024-11-29",
+          "name": "the Friday following Thanksgiving Day",
+          "source": "1 Del. C. § 501(a)(9)"
+        },
+        {
+          "date": "2025-04-18",
+          "name": "Good Friday",
+          "source": "1 Del. C. § 501(a)(3)"
+        },
+        {
+          "date": "2025-11-28",
+          "name": "the Friday following Thanksgiving Day",
+          "source": "1 Del. C. § 501(a)(9)"
+        }
+      ],
+      "through": "2025-12-31"
+    },
+    "appeal": {
+      "court": "United States Court of Appeals for the Third Circuit (clerk's office in Philadelphia, Pennsylvania)",
+      "rule": "FRAP 26(a)(6)(C): any day declared a holiday by the state where the district court or the circuit clerk's principal office is located (the district court's, above, and these)",
+      "declared_holidays": [
+        {
+          "date": "2024-06-14",
+          "name": "Flag Day",
+          "source": "Act of May 31, 1893, P.L. 188, No. 138, § 1 (44 P.S. § 11)"
+        },
+        {
+          "date": "2024-11-05",
+          "name": "Election Day (the first Tuesday after the first Monday of November)",
+          "source": "Act of May 31, 1893, P.L. 188, No. 138, § 1 (44 P.S. § 11)"
+        },
+        {
+          "date": "2025-04-18",
+          "name": "Good Friday",
+          "source": "Act of May 31, 1893, P.L. 188, No. 138, § 1 (44 P.S. § 11)"
+        },
+        {
+          "date": "2025-11-04",
+          "name": "Election Day (the first Tuesday after the first Monday of November)",
+          "source": "Act of May 31, 1893, P.L. 188, No. 138, § 1 (44 P.S. § 11)"
+        }
+      ],
+      "through": "2025-12-31"
+    },
+    "note": "The days the courts' states declare legal holidays, as their statutes stand on the review date, through the end of 2025 (a later period cannot be counted); the federal holidays follow from 5 U.S.C. § 6103 (app/domain/court_calendar.py). Delaware's Saturdays and Pennsylvania's Saturday half-holidays are not court days in any case; Delaware's Return Day is a holiday in Sussex County only, not where the court sits."
   }
 }

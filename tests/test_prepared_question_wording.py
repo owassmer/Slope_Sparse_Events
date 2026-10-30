@@ -43,8 +43,9 @@ def test_proposed_remittitur_is_not_the_pre_answer_accepted_amount():
 
 
 def test_known_ruling_establishes_deadline_beyond_simulation_horizon():
+    courts = {k: {'declared_holidays': [], 'through': '2024-12-31'} for k in ('district', 'appeal')}
     fc = SimpleNamespace(review=date(2024, 5, 14), instrument=lambda: None,
-                         m={'rules': {'frap_4a1a': {'value': 30}}})
+                         m={'rules': {'frap_4a1a': {'value': 30}}, 'case_courts': courts})
     d = SimpleNamespace(stage='liability_pending', financing=())
     row = {'day': np.array([155]), 'cash': np.array([100]), 'triggers': {},
            'sit': {'ruling': np.array([155])}}

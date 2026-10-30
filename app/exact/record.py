@@ -72,14 +72,16 @@ def record(st, k, day, node, ctx, scratch, out, floats):
     out[r.COLLATERAL] = agenda.collateral_before(st, k, day)
     out[r.PETITION] = S[f.PETITION] if S[f.PETITION] <= day else -1
     out[r.CASH_END] = max(cash.cash_at(st.ln, day), 0)
-    out[r.ENTRY] = S[f.E_IX] if notes.has_judgment(S, k.nc) else f.BIG
+    # a judgment the clerk enters after the day is not yet a fact of it, nor are the periods its entry starts
+    entered = notes.has_judgment(S, k.nc) and S[f.E_IX] <= day
+    out[r.ENTRY] = S[f.E_IX] if entered else f.BIG
     filed = S[f.MOTIONS_FILED] <= day
     out[r.RULING] = S[f.F] if filed else f.BIG
     out[r.MOTIONS_FILED] = S[f.MOTIONS_FILED] if filed else f.BIG
-    out[r.MOTIONS_DEADLINE] = S[f.E_IX] + k.frcp
+    out[r.MOTIONS_DEADLINE] = core.motions_deadline(S, k.frcp, k.court) if entered else f.BIG
     # the deadline to appeal as the walk fixes it (FRAP 4(a)(1)(A), on the next court day: 26(a)(1)(C)), known
     # beyond the analysis period too: the class and the question read the walk's date, never a recomputed one
-    out[r.ENTRY_APPEAL_DEADLINE] = core.court_day(k.court, S[f.E_IX] + k.frap) if S[f.E_IX] < f.BIG else f.BIG
+    out[r.ENTRY_APPEAL_DEADLINE] = core.court_day(k.court, S[f.E_IX] + k.frap) if entered else f.BIG
     out[r.DELISTED] = S[f.DELISTED] if S[f.DELISTED] <= day else f.BIG
     out[r.STAYED_FROM] = S[f.STAYED_FROM] if S[f.STAYED_FROM] <= day else f.BIG
     latest, status = -1, 0
