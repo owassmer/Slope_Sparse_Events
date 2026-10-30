@@ -21,7 +21,8 @@
         "Akoustis Technologies",
         "Akoustis",
         "Acoustis",
-        "AKTS"
+        "AKTS",
+        "akoustis"
       ]
     },
     {
@@ -42,7 +43,8 @@
         "Qorvo",
         "Corvo",
         "Cuervo",
-        "QRVO"
+        "QRVO",
+        "qorvo"
       ]
     },
     {
@@ -66,6 +68,36 @@
         "Kenneth Boller",
         "Ken Boller",
         "Boller"
+      ]
+    },
+    {
+      "as": "a Company director or officer",
+      "names": [
+        "Steven P. DenBaars",
+        "Steven DenBaars",
+        "DenBaars",
+        "Arthur E. Geiss",
+        "Arthur Geiss",
+        "Geiss",
+        "J. Michael McGuire",
+        "Michael McGuire",
+        "McGuire",
+        "Jeffrey K. McMahon",
+        "Jeffrey McMahon",
+        "McMahon",
+        "Jerry D. Neal",
+        "Jerry Neal",
+        "Michelle L. Petock",
+        "Michelle Petock",
+        "Petock",
+        "Suzanne B. Rudy",
+        "Suzanne Rudy",
+        "Robert Charles Dry",
+        "Robert Dry",
+        "Rohan Houlden",
+        "Houlden",
+        "SJ Kim",
+        "Steven Li"
       ]
     },
     {
@@ -94,6 +126,12 @@
       ]
     },
     {
+      "as": "an acquired technology business",
+      "names": [
+        "TST"
+      ]
+    },
+    {
       "as": "a town in New York",
       "names": [
         "Canandaigua"
@@ -104,6 +142,12 @@
       "names": [
         "1:21-cv-01417",
         "21-cv-01417"
+      ]
+    },
+    {
+      "as": "[SEC file number]",
+      "names": [
+        "333-262540"
       ]
     }
   ],

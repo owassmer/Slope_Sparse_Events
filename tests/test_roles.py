@@ -38,9 +38,10 @@ def test_only_text_changes():
         {"cash": 100, "Cash": 200, "amount": 1417, "flag": True}
 
 
-def test_names_inside_words_and_ordinary_words_are_kept():
-    parties = [{"as": "the Company", "names": ["ON", "Akoustis"]}]
-    assert roles.apply({"t": "Payment on time; Akoustisian"}, parties) == {"t": "Payment on time; Akoustisian"}
+def test_names_inside_words_are_kept_and_names_match_as_declared():
+    parties = [{"as": "the Company", "names": ["Akoustis"]}]
+    assert roles.apply({"t": "Akoustisian"}, parties) == {"t": "Akoustisian"}
+    assert roles.apply("see https://www.akoustis.com", PARTIES) == "see https://www.the Company.com"
 
 
 def test_distinct_parties_keep_distinct_roles():
@@ -55,8 +56,13 @@ def test_distinct_parties_keep_distinct_roles():
 def test_a_partys_own_defined_term_stays_its_own():
     item = {"author": "Qorvo, Inc.", "quote": "The Company sued Akoustis. The Company expects to prevail."}
     assert roles.apply(item, PARTIES)["quote"] == "The Claimant sued the Company. The Claimant expects to prevail."
+    titled = {"source": "Qorvo, Inc. Form 10-K", "quotes": ["The Company sued Akoustis."]}
+    assert roles.apply(titled, PARTIES)["quotes"] == ["The Claimant sued the Company."]
     own = {"author": "Akoustis Technologies", "quote": "The Company had cash of $15.2 million."}
     assert roles.apply(own, PARTIES)["quote"] == "The Company had cash of $15.2 million."
+    # a person speaking is not a party whose document defines the term
+    said = {"author": "Jeff Shealy", "quotes": ["The Company had cash of $15.2 million."]}
+    assert roles.apply(said, PARTIES)["quotes"] == ["The Company had cash of $15.2 million."]
 
 
 def test_the_grammar_around_a_role():
@@ -64,6 +70,9 @@ def test_the_grammar_around_a_role():
         "The borrower is the Company. It has no cash."
     assert roles.apply("“Akoustis files.”", PARTIES) == "“The Company files.”"
     assert roles.apply("'Akoustis' files.", PARTIES) == "'The Company' files."
+    assert roles.apply("Akoustis' U.S. subsidiary", PARTIES) == "The Company’s U.S. subsidiary"
+    assert roles.apply("Akoustis,\nInc. was sued.", PARTIES) == "The Company's subsidiary was sued."
+    assert roles.fill("{company} pays {claimant}.", PARTIES) == "The Company pays the Claimant."
 
 
 def test_the_questions_own_text_is_filled_with_roles():
@@ -97,5 +106,12 @@ def test_the_judge_reads_roles_and_the_caller_keeps_names():
     prof = DisputeProfile(Jev(), lambda kind, obj: None, parties=PARTIES)
     asyncio.run(prof.forecast("forecast_claim_settlement_offer", state, ("d",)))
     assert seen["state"]["question"]["text"] == "Does the Company file?"
-    assert seen["fill"]("{company} and {claimant}") == "the Company and the Claimant"
+    assert seen["fill"]("{company} and {claimant}") == "The Company and the Claimant"
     assert state["question"]["text"] == "Does Akoustis file?"
+
+
+def test_every_shipped_case_declares_its_parties():
+    import pathlib
+
+    for case in sorted(p.name for p in pathlib.Path("cases").iterdir() if (p / "snapshot.json").exists()):
+        roles.Parties(load_model(case)["case_parties"])

@@ -44,13 +44,19 @@ class Parties:
                     self.by_name[form] = p["as"]
         self.placeholders = {p["placeholder"]: p["as"] for p in declared if p.get("placeholder")}
         self.company = self.placeholders.get("company")
-        alternatives = "|".join(re.escape(n) for n in sorted(self.by_name, key=len, reverse=True))
+        self.organisations = set(self.placeholders.values())  # parties whose own documents define "the Company"
+        # a name's spaces match any whitespace (a source's line breaks are kept verbatim)
+        alternatives = "|".join(re.escape(n).replace(r"\ ", r"\s+")
+                                for n in sorted(self.by_name, key=len, reverse=True))
         self.pattern = re.compile(rf"(?P<the>\b[Tt]he\s+)?(?<![A-Za-z0-9])(?P<name>{alternatives})(?![A-Za-z0-9])"
-                                  r"(?P<poss>[’'](?=\s+[a-z]))?")
+                                  r"(?P<poss>[’'](?=\s+[A-Za-z]))?")
+
+    def role(self, matched: str) -> str:
+        return self.by_name[re.sub(r"\s+", " ", matched)]
 
     def text(self, s: str) -> str:
         def one(m: re.Match) -> str:
-            role = self.by_name[m.group("name")]
+            role = self.role(m.group("name"))
             article = re.match(r"(the|an?)\s+", role, re.IGNORECASE)
             if m.group("the") and article:  # "the Akoustis defendants": one article, the text's own
                 role = m.group("the") + role[article.end():]
@@ -67,7 +73,9 @@ class Parties:
                 role += "."  # the name's period also ended the sentence
             return role
 
-        out = self.pattern.sub(one, s)
+        return self.capitalise(self.pattern.sub(one, s))
+
+    def capitalise(self, out: str) -> str:
         for role in set(self.by_name.values()):  # a role that opens a sentence or a quotation
             if role[:1].islower():
                 out = re.sub(rf'(^|[.!?:;]\s+|["“‘(\[]\s*|(?:^|\s)\'|\n\s*)({re.escape(role)})',
@@ -76,13 +84,13 @@ class Parties:
 
     def role_of(self, s: str) -> str | None:
         """The one declared party a text (a source's author) names (None where it names none, or several)."""
-        found = {self.by_name[m.group("name")] for m in self.pattern.finditer(s or "")}
+        found = {self.role(m.group("name")) for m in self.pattern.finditer(s or "")}
         return found.pop() if len(found) == 1 else None
 
 
 def _walk(obj, fn: Callable[[str], str], author_role: str | None, parties: Parties):
     if isinstance(obj, str):
-        if author_role is not None and parties.company and author_role != parties.company:
+        if author_role in parties.organisations and author_role != parties.company:
             # the author's own defined term first: in its document, "the Company" is the author itself
             term = parties.company[4:] if parties.company.lower().startswith("the ") else parties.company
             obj = re.sub(rf"\b([Tt]he)\s+{re.escape(term)}\b",
@@ -92,10 +100,12 @@ def _walk(obj, fn: Callable[[str], str], author_role: str | None, parties: Parti
     if isinstance(obj, list):
         return [_walk(x, fn, author_role, parties) for x in obj]
     if isinstance(obj, dict):
-        role = parties.role_of(obj["author"]) if isinstance(obj.get("author"), str) else author_role
+        # whose document an item quotes: its author, else its source's title (a party's own filing)
+        own = next((obj[k] for k in ("author", "source", "title") if isinstance(obj.get(k), str)), None)
+        role = parties.role_of(own) if own is not None else author_role
         out = {}
         for k, v in obj.items():
-            out[k] = _walk(v, fn, None if k == "author" else role, parties)
+            out[k] = _walk(v, fn, None if k in ("author", "source", "title") else role, parties)
         return out
     return obj
 
@@ -108,9 +118,10 @@ def apply(obj, declared: list[dict] | None):
 
 def fill(template: str, declared: list[dict] | None) -> str:
     """A registry template's party placeholders ({company}, {claimant}) filled with the parties' roles."""
-    for key, role in Parties(declared).placeholders.items():
+    parties = Parties(declared)
+    for key, role in parties.placeholders.items():
         template = template.replace("{" + key + "}", role)
-    return template
+    return parties.capitalise(template)
 
 
 def residue(obj, declared: list[dict] | None) -> list[str]:

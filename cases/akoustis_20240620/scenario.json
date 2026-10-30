@@ -1,0 +1,144 @@
+{
+  "snapshot_id": "akoustis_20240620",
+  "note": "The parties' names, for the judgment model's role names (app/agent/roles.py).",
+  "parties": [
+    {
+      "as": "the Company",
+      "placeholder": "company",
+      "names": [
+        "Akoustis Technologies, Inc.",
+        "Akoustis Technologies, Inc",
+        "Akoustis Technologies",
+        "Akoustis",
+        "Acoustis",
+        "AKTS",
+        "akoustis"
+      ]
+    },
+    {
+      "as": "the Company's subsidiary",
+      "names": [
+        "Akoustis, Inc.",
+        "Akoustis, Inc"
+      ]
+    },
+    {
+      "as": "the Claimant",
+      "placeholder": "claimant",
+      "names": [
+        "Qorvo US, Inc.",
+        "Qorvo, Inc.",
+        "Qorvo Inc.",
+        "Qorvo US",
+        "Qorvo",
+        "Corvo",
+        "Cuervo",
+        "QRVO",
+        "qorvo"
+      ]
+    },
+    {
+      "as": "the Company's chief executive",
+      "names": [
+        "Jeffrey B. Shealy",
+        "Jeffrey Shealy",
+        "Jeff Shealy",
+        "Dr. Shealy",
+        "Mr. Shealy",
+        "Shealy",
+        "Jeff"
+      ]
+    },
+    {
+      "as": "a Company executive",
+      "names": [
+        "David Aichele",
+        "Dave Aichele",
+        "Aichele",
+        "Kenneth Boller",
+        "Ken Boller",
+        "Boller"
+      ]
+    },
+    {
+      "as": "a Company director or officer",
+      "names": [
+        "Steven P. DenBaars",
+        "Steven DenBaars",
+        "DenBaars",
+        "Arthur E. Geiss",
+        "Arthur Geiss",
+        "Geiss",
+        "J. Michael McGuire",
+        "Michael McGuire",
+        "McGuire",
+        "Jeffrey K. McMahon",
+        "Jeffrey McMahon",
+        "McMahon",
+        "Jerry D. Neal",
+        "Jerry Neal",
+        "Michelle L. Petock",
+        "Michelle Petock",
+        "Petock",
+        "Suzanne B. Rudy",
+        "Suzanne Rudy",
+        "Robert Charles Dry",
+        "Robert Dry",
+        "Rohan Houlden",
+        "Houlden",
+        "SJ Kim",
+        "Steven Li"
+      ]
+    },
+    {
+      "as": "the Company's university licensor",
+      "names": [
+        "Cornell University",
+        "Cornell"
+      ]
+    },
+    {
+      "as": "the Company's proprietary filter technology",
+      "names": [
+        "XBAW"
+      ]
+    },
+    {
+      "as": "an acquired filter business",
+      "names": [
+        "RFMi"
+      ]
+    },
+    {
+      "as": "an acquired semiconductor business",
+      "names": [
+        "GDSI"
+      ]
+    },
+    {
+      "as": "an acquired technology business",
+      "names": [
+        "TST"
+      ]
+    },
+    {
+      "as": "a town in New York",
+      "names": [
+        "Canandaigua"
+      ]
+    },
+    {
+      "as": "[docket number]",
+      "names": [
+        "1:21-cv-01417",
+        "21-cv-01417"
+      ]
+    },
+    {
+      "as": "[SEC file number]",
+      "names": [
+        "333-262540"
+      ]
+    }
+  ]
+}
