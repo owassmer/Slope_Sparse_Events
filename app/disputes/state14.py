@@ -198,6 +198,27 @@ LISTING = {"listed": "listed", "hearing_requested": "listed; a hearing is reques
 DUE_HOW = {"declared": "by declaration of the trustee or the holders",
            "automatic_j": "automatically under §7.02, on a continuing §7.01(j)(v) general-nonpayment default",
            "repurchase": "on the repurchase date, unpaid"}
+# The window a stage's question covers (QUESTIONS §1: intervals end on dates or changes of state, and a 'no' means the
+# event does not occur in the interval): from the question's own date to the date that ends it where that date is
+# known on the question's date, else the change of state that ends it (`agenda.settlement_window`, the walk's).
+WINDOW = {"Ientry": "from {day}, the day the judgment is entered, to the deadline for post-trial motions on {motions}",
+          "I1": "from {day}, while post-trial motions are pending, until the court rules on them",
+          "Istay": "from {day}, while the judgment is stayed on approved security before the post-trial ruling, until the "
+                   "court rules on the post-trial motions",
+          "Ienforce": "from {day}, after the creditor's levy on the company's cash, until the court rules on the "
+                      "post-trial motions",
+          "Iappeal": "from {day}, while the company's appeal is pending, through {end}",
+          "I2": "from {day}, after the post-trial ruling or once the time for post-trial motions has run, to the "
+                "deadline to appeal on {appeal}",
+          "I3": "from {day}, with the judgment enforceable and unstayed after the deadline to appeal, through {end}",
+          "I4": "from {day}, while the judgment is stayed on approved security, through {end}",
+          "enforce_after_final": "from {day}, with the judgment enforceable and unstayed, through {end}"}
+# a response question left with one action besides doing nothing: the nothing-answer is not taking that action
+WITHOUT = {"file": ("continue without filing", "{company} continues without filing a voluntary petition on "
+                    "{decision_date}."),
+           "pay": ("not pay", "{company} does not pay the judgment balance of {amount_owed} in full on {decision_date}."),
+           "initiate_offering": ("not initiate an offering", "{company} does not initiate an underwritten offering of its "
+                                 "common stock on {decision_date}.")}
 OCCASION = {"entry": "the day the judgment is entered", "I1": "the day of a levy, before the levy",
             "post": "the day of a levy, before the levy", "ripe": "the day the notes' judgment default becomes "
             "available", "default": "the day the notes' judgment default becomes available"}
@@ -323,8 +344,16 @@ class Situation:
         return out
 
     def interval(self):
+        """The window the question's event may occur in, from its own date (`WINDOW`)."""
         if self.d is not None and self.d.stage == "liability_pending" and "I0" not in self.tags:
-            return "; ".join((self.post_trial_ruling(), *self.appeal_events()))
+            stage = "enforce_after_final" if self.n.node == "enforce_after_final" else \
+                next((t for t in self.tags if t in WINDOW), None)
+            if stage is None:
+                raise Unbuilt(f"no window among the context tags {self.tags}")
+            text = WINDOW[stage]
+            return text.format(day=self.decision_date(), end=self._date(self.fc.horizon),
+                               motions=dated(self.review, *self._sit("motions_deadline")) if "{motions}" in text else "",
+                               appeal=self.appeal_deadline() if "{appeal}" in text else "")
         got = next((self.labels[t] for t in self.tags if t in self.labels and t.startswith("I")), None)
         if got is None and ({"final", "appealed"} & set(self.tags)):
             return "; ".join(("after the post-trial ruling", *self.appeal_events()))
@@ -538,8 +567,6 @@ class Situation:
     # the notes (§2.3, §3)
     def notes_principal(self):
         return usd(self.fin.principal_cents) if self.fin is not None else "not applicable: no notes"
-
-    notes_balance_due = notes_principal
 
     def days_unpaid_and_unstayed(self):
         entry, _ = self._sit("entry")
@@ -950,8 +977,9 @@ def question_text(n, text: str, values: dict) -> str:
                    "initiate_offering": "initiate an underwritten offering of its common stock on the stated terms",
                    "file": "file a voluntary petition", "none": "none of these", "neither": "neither"}
         actions = [choices[b] for b in choices if b in n.branches]
-        if set(n.branches) == {"file", "neither"}:
-            actions[-1] = "continue without filing"
+        acts = [b for b in n.branches if b not in ("none", "neither")]
+        if len(acts) == 1:
+            actions[-1] = WITHOUT[acts[0]][0]
         options = ", ".join(actions[:-1]) + ", or " + actions[-1]
         if n.node == "judgment_response":
             text = "What does {company} do on {decision_date}, {occasion}: " + options + "?"
@@ -1019,6 +1047,10 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     names = dict(zip(["true", "false"], t["branches"], strict=True)) if entry["primitive"] == "noul" else \
         {k: k for k in crit}
     answers = {names[k]: fill_text(v, values) for k, v in crit.items() if names[k] in n.branches}
+    acts = [b for b in n.branches if b not in ("none", "neither")]
+    if n.node in ("judgment_response", "financing_at_floor", "petition_cash_out") and len(acts) == 1:
+        nothing = next(b for b in n.branches if b in ("none", "neither"))  # as the question offers it (question_text)
+        answers[nothing] = fill_text(WITHOUT[acts[0]][1], values)
     kinds, filled, fids = evidence_kinds(fc, n, t, d)
     readings, _ = fc._readings(d, n.question_id)
     verdict = n.node in ("verdict_finding", "verdict_amount")

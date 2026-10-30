@@ -2533,7 +2533,7 @@
       "version": "5.0.0",
       "profile": "event_forecast",
       "primitive": "noul",
-      "question": "Does {company} file a voluntary petition on {decision_date}, the day the notes' principal and interest of {notes_balance_due} become due {notes_due_how}?",
+      "question": "Does {company} file a voluntary petition on {decision_date}, the day the notes' principal of {notes_principal} and their accrued interest become due {notes_due_how}?",
       "actor": "{company}",
       "template": "pending_money_claim",
       "node": "petition_on_notes",
@@ -2550,7 +2550,7 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "Does {company} file a voluntary petition on {decision_date}, the day the notes' principal and interest of {notes_balance_due} become due {notes_due_how}?",
+        "instructions": "Does {company} file a voluntary petition on {decision_date}, the day the notes' principal of {notes_principal} and their accrued interest become due {notes_due_how}?",
         "criteria": {
           "true": "{company} files a voluntary petition on {decision_date}.",
           "false": "{company} files no voluntary petition on {decision_date}."

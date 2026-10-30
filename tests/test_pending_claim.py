@@ -597,7 +597,7 @@ def test_7j_the_ordinary_view_carries_the_ordinary_obligations_facts_and_no_disp
     fc, d, _, _ = tree
     principal = usd(fc.instrument().principal_cents)
     assert principal == "$44,000,000.00"  # the indenture's notes outstanding (the record)
-    ordinary = ("notes_principal", "notes_balance_due", "compliance_deadline", "bid_price_on_review_date",
+    ordinary = ("notes_principal", "compliance_deadline", "bid_price_on_review_date",
                 "reverse_split_time", "determination_date", "hearing_request_deadline", "delisted_on")
     dispute = ("appeal_deadline", "default_available_on", "judgment_amount", "judgment_entered_on", "amount_owed",
                "settlement_amount", "installments")
@@ -609,7 +609,7 @@ def test_7j_the_ordinary_view_carries_the_ordinary_obligations_facts_and_no_disp
             assert ours["judgment_standing"] == "no money judgment has been entered", n.key
         for k in dispute:
             assert k not in ours or ours[k].startswith(("not applicable", "none")), (n.key, k, ours[k])
-        for k in ("notes_principal", "notes_balance_due"):
+        for k in ("notes_principal",):
             if k in ours:
                 assert ours[k] == principal, (n.key, k)
         tags = set(c for c in n.context.split("|")[1:] if c)

@@ -1692,7 +1692,7 @@
           "pending_money_claim": {
             "residual_question": "forecast_claim_petition_on_notes",
             "actor": "{company}",
-            "decision": "Does {company} file a voluntary petition on {decision_date}, the day the notes' principal and interest of {notes_balance_due} become due {notes_due_how}?",
+            "decision": "Does {company} file a voluntary petition on {decision_date}, the day the notes' principal of {notes_principal} and their accrued interest become due {notes_due_how}?",
             "branches": [
               "yes",
               "no"
@@ -1707,7 +1707,7 @@
             ],
             "situation_keys": [
               "decision_date",
-              "notes_balance_due",
+              "notes_principal",
               "notes_due_how",
               "judgment_standing",
               "available_cash",
@@ -1770,7 +1770,7 @@
             ],
             "situation_keys": [
               "decision_date",
-              "notes_balance_due",
+              "notes_principal",
               "notes_due_how",
               "petition_route",
               "available_cash",
