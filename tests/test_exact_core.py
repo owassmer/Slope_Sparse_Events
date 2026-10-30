@@ -32,7 +32,7 @@ def _run_with_hook(history, hook):
 def _compiled_step(chain, node, ctx, branch, S, r, case, DC, nbd):
     """The compiled step for `node` on S (row r), or None where the core does not book that node."""
     args = (case.entry_next_business_day, nbd[r], case.frcp_50b_59, case.briefing_days, case.frcp_62a,
-            case.frap_4a1a)
+            case.frap_4a1a, core.court_table(chain))
     if node == "verdict":
         if branch.startswith("award:"):
             _, total, lo, hi = branch.split(":")
@@ -43,7 +43,7 @@ def _compiled_step(chain, node, ctx, branch, S, r, case, DC, nbd):
         return core.step_verdict_branch(S, DC[r], bool(spec["judgment"]), amount, bool(spec.get("adverse")), *args)
     if node == "post_trial_motions":
         return core.step_post_trial_motions(S, DC[r], branch == "yes", case.frcp_50b_59, case.briefing_days,
-                                            case.frap_4a1a, case.sensitive_lag, chain.N)
+                                            case.frap_4a1a, case.sensitive_lag, chain.N, core.court_table(chain))
     return None
 
 

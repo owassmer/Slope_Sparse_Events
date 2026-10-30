@@ -56,7 +56,7 @@ def constants(ch, r: int) -> agenda.K:
         settle_lag=int(m["parameters"]["settlement_date_in_interval"]["value"]),
         settle_end=bool(sens.get("settlement_date_in_interval")), settle_count=count,
         months=np.array([[ch.months_after(np.array([t]), q)[0] for q in range(count)] for t in range(ch.N)],
-                        dtype=np.int64).reshape(ch.N, count)), ln
+                        dtype=np.int64).reshape(ch.N, count), court=core.court_table(ch)), ln
 
 
 def state(ch, r: int, ln) -> agenda.St:

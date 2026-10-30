@@ -48,12 +48,18 @@ def test_the_dated_walk_follows_the_python_histories(style):
                 found, st, _, _, (qs, recs, _, cls) = pass1.follow(fc0, d0, ch0, r, tk, h.path.steps, questions=True)
                 counts["records"] += len(qs)
                 where = f"{style} seed {seed} draw {h.draws[r]} {h.path.steps}"
-                if any(kind == tree.F_MISSING and tree.owed_quiet(dec) != tree.NOT_OWED for kind, dec, *_ in found):
+                # set apart only where the Python's answer to the question that did not arise books other than its
+                # quiet answer (the routes after it differ); a quiet answer books the same, and the history goes on
+                if any(kind == tree.F_MISSING and tree.owed_quiet(dec) != tree.NOT_OWED and want != tree.owed_quiet(dec)
+                       for kind, dec, _day, want in found):
                     counts["a question that does not arise at its date"] += 1
                     continue
-                for kind, dec, _day, _want in found:
+                for kind, dec, _day, want in found:
                     if kind == tree.F_ASKED:
                         counts["asked"] += 1
+                        continue
+                    if kind == tree.F_MISSING and want == tree.owed_quiet(dec):
+                        counts["not arising, answered quietly in the Python"] += 1
                         continue
                     assert kind == tree.F_EXTRA and dec == w.DEC_SETTLE0 + a.SETTLE_CTX.index("I3") \
                         and ("stay", "post", "yes") in h.path.steps, (kind, dec, where)
@@ -82,3 +88,25 @@ def test_the_dated_walk_follows_the_python_histories(style):
 
 
 BIGP = f.BIG
+
+
+def test_a_judgment_is_final_once_the_time_for_appeal_has_run_without_an_appeal():
+    """28 U.S.C. §1963: early registration does not arise on a day after the appeal deadline (a court day, FRAP
+    26(a)(1)(C)) when the appeal question was answered and no appeal taken; on the deadline itself, before the appeal
+    is answered, or after an appeal, it does."""
+    fc, d = oracle.context((0,))
+    ch = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
+    ch.instrument_cash()
+    k, ln = replay.constants(ch, 0)
+    st = replay.state(ch, 0, ln)
+    S = st.S
+    S[f.AD] = 100
+    S[w.ANS0 + w.DEC_APPEAL], S[w.APPEALED] = a.NO, 0
+    assert not tree.final(st, 100) and tree.final(st, 101)
+    S[w.ANS0 + w.DEC_APPEAL] = w.OPEN
+    assert not tree.final(st, 101)
+    S[w.ANS0 + w.DEC_APPEAL], S[w.APPEALED] = a.YES, 1
+    assert not tree.final(st, 150)
+    # the deadline falls on a court day: Saturday 24 August 2024 runs to Monday 26 August
+    sat = ch.ix(__import__("datetime").date(2024, 8, 24))
+    assert ch.court_day(np.array([sat]))[0] == sat + 2 and k.court[sat] == sat + 2

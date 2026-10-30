@@ -22,7 +22,7 @@ from app.exact import fields_notes as n
 St = namedtuple("St", "S D P takes offers atm answers parts coupons wait stays rec steps scratch before lockbuf ln")
 K = namedtuple("K", "N bps pending frcp frap frcp62 briefing next_bd nbd sensitive_lag DC levy_lag petition_lag "
                     "bond_years bond_share zero_floor ec nc sched lower ldates rep_cal legal opening ops_in need "
-                    "noncash claimed settle_lag settle_end settle_count months")
+                    "noncash claimed settle_lag settle_end settle_count months court")
 # a projection's workspace (`Chain.proposed_terms`): the state at the review date, and the view it is replayed into
 WS = namedtuple("WS", "init scratch")
 D_STAY_LOCK = f.D_STAYS  # every approved stay's lock on approval and its release (Chain.lock_cash less the booked lock)
@@ -557,11 +557,12 @@ def book_step(st, k, step):
     if node == a.VERDICT:
         if br == a.V_AWARD:
             return core.step_verdict_award(S, k.DC, step[3], step[4], step[5], step[6] != 0, k.next_bd, k.nbd,
-                                           k.frcp, k.briefing, k.frcp62, k.frap)
+                                           k.frcp, k.briefing, k.frcp62, k.frap, k.court)
         return core.step_verdict_branch(S, k.DC, step[3] != 0, step[4], step[5] != 0, k.next_bd, k.nbd, k.frcp,
-                                        k.briefing, k.frcp62, k.frap)
+                                        k.briefing, k.frcp62, k.frap, k.court)
     if node == a.MOTIONS:
-        return core.step_post_trial_motions(S, k.DC, br == a.YES, k.frcp, k.briefing, k.frap, k.sensitive_lag, N)
+        return core.step_post_trial_motions(S, k.DC, br == a.YES, k.frcp, k.briefing, k.frap, k.sensitive_lag, N,
+                                            k.court)
     if node == a.SETTLE:
         if br == a.YES:
             raise NotImplementedError("a settlement agreed: slice 2")

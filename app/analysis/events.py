@@ -717,6 +717,15 @@ class Chain:
     def ix(self, when: date) -> int:
         return (when - self.s.review).days - 1
 
+    def court_day(self, t) -> np.ndarray:
+        """The day index of the first day on or after day t the clerk's office is open (FRAP 26(a)(1)(C): a period
+        whose last day falls on a weekend or legal holiday runs to the next day that is not one), per draw."""
+        t = np.asarray(t, dtype=np.int64)
+        out = t.copy()
+        for v in np.unique(t[(t > -10_000) & (t < BIG)]):
+            out[t == v] = self.ix(next_business_day(self.s.review + timedelta(days=int(v) + 1)))
+        return out
+
     def _timeline_pending(self) -> None:
         """A pending claim: the verdict day V drawn per trajectory over the case's window (key (instance, verdict,
         date)); entry, execution, the motions, the ruling and the appeal deadline are set by the verdict and
@@ -940,7 +949,7 @@ class Chain:
         self.F = np.max(money, axis=0) if post else np.full(self.n, final)  # the final judgment (last change)
         self.A = np.max(tolling, axis=0) if (post and tolling) else self.F
         notice = self.m["rules"]["frap_4a1a"]["value"]
-        self.AD = self.A + notice  # the appeal deadline, tolled to the last tolling order
+        self.AD = self.court_day(self.A + notice)  # the appeal deadline, tolled to the last tolling order
         self.fee_day = np.max(fees, axis=0) if fees else np.full(self.n, BIG)
         stay = self.m["rules"]["frcp_62a"]["value"]
         e = max(d.judgment_date + timedelta(days=stay + 1), self.s.review) if d.judgment_date else self.s.review
@@ -1133,7 +1142,7 @@ class Chain:
                 self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, "entry")
         self.e_ix = self.E_ix + int(self.m["rules"]["frcp_62a"]["value"]) + 1
         self.E0 = np.maximum(self.e_ix, 0)
-        self.AD = self.E_ix + int(self.m["rules"]["frap_4a1a"]["value"])
+        self.AD = self.court_day(self.E_ix + int(self.m["rules"]["frap_4a1a"]["value"]))
 
     def respond(self, booking: str, day: np.ndarray, cause: str = "enforcement", occasion: str = "") -> None:
         """One branch's booking (contract branch_bookings) on the decision day: pay the amount owed, a petition, a
@@ -2618,7 +2627,7 @@ class Chain:
             else:  # finality is learned at the deadline, never backdated to entry
                 self.F = filed.copy()
                 self.mark("ruled", filed)
-            self.AD = (self.F if branch == "yes" else self.E_ix) + notice
+            self.AD = self.court_day((self.F if branch == "yes" else self.E_ix) + notice)
             self.A = self.F.copy() if branch == "yes" else self.E_ix.copy()
             self.EF = np.maximum(self.F, self.E0)
             self.EI = self.EF.copy()

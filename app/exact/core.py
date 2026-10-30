@@ -140,7 +140,14 @@ def live(S, day):
 # --- the judgment's timeline (Chain._enter and the verdict, post_trial_motions, post_trial_ruling steps) -------------
 
 @njit(cache=True)
-def enter(S, DC, case_next_bd, entry_nbd, frcp_50b_59, briefing, frcp_62a, frap_4a1a):
+def court_day(court, t):
+    """`Chain.court_day`: the first day on or after day t that is not a weekend or legal holiday (FRAP 26(a)(1)(C));
+    `court` maps each day index of the case's calendar to it (beyond it: t)."""
+    return court[t] if 0 <= t < court.size else t
+
+
+@njit(cache=True)
+def enter(S, DC, case_next_bd, entry_nbd, frcp_50b_59, briefing, frcp_62a, frap_4a1a, court):
     """`Chain._enter`: the entry day, execution from entry + Rule 62(a) + 1, the appeal deadline."""
     if case_next_bd:
         S[f.E_IX] = entry_nbd
@@ -148,18 +155,18 @@ def enter(S, DC, case_next_bd, entry_nbd, frcp_50b_59, briefing, frcp_62a, frap_
         S[f.E_IX] = DC[DC_V] + frcp_50b_59 + briefing + DC[DC_LAG_ENTRY]
     S[f.EX_IX] = S[f.E_IX] + frcp_62a + 1
     S[f.E0] = S[f.EX_IX] if S[f.EX_IX] > 0 else 0
-    S[f.AD] = S[f.E_IX] + frap_4a1a
+    S[f.AD] = court_day(court, S[f.E_IX] + frap_4a1a)
 
 
 @njit(cache=True)
 def step_verdict_award(S, DC, total, lo, hi, top, case_next_bd, entry_nbd, frcp_50b_59, briefing, frcp_62a,
-                       frap_4a1a):
+                       frap_4a1a, court):
     """`Chain.step('verdict', ..., 'award:<total>:<lo>:<hi>')`: the award entered and its band; the claimant's amount
     (hi 'top') is the adverse branch. Returns the decision day (the verdict day)."""
     S[f.ENTERED] = total
     S[f.BAND_LO] = lo
     S[f.BAND_HI] = f.NONE if top else hi
-    enter(S, DC, case_next_bd, entry_nbd, frcp_50b_59, briefing, frcp_62a, frap_4a1a)
+    enter(S, DC, case_next_bd, entry_nbd, frcp_50b_59, briefing, frcp_62a, frap_4a1a, court)
     if top:
         S[f.ADVERSE_FROM] = S[f.E_IX]
     return DC[DC_V]
@@ -167,12 +174,12 @@ def step_verdict_award(S, DC, total, lo, hi, top, case_next_bd, entry_nbd, frcp_
 
 @njit(cache=True)
 def step_verdict_branch(S, DC, judgment, amount, adverse, case_next_bd, entry_nbd, frcp_50b_59, briefing, frcp_62a,
-                        frap_4a1a):
+                        frap_4a1a, court):
     """`Chain.step('verdict', ..., <template branch>)`: a branch with a judgment enters its amount (`verdict_amount`,
     computed in Python); one without books nothing. Returns the verdict day."""
     if judgment:
         S[f.ENTERED] = amount
-        enter(S, DC, case_next_bd, entry_nbd, frcp_50b_59, briefing, frcp_62a, frap_4a1a)
+        enter(S, DC, case_next_bd, entry_nbd, frcp_50b_59, briefing, frcp_62a, frap_4a1a, court)
         if adverse:
             S[f.ADVERSE_FROM] = S[f.E_IX]
     return DC[DC_V]
@@ -186,7 +193,7 @@ def mark(S, name_ix, day, where, N):
 
 
 @njit(cache=True)
-def step_post_trial_motions(S, DC, yes, frcp_50b_59, briefing, frap_4a1a, sensitive_lag, N):
+def step_post_trial_motions(S, DC, yes, frcp_50b_59, briefing, frap_4a1a, sensitive_lag, N, court):
     """`Chain.step('post_trial_motions', '', yes/no)`. Returns the filing deadline (the decision day)."""
     filed = S[f.E_IX] + frcp_50b_59
     if yes:
@@ -198,7 +205,7 @@ def step_post_trial_motions(S, DC, yes, frcp_50b_59, briefing, frap_4a1a, sensit
     else:
         S[f.F] = filed
         mark(S, f.MARK_RULED, filed, True, N)
-    S[f.AD] = (S[f.F] if yes else S[f.E_IX]) + frap_4a1a
+    S[f.AD] = court_day(court, (S[f.F] if yes else S[f.E_IX]) + frap_4a1a)
     S[f.A] = S[f.F] if yes else S[f.E_IX]
     S[f.EF] = S[f.F] if S[f.F] > S[f.E0] else S[f.E0]
     S[f.EI] = S[f.EF]
@@ -254,3 +261,8 @@ def resolve(S, D, legal, day, where):
     for t in range(max(S[f.RESOLVED], 0), min(old, N)):
         D[f.D_CASH, t] -= legal[t]
         D[f.D_KIND_REDUCTION, t] -= legal[t]
+
+
+def court_table(chain, span: int = 1200) -> np.ndarray:
+    """`court_day` for every day index 0..span of the chain's calendar (`Chain.court_day`)."""
+    return np.ascontiguousarray(chain.court_day(np.arange(span, dtype=np.int64)), dtype=np.int64)
