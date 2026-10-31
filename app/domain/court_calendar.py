@@ -86,5 +86,6 @@ def for_case(m: dict) -> tuple[CourtCalendar, CourtCalendar]:
 
     def days(key: str) -> frozenset[date]:
         return frozenset(date.fromisoformat(x["date"]) for x in courts[key]["declared_holidays"])
-    through = min(date.fromisoformat(courts[k]["through"]) for k in ("district", "appeal"))
-    return CourtCalendar(days("district"), through), CourtCalendar(days("district") | days("appeal"), through)
+    district = date.fromisoformat(courts["district"]["through"])
+    appeal = min(district, date.fromisoformat(courts["appeal"]["through"]))  # it needs both states' days
+    return CourtCalendar(days("district"), district), CourtCalendar(days("district") | days("appeal"), appeal)

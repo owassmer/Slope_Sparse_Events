@@ -32,3 +32,12 @@ def test_the_appeal_calendar_adds_the_circuit_clerks_state():
     assert not district.open(date(2024, 11, 29)) and not appeal.open(date(2024, 11, 29))
     with pytest.raises(LookupError):
         for_case({})
+
+
+def test_a_district_period_counts_on_its_own_calendars_end():
+    m = {"case_courts": {"district": {"declared_holidays": [], "through": "2025-12-31"},
+                         "appeal": {"declared_holidays": [], "through": "2024-12-31"}}}
+    district, appeal = for_case(m)
+    assert district.on_or_after(date(2025, 1, 7)) == date(2025, 1, 7)
+    with pytest.raises(LookupError):
+        appeal.on_or_after(date(2025, 1, 7))

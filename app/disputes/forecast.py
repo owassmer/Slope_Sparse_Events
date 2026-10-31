@@ -301,6 +301,10 @@ def as_of(row: dict) -> dict:
             ruled = sit["ruling"] <= day
             t2["appeal_deadline"] = np.where(
                 filed, np.where(ruled, t2["appeal_deadline"], BIG), sit["entry_appeal_deadline"])
+        elif per(sit.get("ruling")) and "appeal_deadline" in t2:
+            # motions filed before the review (a post-trial case): the deadline runs from the order disposing of the
+            # last of them (FRAP 4(a)(4)(A)), so it is not a fact of a question before that order
+            t2["appeal_deadline"] = np.where(sit["ruling"] <= day, t2["appeal_deadline"], BIG)
         out["triggers"] = t2
     if sit:
         s2 = dict(sit)
@@ -2061,7 +2065,8 @@ class Forecaster:
                 if name not in (r.get("triggers") or {}):
                     continue
                 v, day = r["triggers"][name][m], r["day"][m]
-                vals.append(v[(v >= day) & (v < self.days)])
+                # a deadline already fixed is a fact however far off (the cash triggers are inside the period)
+                vals.append(v[(v >= day) & (v < (BIG if name == "appeal_deadline" else self.days))])
                 if name == "coupon" and "coupon_cash" in r["triggers"]:  # the coupon priced off the path
                     coupon_cash.append(r["triggers"]["coupon_cash"][m][(v >= day) & (v < self.days)])
                 later |= bool(((v >= self.days) & (v < BIG)).any())

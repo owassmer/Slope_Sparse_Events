@@ -389,6 +389,8 @@ class Situation:
             filed = self._sit("motions_filed")[0]
             deadline = self._sit("motions_deadline")[0]
             if filed > self.day:
+                if deadline >= BIG:
+                    return "no judgment has been entered; post-trial motions may be filed within 28 days of its entry"
                 if self.day < deadline:
                     return f"post-trial motions may be filed until {when(self.review, deadline)}"
                 return "no timely post-trial motions were filed; the judgment stands as entered"
@@ -597,7 +599,8 @@ class Situation:
         if entry >= BIG:
             return "not applicable: no judgment has been entered"
         stayed = self._sit("stayed_from")[0]
-        start = entry + 30  # Fed. R. Civ. P. 62(a): execution is stayed for the first 30 days after entry
+        # Fed. R. Civ. P. 62(a): execution is stayed for 30 days after entry, counted under Rule 6(a)
+        start = int(self._district(entry + int(self.fc.m["rules"]["frcp_62a"]["value"])))
         if stayed <= self.day:
             return "none: the judgment is stayed on approved security"
         return f"{max(self.day - start, 0)} days since the automatic stay ended on {when(self.review, start)}"
@@ -821,9 +824,19 @@ class Situation:
                "next month"
 
     # the post-trial questions
+    def _district(self, t: int) -> int:
+        """The day a civil-rules period ending on day t runs to (Rule 6(a)(1)(C)), on the case's district calendar."""
+        from app.domain.court_calendar import for_case
+
+        return (for_case(self.fc.m)[0].on_or_after(self.review + timedelta(days=int(t) + 1)) - self.review).days - 1
+
     def motion_deadline(self):
         entry, _ = self._sit("entry")
-        return when(self.review, entry + 28) + " (28 days after entry; Fed. R. Civ. P. 50(b), 59(b))"
+        if self.d is not None and self.d.stage == "liability_pending":
+            deadline = self._sit("motions_deadline")[0]  # the walk's, as it books the motions
+        else:
+            deadline = self._district(entry + int(self.fc.m["rules"]["frcp_50b_59_deadline"]["value"]))
+        return when(self.review, deadline) + " (28 days after entry, Fed. R. Civ. P. 50(b), 59(b); Rule 6(a))"
 
     def pending_motions(self):
         return f"the company's timely motions under Fed. R. Civ. P. 50(b) and 59, filed by {self.motion_deadline()}"

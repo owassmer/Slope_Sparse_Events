@@ -8,6 +8,7 @@ seeded uniforms `Draws.u` keys) are computed in Python once; the kernels read th
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 
 import numpy as np
 from numba import njit
@@ -139,7 +140,7 @@ def court_day(court, t):
     """`Chain.court_day`: the first day on or after day t the clerk's office is open on the appeal calendar
     (FRAP 26(a)(1)(C), (a)(6)); `court` (`court_table`): row 1 maps each day index of the case's declared calendar to
     it. A day beyond the calendar the case declares cannot be counted."""
-    if t < 0 or t >= court.shape[1]:
+    if t < 0 or t >= court.shape[1] or court[1, t] < 0:
         raise ValueError("a court period ends beyond the calendar the case declares")
     return court[1, t]
 
@@ -147,7 +148,7 @@ def court_day(court, t):
 @njit(cache=True)
 def district_day(court, t):
     """`Chain.district_day`: as `court_day`, on the district court's calendar (FRCP 6(a)(1)(C), (a)(6)): row 0."""
-    if t < 0 or t >= court.shape[1]:
+    if t < 0 or t >= court.shape[1] or court[0, t] < 0:
         raise ValueError("a court period ends beyond the calendar the case declares")
     return court[0, t]
 
@@ -163,8 +164,8 @@ def enter(S, DC, case_next_bd, entry_nbd, frcp_50b_59, briefing, frcp_62a, frap_
     """`Chain._enter`: the entry day, execution from entry + Rule 62(a) + 1, the appeal deadline."""
     if case_next_bd:
         S[f.E_IX] = entry_nbd
-    else:
-        S[f.E_IX] = DC[DC_V] + frcp_50b_59 + briefing + DC[DC_LAG_ENTRY]
+    else:  # with the post-verdict ruling: the first day the clerk's office is open from then
+        S[f.E_IX] = district_day(court, DC[DC_V] + frcp_50b_59 + briefing + DC[DC_LAG_ENTRY])
     S[f.EX_IX] = district_day(court, S[f.E_IX] + frcp_62a) + 1  # Rule 62(a) under Rule 6(a); execution the day after
     S[f.E0] = S[f.EX_IX] if S[f.EX_IX] > 0 else 0
     S[f.AD] = court_day(court, S[f.E_IX] + frap_4a1a)
@@ -276,9 +277,15 @@ def resolve(S, D, legal, day, where):
 
 
 def court_table(chain) -> np.ndarray:
-    """[2, days]: `Chain.district_day` (row 0) and `Chain.court_day` (row 1) for every day index of the calendar the
-    case declares (its courts' `through`, less the days a period ending then would run past it)."""
-    through = chain.calendars[0].through
-    span = max((through - chain.s.review).days - 14, 0)  # a period ending in its last fortnight could run past it
-    t = np.arange(span, dtype=np.int64)
-    return np.ascontiguousarray(np.stack([chain.district_day(t), chain.court_day(t)]), dtype=np.int64)
+    """[2, days]: `Chain.district_day` (row 0) and `Chain.court_day` (row 1) for every day index through the later
+    of the calendars' declared ends; -1 where a calendar cannot count the day (it would run past its declared end)."""
+    cals = chain.calendars
+    span = max((c.through - chain.s.review).days for c in cals)
+    out = np.full((2, max(span, 0)), -1, dtype=np.int64)
+    for row, cal in enumerate(cals):
+        for t in range(out.shape[1]):
+            try:
+                out[row, t] = chain.ix(cal.on_or_after(chain.s.review + timedelta(days=t + 1)))
+            except LookupError:
+                break  # every later day runs past it too
+    return np.ascontiguousarray(out)

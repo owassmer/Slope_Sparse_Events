@@ -1164,9 +1164,9 @@ class Chain:
         if self.p("judgment_entry") == "next_business_day":
             nxt = {int(v): self.entry_day(int(v)) for v in np.unique(self.V)}
             self.E_ix = np.array([nxt[int(v)] for v in self.V], dtype=np.int64)
-        else:
-            self.E_ix = self.V + int(self.m["rules"]["frcp_50b_59_deadline"]["value"]) + int(
-                self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, "entry")
+        else:  # with the post-verdict ruling: entered on the first day the clerk's office is open from then
+            self.E_ix = self.district_day(self.V + int(self.m["rules"]["frcp_50b_59_deadline"]["value"]) + int(
+                self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, "entry"))
         # Rule 62(a)'s automatic stay: 30 days after entry, counted under Rule 6(a); execution from the day after
         self.e_ix = self.district_day(self.E_ix + int(self.m["rules"]["frcp_62a"]["value"])) + 1
         self.E0 = np.maximum(self.e_ix, 0)
@@ -2545,7 +2545,9 @@ class Chain:
             self.increase = max(self.cls_amount - self.entered, 0)  # cls_amount is set on every branch above
             restart = self.m["parameters"]["stay_restart_on_increase_days"]
             mode = restart["sensitivity"] if self.sens.get("stay_restart_on_increase_days") else restart["base"]
-            self.EI = self.F + (int(restart["value"]) if self.increase else 0)
+            # an increase has its own Rule 62(a) stay from the amended judgment, counted under Rule 6(a): enforceable
+            # from the day after its last day (as entry's, `_enter`)
+            self.EI = self.district_day(self.F + int(restart["value"])) + 1 if self.increase else self.F.copy()
             self.EF = self.EI.copy() if mode == "whole_amount" else self.F.copy()  # base: the increase has its own 30-day stay
             return self.F
         if node == "appeal":
@@ -3490,7 +3492,7 @@ class Chain:
         f = self.fin
         if self.d is not None:
             # a known deadline is a legal fact beyond the analysis period too (the questions read it, not the cash)
-            out["appeal_deadline"] = np.where((self.AD >= 0) & (self.AD < BIG), self.AD, BIG).astype(np.int64)
+            out["appeal_deadline"] = np.where(self.AD < BIG, self.AD, BIG).astype(np.int64)
             if f is not None and f.judgment_default_days:
                 for key, ctx in (("judgment_default_entered", "I1"), ("judgment_default_ruling", "post")):
                     ripe, cond = self.judgment_default(ctx)

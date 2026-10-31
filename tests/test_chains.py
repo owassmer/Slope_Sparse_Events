@@ -243,13 +243,14 @@ def test_frap_tolling_moves_the_post_ruling_windows_with_the_drawn_ruling(base):
     assert (days[5] >= 10**6).all()  # no levy pending: the company's response to a levy does not arise
     up = chain(base)
     up.step("ruling", "", "beyond:11292377711:1211612330")  # only the increase waits 30 days (L8(a) base)
-    assert (up.EF == up.F).all() and (up.EI == up.F + 30).all()
+    assert (up.EF == up.F).all() and (up.EI == up.district_day(up.F + 30) + 1).all()
     ripe = up.step("judgment_default", "post", "no")
     inside = ripe < 10**6
     assert (ripe[inside] == up.A[inside] + 60).all()  # 60 days from the last tolling order
     whole = chain(base, sens={"stay_restart_on_increase_days": True})  # sensitivity: the whole amount waits
     whole.step("ruling", "", "beyond:11292377711:1211612330")
-    assert (whole.EF == whole.F + 30).all() and (whole.EI == whole.F + 30).all()
+    stay_end = whole.district_day(whole.F + 30) + 1
+    assert (whole.EF == stay_end).all() and (whole.EI == stay_end).all()
 
 
 def test_an_increase_is_levied_only_once_its_own_stay_ends_and_the_original_at_once(base):
