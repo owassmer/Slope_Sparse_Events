@@ -109,4 +109,4 @@ def test_a_judgment_is_final_once_the_time_for_appeal_has_run_without_an_appeal(
     assert not tree.final(st, 150)
     # the deadline falls on a court day: Saturday 24 August 2024 runs to Monday 26 August
     sat = ch.ix(__import__("datetime").date(2024, 8, 24))
-    assert ch.court_day(np.array([sat]))[0] == sat + 2 and k.court[sat] == sat + 2
+    assert ch.court_day(np.array([sat]))[0] == sat + 2 and k.court[1, sat] == sat + 2
