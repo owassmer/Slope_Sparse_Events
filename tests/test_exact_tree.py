@@ -22,6 +22,7 @@ from app.analysis.events import Chain
 from app.exact import export_notes, oracle, pass1, replay, tree
 from app.exact import fields as f
 from app.exact import fields_agenda as a
+from app.exact import fields_notes as fn
 from app.exact import fields_walk as w
 
 DRAWS = (0, 145, 365)
@@ -74,6 +75,13 @@ def test_the_dated_walk_follows_the_python_histories(style):
                 if S[f.EARLY_REGISTRATION] != wS[f.EARLY_REGISTRATION] and wS[f.EARLY_REGISTRATION] >= pet:
                     S[f.EARLY_REGISTRATION] = wS[f.EARLY_REGISTRATION]
                     counts["registration after the petition"] += 1
+                # the Python books the listing's suspension at the compliance deadline, its hearing request with it;
+                # the dated walk asks the hearing request on its own day, which a petition before it leaves unasked
+                hearing = int(replay.constants(ch0, r)[0].ldates[fn.HEARING])
+                if S[f.SUSPENDED] >= BIGP > wS[f.SUSPENDED] and hearing > pet:
+                    for x in (f.SUSPENDED, f.DELISTED, f.MARK_DELISTED):
+                        S[x] = wS[x]
+                    counts["the hearing request after the petition"] += 1
                 same_day = any(st.stays[j, a.T_APPROVED] and int(st.stays[j, a.T_APPROVAL]) == pet
                                for j in range(st.S[a.N_STAYS]))
                 if same_day:
