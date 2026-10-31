@@ -65,6 +65,8 @@ class JevProvider:
     base_url: str | None  # None = SDK default (direct TypeSafe)
     model: str  # provider-specific identifier for the same pinned Jev build
     pinned_build: str  # canonical build from agent_config (jev-1.13.0)
+    marker: str = "jev-1.13"  # the returned model ID must contain it
+    price_usd_per_million: str | None = None  # None: agent_config runtime.jev's design price
 
 
 def jev_provider() -> JevProvider:
@@ -80,6 +82,52 @@ def jev_provider() -> JevProvider:
     if name == "typesafe":
         return JevProvider("typesafe", "TYPESAFE_API_KEY", None, pinned, pinned)
     raise ConfigurationError(f"Unknown JEV_PROVIDER {name!r}; expected 'openrouter' or 'typesafe'")
+
+
+# The decision models for forecast and no-lawsuit judgments, and their budgets. Kept here, not in agent_config.json:
+# the saved walk and pool are bound to the contracts' hashes, and the model does not change what the questions are.
+# Clef (Cloudflare Workers AI) and OpenAI's Decisions API (gpt-6-luna: uncached input priced, output free) take the
+# same request: a state and typed questions, a probability per option.
+JUDGMENT_PROVIDERS = {
+    "clef": {"provider": "clef", "model": "clef", "price_usd_per_million_input_tokens": "0.24",
+             "spend_cap_usd_per_run": "90.00", "max_physical_attempts": 65000},
+    # https://developers.openai.com/api/docs/pricing (standard, short context, 29 October 2026): input $0.10, cached
+    # input $0.01, cache writes $0.125 (30 minutes) and $0.25 (12 hours) per million tokens; output is not charged on
+    # /v1/decisions (https://developers.openai.com/api/docs/guides/decisions, Pricing and availability)
+    "decisions": {"provider": "decisions", "model": "gpt-6-luna", "price_usd_per_million_input_tokens": "0.10",
+                  "price_usd_per_million_cached_input_tokens": "0.01",
+                  "price_usd_per_million_cache_write_30m_tokens": "0.125",
+                  "price_usd_per_million_cache_write_12h_tokens": "0.25",
+                  # the organization's limit (2,000,000 input tokens a minute, cached ones included: OpenAI's 429,
+                  # 29 October 2026), less a margin; the client paces requests under it
+                  "tokens_per_minute": 1_900_000,
+                  "spend_cap_usd_per_run": "90.00", "max_physical_attempts": 65000},
+}
+# The default (SLOPE_JUDGMENT_PROVIDER selects another): Decisions answers the 14 May questions (about 15,000 input
+# tokens each, most of them the evidence its cache holds) at about $0.0004 a question; Clef, at $0.24 a million
+# uncached, could not answer the case's 44,001 within its cap (29 October).
+JUDGMENTS = JUDGMENT_PROVIDERS["decisions"]
+
+
+def judgment_provider() -> JevProvider:
+    """The decision model for forecast and no-lawsuit judgments (SLOPE_JUDGMENT_PROVIDER, else agent_config
+    runtime.judgments.provider). The recorded investigation and its record-item slots keep `jev_provider`."""
+    name = (os.environ.get("SLOPE_JUDGMENT_PROVIDER") or JUDGMENTS["provider"]).lower()
+    cfg = JUDGMENT_PROVIDERS.get(name)
+    if cfg is None:
+        return jev_provider()
+    if name == "decisions":
+        # its own key name: OPENAI_API_KEY would switch the coding agents to metered use (METERED_OVERRIDES)
+        return JevProvider("decisions", "OPENAI_DECISIONS_API_KEY", "https://api.openai.com/v1/decisions",
+                           cfg["model"], cfg["model"], marker=cfg["model"],
+                           price_usd_per_million=cfg["price_usd_per_million_input_tokens"])
+    account = secret("CLOUDFLARE_ACCOUNT_ID") or os.environ.get("CORDON_CF_ACCOUNT")
+    if not account:
+        raise ConfigurationError("Clef requires CLOUDFLARE_ACCOUNT_ID (env or .env)")
+    model = cfg.get("model", "clef")
+    return JevProvider("clef", "CLOUDFLARE_API_TOKEN",
+                       f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/cloudflare/{model}",
+                       model, model, marker=model, price_usd_per_million=cfg.get("price_usd_per_million_input_tokens"))
 
 
 def jev_credential(provider: JevProvider) -> str:

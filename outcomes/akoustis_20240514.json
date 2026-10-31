@@ -284,5 +284,17 @@
  "not_found": [
   "A levy, writ or other enforcement act by Qorvo before the petition: none in the fetched 8-Ks, 10-K, 10-Q or RECAP D.I. 690-720 and 723; D.I. 721, 722, 724 and 725 are not on RECAP.",
   "Whether the 15 Jun 2024 notes coupon was paid in shares or cash: not stated in the fetched filings."
- ]
+ ],
+ "model_map": {
+  "_about": "Where the actual events fall among the model's branches, read by the viewer only (page.js renderActual).",
+  "verdict_band": {
+   "amount_cents": 3859502300,
+   "date": "2024-05-20",
+   "basis": "The judgment entered on the verdict (D.I. 602): the jury's total award, the amount J1b's bands cut."
+  },
+  "offering_closed": {
+   "date": "2024-05-24",
+   "basis": "The registered direct offering closed (Form 8-K, 24 May 2024): N1's 'closes' branch."
+  }
+ }
 }

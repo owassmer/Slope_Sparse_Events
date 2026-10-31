@@ -12,7 +12,12 @@ from __future__ import annotations
 import asyncio
 import gzip
 import json
+import os
 import re
+import resource
+import sys
+import time
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import date
 from functools import lru_cache
@@ -21,6 +26,7 @@ from pathlib import Path
 from app.analysis.core import Analysis, EventModel, dates, stress
 from app.analysis.events import BANK, Basis, coupon_terms
 from app.analysis.setup import (
+    QUIET_DEFAULTS,
     Exposure,
     Setup,
     controls_from_json,
@@ -119,16 +125,31 @@ def _judgment_meta(j: Judgment, disputes: dict[str, DisputeInstance], order: dic
 
 
 def _model_json(m: EventModel) -> dict:
+    from app.disputes.forecast import pack_mask
+
     return {"disputes": {k: d.model_dump(mode="json") for k, d in m.disputes.items()},
             "judgments": {k: asdict(j) for k, j in m.judgments.items()},
             "paths": {i: {c: [{"steps": [list(s) for s in p.steps], "outcome": p.outcome,
-                              "edges": [list(e) for e in p.edges], "cls": p.cls} for p in ps]
+                              "edges": [list(e) for e in p.edges], "cls": p.cls, **_mask_json(p)} for p in ps]
                           for c, ps in cl.items()} for i, cl in m.per.items()},
             "order": [[d.instance_id, parent.instance_id if parent else None] for d, parent in m.order],
             "neutral": m.neutral,
+            "stubs": {i: [{"mask": pack_mask(t["mask"]).hex(), "day": t["day"].tolist(), "edges": t["edges"],
+                           "groups": t["groups"], "group_size": t["group_size"]} for t in ts]
+                      for i, ts in m.stubs.items()},
             "bank": {"judgments": {k: asdict(j) for k, j in m.bank_judgments.items()},
                      "paths": [{"steps": [list(s) for s in p.steps], "outcome": p.outcome,
-                                "edges": [list(e) for e in p.edges]} for p in m.bank_paths]}}
+                                "edges": [list(e) for e in p.edges], **_mask_json(p)} for p in m.bank_paths]}}
+
+
+def _mask_json(p: DisputePath) -> dict:
+    """A path's draws (DisputePath.mask, hex), only where it follows some of them (a grouped question's fork), and
+    its sampling (divisor, stub, group) where the answer-first walk sampled it: without them a restored run would weigh
+    a sampled path as walked exactly."""
+    out = {} if p.mask is None else {"mask": p.mask.hex()}
+    if p.stub >= 0 or p.divisor != 1.0:
+        out.update(divisor=p.divisor, stub=p.stub, group=p.group)
+    return out
 
 
 def _judgments(data: dict) -> dict[str, Judgment]:
@@ -140,14 +161,28 @@ def model_from_json(data: dict) -> EventModel:
     disputes = {k: DisputeInstance.model_validate(v) for k, v in data["disputes"].items()}
     judgments = _judgments(data["judgments"])
     bank = data.get("bank") or {"judgments": {}, "paths": []}
+    mask = lambda p: bytes.fromhex(p["mask"]) if p.get("mask") else None  # noqa: E731
+    sampled = lambda p: {"divisor": p.get("divisor", 1.0), "stub": p.get("stub", -1),  # noqa: E731
+                         "group": p.get("group", -1)}
     bank_paths = [DisputePath(instance_id=BANK, steps=tuple(tuple(s) for s in p["steps"]), outcome=p["outcome"],
-                              edges=tuple(tuple(e) for e in p["edges"])) for p in bank["paths"]]
+                              edges=tuple(tuple(e) for e in p["edges"]), mask=mask(p)) for p in bank["paths"]]
     per = {i: {c: [DisputePath(instance_id=i, steps=tuple(tuple(s) for s in p["steps"]), outcome=p["outcome"],
-                               edges=tuple(tuple(e) for e in p["edges"]), cls=p["cls"]) for p in ps]
+                               edges=tuple(tuple(e) for e in p["edges"]), cls=p["cls"], mask=mask(p), **sampled(p))
+                    for p in ps]
                for c, ps in cl.items()} for i, cl in data["paths"].items()}
     order = [(disputes[i], disputes[p] if p else None) for i, p in data["order"]]
+    import numpy as np
+
+    from app.analysis.setup import DRAWS
+    from app.disputes.forecast import path_mask
+
+    stubs = {i: [{"mask": path_mask(DisputePath(instance_id=i, steps=(), outcome="", edges=(),
+                                                mask=bytes.fromhex(t["mask"])), DRAWS),
+                  "day": np.asarray(t["day"], dtype=np.int64), "edges": t["edges"], "groups": t["groups"],
+                  "group_size": t["group_size"]} for t in ts]
+             for i, ts in (data.get("stubs") or {}).items()}
     return EventModel(disputes, judgments, per, order, neutral=data.get("neutral"), bank_paths=bank_paths,
-                      bank_judgments=_judgments(bank["judgments"]))
+                      bank_judgments=_judgments(bank["judgments"]), stubs=stubs)
 
 
 def _sens_rows(a: Analysis, model: EventModel, overrides: dict | None) -> list[dict]:
@@ -251,13 +286,15 @@ def record_item_slots(run_id: str, root: Path, findings: dict, hydrate, refresh:
     return out
 
 
-def build(run_id: str, root: Path, refresh: bool = False) -> dict:
-    """The run's analysis, page and Jev exchange log, written beside it."""
+def build(run_id: str, root: Path, refresh: bool = False, *,
+          progress: Callable[[str], None] | None = None, answer_first: dict | None = None) -> dict:
+    """The run's analysis, page and Jev exchange log, written beside it. answer_first: the answer-first walk with
+    the seeded stand-in judge (`judged_model`)."""
     from app.agent import jev as jev_module
 
     jev_module.EXCHANGE_LOG = exchanges = []  # the run's Jev requests and responses, written beside it
     try:
-        return _build(run_id, root, refresh, exchanges)
+        return _build(run_id, root, refresh, exchanges, progress or (lambda stage: None), answer_first)
     finally:
         jev_module.EXCHANGE_LOG = None
 
@@ -292,44 +329,137 @@ def run_context(run_id: str, root: Path, refresh: bool = False) -> dict:
             "findings": findings, "live": live, "m": m, "feed": feed, "hydrate": hydrate, "slots": slots}
 
 
-def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None = None) -> tuple[Forecaster, EventModel]:
+WALK_PROCESSES = {"akoustis_20240514": 4}  # snapshot -> processes walking its dispute tree (default: one)
+
+
+def walk_processes(snapshot_id: str) -> int:
+    """The build setting walk_processes: the case's value, or the environment's SLOPE_WALK_PROCESSES."""
+    env = os.environ.get("SLOPE_WALK_PROCESSES")
+    return int(env) if env else WALK_PROCESSES.get(snapshot_id, 1)
+
+
+STAND_IN = "stand-in"  # a Judgment's observation_id when the seeded stand-in judge answered (answer_first.stand_in)
+
+
+def stand_in_judgments(nodes: dict, classed: set) -> dict[str, Judgment]:
+    """The seeded stand-in judge's answer to every question, for building and keyless runs, never a judgment about the
+    case. A question in a situation class (key `base|#class`) offers the answers open in that class; its answer is the
+    stand-in's answer to the base question renormalised over them, which is exactly what the answer-first walk samples
+    a draw of that class with (`answer_first._sample`: the guide renormalised over the children open to the draw), so
+    the walk samples with the judged probabilities (`sampling.check_masses`)."""
+    from app.disputes.answer_first import stand_in
+
+    def answer(k, n):
+        base = k.split("|#")[0]
+        if base == k or base not in nodes:
+            return stand_in(base, n.branches)
+        full = stand_in(base, nodes[base].branches)
+        missing = [b for b in n.branches if b not in full]
+        if missing:
+            raise ValueError(f"{k}: answers {missing} are not answers of its base question {base}")
+        total = sum(full[b] for b in n.branches)
+        return {b: full[b] / total for b in n.branches}
+
+    return {k: Judgment(key=k, instance_id=n.instance_id, node=n.node, question_id=n.question_id, event=n.event,
+                        assumptions=n.assumptions, window=n.window, distribution=answer(k, n), observation_id=STAND_IN)
+            for k, n in nodes.items() if k not in classed}
+
+
+def judged_model(ctx: dict, setup: Setup, jev, records: list, sens: dict | None = None, *,
+                 progress: Callable[[str], None] | None = None,
+                 answer_first: dict | None = None) -> tuple[Forecaster, EventModel]:
     """The tree for `setup` (and the chains' parameter sensitivities `sens`), with Jev's answer to every question.
-    A question whose facts are unchanged is answered from Jev's cache; one whose facts changed is asked again."""
+    A question whose facts are unchanged is answered from Jev's cache; one whose facts changed is asked again.
+    answer_first: the answer-first walk's settings (answer_first.AnswerFirstWalk.configure), with the
+    seeded stand-in judge both guiding the walk and answering (jev is then unused)."""
     from app.agent.jev_profiles import DisputeProfile
 
     fc = Forecaster(ctx["live"], ctx["findings"], borrower=ctx["borrower"], review=ctx["review"],
                     horizon=setup.horizon, hydrate=ctx["hydrate"], setup=setup,
                     basis=basis_for(ctx["feed"], setup),  # path facts are simulated before Jev is asked
                     slots=ctx["slots"], model=ctx["m"], sens=sens)
-    per = fc.all_paths()
+    if progress:
+        progress("event_situations")
+    if answer_first is not None:
+        from app.disputes.answer_first import Guide, stand_in
+
+        fc.answer_first = {**answer_first, "guide": Guide(fc, stand_in)}
+        per = fc.all_paths()
+        bank_paths = fc.bank_paths()
+        judgments = stand_in_judgments(fc.nodes, fc.classed)
+        bank_judgments = stand_in_judgments(fc.bank_nodes, set())
+        model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered(),
+                           neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments,
+                           stubs=getattr(fc, "stub_tables", {}))
+        return fc, model
+    procs = walk_processes(ctx["meta"]["snapshot_id"])
+    if procs > 1:  # the pending claim's tree on a subtree queue (app/disputes/parallel.py): the single walk's result
+        from app.disputes import parallel
+
+        per = parallel.all_paths(fc, procs)
+    else:
+        per = fc.all_paths()
     bank_paths = fc.bank_paths()  # the bank view: the same distress decisions on the bank data alone
-    judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}))
+    judge = DisputeProfile(jev, lambda kind, obj: records.append({"kind": kind, **obj.model_dump(mode="json")}),
+                           parties=fc.m.get("case_parties"))
 
     async def ask_both() -> tuple[dict, dict]:  # one event loop: the adapter's HTTP client is bound to it
         return (await fc.judge(judge) if fc.nodes else {}), (await fc.judge_bank(judge) if fc.bank_nodes else {})
 
+    if progress:
+        progress("jev_forecasts")
     judgments, bank_judgments = asyncio.run(ask_both())
     model = EventModel({d.instance_id: d for d in fc.disputes}, judgments, per, fc.ordered(),
                        neutral=neutral_map(judgments), bank_paths=bank_paths, bank_judgments=bank_judgments)
     return fc, model
 
 
-def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dict:
-    from app.agent.jev import JevAdapter
+def say(text: str) -> None:
+    """A progress line on stderr (the run's log)."""
+    print(f"[{time.strftime('%H:%M:%S')}] {text}", file=sys.stderr, flush=True)
 
+
+def _progress_log():
+    """Analysis progress: each pass's time at 500 paths, every 5,000 and at its end."""
+    start: dict = {}
+
+    def tick(phase: str, done: int, total: int) -> None:
+        start.setdefault(phase, time.time())
+        if done in (501, total) or done % 5000 == 1:
+            say(f"analysis {phase}: {min(done, total)}/{total} paths, {time.time() - start[phase]:.0f} s")
+    return tick
+
+
+def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict],
+           progress: Callable[[str], None], answer_first: dict | None = None) -> dict:
+    from app.agent.jev import JevAdapter
+    from app.config import judgment_provider
+
+    progress("engine_context")
     ctx = run_context(run_id, root, refresh)
     meta, setup, borrower, feed, m = ctx["meta"], ctx["setup"], ctx["borrower"], ctx["feed"], ctx["m"]
     records: list = []
-    jev = JevAdapter(run_id=f"{run_id}-analysis", use_cache=not refresh)
-    fc, model = judged_model(ctx, setup, jev, records)
+    # the stand-in answers an answer-first run: no judgment model, and so no credential (a keyless clone runs)
+    jev = None if answer_first is not None else JevAdapter(provider=judgment_provider(), run_id=f"{run_id}-analysis",
+                                                           use_cache=not refresh)
+    fc, model = judged_model(ctx, setup, jev, records, progress=progress, answer_first=answer_first)
     not_modelled = [{"title": d.title, "status": d.status, "requests": [r.action for r in d.evidence_requests]}
                     for d in ctx["live"] if d.status not in ("interpreted", "resolved")]
-    a = Analysis(feed, setup, model, dispute_model=m)
-    data = payload(feed, setup, model, meta_for(model, borrower, not_modelled), analysis=a)
+    say(f"tree: {len(model.combos)} paths, {len(model.bank_paths)} ordinary paths, {len(fc.nodes)} dispute "
+        f"nodes, {len(fc.bank_nodes)} ordinary nodes; walk {getattr(fc, 'walk_stats', {})}; "
+        f"Jev {jev.usage_summary() if jev is not None else 'not asked (stand-in)'}")
+    progress("financial_analysis")
+    t_a = time.time()
+    a = Analysis(feed, setup, model, dispute_model=m, progress=_progress_log())
+    say(f"analysis: {time.time() - t_a:.0f} s")
+    # Answer-first stress is searched below on each history's feasible draws. The legacy
+    # adverse-placement pass replays every history on every draw, outside those answer domains.
+    data = payload(feed, setup, model, meta_for(model, borrower, not_modelled), analysis=a,
+                   stressed=[] if answer_first is not None else None)
     data["model"] = _model_json(model)
     data["run_id"], data["snapshot_id"] = run_id, meta["snapshot_id"]
     data["base_setup"] = setup_json(setup)
-    data["jev"] = jev.usage_summary()
+    data["jev"] = jev.usage_summary() if jev is not None else {"judge": "stand-in"}
     out = root / run_id
     text = json.dumps(data, default=str, separators=(",", ":")).encode() + b"\n"  # compact: C encoder
     (out / "analysis.json").write_bytes(text)
@@ -338,23 +468,37 @@ def _build(run_id: str, root: Path, refresh: bool, exchanges: list[dict]) -> dic
     write_csv(data, out)
     scratch = VAR / "analysis" / run_id
     scratch.mkdir(parents=True, exist_ok=True)
-    state = run_page(a, model, fc, borrower=borrower, snapshot_id=meta["snapshot_id"], stress_rows=data["stress"])
+    progress("page")
+    from app.analysis.stress_search import search
+
+    stress_search = None
+    if answer_first is not None:
+        progress("stress_search")
+        stress_search = search(a, fc, model, borrower)
+        say(f"stress search: {stress_search['search']}")
+    state = run_page(a, model, fc, borrower=borrower, snapshot_id=meta["snapshot_id"], stress_rows=data["stress"],
+                     stress_search=stress_search)
+    precision = state["payload"]["meta"].get("precision")
+    if precision is not None:
+        say(f"precision: {'met' if precision['met'] else 'NOT met'}; level {precision['level']:.4f} against "
+            f"{precision['level_target']}; misses {precision['misses']}")
     (out / "page.json").write_text(json.dumps(state["payload"], default=str) + "\n")
     save_page_state(run_id, state)
     write_exchanges(out / "jev_log.jsonl.gz", exchanges)
+    say(f"done; peak RSS {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 2**30:.2f} GB (this process)")
     (scratch / "jev_records.jsonl").write_text("\n".join(json.dumps(r, default=str) for r in records) + "\n")
     return data
 
 
 def run_page(a: Analysis, model: EventModel, fc: Forecaster, *, borrower: str, snapshot_id: str,
-             stress_rows: list) -> dict:
+             stress_rows: list, stress_search: dict | None = None) -> dict:
     """The one-screen page for a recorded run (app/analysis/page.py), and the reduced state its reweight reads. The
     settings re-simulate the dev page only, so a run's page has none."""
     from app.analysis.page import page_payload
 
     neutral = not any(j.observation_id for j in model.judgments.values())  # no Jev answer at all: even odds
     p = page_payload(a, model, fc, borrower=borrower, snapshot_id=snapshot_id, neutral=neutral,
-                     stress_rows=stress_rows)
+                     stress_rows=stress_rows, stress_search=stress_search)
     p["settings"] = []
     p["meta"]["snapshot_id"] = snapshot_id
     return {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months}
@@ -429,13 +573,15 @@ def write_csv(data: dict, out: Path) -> None:
 def setup_json(setup: Setup) -> dict:
     controls = {**controls_json(setup), "exposure": exposure_json(setup.exposure)}
     return {k: (controls[k] if k in controls else v.isoformat() if isinstance(v, date) else v)
-            for k, v in asdict(setup).items() if k != "exposure" or setup.exposure != Exposure()}
+            for k, v in asdict(setup).items() if (k != "exposure" or setup.exposure != Exposure())
+            and QUIET_DEFAULTS.get(k, object()) != v}
 
 
 def setup_from_json(d: dict) -> Setup:
     return Setup(**{k: (date.fromisoformat(v) if k in ("review", "horizon", "funding", "invoice_due") else
                         tuple(v) if k == "collateral_share" and v is not None else v) for k, v in d.items()
-                    if k not in ("need_days", "collection", "financing", "cost_plan", "exposure")}, **controls_from_json(d),
+                    if k not in ("need_days", "collection", "financing", "cost_plan", "exposure", *QUIET_DEFAULTS)},
+                 **controls_from_json(d),
                  exposure=exposure_from_json(d.get("exposure")))
 
 

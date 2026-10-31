@@ -1,0 +1,34 @@
+name: notes-topology
+on:
+  push:
+    branches: [notes-topology]
+permissions:
+  contents: read
+jobs:
+  describe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [original, corrected]
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      SLOPE_JEV_CACHE_ONLY: '1'
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - run: uv run python tools/notes_topology.py ${{ matrix.version }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: notes-topology-${{ matrix.version }}
+          path: var/notes-topology/calls.pkl.gz
+          if-no-files-found: error
+          retention-days: 1

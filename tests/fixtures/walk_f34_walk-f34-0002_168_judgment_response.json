@@ -1,0 +1,683 @@
+{
+  "piece": "walk-f34-0002",
+  "index": 168,
+  "native_draw": 134,
+  "steps": [
+    [
+      "settle",
+      "I0",
+      "no"
+    ],
+    [
+      "verdict",
+      "I0",
+      "award:1695000300:1130000200:2260000400"
+    ],
+    [
+      "judgment_response",
+      "entry",
+      "@2=initiate_offering"
+    ],
+    [
+      "offering",
+      "entry",
+      "no"
+    ],
+    [
+      "settle",
+      "Ientry",
+      "no"
+    ],
+    [
+      "post_trial_motions",
+      "",
+      "yes"
+    ],
+    [
+      "settle",
+      "I1",
+      "no"
+    ],
+    [
+      "execute_pre_ruling",
+      "I1",
+      "yes"
+    ],
+    [
+      "stay",
+      "I1",
+      "denied"
+    ],
+    [
+      "registration_early",
+      "I1",
+      "no"
+    ],
+    [
+      "post_trial_ruling",
+      "",
+      "unchanged"
+    ],
+    [
+      "settle",
+      "I2",
+      "no"
+    ],
+    [
+      "appeal",
+      "",
+      "no"
+    ],
+    [
+      "stay",
+      "post",
+      "yes"
+    ],
+    [
+      "enforce",
+      "post",
+      "levy"
+    ],
+    [
+      "judgment_response",
+      "ripe",
+      "@2=initiate_offering"
+    ],
+    [
+      "offering",
+      "ripe",
+      "yes"
+    ],
+    [
+      "judgment_default",
+      "I1",
+      "no"
+    ],
+    [
+      "judgment_response",
+      "post",
+      "@0=none"
+    ],
+    [
+      "cash_floor",
+      "1",
+      "@0=neither"
+    ],
+    [
+      "cash_out",
+      "",
+      "@0=neither"
+    ],
+    [
+      "listing",
+      "",
+      "compliant"
+    ],
+    [
+      "nonpayment",
+      "",
+      "holders_file"
+    ]
+  ],
+  "key": "dispute_002:judgment_response|ripe|award1695000300|after_offer|#1130000200-2260000400.unpaid.default.listed.available.nopay.ctx737461795f6d6f7665647c737461795f70656e64696e67.g2",
+  "prefix": [
+    [
+      "settle",
+      "I0",
+      "no"
+    ],
+    [
+      "verdict",
+      "I0",
+      "award:1695000300:1130000200:2260000400"
+    ],
+    [
+      "judgment_response",
+      "entry",
+      "@2=initiate_offering"
+    ],
+    [
+      "offering",
+      "entry",
+      "no"
+    ],
+    [
+      "settle",
+      "Ientry",
+      "no"
+    ],
+    [
+      "post_trial_motions",
+      "",
+      "yes"
+    ],
+    [
+      "settle",
+      "I1",
+      "no"
+    ],
+    [
+      "execute_pre_ruling",
+      "I1",
+      "yes"
+    ],
+    [
+      "stay",
+      "I1",
+      "denied"
+    ],
+    [
+      "registration_early",
+      "I1",
+      "no"
+    ],
+    [
+      "post_trial_ruling",
+      "",
+      "unchanged"
+    ],
+    [
+      "settle",
+      "I2",
+      "no"
+    ],
+    [
+      "appeal",
+      "",
+      "no"
+    ],
+    [
+      "stay",
+      "post",
+      "yes"
+    ],
+    [
+      "enforce",
+      "post",
+      "levy"
+    ]
+  ],
+  "completed": true,
+  "nodes": {
+    "dispute_002:judgment_response|ripe|award1695000300|after_offer|#1130000200-2260000400.unpaid.default.listed.available.nopay.ctx737461795f6d6f7665647c737461795f70656e64696e67.g2": {
+      "key": "dispute_002:judgment_response|ripe|award1695000300|after_offer|#1130000200-2260000400.unpaid.default.listed.available.nopay.ctx737461795f6d6f7665647c737461795f70656e64696e67.g2",
+      "instance_id": "dispute_002",
+      "node": "judgment_response",
+      "context": "ripe|award1695000300|after_offer|#1130000200-2260000400.unpaid.default.listed.available.nopay.ctx737461795f6d6f7665647c737461795f70656e64696e67.g2",
+      "cls": "",
+      "question_id": "forecast_judgment_response",
+      "event": "What does {company} do on {decision_date}, {occasion}: pay the judgment balance of {amount_owed} in full, initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or none of these?",
+      "assumptions": [
+        "the judgment is enforceable, unstayed and unpaid",
+        "the judgment default under the notes has ripened that day"
+      ],
+      "window": "on the day the judgment is entered; on each day a levy falls, before it; on the day the notes' judgment default ripens after the company continued",
+      "branches": [
+        "initiate_offering",
+        "file",
+        "none"
+      ]
+    },
+    "dispute_002:judgment_response|ripe|award1695000300|after_offer": {
+      "key": "dispute_002:judgment_response|ripe|award1695000300|after_offer",
+      "instance_id": "dispute_002",
+      "node": "judgment_response",
+      "context": "ripe|award1695000300|after_offer",
+      "cls": "",
+      "question_id": "forecast_judgment_response",
+      "event": "What does {company} do on {decision_date}, {occasion}: pay the judgment balance of {amount_owed} in full, initiate an underwritten offering of its common stock on the stated terms, file a voluntary petition, or none of these?",
+      "assumptions": [
+        "the judgment is enforceable, unstayed and unpaid",
+        "the judgment default under the notes has ripened that day"
+      ],
+      "window": "on the day the judgment is entered; on each day a levy falls, before it; on the day the notes' judgment default ripens after the company continued",
+      "branches": [
+        "pay",
+        "initiate_offering",
+        "file",
+        "none"
+      ]
+    }
+  },
+  "facts": {
+    "day": {
+      "array": [
+        98
+      ],
+      "dtype": "int64"
+    },
+    "cash": {
+      "array": [
+        676969981
+      ],
+      "dtype": "int64"
+    },
+    "owed": {
+      "array": [
+        1716679122
+      ],
+      "dtype": "int64"
+    },
+    "collateral": {
+      "array": [
+        294844679
+      ],
+      "dtype": "int64"
+    },
+    "petition": {
+      "array": [
+        -1
+      ],
+      "dtype": "int64"
+    },
+    "marks": {
+      "executing": {
+        "array": [
+          38
+        ],
+        "dtype": "int64"
+      },
+      "stay_moved": {
+        "array": [
+          38
+        ],
+        "dtype": "int64"
+      },
+      "stay_denied": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "stayed": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "ruled": {
+        "array": [
+          95
+        ],
+        "dtype": "int64"
+      },
+      "settled": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "paid": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "levied": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "appealed": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "seeking": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "notes_due": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "delisted": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "raised": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      }
+    },
+    "triggers": {
+      "appeal_deadline": {
+        "array": [
+          125
+        ],
+        "dtype": "int64"
+      },
+      "coupon": {
+        "array": [
+          33
+        ],
+        "dtype": "int64"
+      },
+      "coupon_cash": {
+        "array": [
+          23
+        ],
+        "dtype": "int64"
+      },
+      "judgment_default_entered": {
+        "array": [
+          98
+        ],
+        "dtype": "int64"
+      },
+      "listing_deadline": {
+        "array": [
+          159
+        ],
+        "dtype": "int64"
+      }
+    },
+    "sit": {
+      "cash_end": {
+        "array": [
+          676969981
+        ],
+        "dtype": "int64"
+      },
+      "owed": {
+        "array": [
+          1716679122
+        ],
+        "dtype": "int64"
+      },
+      "entry": {
+        "array": [
+          7
+        ],
+        "dtype": "int64"
+      },
+      "ruling": {
+        "array": [
+          95
+        ],
+        "dtype": "int64"
+      },
+      "delisted": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "stayed_from": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "motions_filed": {
+        "array": [
+          35
+        ],
+        "dtype": "int64"
+      },
+      "motions_deadline": {
+        "array": [
+          35
+        ],
+        "dtype": "int64"
+      },
+      "entry_appeal_deadline": {
+        "array": [
+          37
+        ],
+        "dtype": "int64"
+      },
+      "stay_status": {
+        "array": [
+          "pending"
+        ],
+        "dtype": "object"
+      },
+      "standing": {
+        "array": [
+          "unpaid"
+        ],
+        "dtype": "object"
+      },
+      "entered": {
+        "array": [
+          1695000300
+        ],
+        "dtype": "int64"
+      },
+      "band": "1130000200-2260000400",
+      "band_range": [
+        1130000200,
+        2260000400
+      ],
+      "default_available": {
+        "array": [
+          98
+        ],
+        "dtype": "int64"
+      },
+      "route_days": {
+        "array": [
+          -1
+        ],
+        "dtype": "int64"
+      },
+      "remitted": {
+        "array": [
+          0
+        ],
+        "dtype": "int64"
+      },
+      "listing": {
+        "array": [
+          "listed"
+        ],
+        "dtype": "<U17"
+      },
+      "atm": {
+        "array": [
+          331266119
+        ],
+        "dtype": "int64"
+      },
+      "ledger": {
+        "array": [
+          48691997
+        ],
+        "dtype": "int64"
+      },
+      "offering_terms": {
+        "gross": {
+          "array": [
+            1135916121
+          ],
+          "dtype": "int64"
+        },
+        "costs": {
+          "array": [
+            108652847
+          ],
+          "dtype": "int64"
+        },
+        "net": {
+          "array": [
+            1027263274
+          ],
+          "dtype": "int64"
+        },
+        "price_cents_x1e4": {
+          "array": [
+            233286
+          ],
+          "dtype": "int64"
+        },
+        "shares": {
+          "array": [
+            48691997
+          ],
+          "dtype": "int64"
+        },
+        "close_days": {
+          "array": [
+            5
+          ],
+          "dtype": "int64"
+        },
+        "shelf_capacity": {
+          "array": [
+            2305843009213693951
+          ],
+          "dtype": "int64"
+        }
+      },
+      "share_price": {
+        "array": [
+          32.87458121359577
+        ],
+        "dtype": "float64"
+      },
+      "offering_pending": {
+        "array": [
+          false
+        ],
+        "dtype": "bool"
+      },
+      "offer_available": {
+        "array": [
+          1027263274
+        ],
+        "dtype": "int64"
+      },
+      "offer_shortfall": {
+        "array": [
+          0
+        ],
+        "dtype": "int64"
+      },
+      "offering_bound_reached": {
+        "array": [
+          false
+        ],
+        "dtype": "bool"
+      },
+      "offerings": [
+        [
+          {
+            "array": [
+              7
+            ],
+            "dtype": "int64"
+          },
+          {
+            "array": [
+              12
+            ],
+            "dtype": "int64"
+          },
+          {
+            "array": [
+              false
+            ],
+            "dtype": "bool"
+          }
+        ]
+      ],
+      "notes_due_day": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "notes_due_how": {
+        "array": [
+          ""
+        ],
+        "dtype": "<U11"
+      },
+      "arrears": {
+        "slope": {
+          "array": [
+            0
+          ],
+          "dtype": "int64"
+        },
+        "settlement": {
+          "array": [
+            0
+          ],
+          "dtype": "int64"
+        },
+        "notes_interest": {
+          "array": [
+            0
+          ],
+          "dtype": "int64"
+        },
+        "judgment": {
+          "array": [
+            0
+          ],
+          "dtype": "int64"
+        },
+        "operating": {
+          "array": [
+            0
+          ],
+          "dtype": "int64"
+        }
+      },
+      "first_unpaid": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      },
+      "nonpayment_day": {
+        "array": [
+          1000000
+        ],
+        "dtype": "int64"
+      }
+    },
+    "settle_offer": {
+      "array": [
+        0
+      ],
+      "dtype": "int64"
+    },
+    "stay_offer": {
+      "array": [
+        0
+      ],
+      "dtype": "int64"
+    },
+    "raise_offer": {
+      "array": [
+        1027263274
+      ],
+      "dtype": "int64"
+    },
+    "groups": {
+      "array": [
+        2
+      ],
+      "dtype": "int8"
+    },
+    "appeal_state": {
+      "array": [
+        1
+      ],
+      "dtype": "int8"
+    }
+  }
+}

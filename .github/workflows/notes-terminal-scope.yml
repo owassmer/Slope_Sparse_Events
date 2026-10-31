@@ -1,0 +1,35 @@
+name: notes-terminal-scope
+on:
+  push:
+    branches: [notes-terminal-scope]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      SLOPE_JEV_CACHE_ONLY: '1'
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - run: uv run python tools/notes_terminal_scope.py ${{ matrix.worker }}
+        env:
+          NOTES_TERMINAL_SCOPE_MANIFEST_URL: ${{ secrets.NOTES_TERMINAL_SCOPE_MANIFEST_URL }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: notes-terminal-scope-${{ matrix.worker }}
+          path: var/notes-terminal-scope/results/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

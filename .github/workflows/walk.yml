@@ -1,0 +1,162 @@
+name: walk
+
+# The 14 May dispute tree walked on GitHub runners (app/disputes/parallel.py `shard`), each job's parts split for the
+# pool stages (app/disputes/pool.py `split`): its control events and its rows in 16 buckets by question.
+on:
+  push:
+    branches: [walk-run, "walk-run-*"]  # walk-run-<variant>: an economic-assumption variant
+
+env:
+  RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
+  JOBS: "100"  # the matrix below lists 0..JOBS-1; 40 run at a time, the next starting as one ends
+  PROCS: "4"
+  SLOPE_WALK_CUT: "10"  # units 10 steps below the verdict: the heaviest depth-7 unit held 141,159 walked paths
+  SLOPE_WALK_MINUTES: "200"  # a process claims no new unit after this; the units left are walked by the next wave
+  WAVE: "0"  # a later wave: walk_roots.pkl (parallel.spill) lists its units; its parts are numbered past the first's
+
+jobs:
+  shard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false
+      max-parallel: 40
+      matrix:
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - run: nproc; free -g; df -h /
+      - timeout-minutes: 330  # the step fails before the job's limit, so the finished parts still upload
+        run: >
+          SLOPE_VARIANT=$(n=${GITHUB_REF_NAME#walk-run}; echo ${n#-}) SLOPE_JEV_CACHE_ONLY=1
+          SLOPE_WALK_ROOTS=$([ "$WAVE" != "0" ] && echo walk_roots.pkl)
+          uv run python -m app.disputes.parallel $RUN_ID
+          ${{ matrix.job }} $JOBS $PROCS out $((WAVE * JOBS * PROCS)) 2> >(tee walk.log >&2)
+      - if: always()  # a process the step's limit killed: its finished units, from its stream
+        run: uv run python -m app.disputes.pool split out split 2> >(tee -a walk.log >&2)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: control-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: |
+            split/control/
+            walk.log
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b0-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows0/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b1-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows1/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b2-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows2/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b3-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows3/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b4-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows4/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b5-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows5/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b6-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows6/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b7-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows7/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b8-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows8/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b9-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows9/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b10-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows10/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b11-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows11/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b12-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows12/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b13-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows13/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b14-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows14/
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rows-b15-j${{ matrix.job }}-w${{ env.WAVE }}
+          path: split/rows15/
+          retention-days: 3
+          compression-level: 1

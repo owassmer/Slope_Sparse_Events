@@ -15,6 +15,10 @@ The common financial model's controls (spec §16.3, `Setup`) act here, on the st
 - a cost plan scales every operating outflow except legal fees and debt service (the invoices too) from its start;
 - financing proceeds are booked on their completion day in `total` and in `financing`, which the operating need
   leaves out; a debt booking's service is booked in `debt_service` (so the line's limit rule sees it).
+
+The daily cash processor (QUESTIONS_20240514 §2.2) needs each day's receipts apart from its payments. `outflow` is the
+day's outgoing flows (each stream's outgoing transactions, rounded per stream, and the invoices), and `inflow` is
+`total - outflow`, so the two add up to `total` exactly. The split reads the same draws: the bootstrap is unchanged.
 """
 
 from __future__ import annotations
@@ -37,6 +41,7 @@ INVOICE = "supplier_invoice"
 SPLIT = ("customer_receipts", "debt_service", "legal_fees")  # kept apart as daily arrays (all also inside `total`)
 LIMIT_CATEGORIES = ("customer_receipts", "debt_service")  # Slope's rule: receipts net of debt service
 UNCUT = ("legal_fees", "debt_service")  # outflows a cost plan leaves alone (dispute spend stops on its own)
+OUT = tuple(f"{k}-" for k in ("other", *SPLIT))  # each stream's outgoing part (the daily processor's payments)
 
 
 @dataclass
@@ -51,6 +56,8 @@ class Operating:
     by_category: dict[str, np.ndarray]
     history: dict[tuple[int, int], int]
     financing: np.ndarray | None = None  # [days] financing proceeds, inside `total`, outside the operating need
+    inflow: np.ndarray | None = None  # [draws, days] the day's receipts (>= 0): total - outflow
+    outflow: np.ndarray | None = None  # [draws, days] the day's payments (<= 0), invoices included
 
     @property
     def draws(self) -> int:
@@ -110,8 +117,9 @@ def blocks(feed: BankFeed) -> tuple[dict[str, np.ndarray], np.ndarray, dict[str,
         six = sum(by.get(m, 0) for m in months) / len(months)
         three = sum(by.get(m, 0) for m in months[-RECENT_MONTHS:]) / RECENT_MONTHS
         scales[cat] = three / six if six else 1.0
-    # "cut" repeats the non-invoice outflows a cost plan scales (already inside "other"); it is not a flow of its own
-    streams = {k: np.zeros((len(months), MAX_BDAYS)) for k in ("other", *SPLIT, "cut")}
+    # "cut" repeats the non-invoice outflows a cost plan scales (already inside "other"); "<stream>-" repeats each
+    # stream's outgoing transactions (the daily processor's payments). Neither is a flow of its own.
+    streams = {k: np.zeros((len(months), MAX_BDAYS)) for k in ("other", *SPLIT, "cut", *OUT)}
     bdays = {m: _business_days(*m) for m in months}
     slots: dict[tuple[int, int], list[float]] = defaultdict(list)
     for d, cat, cents in txns:
@@ -122,6 +130,8 @@ def blocks(feed: BankFeed) -> tuple[dict[str, np.ndarray], np.ndarray, dict[str,
             slots[(k, pos)].append(cents * scales[cat])
         else:
             streams[cat if cat in SPLIT else "other"][k, pos] += cents * scales[cat]
+            if cents < 0:
+                streams[(cat if cat in SPLIT else "other") + "-"][k, pos] += cents * scales[cat]
             if cents < 0 and cat not in SPLIT and cat not in UNCUT:
                 streams["cut"][k, pos] += cents * scales[cat]
     invoices = np.zeros((len(months), MAX_BDAYS, max((len(v) for v in slots.values()), default=1)))
@@ -171,8 +181,10 @@ def simulate(feed: BankFeed, horizon_days: int, draws: int, seed: int, variabili
     if cost_plan is not None:  # outflows other than legal fees and debt service fall by the share from its start
         t0, share = max(_day(review, max(cost_plan.start, first), "the cost plan"), 0), cost_plan.share_bps / 10_000
         flows["other"][:, t0:] -= share * flows["cut"][:, t0:]  # "cut" is negative: this adds the saving back
+        flows["other-"][:, t0:] -= share * flows["cut"][:, t0:]  # the cut outflows are all inside "other-"
         inv[:, t0:] *= 1 - share
     flows.pop("cut")
+    out = {k: flows.pop(k) for k in OUT}
     ints = {k: np.rint(v).astype(np.int64) for k, v in flows.items()}
     invoices = np.rint(inv).astype(np.int64)
     fin = np.zeros(horizon_days, dtype=np.int64)
@@ -183,8 +195,21 @@ def simulate(feed: BankFeed, horizon_days: int, draws: int, seed: int, variabili
             if (t := _day(review, d, "debt service")) < horizon_days:
                 ints["debt_service"][:, t] -= cents
     total = sum(ints.values()) + invoices.sum(axis=2) + fin[None, :]
+    outflow = split_outflow(total, out, invoices)
+    for f in financing:  # a debt booking's service is a payment (booked into debt_service above)
+        for d, cents in f.service:
+            if (t := _day(review, d, "debt service")) < horizon_days:
+                outflow[:, t] -= cents
+    outflow = np.minimum(outflow, np.minimum(total, 0))
     return Operating(total=total, invoices=invoices, by_category={k: ints[k] for k in SPLIT}, history=history(feed),
-                     financing=fin if financing else None)
+                     financing=fin if financing else None, inflow=total - outflow, outflow=outflow)
+
+
+def split_outflow(total: np.ndarray, out: dict[str, np.ndarray], invoices: np.ndarray) -> np.ndarray:
+    """The day's payments: each stream's outgoing part rounded as the stream is, and the invoices' outgoing slots.
+    Rounding is monotone, so rint(in + out) >= rint(out) and the receipts (total - outflow) are never negative; a
+    variability scaling can turn an outgoing part positive, which the caller caps (outflow <= min(total, 0))."""
+    return sum(np.rint(v).astype(np.int64) for v in out.values()) + np.minimum(invoices, 0).sum(axis=2)
 
 
 def simulate_for(feed: BankFeed, setup: Setup) -> Operating:

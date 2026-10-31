@@ -22,12 +22,33 @@ def _v(version: str) -> tuple[int, ...]:
     return tuple(int(x) for x in version.split("."))
 
 
-def record_items(model: dict, version: str | None = None) -> dict[str, dict]:
+PENDING = "pending_money_claim"  # the template whose nodes read their texts from a per-node block (node_texts)
+TEXT_FIELDS = ("residual_question", "actor", "decision", "branches", "standard", "record_items", "situation")
+
+
+def node_spec(model: dict, template: str, node: str) -> dict:
+    """A node's question texts as `template` asks them: a pending claim reads each node's `pending_money_claim` block
+    where it has one, else the node (the pending template's `node_texts`); every other template reads the node."""
+    spec = {n: s for tt in model["templates"].values() for n, s in tt.get("nodes", {}).items()}[node]
+    block = spec.get(PENDING) if template == PENDING else None
+    return {**spec, **{k: v for k, v in (block or {}).items() if k in TEXT_FIELDS}}
+
+
+def record_items(model: dict, version: str | None = None, template: str | None = None) -> dict[str, dict]:
     """question node -> its actor, decision and record items, for every node the forecasts can ask; with `version`
-    (the disputes' interpretation version), only the nodes that version has (a node's `since`)."""
-    return {n: {"actor": s["actor"], "decision": s["decision"], "items": s["record_items"]}
-            for t in model["templates"].values() for n, s in t.get("nodes", {}).items() if not s.get("stress_only")
-            and (version is None or _v(s.get("since", "0.0.0")) <= _v(version))}
+    (the disputes' interpretation version), only the nodes that version has (a node's `since`). With `template`, the
+    nodes that template's chain asks, in its texts. A version that has the pending claim template (its nodes' `since`)
+    reads the pending chain's nodes in its texts: that is the chain its disputes reach."""
+    one = lambda n, s: {"actor": s["actor"], "decision": s["decision"], "items": s["record_items"]}  # noqa: E731
+    if template is not None:
+        return {n: one(n, node_spec(model, template, n)) for n in template_nodes(model, template)}
+    out = {n: one(n, s) for t in model["templates"].values() for n, s in t.get("nodes", {}).items()
+           if not s.get("stress_only") and (version is None or _v(s.get("since", "0.0.0")) <= _v(version))}
+    pending = model["templates"].get(PENDING, {})
+    first = min((_v(s["since"]) for s in pending.get("nodes", {}).values() if "since" in s), default=None)
+    if version is not None and first is not None and _v(version) >= first and "asks" in pending:
+        out.update(record_items(model, template=PENDING))
+    return out
 
 
 CHAIN_TEMPLATES = ("indenture_convertible", "bankruptcy_effects")  # the instrument and filing templates a chain reaches
@@ -46,12 +67,12 @@ def template_nodes(model: dict, template: str) -> list[str]:
 
 def template_items(model: dict, template: str) -> dict[str, list[str]]:
     """Record item -> the decisions ('actor: decision') whose questions name it, for the template's chain: the slots
-    the agent fills (spec §3.5). The text is the dispute model's, and no more."""
-    spec = {n: s for tt in model["templates"].values() for n, s in tt.get("nodes", {}).items()}
+    the agent fills (spec §3.5). The text is the dispute model's (a pending claim's node blocks), and no more."""
     out: dict[str, list[str]] = {}
     for n in template_nodes(model, template):
-        for item in spec[n]["record_items"]:
-            d = f"{spec[n]['actor']}: {spec[n]['decision']}"
+        spec = node_spec(model, template, n)
+        for item in spec["record_items"]:
+            d = f"{spec['actor']}: {spec['decision']}"
             if d not in out.setdefault(item, []):
                 out[item].append(d)
     return out

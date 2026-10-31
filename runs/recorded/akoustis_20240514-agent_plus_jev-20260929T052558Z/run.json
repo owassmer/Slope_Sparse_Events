@@ -1,0 +1,128 @@
+{
+  "snapshot_id": "akoustis_20240514",
+  "arm": "agent_plus_jev",
+  "started_at": "2026-09-29T05:25:58.688371+00:00",
+  "configuration_version": "3.2.0-design",
+  "registry_version": "4.2.0",
+  "requested_model": "claude-opus-5-5",
+  "effort": "high",
+  "claude_auth": {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "subscriptionType": "max"
+  },
+  "sweep": {
+    "sweep_sha256": "6a28983e1fa43857d9d4b2084020120680dae9d82b960dfa2de498493f7447e4",
+    "sections": 1584,
+    "flagged": 731,
+    "unscreened": 0,
+    "chunks": 1664,
+    "units": 5009,
+    "flagged_units": 2400,
+    "unscreened_units": 0,
+    "jev_usage": {
+      "provider": "openrouter",
+      "requests": 789,
+      "cache_hits": 5884,
+      "physical_attempts": 789,
+      "attempt_ceiling": 12000,
+      "spent_usd": "0.038847522",
+      "spend_cap_usd": "0.90"
+    },
+    "inventory_items": 2400
+  },
+  "run_id": "akoustis_20240514-agent_plus_jev-20260929T052558Z",
+  "status": "CANDIDATE_READY",
+  "failure": null,
+  "incomplete_reasons": [],
+  "finished_at": "2026-09-29T05:48:48.958838+00:00",
+  "returned_models": [
+    "claude-opus-5-5"
+  ],
+  "tool_calls": {
+    "get_mission": 1,
+    "read_baseline_profile": 1,
+    "read_inventory": 1,
+    "get_record_items": 2,
+    "read_loan_terms": 1,
+    "search_evidence": 40,
+    "read_evidence": 89,
+    "propose_finding": 116,
+    "resolve_finding": 111,
+    "resolve_reconciliation": 12,
+    "judge": 1,
+    "instantiate_dispute": 6,
+    "instantiate_financing": 3,
+    "attach_record_item": 54,
+    "submit_packet": 3,
+    "StructuredOutput": 1
+  },
+  "turns_used": 142,
+  "max_turns": 320,
+  "claude": {
+    "num_turns": 443,
+    "duration_ms": 1368531,
+    "usage": {
+      "input_tokens": 284,
+      "cache_creation_input_tokens": 571504,
+      "cache_read_input_tokens": 44285765,
+      "output_tokens": 155296,
+      "output_tokens_details": {
+        "thinking_tokens": 10466
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 571504,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "not_available",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 1392,
+          "cache_read_input_tokens": 568078,
+          "cache_creation_input_tokens": 3426,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 3426
+          },
+          "type": "message",
+          "model": null
+        }
+      ],
+      "speed": "standard"
+    },
+    "notional_cost_usd": 16.536241000000004,
+    "structured_output": {
+      "summary": "The record for the 14 May 2024 review of Akoustis's supplier line is built and locked. All 54 record items for the pending Qorvo v. Akoustis jury trial (D. Del. 1:21-cv-01417) are filled from 104 accepted findings. Seven coverage flags went to the reviewer's checklist without blocking. Six are blank verdict-form questions and one is the witness list, which my findings state but which contain no payment terms.\n\nI couldn't read the host's saved reading list because this environment has no file or shell tool, so I built the record from targeted searches instead.\n\n**Where the trial stood on 14 May:**\n- It began 6 May and was on Day 7. No verdict or judgment had been entered. Akoustis's general counsel said on the 13 May call that a verdict was expected within days.\n- Five claims go to the jury: trade secrets, civil conspiracy, false advertising, North Carolina unfair trade practices (UDTPA), and infringement of two patents. The court had already ruled the patents valid (2 May), and the racketeering (RICO) and false-marking counts were out.\n- **Qorvo's damages asks:**\n  - $66.1M \"head-start\" unjust enrichment (repeated under trade secret, UDTPA and conspiracy).\n  - $809,772 recruiting costs, $1,146,604 corrective advertising and $279,808 patent royalty.\n  - Exemplary, treble and punitive damages, fees, interest, and an injunction.\n- **Akoustis's position:** no damages at all. Its expert uses an avoided-cost measure, but the figure is redacted in the public filing. It argues the conspiracy remedy duplicates the trade-secret one.\n- **Court rulings on damages:**\n  - Neither side's damages expert was excluded. Whether all of Akoustis's historical revenue belongs in the damages base was left to the jury.\n  - On 14 May the court ruled on Akoustis's mid-trial motion that the jury cannot award UDTPA damages, though it may still find injury.\n  - The same order found no evidence that Qorvo lost profits or market share.\n- **Company statements:** Akoustis's general counsel said an eight-figure verdict is possible. The 10-Q records no litigation accrual.\n\n**Liquidity and financing:**\n- Cash was $15.2M at 31 March 2024, and the auditors' going-concern doubt is disclosed. Akoustis says an adverse judgment could force it to curtail operations or file for bankruptcy.\n- **Runway statements conflict in the same 10-Q:** one note says cash lasts \"into the third quarter of fiscal 2025\" (January\u2013March 2025), while the MD&A says \"at least the next twelve months\". The consistency checker called them consistent, so no finding records the discrepancy.\n- Funding sources are $48.0M left on the at-the-market program and no other commitments. The last raise was January 2024: 23M shares at $0.50 via Roth for $10.4M net.\n- Nasdaq requires a $1.00 bid price by 21 October 2024. The stock closed at $0.44 on 14 May, and a reverse split is mentioned only as an option.\n\n**Compiled instruments:**\n- **The dispute:** built on Qorvo's non-duplicative asks of $68.34M.\n- **The $44.0M 6.0% notes due 2027:**\n  - They default if final judgments over $10.0M stay unpaid and unstayed for 60 days after notice.\n  - They also default on delisting, which is a fundamental change giving holders a cash repurchase right 20\u201335 business days after the company's notice.\n  - Holders of 25% of the notes can accelerate.\n  - Two noteholder groups (UBS-managed Nineteen77 and Silverback-controlled funds) appear as selling stockholders in the 13 May resale registration.\n  - The notes record has no coupon or interest dates: the tool only accepts full dates quoted in the evidence. The next payment falls on 15 June 2024 (about $1.32M by my calculation), and interest can be paid in shares."
+    }
+  },
+  "jev": {
+    "provider": "openrouter",
+    "requests": 583,
+    "cache_hits": 302,
+    "physical_attempts": 583,
+    "attempt_ceiling": 2000,
+    "spent_usd": "0.067566576",
+    "spend_cap_usd": "0.30"
+  },
+  "graph_counts": {
+    "dependencies": 1,
+    "candidates": 290,
+    "jev_calls": 885,
+    "observations": 2684,
+    "findings": 109,
+    "reconciliations": 12,
+    "effects": 0,
+    "inventory": 2400,
+    "disputes": 1,
+    "financing": 1,
+    "record_items": 54
+  },
+  "chain_head": "7029123fe34be042ccf4fb1e2491edadeb66d216cf2e72758161474d0a741599"
+}

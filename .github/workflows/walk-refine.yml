@@ -1,0 +1,71 @@
+name: walk-refine
+on:
+  push:
+    branches: [walk-refine]
+env:
+  AWS_REGION: us-east-1
+  BUCKET: slope-walk-381492272971-20260930
+  PREFIX: walk-36781427817
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [32, 35, 43, 44, 53, 71, 73, 76, 79]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::381492272971:role/slope-walk-20260930-github
+          aws-region: us-east-1
+          role-duration-seconds: 21600
+      - run: uv sync --locked
+      - run: PYTHONPATH=. uv run --with boto3 python tools/refine_walk.py prepare "$BUCKET" "$PREFIX" --job ${{ matrix.shard }}
+  worker:
+    needs: prepare
+    env:
+      SLOPE_WORKER_ID: ${{ github.run_id }}-${{ matrix.worker }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 40
+      matrix:
+        worker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::381492272971:role/slope-walk-20260930-github
+          aws-region: us-east-1
+          role-duration-seconds: 21600
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - run: PYTHONPATH=. uv run --with boto3 python tools/refine_walk.py worker "$BUCKET" "$PREFIX" --cores 4 --first 0 --last 20
+
+  assemble:
+    needs: worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [32, 35, 43, 44, 53, 71, 73, 76, 79]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::381492272971:role/slope-walk-20260930-github
+          aws-region: us-east-1
+          role-duration-seconds: 21600
+      - run: uv sync --locked
+      - run: PYTHONPATH=. uv run --with boto3 python tools/refine_walk.py assemble "$BUCKET" "$PREFIX" --job ${{ matrix.shard }}

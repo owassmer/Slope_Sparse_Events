@@ -243,13 +243,14 @@ def test_frap_tolling_moves_the_post_ruling_windows_with_the_drawn_ruling(base):
     assert (days[5] >= 10**6).all()  # no levy pending: the company's response to a levy does not arise
     up = chain(base)
     up.step("ruling", "", "beyond:11292377711:1211612330")  # only the increase waits 30 days (L8(a) base)
-    assert (up.EF == up.F).all() and (up.EI == up.F + 30).all()
+    assert (up.EF == up.F).all() and (up.EI == up.district_day(up.F + 30) + 1).all()
     ripe = up.step("judgment_default", "post", "no")
     inside = ripe < 10**6
     assert (ripe[inside] == up.A[inside] + 60).all()  # 60 days from the last tolling order
     whole = chain(base, sens={"stay_restart_on_increase_days": True})  # sensitivity: the whole amount waits
     whole.step("ruling", "", "beyond:11292377711:1211612330")
-    assert (whole.EF == whole.F + 30).all() and (whole.EI == whole.F + 30).all()
+    stay_end = whole.district_day(whole.F + 30) + 1
+    assert (whole.EF == stay_end).all() and (whole.EI == stay_end).all()
 
 
 def test_an_increase_is_levied_only_once_its_own_stay_ends_and_the_original_at_once(base):
@@ -265,6 +266,8 @@ def test_an_increase_is_levied_only_once_its_own_stay_ends_and_the_original_at_o
     r = c.rows[ok]
     original = -c.ev.cash[r, first[ok]]
     assert (original <= c.entered * 1.05).all() and (original >= c.entered).all()  # the surviving amount, at once
+    assert (c.ev.cash[r, second[ok]] == 0).all()  # the later writ remains queued until its date
+    c.until(second + 1)
     assert (-c.ev.cash[r, second[ok]] >= total - c.entered).all()  # the increase, once enforceable
     assert (c.taken[ok] >= total).all()
 
@@ -392,7 +395,8 @@ def test_the_notes_petition_questions_get_the_facts_of_the_day_each_actor_may_fi
             for r in fc.facts[k]:
                 day = r["day"][r["day"] < N]
                 assert day.size and (day == at).all()
-                assert (r["triggers"]["judgment_default_ruling"] >= 10**6).all()  # only where the holders acted
+                # only where the holders acted (a trigger that never falls is stored as absent: forecast.pack_row)
+                assert (r["triggers"].get("judgment_default_ruling", np.full(1, 10**6)) >= 10**6).all()
 
 
 def test_delisting_is_a_default_on_its_date_and_the_repurchase_date_is_code(base, full):
@@ -649,10 +653,10 @@ class _Court(Chain):
         super().__init__(*a, **k)
         self.seen = []
 
-    def stay_security(self, motion, key, approved):
+    def stay_security(self, motion, key, approved, moved=False):
         approval = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, key)
         cash = self.cash_at(approval)
-        out = super().stay_security(motion, key, approved)
+        out = super().stay_security(motion, key, approved, moved=moved)
         self.seen.append((("stay_approved", key.split("_")[1]), out, cash, self.stay_offer.copy()))
         return out
 

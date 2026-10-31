@@ -29,6 +29,7 @@ def _operating(feed: BankFeed, opened: date) -> tuple[Operating, list[list[dict]
     review = opened - timedelta(days=1)
     days = (feed.period_end - review).days
     total = np.zeros((1, days), dtype=np.int64)
+    outflow = np.zeros((1, days), dtype=np.int64)  # the day's payments (each outgoing transaction)
     fin = np.zeros(days, dtype=np.int64)
     cats = {k: np.zeros((1, days), dtype=np.int64) for k in SPLIT}
     hist: dict[tuple[int, int], int] = defaultdict(int)
@@ -41,6 +42,7 @@ def _operating(feed: BankFeed, opened: date) -> tuple[Operating, list[list[dict]
             continue
         i = (d - opened).days
         total[0, i] += c
+        outflow[0, i] += min(c, 0)
         if t["category"] in SPLIT:
             cats[t["category"]][0, i] += c
         if t["category"] in EXCLUDED:  # financing proceeds: in cash, outside the operating need
@@ -53,7 +55,7 @@ def _operating(feed: BankFeed, opened: date) -> tuple[Operating, list[list[dict]
         for k, t in enumerate(row):
             invoices[0, i, k] = t["amount_cents"]
     return Operating(total=total, invoices=invoices, by_category=cats, history=dict(hist),
-                     financing=fin if fin.any() else None), inv
+                     financing=fin if fin.any() else None, inflow=total - outflow, outflow=outflow), inv
 
 
 def replay(feed: BankFeed, setup: Setup, opened: date) -> tuple[Exposure, dict]:

@@ -697,9 +697,9 @@ Every path shares these. They decide much of the result, so each is stated.
 |---|---|
 | **Opening cash and history** | Reconstruct through 14 May from anchors public by then (31 Mar balance sheet, 10-Q cash flows, the 13 May call). Do not truncate the 20 Jun feed: its April–June calibration uses later quarterly totals. |
 | **Operating outlook** | Central case: historical continuation. Scenario: the cost cut management announced on 13 May, where its cash effect can be specified. Never tune burn toward a result. |
-| **Financing** | An explicit amount-and-date scenario, shared by every path. Proceeds are booked on the completion date. "Seeks financing" alone books no cash. The central case adds no financing the record does not fix. The equity sensitivity is a plain cash injection; a debt alternative also books its service. The actual later raise is never imported. |
-| **Collection** | Slope debits each installment automatically on its due date, and the debit succeeds when available cash covers it (central). Sensitivity: the borrower protects its next 30 days of operating need before paying Slope. That is an assumption about the borrower, not Slope's mechanism. |
-| **Cash floor** | The point where the company must act: available cash below its next 30 days of operating need, with one alternative setting. It triggers the company's cash-floor decision (raise equity, file, continue) and sets the facts given to Jev. It is not an automatic filing and does not limit collections. |
+| **Financing** | At-the-market sales at a declared pace while the stock is listed and no petition has been filed, and a specified underwritten offering on the January 2024 terms when the company initiates one, booked on its close date. One ledger of share capacity bounds both. Initiating an offering books no cash. The equity sensitivity is a plain cash injection. The actual later raise is never imported. Terms, pace and sensitivities: `QUESTIONS_20240514.md` §2.6. |
+| **Collection** | Slope debits each installment automatically on its due date, and the debit succeeds when available cash covers it (central). Each day's obligations are processed against the available balance in a stated order, and what goes unpaid becomes an arrear in its class (`QUESTIONS_20240514.md` §2.2). Sensitivity: the borrower protects its next 30 days of operating need before paying Slope. That is an assumption about the borrower, not Slope's mechanism. |
+| **Cash floor** | Two points where the company must act: a day available cash falls below its next 30 days of operating need, with one alternative setting, and the first day an obligation goes unpaid. At each, the company initiates an offering, files, or does neither. Neither point is an automatic filing, and neither limits collections. |
 | **Settlement and security** | Explicit amounts and calendars. Available cash above the reserve bounds what can be paid; it is not the amount every negotiation produces. |
 | **Legal spend** | Only spend attributable to this dispute stops when the dispute ends. The professional-fee proxy is labeled as a proxy. |
 | **Ordinary obligations** | The same existing debt and background risks on every path. An event-triggered acceleration or restriction applies only when its conditions occur on the path. |
@@ -714,16 +714,14 @@ Every path shares these. They decide much of the result, so each is stated.
 - **Depth goes where money moves.** A distinction survives only if it changes payment timing, cash availability, operating receipts, financing access, or another actor's material decision. Financially equivalent paths are merged. The number of questions is not a measure of completeness.
 - **Amounts stay code-owned.**
   - The record fixes the claimed amounts. Qorvo itemised its claim before the review date: at least $66.1M of trade-secret unjust enrichment, plus $2.2M on other claims (D.I. 543-1, 22 Apr 2024).
-  - Which damages theory the jury adopts is the jury's decision, so it is a Jev question. Code sets each branch's amount from the record:
-    - Qorvo's theory: the claimed amount;
-    - the defense's theory: a bounded amount, because the defense figure was not public.
-  - Branch amounts are cut only at the thresholds that change a mechanism. Examples: the notes' $10.0M default threshold, and cash above the reserve.
+  - The jury's answers follow the verdict form (D.I. 580): liability item by item, then each amount as thresholds at the lines where cash behaves differently. The walk branches on the total judgment.
+    - An award with no trade-secret or conspiracy amount books the items found.
+    - Otherwise the total's band books its midpoint, with its ends as the sensitivity. Above the line where every amount books the same cash, the band books the claimed amount.
+  - No band straddles a threshold that changes a mechanism, such as the notes' $10.0M judgment default.
   - Differences in amount that change no mechanism are one bounded term with a sensitivity, not more branches.
-  - Where no figure is public, the amount is a declared scenario class, and there are no probabilities across classes.
-- **Jev answers one actor's decision per question.**
-  - Material factors are established first; aggregation receives the factor results and the structured facts, not the whole record again.
+- **Each Jev question is one well-defined uncertainty, with the context that bears on it.** `QUESTIONS_20240514.md` owns the questions: each event, what each answer means, its situation and grouping, its record, and what code books.
   - A reading of the evidence is never a forecast's probability.
-  - Each question's cash facts must match the engine's state on its decision date. Where Slope's own funding and collections move that state across a material threshold, the loan calculation is run up to the decision date. There is no general feedback solver.
+  - Each question's cash facts equal the engine's state on its decision date, before that decision's own booking. Where Slope's own funding and collections move that state across a material threshold, the loan calculation is run up to the decision date. There is no general feedback solver.
 - **Settlement is its own decision** on specified terms. An acceptance probability is never reused for a different offer.
 
 ### 16.5 The reusable boundary
@@ -742,7 +740,7 @@ Every path shares these. They decide much of the result, so each is stated.
 ### 16.6 Sensitivities
 
 - **Judgment sensitivity:** override a conditional probability and reweight the saved paths. No Jev call.
-- **Economic sensitivity:** change financing, burn, reserve, the damages class, or payment timing, and recompute the cash consequences.
+- **Economic sensitivity:** change financing, burn, reserve, the award amount, or payment timing, and recompute the cash consequences.
   - The central setting and a few material alternatives are precomputed before recording; the controls select saved variants.
   - Where a change alters the facts an actor's question used, that question is asked again in the variant and cached.
 - **Operating effects hit the receipt and spending streams**, including the receipts that size the line; they are not a detached cash debit.
@@ -782,3 +780,5 @@ Caps are settings, not limits on the work. Raise a cap to fit the run, report th
    Fix demonstrated defects, verify the walkthrough, and record.
 
 **Completion test:** Russell can follow a researched finding into a focused probabilistic judgment, see its effect on the loan's dated cash flows, and tell that effect apart from the assumptions underneath it. The result may concern timing, downside exposure or capital recycling; it does not need a dramatic reversal.
+
+**After this demonstration:** Charles & Colvard as a second case, on an arbitration template; calibration of Jev's probabilities against past dockets with known outcomes; and the lawsuit's lifecycle before trial. None is built here.

@@ -1,0 +1,35 @@
+name: fresh-walk-b
+on:
+  push:
+    branches: [fresh-walk-b]
+permissions:
+  contents: read
+env:
+  AWS_CREDENTIAL_EXPIRATION: ${{ vars.FRESH_WALK_EXPIRATION }}
+  AWS_DEFAULT_REGION: us-east-2
+  AWS_ACCESS_KEY_ID: ${{ secrets.FRESH_WALK_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.FRESH_WALK_SECRET_ACCESS_KEY }}
+  AWS_SESSION_TOKEN: ${{ secrets.FRESH_WALK_SESSION_TOKEN }}
+  BUCKET: slope-walk-462947327980-20261001
+  PREFIX: ${{ vars.FRESH_WALK_PREFIX }}
+  PYTHONPATH: .
+  OPENBLAS_NUM_THREADS: '1'
+  OMP_NUM_THREADS: '1'
+  SLOPE_JEV_CACHE_ONLY: '1'
+jobs:
+  walk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      SLOPE_WORKER_ID: github-${{ github.run_id }}-${{ matrix.worker }}
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - name: Walk queued tasks on every core while the credential lasts
+        run: uv run --with boto3 python tools/refine_walk.py worker "$BUCKET" "$PREFIX" --cores "$(nproc --all)" --last 1000

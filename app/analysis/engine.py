@@ -36,10 +36,12 @@ so this is exact whenever the contract is fully collected).
 
 from __future__ import annotations
 
+import weakref
 from dataclasses import dataclass, field
 from datetime import timedelta
 
 import numpy as np
+from numba import njit
 from numpy.lib.stride_tricks import sliding_window_view
 
 from app.analysis.events import EventCash
@@ -114,6 +116,9 @@ class Trajectories:
     # [draws] failed collection attempts: under `debit`, installment debits that failed; under `protect_need`,
     # attempts that left an amount owed
     failed_debits: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=np.int64))
+    # under cash_processing = daily: the processor's arrears, first unpaid day and §3.3 day (processor.Processed).
+    # Not a field: a net run's fields are exactly as before.
+    processed = None
 
     @property
     def fees(self) -> np.ndarray:
@@ -192,8 +197,11 @@ def with_petition(events: EventCash, day: np.ndarray | int) -> EventCash:
     return events + p
 
 
-def run(line: Line, opening_cents: int, events: EventCash) -> Trajectories:
-    return run_many(line, opening_cents, [events])[0]
+def run(line: Line, opening_cents: int, events: EventCash, nonpayment: tuple[int, int] | None = None,
+        cash_only: bool = False) -> Trajectories | tuple:
+    """One path. `cash_only` (daily processing only): (cash, first_unpaid, nonpayment, arrears) instead of the
+    Trajectories."""
+    return run_many(line, opening_cents, [events], nonpayment, cash_only)[0]
 
 
 def _tiled(line: Line, b: int) -> tuple:
@@ -219,110 +227,30 @@ def _tiled(line: Line, b: int) -> tuple:
     return cache[b]
 
 
-def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Trajectories]:
+def run_many(line: Line, opening_cents: int, events: list[EventCash], nonpayment: tuple[int, int] | None = None,
+             cash_only: bool = False) -> list:
     """`run` for several joint paths at once: their draws are stacked through the day loop, day-major so each day's
     values are contiguous (every operation in the loop is per trajectory and in integers, so each path's rows are
-    exactly what it computes alone), then each path is finished on its own rows."""
+    exactly what it computes alone), then each path is finished on its own rows. Under cash_processing = daily the
+    daily processor runs instead (app/analysis/processor.py; `nonpayment`: the §3.3 terms, window days and share bps;
+    `cash_only`: per path (cash, first_unpaid, nonpayment) only, `run_daily`)."""
+    if line.setup.cash_processing == "daily":
+        from app.analysis.processor import run_daily
+
+        return run_daily(line, opening_cents, events, nonpayment, cash_only)
+    if cash_only:
+        raise ValueError("cash_only is the daily processor's mode (cash_processing = daily)")
     s, n, days, b = line.setup, line.ops.draws, line.days, len(events)
-    debit = s.collection == "debit"
-    base = np.ascontiguousarray(np.concatenate([line.ops.total[:, :days] + e.cash - e.lock for e in events]).T)
-    pet = np.concatenate([np.where((e.petition >= 0) & (e.petition < days), e.petition, days) for e in events])
-    need, limit, slots = _tiled(line, b)
-    rn = n * b
-    due = np.zeros((line.tail, rn), dtype=np.int64)
+    need, limit, month_end, routes, due_idx, due0, book_d, book_a, nroutes = _kernel_line(line)
+    base = np.concatenate([line.ops.total[:, :days] + e.cash - e.lock for e in events]).astype(np.int64, copy=False)
+    pet = np.concatenate([np.where((e.petition >= 0) & (e.petition < days), e.petition, days) for e in events]
+                         ).astype(np.int64, copy=False)
     ex = s.exposure
-    for d, cents in ex.installments:  # the opening installments, on their own due dates, on every trajectory
-        due[(d - s.review).days - 1] += cents
-    due[0] += ex.past_due_cents  # already overdue: owed from day 0, collection attempted that day
-    # `debit` keeps every installment: book[d] lists (rows, amounts) falling due on day d in draw order; `pend` holds
-    # the installments due and unpaid, oldest first per row
-    book: list[list] = [[] for _ in range(line.tail)] if debit else []
-    if debit:
-        every = np.arange(n * b)
-        if ex.past_due_cents:
-            book[0].append((every, np.full(n * b, ex.past_due_cents, dtype=np.int64)))
-        for d, cents in ex.installments:
-            book[(d - s.review).days - 1].append((every, np.full(n * b, cents, dtype=np.int64)))
-    pend_r, pend_a = np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64)
-    collections = np.zeros((days, rn), dtype=np.int64)
-    fundings = np.zeros((days, rn), dtype=np.int64)
-    cash = np.empty((days, rn), dtype=np.int64)
-    outstanding = np.empty((days, rn), dtype=np.int64)
-    avail = np.full(rn, opening_cents + ex.cash_cents, dtype=np.int64)
-    owed, funded, contract, collected, failed = (np.zeros(rn, dtype=np.int64) for _ in range(5))
-    funded += ex.principal_cents  # the principal formula below then reads the opening principal exactly
-    contract += ex.owed_cents
-    hr_rows, hr_vals, hr_days, d_rows, d_days, d_amts = [], [], [], [], [], []
-
-    def principal_out(r=slice(None)) -> np.ndarray:  # per trajectory; r: only these rows
-        f, c = funded[r], contract[r]
-        return f - np.where(c > 0, collected[r] * f // np.maximum(c, 1), 0)
-
-    po = principal_out()
-    for t in range(days):
-        avail += base[t]
-        live = t < pet
-        owed += due[t]
-        falls_due = (due[t] > 0) & live
-        changed = False
-        if falls_due.any():
-            hr_rows.append(np.nonzero(falls_due)[0])
-            hr_vals.append((avail - need[t] - owed)[falls_due])
-            hr_days.append(np.full(int(falls_due.sum()), t, dtype=np.int64))
-        attempt = live & (falls_due | line.month_end[t]) & (owed > 0)
-        if debit and book[t]:
-            pend_r = np.concatenate([pend_r, *(r for r, _ in book[t])])
-            pend_a = np.concatenate([pend_a, *(a for _, a in book[t])])
-        if attempt.any():
-            if debit:
-                take, paid, tried = _debit(avail, pend_r, pend_a, attempt, rn)
-                keep = np.ones(len(pend_r), dtype=bool)
-                keep[paid] = False
-                failed += np.bincount(pend_r[tried], minlength=rn)
-                pend_r, pend_a = pend_r[keep], pend_a[keep]
-            else:
-                take = np.where(attempt, np.minimum(owed, np.maximum(avail - need[t], 0)), 0)
-                avail -= take
-                failed += attempt & (owed > take)
-            owed -= take
-            collected += take
-            collections[t] = take
-            changed = True
-        open_ = live & (owed == 0)
-        for rows, amts in slots[t]:  # only the rows with an invoice in this slot: every other row adds nothing
-            sel = open_[rows]
-            if not sel.any():
-                continue
-            rows, amts = rows[sel], amts[sel]
-            ok = principal_out(rows) + amts <= limit[t][rows]
-            if not ok.any():
-                continue
-            rows, amt = rows[ok], amts[ok]
-            parts = installment_amounts(amt, s.fee_bps, s.installments)
-            due[np.ix_(line.due_idx[t], rows)] += parts.T
-            if debit:
-                for k, d in enumerate(line.due_idx[t]):
-                    book[d].append((rows, parts[:, k]))
-            funded[rows] += amt
-            contract[rows] += parts.sum(axis=1)
-            avail[rows] += amt  # Slope pays the supplier: the invoice leaves the borrower's outflows today
-            fundings[t][rows] += amt
-            d_rows.append(rows)
-            d_days.append(np.full(len(rows), t, dtype=np.int64))
-            d_amts.append(amt)
-            changed = True
-        cash[t] = avail
-        if changed:
-            po = principal_out()
-        outstanding[t] = po
-
-    # [rows, days] again: views of the day-major arrays (integer arithmetic reads them exactly, in any order), except
-    # the two the discounting multiplies by float factors, copied so the product runs exactly as on a single path
-    due, cash, outstanding = due.T, cash.T, outstanding.T
-    collections, fundings = np.ascontiguousarray(collections.T), np.ascontiguousarray(fundings.T)
-    cat = lambda xs: np.concatenate(xs) if xs else np.zeros(0, dtype=np.int64)  # noqa: E731
-    hr = (cat(hr_rows), cat(hr_vals), cat(hr_days))
-    dr = (cat(d_rows), cat(d_days), cat(d_amts))
+    (cash, collections, fundings, outstanding, due, funded, contract, collected, failed, hr, dr) = _net_kernel(
+        base, pet, need, limit, month_end, routes, due_idx, np.int64(s.fee_bps), s.installments,
+        s.collection == "debit", due0, book_d, book_a, np.int64(opening_cents + ex.cash_cents),
+        np.int64(ex.principal_cents), np.int64(ex.owed_cents), b * nroutes)
+    hr, dr = _in_loop_order(hr, dr, days, routes.shape[2])
     out = []
     failed = failed.reshape(b, n)
     for j, ev in enumerate(events):
@@ -333,6 +261,205 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Tr
                            funded[sl], contract[sl], collected[sl], (hr[0][mh] - lo, hr[1][mh], hr[2][mh]),
                            (dr[0][md] - lo, dr[1][md], dr[2][md]), failed[j]))
     return out
+
+
+_KERNEL_LINES: dict[int, tuple] = {}
+
+
+def _kernel_line(line: Line) -> tuple:
+    """What the compiled day loops read from the line, per draw (row r of a stacked batch reads draw r % n): need and
+    limit [draws, days], the month-ends [days], the routed invoices [draws, days, slots], the installment days
+    [days, installments], the opening exposure's due schedule [tail] and debit book (day, amount, in booking order),
+    and the number of routed invoices (a bound on the draws per path). Cached per line object."""
+    hit = _KERNEL_LINES.get(id(line))
+    if hit is not None and hit[0]() is line:
+        return hit[1]
+    s, days, ex = line.setup, line.days, line.setup.exposure
+    due_idx = np.ascontiguousarray(line.due_idx[:days], dtype=np.int64)
+    if any(len(set(r)) != len(r) for r in due_idx.tolist()):
+        raise ValueError("two installments of one draw fall due on the same day")  # the loops add them one by one
+    due0 = np.zeros(line.tail, dtype=np.int64)
+    for d, cents in ex.installments:
+        due0[(d - s.review).days - 1] += cents
+    due0[0] += ex.past_due_cents
+    book = [(0, ex.past_due_cents)] if ex.past_due_cents else []
+    book += [((d - s.review).days - 1, cents) for d, cents in ex.installments]
+    routes = np.ascontiguousarray(line.routes[:, :days], dtype=np.int64)
+    out = (np.ascontiguousarray(line.need[:, :days], dtype=np.int64),
+           np.ascontiguousarray(line.limit[:, :days], dtype=np.int64),
+           np.ascontiguousarray(line.month_end[:days], dtype=np.bool_), routes, due_idx, due0,
+           np.array([d for d, _ in book], dtype=np.int64), np.array([c for _, c in book], dtype=np.int64),
+           int((routes > 0).sum()))
+    if len(_KERNEL_LINES) >= 8:
+        _KERNEL_LINES.clear()
+    _KERNEL_LINES[id(line)] = (weakref.ref(line), out)
+    return out
+
+
+def _in_loop_order(hr: tuple, dr: tuple, days: int, slots: int) -> tuple:
+    """The kernels emit headroom and draw entries row by row; the day loop over stacked rows emitted them by day, then
+    (draws) slot, then row. Returns (rows, values, days) and (rows, days, amounts) in that order."""
+    (hr_r, hr_t, hr_v), (dr_t, dr_k, dr_r, dr_a) = hr, dr
+    o = _stable_buckets(hr_t, days)  # rows ascending within a bucket: the kernels emit row by row
+    p = _stable_buckets(dr_t * slots + dr_k, days * slots)
+    return (hr_r[o], hr_v[o], hr_t[o]), (dr_r[p], dr_t[p], dr_a[p])
+
+
+@njit(cache=True)
+def _stable_buckets(bucket, nb):
+    """The stable counting-sort order of entries by bucket (0 <= bucket < nb)."""
+    start = np.zeros(nb + 1, np.int64)
+    for x in bucket:
+        start[x + 1] += 1
+    for j in range(nb):
+        start[j + 1] += start[j]
+    out = np.empty(bucket.shape[0], np.int64)
+    for q in range(bucket.shape[0]):
+        out[start[bucket[q]]] = q
+        start[bucket[q]] += 1
+    return out
+
+
+@njit(cache=True)
+def _net_kernel(base, pet, need, limit, month_end, routes, due_idx, fee_bps, inst, debit, due0, book_d, book_a,
+                opening, funded0, contract0, draw_cap):
+    """`run_many`'s day loop (net cash processing), compiled, one row at a time: the operations of the vectorised loop
+    per trajectory, in its order (`_debit`: each pending installment oldest first, in full or failed). Arrays are
+    [rows, days]; row r reads draw r % n of the line's arrays."""
+    rn, days = base.shape
+    n, tail, nslot = need.shape[0], due0.shape[0], routes.shape[2]
+    cash = np.empty((rn, days), np.int64)
+    collections = np.zeros((rn, days), np.int64)
+    fundings = np.zeros((rn, days), np.int64)
+    outstanding = np.empty((rn, days), np.int64)
+    due = np.empty((rn, tail), np.int64)
+    funded = np.empty(rn, np.int64)
+    contract = np.empty(rn, np.int64)
+    collected = np.empty(rn, np.int64)
+    failed = np.zeros(rn, np.int64)
+    hr_r = np.empty(rn * days, np.int64)
+    hr_t = np.empty(rn * days, np.int64)
+    hr_v = np.empty(rn * days, np.int64)
+    dr_t = np.empty(draw_cap, np.int64)
+    dr_k = np.empty(draw_cap, np.int64)
+    dr_r = np.empty(draw_cap, np.int64)
+    dr_a = np.empty(draw_cap, np.int64)
+    cap = book_d.shape[0] + days * nslot * inst  # book entries a row can hold
+    e_amt = np.empty(cap, np.int64)
+    e_next = np.empty(cap, np.int64)
+    head = np.empty(tail, np.int64)
+    last = np.empty(tail, np.int64)
+    p_amt = np.empty(cap, np.int64)
+    nh = 0
+    nd = 0
+    for r in range(rn):
+        i = r % n
+        for d in range(tail):
+            due[r, d] = due0[d]
+            head[d] = -1
+            last[d] = -1
+        ne = 0
+        if debit:
+            for q in range(book_d.shape[0]):
+                d = book_d[q]
+                e_amt[ne] = book_a[q]
+                e_next[ne] = -1
+                if head[d] < 0:
+                    head[d] = ne
+                else:
+                    e_next[last[d]] = ne
+                last[d] = ne
+                ne += 1
+        npend = 0
+        avail = opening
+        owed = np.int64(0)
+        fu = funded0
+        co = contract0
+        cl = np.int64(0)
+        fl = np.int64(0)
+        pr = pet[r]
+        for t in range(days):
+            avail += base[r, t]
+            live = t < pr
+            owed += due[r, t]
+            falls_due = due[r, t] > 0 and live
+            if falls_due:
+                hr_r[nh] = r
+                hr_t[nh] = t
+                hr_v[nh] = avail - need[i, t] - owed
+                nh += 1
+            attempt = live and (falls_due or month_end[t]) and owed > 0
+            if debit:
+                e = head[t]
+                while e >= 0:
+                    p_amt[npend] = e_amt[e]
+                    npend += 1
+                    e = e_next[e]
+            if attempt:
+                take = np.int64(0)
+                if debit:
+                    k2 = 0
+                    for q in range(npend):
+                        a = p_amt[q]
+                        if avail >= a:
+                            avail -= a
+                            take += a
+                        else:
+                            fl += 1
+                            p_amt[k2] = a
+                            k2 += 1
+                    npend = k2
+                else:
+                    x = avail - need[i, t]
+                    if x < 0:
+                        x = 0
+                    take = owed if owed < x else x
+                    avail -= take
+                    if owed > take:
+                        fl += 1
+                owed -= take
+                cl += take
+                collections[r, t] = take
+            if live and owed == 0:
+                for k in range(nslot):
+                    amt = routes[i, t, k]
+                    if amt <= 0:
+                        continue
+                    po = fu - (cl * fu // co if co > 0 else 0)
+                    if po + amt > limit[i, t]:
+                        continue
+                    total = amt + (2 * amt * fee_bps + 10_000) // 20_000  # installment_amounts
+                    part = (2 * total + inst) // (2 * inst)
+                    for kk in range(inst):
+                        a = part if kk < inst - 1 else total - part * (inst - 1)
+                        d = due_idx[t, kk]
+                        due[r, d] += a
+                        if debit:
+                            e_amt[ne] = a
+                            e_next[ne] = -1
+                            if head[d] < 0:
+                                head[d] = ne
+                            else:
+                                e_next[last[d]] = ne
+                            last[d] = ne
+                            ne += 1
+                    fu += amt
+                    co += total
+                    avail += amt
+                    fundings[r, t] += amt
+                    dr_t[nd] = t
+                    dr_k[nd] = k
+                    dr_r[nd] = r
+                    dr_a[nd] = amt
+                    nd += 1
+            cash[r, t] = avail
+            outstanding[r, t] = fu - (cl * fu // co if co > 0 else 0)
+        funded[r] = fu
+        contract[r] = co
+        collected[r] = cl
+        failed[r] = fl
+    return (cash, collections, fundings, outstanding, due, funded, contract, collected, failed,
+            (hr_r[:nh], hr_t[:nh], hr_v[:nh]), (dr_t[:nd], dr_k[:nd], dr_r[:nd], dr_a[:nd]))
 
 
 def _debit(avail: np.ndarray, pend_r: np.ndarray, pend_a: np.ndarray, attempt: np.ndarray, rn: int) -> tuple:

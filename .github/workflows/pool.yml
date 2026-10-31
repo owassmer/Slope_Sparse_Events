@@ -1,0 +1,102 @@
+name: pool
+
+# The walk's parts carried to Jev (app/disputes/pool.py): control merges every job's control events (the watched
+# regions, the questions, the paths with their watch edges); facts builds each bucket's questions' Jev states. Runs on
+# a push to pool-run (pool-run-<variant>), from the walk runs WALK_RUNS (every wave of the walk; empty: the latest
+# successful walk of the same branch suffix).
+on:
+  push:
+    branches: [pool-run, "pool-run-*"]
+
+env:
+  RUN_ID: akoustis_20240514-agent_plus_jev-20260929T052558Z
+  WALK_RUNS: "36781427817"  # the walk runs' ids, space separated (a later wave's too); empty: the latest successful walk
+
+jobs:
+  control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      walk: ${{ steps.walk.outputs.runs }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - id: walk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          runs="$WALK_RUNS"
+          if [ -z "$runs" ]; then
+            runs=$(gh run list -R ${{ github.repository }} --workflow walk --status success -L 1 --branch walk-run${GITHUB_REF_NAME#pool-run} --json databaseId -q '.[0].databaseId')
+          fi
+          echo "runs=$runs" >> $GITHUB_OUTPUT
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: for r in ${{ steps.walk.outputs.runs }}; do gh run download -R ${{ github.repository }} $r -p 'control-j*' -D control/$r; done
+      - run: du -sh control; free -g
+      - run: uv run python -m app.disputes.parallel spill control walk_roots.pkl  # the units no part walked (0: none)
+      - uses: actions/upload-artifact@v4  # a later wave's list (walk.yml WAVE), where any unit is left
+        with:
+          name: spill
+          path: walk_roots.pkl
+          retention-days: 3
+      - run: >
+          SLOPE_VARIANT=$(n=${GITHUB_REF_NAME#pool-run}; echo ${n#-})
+          uv run python -m app.disputes.pool control control ctl 2> >(tee control.log >&2)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ctl-control
+          path: |
+            ctl/control.pkl
+            control.log
+          retention-days: 3
+          compression-level: 1
+      - uses: actions/upload-artifact@v4  # the merged paths, read by the reduction alone (reduce.yml)
+        with:
+          name: ctl-paths
+          path: ctl/paths/
+          retention-days: 3
+          compression-level: 1
+  facts:
+    needs: control
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions:
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        bucket: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run slope evidence build akoustis_20240514
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: for r in ${{ needs.control.outputs.walk }}; do gh run download -R ${{ github.repository }} $r -p 'rows-b${{ matrix.bucket }}-j*' -D rows/$r; done
+      - uses: actions/download-artifact@v4
+        with:
+          name: ctl-control
+          path: ctlart
+      - run: du -sh rows ctlart; free -g
+      - run: >
+          SLOPE_VARIANT=$(n=${GITHUB_REF_NAME#pool-run}; echo ${n#-}) SLOPE_JEV_CACHE_ONLY=1
+          uv run python -m app.disputes.pool facts $RUN_ID rows ctlart/ctl/control.pkl ${{ matrix.bucket }} states
+          2> >(tee facts.log >&2)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: states-${{ matrix.bucket }}
+          path: |
+            states/
+            facts.log
+          retention-days: 3

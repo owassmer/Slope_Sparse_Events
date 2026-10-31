@@ -139,6 +139,7 @@ class AtomicFinding(Frozen):
     subject_kind: SubjectKind = "other"
     subject: str = ""
     is_inference: bool = False  # the agent's own linkage of cited premises, labelled as such
+    speaker: str = ""  # whose statement the finding reports, as named in the cited section (host-checked)
     spans: tuple[SourceSpan, ...] = Field(min_length=1)  # every finding rests on verbatim snapshot text
     observation_ids: tuple[str, ...] = ()
     status: Literal["proposed", "accepted", "rejected"] = "proposed"
@@ -447,6 +448,10 @@ def validate_effect(effect: EconomicEffectProposal, findings: dict[str, AtomicFi
                         f"{sorted(TREATMENTS.get(effect.mechanism, set()))}")
     if effect.mechanism in CASH_FREE_MECHANISMS and effect.cash_direction != "none":
         problems.append(f"{effect.mechanism} cannot create a cash {effect.cash_direction}")
+    if effect.mechanism not in CASH_FREE_MECHANISMS and effect.cash_direction == "none":
+        problems.append(f"{effect.mechanism} moves cash, and this effect moves none: an effect that moves no cash is not an "
+                        "economic effect. Keep the accepted finding as a finding; propose an effect only for a cash "
+                        "inflow or outflow (or 'unknown' direction)")
     if effect.mechanism == "noncash_normalization" and effect.baseline_treatment != "normalization_only":
         problems.append("A noncash normalization only adjusts historical metrics")
     if effect.mechanism == "settlement_payment_timing" and effect.baseline_treatment == "new_to_baseline" \

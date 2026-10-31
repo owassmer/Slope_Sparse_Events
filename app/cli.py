@@ -1,8 +1,220 @@
 """Command-line entry point. Subcommands are added by each build step."""
 
+from typing import Annotated
+
 import typer
 
 cli = typer.Typer(no_args_is_help=True, help="Slope external-event credit scenario module")
+
+
+@cli.command("walk-tree")
+def walk_tree(
+    output: str = typer.Option(..., help="New directory for streamed paths, facts and unfinished branches."),
+    seconds: float = typer.Option(900, min=0.001, max=1000),
+    partition: int = typer.Option(0, min=0),
+    partitions: int = typer.Option(1, min=1),
+    depth: int = typer.Option(6, min=1),
+    resume: str | None = typer.Option(None, help="Prior piece.json; continue its unfinished branches."),
+    share: str | None = typer.Option(None, help="With --resume: one-based i/k share of remaining branches."),
+    full_events: bool = typer.Option(False, help="Also write the uncompressed full events comparison stream."),
+) -> None:
+    """Walk all 512 draws together from review; no model calls. Stream bounded pieces."""
+    import json
+    from pathlib import Path
+
+    from app.analysis.population_walk import walk_piece
+
+    result = walk_piece(output=Path(output), seconds=seconds, partition=partition,
+                        partitions=partitions, depth=depth, resume=Path(resume) if resume else None,
+                        full_events=full_events, share=share)
+    typer.echo(json.dumps(result))
+
+
+@cli.command("estimate-remaining")
+def estimate_remaining_command(
+    states: str = typer.Option(..., help='Glob of continuation piece.json files (quote the glob).'),
+    output: str = typer.Option('var/remaining-walk'),
+    finished: str | None = typer.Option(None, help='Glob of finished outputs: calibrate against matched full starting states.'),
+    timing: str | None = typer.Option(None, help='Glob of recorded output pieces for host-specific throughput conversions.'),
+    calibration_limit: int = typer.Option(20, min=1),
+    calibration_offset: int = typer.Option(0, min=0),
+    probes: int = typer.Option(200, min=2, help='Fixed probes; per matched piece in calibration mode.'),
+    seconds: float = typer.Option(1000, min=0.001, max=1100),
+    seed: int = typer.Option(13),
+) -> None:
+    """Estimate joint histories, history-draws and walking time below saved routes."""
+    import glob
+    import json
+
+    from app.analysis.remaining_walk import estimate_remaining
+
+    result = estimate_remaining(glob.glob(states, recursive=True), output=output,
+                                probes=probes, seconds=seconds, seed=seed,
+                                finished=glob.glob(finished, recursive=True) if finished else (),
+                                calibration_limit=calibration_limit, calibration_offset=calibration_offset,
+                                timing=glob.glob(timing, recursive=True) if timing else ())
+    typer.echo(json.dumps({k: v for k, v in result.items() if k != 'by_piece'}))
+    if result['status'] != 'completed':
+        raise typer.Exit(2)
+
+
+@cli.command("pool-tree")
+def pool_tree(
+    output: str = typer.Option('var/tree-pool', help='Small exported catalog, gates and history samples.'),
+    database: str = typer.Option('tree-pool.sqlite', help='Runner-local restart database; do not return this artifact.'),
+    local: Annotated[list[str] | None, typer.Option(help='Read-only whole piece directories or roots containing pieces.')] = None,
+    runs: Annotated[list[str] | None, typer.Option(help='GitHub run IDs; repeat for every wave.')] = None,
+    run_list: str | None = typer.Option(None, help='Text file: one GitHub run ID per line, all waves.'),
+    links: str | None = typer.Option(None, help='JSON source -> input_routes metadata for legacy checkpoints.'),
+    seconds: float = typer.Option(900, min=1, help='Budget checked between ingestion/export batches; raise on the pool host.'),
+    workers: int = typer.Option(1, min=1, help='Independent processes; at most 4 on a GitHub runner.'),
+    finish: bool = typer.Option(True, help='Export gates after ingestion; --no-finish only downloads/reduces.'),
+    artifact: Annotated[list[str] | None, typer.Option(help='Exact artifact names, e.g. heavy-0; repeat to bound a part.')] = None,
+    partial: bool = typer.Option(False, help='Write a mergeable reduction, not a whole-tree verdict.'),
+    history_range: Annotated[list[str] | None, typer.Option(help='Partial only: piece-directory:start:stop, half-open history ordinals; boundaries multiples of 64 except piece end. Repeat for disjoint ranges.')] = None,
+    gates_only: bool = typer.Option(False, help='Partial retains gate inputs and sampled facts, not every population facts variant.'),
+    combine: bool = typer.Option(False, help='Combine partials from --local roots or GitHub heavy-N (nodes: out-N).'),
+    merge_only: bool = typer.Option(False, help='Intermediate combine level; emit a mergeable partial without final gates.'),
+    diagnostics: str = typer.Option('var/diag/tree-pool', help='Small status, timings and gate verdicts retained in out-N.'),
+    nodes_only: bool = typer.Option(False, help='First pass: extract/union node catalogs before evaluating parts.'),
+    checks_only: bool = typer.Option(False, help='Check this wave independently before node union; resumable checks.sqlite and checks.json.'),
+    check_part: Annotated[list[str] | None, typer.Option(help='Previously checked checks.sqlite; repeat for disjoint ranges. Reduction consumes these instead of replaying.')] = None,
+    check_run: Annotated[list[str] | None, typer.Option(help='Download checks.sqlite parts from these GitHub runs for reduction.')] = None,
+    node_catalog: str | None = typer.Option(None, help='Frozen union nodes.sqlite, shared by every part.'),
+    node_run: str | None = typer.Option(None, help='Download frozen union nodes.sqlite from this GitHub run, out-0.'),
+) -> None:
+    """Pool trusted local pieces and paired GitHub artifacts, without judgment calls."""
+    import json
+    from pathlib import Path
+
+    from app.analysis.tree_pool import pool
+
+    run_ids = list(runs or [])
+    if run_list:
+        run_ids.extend(line.strip() for line in Path(run_list).read_text().splitlines()
+                       if line.strip() and not line.lstrip().startswith('#'))
+    import subprocess
+    import tempfile
+    import time
+
+    from app.analysis.tree_parts import combine as combine_parts
+
+    started = time.monotonic()
+    if gates_only and not partial:
+        raise typer.BadParameter('--gates-only requires --partial')
+    if merge_only and (not combine or nodes_only):
+        raise typer.BadParameter('--merge-only requires --combine and cannot union nodes')
+    if partial and (combine or nodes_only):
+        raise typer.BadParameter('--combine, --partial and --nodes-only/--partial are mutually exclusive')
+    if (check_part or check_run) and (not partial or checks_only):
+        raise typer.BadParameter('--check-part/--check-run require reduction --partial')
+    if checks_only and (nodes_only or partial):
+        raise typer.BadParameter('--checks-only is a separate stage')
+    with tempfile.TemporaryDirectory(prefix='pool-nodes-') as temp:
+        checked = list(check_part or [])
+        for index, run in enumerate(check_run or []):
+            folder = Path(temp) / f'checks-{index}'
+            subprocess.run(['gh', 'run', 'download', run, '--pattern', 'heavy-*', '--dir', str(folder)], check=True)
+            paths = list(folder.rglob('checks.sqlite'))
+            if not paths:
+                raise typer.BadParameter(f'check run {run}: no checks.sqlite')
+            checked.extend(map(str, paths))
+        if node_run:
+            if node_catalog:
+                raise typer.BadParameter('use --node-run or --node-catalog, not both')
+            subprocess.run(['gh', 'run', 'download', node_run, '--name', 'out-0', '--dir', temp], check=True)
+            catalogs = list(Path(temp).rglob('nodes.sqlite'))
+            if len(catalogs) != 1:
+                raise typer.BadParameter('node run out-0 must contain exactly one nodes.sqlite')
+            node_catalog = str(catalogs[0])
+        if combine:
+            result = combine_parts(database=Path(database), output=Path(output), local=local or [],
+                                   runs=run_ids, artifacts=artifact or [], nodes_only=nodes_only,
+                                   merge_only=merge_only, checks_only=checks_only)
+        else:
+            result = pool(database=Path(database), output=Path(output), local=local or [], runs=run_ids,
+                          links=json.loads(Path(links).read_text()) if links else None,
+                          seconds=seconds, finish=finish, workers=workers, artifacts=artifact or [],
+                          partial=partial, node_catalog=node_catalog, nodes_only=nodes_only,
+                          gates_only=gates_only, history_ranges=history_range or [],
+                          checks_only=checks_only, check_parts=checked)
+    import shutil
+
+    result['wall_seconds'] = time.monotonic() - started
+    diag = Path(diagnostics)
+    diag.mkdir(parents=True, exist_ok=True)
+    (diag / 'result.json').write_text(json.dumps(result) + '\n')
+    for name in ('gates.json', 'checks.json', 'combine-timing.json'):
+        source = Path(output) / name
+        if source.exists() and source.resolve() != (diag / name).resolve():
+            shutil.copyfile(source, diag / name)
+    typer.echo(json.dumps(result))
+    if result.get('status') in ('unfinished_ingest', 'unfinished_export'):
+        raise typer.Exit(2)
+    if 'coverage' in result and not all(result[k]['pass'] for k in ('coverage', 'probability', 'answers')):
+        raise typer.Exit(1)
+
+
+@cli.command("measure-walk")
+def measure_walk(
+    row: int = typer.Option(0, min=0, max=511, help="Native draw in the 512-draw population."),
+    seconds: float = typer.Option(900, min=0.001, max=1000, help="Time budget including setup; no inline checks."),
+) -> None:
+    """Measure one draw's whole chronological tree from review; no model calls."""
+    import json
+
+    from app.analysis.walk_measurement import measure
+
+    typer.echo(json.dumps(measure(row=row, seconds=seconds)))
+
+
+@cli.command("measure-state-graph")
+def measure_state_graph(
+    row: int = typer.Option(0, min=0, max=511),
+    seconds: float = typer.Option(180, min=0.001, max=1000),
+) -> None:
+    """Build one draw's chronological state graph; no judgment calls."""
+    import json
+    from pathlib import Path
+
+    from app.analysis.walk_measurement import measure
+
+    typer.echo(json.dumps(measure(row=row, seconds=seconds, graph=True, output=Path('var/diag/001-6a'))))
+
+
+@cli.command("estimate-walk")
+def estimate_walk(
+    row: int = typer.Option(0, min=0, max=511),
+    probes: int = typer.Option(200, min=2, help="Fixed number of independent probes."),
+    seconds: float = typer.Option(900, min=0.001, max=1000, help="Safety limit including setup."),
+    seed: int = typer.Option(20261001, help="Sampling seed; not a model probability."),
+    output: str = typer.Option('var/diag/001-5c', help="Directory for probe JSONL and attributed summary JSON."),
+    scenario: str = typer.Option('unbounded', help='unbounded, settlement, floor, offerings, notes, together'),
+) -> None:
+    """Estimate one draw's tree leaves and work with Knuth probes; no model calls."""
+    import json
+    from pathlib import Path
+
+    from app.analysis.walk_estimator import estimate
+
+    typer.echo(json.dumps(estimate(row=row, probes=probes, seconds=seconds, seed=seed, output=Path(output),
+                                   scenario=scenario)))
+
+
+@cli.command('measure-recurrence')
+def measure_recurrence(
+    row: int = typer.Option(146, min=0, max=511),
+    samples: int = typer.Option(100, min=1),
+    seconds: float = typer.Option(900, min=0.001, max=1000),
+    output: str = typer.Option('var/diag/001-11a'),
+) -> None:
+    """Compare opt-in bounds with paired synthetic answers; no judgment calls."""
+    import json
+    from pathlib import Path
+
+    from app.analysis.recurrence_measurement import measure
+
+    typer.echo(json.dumps(measure(row=row, samples=samples, seconds=seconds, output=Path(output))))
 
 
 @cli.command()
@@ -100,6 +312,63 @@ def jev_check_cases() -> None:
         if not r["agree"]:
             typer.echo(f"  disagree: {r['case_id']}: expected {r['expected']!r}, got {r['answer']!r}")
     typer.echo(f"{report['agreement']}/{report['cases']} agree  ->  {report['path']}")
+
+
+@cli.command("analyze-case")
+def analyze_case(snapshot: str = typer.Argument(..., help="Dated case ID; uses its configured evidence, baseline and financing."),
+                 run: str | None = typer.Option(None, help="Reuse this completed agent-plus-Jev investigation."),
+                 pool: str | None = typer.Option(None, help="Saved pool directory or s3://bucket/prefix/pool; requires --run. Execute on the host that will reduce the paths."),
+                 processes: int = typer.Option(4, min=1, help="CPU processes for saved-pool reduction.")) -> None:
+    """Run evidence → investigation → Jev forecasts → financial analysis → page locally."""
+    from app.pipeline import FlowError
+    from app.pipeline import analyze_case as execute
+
+    try:
+        result = execute(snapshot, run_id=run, pool_dir=pool, processes=processes,
+                         progress=lambda stage: typer.echo(f"stage: {stage}"))
+    except FlowError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Complete: {result['run_id']}")
+    for name, path in result["artifacts"].items():
+        typer.echo(f"  {name}: {path}")
+    typer.echo(f"Run `slope viewer`, then open http://127.0.0.1:8000{result['page_route']}")
+
+
+@cli.command("run")
+def run_case(case: str = typer.Argument("akoustis_20240514", help="The case (cases/<case>)."),
+             tau: float = typer.Option(0.01, help="Walk exactly every prefix at least this likely on some draw."),
+             groups: int = typer.Option(6, min=2, help="Independent groups for a set-aside point at the threshold "
+                                                       "with the whole horizon ahead (fewer for lighter, later ones)."),
+             min_groups: int = typer.Option(2, min=2, help="Groups for every set-aside point at least."),
+             group_size: int = typer.Option(4, min=1, help="Replicates per group, spread as a Latin hypercube."),
+             enumerate_days: int = typer.Option(30, min=0, help="Walk every answer of a decision this close to the "
+                                                                "horizon rather than sample it."),
+             seed: int = typer.Option(0)) -> None:
+    """The case's page from the answer-first walk (design/002-answer-first.md), with the seeded stand-in judge: a new
+    run under var/runs beside a copy of the case's recorded investigation. View it with
+    SLOPE_RUNS_ROOT=var/runs uv run slope viewer."""
+    import shutil
+    import time
+
+    from app.analysis.build import build, say
+    from app.analysis.walk_measurement import LEAD_RUN
+    from app.config import ROOT, VAR
+
+    if groups < min_groups:
+        raise typer.BadParameter("--groups must be at least --min-groups")
+    leads = {"akoustis_20240514": LEAD_RUN}  # the recorded investigation each case's page starts from
+    if case not in leads:
+        raise typer.BadParameter(f"no recorded investigation for {case}; known: {', '.join(leads)}")
+    run_id = f"{case}-answer_first-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}"
+    root = VAR / "runs"
+    shutil.copytree(ROOT / "runs" / "recorded" / leads[case], root / run_id)
+    t0 = time.time()
+    build(run_id, root, progress=lambda stage: say(stage),
+          answer_first={"tau": tau, "groups": groups, "min_groups": min_groups, "group_size": group_size,
+                        "enumerate_days": enumerate_days, "seed": seed})
+    typer.echo(f"{run_id}: {time.time() - t0:.0f} s; page at /runs/{run_id} "
+               f"(SLOPE_RUNS_ROOT={root} uv run slope viewer)")
 
 
 @cli.command()

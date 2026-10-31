@@ -23,6 +23,10 @@ def load_model(snapshot_id: str | None = None) -> dict:
         for k, v in scen.get("parameters", {}).items():
             m["parameters"][k] = {**m["parameters"].get(k, {}), **v}
         m["case_labels"] = scen.get("labels", {})
+        m["case_sources"] = scen.get("source_attribution", {})  # each source's author and status (QUESTIONS §1)
+        m["case_parties"] = scen.get("parties", [])  # each party's role and the names that refer to it (roles.py)
+        if "courts" in scen:  # the days the case's courts' states declare holidays (court_calendar.py)
+            m["case_courts"] = scen["courts"]
         if "verdict_form" in scen:  # the money-bearing questions of the case's verdict form (template verdict_form)
             m["case_verdict_form"] = scen["verdict_form"]
     return m
