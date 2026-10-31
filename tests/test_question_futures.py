@@ -32,7 +32,7 @@ def test_registration_collateral_excludes_later_stay(answer):
     day = np.array([117])
     expected = earlier.bond_collateral(day)
     assert expected[0] == 533_702_814  # pending: question day, not approval day
-    assert earlier.stay_facts(8)['collateral'][0] == 534_293_846
+    assert earlier.stay_facts(8)['collateral'][0] == 534_441_605  # the motion on the first execution day: Rule 62(a)'s 30 days end Sat 22 Jun, so Mon 24 Jun (Rule 6(a)(1)(C))
     np.testing.assert_array_equal(earlier.collateral_before(day), expected)
     np.testing.assert_array_equal(later.collateral_before(day), expected)
     np.testing.assert_array_equal(
