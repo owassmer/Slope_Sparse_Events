@@ -369,3 +369,15 @@ error-prone burden for each case, and a name given the wrong role is a wrong-ent
 the product is for, there is no later outcome for the model to recall; and for a historical case such as this one, the
 case's substance identifies it to a model that knows it whatever third parties are named, so their names add little.
 The limit stated plainly: a backtest on a famous public case may still be recognised from its facts.
+
+## Verifying the questions before the judge is run again (1 November)
+
+Owen, 1 November: the judge is not run again until the questions are known to be faithfully constructed, verified by
+reasoning each statement through beside its sources, never by pattern scans. The coverage (Owen's choice): every
+distinct statement form of every question kind is read once as sent (the request body the provider would receive,
+captured before sending), its values checked against one real instance's dated record and its sources (the question
+standard, the registry, the dispute model's rules, what each answer books, the case's filings); every evidence item
+is read once with its routing; and the combinations, too many to read whole, are covered by reasoning through the
+code that assembles the statements (`state14`) beside the walk's rules on what can coexist on a path, with whole
+requests read for each kind's commonest and rarest combinations. The other family reads the same against the same
+sources. Each finding is fixed in the definition for its class and the kind read again.
