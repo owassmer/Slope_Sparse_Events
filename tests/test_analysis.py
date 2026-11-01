@@ -75,7 +75,7 @@ def test_a_zero_probability_path_stays_in_the_stress_set():
     probs = m.probs()
     zero = [i for i, p in enumerate(probs) if p == 0]
     assert zero and len(m.combos) == len(probs)
-    rows = stress(load_feed(SNAP), SETUP, m)
+    rows = stress(load_feed(SNAP), SETUP, m, dispute_model=fixture_model())
     assert {r["index"] for r in rows} == set(range(len(m.combos)))  # every feasible path, including zero-probability
     assert any(r["probability"] == 0 for r in rows)
 
@@ -84,7 +84,7 @@ def test_a_zero_probability_path_stays_in_the_stress_set():
 
 def test_views_match_without_events_and_event_cash_is_conserved():
     feed = load_feed(SNAP)
-    b = Analysis(feed, SETUP, EventModel({}, {}, {}, []))
+    b = Analysis(feed, SETUP, EventModel({}, {}, {}, []), dispute_model=fixture_model())
     v = b.views()
     assert v["bank_only"] == v["event_adjusted"]  # no events: the same draws, the same line, identical outputs
     hit = EventCash.zeros(DRAWS, 180)
@@ -97,7 +97,7 @@ def test_views_match_without_events_and_event_cash_is_conserved():
 
 def test_attribution_is_three_reweightings_of_the_same_trajectories():
     m = model_with([SMALL], p=0.3)
-    a = Analysis(load_feed(SNAP), SETUP, m)
+    a = Analysis(load_feed(SNAP), SETUP, m, dispute_model=fixture_model())
     steps = a.attribution()
     assert [s["step"] for s in steps] == ["bank_only", "record", "jev"]
     assert steps[0]["metrics"] == a.views()["bank_only"]["metrics"]
@@ -116,7 +116,7 @@ def test_the_reduced_analysis_matches_the_full_trajectories():
     """Memory-bounded reduction against the full per-path trajectories: expectations equal, per-draw quantiles
     exact, headroom and daily cash and collections quantiles within one bin width."""
     m = model_with([SMALL], p=0.3)
-    a = Analysis(load_feed(SNAP), SETUP, m)
+    a = Analysis(load_feed(SNAP), SETUP, m, dispute_model=fixture_model())
     trajs = [run(a.line, a.opening, a.event_cash(c)) for c in m.combos]
     w = np.repeat(m.probs() / DRAWS, DRAWS)
     s = lambda k: np.concatenate([getattr(t, k) for t in trajs])  # noqa: E731

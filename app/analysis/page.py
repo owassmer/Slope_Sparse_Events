@@ -1339,7 +1339,7 @@ def build_dev(settings: dict | None = None, progress=None) -> dict:
     step = progress or (lambda *_: None)
     inputs = json.loads((CASES_DIR / SNAP / "run_inputs.json").read_text())
     setup = setup_from_inputs(inputs, REVIEW).with_controls({k: settings[k] for k in line_keys})
-    feed, m = load_feed(SNAP), load_model()
+    feed, m = load_feed(SNAP), load_model(SNAP)  # the case's model: its parties and its courts
     if settings["remittitur"] != m["remittitur_scenarios"]["base"]:
         m = copy.deepcopy(m)
         m["remittitur_scenarios"]["base"] = settings["remittitur"]

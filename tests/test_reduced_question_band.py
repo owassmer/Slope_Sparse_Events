@@ -29,7 +29,8 @@ def test_reduced_prompt_matches_booked_band_including_open_top_and_lowest(fixtur
         node = fc.nodes[fc.node(d, 'post_trial_ruling', f'award{booked}', branches=branches)]
         row = {'day': np.array([60]), 'cash': np.array([100]), 'owed': np.array([booked]),
                'petition': np.array([-1]),
-               'sit': {'entry': np.array([1]), 'entered': booked,
+               'sit': {'entry': np.array([1]), 'entered': booked, 'motions_filed': np.array([29]),
+                       'motions_deadline': np.array([29]), 'ruling': np.array([60]),  # the walk's clocks
                        'band_range': (lo, None if upper == 'top' else hi)}}
         state, _, _ = state14.build(fc, node, d, [], [row], [np.array([True])])
         if below:

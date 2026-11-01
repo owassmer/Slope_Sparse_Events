@@ -29,7 +29,7 @@ def page():
     js, bank_js = judged(fc.nodes, 0.5), judged(fc.bank_nodes, 0.4)
     m = EventModel({x.instance_id: x for x in fc.disputes}, js, per, fc.ordered(), neutral=neutral_map(js),
                    bank_paths=bank_paths, bank_judgments=bank_js)
-    a = Analysis(feed, SETUP, m)
+    a = Analysis(feed, SETUP, m, dispute_model=fixture_model())
     p = page_payload(a, m, fc, borrower="Akoustis Technologies, Inc.", snapshot_id=SNAP, neutral=False)
     state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": m, "months": a.months}
     return a, m, state

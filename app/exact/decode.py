@@ -48,7 +48,17 @@ def record(ints, floats):
     if ints[r.HAS_PRICING]:
         out['sit']['settlement_pricing'] = {key: np.array([ints[r.PRICING0 + j]]) for j, key in
                                           enumerate(('day', 'cash', 'operating_need'))}
+    _known(out)
     return out
+
+
+def _known(out):
+    """Each trigger's day its date is fixed (events.KNOWN): `record` writes a trigger only once it is fixed, so the
+    record's own day."""
+    from app.analysis.events import KNOWN
+
+    for name in [k for k in out['triggers'] if k != 'coupon_cash']:
+        out['triggers'][KNOWN + name] = np.asarray(out['day'], dtype=np.int64).copy()
 
 
 def situation_class(code, contexts=('',)):
@@ -142,4 +152,5 @@ def rows(ints, floats):
     if _one(ints[:, r.HAS_PRICING], 'settlement pricing'):
         out['sit']['settlement_pricing'] = {key: ints[:, r.PRICING0 + j].astype(np.int64) for j, key in
                                           enumerate(('day', 'cash', 'operating_need'))}
+    _known(out)
     return out

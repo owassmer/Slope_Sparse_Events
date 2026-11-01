@@ -62,8 +62,8 @@ def small_page():
                           event=n.event, assumptions=n.assumptions, window=n.window,
                           distribution={x: 1 / len(n.branches) for x in n.branches}) for n in fc.nodes.values()}
     m = EventModel({x.instance_id: x for x in fc.disputes}, js, per, fc.ordered(), neutral=neutral_map(js))
-    a = Analysis(feed, SETUP, m)
-    rows = [{"index": r["index"], **r} for r in stress(load_feed(SNAP), SETUP, m)]
+    a = Analysis(feed, SETUP, m, dispute_model=fixture_model())
+    rows = [{"index": r["index"], **r} for r in stress(load_feed(SNAP), SETUP, m, dispute_model=fixture_model())]
     p = page_payload(a, m, fc, borrower="Akoustis Technologies, Inc.", snapshot_id=SNAP, neutral=True, stress_rows=rows)
     state = {"payload": p, "r": a.r, "bank_r": a.bank_r, "model": m, "months": a.months}
     return a, m, state
