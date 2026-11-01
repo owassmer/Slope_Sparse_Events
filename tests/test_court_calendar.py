@@ -41,3 +41,11 @@ def test_a_district_period_counts_on_its_own_calendars_end():
     assert district.on_or_after(date(2025, 1, 7)) == date(2025, 1, 7)
     with pytest.raises(LookupError):
         appeal.on_or_after(date(2025, 1, 7))
+
+
+def test_a_calendar_is_a_value():
+    import copy
+
+    a = CourtCalendar(frozenset({date(2024, 11, 5)}), through=date(2024, 12, 31))
+    a.open(date(2024, 6, 3))  # its memo of the year's holidays is no part of what it is
+    assert copy.deepcopy(a) == a == CourtCalendar(frozenset({date(2024, 11, 5)}), through=date(2024, 12, 31))

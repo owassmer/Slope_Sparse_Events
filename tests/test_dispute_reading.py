@@ -88,9 +88,10 @@ class WaiverJudge:
 
 def forecaster(d, fs, slots=None):
     from akoustis_fixture import SETUP, basis
+    from akoustis_fixture import model as fixture_model
 
     return Forecaster([d], {f.finding_id: f for f in fs}, borrower=BORROWER, review=REVIEW, horizon=SETUP.horizon,
-                      hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=basis()[1], slots=slots)
+                      hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=basis()[1], slots=slots, model=fixture_model())
 
 
 class PendingWaiverJudge(WaiverJudge):

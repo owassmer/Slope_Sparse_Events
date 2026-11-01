@@ -8,6 +8,7 @@ from datetime import date, timedelta
 import numpy as np
 import pytest
 from akoustis_fixture import CLOSE, REVIEW, SETUP, basis, judgment
+from akoustis_fixture import model as fixture_model
 
 from app.analysis.engine import prepare, run
 from app.analysis.events import Chain, Draws, prejudgment_interest_cents, ruling_amounts
@@ -19,12 +20,9 @@ from app.disputes.forecast import (
     neutral_map,
     path_probability,
 )
-from app.disputes.rules import load_model
 from app.domain.values import usd
 
-M = load_model()
-# the synthetic case's courts (a case declares them: app/domain/court_calendar.py): the shipped Akoustis case's
-M["case_courts"] = load_model("akoustis_20240514")["case_courts"]
+M = fixture_model()
 N = (SETUP.horizon - REVIEW).days
 
 

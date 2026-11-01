@@ -9,6 +9,7 @@ from datetime import date
 import numpy as np
 import pytest
 from akoustis_fixture import REVIEW, SETUP, SNAP, basis, judgment
+from akoustis_fixture import model as fixture_model
 
 from app.analysis import operating
 from app.analysis.core import Analysis, EventModel
@@ -16,7 +17,6 @@ from app.analysis.events import BANK, Chain, Draws, bank_trace, coupon_terms
 from app.analysis.setup import DRAWS, SEED
 from app.disputes.akoustis_pre_d import NOTES
 from app.disputes.forecast import Forecaster, Judgment, bank_state
-from app.disputes.rules import load_model
 from app.finance.bank import load_feed
 
 BORROWER = "Akoustis Technologies, Inc."
@@ -29,7 +29,7 @@ def base():
 
 def forecaster(base, disputes=()):
     return Forecaster(list(disputes), {}, borrower=BORROWER, review=REVIEW, horizon=SETUP.horizon,
-                      hydrate=lambda f: {}, setup=SETUP, basis=base[1])
+                      hydrate=lambda f: {}, setup=SETUP, basis=base[1], model=fixture_model())
 
 
 def stub(nodes, rng) -> dict[str, Judgment]:
@@ -113,11 +113,11 @@ def test_the_coupon_is_arithmetic_on_its_quote_and_an_unstated_coupon_stays_unkn
     wrong = bare.model_copy(update={"principal_cents": 4_500_000_000})
     assert coupon_terms(wrong, QUOTES, REVIEW, SETUP.horizon).coupon_cents is None  # the quote must match
     with pytest.raises(ValueError):  # a null never becomes a $0 obligation
-        bank_trace(bare, (), SETUP, load_model(), Draws(DRAWS, basis=base[1]))
+        bank_trace(bare, (), SETUP, fixture_model(), Draws(DRAWS, basis=base[1]))
 
 
 def test_both_views_pay_the_same_coupon_and_none_after_a_petition(base):
-    m, dr = load_model(), Draws(DRAWS, basis=base[1])
+    m, dr = fixture_model(), Draws(DRAWS, basis=base[1])
     bank = bank_trace(NOTES, (), SETUP, m, dr).events.cash
     aug = Chain(judgment(), SETUP, m, dr).run(()).events.cash
     assert (bank[:, DEC16] == -75_000_000).all() and (aug[:, DEC16] == bank[:, DEC16]).all()
@@ -141,7 +141,7 @@ def _growing(b):
 
 
 def _stay(b, d, sens=None):
-    c = Chain(d, SETUP, load_model(), Draws(DRAWS, basis=b), sens)
+    c = Chain(d, SETUP, fixture_model(), Draws(DRAWS, basis=b), sens)
     c.step("execute_pre_ruling", "I1", "yes")
     c.step("stay", "I1", "yes")
     return c
@@ -213,7 +213,7 @@ def test_a_stay_lock_is_released_on_the_day_the_dispute_ends(base):
     on = rel & (c.stayed_from < pd)
     assert (c.ev.lock[np.arange(DRAWS)[on], pd[on]] == -held[on]).all()
     rich = replace(b, cash=b.cash + 5_000_000_000)  # paid in full while a post-ruling stay is pending: no lock
-    c = Chain(judgment(), SETUP, load_model(), Draws(DRAWS, basis=rich))
+    c = Chain(judgment(), SETUP, fixture_model(), Draws(DRAWS, basis=rich))
     for s in (("ruling", "", "amt:27980800:0"), ("appeal", "", "no"), ("stay", "post", "yes"),
               ("enforce", "post", "levy")):
         c.step(*s)
@@ -235,10 +235,10 @@ def test_a_stay_on_zero_offered_security_is_effective_only_in_the_noncash_sensit
 
 def test_a_settlement_exists_only_where_its_amount_is_positive(base):
     poor = replace(base[1], cash=base[1].cash - 2_000_000_000)  # nothing above need
-    c = Chain(judgment(), SETUP, load_model(), Draws(DRAWS, basis=poor))
+    c = Chain(judgment(), SETUP, fixture_model(), Draws(DRAWS, basis=poor))
     c.step("settle", "I1", "yes")
     assert (c.settle_offer == 0).all() and (c.resolved >= 10**6).all() and (c.marks["settled"] >= 10**6).all()
-    rich = Chain(judgment(), SETUP, load_model(), Draws(DRAWS, basis=base[1]))
+    rich = Chain(judgment(), SETUP, fixture_model(), Draws(DRAWS, basis=base[1]))
     rich.step("settle", "I1", "yes")
     pd = (REVIEW - REVIEW).days + 29  # the review date + 30 days
     ok = rich.settle_offer > 0
@@ -248,7 +248,7 @@ def test_a_settlement_exists_only_where_its_amount_is_positive(base):
 
 def test_monthly_installments_stop_at_a_petition_and_release_the_claim_on_the_last(base):
     b = replace(base[1], legal=np.zeros_like(base[1].legal))  # the installments alone
-    m, sens = load_model(), {"settlement_monthly": True, "coupon_cash_share": "all_shares"}
+    m, sens = fixture_model(), {"settlement_monthly": True, "coupon_cash_share": "all_shares"}
     c = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=b), sens)
     tr = c.run((("settle", "I1", "yes"),))
     pd = 29  # the review date + 30 days
@@ -267,7 +267,7 @@ def test_monthly_installments_stop_at_a_petition_and_release_the_claim_on_the_la
 
 
 def test_the_i3_settlement_starts_at_the_later_of_enforceability_and_the_appeal_deadline(base):
-    c = Chain(judgment(), SETUP, load_model(), Draws(DRAWS, basis=base[1]))
+    c = Chain(judgment(), SETUP, fixture_model(), Draws(DRAWS, basis=base[1]))
     c.step("ruling", "", "beyond:3010000000:0")
     day = c.step("settle", "I3", "no")
     start = np.maximum(c.EF, c.AD)
@@ -282,7 +282,7 @@ POST = (("ruling", "", "beyond:3010000000:0"), ("appeal", "", "no"), ("settle", 
 
 
 def test_the_company_answers_the_post_ruling_levy_before_it_is_booked(base):
-    m = load_model()
+    m = fixture_model()
     c = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]), {"coupon_cash_share": "all_shares"})
     tr = c.run(POST + (("debtor_response", "post", "neither"),))
     day, cash = tr.day[-1], tr.cash[-1]
@@ -297,8 +297,10 @@ def test_the_company_answers_the_post_ruling_levy_before_it_is_booked(base):
 
 
 def test_the_holders_petition_waits_for_section_7_06_unless_the_sensitivity_says_otherwise(base):
-    m = load_model()
-    aug19 = (date(2024, 8, 19) - REVIEW).days - 1
+    m = fixture_model()
+    # entered 20 May: the automatic stay's 30 days end on Juneteenth, so on 20 Jun (Rule 6(a)(1)(C)); execution
+    # from 21 Jun, and the default 60 days on
+    aug19 = (date(2024, 8, 20) - REVIEW).days - 1
     for sens, lag in ((None, 60), ({"holder_petition_route": "immediate"}, 0)):
         c = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]), sens)
         c.step("execute_pre_ruling", "I1", "no")
@@ -311,10 +313,10 @@ def test_the_holders_petition_waits_for_section_7_06_unless_the_sensitivity_says
 
 
 def test_an_acceleration_before_the_vote_call_ends_the_listing_chain_and_a_due_note_has_no_delisting_default(base):
-    m = load_model()
+    m = fixture_model()
     c = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]))
     c.step("execute_pre_ruling", "I1", "no")
-    c.step("judgment_default", "I1", "accelerated")  # 19 Aug, before the vote call
+    c.step("judgment_default", "I1", "accelerated")  # 20 Aug, before the vote call
     assert (c.step("listing", "", "delisted_suspension") >= 10**6).all() and (c.delisted >= 10**6).all()
     later = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]))
     dates = later.listing_dates()
@@ -329,17 +331,20 @@ def test_an_acceleration_before_the_vote_call_ends_the_listing_chain_and_a_due_n
 # Dated triggers -----------------------------------------------------------------------------------------------------
 
 def test_the_trace_carries_the_dated_triggers_the_engine_computes(base):
-    m = load_model()
+    m = fixture_model()
     c = Chain(judgment(), SETUP, m, Draws(DRAWS, basis=base[1]))
     tr = c.run((("execute_pre_ruling", "I1", "no"),) + POST[:-1])
+    from app.analysis.events import KNOWN
+
     g, n = tr.triggers, c.N
     ix = lambda d: (d - REVIEW).days - 1  # noqa: E731
-    assert set(g) == {"judgment_default_entered", "judgment_default_ruling", "appeal_deadline", "coupon",
-                      "listing_deadline", "repurchase_due", "holders_petition_earliest"}
+    names = {"judgment_default_entered", "judgment_default_ruling", "appeal_deadline", "coupon",
+             "listing_deadline", "repurchase_due", "holders_petition_earliest"}
+    assert set(g) == names | {KNOWN + x for x in names}  # each date with the day it is fixed
     assert (g["coupon"] == ix(date(2024, 12, 16))).all() and (g["listing_deadline"] == ix(date(2024, 10, 21))).all()
-    assert (g["judgment_default_entered"] == ix(date(2024, 8, 19))).all()
-    ad = np.where(c.AD < n, c.AD, 10**6)
-    assert (g["appeal_deadline"] == ad).all()
+    assert (g["judgment_default_entered"] == ix(date(2024, 8, 20))).all()  # execution from 21 Jun, then 60 days
+    assert (g["appeal_deadline"] == np.where(c.AD < 10**6, c.AD, 10**6)).all()  # a known deadline, past the period too
+    assert (g[KNOWN + "appeal_deadline"] == c.A).all() and (g[KNOWN + "judgment_default_ruling"] == c.A).all()
     ruling = g["judgment_default_ruling"]
     assert (ruling < n).any() and (ruling[ruling < n] == c.A[ruling < n] + 60).all()
     assert (g["repurchase_due"] >= 10**6).all()  # no delisting on this path

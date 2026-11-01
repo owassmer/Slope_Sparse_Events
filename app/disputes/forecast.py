@@ -265,17 +265,16 @@ def _whole(v, ix: np.ndarray, n: int, name: str = ""):
 # A question's facts as of its decision day (QUESTIONS_20240514 §1 Two dates: the state holds only events reached on
 # the path before the decision date). A recorded row is read off a trace that can hold events dated after the
 # decision on a trajectory: a later-walked step, or the whole path for a state-triggered decision. Those events have
-# not happened there. Scheduled dates (the post-trial ruling's, the entry, the judgment default's availability, the
-# holders' route) are terms known at the decision and stay; an outcome dated after the decision is removed.
+# not happened there, and a date counted from one of them is not yet fixed: each trigger carries the day its date is
+# fixed (events.KNOWN), and before it the date is removed. An outcome dated after the decision is removed.
 OUTCOME_DAYS = ("delisted", "stayed_from", "notes_due_day", "nonpayment_day", "first_unpaid")
-OUTCOME_TRIGGERS = {"holders_petition_earliest": ("marks", "notes_due"), "repurchase_due": ("sit", "delisted")}
 
 
 def as_of(row: dict) -> dict:
     """The row as of its decision day on each trajectory (`OUTCOME_DAYS`): an outcome dated after the decision day
     reads as not having happened (BIG; a petition -1; the marks BIG), an offering initiated after it is not there
     and one closing after it has not closed, and a trigger that exists only because of such an outcome is absent."""
-    from app.analysis.events import APPEAL_FROM, BIG
+    from app.analysis.events import BIG, KNOWN
 
     day = row.get("day")
     if not isinstance(day, np.ndarray):
@@ -291,25 +290,22 @@ def as_of(row: dict) -> dict:
         out["marks"] = {k: np.where(later(v), BIG, v).astype(v.dtype) if per(v) else v for k, v in marks.items()}
     trig = row.get("triggers")
     if trig:
-        t2 = dict(trig)
-        for name, (where, what) in OUTCOME_TRIGGERS.items():
-            src = (marks if where == "marks" else sit).get(what)
-            if name in t2 and per(t2[name]) and per(src):
-                t2[name] = np.where(later(src), BIG, t2[name]).astype(t2[name].dtype)
-        fixed_on = t2.pop(APPEAL_FROM, None)
+        t2 = {k: v for k, v in trig.items() if not k.startswith(KNOWN)}
+        for name, v in t2.items():
+            if name == "coupon_cash" or not per(v) or not (v < BIG).any():
+                continue
+            fixed = trig.get(KNOWN + name)
+            if not per(fixed):
+                raise ValueError(f"the trigger {name} without the day its date is fixed: whether it is known cannot "
+                                 "be told")
+            t2[name] = np.where(later(fixed), BIG, v).astype(v.dtype)
         if per(sit.get("motions_filed")) and "appeal_deadline" in t2:
             # a pending claim: from entry, the deadline as entry sets it; once motions are filed, none until the
             # order disposing of them, then the deadline that order fixes
             filed = sit["motions_filed"] <= day
             ruled = sit["ruling"] <= day
             t2["appeal_deadline"] = np.where(
-                filed, np.where(ruled, t2["appeal_deadline"], BIG), sit["entry_appeal_deadline"])
-        elif "appeal_deadline" in t2:
-            # motions filed before the review (a post-trial case): the deadline runs from the order disposing of the
-            # last tolling motion (FRAP 4(a)(4)(A)), so it is not a fact of a question before that order
-            if not per(fixed_on):
-                raise ValueError("an appeal deadline without the day that fixes it: whether it is known cannot be told")
-            t2["appeal_deadline"] = np.where(fixed_on <= day, t2["appeal_deadline"], BIG)
+                filed, np.where(ruled, trig["appeal_deadline"], BIG), sit["entry_appeal_deadline"])
         out["triggers"] = t2
     if sit:
         s2 = dict(sit)
@@ -2057,9 +2053,10 @@ class Forecaster:
     def _contract_dates(self, rows: list[dict], masks: list) -> dict:
         """The dated contract and procedural triggers the chain computes, on or after the decision, inside the
         analysis period: one date, or the range across these trajectories."""
-        from app.analysis.events import APPEAL_FROM, BIG
+        from app.analysis.events import BIG, KNOWN
 
-        names = dict.fromkeys(k for r in rows for k in (r.get("triggers") or {}) if k not in ("coupon_cash", APPEAL_FROM))
+        names = dict.fromkeys(k for r in rows for k in (r.get("triggers") or {})
+                              if k != "coupon_cash" and not k.startswith(KNOWN))
         out, coupon_cash = {}, []
         for name in names:
             label = TRIGGER_PHRASES.get(name)

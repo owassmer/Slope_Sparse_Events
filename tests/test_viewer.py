@@ -45,6 +45,7 @@ def test_tampered_run_fails_verification(tmp_path):
 def small_page():
     """The page payload on the $2M small judgment (tests/test_analysis.py SMALL), neutral judgments."""
     from akoustis_fixture import REVIEW, SETUP, SNAP, basis, judgment
+    from akoustis_fixture import model as fixture_model
 
     from app.analysis.core import Analysis, EventModel, stress
     from app.analysis.page import page_payload
@@ -55,7 +56,7 @@ def small_page():
     d = judgment(stage="judgment_entered", motions=(), components=(), financing=(),
                  amount=judgment().amount.model_copy(update={"value": 200_000_000}))
     fc = Forecaster([d], {}, borrower="Akoustis Technologies, Inc.", review=REVIEW, horizon=SETUP.horizon,
-                    hydrate=lambda f: {}, setup=SETUP, basis=b)
+                    hydrate=lambda f: {}, setup=SETUP, basis=b, model=fixture_model())
     per = fc.all_paths()
     js = {n.key: Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
                           event=n.event, assumptions=n.assumptions, window=n.window,

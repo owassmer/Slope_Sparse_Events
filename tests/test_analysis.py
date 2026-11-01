@@ -9,6 +9,7 @@ from datetime import date
 import numpy as np
 import pytest
 from akoustis_fixture import REVIEW, SETUP, SNAP, basis, judgment
+from akoustis_fixture import model as fixture_model
 
 from app.agent.tools import ToolError, _date_in_text, _neutral_reference
 from app.analysis.core import Analysis, EventModel, neutral_overrides, stress
@@ -37,7 +38,7 @@ SMALL = judgment(stage="judgment_entered", motions=(), components=(), financing=
 def model_with(disputes, p: float = 0.5) -> EventModel:
     """Every Noul answered p, every Choice uniform, built through the real Forecaster (path facts pre-simulated)."""
     fc = Forecaster(disputes, {}, borrower="Akoustis Technologies, Inc.", review=REVIEW, horizon=SETUP.horizon,
-                    hydrate=lambda f: {}, setup=SETUP, basis=basis()[1])
+                    hydrate=lambda f: {}, setup=SETUP, basis=basis()[1], model=fixture_model())
     per = fc.all_paths()
     judgments = {n.key: Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
                                  event=n.event, assumptions=n.assumptions, window=n.window,

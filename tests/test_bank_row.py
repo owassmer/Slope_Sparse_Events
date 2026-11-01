@@ -8,6 +8,7 @@ import pytest
 @pytest.fixture(scope="module")
 def page():
     from akoustis_fixture import REVIEW, SETUP, SNAP, basis, judgment
+    from akoustis_fixture import model as fixture_model
 
     from app.analysis.core import Analysis, EventModel
     from app.analysis.page import page_payload
@@ -17,7 +18,7 @@ def page():
     d = judgment(stage="judgment_entered", motions=(), components=(), financing=(),
                  amount=judgment().amount.model_copy(update={"value": 200_000_000}))
     fc = Forecaster([d], {}, borrower="Akoustis Technologies, Inc.", review=REVIEW, horizon=SETUP.horizon,
-                    hydrate=lambda f: {}, setup=SETUP, basis=b)
+                    hydrate=lambda f: {}, setup=SETUP, basis=b, model=fixture_model())
     per, bank_paths = fc.all_paths(), fc.bank_paths()
 
     def judged(nodes, p):

@@ -5,6 +5,7 @@ import json
 
 import pytest
 from akoustis_fixture import REVIEW, SETUP, basis, judgment
+from akoustis_fixture import model as fixture_model
 
 from app.analysis import events
 from app.disputes.forecast import TRIGGER_PHRASES, Forecaster, bank_state
@@ -20,7 +21,7 @@ def base():
 
 def forecaster(base, disputes=()):
     return Forecaster(list(disputes), {}, borrower=BORROWER, review=REVIEW, horizon=SETUP.horizon,
-                      hydrate=lambda f: {}, setup=SETUP, basis=base[1])
+                      hydrate=lambda f: {}, setup=SETUP, basis=base[1], model=fixture_model())
 
 
 def test_the_holders_petition_is_asked_under_section_7_06_and_7_07(base):
@@ -76,7 +77,7 @@ def test_a_reading_travels_with_the_passage_it_was_taken_from(base):
     d = judgment().model_copy(update={"factors": (settle, barred)})
     fc = Forecaster([d], {"fnd_009": "424B5"}, borrower=BORROWER, review=REVIEW, horizon=SETUP.horizon,
                     hydrate=lambda f: {"source": f"{f} prospectus supplement", "quotes": ["…settlement…"]},
-                    setup=SETUP, basis=base[1])
+                    setup=SETUP, basis=base[1], model=fixture_model())
     for node in ("settlement_offer", "settlement_accept"):
         st, fids, readings = fc.state(fc.nodes[fc.node(d, node, "I1", "entered")])
         assert "fnd_009" in fids and readings["Settlement signals"]["source"] == "424B5 prospectus supplement"
@@ -97,9 +98,10 @@ def test_jev_reads_the_clocks_and_the_remittitur_scenario_as_what_they_are(base)
     fc.record((k,), fc.trace(d, (("settle", "I1", "no"),)))
     dates = fc.state(fc.nodes[k])[0]["path_facts"]["contract_dates"]
     entered = ("the notes' judgment default (§7.01(i)) on the judgment as entered: 60 days after execution became "
-               "available on 20 Jun 2024")
-    assert dates[entered] == "19 Aug 2024"
-    assert any(x.endswith("60 days after the court's order on the last pending post-trial motion") for x in dates)
+               "available on 21 Jun 2024")  # the automatic stay's last day, Juneteenth, ran to 20 Jun (Rule 6(a))
+    assert dates[entered] == "20 Aug 2024"
+    # the default counted from the order on the motions is no fact before that order (the motions are pending)
+    assert not any(x.endswith("60 days after the court's order on the last pending post-trial motion") for x in dates)
     st = fc.state(fc.nodes[fc.node(d, "ts_damages_ruling")])[0]
     comp = next(c for c in st["path_facts"]["components"] if "remittitur_scenario" in c)
     assert comp["remittitur_scenario"].startswith("$23,100,000.00 (the model's remitted-amount scenario; basis: "
@@ -111,9 +113,8 @@ def test_jev_reads_the_clocks_and_the_remittitur_scenario_as_what_they_are(base)
 
 def test_the_case_terms_and_drill_down_read_as_the_record_states_them(base):
     from app.analysis.page import case_terms, drill_down, label_head
-    from app.disputes.rules import load_model
 
-    d, m = judgment(), load_model()
+    d, m = judgment(), fixture_model()
     t = case_terms(d, REVIEW, SETUP.horizon, m, {})
     award = next(c for c in t["components"] if c["amount"] == "$31,315,215.00")
     assert award["source"] == d.order_reference != next(c.motion for c in d.components if c.status == "awarded"

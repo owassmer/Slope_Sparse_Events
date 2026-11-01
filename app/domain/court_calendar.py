@@ -49,11 +49,24 @@ def federal_holidays(year: int) -> frozenset[date]:
 
 
 class CourtCalendar:
-    """The days a court's clerk's office is open: not a Saturday, a Sunday, a federal holiday or a declared day."""
+    """The days a court's clerk's office is open: not a Saturday, a Sunday, a federal holiday or a declared day. A
+    value: two calendars with the same declared days and end are equal, and a copy is the calendar itself."""
 
     def __init__(self, declared: frozenset[date] = frozenset(), through: date | None = None) -> None:
         self.declared, self.through = frozenset(declared), through
         self._years: dict[int, frozenset[date]] = {}
+
+    def __eq__(self, other) -> bool:
+        return isinstance(other, CourtCalendar) and (self.declared, self.through) == (other.declared, other.through)
+
+    def __hash__(self) -> int:
+        return hash((self.declared, self.through))
+
+    def __copy__(self) -> CourtCalendar:
+        return self
+
+    def __deepcopy__(self, memo) -> CourtCalendar:
+        return self
 
     def holiday(self, d: date) -> bool:
         if self.through is not None and d > self.through:

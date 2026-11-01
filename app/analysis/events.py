@@ -539,7 +539,7 @@ BANK = "bank"  # the bank view's chain: the common borrower inputs and the compa
 DISPUTE_TRIGGERS = ("judgment_default_entered", "judgment_default_ruling", "appeal_deadline")
 INSTRUMENT_TRIGGERS = ("coupon", "listing_deadline", "repurchase_due", "holders_petition_earliest")
 TRIGGERS = DISPUTE_TRIGGERS + INSTRUMENT_TRIGGERS
-APPEAL_FROM = "appeal_deadline_fixed_on"  # beside the triggers, never a trigger itself (`trigger_days`)
+KNOWN = "known_from:"  # beside each trigger, the day its date is fixed (`trigger_days`); never a trigger itself
 
 
 PETITION_CAUSES = ("none", "enforcement", "notes", "cash_floor")
@@ -3486,21 +3486,30 @@ class Chain:
 
     def trigger_days(self) -> dict[str, np.ndarray]:
         """The dated contract and rule triggers on this path (TRIGGERS), per draw, as the engine computes them at the
-        end of the traced steps; BIG where none (or outside the period)."""
+        end of the traced steps; BIG where none (or outside the period). Beside each, under KNOWN + its name, the day
+        its date is fixed: the event it is counted from (the order disposing of the last tolling motion, the entry,
+        the delisting, the notes falling due), or -1 for a date the contract fixes. Before that day the date is not a
+        fact, whatever the engine has scheduled (forecast.as_of)."""
         never = np.full(self.n, BIG, dtype=np.int64)
         out = {k: never.copy() for k in TRIGGERS}
+        known = {k: np.full(self.n, -1, dtype=np.int64) for k in TRIGGERS}
         inside = lambda x: np.where((x >= 0) & (x < self.N), x, BIG).astype(np.int64)  # noqa: E731
         f = self.fin
         if self.d is not None:
-            # a known deadline is a legal fact beyond the analysis period too (the questions read it, not the cash)
+            # a known deadline is a legal fact beyond the analysis period too (the questions read it, not the cash);
+            # fixed by the order disposing of the last tolling motion (FRAP 4(a)(4)(A)), else by entry
             out["appeal_deadline"] = np.where(self.AD < BIG, self.AD, BIG).astype(np.int64)
-            # the day the deadline is fixed (FRAP 4(a)(4)(A): the order disposing of the last tolling motion; else
-            # entry): before it the deadline is not a fact (forecast.as_of)
-            out[APPEAL_FROM] = np.asarray(self.A, dtype=np.int64).copy()
+            known["appeal_deadline"] = np.asarray(self.A, dtype=np.int64).copy()
             if f is not None and f.judgment_default_days:
+                # §7.01(i): counted from the end of the automatic stay (fixed at entry), or from the order disposing
+                # of the last tolling motion
+                fixed = {"judgment_default_entered": np.broadcast_to(np.asarray(self.entry_ix(), dtype=np.int64)
+                                                                     if self.has_judgment() else BIG, (self.n,)),
+                         "judgment_default_ruling": np.asarray(self.A, dtype=np.int64)}
                 for key, ctx in (("judgment_default_entered", "I1"), ("judgment_default_ruling", "post")):
                     ripe, cond = self.judgment_default(ctx)
                     out[key] = inside(np.where(cond, ripe, BIG))
+                    known[key] = np.array(fixed[key], dtype=np.int64)
         if f is not None:
             if f.coupon_cents and f.interest_dates:
                 pay = min(self.ix(next_business_day(x)) for x in f.interest_dates)
@@ -3513,11 +3522,13 @@ class Chain:
             due = self.marks["notes_due"]
             if f.kind == "convertible_notes" and (due < BIG).any():  # §7.06: the holders' request, then 60 days
                 out["holders_petition_earliest"] = inside(np.where(due < BIG, due + self.holder_route_days(), BIG))
+                known["holders_petition_earliest"] = np.asarray(due, dtype=np.int64).copy()
             if f.repurchase_business_days and (self.delisted < self.N).any():
                 rep = never.copy()
                 rep[self.delisted < self.N] = self.repurchase_day(self.delisted[self.delisted < self.N])
                 out["repurchase_due"] = inside(rep)
-        return out
+                known["repurchase_due"] = np.asarray(self.delisted, dtype=np.int64).copy()
+        return {**out, **{KNOWN + k: v for k, v in known.items()}}
 
 
     # --- step 9 worker C: the question-state snapshot and the interface it reads ---------------------------------

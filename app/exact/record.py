@@ -152,9 +152,12 @@ def record(st, k, day, node, ctx, scratch, out, floats):
         value = S[f.MARK0 + j]
         out[r.MARK0 + j] = value if value <= day else f.BIG
     out[r.TRIGGER0:r.TERM0] = f.BIG
+    # each date only once it is fixed (events.KNOWN): §7.01(i) as entered is counted from the end of the automatic
+    # stay, fixed at entry; on the ruling, from the order disposing of the motions
     for j in range(2):
         ripe, on = notes.judgment_default(S, st.takes, k.nc, j)
-        out[r.TRIGGER0 + j] = inside(ripe, k.N) if on else f.BIG
+        fixed = entered if j == 0 else (filed and S[f.F] <= day)
+        out[r.TRIGGER0 + j] = inside(ripe, k.N) if on and fixed else f.BIG
     out[r.TRIGGER0 + 2] = ((S[f.AD] if S[f.F] <= day else f.BIG) if filed else out[r.ENTRY_APPEAL_DEADLINE])
     coupon = f.BIG
     for j in range(S[n.N_COUPONS]):
