@@ -156,12 +156,14 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Event:** how the court disposes of the pending motions as to the money judgment.
 - **Answers:**
   - unchanged: the judgment stands as entered;
-  - reduced: a surviving amount, asked only where the reduction moves the award across a cash line (the J1b lines), with the surviving amount's band;
+  - reduced as a matter of law: a surviving amount entered outright (judgment as a matter of law on part of the award, or a recovery struck as duplicative), with no election;
+  - remitted: the court finds the award excessive and orders a new trial unless Qorvo accepts a reduced amount (a remittitur: in federal court an excessive verdict is reduced only on that condition, *Hetzel v. Prince William County*, 523 U.S. 208 (1998));
   - set aside: no money judgment remains, and the claim stays in dispute (a new trial, or an appeal by Qorvo).
-- **Remittitur:** where a reduction is a conditional remittitur, Qorvo's election (accept the reduced amount, or a new trial) is its own question (C3), asked on the same terms.
+  The two reductions are asked only where the reduction moves the award across a cash line (the J1b lines), each with the surviving amount's band.
+- **Remittitur:** Qorvo's election on a remittitur (accept the reduced amount, or the new trial) is its own question (C3), asked only after "remitted"; an outright reduction leaves no election (Owen, 1 Nov 2026).
 - **Situation:** the judgment as entered, the motions and the grounds preserved at trial. No cash. No reading of amount finality taken before the verdict.
 - **Record:** the grounds preserved at trial and the motions' standards (Rules 50(b) and 59; remittitur in the Third Circuit); the court's rulings on the evidence and the claims (D.I. 545, D.I. 546, D.I. 553, D.I. 590); the damages record.
-- **Consequences:** unchanged, nothing booked. Reduced, the amount owed becomes the surviving amount on the ruling date. Set aside, nothing owed, the adverse judgment ends, any stay security is released, and legal spend continues.
+- **Consequences:** unchanged, nothing booked. Reduced as a matter of law, the amount owed becomes the surviving amount on the ruling date. Remitted, as C3. Set aside, nothing owed, the adverse judgment ends, any stay security is released, and legal spend continues.
 - **Build:** keep the set-aside booking. Add the reduced outcome and C3. Remove the 13 May amount-finality reading.
 
 #### C3 · Qorvo elects on a remittitur · new
@@ -171,7 +173,7 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 - **Situation:** the verdict; the remitted amount; the company's cash and the notes' status.
 - **Record:** the trial's length and scope (the docket); the company's going-concern and debt disclosures; the relief Qorvo seeks, including a permanent injunction (D.I. 543-1 ¶¶41, 62).
 - **Consequences:** yes, the reduced judgment as J2; no, as J2 set aside.
-- **Build:** new, only where J2's reduced outcome is asked.
+- **Build:** new, only after J2's remitted outcome.
 
 #### D5 · Akoustis appeals · `forecast_appeal`
 
