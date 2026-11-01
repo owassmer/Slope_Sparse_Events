@@ -647,9 +647,10 @@ def test_settlement_stay_and_contract_date_facts_state_what_the_chain_computes(f
 
 
 class _Court(Chain):
-    """The chain as it books each court ruling: the stay's approval day with the cash that day before the security is
-    locked and the reduced security offered, and the early registration order with the cash that day (the levy
-    follows the order by levy_lag_days)."""
+    """The chain as it books each court ruling: the stay's approval day with the cash the court's order reads (QUESTIONS
+    §2.5: the order is the day's first event, so the day's balance at processing, after every event dated before it)
+    and the reduced security offered, and the early registration order with the cash that day (the levy follows the
+    order by levy_lag_days)."""
 
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
@@ -657,7 +658,7 @@ class _Court(Chain):
 
     def stay_security(self, motion, key, approved, moved=False):
         approval = motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, key)
-        cash = self.cash_at(approval)
+        cash = self.seen_at(approval, levy=True).processing_balance(approval)
         out = super().stay_security(motion, key, approved, moved=moved)
         self.seen.append((("stay_approved", key.split("_")[1]), out, cash, self.stay_offer.copy()))
         return out
