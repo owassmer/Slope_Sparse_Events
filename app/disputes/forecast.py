@@ -275,7 +275,7 @@ def as_of(row: dict) -> dict:
     """The row as of its decision day on each trajectory (`OUTCOME_DAYS`): an outcome dated after the decision day
     reads as not having happened (BIG; a petition -1; the marks BIG), an offering initiated after it is not there
     and one closing after it has not closed, and a trigger that exists only because of such an outcome is absent."""
-    from app.analysis.events import BIG
+    from app.analysis.events import APPEAL_FROM, BIG
 
     day = row.get("day")
     if not isinstance(day, np.ndarray):
@@ -296,15 +296,20 @@ def as_of(row: dict) -> dict:
             src = (marks if where == "marks" else sit).get(what)
             if name in t2 and per(t2[name]) and per(src):
                 t2[name] = np.where(later(src), BIG, t2[name]).astype(t2[name].dtype)
+        fixed_on = t2.pop(APPEAL_FROM, None)
         if per(sit.get("motions_filed")) and "appeal_deadline" in t2:
+            # a pending claim: from entry, the deadline as entry sets it; once motions are filed, none until the
+            # order disposing of them, then the deadline that order fixes
             filed = sit["motions_filed"] <= day
             ruled = sit["ruling"] <= day
             t2["appeal_deadline"] = np.where(
                 filed, np.where(ruled, t2["appeal_deadline"], BIG), sit["entry_appeal_deadline"])
-        elif per(sit.get("ruling")) and "appeal_deadline" in t2:
+        elif "appeal_deadline" in t2:
             # motions filed before the review (a post-trial case): the deadline runs from the order disposing of the
-            # last of them (FRAP 4(a)(4)(A)), so it is not a fact of a question before that order
-            t2["appeal_deadline"] = np.where(sit["ruling"] <= day, t2["appeal_deadline"], BIG)
+            # last tolling motion (FRAP 4(a)(4)(A)), so it is not a fact of a question before that order
+            if not per(fixed_on):
+                raise ValueError("an appeal deadline without the day that fixes it: whether it is known cannot be told")
+            t2["appeal_deadline"] = np.where(fixed_on <= day, t2["appeal_deadline"], BIG)
         out["triggers"] = t2
     if sit:
         s2 = dict(sit)
@@ -2052,9 +2057,9 @@ class Forecaster:
     def _contract_dates(self, rows: list[dict], masks: list) -> dict:
         """The dated contract and procedural triggers the chain computes, on or after the decision, inside the
         analysis period: one date, or the range across these trajectories."""
-        from app.analysis.events import BIG
+        from app.analysis.events import APPEAL_FROM, BIG
 
-        names = dict.fromkeys(k for r in rows for k in (r.get("triggers") or {}) if k != "coupon_cash")
+        names = dict.fromkeys(k for r in rows for k in (r.get("triggers") or {}) if k not in ("coupon_cash", APPEAL_FROM))
         out, coupon_cash = {}, []
         for name in names:
             label = TRIGGER_PHRASES.get(name)

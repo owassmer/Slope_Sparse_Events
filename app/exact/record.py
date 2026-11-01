@@ -96,7 +96,8 @@ def record(st, k, day, node, ctx, scratch, out, floats):
     out[r.STANDING] = notes.judgment_standing(S, st.takes, k.nc, day)
     out[r.ENTERED] = notes.judgment_amount_entered(S, k.nc, k.N)
     out[r.BAND_LO], out[r.BAND_HI] = S[f.BAND_LO], S[f.BAND_HI]
-    out[r.DEFAULT_AVAILABLE] = notes.default_available_day(S, st.takes, k.nc, k.N)
+    # its clock starts at entry: no date before the judgment is entered
+    out[r.DEFAULT_AVAILABLE] = notes.default_available_day(S, st.takes, k.nc, k.N) if entered else f.BIG
     due = S[f.MARK_NOTES_DUE]
     out[r.ROUTE_DAYS] = notes.holder_route_days_path(S, k.nc, S[a.CASH_NONPAYMENT]) if due <= day else -1
     out[r.REMITTED] = S[f.REMITTED]

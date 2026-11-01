@@ -134,16 +134,25 @@ def test_2_a_missing_judgment_never_activates_enforcement(tree):
 
 
 def test_3_clocks_move_with_the_modeled_verdict():
-    from app.analysis.events import business_days_after
+    """The clocks a verdict starts, on the court's calendar (app/domain/court_calendar.py, from the case's courts): the
+    clerk enters the judgment on the first day after the verdict its office is open; the post-trial motions run 28 days
+    and the automatic stay 30, each to the next open day where it ends on a weekend or legal holiday (FRCP 6(a)(1)(C));
+    execution from the day after the stay's last day."""
+    from datetime import date, timedelta
 
+    from app.domain.court_calendar import for_case
+
+    district, _ = for_case(fx.model())
+    day = lambda t: fx.REVIEW + timedelta(days=int(t) + 1)  # noqa: E731
     ch, tr = run((("verdict", "I0", "claimant_theory"), ("judgment_response", "entry", "none"),
                   ("post_trial_motions", "", "yes")))
-    window = {ch.ix(__import__("datetime").date.fromisoformat(x)) for x in fx.model()["parameters"]["verdict_window"]["days"]}
+    window = {ch.ix(date.fromisoformat(x)) for x in fx.model()["parameters"]["verdict_window"]["days"]}
     assert set(np.unique(ch.V)) <= window and len(set(np.unique(ch.V))) > 1
-    for v, e in zip(ch.V, ch.E_ix, strict=True):
-        assert e == ch.ix(business_days_after(fx.REVIEW + __import__("datetime").timedelta(days=int(v) + 1), 1))
-    assert (ch.e_ix == ch.E_ix + 31).all() and (tr.day[-1] == ch.E_ix + 28).all()
-    assert (ch.F >= ch.E_ix + 28 + 21).all()
+    for v, e, ex, motions in zip(ch.V, ch.E_ix, ch.e_ix, tr.day[-1], strict=True):
+        assert day(e) == district.after(day(v))
+        assert day(motions) == district.on_or_after(day(e) + timedelta(days=28))
+        assert day(ex) == district.on_or_after(day(e) + timedelta(days=30)) + timedelta(days=1)
+    assert (ch.F >= tr.day[-1] + 21).all()
 
 
 def test_4_branch_amounts():

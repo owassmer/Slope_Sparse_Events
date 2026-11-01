@@ -539,6 +539,7 @@ BANK = "bank"  # the bank view's chain: the common borrower inputs and the compa
 DISPUTE_TRIGGERS = ("judgment_default_entered", "judgment_default_ruling", "appeal_deadline")
 INSTRUMENT_TRIGGERS = ("coupon", "listing_deadline", "repurchase_due", "holders_petition_earliest")
 TRIGGERS = DISPUTE_TRIGGERS + INSTRUMENT_TRIGGERS
+APPEAL_FROM = "appeal_deadline_fixed_on"  # beside the triggers, never a trigger itself (`trigger_days`)
 
 
 PETITION_CAUSES = ("none", "enforcement", "notes", "cash_floor")
@@ -979,10 +980,10 @@ class Chain:
         self.AD = self.court_day(self.A + notice)  # the appeal deadline, tolled to the last tolling order
         self.fee_day = np.max(fees, axis=0) if fees else np.full(self.n, BIG)
         stay = self.m["rules"]["frcp_62a"]["value"]  # Rule 62(a), counted under Rule 6(a); execution from the day after
-        e = max(self.calendars[0].on_or_after(d.judgment_date + timedelta(days=stay)) + timedelta(days=1),
-                self.s.review) if d.judgment_date else self.s.review
-        self.E0 = max(self.ix(e), 0)  # execution may issue (Rule 62(a) ended; not before the day after review)
-        self.e_ix = self.ix(e)
+        e = (self.calendars[0].on_or_after(d.judgment_date + timedelta(days=stay)) + timedelta(days=1)
+             if d.judgment_date else self.s.review)
+        self.e_ix = self.ix(e)  # execution may issue from (Rule 62(a) ended), a past day too: the clocks run from it
+        self.E0 = max(self.e_ix, 0)  # what is booked: not before the day after review
         self.EF = self.F.copy()  # the surviving amount is enforceable from the ruling
         self.EI = self.F.copy()  # an increase enforceable: its own Rule 62(a) stay, F + 30 (set by the ruling)
 
@@ -3493,6 +3494,9 @@ class Chain:
         if self.d is not None:
             # a known deadline is a legal fact beyond the analysis period too (the questions read it, not the cash)
             out["appeal_deadline"] = np.where(self.AD < BIG, self.AD, BIG).astype(np.int64)
+            # the day the deadline is fixed (FRAP 4(a)(4)(A): the order disposing of the last tolling motion; else
+            # entry): before it the deadline is not a fact (forecast.as_of)
+            out[APPEAL_FROM] = np.asarray(self.A, dtype=np.int64).copy()
             if f is not None and f.judgment_default_days:
                 for key, ctx in (("judgment_default_entered", "I1"), ("judgment_default_ruling", "post")):
                     ripe, cond = self.judgment_default(ctx)
@@ -3617,6 +3621,8 @@ class Chain:
             except NotImplementedError:
                 v = Awaiting(name)
             out[key] = _copied(v)
+        if isinstance(out.get("default_available"), np.ndarray):  # its clock starts at entry: no date before it
+            out["default_available"] = np.where(entered, out["default_available"], BIG).astype(np.int64)
         return out
 
 def _merge_question(old, new, fire: np.ndarray, name: str = ""):

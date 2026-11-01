@@ -23,6 +23,8 @@ from app.disputes.rules import load_model
 from app.domain.values import usd
 
 M = load_model()
+# the synthetic case's courts (a case declares them: app/domain/court_calendar.py): the shipped Akoustis case's
+M["case_courts"] = load_model("akoustis_20240514")["case_courts"]
 N = (SETUP.horizon - REVIEW).days
 
 
@@ -39,7 +41,7 @@ def base():
 def full(base):
     """The Akoustis chains at D: every path, every node, built once (the pre-pass runs before any judgment)."""
     fc = Forecaster([judgment()], {}, borrower="Akoustis Technologies, Inc.", review=REVIEW, horizon=SETUP.horizon,
-                    hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=base[1])
+                    hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=base[1], model=M)
     return fc, fc.all_paths()["judgment"][""]
 
 
@@ -190,7 +192,7 @@ def test_a_payment_or_petition_on_the_levy_day_pre_empts_the_levy(base):
     b = base[1]
     d = judgment(components=(), financing=(), amount=judgment().amount.model_copy(update={"value": 200_000_000}))
     fc = Forecaster([d], {}, borrower="A", review=REVIEW, horizon=SETUP.horizon, hydrate=lambda f: {}, setup=SETUP,
-                    basis=b)
+                    basis=b, model=M)
     paths = fc.all_paths()[d.instance_id][""]
     js = stub(fc, seed=5)
     for dist in (distributions(js), distributions(js, neutral_map(js))):
@@ -231,7 +233,7 @@ def test_frap_tolling_moves_the_post_ruling_windows_with_the_drawn_ruling(base):
     for dd in (d, late_fees):  # a fee motion never tolls (no Rule 58(e) order)
         c = chain(base, dd)
         tolling = [c.ruling[m.motion_id] for m in dd.motions if m.kind != "rule_54_fees"]
-        assert (c.AD == np.max(tolling, axis=0) + 30).all()
+        assert (c.AD == c.court_day(np.max(tolling, axis=0) + 30)).all()  # FRAP 4(a)(4)(A), 26(a)(1)(C)
         assert (c.F == np.max([c.ruling[m.motion_id] for m in dd.motions if m.kind.startswith("rule_5")
                                and m.kind != "rule_54_fees"], axis=0)).all()
     assert (chain(base, late_fees).AD == chain(base).AD).all()
@@ -280,7 +282,7 @@ def test_pay_is_removed_only_where_no_trajectory_can_fund_it(full, base):
     rich = replace(base[1], cash=base[1].cash.copy())
     rich.cash[:] += 5_000_000_000  # every trajectory could pay the entered judgment
     fr = Forecaster([judgment()], {}, borrower="A", review=REVIEW, horizon=SETUP.horizon, hydrate=lambda f: {},
-                    setup=SETUP, basis=rich)
+                    setup=SETUP, basis=rich, model=M)
     s = (("settle", "I1", "no"), ("execute_pre_ruling", "I1", "yes"), ("stay", "I1", "no"),
          ("registration_early", "I1", "yes"))
     probe = ("debtor_response", "I1", "neither")
@@ -316,7 +318,9 @@ def test_statutory_interest_is_8_percent_simple_on_surviving_compensatory_only()
 
 # 4. The notes -------------------------------------------------------------------------------------------------------
 
-AUG19 = ix(date(2024, 8, 19))  # the Rule 62(a) stay ended 19 Jun; 60 days on
+# entered 20 May: Rule 62(a)'s 30 days end on Juneteenth, a legal holiday, so on 20 Jun (Rule 6(a)(1)(C)); execution
+# from 21 Jun, and the default 60 days on
+RIPE = ix(date(2024, 8, 20))
 
 
 def _post(c, ruling="beyond:3010000000:0"):
@@ -330,7 +334,7 @@ def test_the_judgment_default_ripens_under_both_readings_unpaid_unstayed_and_not
     c = chain(base)
     c.step("execute_pre_ruling", "I1", "no")
     ripe = c.step("judgment_default", "I1", "yes")
-    assert (ripe == AUG19).all() and (c.ev.petition == AUG19).all()
+    assert (ripe == RIPE).all() and (c.ev.petition == RIPE).all()
     # Where the holders did not act then, it ripens again 60 days after the last tolling order (A), on the amount
     # that survives the ruling; where they acted, it does not ripen again.
     q = chain(base)
@@ -348,7 +352,7 @@ def test_the_judgment_default_ripens_under_both_readings_unpaid_unstayed_and_not
     assert (acted.step("judgment_default", "post", "no") >= 10**6).all()  # no second acceleration
     # Sensitivities: the entered judgment only, or the post-trial ruling only.
     ent = chain(base, sens={"judgment_default_reading": "entered"})
-    assert (ent.step("judgment_default", "I1", "no") == AUG19).all()
+    assert (ent.step("judgment_default", "I1", "no") == RIPE).all()
     _post(ent)
     assert (ent.step("judgment_default", "post", "no") >= 10**6).all()
     post = chain(base, sens={"judgment_default_reading": "post_ruling"})
@@ -368,11 +372,11 @@ def test_an_effective_stay_before_the_ripe_date_prevents_the_default(base):
     c = chain(_growing(base))
     c.step("execute_pre_ruling", "I1", "yes")
     c.step("stay", "I1", "yes")  # approval = motion + briefing + a lag draw
-    early = c.stayed_from <= AUG19
+    early = c.stayed_from <= RIPE
     assert early.any() and (~early).any()
     ripe = c.step("judgment_default", "I1", "yes")
     assert (ripe[early] >= 10**6).all() and (c.ev.petition[early] == -1).all()
-    assert (ripe[~early] == AUG19).all()
+    assert (ripe[~early] == RIPE).all()
 
 
 def test_the_notes_petition_questions_get_the_facts_of_the_day_each_actor_may_file(base, full):
@@ -384,11 +388,11 @@ def test_the_notes_petition_questions_get_the_facts_of_the_day_each_actor_may_fi
     c = chain(base)
     c.step("execute_pre_ruling", "I1", "no")
     c.step("judgment_default", "I1", "holders_file")
-    assert (c.ev.petition == AUG19 + route).all()
+    assert (c.ev.petition == RIPE + route).all()
     tr = chain(base).run((("execute_pre_ruling", "I1", "no"), ("judgment_default", "I1", "accelerated")))
-    assert (tr.triggers["holders_petition_earliest"] == AUG19 + route).all()
+    assert (tr.triggers["holders_petition_earliest"] == RIPE + route).all()
     assert (chain(base).run((("execute_pre_ruling", "I1", "no"),)).triggers["holders_petition_earliest"] >= 10**6).all()
-    for name, at in (("holders_involuntary", AUG19 + route), ("petition_on_notes", AUG19)):
+    for name, at in (("holders_involuntary", RIPE + route), ("petition_on_notes", RIPE)):
         keys = [k for k, n in fc.nodes.items() if n.node == name and n.context.startswith("judgment_I1")]
         assert keys
         for k in keys:
@@ -472,7 +476,7 @@ def test_readings_are_routed_evidence_and_merits_questions_carry_no_cash(base, f
     findings = {f: AtomicFinding(finding_id=f, dependency_id="dep", proposition=f, target="t", spans=(span,),
                                  status="accepted") for f in d.finding_ids}
     fc = Forecaster([d], findings, borrower="Akoustis Technologies, Inc.", review=REVIEW, horizon=SETUP.horizon,
-                    hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=base[1])
+                    hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=base[1], model=M)
     fc.nodes, fc.facts = fc0.nodes, fc0.facts  # the same chains, with this dispute's readings
 
     def state(node):
@@ -597,11 +601,11 @@ def test_neutral_residuals_reproduce_attribution_step_two(base):
     d = judgment(stage="judgment_entered", motions=(), components=(), financing=(),
                  amount=judgment().amount.model_copy(update={"value": 200_000_000}))
     fc = Forecaster([d], {}, borrower="A", review=REVIEW, horizon=SETUP.horizon, hydrate=lambda f: {}, setup=SETUP,
-                    basis=b)
+                    basis=b, model=M)
     per = fc.all_paths()
     js = stub(fc, seed=11)
     m = EventModel({d.instance_id: d for d in fc.disputes}, js, per, fc.ordered(), neutral=neutral_map(js))
-    a = Analysis(feed, SETUP, m)
+    a = Analysis(feed, SETUP, m, dispute_model=M)
     steps = a.attribution()
     assert steps[1]["metrics"] == a.views(neutral_map(js))["event_adjusted"]["metrics"]
     assert steps[2]["metrics"] == a.views()["event_adjusted"]["metrics"]
