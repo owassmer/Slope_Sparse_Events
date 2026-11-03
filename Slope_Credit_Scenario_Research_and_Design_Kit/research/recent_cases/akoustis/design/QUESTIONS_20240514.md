@@ -338,7 +338,8 @@ Fields for each question: **Event** (what occurs, its interval and eligibility),
 
 - **Event:** by 21 Oct 2024, the end of its second compliance period, Akoustis regains compliance with the $1.00 minimum bid price (a closing bid of at least $1.00 for 10 consecutive business days), by any route: a reverse stock split or a rise in the price.
 - **Answers:** no, compliance is not regained by 21 Oct; the staff's delisting determination follows.
-- **Situation:** the bid price on the review date; the judgment's standing; the company's cash and the notes' status; the time a reverse split takes: stockholder approval of a charter amendment under DGCL §242, called and noticed under the bylaws and the proxy rules.
+- **Asked:** on the latest day the stockholder approval a reverse split needs can still be started to regain compliance by the deadline (a preliminary proxy at least 10 days before the definitive, SEC Rule 14a-6(a); notice at least 10 days before the meeting, DGCL §222(b); the split effective ten business days of closing bids before the deadline), on that day's state. Asked on the deadline itself, the path's own prices would settle it.
+- **Situation:** the bid price on the review date; the judgment's standing; the company's cash and the notes' status; the time a reverse split takes: stockholder approval of a charter amendment under DGCL §242 unless already given, called and noticed under the bylaws and the proxy rules.
 - **Record:** the $1.00 requirement and the compliance periods; the closing bid prices to 14 May 2024; the company's stated options to regain compliance; the latest stockholder vote on a charter amendment; the authorized and outstanding shares.
 - **Consequences:** yes, the stock stays listed and the listing chain ends. No cash is booked; the share ledger keeps its dollar capacity. No, D6b.
 - **Build:** new.

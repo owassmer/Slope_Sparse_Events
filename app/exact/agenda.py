@@ -381,19 +381,6 @@ def stay_post_day(st):
 
 
 @njit(cache=True)
-def stay_in_effect(st, day, but):
-    """Whether a stay other than row `but` is in effect on `day`: approved, sized with security, and not released
-    (one judgment, one stay: a motion still before the court once another stay is in effect is moot)."""
-    S = st.S
-    for j in range(S[a.N_STAYS]):
-        row = st.stays[j]
-        if j != but and row[a.T_APPROVED] and row[a.T_DONE] and row[a.T_EFFECTIVE] and row[a.T_APPROVAL] <= day \
-                and day < S[f.RELEASE_AT]:
-            return True
-    return False
-
-
-@njit(cache=True)
 def stay_approval_day(k, motion, ctx):
     """The day the court answers a stay motion made on `motion` (briefing and the court's lag)."""
     lag = k.DC[core.DC_LAG_STAY_I1] if ctx == 0 else k.DC[core.DC_LAG_STAY_POST]
@@ -426,9 +413,10 @@ def decision_day(st, k, node, ctx):
     if node == a.MOTIONS:
         return core.motions_deadline(S, k.frcp, k.court)
     if node == a.LISTING:
-        # QUESTIONS D6a: whether compliance is regained by the deadline, asked on the last day a reverse split can still
-        # be called to regain it (the meeting's call), on that day's state: asked on the deadline itself, the path's
-        # own prices would have settled it
+        # QUESTIONS D6a: whether compliance is regained by the deadline, asked on the latest day the stockholder
+        # approval a reverse split needs can still be started (`Chain.listing_dates` vote_call: the proxy and notice
+        # periods before the effective-by date), on that day's state: asked on the deadline itself, the path's own
+        # prices would have settled it
         pet = f.BIG if S[f.PETITION] < 0 else S[f.PETITION]
         day = max(k.ldates[n.VOTE_CALL], 0)
         return day if day < pet else f.BIG
@@ -484,6 +472,12 @@ def approval_due(st, k, j):
     if row[a.T_APPROVED]:
         row[a.T_LOCK], row[a.T_EFFECTIVE] = size_stay(st, k, j)
         row[a.T_DONE] = 1
+        if row[a.T_EFFECTIVE]:  # one judgment, one stay: a motion still before the court is moot from this day
+            for i in range(S[a.N_STAYS]):
+                other = st.stays[i]
+                if i != j and other[a.T_OPEN]:
+                    other[a.T_OPEN], other[a.T_MOVED], other[a.T_DONE] = 0, 0, 1
+                    other[a.T_MOOT], other[a.T_APPROVAL] = 1, row[a.T_APPROVAL]
         return
     row[a.T_DONE] = 1
     if row[a.T_MOVED]:

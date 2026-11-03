@@ -18,18 +18,20 @@ from app.exact import fields_record as r
 
 
 @njit(cache=True)
-def _event(out, cnt, kind, day, amount):
+def _event(out, cnt, kind, day, amount, ref):
     if cnt >= r.MAX_EVENTS:
         raise ValueError("more dated events than the record holds")
-    out[r.EVENTS0 + 3 * cnt], out[r.EVENTS0 + 3 * cnt + 1], out[r.EVENTS0 + 3 * cnt + 2] = kind, day, amount
+    at = r.EVENTS0 + r.EVENT_COLS * cnt
+    out[at], out[at + 1], out[at + 2], out[at + 3] = kind, day, amount, ref
     return cnt + 1
 
 
 @njit(cache=True)
 def events(st, k, day, out):
     """The dated events on or before `day` (fields_record.EVENTS), in date order: each stay motion and the court's
-    answer to it (approved and in effect, approved with no security to post, denied, or moot: another stay took
-    effect first), each levy on the company's cash and each payment of the judgment, with its amount."""
+    answer to it, naming the motion (its day) (approved and in effect with the cash it locks, or NONCASH; approved with
+    no security to post; denied; or moot: another stay took effect first), each levy on the company's cash and each
+    payment of the judgment, with its amount."""
     S, D = st.S, st.D
     cnt = 0
     for t in range(min(day, k.N - 1) + 1):
@@ -37,7 +39,7 @@ def events(st, k, day, out):
             row = st.stays[j]
             moved = row[a.T_MOVED] or row[a.T_MOOT] or row[a.T_APPROVED]
             if moved and row[a.T_MOTION] == t:
-                cnt = _event(out, cnt, 0, t, 0)
+                cnt = _event(out, cnt, 0, t, 0, t)
             if moved and row[a.T_APPROVAL] == t and not row[a.T_OPEN] and t <= day:
                 if row[a.T_MOOT]:
                     kind = 3
@@ -47,11 +49,12 @@ def events(st, k, day, out):
                     kind = 4
                 else:
                     kind = 1
-                cnt = _event(out, cnt, kind, t, row[a.T_LOCK] if kind == 1 else 0)
+                amount = (row[a.T_LOCK] if row[a.T_LOCK] > 0 else r.NONCASH) if kind == 1 else 0
+                cnt = _event(out, cnt, kind, t, amount, row[a.T_MOTION])
         if D[f.D_KIND_LEVY, t] != 0:
-            cnt = _event(out, cnt, 5, t, -D[f.D_KIND_LEVY, t])
+            cnt = _event(out, cnt, 5, t, -D[f.D_KIND_LEVY, t], t)
         if D[f.D_KIND_JUDGMENT, t] != 0:
-            cnt = _event(out, cnt, 6, t, -D[f.D_KIND_JUDGMENT, t])
+            cnt = _event(out, cnt, 6, t, -D[f.D_KIND_JUDGMENT, t], t)
     out[r.EVENT_COUNT] = cnt
 
 
@@ -174,10 +177,11 @@ def record(st, k, day, node, ctx, scratch, out, floats):
         if node == a.OFFERING and o[e.O_OCCASION] == ctx:
             for q, col in enumerate((e.O_GROSS, e.O_COSTS, e.O_NET, e.O_PRICE, e.O_SHARES, e.O_DAYS, e.O_SHELF)):
                 out[r.TERM0 + q] = o[col]
-        if o[e.O_BOOKED]:  # Chain.offerings contains completed attempts only
-            out[r.OFFERS0 + 3 * count] = o[e.O_INIT] if o[e.O_INIT] <= day else f.BIG
-            out[r.OFFERS0 + 3 * count + 1] = o[e.O_CLOSE] if o[e.O_INIT] <= day else f.BIG
-            out[r.OFFERS0 + 3 * count + 2] = o[e.O_CLOSED] and o[e.O_CLOSE] <= day
+        if o[e.O_INIT] <= day:  # every offering initiated by the day: pending until its close is booked and dated
+            at = r.OFFERS0 + r.OFFER_COLS * count
+            done = o[e.O_BOOKED] and o[e.O_CLOSE] <= day
+            out[at], out[at + 1], out[at + 3] = o[e.O_INIT], o[e.O_CLOSE], o[e.O_NET]
+            out[at + 2] = (1 if o[e.O_CLOSED] else 2) if done else 0
             count += 1
     out[r.OFFERING_COUNT] = count
     events(st, k, day, out)
@@ -255,3 +259,8 @@ def situation_class(row, out, appeal=True, stay=False, context=0, group=False):
     out[9] = row[r.STAY_STATUS] if stay else -1
     out[10] = context
     out[11] = row[r.GROUPS] if group else -2
+    out[12] = -1  # a stay question's security type (QUESTIONS D4 Grouping): full, reduced, none, or not live
+    if row[r.HAS_SECURITY]:
+        cash_, need, collateral, offer, live = (row[r.SECURITY0 + j] for j in (1, 2, 4, 5, 6))
+        out[12] = (3 if not live else 0 if collateral > 0 and cash_ - need >= collateral
+                   else 1 if offer > 0 else 2)

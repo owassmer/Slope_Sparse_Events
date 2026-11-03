@@ -35,6 +35,7 @@ def test_every_band_below_the_award_is_an_answer(fixture):
         row = {'day': np.array([60]), 'cash': np.array([100]), 'owed': np.array([booked]),
                'petition': np.array([-1]),
                'sit': {'entry': np.array([1]), 'entered': booked, 'motions_filed': np.array([29]),
+                       'events': np.array([[]] + [None], dtype=object)[:1], 'offerings': np.array([[]] + [None], dtype=object)[:1],
                        'motions_deadline': np.array([29]), 'ruling': np.array([60]),
                        'band_range': (lo, None if i == len(bands) - 1 else hi)}}
         state, _, _ = state14.build(fc, fc.nodes[key], d, [], [row], [np.array([True])])

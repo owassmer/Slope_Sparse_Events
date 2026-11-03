@@ -629,6 +629,16 @@
       "disposition": "code timing (case input)",
       "unit": "days",
       "basis": "The days over which raise proceeds arrive in equal daily amounts (case input)."
+    },
+    "reverse_split_proxy_days": {
+      "disposition": "code_timing",
+      "basis": "SEC Rule 14a-6(a): a preliminary proxy statement is filed at least 10 calendar days before the definitive proxy is sent, where the meeting acts on a charter amendment (a reverse split).",
+      "value": 10
+    },
+    "reverse_split_notice_days": {
+      "disposition": "code_timing",
+      "basis": "DGCL §222(b): written notice of a stockholders' meeting is given not less than 10 days before it.",
+      "value": 10
     }
   },
   "remittitur_scenarios": {

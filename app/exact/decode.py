@@ -39,8 +39,7 @@ def record(ints, floats):
     out['sit']['share_price'] = np.array([floats[0]])
     if ints[r.HAS_COUPON_CASH]:
         out['triggers']['coupon_cash'] = np.array([ints[r.COUPON_CASH]])
-    out['sit']['offerings'] = [tuple(np.array([ints[r.OFFERS0 + 3*j + q]], dtype=bool if q == 2 else np.int64)
-                                       for q in range(3)) for j in range(ints[r.OFFERING_COUNT])]
+    out['sit']['offerings'] = _offerings(ints[None, :])
     out['sit']['events'] = _events(ints[None, :])
     if ints[r.HAS_SECURITY]:
         out['security_terms'] = {key: np.array([ints[r.SECURITY0 + j]], dtype=bool if key == 'live' else np.int64)
@@ -66,7 +65,7 @@ def situation_class(code, contexts=('',)):
     """Exact forecast class string; context vocabulary must be supplied by its owner."""
     if code.shape != (r.NC,):
         raise ValueError('wrong class layout')
-    live, lo, hi, standing, notes, listing, offer, pay, appeal, stay, context, group = map(int, code)
+    live, lo, hi, standing, notes, listing, offer, pay, appeal, stay, context, group, security = map(int, code)
     text = ''
     if live:
         text = '.'.join(('#' + _band(lo, hi), r.STANDINGS[standing], r.NOTES[notes], r.LISTINGS[listing],
@@ -75,6 +74,8 @@ def situation_class(code, contexts=('',)):
             text += '.appeal' + str(appeal)
         if stay >= 0:
             text += '.stay' + r.STAY_STATUSES[stay]
+        if security >= 0:
+            text += '.sec' + r.SECURITY_KINDS[security]
         if context:
             text += '.ctx' + contexts[context].encode().hex()
     if group != -2:
@@ -137,14 +138,7 @@ def rows(ints, floats):
     out['sit']['share_price'] = floats[:, 0].astype(np.float64)
     if _one(ints[:, r.HAS_COUPON_CASH], 'coupon cash'):
         out['triggers']['coupon_cash'] = ints[:, r.COUPON_CASH].astype(np.int64)
-    count = ints[:, r.OFFERING_COUNT]
-    offers = []
-    for j in range(int(count.max(initial=0))):
-        on = count > j
-        a, c, ok = (ints[:, r.OFFERS0 + 3 * j + q] for q in range(3))
-        offers.append((np.where(on, a, f.BIG).astype(np.int64), np.where(on, c, f.BIG).astype(np.int64),
-                       np.where(on, ok, 0).astype(bool)))
-    out['sit']['offerings'] = offers
+    out['sit']['offerings'] = _offerings(ints)
     out['sit']['events'] = _events(ints)
     security = _one(ints[:, r.HAS_SECURITY], 'security terms')
     if security:
@@ -159,10 +153,21 @@ def rows(ints, floats):
 
 
 def _events(ints) -> np.ndarray:
-    """Each member's dated events (`record.events`), as a list of (kind, day, amount) per member (an object array, so
-    a group's representative reads its own)."""
+    """Each member's dated events (`record.events`), as a list of (kind, day, amount, ref) per member (an object
+    array, so a group's representative reads its own)."""
     out = np.empty(ints.shape[0], dtype=object)
     for i in range(ints.shape[0]):
-        out[i] = [(r.EVENTS[int(ints[i, r.EVENTS0 + 3 * j])], int(ints[i, r.EVENTS0 + 3 * j + 1]),
-                   int(ints[i, r.EVENTS0 + 3 * j + 2])) for j in range(int(ints[i, r.EVENT_COUNT]))]
+        rows = [ints[i, r.EVENTS0 + r.EVENT_COLS * j:r.EVENTS0 + r.EVENT_COLS * (j + 1)]
+                for j in range(int(ints[i, r.EVENT_COUNT]))]
+        out[i] = [(r.EVENTS[int(x[0])], int(x[1]), int(x[2]), int(x[3])) for x in rows]
+    return out
+
+
+def _offerings(ints) -> np.ndarray:
+    """Each member's offerings initiated by its day (`record`), as a list of (init, close, status, net) per member."""
+    out = np.empty(ints.shape[0], dtype=object)
+    for i in range(ints.shape[0]):
+        rows = [ints[i, r.OFFERS0 + r.OFFER_COLS * j:r.OFFERS0 + r.OFFER_COLS * (j + 1)]
+                for j in range(int(ints[i, r.OFFERING_COUNT]))]
+        out[i] = [(int(x[0]), int(x[1]), r.OFFER_STATUS[int(x[2])], int(x[3])) for x in rows]
     return out

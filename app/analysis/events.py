@@ -2284,8 +2284,11 @@ class Chain:
         panel = det + timedelta(days=int(self.p("panel_decision_days")))
         suspension = det + timedelta(days=int(self.p("suspension_after_determination_days")))
         f25 = int(self.p("form25_after_panel_days")) if self.sens.get("form25_after_panel_days") else 0
+        # the latest day to start the stockholder approval a reverse split needs, where none is already given: the
+        # preliminary proxy (Rule 14a-6(a)) then the meeting's notice (DGCL §222(b)) before the effective-by date
+        lead = int(self.p("reverse_split_proxy_days")) + int(self.p("reverse_split_notice_days"))
         return {"deadline": self.ix(dl), "suspension": self.ix(suspension),
-                "vote_call": self.ix(effective_by - timedelta(days=20)), "effective_by": self.ix(effective_by),
+                "vote_call": self.ix(effective_by - timedelta(days=lead)), "effective_by": self.ix(effective_by),
                 "determination": self.ix(det), "hearing_request": self.ix(det + timedelta(days=7)),
                 "panel_decision": self.ix(panel),
                 "delisted_suspension": self.ix(suspension) + (10 if f25 else 0),

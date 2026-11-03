@@ -16,8 +16,15 @@ from app.exact.fields_notes import STANDING as STANDINGS
 LISTINGS = ('listed', 'hearing_requested', 'suspended', 'delisted')
 # the dated events a question states (`record.events`), each (kind, day, amount): every stay motion and its outcome,
 # every levy and payment, in date order, those dated on or before the question's day
+# (each stay answer's ref is its motion's day; an approved stay's amount the cash it locks, NONCASH where its security
+# is not in cash)
 EVENTS = ('stay_moved', 'stay_approved', 'stay_denied', 'stay_moot', 'stay_no_effect', 'levied', 'paid')
 MAX_EVENTS = 24
+EVENT_COLS = 4  # kind, day, amount, ref
+NONCASH = -1
+# every offering initiated on or before the question's day: init, close, status, net proceeds
+OFFER_COLS = 4
+OFFER_STATUS = ('pending', 'closed', 'failed')
 STAY_STATUSES = ('not_requested', 'pending', 'denied', 'approved', 'resolved')
 NOTES = ('current', 'default', 'due')
 OFFER = ('available', 'insufficient', 'nocapacity', 'pending', 'petition', 'delisted')
@@ -35,8 +42,8 @@ INT_FIELDS = (BASE + tuple('marks.' + x for x in MARKS) + tuple('triggers.' + x 
               + tuple('sit.offering_terms.' + x for x in TERMS) + tuple('sit.arrears.' + x for x in ARREARS)
               + tuple('security_terms.' + x for x in ('day', 'cash', 'need', 'owed', 'collateral', 'offer', 'live'))
               + tuple('sit.settlement_pricing.' + x for x in ('day', 'cash', 'operating_need'))
-              + tuple(f'sit.offerings.{j}.{x}' for j in range(e.MAX_OFFERS) for x in ('init', 'close', 'closed'))
-              + tuple(f'sit.events.{j}.{x}' for j in range(MAX_EVENTS) for x in ('kind', 'day', 'amount')))
+              + tuple(f'sit.offerings.{j}.{x}' for j in range(e.MAX_OFFERS) for x in ('init', 'close', 'status', 'net'))
+              + tuple(f'sit.events.{j}.{x}' for j in range(MAX_EVENTS) for x in ('kind', 'day', 'amount', 'ref')))
 FLOAT_FIELDS = ('sit.share_price',)
 for _i, _name in enumerate(BASE):
     globals()[_name.removeprefix('sit.').upper()] = _i
@@ -47,12 +54,13 @@ ARREAR0 = TERM0 + len(TERMS)
 SECURITY0 = ARREAR0 + len(ARREARS)
 PRICING0 = SECURITY0 + 7
 OFFERS0 = PRICING0 + 3
-EVENTS0 = OFFERS0 + 3 * e.MAX_OFFERS
+EVENTS0 = OFFERS0 + OFFER_COLS * e.MAX_OFFERS
 NI, NF = len(INT_FIELDS), len(FLOAT_FIELDS)
 VOCABULARIES = {'sit.standing': STANDINGS, 'sit.listing': LISTINGS, 'sit.stay_status': STAY_STATUSES,
                 'sit.notes_due_how': HOW}
 # Class tuple: live, band endpoints, standing, notes, listing, offering, pay,
 # appeal (-1 omitted), stay (-1 omitted), context vocabulary id, option group (-2 omitted).
 CLASS_FIELDS = ('live', 'band_lo', 'band_hi', 'standing', 'notes', 'listing', 'offer', 'pay',
-                'appeal', 'stay', 'context', 'group')
+                'appeal', 'stay', 'context', 'group', 'security')
+SECURITY_KINDS = ('full', 'reduced', 'none', 'not_live')  # a stay question's security type (QUESTIONS D4 Grouping)
 NC = len(CLASS_FIELDS)

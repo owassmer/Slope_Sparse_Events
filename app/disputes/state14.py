@@ -342,22 +342,22 @@ class Situation:
         if deadline and state % 3:
             prefix = "the deadline to appeal passed on" if state % 3 == 2 else "the deadline to appeal is"
             out.append(f"{prefix} {self.appeal_deadline()}")
-        if state >= 3:
+        if state >= 3:  # the filing itself is a dated event (`historical_events`)
             dates = g.rowwise(lambda r, x: np.asarray((r.get("marks") or {}).get(
                 "appealed", np.full(len(r["day"]), BIG)))[x])
             if (dates >= BIG).any() or (dates > g.field("day")).any():
                 raise Unbuilt("filed appeal has no before-decision date")
-            i, j = g.rep
-            rep = g.rows[i]["marks"]["appealed"][j]
-            out.append(f"the company filed an appeal on {dated(self.review, int(rep), dates)}")
         return out
 
     EVENT_WORDS = {"stay_moved": "the company moved for a stay of execution",
-                   "stay_approved": "the court approved a stay, the company posting {amount} of cash security",
-                   "stay_no_effect": "the court approved a stay, but the company could post no security, so it did "
-                                     "not take effect",
-                   "stay_denied": "the court denied the company's stay motion",
-                   "stay_moot": "the company's stay motion became moot: another stay was in effect",
+                   "stay_approved": "the court approved the stay the company moved for on {ref}, the company posting "
+                                    "{amount} of cash security",
+                   "stay_approved_noncash": "the court approved the stay the company moved for on {ref}, on security "
+                                            "not in cash",
+                   "stay_no_effect": "the court approved the stay the company moved for on {ref}, but the company "
+                                     "could post no security, so it did not take effect",
+                   "stay_denied": "the court denied the stay the company moved for on {ref}",
+                   "stay_moot": "the stay the company moved for on {ref} became moot: another stay took effect",
                    "levied": "{claimant} levied {amount} on the company's cash",
                    "paid": "the company paid {amount} on the judgment"}
 
@@ -371,24 +371,29 @@ class Situation:
         marks = g.rows[i].get("marks") or {}
         dated_events = []
         evs = g.at_rep("events", sit=True)
-        for kind, t, amount in (evs if evs is not None else ()):
+        for kind, t, amount, ref in (evs if evs is not None else ()):
             if 0 <= t <= self.day:
-                dated_events.append((t, self.EVENT_WORDS[kind].format(amount=usd(amount),
-                                                                      claimant=self.d.counterparty)))
-        for init, close, closed in self._offerings():
+                if kind == "stay_approved" and amount < 0:
+                    kind = "stay_approved_noncash"
+                dated_events.append((t, self.EVENT_WORDS[kind].format(
+                    amount=usd(max(amount, 0)), claimant=self.d.counterparty, ref=when(self.review, ref))))
+        for init, close, status, net in self._offerings():
             if 0 <= init <= self.day:
-                end = ("it closed on " if closed else "it did not close; it was scheduled to close on ") \
-                    if close <= self.day else "it is scheduled to close on "
-                dated_events.append((init, f"the company initiated an underwritten offering of its stock; "
-                                           f"{end}{when(self.review, close)}"))
+                dated_events.append((init, f"the company initiated an underwritten offering of its stock, to raise "
+                                           f"{usd(net)} net and to close on {when(self.review, close)}"))
+            if status != "pending" and close <= self.day:
+                dated_events.append((close, f"the offering initiated on {when(self.review, init)} closed, raising "
+                                            f"{usd(net)} net" if status == "closed" else
+                                     f"the offering initiated on {when(self.review, init)} did not close"))
         for name, text in (("executing", "{claimant} sought execution"),
+                           ("appealed", "the company filed a notice of appeal"),
                            ("settled", "the parties agreed to settle; the first settlement payment was due"),
                            ("notes_due", "the notes became due"),
                            ("delisted", "the stock was delisted")):
             dates = marks.get(name)
             if dates is not None and 0 <= int(dates[j]) <= self.day:
                 dated_events.append((int(dates[j]), text.format(claimant=self.d.counterparty)))
-        return [f"{text} on {when(self.review, t)}" for t, text in sorted(dated_events, key=lambda x: x[0])]
+        return [f"on {when(self.review, t)}, {text}" for t, text in sorted(dated_events, key=lambda x: x[0])]
 
     def interval(self):
         """The window the question's event may occur in, from its own date (`WINDOW`)."""
@@ -577,12 +582,9 @@ class Situation:
         g = self._g()
         i, j = g.rep
         marks = g.rows[i].get("marks") or {}
-        out = []
-        for name, text in (("executing", "{claimant} initiated enforcement on {d}"),
-                           ("levied", "a levy on the company's cash on {d}")):
-            if name in marks and int(marks[name][j]) <= self.day:
-                out.append(text.format(claimant=self.d.counterparty, d=when(self.review, int(marks[name][j]))))
-        return "; ".join(out) or "none: no enforcement has been initiated"
+        on = "executing" in marks and int(marks["executing"][j]) <= self.day
+        return (f"{self.d.counterparty} has initiated enforcement (its execution and any levy are among the dated "
+                f"events)" if on else "none: no enforcement has been initiated")
 
     # settlement (D3, C2)
     def settlement_amount(self):
@@ -694,9 +696,14 @@ class Situation:
 
     def reverse_split_time(self):
         x = self._listing()
-        return ("a reverse split needs stockholder approval of a charter amendment (DGCL §242), called and noticed "
-                f"under the bylaws and the proxy rules; to regain compliance by the deadline it takes effect by "
-                f"{when(self.review, x['effective_by'])}, with the meeting called by {when(self.review, x['vote_call'])}")
+        p = self.fc.m["parameters"]
+        return ("a reverse split needs stockholder approval of a charter amendment (DGCL §242) unless its "
+                f"stockholders have already authorized one; to regain compliance by the deadline it takes effect by "
+                f"{when(self.review, x['effective_by'])}, ten consecutive business days of closing bids before it; "
+                f"a preliminary proxy filed at least {p['reverse_split_proxy_days']['value']} days before the "
+                f"definitive (SEC Rule 14a-6(a)) and notice at least {p['reverse_split_notice_days']['value']} days "
+                f"before the meeting (DGCL §222(b)) put the latest day to start that approval at "
+                f"{when(self.review, x['vote_call'])}")
 
     def determination_date(self):
         return when(self.review, self._listing()["determination"])
@@ -807,8 +814,8 @@ class Situation:
             bounded = self._g().at_rep("offering_bound_reached", sit=True)
         except KeyError:  # older recorded situations predate the bound
             bounded = False
-        if bool(bounded):
-            return "unavailable: the maximum number of offering initiations has been reached, including failed offerings"
+        if bool(bounded):  # the scenario's bound on offerings, applied by code: the judge reads the resulting situation
+            return "unavailable: no further underwritten offering is available to the company"
         listing = str(self._g().at_rep("listing", sit=True))
         i, j = self._g().rep
         pet = int(self._g().rows[i]["petition"][j])
@@ -834,25 +841,31 @@ class Situation:
                     f"its operating need for the next month")
         return "not applicable: an offering is available"
 
-    def _offerings(self):
+    def _offerings(self) -> list:
+        """The offerings initiated by the decision date (`record`): (init, close, status, net), status pending, closed
+        or failed."""
         offs = self._g().at_rep("offerings", sit=True)
         if isinstance(offs, Awaiting):
             raise Unbuilt(offs.name)
-        j = self._g().rep[1]
-        return [(int(np.asarray(a)[j] if np.ndim(a) else a), int(np.asarray(c)[j] if np.ndim(c) else c),
-                 bool(np.asarray(ok)[j] if np.ndim(ok) else ok)) for a, c, ok in offs]
+        return list(offs or ())
+
+    def _asked_offering(self):
+        """N1's offering: the one pending whose close is the decision date (the walk asks it on its close)."""
+        got = [o for o in self._offerings() if o[2] == "pending" and o[1] == self.day]
+        if len(got) != 1:
+            raise Unbuilt(f"N1 on {self.day}: {len(got)} pending offerings close that day")
+        return got[0]
 
     def initiated_on(self):
-        return self.decision_date()
+        return when(self.review, self._asked_offering()[0])
 
     def close_date(self):
-        k = int(self._terms()["close_days"])
-        return dated(self.review, self.day + k)
+        return when(self.review, self._asked_offering()[1])
 
     def earlier_attempts(self):
-        prior = [(a, c, ok) for a, c, ok in self._offerings() if a < self.day]
-        return [f"initiated {when(self.review, a)}: " + (f"closed {when(self.review, c)}" if ok else
-                                                           "did not close") for a, c, ok in prior] or "none"
+        prior = [o for o in self._offerings() if o[0] < self.day and o[2] != "pending"]
+        return [f"initiated {when(self.review, a)}: " + (f"closed {when(self.review, c)}" if s == "closed" else
+                                                           "did not close") for a, c, s, _ in prior] or "none"
 
     # the company's decisions
     def occasion(self):
@@ -947,6 +960,7 @@ PHRASES = {"stay_pending": "the company has moved for a stay, not yet decided",
            "ruling": "the post-trial ruling changed the judgment"}
 # tags that name a class, an option set or a retired state: the situation states what they stood for
 UNSTATED = {"entered", "pay", "nopay", "raise", "noraise", "after_seek", "seeking", "raised", "claimant_theory",
+            "after_offer", "after_failed",  # each offering is a dated event (`historical_events`)
             "final", "appealed",  # routing tags; dated appeal facts are rendered from the question's rows
             "without_principal_measure",
             # the distress chain's question identities (worker A): the situation states the date, the offering

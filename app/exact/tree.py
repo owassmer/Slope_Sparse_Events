@@ -25,6 +25,7 @@ from app.exact import fields_equity as e
 from app.exact import fields_notes as n
 from app.exact import fields_record as fr
 from app.exact import fields_walk as w
+from app.exact import record as rec
 
 BIG = f.BIG
 
@@ -422,20 +423,17 @@ def options(st, k, wk, tk, ws, d, day, ans):
         ans[0], ans[1] = H2_ACCELERATE, H2_NEITHER
         return 2, True, -1
     if d == w.DEC_STAY0 or d == w.DEC_STAY0 + 1:
-        # QUESTIONS D4: where no security of any type is available on the court's day, as the company can see it on
-        # the motion's day, the motion is not asked (none is made); a court's day after the period is asked, its
-        # security stated as sized then
+        # QUESTIONS D4: where no security of any type can be offered on the court's day, as the company projects it
+        # on the motion's day (the projection its question states: `record.project`), the motion is not asked (none
+        # is made); a court's day after the period is asked, its security stated as sized then
         approval = agenda.stay_approval_day(k, day, d - w.DEC_STAY0)
-        if approval < k.N and not agenda.stay_security(st, k, approval)[1]:
+        p = rec.project(st, k, ws.scratch, day, approval, True)
+        if p[6] and not (k.noncash or p[5] > 0 or (p[4] > 0 and p[1] - p[2] >= p[4])):
             ans[0] = a.NO
             return 1, False, -1
         ans[0], ans[1] = a.YES, a.NO
         return 2, True, -1
     if d >= w.DEC_APPROVAL0 and d < w.DEC_REG_POST:
-        j = d - w.DEC_APPROVAL0
-        if agenda.stay_in_effect(st, day, j):  # another stay is in effect: the motion is moot, nothing to stay
-            ans[0] = a.NO
-            return 1, False, -1
         if not agenda.stay_security(st, k, day)[1]:  # no security can be posted (Rule 62(b)): the stay is denied
             ans[0] = a.DENIED
             return 1, False, -1
@@ -585,8 +583,6 @@ def book(st, k, tk, ws, d, day, ans, asked):
         row = st.stays[j]
         row[a.T_OPEN] = 0
         row[a.T_APPROVED] = ans == a.YES
-        if ans == a.NO:  # moot: no answer of the court's to book, no denial
-            row[a.T_MOVED], row[a.T_MOOT] = 0, 1
         S[w.ANS0 + w.DEC_STAY0 + stay_phase(S, j)] = ans
         S[w.ANS0 + d] = ans
         if ans == a.YES:

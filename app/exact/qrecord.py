@@ -95,8 +95,8 @@ def classify(q, ints, code, conditions, appeals, stays):
     bits |= (1 if pending else 2 if opened else 0) << MOTION_SHIFT
     bits |= ints[r.STAY_STATUS] << STATUS_SHIFT
     for j in range(ints[r.OFFERING_COUNT]):
-        start = r.OFFERS0 + 3 * j
-        if ints[start] < day and ints[start + 1] <= day and not ints[start + 2]:
+        start = r.OFFERS0 + r.OFFER_COLS * j
+        if ints[start] < day and ints[start + 2] == 2:  # an earlier offering that did not close
             bits |= 1 << FAILED_SHIFT
     code[10] = bits
 
