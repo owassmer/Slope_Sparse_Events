@@ -64,7 +64,8 @@ HEARING_DAY = F0 + 13                 # hearing_request: its deadline while it w
 VERDICT_IX = F0 + 14                  # the verdict class taken (its row in the case's table)
 NOTES_DAY0 = F0 + 15                  # + o: the pending notes question's date (BIG: none)
 NOTES_STAGE0 = F0 + 19                # + o: 0 none, 1 the issuer's petition pending, 2 the holders'
-assert N_DEC <= 70 and NOTES_STAGE0 + 4 <= S_WALK + 100
+REG_POST_GRANTED = F0 + 23            # registration_early (post): the day its order was granted (BIG: none)
+assert N_DEC <= 70 and REG_POST_GRANTED < S_WALK + 100
 
 CLS_CLAIMED, CLS_BRANCH, CLS_AWARD, CLS_REDUCED, CLS_SET_ASIDE = range(5)
 A4_OPEN, A4_SEEK, A4_CLOSED = range(3)

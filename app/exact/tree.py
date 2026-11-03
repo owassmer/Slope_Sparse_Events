@@ -33,7 +33,7 @@ BIG = f.BIG
 # `forecast.verdict_classes`) and their reduced bands (booked, low, high; -1: none); the question nodes' situation
 # conditions (bitmask over events.MARKS); the offering bound; the holders' notice lag; per question node whether its
 # class carries the appeal and the stay status (`uses_appeal_status`, `uses_stay_status`)
-TK = namedtuple("TK", "listing verdicts lower conds bound notice appeals stays")
+TK = namedtuple("TK", "listing verdicts lower own conds bound notice appeals stays")
 MAX_BANDS = 8  # the J1b bands up to an award's that a reduction or remittitur may reach (`pass1.lower_bands`)
 
 from app.exact.fields_walk import (  # noqa: E402  (the questions' vocabulary)
@@ -86,8 +86,16 @@ RU_UNCHANGED = 0
 
 
 @njit(cache=True)
+def n_reduced(tk, vi):
+    """The bands an outright reduction of verdict class vi's award may reach: those below it (its own, where it has one
+    in `pass1.lower_bands`, is the last and only a remittitur's)."""
+    nb = n_lower(tk, vi)
+    return nb - 1 if nb and tk.own[vi] else nb
+
+
+@njit(cache=True)
 def n_lower(tk, vi):
-    """The bands up to and including verdict class vi's award's (`pass1.lower_bands`): nr + 1, or 0 where none."""
+    """The bands a reduction or remittitur of verdict class vi's award may reach (`pass1.lower_bands`): 0 where none."""
     n = 0
     if vi >= 0:
         while n < tk.lower.shape[1] and tk.lower[vi, n, 0] >= 0:
@@ -291,8 +299,8 @@ def set_nans(qb, nb, m):
         if qn == Q_SETTLE_OFFER or qn == Q_SETTLE_ACCEPT or qn == Q_REMITTITUR or (
                 nb == 2 and (qn == Q_PETITION_NOTES or qn == Q_HOLDERS_INV)):
             qb[q, QNANS] = 2
-        elif qn == Q_RULING:  # its own: unchanged; reduced to each band below; remitted to each band up to its own; set
-            qb[q, QNANS] = 2 * m - 3 if nb > 1 else m  # aside (nr = m - 3: 2 + nr + (nr + 1) answers)
+        elif qn == Q_RULING:  # its own: unchanged; reduced to each band below; remitted to each band; set aside
+            qb[q, QNANS] = m - 1 + (nb - 1) if nb > 1 else m  # (2 + nr + nel answers: nr = m - 3, nel = nb - 1)
         else:
             qb[q, QNANS] = m
 
@@ -432,7 +440,7 @@ def options(st, k, wk, tk, ws, d, day, ans):
         return m + 2, True, g
     if d == w.DEC_RULING:
         nb = n_lower(tk, S[w.VERDICT_IX])
-        m = nb + 2 if nb else 2  # nr + 3 outcomes, nr = nb - 1
+        m = n_reduced(tk, S[w.VERDICT_IX]) + 3 if nb else 2  # stays, each reduced band, refused, set aside
         for j in range(m):
             ans[j] = j
         return m, True, -1
@@ -614,7 +622,7 @@ def book(st, k, tk, ws, d, day, ans, asked):
         return
     if d == w.DEC_RULING:
         vi = S[w.VERDICT_IX]
-        nr = max(n_lower(tk, vi) - 1, 0)
+        nr = n_reduced(tk, vi)
         if ans == RU_UNCHANGED:
             step = mk(a.RULING, 0, a.R_UNCHANGED)
         elif 1 <= ans <= nr:  # the reduced judgment in band ans - 1, as J1b books it
@@ -661,6 +669,7 @@ def book(st, k, tk, ws, d, day, ans, asked):
         S[w.ANS0 + d] = ans
         if ans == a.YES:
             agenda.queue_levy(st, max(S[w.REG_POST_DAY], 0) + k.levy_lag)
+            S[w.REG_POST_GRANTED] = max(S[w.REG_POST_DAY], 0)
         S[w.REG_POST_DAY] = BIG
         return
     if d == w.DEC_LISTING:
@@ -1045,15 +1054,15 @@ def decision_probs(d, m, ans, nb, P, vprob, out):
     elif d == w.DEC_VERDICT:
         for j in range(m):
             out[j] = vprob[ans[j]]
-    elif d == w.DEC_RULING and m > 2:  # J2's own answers P[0]: unchanged, reduced@b (b < k), remitted@b (b <= k), set
-        k = m - 3  # aside; the election on band b's remittitur P[1 + b] (the award's own band: b = k)
-        out[0] = P[0, 0] + P[0, 1 + 2 * k] * P[1 + k, 0]
+    elif d == w.DEC_RULING and m > 2:  # J2's own answers P[0]: unchanged, reduced@b (b < k), remitted@b (b < nel), set
+        k, nel = m - 3, nb - 1  # aside; the election on band b's remittitur P[1 + b]; nel = k + 1 where the award's own
+        out[0] = P[0, 0] + (P[0, 1 + 2 * k] * P[1 + k, 0] if nel > k else 0.0)  # band has one (b = k), else nel = k
         out[1 + k] = 0.0
-        for b in range(k + 1):
+        for b in range(nel):
             if b < k:
                 out[1 + b] = P[0, 1 + b] + P[0, 1 + k + b] * P[1 + b, 0]
             out[1 + k] += P[0, 1 + k + b] * P[1 + b, 1]
-        out[2 + k] = P[0, 2 + 2 * k]
+        out[2 + k] = P[0, 1 + k + nel]
     elif d == w.DEC_NONPAYMENT:  # the issuer files; else the holders file; else the notes are due
         a5, h3 = P[0, 0], P[1, 0]
         out[0], out[1], out[2] = a5, (1.0 - a5) * h3, (1.0 - a5) * (1.0 - h3)
@@ -1088,15 +1097,16 @@ def decision_grads(d, m, nb, P, G):
     elif d == w.DEC_VERDICT:
         return
     elif d == w.DEC_RULING and m > 2:  # as `decision_probs`
-        k = m - 3
+        k, nel = m - 3, nb - 1
         G[0, 0, 0] = 1.0
-        G[0, 0, 1 + 2 * k], G[1 + k, 0, 0] = P[1 + k, 0], P[0, 1 + 2 * k]
-        for b in range(k + 1):
+        if nel > k:
+            G[0, 0, 1 + 2 * k], G[1 + k, 0, 0] = P[1 + k, 0], P[0, 1 + 2 * k]
+        for b in range(nel):
             if b < k:
                 G[0, 1 + b, 1 + b] = 1.0
                 G[0, 1 + b, 1 + k + b], G[1 + b, 1 + b, 0] = P[1 + b, 0], P[0, 1 + k + b]
             G[0, 1 + k, 1 + k + b], G[1 + b, 1 + k, 1] = P[1 + b, 1], P[0, 1 + k + b]
-        G[0, 2 + k, 2 + 2 * k] = 1.0
+        G[0, 2 + k, 1 + k + nel] = 1.0
     elif d == w.DEC_NONPAYMENT:  # the issuer files; the holders file; the notes are due
         G[0, 0, 0] = 1.0
         G[0, 1, 1], G[1, 1, 0] = P[1, 0], P[0, 1]

@@ -65,7 +65,8 @@ def situation_class(code, contexts=('',)):
     """Exact forecast class string; context vocabulary must be supplied by its owner."""
     if code.shape != (r.NC,):
         raise ValueError('wrong class layout')
-    live, lo, hi, standing, notes, listing, offer, pay, appeal, stay, context, group, security, ratio = map(int, code)
+    live, lo, hi, standing, notes, listing, offer, pay, appeal, stay, context, group, security, ratio, enf = \
+        map(int, code)
     text = ''
     if live:
         text = '.'.join(('#' + _band(lo, hi), r.STANDINGS[standing], r.NOTES[notes], r.LISTINGS[listing],
@@ -78,6 +79,8 @@ def situation_class(code, contexts=('',)):
             text += '.sec' + r.SECURITY_KINDS[security]
         if ratio >= 0:
             text += '.offer' + ('<10%', '10-25%', '25-50%', '>=50%')[ratio]
+        if enf:
+            text += '.enf' + r.ENFORCEMENT[enf]
         if context:
             text += '.ctx' + contexts[context].encode().hex()
     if group != -2:

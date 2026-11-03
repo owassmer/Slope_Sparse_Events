@@ -65,13 +65,14 @@ def node_for(fc, d, key: str, q: np.ndarray, klass: str, tk=None) -> str:
     if q[w.QN] == w.Q_RULING:  # its answers: unchanged; reduced to each band below the award; remitted to each; set aside
         vi = verdict_index(q, tk)
         bands = [tuple(int(x) for x in tk.lower[vi, b]) for b in range(tree.n_lower(tk, vi))]
-        if (1 + 2 * len(bands) if bands else 2) != q[w.QNANS]:
-            raise ValueError("the ruling's answers and the bands up to the award differ")
-        branches = ("unchanged", *(f"reduced@{b[0]}" for b in bands[:-1]), *(f"remitted@{b[0]}" for b in bands),
+        nr = tree.n_reduced(tk, vi)
+        if (2 + nr + len(bands) if bands else 2) != q[w.QNANS]:
+            raise ValueError("the ruling's answers and the bands a reduction may reach differ")
+        branches = ("unchanged", *(f"reduced@{b[0]}" for b in bands[:nr]), *(f"remitted@{b[0]}" for b in bands),
                     "set_aside")
     base = fc.node(d, name, *ctx, assumptions=assumptions(fc, name, ctx), branches=branches)
     if bands is not None:
-        fc.ruling_bands[base] = bands  # booked, low, high, lowest first
+        fc.ruling_bands[base] = (bands, bool(tk.own[vi]))  # (booked, low, high), lowest first; the last the award's own
     if q[w.QN] == w.Q_REMITTITUR:
         hit = np.argwhere(tk.lower[:, :, 0] == q[w.QEXTRA])
         fc.remitted[base] = tuple(int(x) for x in tk.lower[hit[0, 0], hit[0, 1]])  # booked, low, high

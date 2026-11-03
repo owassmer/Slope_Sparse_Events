@@ -23,7 +23,7 @@ def fixture():
 
 def test_every_band_below_the_award_is_an_answer(fixture):
     fc, d, bands, classes = fixture
-    lower = pass1.lower_bands(fc, d, classes)
+    lower, own = pass1.lower_bands(fc, d, classes)
     for i, (lo, hi, booked) in enumerate(bands):
         got = [tuple(x) for x in lower[i] if x[0] >= 0]
         assert got == [(b, low, high) for low, high, b in bands[:i + 1]]  # every band up to its own, lowest first
@@ -31,7 +31,8 @@ def test_every_band_below_the_award_is_an_answer(fixture):
         branches = ('unchanged', *(f'reduced@{b[0]}' for b in below), *(f'remitted@{b[0]}' for b in got),
                     'set_aside')
         key = fc.node(d, 'post_trial_ruling', f'award{booked}', branches=branches)
-        fc.ruling_bands[key] = got
+        assert own[i]  # a banded award has a band of its own
+        fc.ruling_bands[key] = (got, True)
         row = {'day': np.array([60]), 'cash': np.array([100]), 'owed': np.array([booked]),
                'petition': np.array([-1]),
                'sit': {'entry': np.array([1]), 'entered': booked, 'motions_filed': np.array([29]),
@@ -50,15 +51,16 @@ def test_every_band_below_the_award_is_an_answer(fixture):
         assert 'reduced_band' not in state['situation']
 
 
-@pytest.mark.parametrize('nb', [0, 1, 2, 5])
-def test_the_rulings_probabilities_and_their_derivatives(nb):
+@pytest.mark.parametrize('nb,own', [(0, True), (1, True), (2, True), (5, True), (1, False), (3, False)])
+def test_the_rulings_probabilities_and_their_derivatives(nb, own):
     """They sum to one, and each derivative is right: moving probability between two answers of one question moves
     each outcome by the difference of its derivatives (finite differences on `decision_probs` itself)."""
     rng = np.random.default_rng(nb)
-    m, nq = nb + 3, 2 + nb  # nb bands below: J2 and nb + 1 elections (the award's own band too)
+    nel = nb + 1 if own else nb  # elections: one per band, the award's own too where it has one
+    m, nq = nb + 3, 1 + nel
     P = np.zeros((tree.MAX_Q, tree.MAX_ANS))
-    P[0, :3 + 2 * nb] = rng.dirichlet(np.ones(3 + 2 * nb))
-    for b in range(nb + 1):
+    P[0, :2 + nb + nel] = rng.dirichlet(np.ones(2 + nb + nel))
+    for b in range(nel):
         P[1 + b, :2] = rng.dirichlet(np.ones(2))
     ans = np.arange(m)
 
@@ -72,7 +74,7 @@ def test_the_rulings_probabilities_and_their_derivatives(nb):
     tree.decision_grads(w.DEC_RULING, m, nq, P, G)
     eps = 1e-6
     for q in range(nq):
-        n = 3 + 2 * nb if q == 0 else 2
+        n = 2 + nb + nel if q == 0 else 2
         for x in range(n):
             y = (x + 1) % n
             up, down = P.copy(), P.copy()
@@ -81,3 +83,17 @@ def test_the_rulings_probabilities_and_their_derivatives(nb):
             down[q, x] -= eps
             down[q, y] += eps
             np.testing.assert_allclose((probs(up) - probs(down)) / (2 * eps), G[q, :m, x] - G[q, :m, y], atol=1e-7)
+
+
+def test_an_exact_award_is_reduced_to_the_part_of_its_band_below_it(fixture):
+    """An exact award (the small claims at their amounts, J1) has no band of its own: a reduction reaches every band
+    wholly below it and the part of its own band below it, booked at that part's midpoint, never above the award."""
+    fc, d, bands, classes = fixture
+    lo, hi, _ = bands[1]
+    exact = lo + (hi - lo) // 3
+    lower, own = pass1.lower_bands(fc, d, [f'award:{exact}:{exact}:{exact}'])
+    got = [tuple(x) for x in lower[0] if x[0] >= 0]
+    assert not own[0]
+    assert got[:-1] == [(b, low, high) for low, high, b in bands[:1]]
+    booked, low, high = got[-1]
+    assert (low, high) == (lo, exact - 1) and low < booked < exact

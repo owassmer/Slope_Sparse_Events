@@ -15,6 +15,7 @@ from app.exact import fields_agenda as a
 from app.exact import fields_equity as e
 from app.exact import fields_notes as n
 from app.exact import fields_record as r
+from app.exact import fields_walk as fw
 
 
 @njit(cache=True)
@@ -52,7 +53,7 @@ def events(st, k, day, out):
                     kind = 1
                 amount = (row[a.T_LOCK] if row[a.T_LOCK] > 0 else r.NONCASH) if kind == 1 else 0
                 cnt = _event(out, cnt, kind, t, amount, row[a.T_MOTION])
-        if S[f.EARLY_REGISTRATION] == t:  # the court's order registering the judgment in another district
+        if S[f.EARLY_REGISTRATION] == t or S[fw.REG_POST_GRANTED] == t:  # an order authorizing registration (§1963)
             cnt = _event(out, cnt, 7, t, 0, t)
         if D[f.D_KIND_LEVY, t] != 0:
             cnt = _event(out, cnt, 5, t, -D[f.D_KIND_LEVY, t], t)
@@ -60,6 +61,8 @@ def events(st, k, day, out):
             cnt = _event(out, cnt, 6, t, -D[f.D_KIND_JUDGMENT, t], t)
     out[r.EVENT_COUNT] = cnt
     out[r.LEVY_SCHEDULED] = agenda.pending_levy(st)  # a writ ordered, its levy dated (a known scheduled date)
+    reg = min(S[f.EARLY_REGISTRATION], S[fw.REG_POST_GRANTED])
+    out[r.REGISTERED] = reg if reg <= day else f.BIG
 
 
 @njit(cache=True)
@@ -116,7 +119,9 @@ def record(st, k, day, node, ctx, scratch, out, floats):
     t = min(max(day, 0), k.N - 1)
     out[r.DAY] = day
     out[r.CASH] = cash.processing_balance(D, st.ln, day)
-    out[r.OWED] = agenda.owed(st, k, day, False)
+    # owed after what the day's earlier items took (a levy booked before this question on its day): the cash read is
+    # the same day's balance at processing
+    out[r.OWED] = max(agenda.owed(st, k, day, False) - core.taken_on(S, st.takes, day), 0)
     out[r.COLLATERAL] = agenda.collateral_before(st, k, day)
     out[r.PETITION] = S[f.PETITION] if S[f.PETITION] <= day else -1
     out[r.CASH_END] = max(cash.cash_at(st.ln, day), 0)
@@ -124,7 +129,10 @@ def record(st, k, day, node, ctx, scratch, out, floats):
     entered = notes.has_judgment(S, k.nc) and S[f.E_IX] <= day
     out[r.ENTRY] = S[f.E_IX] if entered else f.BIG
     filed = S[f.MOTIONS_FILED] <= day
-    out[r.RULING] = S[f.F] if filed else f.BIG
+    # the ruling is a fact once the court has given it: on its own day only after it is booked (a stay's answer on the
+    # same day comes first); while pending its date is unknown (BIG - 1: pending, no date)
+    ruled = filed and (S[f.F] < day or (S[f.F] == day and S[f.MARK_RULED] <= day))
+    out[r.RULING] = S[f.F] if ruled else (f.BIG - 1 if filed else f.BIG)
     out[r.MOTIONS_FILED] = S[f.MOTIONS_FILED] if filed else f.BIG
     out[r.MOTIONS_DEADLINE] = core.motions_deadline(S, k.frcp, k.court) if entered else f.BIG
     # the deadline to appeal as the walk fixes it (FRAP 4(a)(1)(A), on the next court day: 26(a)(1)(C)), known
@@ -206,9 +214,9 @@ def record(st, k, day, node, ctx, scratch, out, floats):
     # stay, fixed at entry; on the ruling, from the order disposing of the motions
     for j in range(2):
         ripe, on = notes.judgment_default(S, st.takes, k.nc, j)
-        fixed = entered if j == 0 else (filed and S[f.F] <= day)
+        fixed = entered if j == 0 else ruled
         out[r.TRIGGER0 + j] = fixed_date(ripe) if on and fixed else f.BIG
-    out[r.TRIGGER0 + 2] = ((S[f.AD] if S[f.F] <= day else f.BIG) if filed else out[r.ENTRY_APPEAL_DEADLINE])
+    out[r.TRIGGER0 + 2] = ((S[f.AD] if ruled else f.BIG) if filed else out[r.ENTRY_APPEAL_DEADLINE])
     coupon = f.BIG
     for j in range(S[n.N_COUPONS]):
         c = st.coupons[j]
@@ -265,6 +273,11 @@ def situation_class(row, out, appeal=True, stay=False, context=0, group=False):
     out[9] = row[r.STAY_STATUS] if stay else -1
     out[10] = context
     out[11] = row[r.GROUPS] if group else -2
+    out[14] = 0  # the claimant's enforcement now: a levy scheduled by a writ, registration authorized, or neither
+    if day <= row[r.LEVY_SCHEDULED] < f.BIG:
+        out[14] = 1
+    elif row[r.REGISTERED] <= day:
+        out[14] = 2
     out[13] = -1  # a settlement question's offer against the amount owed, banded (fields_record.SETTLE_RATIO_BPS)
     if row[r.SETTLE_OFFER] > 0 and row[r.SETTLE_BASIS] > 0:
         share = row[r.SETTLE_OFFER] * 10_000 // row[r.SETTLE_BASIS]

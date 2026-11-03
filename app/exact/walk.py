@@ -118,7 +118,7 @@ def init(S):
     S[w.FLOOR_K], S[w.OUT_DONE], S[w.NP_DONE] = 1, 0, 0
     S[w.COMMITTED] = -1
     S[w.N_OFFERINGS] = 0
-    S[w.REG_POST_DAY] = S[w.HEARING_DAY] = BIG
+    S[w.REG_POST_DAY] = S[w.HEARING_DAY] = S[w.REG_POST_GRANTED] = BIG
     S[w.VERDICT_IX] = -1
     for o in range(4):
         S[w.NOTES_DAY0 + o], S[w.NOTES_STAGE0 + o] = BIG, 0

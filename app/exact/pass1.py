@@ -14,32 +14,44 @@ def case_tables(fc, d, ch0) -> tree.TK:
 
     classes = list(fc.verdict_classes(d))
     verdicts = np.array([replay.encode(ch0, ("verdict", "I0", b)) for b in classes], dtype=np.int64)
-    lower = lower_bands(fc, d, classes)
+    lower, own = lower_bands(fc, d, classes)
     _, conds, appeals, stays = vocabulary.tables(fc, d)
     ec = replay.export_equity.config(ch0)
     nc = replay.export_notes.config(ch0)
     return tree.TK(listing=ch0.fin is not None and ch0.fin.listing_deadline is not None, verdicts=verdicts,
-                   lower=lower, conds=conds, bound=int(ec.bound), notice=int(nc.notice), appeals=appeals,
+                   lower=lower, own=own, conds=conds, bound=int(ec.bound), notice=int(nc.notice), appeals=appeals,
                    stays=stays)
 
 
-def lower_bands(fc, d, classes) -> np.ndarray:
-    """[classes, MAX_BANDS, 3]: per verdict class, the J1b bands up to and including its award's, lowest first, each
-    (booked, low, high) and booked as J1b books a band; -1 where none (QUESTIONS J2: a reduction as a matter of law to
-    any band below the award's, a remittitur to any band up to and including its own: a remittitur inside the
-    award's band keeps its cash on acceptance and sets the judgment aside on refusal)."""
+def lower_bands(fc, d, classes) -> tuple[np.ndarray, np.ndarray]:
+    """([classes, MAX_BANDS, 3], own[classes]): per verdict class, the bands a reduction may reach, lowest first, each
+    (booked, low, high) and booked as J1b books a band (its midpoint; the top band its own amount); -1 where none
+    (QUESTIONS J2). A banded award: every J1b band below its own (outright or by remittitur) and its own band (a
+    remittitur inside it keeps its cash if accepted, sets the judgment aside if refused: own). An exact award (the small
+    claims at their amounts, J1): every J1b band wholly below it, and the part of its own J1b band below it, booked at
+    that part's midpoint; it has no band of its own to stay in (own false)."""
     bands = [b for b in fc.verdict_lines(d, fc.equity_inflows(d))["bands"] if b[1] > 0]
     out = np.full((len(classes), tree.MAX_BANDS, 3), -1, dtype=np.int64)
+    own = np.zeros(len(classes), dtype=np.bool_)
     for i, c in enumerate(classes):
         if not c.startswith("award:"):
             continue
-        entered = int(c.split(":")[1])
+        _, booked_s, lo_s, hi_s = c.split(":")
+        entered = int(booked_s)
         at = next(j for j, (lo, hi, _) in enumerate(bands) if lo < entered <= hi)
-        if at + 1 > tree.MAX_BANDS:
-            raise ValueError(f"{at + 1} bands up to an award: more than the walk holds ({tree.MAX_BANDS})")
-        for j, (lo, hi, booked) in enumerate(bands[:at + 1]):
+        if lo_s == hi_s:  # exact: the bands wholly below, then the part of its own band below it
+            reach = [b for b in bands[:at]]
+            lo = bands[at][0]
+            if entered - 1 > lo:
+                reach.append((lo, entered - 1, (lo + entered - 1) // 2))
+        else:
+            reach = bands[:at + 1]
+            own[i] = True
+        if len(reach) > tree.MAX_BANDS:
+            raise ValueError(f"{len(reach)} bands a reduction may reach: more than the walk holds ({tree.MAX_BANDS})")
+        for j, (lo, hi, booked) in enumerate(reach):
             out[i, j] = booked, lo, hi
-    return out
+    return out, own
 
 
 def explore(ch0, r: int, tk: tree.TK, budget: int = 10**9, forced=(), capacity: int = 600_000, check=None):

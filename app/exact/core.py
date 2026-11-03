@@ -118,6 +118,16 @@ def taken_before(S, T_TAKES, day):
 
 
 @njit(cache=True)
+def taken_on(S, T_TAKES, day):
+    """What the takes booked so far took toward the judgment on the day itself."""
+    out = 0
+    for k in range(S[f.N_TAKES]):
+        if T_TAKES[k, 0] == day:
+            out += T_TAKES[k, 1]
+    return out
+
+
+@njit(cache=True)
 def owed_at(S, T_TAKES, bps, pending, day, enforceable):
     """`Chain.owed_at` on this draw at `day` (a pending claim)."""
     if day >= S[f.RESOLVED]:

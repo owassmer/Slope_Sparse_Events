@@ -187,7 +187,7 @@ def court_day(m: dict, review: date, t: np.ndarray) -> np.ndarray:
 def band_text(lo: int, hi: int | None) -> str:
     """An amount band as the walk books it, above its low end and at most its high end (`Forecaster.reduced_band`:
     lo < amount <= hi; QUESTIONS J1b): never read as including its low end, and a band from zero is positive."""
-    if hi is None:
+    if hi is None or hi >= BIG * 10**6:  # the open band above the top line (its stand-in high is no amount)
         return f"an amount of more than {usd(lo)}"
     if lo <= 0:
         return f"a positive amount of at most {usd(hi)}"
@@ -363,8 +363,8 @@ class Situation:
                    "stay_denied": "the court denied the stay the company moved for on {ref}",
                    "stay_moot": "the stay the company moved for on {ref} became moot: another stay took effect",
                    "levied": "{claimant} levied {amount} on the company's cash",
-                   "registered": "the court registered the judgment in another district, so {claimant} can execute "
-                                 "on it there",
+                   "registered": "the court authorized registration of the judgment in another district (28 U.S.C. "
+                                 "§1963), so {claimant} can register it and execute on it there",
                    "paid": "the company paid {amount} on the judgment"}
 
     def historical_events(self) -> list[str]:
@@ -450,7 +450,7 @@ class Situation:
                     return f"post-trial motions may be filed until {when(self.review, deadline)}"
                 return "no timely post-trial motions were filed; the judgment stands as entered"
         ruling = self._sit("ruling")[0]
-        if ruling >= BIG:
+        if ruling >= BIG:  # BIG - 1: pending, no date known
             return "no post-trial motions were filed: the judgment is final as entered"
         if ruling > self.day:
             return "the post-trial motions are pending"
@@ -1109,9 +1109,11 @@ def question_text(n, text: str, values: dict) -> str:
             text = "What does {company} do on {decision_date}, {occasion}: " + options + "?"
         else:
             text = text.split("does {company}", 1)[0] + "does {company} " + options + "?"
-    if "{decision_date}" not in text and n.node not in ("verdict_finding", "verdict_amount"):
-        # every question states the date it is asked on (QUESTIONS §1, Two dates); the verdict's are asked on the
-        # record at the evidence cutoff, which the case states
+    if n.node in ("verdict_finding", "verdict_amount") and "verdict_window" in values:
+        # the jury answers on its verdict day, which the record dates only as a window (QUESTIONS §1, Two dates)
+        text = "When the jury returns its verdict ({verdict_window}), " + text[0].lower() + text[1:]
+    elif "{decision_date}" not in text and n.node not in ("verdict_finding", "verdict_amount"):
+        # every question states the date it is asked on (QUESTIONS §1, Two dates)
         text = "As of {decision_date}, " + text[0].lower() + text[1:]
     return fill_text(text, values)
 
@@ -1171,6 +1173,10 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
               **{k: RANGE.sub("", v) if isinstance(v, str) else json.dumps(v) for k, v in sit.items()}}
     if "decision_date" not in values and g is not None:
         values["decision_date"] = situation.decision_date()
+    if n.node in ("verdict_finding", "verdict_amount"):
+        days = [date.fromisoformat(x) for x in fc.m["parameters"]["verdict_window"]["days"]]
+        values["verdict_window"] = (f"expected between {fmt(min(days))} and {fmt(max(days))}, on the trial record "
+                                    f"as of the evidence cutoff on {fmt(fc.review)}")
     crit = entry["prompt"]["criteria"]
     names = dict(zip(["true", "false"], t["branches"], strict=True)) if entry["primitive"] == "noul" else \
         {k: k for k in crit}
@@ -1179,10 +1185,11 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
         bands = fc.ruling_bands.get(n.key, fc.ruling_bands.get(n.key.split("|#", 1)[0]))
         if bands is None and any("@" in b for b in n.branches):
             raise Unbuilt(f"no bands for the ruling {n.key}")
-        for i, (booked, lo, hi) in enumerate(bands or ()):
-            for kind in ("reduced", "remitted") if i < len(bands) - 1 else ("remitted",):
+        bands, own = bands if bands is not None else ((), False)
+        for i, (booked, lo, hi) in enumerate(bands):
+            for kind in ("remitted",) if own and i == len(bands) - 1 else ("reduced", "remitted"):
                 answers[f"{kind}@{booked}"] = fill_text(crit[kind], {**values, "reduced_band": band_text(lo, hi)})
-        if bands:  # an outright reduction that leaves the award in its own band books as it stands
+        if bands and own:  # an outright reduction that leaves the award in its own band books as it stands
             answers["unchanged"] = (f"The money judgment stands as entered, or is reduced as a matter of law to an "
                                     f"amount that stays {band_text(bands[-1][1], bands[-1][2])}.")
         answers = {b: answers[b] for b in n.branches}
