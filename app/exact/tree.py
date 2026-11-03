@@ -694,6 +694,20 @@ def restore(st, sk, L):
 
 
 @njit(cache=True)
+def book_item(st, k, kind, which, day):
+    """An item that is not a question, booked alone (the frontier is then read again, so the day's later items keep
+    their turn: a stay's answer first, then a levy-day response before its levy, then the levy)."""
+    if kind == w.IT_APPROVAL:
+        agenda.approval_due(st, k, which)
+    elif kind == w.IT_WAITING:
+        agenda.waiting_due(st, k, which, day)
+    elif kind == w.IT_LEVY:
+        agenda.flush_levy(st, k)
+    else:
+        raise ValueError("an unknown item")
+
+
+@njit(cache=True)
 def next_question(st, k, wk, tk, ws, ans):
     """From the state now, book every item that is not a question (the levy, the waiting answers, the court's
     approvals, a decision that does not arise on the draw) until a question comes up. Returns (decision, day, how
@@ -708,7 +722,7 @@ def next_question(st, k, wk, tk, ws, ans):
             raise ValueError("an item inserted before the committed frontier")
         S[w.COMMITTED] = day
         if kind != w.IT_DECISION:
-            agenda.until(st, k, day + 1)
+            book_item(st, k, kind, which, day)
             continue
         agenda.until(st, k, day)
         agenda.refresh(st, k)
@@ -965,7 +979,7 @@ def follow(st, k, wk, tk, ws, script, n1, found, qout, iout, fout, cout):
             raise ValueError("an item inserted before the committed frontier")
         S[w.COMMITTED] = day
         if kind != w.IT_DECISION:
-            agenda.until(st, k, day + 1)
+            book_item(st, k, kind, which, day)
             continue
         agenda.until(st, k, day)
         agenda.refresh(st, k)

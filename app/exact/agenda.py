@@ -521,6 +521,18 @@ def upto(st, k, before, every, levy_day):
 
 
 @njit(cache=True)
+def waiting_due(st, k, j, t):
+    """Waiting answer j booked on its day t (as `upto` books it), its row removed."""
+    S = st.S
+    w = st.wait[j]
+    record(st, k, w[a.W_INDEX], t)
+    decide_waiting(st, k, w[a.W_NODE], w[a.W_CTX], w[a.W_BRANCH], t)
+    for i in range(j, S[a.N_WAIT] - 1):
+        st.wait[i] = st.wait[i + 1]
+    S[a.N_WAIT] -= 1
+
+
+@njit(cache=True)
 def until(st, k, bound):
     """`Chain.until`: the waiting decisions and the pending writs dated before `bound`, in date order."""
     while True:
