@@ -1244,8 +1244,6 @@ def bank_rows(model, fc, m: dict, spec: dict, questions: dict, links: dict, neut
     """The bank view's questions as page rows (after the research rows, from index `off`): each asked on bank data
     alone, with its drill-down (its facts, Jev's question and answer); and each bank path's edges over those rows,
     so page.js reweights the bank view as it does the research view."""
-    from app.disputes.forecast import bank_state
-
     enc = encode_paths(model.bank_combos, model.bank_judgments)
     assert not enc["composites"]  # the bank view's chain has none
     ordinary = getattr(fc, "ordinary", False)  # spec §16.1: the forecast's own questions, the event given no cash effect
@@ -1253,8 +1251,7 @@ def bank_rows(model, fc, m: dict, spec: dict, questions: dict, links: dict, neut
     for k, branches in zip(enc["keys"], enc["branches"], strict=True):
         j = model.bank_judgments[k]
         q = questions.get(j.question_id, j.event)
-        state = bank_state(fc, fc.bank_nodes[k]) if not j.path_facts and k in fc.bank_nodes else {}
-        facts = j.path_facts or state.get("path_facts", state.get("situation", {}))
+        facts = j.path_facts or {}  # the recorded question's facts
         if ordinary:  # asked on the same record as the forecast: its record items, and its situation without the
             sp, ctx = spec[j.node], "|".join(k.split("|")[2:])  # dispute (page.js adds the no-cash-effect words)
             rows.append({"key": k, "node": j.node, "view": "bank", "ordinary": True, "question": q,
@@ -1303,66 +1300,9 @@ def _worst(rows: list[dict], classes: list[str], seqs: list[int], texts: list[st
 # Settings. "line": the line's terms, re-simulated on the same tree; "tree": a sensitivity the chains read, so the
 # tree is rebuilt too. Neither kind is precomputed (each full Akoustis run takes minutes and about 1 GB): the page
 # runs one on request and shows its progress.
-def dev_settings() -> list[dict]:
-    """The dev page's settings, from its case inputs (cases/<dev snapshot>/dev_settings.json)."""
-    import json
-
-    from app.config import CASES_DIR
-    from app.disputes.akoustis_pre_d import SNAP
-
-    f = CASES_DIR / SNAP / "dev_settings.json"
-    return json.loads(f.read_text()) if f.exists() else []
 
 
 PAGE_FORMAT = 10  # bumped when the cached dev state's shape changes, so an older pickle in var/dev is rebuilt
-
-
-def build_dev(settings: dict | None = None, progress=None) -> dict:
-    """Development data without Jev: the Akoustis pre-D record (app/disputes/akoustis_pre_d.py) on its bank feed and
-    run inputs, every question NEUTRAL (a yes/no at 50%, a choice uniform: attribution step 2). Marked in the meta as
-    'no Jev answers yet'; never written to runs/recorded/."""
-    import copy
-    import json
-
-    from app.analysis.build import basis_for
-    from app.analysis.core import Analysis, EventModel
-    from app.analysis.setup import setup_from_inputs
-    from app.config import CASES_DIR
-    from app.disputes.akoustis_pre_d import REVIEW, SNAP, judgment
-    from app.disputes.forecast import Forecaster, Judgment, neutral_map
-    from app.disputes.rules import load_model
-    from app.finance.bank import load_feed
-
-    specs = dev_settings()
-    settings = {s["key"]: (settings or {}).get(s["key"], s["value"]) for s in specs}
-    line_keys = {s["key"] for s in specs if s["kind"] == "line"}
-    step = progress or (lambda *_: None)
-    inputs = json.loads((CASES_DIR / SNAP / "run_inputs.json").read_text())
-    setup = setup_from_inputs(inputs, REVIEW).with_controls({k: settings[k] for k in line_keys})
-    feed, m = load_feed(SNAP), load_model(SNAP)  # the case's model: its parties and its courts
-    if settings["remittitur"] != m["remittitur_scenarios"]["base"]:
-        m = copy.deepcopy(m)
-        m["remittitur_scenarios"]["base"] = settings["remittitur"]
-    sens = {k: v for k, v in settings.items() if k not in line_keys and k != "remittitur" and v not in (False, "shares")}
-    borrower = inputs["baseline_profile"]["borrower"]
-    step("tree", 0, 1)
-    fc = Forecaster([judgment()], {}, borrower=borrower, review=REVIEW, horizon=setup.horizon, hydrate=lambda f: {},
-                    model=m, setup=setup, basis=basis_for(feed, setup), sens=sens)
-    per, bank_paths = fc.all_paths(), fc.bank_paths()
-    js, bank_js = ({n.key: Judgment(key=n.key, instance_id=n.instance_id, node=n.node, question_id=n.question_id,
-                                    event=n.event, assumptions=n.assumptions, window=n.window,
-                                    distribution={b: 1 / len(n.branches) for b in n.branches}) for n in nodes.values()}
-                   for nodes in (fc.nodes, fc.bank_nodes))
-    model = EventModel({d.instance_id: d for d in fc.disputes}, js, per, fc.ordered(), neutral=neutral_map(js),
-                       bank_paths=bank_paths, bank_judgments=bank_js)
-    a = Analysis(feed, setup, model, sens=sens, dispute_model=m, progress=step)
-    rows = Analysis(feed, setup, model, stress=True, sens=sens, dispute_model=m, progress=step).stress_rows
-    rows = [{"index": i, **r} for i, r in enumerate(rows)]
-    payload = page_payload(a, model, fc, borrower=borrower, snapshot_id=SNAP, neutral=True, stress_rows=rows)
-    payload["meta"]["dev"] = True
-    payload["settings"] = specs
-    payload["settings_value"] = settings
-    return {"payload": payload, "r": a.r, "bank_r": a.bank_r, "model": model, "months": a.months}
 
 
 def reweight(state: dict, overrides: dict[str, list[float]] | None) -> dict | None:
@@ -1382,68 +1322,3 @@ def reweight(state: dict, overrides: dict[str, list[float]] | None) -> dict | No
     return out
 
 
-class DevPage:
-    """The dev page's state (the reduced analysis for the current settings, cached in var/dev/) and at most one
-    settings run at a time, with its progress."""
-
-    def __init__(self) -> None:
-        import threading
-
-        self.state: dict | None = None
-        self.progress = {"running": False, "phase": "", "done": 0, "total": 0, "error": ""}
-        self._lock = threading.Lock()
-
-    @staticmethod
-    def path(settings: dict | None = None):
-        import hashlib
-        import json
-
-        from app.config import VAR
-
-        full = {s["key"]: (settings or {}).get(s["key"], s["value"]) for s in dev_settings()}
-        tag = hashlib.sha1(json.dumps({**full, "_format": PAGE_FORMAT}, sort_keys=True).encode()).hexdigest()[:10]
-        return VAR / "dev" / f"akoustis_page_{tag}.pkl"
-
-    def load(self, settings: dict | None = None) -> dict | None:
-        import pickle
-
-        p = self.path(settings)
-        if p.exists():
-            self.state = pickle.loads(p.read_bytes())
-        return self.state
-
-    def build(self, settings: dict | None = None) -> dict:
-        import pickle
-
-        def tick(phase: str, done: int, total: int) -> None:
-            self.progress.update(phase=phase, done=done, total=total)
-
-        state = build_dev(settings, progress=tick)
-        p = self.path(settings)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(pickle.dumps(state, protocol=pickle.HIGHEST_PROTOCOL))
-        self.state = state
-        return state
-
-    def start(self, settings: dict) -> bool:
-        """Switch to `settings`: at once if cached, else in a background thread (False if one is running)."""
-        import threading
-
-        if self.path(settings).exists():
-            self.load(settings)
-            return True
-        with self._lock:
-            if self.progress["running"]:
-                return False
-            self.progress.update(running=True, phase="tree", done=0, total=1, error="")
-
-        def work() -> None:
-            try:
-                self.build(settings)
-            except Exception as e:  # reported to the page, which keeps the previous settings
-                self.progress["error"] = str(e)
-            finally:
-                self.progress["running"] = False
-
-        threading.Thread(target=work, daemon=True).start()
-        return True

@@ -292,3 +292,10 @@ Leaf completion preserves financial arrays and before-answer records, including 
 
 - `test_leaf_completion_matches_replay`
 
+
+## test_exact_question_keys (retired with the oracle, 3 November)
+Numeric question identity at its limits: the keys of every node and context; the verdict form's union and selected
+conjunction; a deferred question's origin identity separate from its current amount; the consumption flags (appeal
+and stay status) as case data; the notes condition bits in the question order; a nonpayment record holding the
+automatic due date, not a petition; a direct court security omitting only the projected owed. To be written on the
+compiled walk alone.

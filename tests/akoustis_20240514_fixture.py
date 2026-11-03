@@ -7,12 +7,13 @@ import json
 from datetime import date
 from functools import cache
 
-from app.analysis.build import basis_for, setup_from_inputs
+from app.analysis.setup import setup_from_inputs
 from app.config import CASES_DIR
 from app.disputes.rules import load_model
 from app.domain.investigation import Claim, Component, Decisive, DisputeInstance, FinancingInstrument
 from app.domain.values import Basis as VBasis
 from app.domain.values import EvidenceValue, Provenance, Status, Unit
+from app.exact.case import basis_for
 from app.finance.bank import load_feed
 
 SNAP = "akoustis_20240514"

@@ -2395,11 +2395,6 @@ class Chain:
             kept &= ~gone
 
     # --- steps ---
-    def next_decisions(self, cursors, support=None):
-        """All enabled chain cursors dated without choosing or booking any answer."""
-        from app.analysis.frontier import next_decisions
-
-        return next_decisions(self, cursors, support)
 
     def decision_day(self, node: str, ctx: str = "") -> np.ndarray:
         """Answer-independent decision date on booked state (BIG: not enabled).

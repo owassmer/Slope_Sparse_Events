@@ -261,11 +261,6 @@ class Counts:
         return h / np.maximum(h.sum(axis=1, keepdims=True), 1e-300) if normalise else h
 
 
-
-
-
-
-
 class Reduction:
     """The compact record of a set of simulated paths (see the module docstring), and the probability-weighted
     metrics and daily series read from it."""
@@ -658,46 +653,6 @@ class Analysis:
             self._draws.prefixes = {}
             self._packed = {}
 
-    def stub_bounds_figures(self) -> list[str]:
-        """The figures the stubs' bounds cover (every stub carries the same; none where nothing was sampled)."""
-        first = next(iter(getattr(self, "stub_bounds", {}).values()), {})
-        return sorted(first)
-
-    def _stub_bounds(self, model: EventModel, i: int, t: Trajectories, ev: EventCash) -> None:
-        """For a path the answer-first walk sampled, each figure's floor and ceiling over every continuation of its
-        stub (`continuation.continuation_bounds`), on the draws the path follows, into `self.stub_bounds[(dispute,
-        stub)]` = figure -> ([draws] floor, [draws] ceiling) (None where no ceiling holds). Every path of a stub shares
-        its event cash before the stub's first decision, so they must give the same bounds on the draws they share;
-        a path that does not stands as an error (the walk's prefix was not what the stub recorded)."""
-        sampled = [p for p in model.combos[i] if p.stub >= 0]
-        if not sampled:
-            return
-        if len(sampled) > 1:
-            raise ValueError("a joint path sampled in two disputes: the ranges assume one sampled dispute")
-        p = sampled[0]
-        table = model.stubs[p.instance_id][p.stub]
-        from app.analysis.continuation import continuation_bounds
-
-        got = continuation_bounds(self.line, t, ev, table["day"])
-        on = combo_mask(model.combos[i], DRAWS)
-        on = np.ones(DRAWS, dtype=bool) if on is None else on
-        store = self.__dict__.setdefault("stub_bounds", {}).setdefault((p.instance_id, p.stub), {})
-        seen = self.__dict__.setdefault("_stub_seen", {}).setdefault((p.instance_id, p.stub), np.zeros(DRAWS, bool))
-        for f, b in got.items():
-            if b is None or b[0] is None or b[1] is None:  # no floor or no ceiling holds: that figure gets no range
-                store[f] = None
-                continue
-            lo, hi = (np.asarray(x, dtype=np.float64) for x in b)
-            if f not in store:
-                store[f] = (np.zeros(DRAWS), np.zeros(DRAWS))
-            if store[f] is None:
-                continue
-            both = seen & on
-            if not (np.array_equal(store[f][0][both], lo[both]) and np.array_equal(store[f][1][both], hi[both])):
-                raise ValueError(f"stub {p.stub}: two of its paths give different bounds for {f} on the draws they "
-                                 "share, so their event cash differs before the stub's first decision")
-            store[f][0][on], store[f][1][on] = lo[on], hi[on]
-        seen |= on
 
     def _prepare(self, feed: BankFeed, setup: Setup, model: EventModel, stress: bool, sens: dict | None,
                  dispute_model: dict | None, progress) -> None:

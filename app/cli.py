@@ -102,58 +102,6 @@ def jev_check_cases() -> None:
     typer.echo(f"{report['agreement']}/{report['cases']} agree  ->  {report['path']}")
 
 
-@cli.command("analyze-case")
-def analyze_case(snapshot: str = typer.Argument(..., help="Dated case ID; uses its configured evidence, baseline and financing."),
-                 run: str | None = typer.Option(None, help="Reuse this completed agent-plus-Jev investigation."),
-                 pool: str | None = typer.Option(None, help="Saved pool directory or s3://bucket/prefix/pool; requires --run. Execute on the host that will reduce the paths."),
-                 processes: int = typer.Option(4, min=1, help="CPU processes for saved-pool reduction.")) -> None:
-    """Run evidence → investigation → Jev forecasts → financial analysis → page locally."""
-    from app.pipeline import FlowError
-    from app.pipeline import analyze_case as execute
-
-    try:
-        result = execute(snapshot, run_id=run, pool_dir=pool, processes=processes,
-                         progress=lambda stage: typer.echo(f"stage: {stage}"))
-    except FlowError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
-    typer.echo(f"Complete: {result['run_id']}")
-    for name, path in result["artifacts"].items():
-        typer.echo(f"  {name}: {path}")
-    typer.echo(f"Run `slope viewer`, then open http://127.0.0.1:8000{result['page_route']}")
-
-
-@cli.command()
-def analyze(run: str = typer.Option(..., help="Recorded run ID (runs/recorded/<id>)."),
-            root: str = typer.Option("", help="Directory holding the run (default runs/recorded)."),
-            refresh_probabilities: bool = typer.Option(False, "--refresh-probabilities",
-                                                       help="Ask Jev again instead of using cached forecasts.")) -> None:
-    """Probabilistic scenario and sensitivity analysis of the loan's dated cash flows for a recorded run; writes
-    analysis.json, collections.csv and cashflows.csv beside it."""
-    from pathlib import Path
-
-    from app.analysis.build import build, money
-    from app.config import ROOT
-
-    base = Path(root) if root else ROOT / "runs" / "recorded"
-    data = build(run, base, refresh=refresh_probabilities)
-    for view in ("bank_only", "event_adjusted"):
-        m = data["views"][view]["metrics"]
-        typer.echo(f"{view:15s} lender PV {money(m['lender_pv_cents'])}  full by maturity "
-                   f"{m['full_collection_by_maturity_p']:.1%}  min cash mean {money(m['min_cash_mean_cents'])}  "
-                   f"P5 {money(m['min_cash_p5_cents'])}  shortfall {m['shortfall_p']:.1%}")
-    for r in data["sensitivity"]["judgments"][:3]:
-        typer.echo(f"  driver: {r['dispute_title']}: {r['event']} (Jev {r['jev_model']})")
-    typer.echo(f"{len(data['scenarios'])} joint paths; Jev {data['jev']}; wrote analysis.json, collections.csv, cashflows.csv")
-
-
-@cli.command()
-def compare(run: str = typer.Option(..., help="Recorded run ID."), root: str = typer.Option("", help="Run directory."),
-            refresh_probabilities: bool = typer.Option(False, "--refresh-probabilities")) -> None:
-    """Alias of `analyze`."""
-    analyze(run=run, root=root, refresh_probabilities=refresh_probabilities)
-
-
 @cli.command()
 def investigate(
     snapshot: str = typer.Option("synergy_20240813", help="Dated evidence snapshot / case."),
@@ -171,21 +119,9 @@ def investigate(
 
 
 @cli.command()
-def viewer(port: int = typer.Option(8000), host: str = typer.Option("127.0.0.1", help="Local only by default."),
-           dev: bool = typer.Option(False, help="Build (or load) the Akoustis development page first: the pre-D "
-                                                 "record with neutral judgments, no Jev answers; served at /dev/akoustis.")
-           ) -> None:
+def viewer(port: int = typer.Option(8000), host: str = typer.Option("127.0.0.1", help="Local only by default.")) -> None:
     """Serve the read-only investigation viewer for recorded runs."""
     import uvicorn
-
-    if dev:
-        from app.analysis.page import DevPage
-
-        page = DevPage()
-        if page.load() is None:
-            typer.echo("Building the Akoustis development page (a few minutes; cached in var/dev/)...")
-            page.build()
-        typer.echo(f"Development page: http://{host}:{port}/dev/akoustis")
 
     uvicorn.run("app.web.app:app", host=host, port=port)
 
