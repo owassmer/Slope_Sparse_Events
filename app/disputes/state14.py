@@ -1150,4 +1150,18 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
                           "answers": answers},
              "standard": cite(fc, t), "record_items": filled, "situation": sit, **kinds,
              "assumed_events": assumed, "earlier_readings": readings}
+    for part in ("question", "situation", "assumed_events", "record_items"):  # our own words, never the evidence's
+        state[part] = named(state[part], fc.borrower)
     return state, fids, readings
+
+
+def named(x, borrower: str):
+    """'the company' in the words code writes is the borrower: named as the case names it, so the parties' roles
+    (app/agent/roles.py) give it one name, the same as everywhere else."""
+    if isinstance(x, str):
+        return re.sub(r"\b[Tt]he company\b", borrower, x)
+    if isinstance(x, dict):
+        return {k: named(v, borrower) for k, v in x.items()}
+    if isinstance(x, list):
+        return [named(v, borrower) for v in x]
+    return x
