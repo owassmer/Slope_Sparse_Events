@@ -357,11 +357,14 @@ class Situation:
                                     "{amount} of cash security",
                    "stay_approved_noncash": "the court approved the stay the company moved for on {ref}, on security "
                                             "not in cash",
+                   "stay_approved_unstated": "the court approved the stay the company moved for on {ref}",
                    "stay_no_effect": "the court approved the stay the company moved for on {ref}, but the company "
                                      "could post no security, so it did not take effect",
                    "stay_denied": "the court denied the stay the company moved for on {ref}",
                    "stay_moot": "the stay the company moved for on {ref} became moot: another stay took effect",
                    "levied": "{claimant} levied {amount} on the company's cash",
+                   "registered": "the court registered the judgment in another district, so {claimant} can execute "
+                                 "on it there",
                    "paid": "the company paid {amount} on the judgment"}
 
     def historical_events(self) -> list[str]:
@@ -381,8 +384,8 @@ class Situation:
             if 0 <= t <= self.day:
                 if not cash and kind in ("levied", "paid"):
                     continue  # the question's situation has no cash (QUESTIONS J2)
-                if kind == "stay_approved" and amount < 0:
-                    kind = "stay_approved_noncash"
+                if kind == "stay_approved" and (amount < 0 or not cash):
+                    kind = "stay_approved_noncash" if amount < 0 else "stay_approved_unstated"
                 proposed = (self.PROPOSED[OFFER_KINDS[ref]].format(amount=usd(amount)) if kind == "stay_moved"
                             else "")
                 if not cash and kind == "stay_moved":
@@ -406,7 +409,14 @@ class Situation:
             dates = marks.get(name)
             if dates is not None and 0 <= int(dates[j]) <= self.day:
                 dated_events.append((int(dates[j]), text.format(claimant=self.d.counterparty)))
-        return [f"on {when(self.review, t)}, {text}" for t, text in sorted(dated_events, key=lambda x: x[0])]
+        out = [f"on {when(self.review, t)}, {text}" for t, text in sorted(dated_events, key=lambda x: x[0])]
+        sit = g.rows[i].get("sit") or {}
+        if "levy_scheduled" in sit:  # a writ ordered and not yet executed: its levy's date is a known scheduled date
+            levy = int(np.asarray(sit["levy_scheduled"])[j])
+            if self.day <= levy < BIG and cash:
+                out.append(f"a levy by {self.d.counterparty} on the company's cash is scheduled for "
+                           f"{when(self.review, levy)}")
+        return out
 
     def interval(self):
         """The window the question's event may occur in, from its own date (`WINDOW`)."""
@@ -878,13 +888,16 @@ class Situation:
             raise Unbuilt(f"N1 on {self.day}: {len(got)} pending offerings close that day")
         return got[0]
 
-    def _asked_of(self, row, x) -> int:
-        """A member's N1 offering's initiation day (as `_asked_offering`, on that member)."""
-        offs = np.asarray(row["sit"]["offerings"])[x]
-        got = [o for o in offs if o[2] == "pending" and o[1] == int(row["day"][x])]
-        if len(got) != 1:
-            raise Unbuilt("N1: no single pending offering closes that day")
-        return got[0][0]
+    def _asked_of(self, row, xs) -> np.ndarray:
+        """Each member's N1 offering's initiation day (as `_asked_offering`, on that member), for member indices xs."""
+        out = []
+        for x in np.atleast_1d(xs):
+            offs = np.asarray(row["sit"]["offerings"], dtype=object)[x]
+            got = [o for o in offs if o[2] == "pending" and o[1] == int(row["day"][x])]
+            if len(got) != 1:
+                raise Unbuilt("N1: no single pending offering closes that day")
+            out.append(got[0][0])
+        return np.array(out, dtype=np.int64)
 
     def initiated_on(self):
         return when(self.review, self._asked_offering()[0])
@@ -1166,9 +1179,12 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
         bands = fc.ruling_bands.get(n.key, fc.ruling_bands.get(n.key.split("|#", 1)[0]))
         if bands is None and any("@" in b for b in n.branches):
             raise Unbuilt(f"no bands for the ruling {n.key}")
-        for booked, lo, hi in bands or ():
-            for kind in ("reduced", "remitted"):
+        for i, (booked, lo, hi) in enumerate(bands or ()):
+            for kind in ("reduced", "remitted") if i < len(bands) - 1 else ("remitted",):
                 answers[f"{kind}@{booked}"] = fill_text(crit[kind], {**values, "reduced_band": band_text(lo, hi)})
+        if bands:  # an outright reduction that leaves the award in its own band books as it stands
+            answers["unchanged"] = (f"The money judgment stands as entered, or is reduced as a matter of law to an "
+                                    f"amount that stays {band_text(bands[-1][1], bands[-1][2])}.")
         answers = {b: answers[b] for b in n.branches}
     acts = [b for b in n.branches if b not in ("none", "neither")]
     if n.node in ("judgment_response", "financing_at_floor", "petition_cash_out") and len(acts) == 1:

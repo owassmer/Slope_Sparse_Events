@@ -46,13 +46,12 @@ def question(st, k, scratch, q, ints, floats):
     if q[tree.QN] in (tree.Q_STAY_APPROVED, tree.Q_OFFERING):
         ints[r.RAISE_OFFER] = ints[r.OFFER_AVAILABLE]
     if q[tree.QN] == tree.Q_STAY_APPROVED:
-        found = -1  # the motion the court answers today
+        found = -1  # the motion the court answers now: the first open on this day, as the frontier takes them
         for j in range(st.S[a.N_STAYS]):
             row = st.stays[j]
             if row[a.T_OPEN] and row[a.T_APPROVAL] == day:
-                if found >= 0:
-                    raise ValueError("two stay motions answered on one day")
                 found = j
+                break
         if found < 0:
             raise ValueError("a stay approval with no motion before the court")
         ints[r.MOTION_DAY] = st.stays[found, a.T_MOTION]

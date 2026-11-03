@@ -24,9 +24,10 @@ def case_tables(fc, d, ch0) -> tree.TK:
 
 
 def lower_bands(fc, d, classes) -> np.ndarray:
-    """[classes, MAX_BANDS, 3]: per verdict class, the J1b bands below its award's (QUESTIONS J2: a reduction to any
-    of them, outright or by remittitur), lowest first, each (booked, low, high) and booked at its midpoint as J1b
-    books a band; -1 where none."""
+    """[classes, MAX_BANDS, 3]: per verdict class, the J1b bands up to and including its award's, lowest first, each
+    (booked, low, high) and booked as J1b books a band; -1 where none (QUESTIONS J2: a reduction as a matter of law to
+    any band below the award's, a remittitur to any band up to and including its own: a remittitur inside the
+    award's band keeps its cash on acceptance and sets the judgment aside on refusal)."""
     bands = [b for b in fc.verdict_lines(d, fc.equity_inflows(d))["bands"] if b[1] > 0]
     out = np.full((len(classes), tree.MAX_BANDS, 3), -1, dtype=np.int64)
     for i, c in enumerate(classes):
@@ -34,9 +35,9 @@ def lower_bands(fc, d, classes) -> np.ndarray:
             continue
         entered = int(c.split(":")[1])
         at = next(j for j, (lo, hi, _) in enumerate(bands) if lo < entered <= hi)
-        if at > tree.MAX_BANDS:
-            raise ValueError(f"{at} bands below an award: more than the walk holds ({tree.MAX_BANDS})")
-        for j, (lo, hi, booked) in enumerate(bands[:at]):
+        if at + 1 > tree.MAX_BANDS:
+            raise ValueError(f"{at + 1} bands up to an award: more than the walk holds ({tree.MAX_BANDS})")
+        for j, (lo, hi, booked) in enumerate(bands[:at + 1]):
             out[i, j] = booked, lo, hi
     return out
 

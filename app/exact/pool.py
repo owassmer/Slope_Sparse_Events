@@ -20,7 +20,7 @@ from app.exact import fields_walk as w
 
 ENFORCEABLE = "the judgment is enforceable, unstayed and unpaid"
 NONPAYMENT = "the notes are due and unpaid under Indenture §7.02 on the general nonpayment"
-RESPONSE_WHEN = {"post": ("{claimant} levies on the company's cash that day",),
+RESPONSE_WHEN = {"post": ("{claimant}'s levy on the company's cash is scheduled for that day",),
                  "ripe": ("the judgment default under the notes has ripened that day",),
                  "entry": ("the money judgment was entered that day, unpaid; execution is stayed automatically for "
                            "its first 30 days (Fed. R. Civ. P. 62(a))",)}
@@ -65,9 +65,9 @@ def node_for(fc, d, key: str, q: np.ndarray, klass: str, tk=None) -> str:
     if q[w.QN] == w.Q_RULING:  # its answers: unchanged; reduced to each band below the award; remitted to each; set aside
         vi = verdict_index(q, tk)
         bands = [tuple(int(x) for x in tk.lower[vi, b]) for b in range(tree.n_lower(tk, vi))]
-        if 2 + 2 * len(bands) != q[w.QNANS]:
-            raise ValueError("the ruling's answers and the bands below the award differ")
-        branches = ("unchanged", *(f"reduced@{b[0]}" for b in bands), *(f"remitted@{b[0]}" for b in bands),
+        if (1 + 2 * len(bands) if bands else 2) != q[w.QNANS]:
+            raise ValueError("the ruling's answers and the bands up to the award differ")
+        branches = ("unchanged", *(f"reduced@{b[0]}" for b in bands[:-1]), *(f"remitted@{b[0]}" for b in bands),
                     "set_aside")
     base = fc.node(d, name, *ctx, assumptions=assumptions(fc, name, ctx), branches=branches)
     if bands is not None:

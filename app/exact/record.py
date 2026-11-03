@@ -52,11 +52,14 @@ def events(st, k, day, out):
                     kind = 1
                 amount = (row[a.T_LOCK] if row[a.T_LOCK] > 0 else r.NONCASH) if kind == 1 else 0
                 cnt = _event(out, cnt, kind, t, amount, row[a.T_MOTION])
+        if S[f.EARLY_REGISTRATION] == t:  # the court's order registering the judgment in another district
+            cnt = _event(out, cnt, 7, t, 0, t)
         if D[f.D_KIND_LEVY, t] != 0:
             cnt = _event(out, cnt, 5, t, -D[f.D_KIND_LEVY, t], t)
         if D[f.D_KIND_JUDGMENT, t] != 0:
             cnt = _event(out, cnt, 6, t, -D[f.D_KIND_JUDGMENT, t], t)
     out[r.EVENT_COUNT] = cnt
+    out[r.LEVY_SCHEDULED] = agenda.pending_levy(st)  # a writ ordered, its levy dated (a known scheduled date)
 
 
 @njit(cache=True)
@@ -225,6 +228,7 @@ def record(st, k, day, node, ctx, scratch, out, floats):
         p = project(st, k, scratch, day, payment, False)
         cap = k.claimed if ctx == 0 else p[3]
         out[r.SETTLE_OFFER] = min(max(p[1] - p[2], 0), cap) if p[6] and start < k.N else 0
+        out[r.SETTLE_BASIS] = cap  # the claim before a judgment, the amount owed after (QUESTIONS D3)
         out[r.HAS_PRICING] = 1
         out[r.PRICING0], out[r.PRICING0 + 1], out[r.PRICING0 + 2] = payment, p[1], p[2]
     if node == a.STAY:
@@ -262,8 +266,8 @@ def situation_class(row, out, appeal=True, stay=False, context=0, group=False):
     out[10] = context
     out[11] = row[r.GROUPS] if group else -2
     out[13] = -1  # a settlement question's offer against the amount owed, banded (fields_record.SETTLE_RATIO_BPS)
-    if row[r.SETTLE_OFFER] > 0 and row[r.OWED] > 0:
-        share = row[r.SETTLE_OFFER] * 10_000 // row[r.OWED]
+    if row[r.SETTLE_OFFER] > 0 and row[r.SETTLE_BASIS] > 0:
+        share = row[r.SETTLE_OFFER] * 10_000 // row[r.SETTLE_BASIS]
         out[13] = 0
         for b in r.SETTLE_RATIO_BPS:
             if share >= b:
