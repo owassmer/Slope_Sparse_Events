@@ -910,6 +910,7 @@ class Forecaster:
         self._reuse: dict = {}  # namespace -> depth -> the walked children's traces (`_logged`)
         self.reuse_stats = {"computed": 0, "served": 0}
         self.remitted: dict[str, tuple[int, int, int]] = {}  # C3 node key -> the remitted amount and its band
+        self.ruling_bands: dict[str, list] = {}  # J2 node key -> the bands below the award (booked, low, high)
         self._sources: dict[str, str] = {}  # finding -> its source's title
         self.bank_nodes: dict[str, Node] = {}  # the bank view's questions (bank_state)
         self.bank_facts: dict[str, list] = {}  # bank node key -> [(day, cash, need, raise offer) arrays]

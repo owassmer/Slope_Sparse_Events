@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from app.disputes.forecast import CLASS_TAG
-from app.exact import decode, question_keys
+from app.exact import decode, question_keys, tree
 from app.exact import fields_walk as w
 
 ENFORCEABLE = "the judgment is enforceable, unstayed and unpaid"
@@ -67,13 +67,20 @@ def node_for(fc, d, key: str, q: np.ndarray, klass: str, tk=None) -> str:
     question with its group's own answers, `Forecaster.class_key`; a remittitur with its proposed amount and band,
     `fc.remitted`): its node key."""
     name, *ctx = key.split(":", 1)[1].split("|")
-    branches = None
-    if q[w.QN] == w.Q_RULING:  # a reduction is offered only where the award has a lower band (`_Walk.ruling_pending`)
-        branches = ("unchanged", "reduced", "remitted", "set_aside") if q[w.QNANS] == 4 else ("unchanged", "set_aside")
+    branches, bands = None, None
+    if q[w.QN] == w.Q_RULING:  # its answers: unchanged; reduced to each band below the award; remitted to each; set aside
+        vi = verdict_index(q, tk)
+        bands = [tuple(int(x) for x in tk.lower[vi, b]) for b in range(tree.n_lower(tk, vi))]
+        if 2 + 2 * len(bands) != q[w.QNANS]:
+            raise ValueError("the ruling's answers and the bands below the award differ")
+        branches = ("unchanged", *(f"reduced@{b[0]}" for b in bands), *(f"remitted@{b[0]}" for b in bands),
+                    "set_aside")
     base = fc.node(d, name, *ctx, assumptions=assumptions(fc, name, ctx), branches=branches)
+    if bands is not None:
+        fc.ruling_bands[base] = bands  # booked, low, high, lowest first
     if q[w.QN] == w.Q_REMITTITUR:
-        [i] = np.flatnonzero(tk.reduced[:, 0] == q[w.QEXTRA])[:1]
-        fc.remitted[base] = tuple(int(x) for x in tk.reduced[i])  # booked, low, high
+        hit = np.argwhere(tk.lower[:, :, 0] == q[w.QEXTRA])
+        fc.remitted[base] = tuple(int(x) for x in tk.lower[hit[0, 0], hit[0, 1]])  # booked, low, high
     if not klass:
         return base
     if q[w.QGROUP] >= 0:
@@ -81,7 +88,19 @@ def node_for(fc, d, key: str, q: np.ndarray, klass: str, tk=None) -> str:
     key = fc.class_key(base, klass if klass.startswith(CLASS_TAG) else CLASS_TAG + klass)
     if base in fc.remitted:
         fc.remitted[key] = fc.remitted[base]
+    if base in fc.ruling_bands:
+        fc.ruling_bands[key] = fc.ruling_bands[base]
     return key
+
+
+def verdict_index(q, tk) -> int:
+    """The verdict class a ruling question is asked on: its amount class is the award's (`question_keys.amount_label`)."""
+    if q[w.QCLS_KIND] != w.CLS_AWARD:
+        raise ValueError("a ruling question not on an award")
+    hit = np.flatnonzero(tk.verdicts[:, 3] == q[w.QCLS_VALUE])
+    if len(hit) != 1:
+        raise ValueError("a ruling question's award is not one verdict class")
+    return int(hit[0])
 
 
 class _View:

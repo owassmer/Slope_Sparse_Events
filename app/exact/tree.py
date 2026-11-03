@@ -32,7 +32,8 @@ BIG = f.BIG
 # `forecast.verdict_classes`) and their reduced bands (booked, low, high; -1: none); the question nodes' situation
 # conditions (bitmask over events.MARKS); the offering bound; the holders' notice lag; per question node whether its
 # class carries the appeal and the stay status (`uses_appeal_status`, `uses_stay_status`)
-TK = namedtuple("TK", "listing verdicts reduced conds bound notice appeals stays")
+TK = namedtuple("TK", "listing verdicts lower conds bound notice appeals stays")
+MAX_BANDS = 5  # the J1b bands below an award that a reduction may reach (`pass1.lower_bands`)
 
 from app.exact.fields_walk import (  # noqa: E402  (the questions' vocabulary)
     ORIGIN_NONPAYMENT,
@@ -71,12 +72,24 @@ from app.exact.fields_walk import (  # noqa: E402  (the questions' vocabulary)
 )
 
 # --- answers ----------------------------------------------------------------------------------------------------------
-MAX_ANS = 8
+MAX_ANS = 2 + 2 * MAX_BANDS  # the post-trial ruling's: unchanged; reduced or remitted to each lower band; set aside
+MAX_Q = 1 + MAX_BANDS  # a decision's questions: the ruling and the remittitur's election on each band
 # the ruling's elementary answers: unchanged; reduced and the remittitur accepted; reduced and refused (a new trial);
 # set aside
-# the ruling's outcomes (QUESTIONS J2, C3): unchanged; the reduced judgment stands (reduced outright as a matter of law,
-# or a remittitur accepted); a remittitur refused (a new trial, booked as set aside); set aside
-RU_UNCHANGED, RU_REDUCED_ACCEPTED, RU_REDUCED_REFUSED, RU_SET_ASIDE = range(4)
+# the ruling's outcomes (QUESTIONS J2, C3), with nb bands below the award: 0 unchanged; 1 + b, the reduced judgment in
+# band b stands (reduced outright as a matter of law, or a remittitur to it accepted); 1 + nb, a remittitur refused (a
+# new trial, booked as set aside); 2 + nb, set aside. With no band below: 0 unchanged, 1 set aside.
+RU_UNCHANGED = 0
+
+
+@njit(cache=True)
+def n_lower(tk, vi):
+    """The bands below verdict class vi's award (`pass1.lower_bands`)."""
+    n = 0
+    if vi >= 0:
+        while n < tk.lower.shape[1] and tk.lower[vi, n, 0] >= 0:
+            n += 1
+    return n
 # a grouped decision's answers
 G_PAY, G_OFFER, G_FILE, G_NONE = range(4)
 # the holders' act on a delisting
@@ -256,6 +269,16 @@ def emit(S, out, nq, qn, ctx, extra, group, day, depth):
 
 
 @njit(cache=True)
+def remittiturs(S, tk, qb, nb, day, depth):
+    """The Claimant's election on a remittitur to each band below the award (QUESTIONS C3), after the ruling's own
+    question: its booked amount the band's."""
+    vi = S[w.VERDICT_IX]
+    for b in range(n_lower(tk, vi)):
+        nb = emit(S, qb, nb, Q_REMITTITUR, 0, tk.lower[vi, b, 0], -1, day, depth)
+    return nb
+
+
+@njit(cache=True)
 def set_nans(qb, nb, m):
     """Each of a decision's questions' answer count: the settlement's offer and acceptance, the remittitur and the
     notes petitions are yes or no; the ruling's own question has the decision's answers less the remittitur's split;
@@ -265,8 +288,8 @@ def set_nans(qb, nb, m):
         if qn == Q_SETTLE_OFFER or qn == Q_SETTLE_ACCEPT or qn == Q_REMITTITUR or (
                 nb == 2 and (qn == Q_PETITION_NOTES or qn == Q_HOLDERS_INV)):
             qb[q, QNANS] = 2
-        elif qn == Q_RULING:  # its own answers: unchanged, reduced, remitted, set aside (or unchanged, set aside)
-            qb[q, QNANS] = m
+        elif qn == Q_RULING:  # its own: unchanged; reduced to each band; remitted to each band; set aside
+            qb[q, QNANS] = 2 * m - 4 if m > 2 else m
         else:
             qb[q, QNANS] = m
 
@@ -384,14 +407,11 @@ def options(st, k, wk, tk, ws, d, day, ans):
         ans[m], ans[m + 1] = G_FILE, G_NONE
         return m + 2, True, g
     if d == w.DEC_RULING:
-        ans[0] = RU_UNCHANGED
-        m = 1
-        vi = S[w.VERDICT_IX]
-        if vi >= 0 and tk.reduced[vi, 0] >= 0:
-            ans[1], ans[2] = RU_REDUCED_ACCEPTED, RU_REDUCED_REFUSED
-            m = 3
-        ans[m] = RU_SET_ASIDE
-        return m + 1, True, -1
+        nb = n_lower(tk, S[w.VERDICT_IX])
+        m = nb + 3 if nb else 2
+        for j in range(m):
+            ans[j] = j
+        return m, True, -1
     if d == w.DEC_NONPAYMENT:
         ans[0], ans[1], ans[2] = a.NP_PETITION, a.NP_HOLDERS, a.NP_DUE
         return 3, True, -1
@@ -573,12 +593,13 @@ def book(st, k, tk, ws, d, day, ans, asked):
             S[w.STAYED] = 1
         return
     if d == w.DEC_RULING:
+        vi = S[w.VERDICT_IX]
+        nb = n_lower(tk, vi)
         if ans == RU_UNCHANGED:
             step = mk(a.RULING, 0, a.R_UNCHANGED)
-        elif ans == RU_REDUCED_ACCEPTED:
-            vi = S[w.VERDICT_IX]
-            step = mk(a.RULING, 0, a.R_REDUCED, tk.reduced[vi, 0])
-        else:
+        elif 1 <= ans <= nb:  # the reduced judgment in band ans - 1, at its midpoint
+            step = mk(a.RULING, 0, a.R_REDUCED, tk.lower[vi, ans - 1, 0])
+        else:  # a remittitur refused (a new trial), or set aside
             step = mk(a.RULING, 0, a.R_SET_ASIDE)
         advance(st, k, ws, step, asked)
         return
@@ -913,7 +934,7 @@ def explore(st, k, wk, tk, ws, sk, mem, budget, forced, reads, ev_lo, ev_hi, che
     lv_read = np.zeros(MAX_DEPTH, np.int64)
     lv_cf = np.full((MAX_DEPTH, 4), -1, np.int64)
     ans = np.zeros(MAX_ANS, np.int64)
-    qb = np.zeros((4, QCOLS), np.int64)  # the questions of one decision
+    qb = np.zeros((MAX_Q, QCOLS), np.int64)  # the questions of one decision
     ints = np.zeros(fr.NI, np.int64)
     floats = np.zeros(fr.NF, np.float64)
     code = np.zeros(fr.NC, np.int64)
@@ -947,8 +968,8 @@ def explore(st, k, wk, tk, ws, sk, mem, budget, forced, reads, ev_lo, ev_hi, che
                     lv_cf[L, 0], lv_cf[L, 1] = f.MARK_APPEALED, t if on else BIG
             else:
                 nb = questions(st, k, tk, d, day, g, qb, 0, L)
-                if d == w.DEC_RULING and m == 4:  # the remittitur's election, put with the reduction
-                    nb = emit(S, qb, nb, Q_REMITTITUR, 0, tk.reduced[S[w.VERDICT_IX], 0], -1, day, L)
+                if d == w.DEC_RULING:  # the remittitur's election on each band, put with the ruling
+                    nb = remittiturs(S, tk, qb, nb, day, L)
                 set_nans(qb, nb, m)
                 walk_read = d == w.DEC_SETTLE0 + 7 or d == w.DEC_STAY0 + 1 or d == w.DEC_ENFORCE  # 'unstayed'
                 for q in range(nb):
@@ -994,92 +1015,6 @@ def explore(st, k, wk, tk, ws, sk, mem, budget, forced, reads, ev_lo, ev_hi, che
             return nq, nodes, leaves, deepest, nr
 
 
-# --- a history of the Python walk, followed through the dated walk (the check) -----------------------------------------
-NO_STEP, UNASKED_STEP = -1, -3  # a script's entries: the Python has no step for the decision / a step with no edge
-# the findings of a followed history (column 0 of `found`)
-F_EXTRA, F_MISSING, F_NOT_OFFERED, F_ASKED = 1, 2, 3, 4
-
-
-@njit(cache=True)
-def scripted(st, script, n1, d):
-    """The history's answer to decision d (a stay's approval by its phase; an offering's close by its occasion)."""
-    S = st.S
-    if d >= w.DEC_APPROVAL0 and d < w.DEC_REG_POST:
-        return script[w.DEC_APPROVAL0 + stay_phase(S, d - w.DEC_APPROVAL0)]
-    if d >= w.DEC_N1_0:
-        return n1[st.offers[d - w.DEC_N1_0, e.O_OCCASION]]
-    return script[d]
-
-
-@njit(cache=True)
-def follow(st, k, wk, tk, ws, script, n1, found, qout, iout, fout, cout):
-    """Walk the draw along a history's answers (`script` by decision id; the approvals at DEC_APPROVAL0 + phase;
-    `n1` by occasion): at each question the scripted answer. found[i]: (finding, decision, day, the scripted answer):
-    F_ASKED for each question asked as scripted; F_EXTRA a question the history does not ask on the draw; F_MISSING
-    a decision the history asks that does not arise here; F_NOT_OFFERED a scripted answer not open here. Returns how
-    many findings. Each question asked: its row, record and class (qout, iout, fout, cout; the count is the last
-    finding's... see `pass1.follow`)."""
-    S = st.S
-    walk.init(S)
-    ans = np.zeros(MAX_ANS, np.int64)
-    qb = np.zeros((4, QCOLS), np.int64)
-    nf, nq = 0, 0
-    while True:
-        agenda.refresh(st, k)
-        kind, which, day = frontier(st, k, wk)
-        if kind == w.IT_NONE:
-            return nf
-        if day < S[w.COMMITTED]:
-            raise ValueError("an item inserted before the committed frontier")
-        S[w.COMMITTED] = day
-        if kind != w.IT_DECISION:
-            book_item(st, k, kind, which, day)
-            continue
-        agenda.until(st, k, day)
-        agenda.refresh(st, k)
-        m, asked, g = options(st, k, wk, tk, ws, which, day, ans)
-        want = scripted(st, script, n1, which)
-        if nf + 1 >= found.shape[0]:
-            raise ValueError("findings exhausted")
-        if not asked:
-            if want >= 0:
-                found[nf, 0], found[nf, 1], found[nf, 2], found[nf, 3] = F_MISSING, which, day, want
-                nf += 1
-            book(st, k, tk, ws, which, day, ans[0], False)
-            if which < w.N_DEC and S[w.ANS0 + which] == w.OPEN:
-                S[w.ANS0 + which] = w.ABSENT
-            continue
-        pick = -1
-        if want >= 0:
-            for j in range(m):
-                if ans[j] == want:
-                    pick = j
-        if pick < 0:
-            found[nf, 0] = F_EXTRA if want < 0 else F_NOT_OFFERED
-            found[nf, 1], found[nf, 2], found[nf, 3] = which, day, want
-            nf += 1
-            pick = m - 1  # the quiet answer (each constructor's last), so the walk goes on
-        else:
-            found[nf, 0], found[nf, 1], found[nf, 2], found[nf, 3] = F_ASKED, which, day, want
-            nf += 1
-        nb = questions(st, k, tk, which, day, g, qb, 0, 0)
-        if which == w.DEC_RULING and m == 4:
-            nb = emit(S, qb, nb, Q_REMITTITUR, 0, tk.reduced[S[w.VERDICT_IX], 0], -1, day, 0)
-        set_nans(qb, nb, m)
-        for q in range(nb):
-            if nq >= qout.shape[0]:
-                raise ValueError("question buffer exhausted")
-            qout[nq] = qb[q]
-            qrecord.question(st, k, ws.scratch, qb[q], iout[nq], fout[nq])
-            klass(tk, qb[q], iout[nq], cout[nq])
-            nq += 1
-        found[found.shape[0] - 1, 0] = nq
-        book(st, k, tk, ws, which, day, ans[pick], True)
-
-
-
-# --- pass 2: the walk weighted by the judge's answers -------------------------------------------------------------
-
 @njit(cache=True)
 def decision_probs(d, m, ans, nb, P, vprob, out):
     """The probability of each of decision d's answers (`ans[:m]`, in `options`' order) from its questions' answer
@@ -1090,8 +1025,14 @@ def decision_probs(d, m, ans, nb, P, vprob, out):
     elif d == w.DEC_VERDICT:
         for j in range(m):
             out[j] = vprob[ans[j]]
-    elif d == w.DEC_RULING and m == 4:  # unchanged; reduced outright or remitted and accepted; remitted and refused; set
-        out[0], out[1], out[2], out[3] = P[0, 0], P[0, 1] + P[0, 2] * P[1, 0], P[0, 2] * P[1, 1], P[0, 3]  # aside
+    elif d == w.DEC_RULING and m > 2:  # J2's own answers P[0]: unchanged, reduced to band b, remitted to band b, set
+        k = m - 3  # aside; the election on band b's remittitur P[1 + b]
+        out[0] = P[0, 0]
+        out[1 + k] = 0.0
+        for b in range(k):
+            out[1 + b] = P[0, 1 + b] + P[0, 1 + k + b] * P[1 + b, 0]
+            out[1 + k] += P[0, 1 + k + b] * P[1 + b, 1]
+        out[2 + k] = P[0, 1 + 2 * k]
     elif d == w.DEC_NONPAYMENT:  # the issuer files; else the holders file; else the notes are due
         a5, h3 = P[0, 0], P[1, 0]
         out[0], out[1], out[2] = a5, (1.0 - a5) * h3, (1.0 - a5) * (1.0 - h3)
@@ -1125,11 +1066,14 @@ def decision_grads(d, m, nb, P, G):
         G[0, 1, 1], G[0, 1, 0], G[1, 1, 1] = 1.0, P[1, 1], P[0, 0]
     elif d == w.DEC_VERDICT:
         return
-    elif d == w.DEC_RULING and m == 4:  # unchanged; reduced or remitted and accepted; remitted and refused; set aside
+    elif d == w.DEC_RULING and m > 2:  # as `decision_probs`
+        k = m - 3
         G[0, 0, 0] = 1.0
-        G[0, 1, 1], G[0, 1, 2], G[1, 1, 0] = 1.0, P[1, 0], P[0, 2]
-        G[0, 2, 2], G[1, 2, 1] = P[1, 1], P[0, 2]
-        G[0, 3, 3] = 1.0
+        for b in range(k):
+            G[0, 1 + b, 1 + b] = 1.0
+            G[0, 1 + b, 1 + k + b], G[1 + b, 1 + b, 0] = P[1 + b, 0], P[0, 1 + k + b]
+            G[0, 1 + k, 1 + k + b], G[1 + b, 1 + k, 1] = P[1 + b, 1], P[0, 1 + k + b]
+        G[0, 2 + k, 1 + 2 * k] = 1.0
     elif d == w.DEC_NONPAYMENT:  # the issuer files; the holders file; the notes are due
         G[0, 0, 0] = 1.0
         G[0, 1, 1], G[1, 1, 0] = P[1, 0], P[0, 1]
@@ -1191,14 +1135,14 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase,
     lv_w = np.zeros(MAX_DEPTH, np.float64)
     lv_E = np.zeros((MAX_DEPTH, MAX_ANS, nf), np.float64)
     lv_nq = np.zeros(MAX_DEPTH, np.int64)
-    lv_pair = np.zeros((MAX_DEPTH, 4), np.int64)
-    lv_nans = np.zeros((MAX_DEPTH, 4), np.int64)
-    lv_qdec = np.zeros((MAX_DEPTH, 4), np.int64)
-    lv_G = np.zeros((MAX_DEPTH, 4, MAX_ANS, MAX_ANS), np.float64)
+    lv_pair = np.zeros((MAX_DEPTH, MAX_Q), np.int64)
+    lv_nans = np.zeros((MAX_DEPTH, MAX_Q), np.int64)
+    lv_qdec = np.zeros((MAX_DEPTH, MAX_Q), np.int64)
+    lv_G = np.zeros((MAX_DEPTH, MAX_Q, MAX_ANS, MAX_ANS), np.float64)
     lv_verdict = np.zeros(MAX_DEPTH, np.bool_)
     ans = np.zeros(MAX_ANS, np.int64)
-    qb = np.zeros((4, QCOLS), np.int64)
-    P = np.zeros((4, MAX_ANS), np.float64)
+    qb = np.zeros((MAX_Q, QCOLS), np.int64)
+    P = np.zeros((MAX_Q, MAX_ANS), np.float64)
     ints = np.zeros(fr.NI, np.int64)
     floats = np.zeros(fr.NF, np.float64)
     code = np.zeros(fr.NC, np.int64)
@@ -1219,8 +1163,8 @@ def evaluate(st, k, wk, tk, ws, sk, lk, qhash, qprob, qpair, qdec, vprob, vbase,
                 lv_ans[L, 0], lv_p[L, 0] = a.NO, 1.0
             else:
                 nb = questions(st, k, tk, d, day, g, qb, 0, L)
-                if d == w.DEC_RULING and m == 4:
-                    nb = emit(S, qb, nb, Q_REMITTITUR, 0, tk.reduced[S[w.VERDICT_IX], 0], -1, day, L)
+                if d == w.DEC_RULING:
+                    nb = remittiturs(S, tk, qb, nb, day, L)
                 set_nans(qb, nb, m)
                 for q in range(nb):
                     if qb[q, QN] == Q_VERDICT:

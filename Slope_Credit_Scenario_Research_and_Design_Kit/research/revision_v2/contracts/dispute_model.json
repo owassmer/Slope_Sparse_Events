@@ -2512,8 +2512,7 @@
               "judgment_amount",
               "judgment_entered_on",
               "pending_motions",
-              "grounds_preserved",
-              "reduced_band"
+              "grounds_preserved"
             ]
           }
         },
@@ -2661,7 +2660,7 @@
         "remittitur_elected": {
           "residual_question": "forecast_remittitur_elected",
           "actor": "{claimant}",
-          "decision": "Does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+          "decision": "Does {claimant} accept a reduced judgment of {remitted_amount} in place of the new trial the court orders on its refusal?",
           "timing": "on the day of the post-trial ruling that orders the remittitur",
           "timing_parameters": [
             "ruling_lag_days"

@@ -2213,7 +2213,7 @@
       "version": "5.1.0",
       "profile": "event_forecast",
       "primitive": "noul",
-      "question": "On {decision_date}, does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+      "question": "On {decision_date}, does {claimant} accept a reduced judgment of {remitted_amount} in place of the new trial the court orders on its refusal?",
       "actor": "{claimant}",
       "template": "pending_money_claim",
       "node": "remittitur_elected",
@@ -2230,10 +2230,10 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "On {decision_date}, does {claimant} accept the remitted amount of {remitted_amount} in place of the new trial the court orders on its refusal?",
+        "instructions": "On {decision_date}, does {claimant} accept a reduced judgment of {remitted_amount} in place of the new trial the court orders on its refusal?",
         "criteria": {
-          "true": "On {decision_date}, {claimant} accepts the remitted amount of {remitted_amount}.",
-          "false": "On {decision_date}, {claimant} does not accept the remitted amount."
+          "true": "On {decision_date}, {claimant} accepts the reduced judgment of {remitted_amount}.",
+          "false": "On {decision_date}, {claimant} does not accept the reduced judgment."
         }
       }
     },

@@ -856,15 +856,6 @@ class Situation:
     def grounds_preserved(self):
         return "the grounds the company raised in its Rule 50(a) motions at trial"
 
-    def reduced_band(self):
-        return band_text(*self._band())
-
-    def _band(self):
-        band = self.fc.reduced_band(self.d, self._entered()[1])
-        if band is None:
-            raise Unbuilt("this award has no lower positive judgment band")
-        return band[:2]
-
     def verdict_amount(self):
         return self.judgment_amount()
 
@@ -873,7 +864,7 @@ class Situation:
         terms = self.fc.remitted.get(key)
         if terms is None:
             raise Unbuilt(f"no proposed remittitur terms for {key}")
-        return usd(int(terms[0]))
+        return band_text(int(terms[1]), int(terms[2]))  # the band the walk books, never its midpoint as a figure
 
     # the verdict form (no cash: the form's words and the earlier answers)
     def _form(self) -> dict:
@@ -1082,9 +1073,7 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
             if len(contexts) != 1:
                 raise Unbuilt('notes class mixes decision-time contexts')
             tags = str(g.at_rep('note_context')).split('|')
-    keys = t["situation_keys"]
-    if n.node == "post_trial_ruling" and "reduced" not in n.branches:
-        keys = [k for k in keys if k != "reduced_band"]
+    keys = [k for k in t["situation_keys"] if k != "reduced_band"]  # J2's bands are its answers' own
     situation = Situation(fc, n, d, g, tags, labels)
     sit = situation.fill(keys, strict)
     values = {"company": fc.borrower, "claimant": d.counterparty,  # the question names the representative's figures
@@ -1093,6 +1082,14 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     names = dict(zip(["true", "false"], t["branches"], strict=True)) if entry["primitive"] == "noul" else \
         {k: k for k in crit}
     answers = {names[k]: fill_text(v, values) for k, v in crit.items() if names[k] in n.branches}
+    if n.node == "post_trial_ruling":  # a reduction or a remittitur to each band below the award, its own answer
+        bands = fc.ruling_bands.get(n.key, fc.ruling_bands.get(n.key.split("|#", 1)[0]))
+        if bands is None and any("@" in b for b in n.branches):
+            raise Unbuilt(f"no bands for the ruling {n.key}")
+        for booked, lo, hi in bands or ():
+            for kind in ("reduced", "remitted"):
+                answers[f"{kind}@{booked}"] = fill_text(crit[kind], {**values, "reduced_band": band_text(lo, hi)})
+        answers = {b: answers[b] for b in n.branches}
     acts = [b for b in n.branches if b not in ("none", "neither")]
     if n.node in ("judgment_response", "financing_at_floor", "petition_cash_out") and len(acts) == 1:
         nothing = next(b for b in n.branches if b in ("none", "neither"))  # as the question offers it (question_text)

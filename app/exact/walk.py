@@ -1,7 +1,5 @@
-"""The compiled walk on one draw (design/002-exact-evaluator.md, The walk, compiled): `ChronologicalWalk`'s scheduler
-(`_pending`, `_cursors`, `frontier.next_decisions` and `select`, `_loop`) over the compiled agenda's state
-(`app/exact/agenda.py`). This module: the decisions open at a point, the frontier's earliest item, and a history of
-the Python walk followed through them (`follow`, what the scheduler is checked by).
+"""The compiled walk's scheduler on one draw (design/002-exact-evaluator.md, The walk, compiled), over the agenda's
+state (`app/exact/agenda.py`): the decisions open at a point and the frontier's earliest item.
 """
 from __future__ import annotations
 
@@ -368,50 +366,3 @@ def record_step(S, step, asked):
         S[w.NP_DONE] = 1
     elif node == a.OFFERING:
         S[w.N_OFFERINGS] += 1
-
-
-# --- a history of the Python walk, followed -----------------------------------------------------------------------------
-
-@njit(cache=True)
-def follow(st, k, wk, ws, steps, asked, trace):
-    """Drive the scheduler along a history's steps (`replay.encode` rows; asked: whether each carries an edge): at
-    each point the frontier's earliest item; a deterministic item is booked through its day; a decision is the
-    history's next step (booked as `Chain.advance` books it, with the offering's outcome after an initiation, which
-    the same constructor asks), or else it does not arise on this draw (resolved without a step). trace[i]: (kind,
-    which, day, the history step taken or -1). Returns (the history steps taken, the trace's length)."""
-    S = st.S
-    init(S)
-    i, t = 0, 0
-    while True:
-        agenda.refresh(st, k)
-        kind, which, day = frontier(st, k, wk)
-        if kind == w.IT_NONE:
-            break
-        if t >= trace.shape[0]:
-            raise ValueError("trace exhausted")
-        if day < S[w.COMMITTED]:
-            raise ValueError("an item inserted before the committed frontier")
-        S[w.COMMITTED] = day
-        if kind != w.IT_DECISION:
-            agenda.until(st, k, day + 1)
-            trace[t, 0], trace[t, 1], trace[t, 2], trace[t, 3] = kind, which, day, -1
-            t += 1
-            continue
-        agenda.until(st, k, day)
-        if i < steps.shape[0] and step_dec(steps[i]) == which:
-            trace[t, 0], trace[t, 1], trace[t, 2], trace[t, 3] = kind, which, day, i
-            t += 1
-            agenda.advance(st, k, steps[i], ws)
-            record_step(S, steps[i], asked[i])
-            i += 1
-            if (steps[i - 1][0] == a.RESPONSE or steps[i - 1][0] == a.CASH_FLOOR
-                    or steps[i - 1][0] == a.CASH_OUT) and steps[i - 1][2] == a.B_OFFER \
-                    and i < steps.shape[0] and steps[i][0] == a.OFFERING:
-                agenda.advance(st, k, steps[i], ws)
-                record_step(S, steps[i], asked[i])
-                i += 1
-            continue
-        S[w.ANS0 + which] = w.ABSENT
-        trace[t, 0], trace[t, 1], trace[t, 2], trace[t, 3] = kind, which, day, -1
-        t += 1
-    return i, t

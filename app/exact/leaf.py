@@ -20,6 +20,7 @@ from app.exact import agenda, cash
 from app.exact import fields as f
 from app.exact import fields_equity as e
 from app.exact import fields_walk as fw
+from app.exact.fields_agenda import R_REDUCED, R_SET_ASIDE
 
 KIND_ROWS = np.array([f.D_KIND[c] for c in KINDS], dtype=np.int64)
 
@@ -248,8 +249,8 @@ def accumulate(st, k, lk, w, day, sc, h_cash, h_coll, h_head, h_low, h_floor, h_
         sc[i] += w * v
         F[i] = v
         i += 1
-    ruling = S[fw.ANS0 + fw.DEC_RULING]
-    for v in (1.0 if ruling == 1 or ruling == 2 else 0.0, 1.0 if ruling == 3 else 0.0, 1.0):  # tree.RU_*; one
+    ruling = S[fw.ANS0 + fw.DEC_RULING]  # the ruling's booking (fields_agenda.R_*): the reduced judgment stands, or
+    for v in (1.0 if ruling == R_REDUCED else 0.0, 1.0 if ruling == R_SET_ASIDE else 0.0, 1.0):  # none; and one
         sc[i] += w * v
         F[i] = v
         i += 1
