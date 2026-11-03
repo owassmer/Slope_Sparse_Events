@@ -810,6 +810,37 @@ def members_for(capacity: int, slots: int = 1 << 21) -> Members:
 
 
 @njit(cache=True)
+def blind(st, k, tk, ws, q, day, ints, floats, code, wsave, ssave):
+    """Whether question occurrence q's record and class change when every answer dated after its day is withdrawn:
+    the waiting answers booked after it and the court's answers given after it (the dated construction: a question's
+    facts are the state on its own date, QUESTIONS §1). After `take` on the same state."""
+    S = st.S
+    qrecord.question(st, k, ws.scratch, q, ints, floats)
+    klass(tk, q, ints, code)
+    d0, h0 = digest(ints, floats), qid(q, code)
+    nw, ns = S[a.N_WAIT], S[a.N_STAYS]
+    wsave[:nw] = st.wait[:nw]
+    ssave[:ns] = st.stays[:ns]
+    kept = 0
+    for j in range(nw):
+        if agenda.wait_day(st, k, wsave[j, a.W_NODE], wsave[j, a.W_CTX]) <= day:
+            st.wait[kept] = wsave[j]
+            kept += 1
+    S[a.N_WAIT] = kept
+    for j in range(ns):
+        row = st.stays[j]
+        if not row[a.T_OPEN] and not row[a.T_DONE] and row[a.T_APPROVAL] > day:
+            row[a.T_OPEN], row[a.T_APPROVED] = 1, 0
+    qrecord.question(st, k, ws.scratch, q, ints, floats)
+    klass(tk, q, ints, code)
+    differs = digest(ints, floats) != d0 or qid(q, code) != h0
+    st.wait[:nw] = wsave[:nw]
+    S[a.N_WAIT] = nw
+    st.stays[:ns] = ssave[:ns]
+    return differs
+
+
+@njit(cache=True)
 def take(st, k, tk, ws, q, mem, nq, ints, floats, code):
     """Question occurrence q: its record and class; kept where its (identity, record) is new on the draw (a member).
     Returns the occurrences counted."""
@@ -849,11 +880,15 @@ def leaf_range(st, k, ev_lo, ev_hi):
 
 
 @njit(cache=True)
-def explore(st, k, wk, tk, ws, sk, mem, budget, forced, reads, ev_lo, ev_hi):
+def explore(st, k, wk, tk, ws, sk, mem, budget, forced, reads, ev_lo, ev_hi, check):
     """Pass 1 on the draw: every question occurrence, its distinct members kept (`mem`: `take`), and the tree's size.
     forced: the watched questions' keys (sorted) asked wherever they arise, because their answer was read on some
-    draw; reads: the keys read on this draw (written). Returns (occurrences, nodes, leaves, deepest, reads written)."""
+    draw; reads: the keys read on this draw (written); check (size 2, or empty: none): every occurrence's record
+    checked blind to the answers dated after it (`blind`), [occurrences checked, records that differ]. Returns
+    (occurrences, nodes, leaves, deepest, reads written)."""
     S = st.S
+    wsave = np.zeros(st.wait.shape, np.int64)
+    ssave = np.zeros(st.stays.shape, np.int64)
     walk.init(S)
     lv_dec = np.zeros(MAX_DEPTH, np.int64)
     lv_day = np.zeros(MAX_DEPTH, np.int64)
@@ -906,6 +941,9 @@ def explore(st, k, wk, tk, ws, sk, mem, budget, forced, reads, ev_lo, ev_hi):
                 for q in range(nb):
                     watch_read(st, tk, lv_dec, lv_watch, lv_read, lv_cf, L, qb[q, QN], day, walk_read)
                     nq = take(st, k, tk, ws, qb[q], mem, nq, ints, floats, code)
+                    if check.size:
+                        check[0] += 1
+                        check[1] += blind(st, k, tk, ws, qb[q], day, ints, floats, code, wsave, ssave)
             book(st, k, tk, ws, d, day, lv_ans[L, 0], True)
             lv_next[L] = 1
             L += 1
@@ -927,6 +965,9 @@ def explore(st, k, wk, tk, ws, sk, mem, budget, forced, reads, ev_lo, ev_hi):
                     for q in range(nb):
                         watch_read(st, tk, lv_dec, lv_watch, lv_read, lv_cf, lvl, qb[q, QN], lv_day[lvl], False)
                         nq = take(st, k, tk, ws, qb[q], mem, nq, ints, floats, code)
+                        if check.size:
+                            check[0] += 1
+                            check[1] += blind(st, k, tk, ws, qb[q], lv_day[lvl], ints, floats, code, wsave, ssave)
                 else:
                     lv_watch[lvl] = W_NONE
                     lv_next[lvl] = lv_n[lvl] = 1

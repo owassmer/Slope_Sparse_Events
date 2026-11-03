@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from app.analysis.events import MARKS
 from app.exact import fields_record as fr
 from app.exact import fields_walk as w
 from app.exact import replay, tree, walk
@@ -12,7 +11,7 @@ from app.exact import replay, tree, walk
 def case_tables(fc, d, ch0) -> tree.TK:
     """The case's tables: the verdict classes (`Forecaster.verdict_classes`, over the forecaster's draws) as encoded
     steps with their reduced bands, the question nodes' situation conditions, the offering bound, the notice lag."""
-    from app.disputes.forecast import _Walk
+    from app.exact import vocabulary
 
     classes = list(fc.verdict_classes(d))
     verdicts = np.array([replay.encode(ch0, ("verdict", "I0", b)) for b in classes], dtype=np.int64)
@@ -23,19 +22,7 @@ def case_tables(fc, d, ch0) -> tree.TK:
             if band is not None:
                 lo, hi, booked = band
                 reduced[i] = booked, lo, hi
-    wlk = _Walk(fc, d)
-    conds = np.zeros(len(w.QNODES), dtype=np.int64)
-    appeals = np.zeros(len(w.QNODES), dtype=np.bool_)
-    stays = np.zeros(len(w.QNODES), dtype=np.bool_)
-    for q, name in enumerate(w.QNODES):
-        if name in fc.spec:
-            for c in set(wlk.situation_conditions(name)):
-                if c in MARKS:
-                    conds[q] |= 1 << MARKS.index(c)
-        if name != "verdict":
-            node = fc.new_node(d, name)
-            appeals[q] = fc.uses_appeal_status(node) or name == "enforce_after_final"
-            stays[q] = fc.uses_stay_status(node)
+    _, conds, appeals, stays = vocabulary.tables(fc, d)
     ec = replay.export_equity.config(ch0)
     nc = replay.export_notes.config(ch0)
     return tree.TK(listing=ch0.fin is not None and ch0.fin.listing_deadline is not None, verdicts=verdicts,
@@ -43,7 +30,7 @@ def case_tables(fc, d, ch0) -> tree.TK:
                    stays=stays)
 
 
-def explore(ch0, r: int, tk: tree.TK, budget: int = 10**9, forced=(), capacity: int = 600_000):
+def explore(ch0, r: int, tk: tree.TK, budget: int = 10**9, forced=(), capacity: int = 600_000, check=None):
     """Pass 1 on draw row r: (its members (`tree.Members`, the first `count` rows), occurrences, nodes, leaves,
     deepest, the watched keys read on the draw, the final cumulative event cash's range (lo, hi) per day). forced: the
     watched keys read on some draw, asked wherever they arise (`depth`)."""
@@ -56,7 +43,8 @@ def explore(ch0, r: int, tk: tree.TK, budget: int = 10**9, forced=(), capacity: 
     reads = np.zeros(4096, dtype=np.int64)
     forced = np.array(sorted(forced), dtype=np.int64)
     ev_lo, ev_hi = np.zeros(ch0.N, np.int64), np.zeros(ch0.N, np.int64)
-    nq, nodes, leaves, deepest, nr = tree.explore(st, k, wk, tk, ws, sk, mem, budget, forced, reads, ev_lo, ev_hi)
+    nq, nodes, leaves, deepest, nr = tree.explore(st, k, wk, tk, ws, sk, mem, budget, forced, reads, ev_lo, ev_hi,
+                                                  np.zeros(0, np.int64) if check is None else check)
     if nr > reads.size:
         raise ValueError("more watched reads than the buffer holds")
     m = int(mem.count[0])
@@ -182,9 +170,9 @@ def questions_on(fc_all, d, draws, forced=(), log=print, shards: int = 0, out_di
     import time
 
     from app.analysis.events import Chain
-    from app.exact import oracle, question_keys
+    from app.exact import case, question_keys
 
-    fc, _ = oracle.context(tuple(draws))
+    fc, _ = case.on_draws(tuple(draws))
     ch0 = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
     ch0.instrument_cash()
     tk = case_tables(fc_all, d, ch0)
@@ -244,7 +232,7 @@ def main(argv=None) -> None:
     import sys
     from pathlib import Path
 
-    from app.exact import oracle
+    from app.exact import case
 
     args = argv or sys.argv[1:]
     first, last, out_dir = int(args[0]), int(args[1]), Path(args[2])
@@ -254,7 +242,7 @@ def main(argv=None) -> None:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     HEAVY.mkdir(parents=True, exist_ok=True)
-    fc_all, d = oracle._forecaster()
+    fc_all, d = case.forecaster()
     got = questions_on(fc_all, d, range(first, last + 1), forced=forced, log=lambda s: print(s, flush=True),
                        shards=shards, out_dir=HEAVY)  # the members stay on GitHub (`heavy-*`); the summary comes back
     np.savez(out_dir / f"range-{first:03d}.npz", lo=got["range"][0], hi=got["range"][1])

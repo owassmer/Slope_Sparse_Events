@@ -260,14 +260,11 @@ def context():
     """The Forecaster of the case on its whole population, reading the run's evidence (the judge's states cite it),
     with its verdict form (`verdict_classes`: the verdict questions and what each asks), the walk's tables and the
     question rendering tables."""
-    from app.analysis.events import Chain
-    from app.exact import oracle, pass1
+    from app.exact import case, pass1
 
-    fc, d = oracle._forecaster()
-    fc.hydrate = oracle._run_context()[0]["hydrate"]
+    fc, d = case.forecaster()
     fc.verdict_classes(d)
-    ch0 = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
-    ch0.instrument_cash()
+    ch0 = case.chain(fc, d)
     tk = pass1.case_tables(fc, d, ch0)
     return fc, d, question_keys.case_tables(fc, d, ch0, tk), tk
 

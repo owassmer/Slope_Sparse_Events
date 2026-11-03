@@ -240,15 +240,14 @@ def line(first: int, last: int, answers_path, range_files, forced, out_dir, heav
     from pathlib import Path
 
     from app.analysis.events import Chain
-    from app.exact import oracle, pass1
+    from app.exact import case, pass1
 
-    fc_all, d = oracle._forecaster()
+    fc_all, d = case.forecaster()
     lo, hi = ranges(range_files)
     b = bins(Chain(d, fc_all.setup, fc_all.m, fc_all.draws, fc_all.sens), lo, hi)
     draws = list(range(first, last + 1))
-    fc, _ = oracle.context(tuple(draws))
-    ch0 = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
-    ch0.instrument_cash()
+    fc, _ = case.on_draws(tuple(draws))
+    ch0 = case.chain(fc, d)
     tk = pass1.case_tables(fc_all, d, ch0)
     lk = constants(ch0, b)
     ans = answers(answers_path, len(fc_all.verdict_classes(d)))

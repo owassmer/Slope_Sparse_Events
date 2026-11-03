@@ -36,26 +36,12 @@ def case_tables(fc, d, ch0, tk):
     encoded = np.array([replay.encode(ch0, ('verdict', 'I0', b)) for b in classes], dtype=np.int64)
     if not np.array_equal(encoded, tk.verdicts):
         raise ValueError('verdict rendering tables do not match the walk tables')
-    from app.analysis.events import MARKS
-    from app.disputes.forecast import _Walk
+    from app.exact import vocabulary
 
-    walk = _Walk(fc, d)
-    conditions, appeals, stays = [], [], []
-    for name in w.QNODES:
-        conds = tuple(walk.situation_conditions(name)) if name in fc.spec else ()
-        conditions.append(conds)
-        if name == 'verdict':
-            appeals.append(False)
-            stays.append(False)
-        else:
-            node = fc.new_node(d, name)
-            appeals.append(fc.uses_appeal_status(node) or name == 'enforce_after_final')
-            stays.append(fc.uses_stay_status(node))
-    masks = np.array([sum(1 << MARKS.index(c) for c in set(cs) if c in MARKS) for cs in conditions], np.int64)
+    conditions, masks, appeals, stays = vocabulary.tables(fc, d)
     return Tables(d.instance_id, tuple(pending_template(fc.m)['verdict_branches']),
                   tuple(tuple(tuple(tuple(edge) for edge in conjunction) for conjunction in parts)
-                        for parts in classes.values()), tuple(conditions), masks,
-                  np.array(appeals, dtype=np.bool_), np.array(stays, dtype=np.bool_))
+                        for parts in classes.values()), conditions, masks, appeals, stays)
 
 
 def amount_label(q, tables):
