@@ -184,6 +184,16 @@ def court_day(m: dict, review: date, t: np.ndarray) -> np.ndarray:
     return out
 
 
+def band_text(lo: int, hi: int | None) -> str:
+    """An amount band as the walk books it, above its low end and at most its high end (`Forecaster.reduced_band`:
+    lo < amount <= hi; QUESTIONS J1b): never read as including its low end, and a band from zero is positive."""
+    if hi is None:
+        return f"an amount of more than {usd(lo)}"
+    if lo <= 0:
+        return f"a positive amount of at most {usd(hi)}"
+    return f"an amount of more than {usd(lo)} and at most {usd(hi)}"
+
+
 def when(review: date, t: int) -> str:
     """A day index as a date (day 0 is the day after the review date)."""
     d = review + timedelta(days=int(t) + 1)
@@ -294,10 +304,8 @@ class Situation:
         if entry >= BIG or amount == 0:
             return "none: no money judgment has been entered"
         band = self._g().at_rep("band_range", sit=True)
-        if band is not None and band[1] is None:  # the band above the top line (QUESTIONS J1b)
-            return f"an amount above {usd(int(band[0]))}"
-        if band is not None and int(band[0]) != int(band[1]):
-            return f"an amount between {usd(int(band[0]))} and {usd(int(band[1]))}"
+        if band is not None and (band[1] is None or int(band[0]) != int(band[1])):
+            return band_text(int(band[0]), None if band[1] is None else int(band[1]))
         return usd(amount)
 
     def judgment_entered_on(self):
@@ -844,11 +852,8 @@ class Situation:
     def grounds_preserved(self):
         return "the grounds the company raised in its Rule 50(a) motions at trial"
 
-    def reduced_low(self):
-        return usd(self._band()[0])
-
-    def reduced_high(self):
-        return usd(self._band()[1])
+    def reduced_band(self):
+        return band_text(*self._band())
 
     def _band(self):
         band = self.fc.reduced_band(self.d, self._entered()[1])
@@ -1075,7 +1080,7 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
             tags = str(g.at_rep('note_context')).split('|')
     keys = t["situation_keys"]
     if n.node == "post_trial_ruling" and "reduced" not in n.branches:
-        keys = [k for k in keys if k not in ("reduced_low", "reduced_high")]
+        keys = [k for k in keys if k != "reduced_band"]
     situation = Situation(fc, n, d, g, tags, labels)
     sit = situation.fill(keys, strict)
     values = {"company": fc.borrower, "claimant": d.counterparty,  # the question names the representative's figures

@@ -5,7 +5,6 @@ import pytest
 
 from app.disputes import state14
 from app.disputes.forecast import _S, Forecaster, _Walk
-from app.domain.values import usd
 
 
 @pytest.fixture(scope='module')
@@ -25,7 +24,7 @@ def test_reduced_prompt_matches_booked_band_including_open_top_and_lowest(fixtur
         upper = 'top' if i == len(bands) - 1 else str(hi)
         steps = _S(steps=(('verdict', '', f'award:{booked}:{lo}:{upper}'),))
         assert walk.reduced_band(steps) == below
-        branches = ('unchanged', 'reduced', 'set_aside') if below else ('unchanged', 'set_aside')
+        branches = ('unchanged', 'reduced', 'remitted', 'set_aside') if below else ('unchanged', 'set_aside')
         node = fc.nodes[fc.node(d, 'post_trial_ruling', f'award{booked}', branches=branches)]
         row = {'day': np.array([60]), 'cash': np.array([100]), 'owed': np.array([booked]),
                'petition': np.array([-1]),
@@ -33,13 +32,14 @@ def test_reduced_prompt_matches_booked_band_including_open_top_and_lowest(fixtur
                        'motions_deadline': np.array([29]), 'ruling': np.array([60]),  # the walk's clocks
                        'band_range': (lo, None if upper == 'top' else hi)}}
         state, _, _ = state14.build(fc, node, d, [], [row], [np.array([True])])
-        if below:
-            assert state['situation']['reduced_low'] == usd(below[0])
-            assert state['situation']['reduced_high'] == usd(below[1])
-            assert f'from {usd(below[0])} to {usd(below[1])}' in state['question']['answers']['reduced']
+        if below:  # the band below, (low, high] as booked: above its low end, never including it
+            band = state14.band_text(below[0], below[1])
+            assert state['situation']['reduced_band'] == band
+            assert band in state['question']['answers']['reduced'] and band in state['question']['answers']['remitted']
+            assert ('positive amount of at most' in band) == (below[0] == 0)
         else:
-            assert 'reduced' not in state['question']['answers']
-            assert not {'reduced_low', 'reduced_high'} & state['situation'].keys()
+            assert not {'reduced', 'remitted'} & state['question']['answers'].keys()
+            assert 'reduced_band' not in state['situation']
     assert fc.reduced_band(d, 0) is None
 
 

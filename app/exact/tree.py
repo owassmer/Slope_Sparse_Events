@@ -74,6 +74,8 @@ from app.exact.fields_walk import (  # noqa: E402  (the questions' vocabulary)
 MAX_ANS = 8
 # the ruling's elementary answers: unchanged; reduced and the remittitur accepted; reduced and refused (a new trial);
 # set aside
+# the ruling's outcomes (QUESTIONS J2, C3): unchanged; the reduced judgment stands (reduced outright as a matter of law,
+# or a remittitur accepted); a remittitur refused (a new trial, booked as set aside); set aside
 RU_UNCHANGED, RU_REDUCED_ACCEPTED, RU_REDUCED_REFUSED, RU_SET_ASIDE = range(4)
 # a grouped decision's answers
 G_PAY, G_OFFER, G_FILE, G_NONE = range(4)
@@ -263,8 +265,8 @@ def set_nans(qb, nb, m):
         if qn == Q_SETTLE_OFFER or qn == Q_SETTLE_ACCEPT or qn == Q_REMITTITUR or (
                 nb == 2 and (qn == Q_PETITION_NOTES or qn == Q_HOLDERS_INV)):
             qb[q, QNANS] = 2
-        elif qn == Q_RULING:
-            qb[q, QNANS] = m - 1 if m == 4 else m
+        elif qn == Q_RULING:  # its own answers: unchanged, reduced, remitted, set aside (or unchanged, set aside)
+            qb[q, QNANS] = m
         else:
             qb[q, QNANS] = m
 
@@ -399,6 +401,9 @@ def options(st, k, wk, tk, ws, d, day, ans):
             return 1, False, -1
         ans[0], ans[1] = H2_ACCELERATE, H2_NEITHER
         return 2, True, -1
+    if d == w.DEC_STAY0 + 1 and agenda.stay_pending_at(st, day):  # the earlier motion is still before the court
+        ans[0] = a.NO
+        return 1, False, -1
     if d == w.DEC_STAY0 or d == w.DEC_STAY0 + 1:
         ans[0], ans[1] = a.YES, a.NO
         return 2, True, -1
@@ -1017,8 +1022,8 @@ def decision_probs(d, m, ans, nb, P, vprob, out):
     elif d == w.DEC_VERDICT:
         for j in range(m):
             out[j] = vprob[ans[j]]
-    elif d == w.DEC_RULING and m == 4:  # unchanged; reduced, the remittitur accepted or refused; set aside
-        out[0], out[1], out[2], out[3] = P[0, 0], P[0, 1] * P[1, 0], P[0, 1] * P[1, 1], P[0, 2]
+    elif d == w.DEC_RULING and m == 4:  # unchanged; reduced outright or remitted and accepted; remitted and refused; set
+        out[0], out[1], out[2], out[3] = P[0, 0], P[0, 1] + P[0, 2] * P[1, 0], P[0, 2] * P[1, 1], P[0, 3]  # aside
     elif d == w.DEC_NONPAYMENT:  # the issuer files; else the holders file; else the notes are due
         a5, h3 = P[0, 0], P[1, 0]
         out[0], out[1], out[2] = a5, (1.0 - a5) * h3, (1.0 - a5) * (1.0 - h3)
@@ -1052,11 +1057,11 @@ def decision_grads(d, m, nb, P, G):
         G[0, 1, 1], G[0, 1, 0], G[1, 1, 1] = 1.0, P[1, 1], P[0, 0]
     elif d == w.DEC_VERDICT:
         return
-    elif d == w.DEC_RULING and m == 4:  # unchanged; reduced and accepted; reduced and refused; set aside
+    elif d == w.DEC_RULING and m == 4:  # unchanged; reduced or remitted and accepted; remitted and refused; set aside
         G[0, 0, 0] = 1.0
-        G[0, 1, 1], G[1, 1, 0] = P[1, 0], P[0, 1]
-        G[0, 2, 1], G[1, 2, 1] = P[1, 1], P[0, 1]
-        G[0, 3, 2] = 1.0
+        G[0, 1, 1], G[0, 1, 2], G[1, 1, 0] = 1.0, P[1, 0], P[0, 2]
+        G[0, 2, 2], G[1, 2, 1] = P[1, 1], P[0, 2]
+        G[0, 3, 3] = 1.0
     elif d == w.DEC_NONPAYMENT:  # the issuer files; the holders file; the notes are due
         G[0, 0, 0] = 1.0
         G[0, 1, 1], G[1, 1, 0] = P[1, 0], P[0, 1]

@@ -1837,6 +1837,17 @@ class Chain:
               if x < self.N else int(x) for x in np.unique(day)}
         return np.array([at[int(x)] for x in day.ravel()], dtype=np.int64).reshape(day.shape)
 
+    def stay_post_day(self) -> np.ndarray:
+        """The post-ruling stay motion's day, per draw: the ruling's; where a stay motion made before it still awaits
+        the court's answer that day, none (BIG): one judgment, one stay motion before the court at a time
+        (`agenda.stay_pending_at`)."""
+        day = np.maximum(self.F, 0).astype(np.int64)
+        for st in self.__dict__.get("stays", {}).values():
+            if st["moved"]:
+                motion, approval = np.asarray(st["motion"]), np.asarray(st["approval"])
+                day = np.where((motion < day) & (day < approval), BIG, day)  # answered: that day's first event
+        return day
+
     def stay_security(self, motion: np.ndarray, key: str, approved: bool, moved: bool = False) -> np.ndarray:
         """Rule 62(b), effective on approval (motion + briefing + a lag draw). Where the company's cash at approval
         covers the bond collateral and its 30-day operating need, the collateral is locked. Elsewhere the company
@@ -2427,12 +2438,12 @@ class Chain:
             return full(self.E0)
         if node in ("registration_early", "stay"):
             return full(self.E0) if ctx == "I1" else (self.F.copy() if node == "registration_early"
-                                                    else np.maximum(self.F, 0))
+                                                    else self.stay_post_day())
         if node == "court_order":
             kind, phase = ctx.split("_")
             if kind not in ("stay", "registration"):
                 raise ValueError(f"Unknown court order {ctx}")
-            motion = full(self.E0) if phase == "I1" else (np.maximum(self.F, 0) if kind == "stay" else self.EF)
+            motion = full(self.E0) if phase == "I1" else (self.stay_post_day() if kind == "stay" else self.EF)
             return motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, ctx)
         if node in ("ruling", "post_trial_ruling"):
             return self.F.copy()
@@ -2503,7 +2514,7 @@ class Chain:
                 self.mark("executing", self.E0)
             return full(self.E0)
         if node == "stay":
-            motion = full(self.E0) if ctx == "I1" else np.maximum(self.F, 0)
+            motion = full(self.E0) if ctx == "I1" else self.stay_post_day()
             self.stay_security(motion, f"stay_{ctx}", approved=branch == "yes", moved=branch == "denied")
             return motion
         if node == "court_order":
@@ -2512,7 +2523,7 @@ class Chain:
             # "registration_post": the early registration order), dated as the step that books it dates it
             kind, phase = ctx.split("_")
             if kind == "stay":
-                return self.stay_security(full(self.E0) if phase == "I1" else np.maximum(self.F, 0), f"stay_{phase}",
+                return self.stay_security(full(self.E0) if phase == "I1" else self.stay_post_day(), f"stay_{phase}",
                                           approved=False)
             motion = full(self.E0) if phase == "I1" else self.EF  # post: the creditor moves once the ruling is enforceable
             return motion + int(self.p("briefing_days_new_motion")) + self.dr.lag(self.m, self.iid, f"registration_{phase}")

@@ -369,6 +369,24 @@ def settlement_window(st, k, ctx):
 
 
 @njit(cache=True)
+def stay_post_day(st):
+    """The post-ruling stay motion's day: the ruling's."""
+    return max(st.S[f.F], 0)
+
+
+@njit(cache=True)
+def stay_pending_at(st, day):
+    """`Chain.stay_pending_at`: a stay motion made before `day` awaits the court's answer on it (one judgment, one stay
+    motion before the court at a time: the post-ruling motion does not arise beside it)."""
+    S = st.S
+    for j in range(S[a.N_STAYS]):
+        row = st.stays[j]
+        if row[a.T_MOVED] and row[a.T_MOTION] < day < row[a.T_APPROVAL]:  # its answer is that day's first event
+            return True
+    return False
+
+
+@njit(cache=True)
 def decision_day(st, k, node, ctx):
     """`Chain.decision_day` for the steps walked (a history's own order); after `refresh`."""
     S = st.S
@@ -380,7 +398,7 @@ def decision_day(st, k, node, ctx):
     if node == a.EXECUTE:
         return S[f.E0]
     if node == a.STAY:
-        return S[f.E0] if ctx == 0 else max(S[f.F], 0)
+        return S[f.E0] if ctx == 0 else stay_post_day(st)
     if node == a.REGISTRATION:
         return S[f.E0] if ctx == 0 else S[f.F]
     if node == a.RULING:
@@ -574,7 +592,7 @@ def book_step(st, k, step):
             mark(st, k, f.MARK_EXECUTING, S[f.E0], True)
         return S[f.E0]
     if node == a.STAY:
-        motion = S[f.E0] if ctx == 0 else max(S[f.F], 0)
+        motion = S[f.E0] if ctx == 0 else stay_post_day(st)
         lag = k.DC[core.DC_LAG_STAY_I1] if ctx == 0 else k.DC[core.DC_LAG_STAY_POST]
         approval = motion + k.briefing + lag
         if br == a.YES or br == a.DENIED:

@@ -69,7 +69,7 @@ def node_for(fc, d, key: str, q: np.ndarray, klass: str, tk=None) -> str:
     name, *ctx = key.split(":", 1)[1].split("|")
     branches = None
     if q[w.QN] == w.Q_RULING:  # a reduction is offered only where the award has a lower band (`_Walk.ruling_pending`)
-        branches = ("unchanged", "reduced", "set_aside") if q[w.QNANS] == 3 else ("unchanged", "set_aside")
+        branches = ("unchanged", "reduced", "remitted", "set_aside") if q[w.QNANS] == 4 else ("unchanged", "set_aside")
     base = fc.node(d, name, *ctx, assumptions=assumptions(fc, name, ctx), branches=branches)
     if q[w.QN] == w.Q_REMITTITUR:
         [i] = np.flatnonzero(tk.reduced[:, 0] == q[w.QEXTRA])[:1]

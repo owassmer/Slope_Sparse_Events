@@ -3254,19 +3254,21 @@ class _Walk:
                 self.post(y)
 
     def ruling_pending(self, s: _S) -> None:
-        """J2 (QUESTIONS §4.1): the court leaves the money judgment unchanged, reduces it, or sets it aside (no money
-        judgment on the path; any stay security released). 'Reduced' is asked only where a reduction moves the award
-        across a J1b line: the surviving amount's band is the band below the award's, booked at its midpoint (the
-        judgment's lowest band has none: a reduction there crosses no line). Qorvo's election on the remitted amount
-        (C3) follows: accepted, the reduced judgment, with the holders asked again on the changed judgment (§3.1);
-        refused, a new trial, as set aside. A ruling after the period on every trajectory is not asked."""
+        """J2 (QUESTIONS §4.1): the court leaves the money judgment unchanged, reduces it as a matter of law (outright),
+        orders a remittitur (a new trial unless the Claimant accepts a reduced amount), or sets it aside (no money
+        judgment on the path; any stay security released). The reductions are asked only where a reduction moves the
+        award across a J1b line: the surviving amount's band is the band below the award's, booked at its midpoint (the
+        judgment's lowest band has none: a reduction there crosses no line). Qorvo's election on a remittitur (C3)
+        follows the remittitur alone: accepted, the reduced judgment, as an outright reduction, with the holders asked
+        again on the changed judgment (§3.1); refused, a new trial, as set aside. A ruling after the period on every
+        trajectory is not asked."""
         probe = ("post_trial_ruling", "", "unchanged")
         if not self.arises(s, probe):
             return self.tail(s, "motions_pending")
         if self.first(s, probe, self.ruling_pending):
             return
         below = self.reduced_band(s)
-        branches = ("unchanged",) + (("reduced",) if below else ()) + ("set_aside",)
+        branches = ("unchanged",) + (("reduced", "remitted") if below else ()) + ("set_aside",)
         k = self.node("post_trial_ruling", s.cls, s=s, probe=probe, assumptions=("post-trial motions are pending",),
                       branches=branches)
         self.post(self.take(s, probe, (k, "unchanged"), (k,)))
@@ -3277,11 +3279,11 @@ class _Walk:
             c3 = self.node("remittitur_elected", s.cls, f"remit{booked}",
                            assumptions=("the court orders a new trial unless the claimant accepts the reduced amount",))
             self.fc.remitted[c3] = (booked, lo, hi)
-            step = ("post_trial_ruling", "", f"reduced:{booked}:{lo}:{hi}")
-            y = self.take(s, step, (composite([[(k, "reduced"), (c3, "yes")]]), "yes"), (k, c3),
+            step = ("post_trial_ruling", "", f"reduced:{booked}:{lo}:{hi}")  # outright, or the remittitur accepted
+            y = self.take(s, step, (composite([[(k, "reduced")], [(k, "remitted"), (c3, "yes")]]), "yes"), (k, c3),
                           cls=f"reduced{booked}")
             self.notes_petition(y, "ruling", self.post)
-            aside.append([(k, "reduced"), (c3, "no")])
+            aside.append([(k, "remitted"), (c3, "no")])
         self.tail(self.take(s, ("post_trial_ruling", "", "set_aside"), (composite(aside), "yes"), (k,),
                             cls="set_aside"), "set_aside")
 

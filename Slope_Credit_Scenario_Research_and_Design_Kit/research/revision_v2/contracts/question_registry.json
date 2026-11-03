@@ -2080,7 +2080,8 @@
         "instructions": "On {decision_date}, how does the court dispose of the pending post-trial motions as to the money judgment of {judgment_amount} entered on {judgment_entered_on}?",
         "criteria": {
           "unchanged": "The money judgment stands as entered.",
-          "reduced": "The court reduces the money judgment to an amount from {reduced_low} to {reduced_high}, outright or on condition that {claimant} accepts it in place of a new trial.",
+          "reduced": "The court reduces the money judgment as a matter of law to {reduced_band} and enters it outright, with no new trial offered.",
+          "remitted": "The court finds the award excessive and orders a new trial unless {claimant} accepts a reduced judgment of {reduced_band} (a remittitur).",
           "set_aside": "No money judgment remains: the court grants judgment as a matter of law or a new trial."
         },
         "criteria_from_host": true

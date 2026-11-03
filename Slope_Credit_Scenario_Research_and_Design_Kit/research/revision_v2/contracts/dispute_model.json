@@ -2490,6 +2490,7 @@
             "branches": [
               "unchanged",
               "reduced",
+              "remitted",
               "set_aside"
             ],
             "standard": [
@@ -2512,8 +2513,7 @@
               "judgment_entered_on",
               "pending_motions",
               "grounds_preserved",
-              "reduced_low",
-              "reduced_high"
+              "reduced_band"
             ]
           }
         },
