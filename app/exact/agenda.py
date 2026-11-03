@@ -35,11 +35,17 @@ CASH_FLOOR_CAUSE = 3
 
 @njit(cache=True)
 def size_stay(st, k, j):
-    """`Chain._size_stay` on the state now: (lock, effective) for stay j approved on its approval day: the bond
-    collateral where the balance at processing less the month's need covers it, else the balance above the need; never
-    more than that balance, and nothing on or after a petition or once the dispute has ended. After `forward`."""
+    """(lock, effective) for stay j approved on its approval day (`stay_security`)."""
+    return stay_security(st, k, st.stays[j, a.T_APPROVAL])
+
+
+@njit(cache=True)
+def stay_security(st, k, approval):
+    """The security a stay approved on day `approval` takes, on the state now (QUESTIONS §2.5): (lock, effective): the
+    bond collateral where the balance at processing less the month's need covers it, else the balance above the need
+    (reduced cash security), never more than that balance; non-cash security where the scenario allows it; none on or
+    after a petition, once the dispute has ended, or with no security of any type. After `forward`."""
     S = st.S
-    approval = st.stays[j, a.T_APPROVAL]
     collateral = bond_collateral(st, k, approval)
     t = min(max(approval, 0), k.N - 1)
     cash_a = cash.processing_balance(st.D, st.ln, approval)
@@ -375,15 +381,23 @@ def stay_post_day(st):
 
 
 @njit(cache=True)
-def stay_pending_at(st, day):
-    """`Chain.stay_pending_at`: a stay motion made before `day` awaits the court's answer on it (one judgment, one stay
-    motion before the court at a time: the post-ruling motion does not arise beside it)."""
+def stay_in_effect(st, day, but):
+    """Whether a stay other than row `but` is in effect on `day`: approved, sized with security, and not released
+    (one judgment, one stay: a motion still before the court once another stay is in effect is moot)."""
     S = st.S
     for j in range(S[a.N_STAYS]):
         row = st.stays[j]
-        if row[a.T_MOVED] and row[a.T_MOTION] < day < row[a.T_APPROVAL]:  # its answer is that day's first event
+        if j != but and row[a.T_APPROVED] and row[a.T_DONE] and row[a.T_EFFECTIVE] and row[a.T_APPROVAL] <= day \
+                and day < S[f.RELEASE_AT]:
             return True
     return False
+
+
+@njit(cache=True)
+def stay_approval_day(k, motion, ctx):
+    """The day the court answers a stay motion made on `motion` (briefing and the court's lag)."""
+    lag = k.DC[core.DC_LAG_STAY_I1] if ctx == 0 else k.DC[core.DC_LAG_STAY_POST]
+    return motion + k.briefing + lag
 
 
 @njit(cache=True)
@@ -605,8 +619,7 @@ def book_step(st, k, step):
         return S[f.E0]
     if node == a.STAY:
         motion = S[f.E0] if ctx == 0 else stay_post_day(st)
-        lag = k.DC[core.DC_LAG_STAY_I1] if ctx == 0 else k.DC[core.DC_LAG_STAY_POST]
-        approval = motion + k.briefing + lag
+        approval = stay_approval_day(k, motion, ctx)
         if br == a.YES or br == a.DENIED:
             mark(st, k, f.MARK_STAY_MOVED, motion, core.live(S, motion))
         j = S[a.N_STAYS]

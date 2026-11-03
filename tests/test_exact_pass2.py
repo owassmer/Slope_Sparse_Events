@@ -6,9 +6,8 @@ the draw again under the changed answers finds."""
 import numpy as np
 import pytest
 
-from app.analysis.events import Chain
+from app.exact import case, leaf, pass1, pass2
 from app.exact import fields_walk as w
-from app.exact import leaf, oracle, pass1, pass2
 
 
 def _skewed(row):
@@ -19,9 +18,8 @@ def _skewed(row):
 
 @pytest.fixture(scope="module")
 def draw():
-    fc, d = oracle.context((145,))
-    ch0 = Chain(d, fc.setup, fc.m, fc.draws, fc.sens)
-    ch0.instrument_cash()
+    fc, d = case.on_draws((145,))
+    ch0 = case.chain(fc, d)
     tk = pass1.case_tables(fc, d, ch0)
     mem, _, nodes, leaves, _, reads, (lo, hi) = pass1.explore(ch0, 0, tk)
     lk = pass2.constants(ch0, pass2.bins(ch0, lo, hi))

@@ -401,13 +401,24 @@ def options(st, k, wk, tk, ws, d, day, ans):
             return 1, False, -1
         ans[0], ans[1] = H2_ACCELERATE, H2_NEITHER
         return 2, True, -1
-    if d == w.DEC_STAY0 + 1 and agenda.stay_pending_at(st, day):  # the earlier motion is still before the court
-        ans[0] = a.NO
-        return 1, False, -1
     if d == w.DEC_STAY0 or d == w.DEC_STAY0 + 1:
+        # QUESTIONS D4: where no security of any type is available on the court's day, as the company can see it on
+        # the motion's day, the motion is not asked (none is made); a court's day after the period is asked, its
+        # security stated as sized then
+        approval = agenda.stay_approval_day(k, day, d - w.DEC_STAY0)
+        if approval < k.N and not agenda.stay_security(st, k, approval)[1]:
+            ans[0] = a.NO
+            return 1, False, -1
         ans[0], ans[1] = a.YES, a.NO
         return 2, True, -1
     if d >= w.DEC_APPROVAL0 and d < w.DEC_REG_POST:
+        j = d - w.DEC_APPROVAL0
+        if agenda.stay_in_effect(st, day, j):  # another stay is in effect: the motion is moot, nothing to stay
+            ans[0] = a.NO
+            return 1, False, -1
+        if not agenda.stay_security(st, k, day)[1]:  # no security can be posted (Rule 62(b)): the stay is denied
+            ans[0] = a.DENIED
+            return 1, False, -1
         ans[0], ans[1] = a.YES, a.DENIED
         return 2, True, -1
     if d == w.DEC_ENFORCE:
@@ -554,6 +565,8 @@ def book(st, k, tk, ws, d, day, ans, asked):
         row = st.stays[j]
         row[a.T_OPEN] = 0
         row[a.T_APPROVED] = ans == a.YES
+        if ans == a.NO:  # moot: no answer of the court's to book, no denial
+            row[a.T_MOVED] = 0
         S[w.ANS0 + w.DEC_STAY0 + stay_phase(S, j)] = ans
         S[w.ANS0 + d] = ans
         if ans == a.YES:

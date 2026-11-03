@@ -506,7 +506,9 @@ class Situation:
         i, j = g.rep
         terms = security_terms(self.fc, self.n, g.rows[i])
         if not terms["live"][j]:
-            return "not available" if int(terms["day"][j]) >= self.fc.days else "not applicable: the stay does not take effect"
+            return (f"set on {when(self.review, int(terms['day'][j]))}, when the court decides (after the period this "
+                    f"forecast covers)" if int(terms["day"][j]) >= self.fc.days
+                    else "not applicable: the stay does not take effect")
         vals = g.rowwise(lambda r, x: security_terms(self.fc, self.n, r)["collateral"][x])
         return money(int(terms["collateral"][j]), vals)
 
@@ -528,8 +530,10 @@ class Situation:
         g = self._g()
         i, j = g.rep
         day = int(security_terms(self.fc, self.n, g.rows[i])["day"][j])
-        if kind == "unavailable":
-            return "security amount unavailable"
+        if kind == "unavailable":  # the court's day after the period: the offer is sized then, its amount not known
+            return (f"the bond collateral if the company's cash then covers it, otherwise its cash above its operating "
+                    f"need for the next month, sized on {when(self.review, day)}, when the court decides (after the "
+                    f"period this forecast covers, so the amount is not known on the decision date)")
         if kind == "inactive":
             return f"no security takes effect on {dated(self.review, day)}"
         return {"full": f"full bond collateral of {usd(amount)} in cash",
