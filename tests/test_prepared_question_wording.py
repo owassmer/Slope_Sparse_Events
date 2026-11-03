@@ -39,7 +39,8 @@ def test_proposed_remittitur_is_not_the_pre_answer_accepted_amount():
     fc = SimpleNamespace(review=date(2024, 5, 14), instrument=lambda: None,
                          remitted={key: (2397555350, 2260000400, 2535110300)})
     s = Situation(fc, SimpleNamespace(key=key+'|#class'), None, None, [], {})
-    assert s.remitted_amount() == '$23,975,553.50'
+    # the band the walk books, never its midpoint stated as the figure the Claimant would accept
+    assert s.remitted_amount() == 'an amount of more than $22,600,004.00 and at most $25,351,103.00'
 
 
 def test_known_ruling_establishes_deadline_beyond_simulation_horizon():
@@ -82,7 +83,7 @@ def test_inactive_stay_and_unavailable_future_security_are_not_pending_sizing():
                          m={'parameters': {'stay_security': {'value': 'cash'}}})
     node = SimpleNamespace(node='stay_motion')
     row = {'day': np.array([10, 10]), 'cash': np.array([10000, 10000]),
-           'security_terms': {'day': np.array([40, BIG]), 'cash': np.array([10000, 10000]),
+           'security_terms': {'day': np.array([40, 210]), 'cash': np.array([10000, 10000]),
                               'need': np.array([1000, 1000]), 'collateral': np.array([5000, 5000]),
                               'offer': np.array([0, 0]), 'live': np.array([False, False])}}
     assert security_kinds(fc, node, row).tolist() == ['inactive', 'unavailable']
@@ -90,19 +91,34 @@ def test_inactive_stay_and_unavailable_future_security_are_not_pending_sizing():
     assert inactive.security_offered() == 'no security takes effect on 24 Jun 2024'
     assert inactive.collateral_required() == 'not applicable: the stay does not take effect'
     unavailable = Situation(fc, node, None, Group.of([row], [np.array([False, True])]), [], {})
-    assert unavailable.security_offered() == 'security amount unavailable'
-    assert unavailable.collateral_required() == 'not available'
+    # the court's day after the period: the offer as it will be sized then, its amount not known on the decision date
+    assert unavailable.security_offered().startswith('the bond collateral if the company')
+    assert 'sized on 11 Dec 2024, when the court decides' in unavailable.security_offered()
+    assert unavailable.collateral_required().startswith('set on 11 Dec 2024, when the court decides')
 
 
-def test_stay_denial_is_rendered_only_when_in_the_dated_question_history():
+def test_each_dated_event_is_stated_once_and_only_on_or_after_its_day():
+    """The record's dated events (`record.events`: every stay motion and its answer, every levy and payment), each with
+    its date, in order, and only those on or before the question's day."""
     fc = SimpleNamespace(review=date(2024, 5, 14), instrument=lambda: None)
-    for day, denied, expected in ((19, 20, False), (20, BIG, False), (21, 20, True)):
-        row = {'day': np.array([day]), 'cash': np.array([100]),
-               'marks': {'stay_moved': np.array([10]), 'stay_denied': np.array([denied])}}
-        s = Situation(fc, None, None, Group.of([row], [np.array([True])]), [], {})
-        events = s.historical_events()
-        assert 'the company moved for a stay on 25 May 2024' in events
-        assert ('the court denied a stay request on 4 Jun 2024' in events) == expected
+    d = SimpleNamespace(counterparty='Qorvo', financing=())
+    events = [('stay_moved', 10, 0), ('stay_denied', 20, 0), ('stay_moved', 25, 0),
+              ('stay_approved', 40, 123_400), ('levied', 45, 5_000_00)]
+    for day, want in ((19, 1), (20, 2), (40, 4), (60, 5)):
+        evs = np.empty(1, dtype=object)
+        evs[0] = events
+        row = {'day': np.array([day]), 'cash': np.array([100]), 'marks': {}, 'sit': {'events': evs, 'offerings': []}}
+        s = Situation(fc, None, d, Group.of([row], [np.array([True])]), [], {})
+        got = s.historical_events()
+        assert len(got) == want, (day, got)
+        assert got[0] == 'the company moved for a stay of execution on 25 May 2024'
+        if want >= 2:
+            assert got[1] == "the court denied the company's stay motion on 4 Jun 2024"
+        if want >= 4:
+            assert got[3] == ('the court approved a stay, the company posting $1,234.00 of cash security on '
+                              '24 Jun 2024')
+        if want == 5:
+            assert got[4] == "Qorvo levied $5,000.00 on the company's cash on 29 Jun 2024"
 
 
 def test_prior_denial_does_not_describe_a_new_pending_request_as_denied():
@@ -112,7 +128,6 @@ def test_prior_denial_does_not_describe_a_new_pending_request_as_denied():
            'sit': {'stay_status': np.array(['pending', 'denied'], dtype=object)}}
     pending = Situation(fc, None, None, Group.of([row], [np.array([True, False])]), [], {})
     assert pending.stay_events() == ['the current stay request is awaiting a court decision']
-    assert any('denied a stay request' in event for event in pending.historical_events())
     decided = Situation(fc, None, None, Group.of([row], [np.array([False, True])]), [], {})
     assert decided.stay_events() == ['the court denied the latest stay request']
     mixed = Situation(fc, None, None, Group.of([row], [np.array([True, True])]), [], {})

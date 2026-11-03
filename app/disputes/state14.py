@@ -549,6 +549,8 @@ class Situation:
         g = self._g()
         i, j = g.rep
         day = int(security_terms(self.fc, self.n, g.rows[i])["day"][j])
+        if day >= BIG:
+            raise Unbuilt("a stay's security with no day the court decides")
         if kind == "unavailable":  # the court's day after the period: the offer is sized then, its amount not known
             return (f"the bond collateral if the company's cash then covers it, otherwise its cash above its operating "
                     f"need for the next month, sized on {when(self.review, day)}, when the court decides (after the "

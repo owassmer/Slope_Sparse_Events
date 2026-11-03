@@ -635,7 +635,6 @@ class Analysis:
                 evs = [events(c) for c in chunk]
                 for i, (t, ev) in enumerate(zip(run_many(self.line, self.opening, evs), evs, strict=True), lo):
                     self.r.add(i, t, ev, combo_mask(model.combos[i], DRAWS))
-                    self._stub_bounds(model, i, t, ev)
                     self._tick("simulate", i, len(model.combos))
             self._progress("bins", 0, len(model.combos))
             bins = self._bins_from(lo_ev, hi_ev)

@@ -900,7 +900,7 @@ def sampled_ranges(a, model, probs: np.ndarray) -> tuple[dict, dict, list, list]
             start += len(p.edges)
     mass = sampling.check_masses(stub, group, groups, probs, masks, prefix)
     bounds = {}
-    for f in a.stub_bounds_figures():
+    for f in ():  # the stubs' floors and ceilings went with the answer-first walk
         per = [a.stub_bounds[k].get(f) for k in keys]
         if any(b is None for b in per):
             continue
