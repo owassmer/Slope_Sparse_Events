@@ -78,7 +78,8 @@ def offer_shares_on(S, offers, day):
     out = 0
     for k in range(S[e.N_OFFERS]):
         o = offers[k]
-        if day >= o[e.O_INIT] and (day < o[e.O_CLOSE] or o[e.O_CLOSED]):
+        # reserved until the close is answered: on the close day itself while its outcome is not yet booked
+        if day >= o[e.O_INIT] and (day < o[e.O_CLOSE] or o[e.O_CLOSED] or (day == o[e.O_CLOSE] and not o[e.O_BOOKED])):
             out += o[e.O_SHARES]
     return out
 
@@ -89,7 +90,8 @@ def lockup(S, offers, c, day):
         for k in range(S[e.N_OFFERS]):
             o = offers[k]
             if (o[e.O_INIT] < f.BIG and day >= o[e.O_INIT] + c.pricing_days
-                    and (day < o[e.O_CLOSE] or (o[e.O_CLOSED] and day <= o[e.O_CLOSE] + c.lock_days))):
+                    and (day < o[e.O_CLOSE] or (day == o[e.O_CLOSE] and not o[e.O_BOOKED])
+                         or (o[e.O_CLOSED] and day <= o[e.O_CLOSE] + c.lock_days))):
                 return True
     return False
 
@@ -169,7 +171,8 @@ def offering_terms(S, P, offers, atm, schedule, c, day, lower):
 @njit(cache=True)
 def offering_pending_on(S, offers, day):
     for k in range(S[e.N_OFFERS]):
-        if day >= offers[k, e.O_INIT] and day < offers[k, e.O_CLOSE]:
+        if day >= offers[k, e.O_INIT] and (day < offers[k, e.O_CLOSE] or (day == offers[k, e.O_CLOSE]
+                                                                         and not offers[k, e.O_BOOKED])):
             return True
     return False
 

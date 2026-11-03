@@ -18,6 +18,7 @@ import numpy as np
 
 from app.analysis.events import BIG, Awaiting
 from app.domain.values import usd
+from app.exact.fields import NONE
 
 
 class Unbuilt(RuntimeError):
@@ -365,6 +366,14 @@ class Situation:
                    "levied": "{claimant} levied {amount} on the company's cash",
                    "registered": "the court authorized registration of the judgment in another district (28 U.S.C. "
                                  "§1963), so {claimant} can register it and execute on it there",
+                   "enforcement_sought": "{claimant} sought to enforce the judgment{applied}",
+                   "registration_denied": "the court denied {claimant}'s application to register the judgment in "
+                                          "another district",
+                   "ruled_unchanged": "the court ruled on the post-trial motions, leaving the money judgment at "
+                                      "{band}",
+                   "ruled_reduced": "the court ruled on the post-trial motions, reducing the money judgment to {band}",
+                   "ruled_set_aside": "the court ruled on the post-trial motions, setting aside the money judgment; "
+                                      "the claim remains in dispute",
                    "paid": "the company paid {amount} on the judgment"}
 
     def historical_events(self) -> list[str]:
@@ -390,10 +399,17 @@ class Situation:
                             else "")
                 if not cash and kind == "stay_moved":
                     proposed = "proposing security"
+                band = ""
+                if kind in ("ruled_reduced", "ruled_unchanged"):
+                    top = ref >= BIG * 10**6 or ref == NONE
+                    band = ("the amount entered" if amount == NONE else usd(amount) if amount == ref
+                            else band_text(amount, None if top else ref))
+                applied = (", applying to register it in another district (28 U.S.C. §1963) while the appeal is "
+                           "pending" if kind == "enforcement_sought" and ref else "")
                 dated_events.append((t, self.EVENT_WORDS[kind].format(
-                    amount=usd(max(amount, 0)), claimant=self.d.counterparty, proposed=proposed,
-                    ref=when(self.review, ref))))
-        for init, close, status, net in (self._offerings() if cash else ()):
+                    amount=usd(max(amount, 0)), claimant=self.d.counterparty, proposed=proposed, band=band,
+                    applied=applied, ref=when(self.review, ref) if 0 <= ref < BIG else "")))
+        for init, close, status, net, *_ in (self._offerings() if cash else ()):
             if 0 <= init <= self.day:
                 dated_events.append((init, f"the company initiated an underwritten offering of its stock, to raise "
                                            f"{usd(net)} net and to close on {when(self.review, close)}"))
@@ -824,20 +840,42 @@ class Situation:
         net = np.rint(q * np.asarray(price, dtype=float)).astype(np.int64) * (10_000 - comm) // 10_000
         return sold * net
 
+    OFFER_FIELD = {"init": 0, "close": 1, "net": 3, "gross": 4, "costs": 5, "price": 6, "shares": 7}
+
+    def _n1(self, name: str) -> tuple[int, np.ndarray]:
+        """N1's own offering's term (the one it is asked on), the representative's and the group's."""
+        g = self._g()
+        col = self.OFFER_FIELD[name]
+        vals = g.rowwise(lambda r, x: self._asked_rows(r, x)[:, col])
+        return int(self._asked_offering()[col]), vals
+
+    def _offer_term(self, name: str, key: str) -> tuple[int, np.ndarray | None]:
+        if self.n is not None and self.n.node == "offering_closes":
+            return self._n1(name)
+        return self._terms()[key], None
+
     def gross_proceeds(self):
-        return usd(self._terms()["gross"])
+        return money(*self._offer_term("gross", "gross"))
 
     def issuance_costs(self):
-        return usd(self._terms()["costs"])
+        return money(*self._offer_term("costs", "costs"))
 
     def net_proceeds(self):
-        return usd(self._terms()["net"])
+        return money(*self._offer_term("net", "net"))
 
     def offer_price(self):
-        return f"${self._terms()['price_cents_x1e4'] / 1e6:,.4f} per share"
+        rep, vals = self._offer_term("price", "price_cents_x1e4")
+        text = f"${rep / 1e6:,.4f} per share"
+        if vals is not None and vals.size and vals.min() != vals.max():
+            text += f" (across this situation: ${vals.min() / 1e6:,.4f} to ${vals.max() / 1e6:,.4f})"
+        return text
 
     def shares_offered(self):
-        return f"{self._terms()['shares']:,} shares"
+        rep, vals = self._offer_term("shares", "shares")
+        text = f"{rep:,} shares"
+        if vals is not None and vals.size and vals.min() != vals.max():
+            text += f" (across this situation: {int(vals.min()):,} to {int(vals.max()):,})"
+        return text
 
     def offering_unavailable_reason(self):
         try:
@@ -888,27 +926,32 @@ class Situation:
             raise Unbuilt(f"N1 on {self.day}: {len(got)} pending offerings close that day")
         return got[0]
 
-    def _asked_of(self, row, xs) -> np.ndarray:
-        """Each member's N1 offering's initiation day (as `_asked_offering`, on that member), for member indices xs."""
+    def _asked_rows(self, row, xs) -> np.ndarray:
+        """Each member's N1 offering (as `_asked_offering`, on that member), for member indices xs: [members, 8]
+        with the status column 0."""
         out = []
         for x in np.atleast_1d(xs):
             offs = np.asarray(row["sit"]["offerings"], dtype=object)[x]
             got = [o for o in offs if o[2] == "pending" and o[1] == int(row["day"][x])]
             if len(got) != 1:
                 raise Unbuilt("N1: no single pending offering closes that day")
-            out.append(got[0][0])
-        return np.array(out, dtype=np.int64)
+            out.append([v if i != 2 else 0 for i, v in enumerate(got[0])])
+        return np.array(out, dtype=np.int64).reshape(-1, 8)
+
+    def _asked_of(self, row, xs) -> np.ndarray:
+        """Each member's N1 offering's initiation day."""
+        return self._asked_rows(row, xs)[:, 0]
 
     def initiated_on(self):
-        return when(self.review, self._asked_offering()[0])
+        return dated(self.review, *self._n1("init"))
 
     def close_date(self):
-        return when(self.review, self._asked_offering()[1])
+        return dated(self.review, *self._n1("close"))
 
     def earlier_attempts(self):
         prior = [o for o in self._offerings() if o[0] < self.day and o[2] != "pending"]
-        return [f"initiated {when(self.review, a)}: " + (f"closed {when(self.review, c)}" if s == "closed" else
-                                                           "did not close") for a, c, s, _ in prior] or "none"
+        return [f"initiated {when(self.review, o[0])}: " + (f"closed {when(self.review, o[1])}" if o[2] == "closed"
+                                                              else "did not close") for o in prior] or "none"
 
     # the company's decisions
     def occasion(self):

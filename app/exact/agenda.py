@@ -128,6 +128,12 @@ def atm_rebook(st, k):
 
 
 @njit(cache=True)
+def owed_now(st, k, day):
+    """The amount owed on the day after what the day's items booked so far took (a levy before this read)."""
+    return max(owed(st, k, day, False) - core.taken_on(st.S, st.takes, day), 0)
+
+
+@njit(cache=True)
 def mark(st, k, ix, day, where):
     core.mark(st.S, ix, day, where, k.N)
 
@@ -286,7 +292,10 @@ def response_day(st, k, ctx):
         m = S[f.E_IX] if notes.has_judgment(S, k.nc) else f.BIG
     elif ctx == a.R_I1:
         lv = pending_levy(st)
-        m = lv if lv < S[f.STAYED_FROM] and lv < S[f.F] else f.BIG
+        # before the ruling: a levy on the ruling's own day comes before the ruling (QUESTIONS D2: each levy day,
+        # before the levy), so its response is the pre-ruling one while the ruling is not yet booked
+        before = lv < S[f.F] or (lv == S[f.F] and S[f.MARK_RULED] > lv)
+        m = lv if lv < S[f.STAYED_FROM] and before else f.BIG
     elif ctx == a.R_POST:
         ef = max(S[f.EF], 0)
         lv = f.BIG

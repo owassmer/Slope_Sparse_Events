@@ -55,6 +55,18 @@ def events(st, k, day, out):
                 cnt = _event(out, cnt, kind, t, amount, row[a.T_MOTION])
         if S[f.EARLY_REGISTRATION] == t or S[fw.REG_POST_GRANTED] == t:  # an order authorizing registration (§1963)
             cnt = _event(out, cnt, 7, t, 0, t)
+        if S[fw.ENFORCE_DAY] == t:  # enforcement after the ruling; ref 1: an application to register it with it
+            cnt = _event(out, cnt, 8, t, 0, 1 if S[fw.REG_POST_DAY] < f.BIG or S[fw.REG_POST_GRANTED] < f.BIG
+                         or S[fw.REG_POST_DENIED] < f.BIG else 0)
+        if S[fw.REG_POST_DENIED] == t:
+            cnt = _event(out, cnt, 9, t, 0, t)
+        if S[f.MARK_RULED] == t:  # the post-trial ruling and what it left (the reduced band where reduced)
+            if S[f.RETRIAL] or S[f.CLS_AMOUNT] == 0:
+                cnt = _event(out, cnt, 12, t, 0, 0)
+            elif S[fw.REDUCED_LO] < f.BIG:
+                cnt = _event(out, cnt, 11, t, S[fw.REDUCED_LO], S[fw.REDUCED_HI])
+            else:
+                cnt = _event(out, cnt, 10, t, S[f.BAND_LO], S[f.BAND_HI])
         if D[f.D_KIND_LEVY, t] != 0:
             cnt = _event(out, cnt, 5, t, -D[f.D_KIND_LEVY, t], t)
         if D[f.D_KIND_JUDGMENT, t] != 0:
@@ -63,6 +75,11 @@ def events(st, k, day, out):
     out[r.LEVY_SCHEDULED] = agenda.pending_levy(st)  # a writ ordered, its levy dated (a known scheduled date)
     reg = min(S[f.EARLY_REGISTRATION], S[fw.REG_POST_GRANTED])
     out[r.REGISTERED] = reg if reg <= day else f.BIG
+    pending_post = S[fw.REG_POST_DAY] < f.BIG and S[fw.ENFORCE_DAY] <= day
+    pending_i1 = (S[f.MARK_EXECUTING] <= day and S[fw.ANS0 + fw.DEC_REGISTRATION] == fw.OPEN
+                  and S[f.EARLY_REGISTRATION] >= f.BIG)
+    out[r.REGISTRATION_PENDING] = pending_post or pending_i1
+    out[r.REGISTRATION_DENIED] = S[fw.REG_POST_DENIED] if S[fw.REG_POST_DENIED] <= day else f.BIG
 
 
 @njit(cache=True)
@@ -121,7 +138,7 @@ def record(st, k, day, node, ctx, scratch, out, floats):
     out[r.CASH] = cash.processing_balance(D, st.ln, day)
     # owed after what the day's earlier items took (a levy booked before this question on its day): the cash read is
     # the same day's balance at processing
-    out[r.OWED] = max(agenda.owed(st, k, day, False) - core.taken_on(S, st.takes, day), 0)
+    out[r.OWED] = agenda.owed_now(st, k, day)
     out[r.COLLATERAL] = agenda.collateral_before(st, k, day)
     out[r.PETITION] = S[f.PETITION] if S[f.PETITION] <= day else -1
     out[r.CASH_END] = max(cash.cash_at(st.ln, day), 0)
@@ -153,7 +170,10 @@ def record(st, k, day, node, ctx, scratch, out, floats):
     out[r.ENTERED] = notes.judgment_amount_entered(S, k.nc, k.N)
     out[r.BAND_LO], out[r.BAND_HI] = S[f.BAND_LO], S[f.BAND_HI]
     # its clock starts at entry: no date before the judgment is entered
-    out[r.DEFAULT_AVAILABLE] = notes.default_available_day(S, st.takes, k.nc, k.N) if entered else f.BIG
+    avail = notes.default_available_day(S, st.takes, k.nc, k.N) if entered else f.BIG
+    # an availability already passed is a fact only while the default continues (a stay or payment cures it)
+    out[r.DEFAULT_AVAILABLE] = (avail if avail > day or notes.default_continuing(S, st.takes, k.nc, day)
+                                else f.BIG)
     due = S[f.MARK_NOTES_DUE]
     out[r.ROUTE_DAYS] = notes.holder_route_days_path(S, k.nc, S[a.CASH_NONPAYMENT]) if due <= day else -1
     out[r.REMITTED] = S[f.REMITTED]
@@ -194,6 +214,7 @@ def record(st, k, day, node, ctx, scratch, out, floats):
             at = r.OFFERS0 + r.OFFER_COLS * count
             done = o[e.O_BOOKED] and o[e.O_CLOSE] <= day
             out[at], out[at + 1], out[at + 3] = o[e.O_INIT], o[e.O_CLOSE], o[e.O_NET]
+            out[at + 4], out[at + 5], out[at + 6], out[at + 7] = o[e.O_GROSS], o[e.O_COSTS], o[e.O_PRICE], o[e.O_SHARES]
             out[at + 2] = (1 if o[e.O_CLOSED] else 2) if done else 0
             count += 1
     out[r.OFFERING_COUNT] = count
@@ -273,11 +294,15 @@ def situation_class(row, out, appeal=True, stay=False, context=0, group=False):
     out[9] = row[r.STAY_STATUS] if stay else -1
     out[10] = context
     out[11] = row[r.GROUPS] if group else -2
-    out[14] = 0  # the claimant's enforcement now: a levy scheduled by a writ, registration authorized, or neither
+    out[14] = 0  # the claimant's enforcement now (fields_record.ENFORCEMENT)
     if day <= row[r.LEVY_SCHEDULED] < f.BIG:
         out[14] = 1
     elif row[r.REGISTERED] <= day:
         out[14] = 2
+    elif row[r.REGISTRATION_PENDING]:
+        out[14] = 3
+    elif row[r.REGISTRATION_DENIED] <= day:
+        out[14] = 4
     out[13] = -1  # a settlement question's offer against the amount owed, banded (fields_record.SETTLE_RATIO_BPS)
     if row[r.SETTLE_OFFER] > 0 and row[r.SETTLE_BASIS] > 0:
         share = row[r.SETTLE_OFFER] * 10_000 // row[r.SETTLE_BASIS]

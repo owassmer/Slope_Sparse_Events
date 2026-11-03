@@ -65,7 +65,11 @@ VERDICT_IX = F0 + 14                  # the verdict class taken (its row in the 
 NOTES_DAY0 = F0 + 15                  # + o: the pending notes question's date (BIG: none)
 NOTES_STAGE0 = F0 + 19                # + o: 0 none, 1 the issuer's petition pending, 2 the holders'
 REG_POST_GRANTED = F0 + 23            # registration_early (post): the day its order was granted (BIG: none)
-assert N_DEC <= 70 and REG_POST_GRANTED < S_WALK + 100
+ENFORCE_DAY = F0 + 24                 # enforce_after_final: the day the claimant sought enforcement (BIG: none)
+REG_POST_DENIED = F0 + 25             # registration_early (post): the day its order was denied (BIG: none)
+REDUCED_LO = F0 + 26                  # the post-trial ruling's reduced band (BIG: none), as booked
+REDUCED_HI = F0 + 27
+assert N_DEC <= 70 and REDUCED_HI < S_WALK + 100
 
 CLS_CLAIMED, CLS_BRANCH, CLS_AWARD, CLS_REDUCED, CLS_SET_ASIDE = range(5)
 A4_OPEN, A4_SEEK, A4_CLOSED = range(3)

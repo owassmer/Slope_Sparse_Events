@@ -1201,6 +1201,7 @@
             "situation_keys": [
               "decision_date",
               "judgment_amount",
+              "amount_owed",
               "judgment_entered_on",
               "judgment_status",
               "available_cash"
@@ -1588,6 +1589,7 @@
             "situation_keys": [
               "judgment_amount",
               "judgment_standing",
+              "amount_owed",
               "days_unpaid_and_unstayed",
               "default_available_on",
               "declaration_deadline",
@@ -1658,7 +1660,8 @@
               "repurchase_date",
               "notes_principal",
               "available_cash",
-              "judgment_standing"
+              "judgment_standing",
+              "amount_owed"
             ]
           }
         },
@@ -1721,6 +1724,7 @@
               "notes_principal",
               "notes_due_how",
               "judgment_standing",
+              "amount_owed",
               "available_cash",
               "arrears",
               "days_since_first_nonpayment"
@@ -1785,7 +1789,8 @@
               "notes_due_how",
               "petition_route",
               "available_cash",
-              "arrears"
+              "arrears",
+              "amount_owed"
             ]
           }
         },
@@ -1960,6 +1965,7 @@
             "compliance_deadline",
             "reverse_split_time",
             "judgment_standing",
+            "amount_owed",
             "available_cash",
             "notes_status",
             "share_price"
@@ -1987,6 +1993,7 @@
             "determination_date",
             "hearing_request_deadline",
             "judgment_standing",
+            "amount_owed",
             "available_cash",
             "notes_status"
           ],
@@ -2112,6 +2119,7 @@
               "arrears",
               "notes_status",
               "judgment_standing",
+              "amount_owed",
               "offering_terms",
               "offering_unavailable_reason",
               "share_price"
@@ -2190,6 +2198,7 @@
               "operating_need_30_days",
               "atm_proceeds_to_date",
               "judgment_standing",
+              "amount_owed",
               "notes_status",
               "listing_status",
               "share_capacity_left",
@@ -2228,6 +2237,7 @@
             "offering_lockup",
             "earlier_attempts",
             "judgment_standing",
+            "amount_owed",
             "available_cash",
             "arrears",
             "atm_proceeds_to_date",

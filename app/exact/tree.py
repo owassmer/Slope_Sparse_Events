@@ -399,7 +399,7 @@ def options(st, k, wk, tk, ws, d, day, ans):
     Also the option group (-1: none). After `agenda.refresh`."""
     S = st.S
     quiet = owed_quiet(d)
-    if quiet != NOT_OWED and agenda.owed(st, k, day, False) <= 0:  # a question about a judgment nothing is owed on
+    if quiet != NOT_OWED and agenda.owed_now(st, k, day) <= 0:  # a question about a judgment nothing is owed on
         ans[0] = quiet  # does not arise (QUESTIONS §1; `Forecaster.live`, OWED): its quiet answer, which books nothing
         return 1, False, -1
     if d < w.DEC_VERDICT:  # settle
@@ -627,6 +627,7 @@ def book(st, k, tk, ws, d, day, ans, asked):
             step = mk(a.RULING, 0, a.R_UNCHANGED)
         elif 1 <= ans <= nr:  # the reduced judgment in band ans - 1, as J1b books it
             step = mk(a.RULING, 0, a.R_REDUCED, tk.lower[vi, ans - 1, 0])
+            S[w.REDUCED_LO], S[w.REDUCED_HI] = tk.lower[vi, ans - 1, 1], tk.lower[vi, ans - 1, 2]
         else:  # a remittitur refused (a new trial), or set aside
             step = mk(a.RULING, 0, a.R_SET_ASIDE)
         advance(st, k, ws, step, asked)
@@ -658,6 +659,8 @@ def book(st, k, tk, ws, d, day, ans, asked):
         S[w.NOTES_STAGE0 + o], S[w.NOTES_DAY0 + o] = 0, BIG
         return
     if d == w.DEC_ENFORCE:
+        if ans == a.E_LEVY:
+            S[w.ENFORCE_DAY] = day
         if ans == a.E_LEVY and S[w.APPEALED] and not S[w.EARLY]:  # the levy waits for the court's order
             advance(st, k, ws, mk(a.ENFORCE, 0, a.E_NONE), asked)
             S[w.ANS0 + d] = ans
@@ -670,6 +673,8 @@ def book(st, k, tk, ws, d, day, ans, asked):
         if ans == a.YES:
             agenda.queue_levy(st, max(S[w.REG_POST_DAY], 0) + k.levy_lag)
             S[w.REG_POST_GRANTED] = max(S[w.REG_POST_DAY], 0)
+        else:
+            S[w.REG_POST_DENIED] = max(S[w.REG_POST_DAY], 0)
         S[w.REG_POST_DAY] = BIG
         return
     if d == w.DEC_LISTING:

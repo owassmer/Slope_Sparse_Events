@@ -60,12 +60,14 @@ def judgment_standing(S, takes, c, day):
 def _default_regular(S, takes, c, ctx):
     if not c.default_days or not c.has_dispute:
         return f.BIG, False
+    # QUESTIONS §3.1: 60 days after the automatic stay ends (its last day: the day before execution may issue)
+    stay_end = S[f.EX_IX] - 1
     if ctx == n.CTX_I1:
-        ripe = S[f.EX_IX] + c.default_days
+        ripe = stay_end + c.default_days
         amount = standing_amount(S, c, ripe) if c.pending else S[f.ENTERED]
         on = c.reading != n.READ_POST and has_judgment(S, c)
     else:
-        ripe = max(S[f.A], S[f.EX_IX]) + c.default_days
+        ripe = max(S[f.A], stay_end) + c.default_days
         amount = S[f.ENTERED] if S[f.CLS_AMOUNT] == f.NONE else S[f.CLS_AMOUNT]
         on = c.reading != n.READ_ENTERED and S[f.A] >= 0 and not S[f.JD_ACTED]
     on = (on and amount - c.insured > c.threshold and S[f.STAYED_FROM] > ripe
@@ -94,6 +96,15 @@ def judgment_default(S, takes, c, ctx):
     if ctx == n.CTX_RULING:
         return _default_at_ruling(S, takes, c)
     return _default_regular(S, takes, c, ctx)
+
+
+@njit(cache=True)
+def default_continuing(S, takes, c, day):
+    """Whether a judgment default that became available is still continuing on the day (QUESTIONS §3.1, H1: while
+    the judgment above the threshold remains unpaid, undischarged and not effectively stayed)."""
+    amount = standing_amount(S, c, day) if c.pending else S[f.ENTERED]
+    return (has_judgment(S, c) and amount - c.insured > c.threshold and S[f.STAYED_FROM] > day
+            and core.live(S, day) and core.owed_at(S, takes, c.bps, c.pending, day, False) > 0)
 
 
 @njit(cache=True)

@@ -14,7 +14,7 @@ def record(ints, floats):
     if ints.shape != (r.NI,) or floats.shape != (r.NF,):
         raise ValueError('wrong question record layout')
     out = {'sit': {}, 'marks': {}, 'triggers': {}}
-    boolean = {'sit.offering_pending', 'sit.offering_bound_reached'}
+    boolean = {'sit.offering_pending', 'sit.offering_bound_reached', 'sit.registration_pending'}
     def put(name, value):
         target = out
         bits = name.split('.')
@@ -104,7 +104,7 @@ def rows(ints, floats):
         raise ValueError('wrong question records layout')
     m = len(ints)
     out = {'sit': {}, 'marks': {}, 'triggers': {}}
-    boolean = {'sit.offering_pending', 'sit.offering_bound_reached'}
+    boolean = {'sit.offering_pending', 'sit.offering_bound_reached', 'sit.registration_pending'}
 
     def put(name, value):
         target = out
@@ -169,10 +169,12 @@ def _events(ints) -> np.ndarray:
 
 
 def _offerings(ints) -> np.ndarray:
-    """Each member's offerings initiated by its day (`record`), as a list of (init, close, status, net) per member."""
+    """Each member's offerings initiated by its day (`record`), as a list of (init, close, status, net, gross, costs,
+    price, shares) per member."""
     out = np.empty(ints.shape[0], dtype=object)
     for i in range(ints.shape[0]):
         rows = [ints[i, r.OFFERS0 + r.OFFER_COLS * j:r.OFFERS0 + r.OFFER_COLS * (j + 1)]
                 for j in range(int(ints[i, r.OFFERING_COUNT]))]
-        out[i] = [(int(x[0]), int(x[1]), r.OFFER_STATUS[int(x[2])], int(x[3])) for x in rows]
+        out[i] = [(int(x[0]), int(x[1]), r.OFFER_STATUS[int(x[2])], int(x[3]), int(x[4]), int(x[5]), int(x[6]),
+                   int(x[7])) for x in rows]
     return out
