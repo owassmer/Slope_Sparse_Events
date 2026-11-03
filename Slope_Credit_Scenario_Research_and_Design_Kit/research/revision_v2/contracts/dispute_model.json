@@ -1138,6 +1138,7 @@
             ],
             "situation_keys": [
               "decision_date",
+              "motion_date",
               "judgment_amount",
               "amount_owed",
               "judgment_status",

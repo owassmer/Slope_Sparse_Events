@@ -349,7 +349,10 @@ class Situation:
                 raise Unbuilt("filed appeal has no before-decision date")
         return out
 
-    EVENT_WORDS = {"stay_moved": "the company moved for a stay of execution",
+    PROPOSED = {"full": "proposing full bond collateral of {amount} in cash",
+                "reduced": "proposing reduced cash security of {amount}",
+                "noncash": "proposing security not in cash", "unsized": "proposing security sized on the court's day"}
+    EVENT_WORDS = {"stay_moved": "the company moved for a stay of execution, {proposed}",
                    "stay_approved": "the court approved the stay the company moved for on {ref}, the company posting "
                                     "{amount} of cash security",
                    "stay_approved_noncash": "the court approved the stay the company moved for on {ref}, on security "
@@ -371,13 +374,23 @@ class Situation:
         marks = g.rows[i].get("marks") or {}
         dated_events = []
         evs = g.at_rep("events", sit=True)
+        from app.exact.fields_record import OFFER_KINDS
+
+        cash = self.n is None or self.n.node not in NO_CASH
         for kind, t, amount, ref in (evs if evs is not None else ()):
             if 0 <= t <= self.day:
+                if not cash and kind in ("levied", "paid"):
+                    continue  # the question's situation has no cash (QUESTIONS J2)
                 if kind == "stay_approved" and amount < 0:
                     kind = "stay_approved_noncash"
+                proposed = (self.PROPOSED[OFFER_KINDS[ref]].format(amount=usd(amount)) if kind == "stay_moved"
+                            else "")
+                if not cash and kind == "stay_moved":
+                    proposed = "proposing security"
                 dated_events.append((t, self.EVENT_WORDS[kind].format(
-                    amount=usd(max(amount, 0)), claimant=self.d.counterparty, ref=when(self.review, ref))))
-        for init, close, status, net in self._offerings():
+                    amount=usd(max(amount, 0)), claimant=self.d.counterparty, proposed=proposed,
+                    ref=when(self.review, ref))))
+        for init, close, status, net in (self._offerings() if cash else ()):
             if 0 <= init <= self.day:
                 dated_events.append((init, f"the company initiated an underwritten offering of its stock, to raise "
                                            f"{usd(net)} net and to close on {when(self.review, close)}"))
@@ -530,9 +543,8 @@ class Situation:
         i, j = g.rep
         terms = security_terms(self.fc, self.n, g.rows[i])
         if not terms["live"][j]:
-            return (f"set on {when(self.review, int(terms['day'][j]))}, when the court decides (after the period this "
-                    f"forecast covers)" if int(terms["day"][j]) >= self.fc.days
-                    else "not applicable: the stay does not take effect")
+            return (f"set on {when(self.review, int(terms['day'][j]))}, when the court decides"
+                    if int(terms["day"][j]) >= self.fc.days else "not applicable: the stay does not take effect")
         vals = g.rowwise(lambda r, x: security_terms(self.fc, self.n, r)["collateral"][x])
         return money(int(terms["collateral"][j]), vals)
 
@@ -556,15 +568,16 @@ class Situation:
         day = int(security_terms(self.fc, self.n, g.rows[i])["day"][j])
         if day >= BIG:
             raise Unbuilt("a stay's security with no day the court decides")
-        if kind == "unavailable":  # the court's day after the period: the offer is sized then, its amount not known
-            return (f"the bond collateral if the company's cash then covers it, otherwise its cash above its operating "
-                    f"need for the next month, sized on {when(self.review, day)}, when the court decides (after the "
-                    f"period this forecast covers, so the amount is not known on the decision date)")
+        if kind == "unavailable":  # the court's day after the period: the offer is sized on that day
+            return (f"the bond collateral if the company's cash on {when(self.review, day)}, when the court decides, "
+                    f"covers it, otherwise its cash that day above its operating need for the next month")
         if kind == "inactive":
             return f"no security takes effect on {dated(self.review, day)}"
+        if kind == "reduced":  # the group's range of the amount the court is asked to approve
+            offers = g.rowwise(lambda r, x: security_terms(self.fc, self.n, r)["offer"][x])
+            return (f"reduced cash security of {money(amount, offers)}, its cash above its operating need for the next "
+                    f"month on {when(self.review, day)}, when the court decides")
         return {"full": f"full bond collateral of {usd(amount)} in cash",
-                "reduced": f"reduced cash security of {usd(amount)}, its cash above its operating need for the next "
-                           f"month on {when(self.review, day)}, when the court decides",
                 "noncash": "security not in cash, or a waiver of security",
                 "none": f"no cash security: no cash remains above operating need on {dated(self.review, day)}"}[kind]
 
@@ -576,6 +589,9 @@ class Situation:
         return f"bond collateral of {money(int(required[0]), required[1:])} on the decision date"
 
     def motion_date(self):
+        """The motion's day: the question's own for D4; for J3, the day of the motion the court answers."""
+        if self.n is not None and self.n.node == "stay_approved":
+            return dated(self.review, *self._sit("motion_day"))
         return self.decision_date()
 
     def enforcement_dated(self):
@@ -759,9 +775,13 @@ class Situation:
         if lock is None:
             return "none"
         g = self._g()
-        rep = self.atm_lockup_proceeds(np.array([g.at_rep("day")]), np.array([g.at_rep("share_price", sit=True)]),
+        # N1 asks on its offering's close: the lock-up runs from that offering's initiation, as booked
+        start = self._asked_offering()[0] if self.n is not None and self.n.node == "offering_closes" else g.at_rep("day")
+        starts = (g.rowwise(lambda r, x: self._asked_of(r, x)) if self.n is not None and
+                  self.n.node == "offering_closes" else g.field("day"))
+        rep = self.atm_lockup_proceeds(np.array([start]), np.array([g.at_rep("share_price", sit=True)]),
                                        np.array([g.at_rep("ledger", sit=True)]))[0]
-        grp = self.atm_lockup_proceeds(g.field("day"), g.field("share_price", sit=True), g.field("ledger", sit=True))
+        grp = self.atm_lockup_proceeds(starts, g.field("share_price", sit=True), g.field("ledger", sit=True))
         return (f"the company agrees not to sell shares, including at-the-market sales, from pricing until the "
                 f"{ordinal(int(lock['value']))} day after the closing; at its current pace and share price, "
                 f"at-the-market sales over that period would bring in {money(rep, grp)}")
@@ -821,6 +841,8 @@ class Situation:
         pet = int(self._g().rows[i]["petition"][j])
         if listing == "delisted":
             return "unavailable: the stock is delisted"
+        if listing == "suspended":  # the walk allows no offering while trading is suspended (equity.offering_available)
+            return "unavailable: trading in the stock is suspended"
         if 0 <= pet <= self.day:
             return "unavailable: a petition has been filed"
         if bool(self._g().at_rep("offering_pending", sit=True)):
@@ -855,6 +877,14 @@ class Situation:
         if len(got) != 1:
             raise Unbuilt(f"N1 on {self.day}: {len(got)} pending offerings close that day")
         return got[0]
+
+    def _asked_of(self, row, x) -> int:
+        """A member's N1 offering's initiation day (as `_asked_offering`, on that member)."""
+        offs = np.asarray(row["sit"]["offerings"])[x]
+        got = [o for o in offs if o[2] == "pending" and o[1] == int(row["day"][x])]
+        if len(got) != 1:
+            raise Unbuilt("N1: no single pending offering closes that day")
+        return got[0][0]
 
     def initiated_on(self):
         return when(self.review, self._asked_offering()[0])
@@ -999,6 +1029,7 @@ KIND_OF = {"court ruling": "court_findings", "party argument": "party_assertions
 # outside it is marked as such. A motion decided on papers the parties have yet to file has an open record (QUESTIONS
 # §1 Evidence): the company's disclosures are what its motion puts before the court.
 CLOSED = {"verdict_finding": "the jury", "verdict_amount": "the jury", "post_trial_ruling": "the court"}
+NO_CASH = {"post_trial_ruling"}  # QUESTIONS J2 Situation: "No cash" (the verdict's are built without the history)
 
 
 def attribution(fc, fid: str) -> dict:

@@ -93,7 +93,8 @@ def test_inactive_stay_and_unavailable_future_security_are_not_pending_sizing():
     unavailable = Situation(fc, node, None, Group.of([row], [np.array([False, True])]), [], {})
     # the court's day after the period: the offer as it will be sized then, its amount not known on the decision date
     assert unavailable.security_offered().startswith('the bond collateral if the company')
-    assert 'sized on 11 Dec 2024, when the court decides' in unavailable.security_offered()
+    assert "cash on 11 Dec 2024, when the court decides, covers it" in unavailable.security_offered()
+    assert 'period' not in unavailable.security_offered()  # the forecast's horizon is no fact of the company's
     assert unavailable.collateral_required().startswith('set on 11 Dec 2024, when the court decides')
 
 
@@ -102,7 +103,7 @@ def test_each_dated_event_is_stated_once_and_only_on_or_after_its_day():
     its date, in order, and only those on or before the question's day."""
     fc = SimpleNamespace(review=date(2024, 5, 14), instrument=lambda: None)
     d = SimpleNamespace(counterparty='Qorvo', financing=())
-    events = [('stay_moved', 10, 0, 10), ('stay_denied', 20, 0, 10), ('stay_moved', 25, 0, 25),
+    events = [('stay_moved', 10, 2_000_00, 1), ('stay_denied', 20, 0, 10), ('stay_moved', 25, 9_000_00, 0),
               ('stay_approved', 40, 123_400, 25), ('levied', 45, 5_000_00, 45)]
     for day, want in ((19, 1), (20, 2), (40, 4), (60, 5)):
         evs = np.empty(1, dtype=object)
@@ -113,7 +114,8 @@ def test_each_dated_event_is_stated_once_and_only_on_or_after_its_day():
         s = Situation(fc, None, d, Group.of([row], [np.array([True])]), [], {})
         got = s.historical_events()
         assert len(got) == want, (day, got)
-        assert got[0] == 'on 25 May 2024, the company moved for a stay of execution'
+        assert got[0] == ('on 25 May 2024, the company moved for a stay of execution, proposing reduced cash security '
+                          'of $2,000.00')
         if want >= 2:  # each answer names the motion it answers
             assert got[1] == 'on 4 Jun 2024, the court denied the stay the company moved for on 25 May 2024'
         if want >= 4:

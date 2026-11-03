@@ -362,6 +362,27 @@ def final(st, day):
 
 
 @njit(cache=True)
+def proposed(st, k, ws, day, approval):
+    """The security a stay motion made on `day` proposes for the court's day `approval`, as the company projects it
+    then (`record.project`, the projection its question states): (kind, amount), kind a fields_record.OFFER_KINDS
+    index: full bond collateral, reduced cash security (its cash above the month's need), security not in cash, sized
+    on the court's day (after the period), or -1: none can be offered (no security of any type, or nothing left to
+    stay on the court's day)."""
+    if approval >= k.N:
+        return 3, 0
+    p = rec.project(st, k, ws.scratch, day, approval, True)
+    if not p[6]:
+        return -1, 0
+    if p[4] > 0 and p[1] - p[2] >= p[4]:
+        return 0, p[4]
+    if p[5] > 0:
+        return 1, p[5]
+    if k.noncash:
+        return 2, 0
+    return -1, 0
+
+
+@njit(cache=True)
 def options(st, k, wk, tk, ws, d, day, ans):
     """The answers open to decision d on the draw at `day` (in the Python constructor's order), how many, and whether
     the question is asked (False: it does not arise here; its one answer books as the constructor books it unasked).
@@ -427,8 +448,7 @@ def options(st, k, wk, tk, ws, d, day, ans):
         # on the motion's day (the projection its question states: `record.project`), the motion is not asked (none
         # is made); a court's day after the period is asked, its security stated as sized then
         approval = agenda.stay_approval_day(k, day, d - w.DEC_STAY0)
-        p = rec.project(st, k, ws.scratch, day, approval, True)
-        if p[6] and not (k.noncash or p[5] > 0 or (p[4] > 0 and p[1] - p[2] >= p[4])):
+        if approval < k.N and proposed(st, k, ws, day, approval)[0] < 0:
             ans[0] = a.NO
             return 1, False, -1
         ans[0], ans[1] = a.YES, a.NO
@@ -572,8 +592,10 @@ def book(st, k, tk, ws, d, day, ans, asked):
         p = d - w.DEC_STAY0
         j = S[a.N_STAYS]
         if ans == a.YES:  # moved: the court answers at the approval
+            kind, amount = proposed(st, k, ws, day, agenda.stay_approval_day(k, day, p))
             advance(st, k, ws, mk(a.STAY, p, a.DENIED), asked)
             st.stays[j, a.T_OPEN] = 1
+            st.stays[j, a.T_OFFER_KIND], st.stays[j, a.T_OFFER] = kind, amount
             S[w.ANS0 + d] = MOVED
         else:
             advance(st, k, ws, mk(a.STAY, p, a.NO), asked)

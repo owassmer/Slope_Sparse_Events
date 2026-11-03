@@ -26,7 +26,8 @@ def walked(request):
 
 def test_a_stay_motion_offers_security_it_can_post(walked):
     mem = walked
-    for i in np.flatnonzero(mem.rows[:mem.count, w.QN] == w.Q_STAY_MOTION):
+    count = int(np.asarray(mem.count).reshape(-1)[0])
+    for i in np.flatnonzero(mem.rows[:count, w.QN] == w.Q_STAY_MOTION):
         ints = mem.ints[i]
         if not ints[r.HAS_SECURITY]:
             continue
@@ -40,12 +41,13 @@ def test_a_stay_motion_offers_security_it_can_post(walked):
 
 def test_dated_events_are_on_or_before_the_question_and_in_order(walked):
     mem = walked
-    for i in range(mem.count):
+    count = int(np.asarray(mem.count).reshape(-1)[0])
+    for i in range(count):
         row = decode.record(mem.ints[i], mem.floats[i])
         evs = row["sit"]["events"][0]
-        days = [t for _, t, _ in evs]
+        days = [t for _, t, _, _ in evs]
         assert days == sorted(days)
         assert all(t <= int(row["day"][0]) for t in days), (i, int(row["day"][0]), evs)
-        approved = [t for k, t, _ in evs if k == "stay_approved"]
-        moot_or_after = [k for k, t, _ in evs if approved and t > approved[0] and k == "stay_approved"]
+        approved = [t for k, t, _, _ in evs if k == "stay_approved"]
+        moot_or_after = [k for k, t, _, _ in evs if approved and t > approved[0] and k == "stay_approved"]
         assert not moot_or_after, (i, evs)  # one judgment, one stay in effect

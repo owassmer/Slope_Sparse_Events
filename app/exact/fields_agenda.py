@@ -36,8 +36,11 @@ MAX_WAIT = 32
 # T_DONE: its approval processed; T_LOCK: the security it locks, sized then; T_EFFECTIVE: the stay took effect;
 # T_OPEN: the court has not yet answered (the dated walk asks it at the approval: nothing processes it before)
 # T_MOOT: the court never answered: another stay took effect while the motion was before it
-T_INDEX, T_MOTION, T_APPROVAL, T_APPROVED, T_MOVED, T_DONE, T_LOCK, T_EFFECTIVE, T_OPEN, T_MOOT = range(10)
-TCOLS = 10
+# T_OFFER, T_OFFER_KIND: the security the motion proposed, as the company projected it on the motion's day
+# (fields_record.OFFER_KINDS)
+T_INDEX, T_MOTION, T_APPROVAL, T_APPROVED, T_MOVED, T_DONE, T_LOCK, T_EFFECTIVE, T_OPEN, T_MOOT, T_OFFER, \
+    T_OFFER_KIND = range(12)
+TCOLS = 12
 MAX_STAYS = 8
 
 # --- each step's record (Chain.rec): day, cash, owed, collateral -------------------------------------------------------

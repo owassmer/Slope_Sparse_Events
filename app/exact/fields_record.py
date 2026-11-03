@@ -19,6 +19,8 @@ LISTINGS = ('listed', 'hearing_requested', 'suspended', 'delisted')
 # (each stay answer's ref is its motion's day; an approved stay's amount the cash it locks, NONCASH where its security
 # is not in cash)
 EVENTS = ('stay_moved', 'stay_approved', 'stay_denied', 'stay_moot', 'stay_no_effect', 'levied', 'paid')
+# a stay motion's proposed security (fields_agenda.T_OFFER_KIND), its amount beside it
+OFFER_KINDS = ('full', 'reduced', 'noncash', 'unsized')
 MAX_EVENTS = 24
 EVENT_COLS = 4  # kind, day, amount, ref
 NONCASH = -1
@@ -37,7 +39,7 @@ BASE = ('day', 'cash', 'owed', 'collateral', 'petition', 'settle_offer', 'stay_o
         'sit.offer_shortfall', 'sit.offering_bound_reached', 'sit.notes_due_day', 'sit.notes_due_how',
         'sit.first_unpaid', 'sit.nonpayment_day', 'sit.declaration_deadline', 'has_declaration',
         'has_groups', 'has_coupon_cash', 'coupon_cash', 'offering_count', 'has_security', 'has_pricing',
-        'event_count')
+        'event_count', 'sit.motion_day', 'sit.motion_offer', 'sit.motion_offer_kind')
 INT_FIELDS = (BASE + tuple('marks.' + x for x in MARKS) + tuple('triggers.' + x for x in TRIGGERS)
               + tuple('sit.offering_terms.' + x for x in TERMS) + tuple('sit.arrears.' + x for x in ARREARS)
               + tuple('security_terms.' + x for x in ('day', 'cash', 'need', 'owed', 'collateral', 'offer', 'live'))
@@ -61,6 +63,9 @@ VOCABULARIES = {'sit.standing': STANDINGS, 'sit.listing': LISTINGS, 'sit.stay_st
 # Class tuple: live, band endpoints, standing, notes, listing, offering, pay,
 # appeal (-1 omitted), stay (-1 omitted), context vocabulary id, option group (-2 omitted).
 CLASS_FIELDS = ('live', 'band_lo', 'band_hi', 'standing', 'notes', 'listing', 'offer', 'pay',
-                'appeal', 'stay', 'context', 'group', 'security')
+                'appeal', 'stay', 'context', 'group', 'security', 'settle_ratio')
+# a settlement question's offer as a share of the amount owed, in bands (QUESTIONS D3 Grouping: groups split where
+# offers differ materially in size relative to the amount owed; the bands are ours): below 10%, to 25%, to 50%, above
+SETTLE_RATIO_BPS = (1000, 2500, 5000)
 SECURITY_KINDS = ('full', 'reduced', 'none', 'not_live')  # a stay question's security type (QUESTIONS D4 Grouping)
 NC = len(CLASS_FIELDS)

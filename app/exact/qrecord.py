@@ -46,6 +46,18 @@ def question(st, k, scratch, q, ints, floats):
     if q[tree.QN] in (tree.Q_STAY_APPROVED, tree.Q_OFFERING):
         ints[r.RAISE_OFFER] = ints[r.OFFER_AVAILABLE]
     if q[tree.QN] == tree.Q_STAY_APPROVED:
+        found = -1  # the motion the court answers today
+        for j in range(st.S[a.N_STAYS]):
+            row = st.stays[j]
+            if row[a.T_OPEN] and row[a.T_APPROVAL] == day:
+                if found >= 0:
+                    raise ValueError("two stay motions answered on one day")
+                found = j
+        if found < 0:
+            raise ValueError("a stay approval with no motion before the court")
+        ints[r.MOTION_DAY] = st.stays[found, a.T_MOTION]
+        ints[r.MOTION_OFFER] = st.stays[found, a.T_OFFER]
+        ints[r.MOTION_OFFER_KIND] = st.stays[found, a.T_OFFER_KIND]
         collateral = agenda.bond_collateral(st, k, day)
         balance = ints[r.CASH]
         need = k.need[min(max(day, 0), k.N - 1)]

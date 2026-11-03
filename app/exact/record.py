@@ -28,8 +28,9 @@ def _event(out, cnt, kind, day, amount, ref):
 
 @njit(cache=True)
 def events(st, k, day, out):
-    """The dated events on or before `day` (fields_record.EVENTS), in date order: each stay motion and the court's
-    answer to it, naming the motion (its day) (approved and in effect with the cash it locks, or NONCASH; approved with
+    """The dated events on or before `day` (fields_record.EVENTS), in date order: each stay motion with the security
+    it proposed (amount; ref: its fields_record.OFFER_KINDS kind) and the court's answer to it, naming the motion (its
+    day) (approved and in effect with the cash it locks, or NONCASH; approved with
     no security to post; denied; or moot: another stay took effect first), each levy on the company's cash and each
     payment of the judgment, with its amount."""
     S, D = st.S, st.D
@@ -38,8 +39,8 @@ def events(st, k, day, out):
         for j in range(S[a.N_STAYS]):
             row = st.stays[j]
             moved = row[a.T_MOVED] or row[a.T_MOOT] or row[a.T_APPROVED]
-            if moved and row[a.T_MOTION] == t:
-                cnt = _event(out, cnt, 0, t, 0, t)
+            if moved and row[a.T_MOTION] == t:  # its proposed security: amount, and its kind as the ref
+                cnt = _event(out, cnt, 0, t, row[a.T_OFFER], row[a.T_OFFER_KIND])
             if moved and row[a.T_APPROVAL] == t and not row[a.T_OPEN] and t <= day:
                 if row[a.T_MOOT]:
                     kind = 3
@@ -108,6 +109,7 @@ def record(st, k, day, node, ctx, scratch, out, floats):
     agenda.refresh(st, k)
     S, D = st.S, st.D
     out[:] = 0
+    out[r.MOTION_DAY], out[r.MOTION_OFFER_KIND] = f.BIG, -1  # a stay approval's motion (qrecord): none here
     t = min(max(day, 0), k.N - 1)
     out[r.DAY] = day
     out[r.CASH] = cash.processing_balance(D, st.ln, day)
@@ -259,6 +261,13 @@ def situation_class(row, out, appeal=True, stay=False, context=0, group=False):
     out[9] = row[r.STAY_STATUS] if stay else -1
     out[10] = context
     out[11] = row[r.GROUPS] if group else -2
+    out[13] = -1  # a settlement question's offer against the amount owed, banded (fields_record.SETTLE_RATIO_BPS)
+    if row[r.SETTLE_OFFER] > 0 and row[r.OWED] > 0:
+        share = row[r.SETTLE_OFFER] * 10_000 // row[r.OWED]
+        out[13] = 0
+        for b in r.SETTLE_RATIO_BPS:
+            if share >= b:
+                out[13] += 1
     out[12] = -1  # a stay question's security type (QUESTIONS D4 Grouping): full, reduced, none, or not live
     if row[r.HAS_SECURITY]:
         cash_, need = row[r.SECURITY0 + 1], row[r.SECURITY0 + 2]

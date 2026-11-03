@@ -2462,7 +2462,7 @@
         "earlier_readings"
       ],
       "prompt": {
-        "instructions": "On {decision_date}, does the court grant {company}'s requested stay of execution with the following security: {security_offered}?",
+        "instructions": "On {decision_date}, does the court grant the stay of execution {company} moved for on {motion_date}, with the following security: {security_offered}?",
         "criteria": {
           "true": "On {decision_date}, the court grants the stay with the following security: {security_offered}.",
           "false": "On {decision_date}, the court does not grant the stay."
