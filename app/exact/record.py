@@ -261,6 +261,7 @@ def situation_class(row, out, appeal=True, stay=False, context=0, group=False):
     out[11] = row[r.GROUPS] if group else -2
     out[12] = -1  # a stay question's security type (QUESTIONS D4 Grouping): full, reduced, none, or not live
     if row[r.HAS_SECURITY]:
-        cash_, need, collateral, offer, live = (row[r.SECURITY0 + j] for j in (1, 2, 4, 5, 6))
+        cash_, need = row[r.SECURITY0 + 1], row[r.SECURITY0 + 2]
+        collateral, offer, live = row[r.SECURITY0 + 4], row[r.SECURITY0 + 5], row[r.SECURITY0 + 6]
         out[12] = (3 if not live else 0 if collateral > 0 and cash_ - need >= collateral
                    else 1 if offer > 0 else 2)
