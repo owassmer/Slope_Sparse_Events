@@ -229,7 +229,7 @@ WINDOW = {"I0": "from {day}, before the jury's verdict",
           "I1": "from {day}, while post-trial motions are pending, until the court rules on them",
           "Istay": "from {day}, while the judgment is stayed on approved security before the post-trial ruling, until the "
                    "court rules on the post-trial motions",
-          "Ienforce": "from {day}, after the creditor's levy on the company's cash, until the court rules on the "
+          "Ienforce": "from {day}, after {claimant}'s levy on the company's cash, until the court rules on the "
                       "post-trial motions",
           "Iappeal": "from {day}, while the company's appeal is pending, through {end}",
           "I2": "from {day}, after the post-trial ruling or once the time for post-trial motions has run, to the "
@@ -352,24 +352,43 @@ class Situation:
             out.append(f"the company filed an appeal on {dated(self.review, int(rep), dates)}")
         return out
 
+    EVENT_WORDS = {"stay_moved": "the company moved for a stay of execution",
+                   "stay_approved": "the court approved a stay, the company posting {amount} of cash security",
+                   "stay_no_effect": "the court approved a stay, but the company could post no security, so it did "
+                                     "not take effect",
+                   "stay_denied": "the court denied the company's stay motion",
+                   "stay_moot": "the company's stay motion became moot: another stay was in effect",
+                   "levied": "{claimant} levied {amount} on the company's cash",
+                   "paid": "the company paid {amount} on the judgment"}
+
     def historical_events(self) -> list[str]:
+        """The dated events on the path on or before the decision date, each with its date (and amount), in order:
+        every stay motion and the court's answer to it, every levy and payment (`record.events`); every offering
+        initiated, with its scheduled close and whether it closed; and the first day of each standing condition
+        (execution sought, the settlement, the notes falling due, the delisting)."""
         g = self._g()
         i, j = g.rep
         marks = g.rows[i].get("marks") or {}
-        out = []
-        for name, text in (("stay_moved", "the company moved for a stay"),
-                           ("stayed", "the court approved a stay"),
-                           ("stay_denied", "the court denied a stay request"),
-                           ("paid", "the company paid the judgment"),
+        dated_events = []
+        evs = g.at_rep("events", sit=True)
+        for kind, t, amount in (evs if evs is not None else ()):
+            if 0 <= t <= self.day:
+                dated_events.append((t, self.EVENT_WORDS[kind].format(amount=usd(amount),
+                                                                      claimant=self.d.counterparty)))
+        for init, close, closed in self._offerings():
+            if 0 <= init <= self.day:
+                end = ("it closed on " if closed else "it did not close; it was scheduled to close on ") \
+                    if close <= self.day else "it is scheduled to close on "
+                dated_events.append((init, f"the company initiated an underwritten offering of its stock; "
+                                           f"{end}{when(self.review, close)}"))
+        for name, text in (("executing", "{claimant} sought execution"),
                            ("settled", "the parties agreed to settle; the first settlement payment was due"),
-                           ("levied", "the creditor levied on the company's cash"),
-                           ("executing", "the creditor sought execution"),
                            ("notes_due", "the notes became due"),
                            ("delisted", "the stock was delisted")):
             dates = marks.get(name)
             if dates is not None and 0 <= int(dates[j]) <= self.day:
-                out.append(f"{text} on {when(self.review, int(dates[j]))}")
-        return out
+                dated_events.append((int(dates[j]), text.format(claimant=self.d.counterparty)))
+        return [f"{text} on {when(self.review, t)}" for t, text in sorted(dated_events, key=lambda x: x[0])]
 
     def interval(self):
         """The window the question's event may occur in, from its own date (`WINDOW`)."""
@@ -379,7 +398,7 @@ class Situation:
             if stage is None:
                 raise Unbuilt(f"no window among the context tags {self.tags}")
             text = WINDOW[stage]
-            return text.format(day=self.decision_date(), end=self._date(self.fc.horizon),
+            return text.format(day=self.decision_date(), end=self._date(self.fc.horizon), claimant=self.d.counterparty,
                                motions=dated(self.review, *self._sit("motions_deadline")) if "{motions}" in text else "",
                                appeal=self.appeal_deadline() if "{appeal}" in text else "")
         got = next((self.labels[t] for t in self.tags if t in self.labels and t.startswith("I")), None)
@@ -708,6 +727,12 @@ class Situation:
         return {k: int(np.asarray(v)[j]) if np.ndim(v) else int(v) for k, v in t.items()}
 
     def offering_terms(self):
+        """The terms of the offering the company could initiate on the decision date; where none can be made at all
+        (another pending, a petition, delisted, no shares left, the initiations exhausted), none: the reason says why.
+        An offering too large for the shelf or too small for the shortfall is stated, since its terms are the reason."""
+        reason = self.offering_unavailable_reason()
+        if reason.startswith("unavailable") and not ("Form S-3" in reason or "short of" in reason):
+            return "none: no offering can be made (see the offering's unavailability)"
         t = self._terms()
         return (f"an underwritten public offering of common stock on the company's shelf: {t['shares']:,} shares at "
                 f"${t['price_cents_x1e4'] / 1e6:,.4f}, gross proceeds {usd(t['gross'])}, issuance costs "
@@ -796,7 +821,7 @@ class Situation:
         terms = self._terms()
         if "shelf_capacity" in terms and terms["gross"] > terms["shelf_capacity"]:
             return (f"unavailable: Form S-3 I.B.6 leaves {usd(terms['shelf_capacity'])} of gross capacity; "
-                    f"the {usd(terms['gross'])} offering exceeds it and cannot be offered")
+                    f"the {usd(terms['gross'])} offering exceeds it and cannot be made on the stated terms")
         try:  # the case's initiation rule (QUESTIONS §2.6): the proceeds against the shortfall they must cover
             net, short = (int(self._g().at_rep(k, sit=True)) for k in ("offer_available", "offer_shortfall"))
         except KeyError:  # a record without the rule's figures: the offering is among the answers
@@ -904,7 +929,7 @@ PHRASES = {"stay_pending": "the company has moved for a stay, not yet decided",
            "motions_pending": "the post-trial motions are pending",
            "executing": "{claimant} initiated enforcement before the post-trial ruling",
            "stay_moved": "the company has moved for a stay", "stayed": "the judgment is stayed on approved security",
-           "paid": "the company has paid the judgment",
+           "paid": "the judgment has been paid in full",
            "notes_due": "the notes are due and unpaid, and no petition has been filed",
            "delisted": "the stock has been delisted",
            "cash_exhausted": "the company did not file when its available cash fell below its operating need for "
@@ -954,8 +979,10 @@ KIND_OF = {"court ruling": "court_findings", "party argument": "party_assertions
            "statement of intended proof": "party_assertions", "proposal": "party_assertions",
            "company disclosure": "historical_evidence", "third-party record": "historical_evidence",
            "stipulation": "court_findings"}  # the parties' stipulated instructions, given to the jury by the court
-CLOSED = {"verdict_finding": "the jury", "verdict_amount": "the jury", "post_trial_ruling": "the court",
-          "stay_approved": "the court", "registration_early": "the court"}
+# the deciders whose record is closed on the question's date (the trial record, the briefed post-trial motions): an item
+# outside it is marked as such. A motion decided on papers the parties have yet to file has an open record (QUESTIONS
+# §1 Evidence): the company's disclosures are what its motion puts before the court.
+CLOSED = {"verdict_finding": "the jury", "verdict_amount": "the jury", "post_trial_ruling": "the court"}
 
 
 def attribution(fc, fid: str) -> dict:
@@ -1022,6 +1049,10 @@ def question_text(n, text: str, values: dict) -> str:
             text = "What does {company} do on {decision_date}, {occasion}: " + options + "?"
         else:
             text = text.split("does {company}", 1)[0] + "does {company} " + options + "?"
+    if "{decision_date}" not in text and n.node not in ("verdict_finding", "verdict_amount"):
+        # every question states the date it is asked on (QUESTIONS §1, Two dates); the verdict's are asked on the
+        # record at the evidence cutoff, which the case states
+        text = "As of {decision_date}, " + text[0].lower() + text[1:]
     return fill_text(text, values)
 
 
@@ -1078,6 +1109,8 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
     sit = situation.fill(keys, strict)
     values = {"company": fc.borrower, "claimant": d.counterparty,  # the question names the representative's figures
               **{k: RANGE.sub("", v) if isinstance(v, str) else json.dumps(v) for k, v in sit.items()}}
+    if "decision_date" not in values and g is not None:
+        values["decision_date"] = situation.decision_date()
     crit = entry["prompt"]["criteria"]
     names = dict(zip(["true", "false"], t["branches"], strict=True)) if entry["primitive"] == "noul" else \
         {k: k for k in crit}
@@ -1104,7 +1137,8 @@ def build(fc, n, d, tags: list[str], rows: list, masks: list, strict: bool = Tru
                   "stayed", "paid", "settled", "notes_due", "delisted", "levied", "unlevied", "executing"}
     history_tags = [tag for tag in tags if g is None or
                     (tag not in dated_tags and not tag.startswith(("judgment_", "delisting_")))]
-    assumed = [*([] if verdict else assumed_events(history_tags, labels, d.counterparty, strict)), *n.assumptions]
+    assumed = [*([] if verdict else assumed_events(history_tags, labels, d.counterparty, strict)),
+               *(x.format(claimant=d.counterparty) for x in n.assumptions)]
     if not verdict and g is not None:
         assumed.extend(situation.historical_events())
     if not verdict and ({"final", "appealed"} & set(tags)):

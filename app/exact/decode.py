@@ -41,6 +41,7 @@ def record(ints, floats):
         out['triggers']['coupon_cash'] = np.array([ints[r.COUPON_CASH]])
     out['sit']['offerings'] = [tuple(np.array([ints[r.OFFERS0 + 3*j + q]], dtype=bool if q == 2 else np.int64)
                                        for q in range(3)) for j in range(ints[r.OFFERING_COUNT])]
+    out['sit']['events'] = _events(ints[None, :])
     if ints[r.HAS_SECURITY]:
         out['security_terms'] = {key: np.array([ints[r.SECURITY0 + j]], dtype=bool if key == 'live' else np.int64)
                                  for j, key in enumerate(('day', 'cash', 'need', 'owed', 'collateral', 'offer', 'live'))
@@ -144,6 +145,7 @@ def rows(ints, floats):
         offers.append((np.where(on, a, f.BIG).astype(np.int64), np.where(on, c, f.BIG).astype(np.int64),
                        np.where(on, ok, 0).astype(bool)))
     out['sit']['offerings'] = offers
+    out['sit']['events'] = _events(ints)
     security = _one(ints[:, r.HAS_SECURITY], 'security terms')
     if security:
         out['security_terms'] = {key: ints[:, r.SECURITY0 + j].astype(bool if key == 'live' else np.int64)
@@ -153,4 +155,14 @@ def rows(ints, floats):
         out['sit']['settlement_pricing'] = {key: ints[:, r.PRICING0 + j].astype(np.int64) for j, key in
                                           enumerate(('day', 'cash', 'operating_need'))}
     _known(out)
+    return out
+
+
+def _events(ints) -> np.ndarray:
+    """Each member's dated events (`record.events`), as a list of (kind, day, amount) per member (an object array, so
+    a group's representative reads its own)."""
+    out = np.empty(ints.shape[0], dtype=object)
+    for i in range(ints.shape[0]):
+        out[i] = [(r.EVENTS[int(ints[i, r.EVENTS0 + 3 * j])], int(ints[i, r.EVENTS0 + 3 * j + 1]),
+                   int(ints[i, r.EVENTS0 + 3 * j + 2])) for j in range(int(ints[i, r.EVENT_COUNT]))]
     return out

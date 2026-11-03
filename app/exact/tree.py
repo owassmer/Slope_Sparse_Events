@@ -586,7 +586,7 @@ def book(st, k, tk, ws, d, day, ans, asked):
         row[a.T_OPEN] = 0
         row[a.T_APPROVED] = ans == a.YES
         if ans == a.NO:  # moot: no answer of the court's to book, no denial
-            row[a.T_MOVED] = 0
+            row[a.T_MOVED], row[a.T_MOOT] = 0, 1
         S[w.ANS0 + w.DEC_STAY0 + stay_phase(S, j)] = ans
         S[w.ANS0 + d] = ans
         if ans == a.YES:

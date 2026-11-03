@@ -118,12 +118,21 @@
     {
       "as": "an acquired filter business",
       "names": [
+        "RFM Integrated Device, Inc.",
+        "RFM Integrated Device Inc.",
+        "RFM Integrated Device, Inc",
+        "RFM Integrated Device Inc",
+        "RFM Integrated Device",
         "RFMi"
       ]
     },
     {
       "as": "an acquired semiconductor business",
       "names": [
+        "Grinding & Dicing Services, Inc.",
+        "Grinding & Dicing Services, Inc",
+        "Grinding & Dicing Services",
+        "Grinding and Dicing Services",
         "GDSI"
       ]
     },
@@ -136,6 +145,9 @@
     {
       "as": "a town in New York",
       "names": [
+        "Canandaigua, New York",
+        "Canandaigua, NY",
+        "Canandaigua, N.Y.",
         "Canandaigua"
       ]
     },

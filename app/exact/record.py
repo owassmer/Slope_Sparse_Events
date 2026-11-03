@@ -18,6 +18,44 @@ from app.exact import fields_record as r
 
 
 @njit(cache=True)
+def _event(out, cnt, kind, day, amount):
+    if cnt >= r.MAX_EVENTS:
+        raise ValueError("more dated events than the record holds")
+    out[r.EVENTS0 + 3 * cnt], out[r.EVENTS0 + 3 * cnt + 1], out[r.EVENTS0 + 3 * cnt + 2] = kind, day, amount
+    return cnt + 1
+
+
+@njit(cache=True)
+def events(st, k, day, out):
+    """The dated events on or before `day` (fields_record.EVENTS), in date order: each stay motion and the court's
+    answer to it (approved and in effect, approved with no security to post, denied, or moot: another stay took
+    effect first), each levy on the company's cash and each payment of the judgment, with its amount."""
+    S, D = st.S, st.D
+    cnt = 0
+    for t in range(min(day, k.N - 1) + 1):
+        for j in range(S[a.N_STAYS]):
+            row = st.stays[j]
+            moved = row[a.T_MOVED] or row[a.T_MOOT] or row[a.T_APPROVED]
+            if moved and row[a.T_MOTION] == t:
+                cnt = _event(out, cnt, 0, t, 0)
+            if moved and row[a.T_APPROVAL] == t and not row[a.T_OPEN] and t <= day:
+                if row[a.T_MOOT]:
+                    kind = 3
+                elif not row[a.T_APPROVED]:
+                    kind = 2
+                elif row[a.T_DONE] and not row[a.T_EFFECTIVE]:
+                    kind = 4
+                else:
+                    kind = 1
+                cnt = _event(out, cnt, kind, t, row[a.T_LOCK] if kind == 1 else 0)
+        if D[f.D_KIND_LEVY, t] != 0:
+            cnt = _event(out, cnt, 5, t, -D[f.D_KIND_LEVY, t])
+        if D[f.D_KIND_JUDGMENT, t] != 0:
+            cnt = _event(out, cnt, 6, t, -D[f.D_KIND_JUDGMENT, t])
+    out[r.EVENT_COUNT] = cnt
+
+
+@njit(cache=True)
 def project(st, k, scratch, decision, payment, processing):
     # The current follow scheduler still books these composite answers at their
     # origin. They cannot be projected as commitments of an earlier question.
@@ -51,8 +89,10 @@ def project(st, k, scratch, decision, payment, processing):
 
 
 @njit(cache=True)
-def inside(day, N):
-    return day if 0 <= day < N else f.BIG
+def fixed_date(day):
+    """A date the contract or a rule fixes, stated as a fact whether or not it falls inside the analysis period (the
+    period bounds the cash, not what a question may know)."""
+    return day if 0 <= day < f.BIG else f.BIG
 
 
 @njit(cache=True)
@@ -140,6 +180,7 @@ def record(st, k, day, node, ctx, scratch, out, floats):
             out[r.OFFERS0 + 3 * count + 2] = o[e.O_CLOSED] and o[e.O_CLOSE] <= day
             count += 1
     out[r.OFFERING_COUNT] = count
+    events(st, k, day, out)
     out[r.NOTES_DUE_DAY] = due if due <= day else f.BIG
     out[r.NOTES_DUE_HOW] = S[n.NOTES_DUE_HOW] if due <= day else 0
     for j in range(5):
@@ -157,7 +198,7 @@ def record(st, k, day, node, ctx, scratch, out, floats):
     for j in range(2):
         ripe, on = notes.judgment_default(S, st.takes, k.nc, j)
         fixed = entered if j == 0 else (filed and S[f.F] <= day)
-        out[r.TRIGGER0 + j] = inside(ripe, k.N) if on and fixed else f.BIG
+        out[r.TRIGGER0 + j] = fixed_date(ripe) if on and fixed else f.BIG
     out[r.TRIGGER0 + 2] = ((S[f.AD] if S[f.F] <= day else f.BIG) if filed else out[r.ENTRY_APPEAL_DEADLINE])
     coupon = f.BIG
     for j in range(S[n.N_COUPONS]):
@@ -165,13 +206,13 @@ def record(st, k, day, node, ctx, scratch, out, floats):
         if c[n.C_DAY] < coupon:
             coupon = c[n.C_DAY]
             out[r.COUPON_CASH] = c[n.C_CASH]
-    out[r.TRIGGER0 + 3] = inside(coupon, k.N)
+    out[r.TRIGGER0 + 3] = fixed_date(coupon)
     out[r.HAS_COUPON_CASH] = coupon < f.BIG and k.nc.coupon_mode == n.PRICED
-    out[r.TRIGGER0 + 4] = inside(k.ldates[n.DEADLINE], k.N)
+    out[r.TRIGGER0 + 4] = fixed_date(k.ldates[n.DEADLINE])
     if out[r.DELISTED] < k.N:
-        out[r.TRIGGER0 + 5] = inside(notes.repurchase_day(k.rep_cal, out[r.DELISTED]), k.N)
+        out[r.TRIGGER0 + 5] = fixed_date(notes.repurchase_day(k.rep_cal, out[r.DELISTED]))
     if due <= day:
-        out[r.TRIGGER0 + 6] = inside(due + k.nc.route, k.N)
+        out[r.TRIGGER0 + 6] = fixed_date(due + k.nc.route)
     if node == a.SETTLE:
         start, end = agenda.settlement_window(st, k, ctx)
         payment = end if k.settle_end else start + k.settle_lag

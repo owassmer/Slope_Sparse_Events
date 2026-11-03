@@ -425,9 +425,13 @@ def decision_day(st, k, node, ctx):
         return S[f.V]
     if node == a.MOTIONS:
         return core.motions_deadline(S, k.frcp, k.court)
-    if node == a.LISTING:  # the listing's first stage: the compliance deadline
+    if node == a.LISTING:
+        # QUESTIONS D6a: whether compliance is regained by the deadline, asked on the last day a reverse split can still
+        # be called to regain it (the meeting's call), on that day's state: asked on the deadline itself, the path's
+        # own prices would have settled it
         pet = f.BIG if S[f.PETITION] < 0 else S[f.PETITION]
-        return k.ldates[n.DEADLINE] if k.ldates[n.DEADLINE] < pet else f.BIG
+        day = max(k.ldates[n.VOTE_CALL], 0)
+        return day if day < pet else f.BIG
     if node == a.DELISTING:
         pet = f.BIG if S[f.PETITION] < 0 else S[f.PETITION]
         d = S[f.DELISTED]

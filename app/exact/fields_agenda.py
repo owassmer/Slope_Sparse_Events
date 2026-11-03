@@ -35,8 +35,9 @@ MAX_WAIT = 32
 # --- the stays table (Chain.stays): motion, approval, the answer ------------------------------------------------------
 # T_DONE: its approval processed; T_LOCK: the security it locks, sized then; T_EFFECTIVE: the stay took effect;
 # T_OPEN: the court has not yet answered (the dated walk asks it at the approval: nothing processes it before)
-T_INDEX, T_MOTION, T_APPROVAL, T_APPROVED, T_MOVED, T_DONE, T_LOCK, T_EFFECTIVE, T_OPEN = range(9)
-TCOLS = 9
+# T_MOOT: the court never answered: another stay took effect while the motion was before it
+T_INDEX, T_MOTION, T_APPROVAL, T_APPROVED, T_MOVED, T_DONE, T_LOCK, T_EFFECTIVE, T_OPEN, T_MOOT = range(10)
+TCOLS = 10
 MAX_STAYS = 8
 
 # --- each step's record (Chain.rec): day, cash, owed, collateral -------------------------------------------------------

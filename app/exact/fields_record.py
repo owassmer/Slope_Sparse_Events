@@ -14,6 +14,10 @@ from app.exact.fields_notes import HOW
 from app.exact.fields_notes import STANDING as STANDINGS
 
 LISTINGS = ('listed', 'hearing_requested', 'suspended', 'delisted')
+# the dated events a question states (`record.events`), each (kind, day, amount): every stay motion and its outcome,
+# every levy and payment, in date order, those dated on or before the question's day
+EVENTS = ('stay_moved', 'stay_approved', 'stay_denied', 'stay_moot', 'stay_no_effect', 'levied', 'paid')
+MAX_EVENTS = 24
 STAY_STATUSES = ('not_requested', 'pending', 'denied', 'approved', 'resolved')
 NOTES = ('current', 'default', 'due')
 OFFER = ('available', 'insufficient', 'nocapacity', 'pending', 'petition', 'delisted')
@@ -25,12 +29,14 @@ BASE = ('day', 'cash', 'owed', 'collateral', 'petition', 'settle_offer', 'stay_o
         'sit.remitted', 'sit.listing', 'sit.atm', 'sit.ledger', 'sit.offering_pending', 'sit.offer_available',
         'sit.offer_shortfall', 'sit.offering_bound_reached', 'sit.notes_due_day', 'sit.notes_due_how',
         'sit.first_unpaid', 'sit.nonpayment_day', 'sit.declaration_deadline', 'has_declaration',
-        'has_groups', 'has_coupon_cash', 'coupon_cash', 'offering_count', 'has_security', 'has_pricing')
+        'has_groups', 'has_coupon_cash', 'coupon_cash', 'offering_count', 'has_security', 'has_pricing',
+        'event_count')
 INT_FIELDS = (BASE + tuple('marks.' + x for x in MARKS) + tuple('triggers.' + x for x in TRIGGERS)
               + tuple('sit.offering_terms.' + x for x in TERMS) + tuple('sit.arrears.' + x for x in ARREARS)
               + tuple('security_terms.' + x for x in ('day', 'cash', 'need', 'owed', 'collateral', 'offer', 'live'))
               + tuple('sit.settlement_pricing.' + x for x in ('day', 'cash', 'operating_need'))
-              + tuple(f'sit.offerings.{j}.{x}' for j in range(e.MAX_OFFERS) for x in ('init', 'close', 'closed')))
+              + tuple(f'sit.offerings.{j}.{x}' for j in range(e.MAX_OFFERS) for x in ('init', 'close', 'closed'))
+              + tuple(f'sit.events.{j}.{x}' for j in range(MAX_EVENTS) for x in ('kind', 'day', 'amount')))
 FLOAT_FIELDS = ('sit.share_price',)
 for _i, _name in enumerate(BASE):
     globals()[_name.removeprefix('sit.').upper()] = _i
@@ -41,6 +47,7 @@ ARREAR0 = TERM0 + len(TERMS)
 SECURITY0 = ARREAR0 + len(ARREARS)
 PRICING0 = SECURITY0 + 7
 OFFERS0 = PRICING0 + 3
+EVENTS0 = OFFERS0 + 3 * e.MAX_OFFERS
 NI, NF = len(INT_FIELDS), len(FLOAT_FIELDS)
 VOCABULARIES = {'sit.standing': STANDINGS, 'sit.listing': LISTINGS, 'sit.stay_status': STAY_STATUSES,
                 'sit.notes_due_how': HOW}

@@ -20,23 +20,20 @@ from app.exact import fields_walk as w
 
 ENFORCEABLE = "the judgment is enforceable, unstayed and unpaid"
 NONPAYMENT = "the notes are due and unpaid under Indenture §7.02 on the general nonpayment"
-RESPONSE_WHEN = {"post": ("the creditor levies on the company's cash that day",),
+RESPONSE_WHEN = {"post": ("{claimant} levies on the company's cash that day",),
                  "ripe": ("the judgment default under the notes has ripened that day",),
                  "entry": ("the money judgment was entered that day, unpaid; execution is stayed automatically for "
                            "its first 30 days (Fed. R. Civ. P. 62(a))",)}
 
 
 def assumptions(fc, name: str, ctx: list[str]) -> tuple[str, ...]:
-    """What a question is asked on (each `_Walk` constructor's `assumptions`: the proposition it conditions on, set by
-    code), by its node and context."""
-    from app.analysis.events import settlement_terms
+    """What a question is asked on (the proposition it conditions on, set by code), by its node and context: only what
+    neither the question nor its dated events state (an event on the path is stated once, dated: `historical_events`;
+    the settlement's offer is the question's own, its terms stated and never the rule that sized them, a scenario
+    assumption). A party is named by `{claimant}`, filled with its name where the question is built."""
     from app.disputes.forecast import ASSUMED
 
     first = ctx[0] if ctx else ""
-    if name == "settlement_accept":
-        mode, count = settlement_terms(fc.m, fc.sens)
-        return ("the company offers to settle for its available cash above its 30-day operating need" + (
-            f", paid in {count} equal monthly installments from the settlement date" if mode == "installments" else ""),)
     if name == "judgment_response":
         return (() if first == "entry" else (ENFORCEABLE,)) + RESPONSE_WHEN.get(first, ())
     if name in ("petition_on_notes", "holders_involuntary"):
@@ -49,15 +46,12 @@ def assumptions(fc, name: str, ctx: list[str]) -> tuple[str, ...]:
         return ASSUMED[f"{name}:{first.split('_', 1)[0]}"]
     return {"post_trial_motions": ("a money judgment is entered on the verdict",),
             "execute_pre_ruling": ("post-trial motions are pending",),
-            "stay_motion": ("the creditor executes before the ruling",) if first == "I1" else
-            ("the final judgment is entered",),
-            "stay_approved": ("the company moves for a stay",),
-            "registration_early": ("the creditor executes before finality",) if first == "I1" else
-            ("the creditor enforces before finality",),
+            "stay_motion": () if first == "I1" else ("the final judgment is entered",),
+            "registration_early": () if first == "I1" else ("{claimant} enforces before finality",),
             "appeal": ("a money judgment remains outstanding",),
             "enforce_after_final": (ENFORCEABLE,),
             "post_trial_ruling": ("post-trial motions are pending",),
-            "remittitur_elected": ("the court orders a new trial unless the claimant accepts the reduced amount",),
+            "remittitur_elected": ("the court orders a new trial unless {claimant} accepts the reduced judgment",),
             "hearing_request": ("compliance is not regained by the deadline",),
             "holders_act_delisting": ASSUMED["holders_act_delisting"]}.get(name, ())
 

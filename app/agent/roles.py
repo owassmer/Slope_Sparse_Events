@@ -30,6 +30,14 @@ class NoParties(ValueError):
     """The case declares no parties: its names would reach the judge."""
 
 
+def capitals(s: str, m: re.Match) -> bool:
+    """Whether a match sits inside a run of capitals: the words on either side (up to 30 characters) have letters, all
+    capitals, on both sides where the text has any."""
+    before, after = s[max(0, m.start() - 30):m.start()], s[m.end():m.end() + 30]
+    sides = [x for x in (re.sub(r"[^A-Za-z]", "", before), re.sub(r"[^A-Za-z]", "", after)) if len(x) >= 3]
+    return bool(sides) and all(x.isupper() for x in sides) and m.group("name").isupper()
+
+
 class Parties:
     """A case's declared parties (`scenario.json` "parties": [{"as": role, "names": [...], "placeholder": ...}])."""
 
@@ -49,7 +57,7 @@ class Parties:
         # a name's spaces match any whitespace (a source's line breaks are kept verbatim)
         alternatives = "|".join(re.escape(n).replace(r"\ ", r"\s+")
                                 for n in sorted(self.by_name, key=len, reverse=True))
-        self.pattern = re.compile(rf"(?P<the>\b[Tt]he\s+)?(?<![A-Za-z0-9])(?P<name>{alternatives})(?![A-Za-z0-9])"
+        self.pattern = re.compile(rf"(?P<the>\b(?:[Tt]he|THE)\s+)?(?<![A-Za-z0-9])(?P<name>{alternatives})(?![A-Za-z0-9])"
                                   r"(?P<poss>[’'](?=\s+[A-Za-z]))?")
 
     def role(self, matched: str) -> str:
@@ -58,6 +66,8 @@ class Parties:
     def text(self, s: str) -> str:
         def one(m: re.Match) -> str:
             role = self.role(m.group("name"))
+            if capitals(s, m):  # a name inside a run of capitals (a caption, a heading): its role in capitals too
+                role = role.upper()
             article = re.match(r"(the|an?)\s+", role, re.IGNORECASE)
             if m.group("the") and article:  # "the Akoustis defendants": one article, the text's own
                 role = m.group("the") + role[article.end():]
