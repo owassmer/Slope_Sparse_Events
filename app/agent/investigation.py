@@ -28,6 +28,7 @@ from pydantic import BaseModel
 
 from app.agent.jev import JevAdapter, canonical_sha256
 from app.agent.jev_profiles import Semantics
+from app.agent.mission import host_mission
 from app.agent.run_store import RunStore
 from app.agent.smoke import preflight
 from app.agent.sweep import build_sweep, inventory_units, sweep_path
@@ -106,7 +107,20 @@ class InvestigationOutcome(BaseModel):
     supported_effect_ids: list[str]
 
 
-def system_prompt(arm: str, max_turns: int) -> str:
+class RecordOutcome(BaseModel):
+    summary: str
+
+
+def record_mode(snapshot_id: str | None, arm: str) -> bool:
+    """A mission whose submission is its record items: no dependency, effect, sensitivity, missing-fact or
+    coverage-escalation requirement (those tools stay available)."""
+    return arm == "agent_plus_jev" and host_mission(snapshot_id).get("submission") == "record_items"
+
+
+def system_prompt(arm: str, max_turns: int, snapshot_id: str | None = None) -> str:
+    own = host_mission(snapshot_id).get("system_prompt") if arm == "agent_plus_jev" else None
+    if own:  # the mission's own Role and Working method, verbatim
+        return own.replace("{turn_budget}", str(max_turns))
     cfg = agent_config()
     role = (cfg["comparison_mode_overrides"]["agent_only"]["role_instruction"] if arm == "agent_only"
             else cfg["role_instruction"])
@@ -170,7 +184,9 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         run.lock({"summary": None, "configuration_failure": str(e), "incomplete_reasons": [str(e)]})
         return {**record, "run_id": run_id, "status": "FAILED_CONFIGURATION", "error": str(e)}
     ctx = RunContext(run=run, evidence=evidence, inputs=inputs, arm=arm,
-                     semantics=Semantics(run, evidence, jev) if jev else None)
+                     semantics=Semantics(run, evidence, jev) if jev else None,
+                     record_mode=record_mode(snapshot_id, arm),
+                     dispute_template=host_mission(snapshot_id).get("dispute_template"))
     if jev is not None:  # host sweep inventory (cached per snapshot; its own budget)
         try:
             sweep = build_sweep(snapshot_id, inputs["baseline_profile"]["borrower"])
@@ -194,8 +210,9 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         model=settings["model"], effort=settings["effort"], tools=[], allowed_tools=allowed,
         mcp_servers={"credit": build_server(ctx, allowed)}, strict_mcp_config=True, setting_sources=[],
         permission_mode=settings["native_sdk_options"]["permission_mode"], max_turns=max_turns,
-        cwd=tempfile.mkdtemp(prefix="slope-run-"), env=AGENT_PROCESS_ENV, system_prompt=system_prompt(arm, max_turns),
-        output_format={"type": "json_schema", "schema": InvestigationOutcome.model_json_schema()})
+        cwd=tempfile.mkdtemp(prefix="slope-run-"), env=AGENT_PROCESS_ENV, system_prompt=system_prompt(arm, max_turns, snapshot_id),
+        output_format={"type": "json_schema", "schema": (RecordOutcome if ctx.record_mode
+                                                          else InvestigationOutcome).model_json_schema()})
 
     stats: dict[str, Any] = {"models": set(), "tool_calls": {}, "turn_ids": set(), "turn_limit_hit": False}
     ctx.max_turns = max_turns
@@ -211,9 +228,10 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         failure = failure or f"turn budget of {max_turns} reached"
     if result is not None and result.is_error:
         failure = failure or f"agent session ended with an error: {result.subtype} {result.result or ''}"[:500]
-    if not ctx.submitted:
+    if not ctx.submitted:  # the unsubmitted packet is a reason in the packet and in run.json alike
+        ctx.incomplete_reasons.append("packet not submitted" + (f": {failure}" if failure else ""))
         run.lock({"summary": None, "configuration_failure": ctx.configuration_failure,
-                  "incomplete_reasons": ctx.incomplete_reasons + [failure or "packet not submitted"]})
+                  "incomplete_reasons": ctx.incomplete_reasons})
     if ctx.configuration_failure:
         status = "FAILED_CONFIGURATION"
     elif ctx.submitted and not ctx.incomplete_reasons and not failure:

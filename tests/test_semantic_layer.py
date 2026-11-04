@@ -39,6 +39,9 @@ class FakeJevClient:
     async def system_one(self, *, state, questions, model, response_model):
         if self.adapter is not None:
             self.adapter.physical_attempts += 1
+            own = jev_module._ATTEMPTS.get()
+            if own is not None:  # the request's own count, as the hook keeps it
+                own[0] += 1
         if self.fail_on == "first" and len(self.states) == 0 and not getattr(self, "failed", False):
             self.failed = True
             raise RuntimeError("provider unavailable")

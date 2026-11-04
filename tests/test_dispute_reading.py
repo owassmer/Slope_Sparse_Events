@@ -5,7 +5,6 @@ D.I. 602); no network, the judge is a stub returning fixed readings (the waiver 
 import asyncio
 from datetime import date
 
-from app.disputes.forecast import Forecaster
 from app.disputes.interpret import Interpreter
 from app.domain.investigation import (
     AtomicFinding,
@@ -86,13 +85,6 @@ class WaiverJudge:
         raise AssertionError("unexpected level call")
 
 
-def forecaster(d, fs, slots=None):
-    from akoustis_fixture import SETUP, basis
-
-    return Forecaster([d], {f.finding_id: f for f in fs}, borrower=BORROWER, review=REVIEW, horizon=SETUP.horizon,
-                      hydrate=lambda f: {"finding": f.finding_id}, setup=SETUP, basis=basis()[1], slots=slots)
-
-
 class PendingWaiverJudge(WaiverJudge):
     """The waiver fixture, with the post-trial motions pending (so the appeal is still ahead)."""
 
@@ -106,49 +98,12 @@ WAIVER = "any waiver of the right to appeal the judgment"
 SETTLE = "the company's statements on reaching a settlement with the judgment creditor"
 
 
-def test_a_waiver_is_forecast_evidence_and_the_appeal_branch_stays():
-    from akoustis_fixture import COMPONENTS, MOTIONS
-
-    fs = [finding("a", "q3_10q"), finding("b", "verdict_8k")]
-    it = Interpreter(draft().model_copy(update={"components": COMPONENTS, "motions": MOTIONS,
-                                                "commenced": date(2021, 10, 4)}),
-                     fs, judge=PendingWaiverJudge(), borrower=BORROWER, sources=SOURCES, hydrate=lambda f: {})
-    d = asyncio.run(it.run())
-    assert d.status == "interpreted" and d.stage == "post_trial" and d.borrower_role == "debtor"
-    barred = next(f for f in d.factors if f.factor_id == "appeal_barred")
-    assert barred.probability == 0.9 and barred.level_label == "established"
-
-    fc = forecaster(d, fs, slots={"appeal": {WAIVER: ["a"]}, "settlement_offer": {SETTLE: ["b"]}})
-    paths = fc.all_paths()[d.instance_id][""]
-    assert any(("appeal", "", "yes") in p.steps for p in paths)  # the waiver is evidence, not a pruned branch
-    appeal = next(n for n in fc.nodes.values() if n.node == "appeal")
-    state, fids, readings = fc.state(appeal)
-    assert readings[barred.label]["probability_present"] == 0.9  # the waiver reaches Jev's appeal question
-    assert readings[barred.label]["passage_dated"] == "2024-05-13"  # with the passage it was read from
-    assert fids == ("a",)  # with the passage that supplies its record item
-    assert {"item": WAIVER, "in_the_record": True} in state["record_items"]
-    settle = next(n for n in fc.nodes.values() if n.node == "settlement_offer")
-    assert fc.state(settle)[1] == ("b",)  # each question receives the findings that supply its own record items
-    a4 = next(n for n in fc.nodes.values() if n.node == "debtor_response")
-    assert "p50" in fc.state(a4)[0]["path_facts"]["projected_available_cash_at_decision_date"]  # the payer's cash is data
-
-
 class FiledJudge(WaiverJudge):
     """As above, and the passages establish that Akoustis has filed its notice of appeal."""
 
     async def read(self, obligation, evidence, direction, subject_ids):
         return [*await super().read(obligation, evidence, direction, subject_ids),
                 self._o("event_appeal_filed", noul_value=0.95)]
-
-
-def test_a_filed_appeal_sets_the_stage_and_is_not_forecast():
-    fs = [finding("a", "q3_10q"), finding("b", "verdict_8k")]
-    d = asyncio.run(interpreter(fs, FiledJudge()).run())
-    assert d.stage == "appeal_filed"
-    fc = forecaster(d, fs)
-    paths = fc.all_paths()[d.instance_id][""]
-    assert not any(n.node == "appeal" for n in fc.nodes.values())
-    assert all(p.steps[0][0] == "stay" for p in paths)  # the stay is still open; "no appeal" is not a path
 
 
 class PostTrialJudge(WaiverJudge):

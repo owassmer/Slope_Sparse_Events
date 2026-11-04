@@ -1,0 +1,818 @@
+{
+ "ts_liability_jmol": {
+  "the public grounds of the renewed motion for judgment as a matter of law on trade-secret liability": [],
+  "the verdict form's answers on trade-secret misappropriation": [],
+  "public trial exhibits on trade-secret liability": []
+ },
+ "ts_damages_ruling": {
+  "the public grounds of the motion for a new trial or remittitur of the trade-secret damages": [],
+  "the trial evidence on the amount of trade-secret damages that the motion cites": []
+ },
+ "remittitur_accepted": {
+  "the judgment creditor's public statements on the damages award": []
+ },
+ "patent_jmol": {
+  "the public grounds on which the post-trial motions ask the court to set aside the patent verdict or its damages": []
+ },
+ "trebling": {
+  "the judgment creditor's motion to treble the trade-secret damages under the unfair-trade-practices statute": [],
+  "the jury's answer on the unfair-trade-practices claim, as the verdict form or a motion to amend the verdict states it": [],
+  "the court's earlier orders on unfair-trade-practices damages": []
+ },
+ "fees_awarded": {
+  "the judgment creditor's motion for attorneys' fees and its stated grounds": [],
+  "the statement of the jury's finding that the trade-secret misappropriation was willful and malicious": []
+ },
+ "prejudgment_interest": {
+  "the docket entry for the judgment creditor's motion for pre-judgment and post-judgment interest": [],
+  "the verdict form's designation of the trade-secret award as compensatory damages or unjust enrichment": [],
+  "the parties' public positions on whether unjust-enrichment damages are compensatory": []
+ },
+ "execute_pre_ruling": {
+  "the company's assets and going-concern disclosures": [
+   "fnd_025",
+   "fnd_026",
+   "fnd_067",
+   "fnd_068",
+   "fnd_051"
+  ],
+  "the relief the claimant seeks, including a permanent injunction, and its filings on it": [
+   "fnd_006",
+   "fnd_003",
+   "fnd_001",
+   "fnd_031",
+   "fnd_084"
+  ],
+  "the parties' competitive relationship": [
+   "fnd_070",
+   "fnd_009",
+   "fnd_034",
+   "fnd_054"
+  ]
+ },
+ "stay_motion": {
+  "the notes' judgment-default terms": [
+   "fnd_044",
+   "fnd_046",
+   "fnd_043",
+   "fnd_045"
+  ],
+  "the company's liquidity and going-concern disclosures": [
+   "fnd_025",
+   "fnd_026",
+   "fnd_027",
+   "fnd_028",
+   "fnd_029",
+   "fnd_051",
+   "fnd_037"
+  ]
+ },
+ "stay_approved": {
+  "the company's liquidity and going-concern disclosures": [
+   "fnd_025",
+   "fnd_026",
+   "fnd_027",
+   "fnd_028",
+   "fnd_029",
+   "fnd_051",
+   "fnd_037"
+  ]
+ },
+ "registration_early": {
+  "where the company and its subsidiaries are organised and operate, and their properties": [
+   "fnd_066",
+   "fnd_067"
+  ],
+  "the company's cash and going-concern disclosures": [
+   "fnd_025",
+   "fnd_026",
+   "fnd_051",
+   "fnd_055"
+  ]
+ },
+ "debtor_response": {
+  "the company's statements of the options it has to fund its operations and obligations: equity, debt, asset financing, collaborations or licensing, a sale or strategic transaction, restructuring or insolvency": []
+ },
+ "appeal": {
+  "the motions for judgment as a matter of law made at trial": [
+   "fnd_011",
+   "fnd_014",
+   "fnd_078",
+   "fnd_009",
+   "fnd_013"
+  ],
+  "the court's rulings on the Rule 50(a) motions": [
+   "fnd_011",
+   "fnd_014",
+   "fnd_009",
+   "fnd_010",
+   "fnd_013"
+  ],
+  "the notes' judgment-default terms": [
+   "fnd_044",
+   "fnd_046",
+   "fnd_043",
+   "fnd_045"
+  ],
+  "the company's statements on contesting the claims": [
+   "fnd_052",
+   "fnd_053",
+   "fnd_084",
+   "fnd_085",
+   "fnd_086",
+   "fnd_076"
+  ]
+ },
+ "enforce_after_final": {
+  "the company's assets and going-concern disclosures": [
+   "fnd_025",
+   "fnd_026",
+   "fnd_067",
+   "fnd_068",
+   "fnd_051"
+  ],
+  "the relief the claimant seeks, including a permanent injunction, and its filings on it": [
+   "fnd_006",
+   "fnd_003",
+   "fnd_001",
+   "fnd_031",
+   "fnd_084"
+  ],
+  "the parties' competitive relationship": [
+   "fnd_070",
+   "fnd_009",
+   "fnd_034",
+   "fnd_054"
+  ]
+ },
+ "settlement_offer": {
+  "the claimant's itemised claims": [
+   "fnd_001",
+   "fnd_002",
+   "fnd_003",
+   "fnd_004",
+   "fnd_005",
+   "fnd_006"
+  ],
+  "the company's going-concern and financing disclosures": [
+   "fnd_026",
+   "fnd_028",
+   "fnd_029",
+   "fnd_030",
+   "fnd_036"
+  ],
+  "the notes' judgment-default terms": [
+   "fnd_044",
+   "fnd_046",
+   "fnd_043",
+   "fnd_045"
+  ],
+  "the company's statements on settlement": [
+   "fnd_095",
+   "fnd_035",
+   "fnd_040"
+  ],
+  "the company's own claims against the claimant": [
+   "fnd_034",
+   "fnd_054"
+  ],
+  "the relief the claimant seeks, including a permanent injunction": [
+   "fnd_006",
+   "fnd_003",
+   "fnd_031",
+   "fnd_001",
+   "fnd_032"
+  ],
+  "the parties' competitive relationship": [
+   "fnd_070",
+   "fnd_009",
+   "fnd_034",
+   "fnd_054"
+  ]
+ },
+ "settlement_accept": {
+  "the company's going-concern and debt disclosures": [
+   "fnd_026",
+   "fnd_027",
+   "fnd_036",
+   "fnd_050",
+   "fnd_068",
+   "fnd_041"
+  ],
+  "the notes' terms": [
+   "fnd_041",
+   "fnd_042",
+   "fnd_043",
+   "fnd_045",
+   "fnd_046",
+   "fnd_047",
+   "fnd_049",
+   "fnd_050"
+  ],
+  "the relief the claimant seeks, including a permanent injunction, and its filings on it": [
+   "fnd_006",
+   "fnd_003",
+   "fnd_001",
+   "fnd_031",
+   "fnd_084"
+  ],
+  "the parties' competitive relationship": [
+   "fnd_070",
+   "fnd_009",
+   "fnd_034",
+   "fnd_054"
+  ]
+ },
+ "holders_act_judgment": {
+  "the company's going-concern and debt disclosures": [
+   "fnd_026",
+   "fnd_027",
+   "fnd_036",
+   "fnd_050",
+   "fnd_068",
+   "fnd_041"
+  ],
+  "the holders of record of the notes": [
+   "fnd_048",
+   "fnd_049"
+  ],
+  "the notes' interest payment record": [
+   "fnd_050",
+   "fnd_041",
+   "fnd_048"
+  ]
+ },
+ "holders_act_delisting": {
+  "the company's going-concern and debt disclosures": [
+   "fnd_026",
+   "fnd_027",
+   "fnd_036",
+   "fnd_050",
+   "fnd_068",
+   "fnd_041"
+  ],
+  "the holders of record of the notes": [
+   "fnd_048",
+   "fnd_049"
+  ],
+  "the notes' interest payment record": [
+   "fnd_050",
+   "fnd_041",
+   "fnd_048"
+  ]
+ },
+ "petition_on_notes": {
+  "the company's going-concern and bankruptcy statements": [
+   "fnd_026",
+   "fnd_035",
+   "fnd_037",
+   "fnd_040",
+   "fnd_036"
+  ]
+ },
+ "holders_involuntary": {
+  "the holders of record of the notes": [
+   "fnd_048",
+   "fnd_049"
+  ]
+ },
+ "reverse_split_board": {
+  "Nasdaq's minimum bid price deficiency notices and the compliance deadline they set": [],
+  "the results of earlier stockholder votes on reverse splits or share authorizations": []
+ },
+ "split_approved": {
+  "the results of earlier stockholder votes and the vote required to approve a reverse split": []
+ },
+ "nasdaq_hearing": {
+  "Nasdaq's minimum bid price deficiency notices and the compliance deadline they set": []
+ },
+ "panel_exception": {
+  "the issuer's stated plan to regain compliance with Nasdaq's listing rules": []
+ },
+ "listing_kept": {
+  "the listing deficiency notice and compliance deadline": [],
+  "the company's stated cure": [],
+  "the latest stockholder vote on a charter amendment": [
+   "fnd_061",
+   "fnd_062"
+  ],
+  "the company's financing routes and their status": []
+ },
+ "petition_cash_floor": {
+  "the company's statements on its cash, its going-concern status and its plans if its cash runs short": []
+ },
+ "petition_cash_out": {
+  "the company's shelf registration, at-the-market program and prior underwritten offerings": [
+   "fnd_065",
+   "fnd_064",
+   "fnd_029",
+   "fnd_057",
+   "fnd_058"
+  ],
+  "the notes' judgment-default terms": [
+   "fnd_044",
+   "fnd_046",
+   "fnd_043",
+   "fnd_045"
+  ],
+  "the listing deficiency notices": [
+   "fnd_038",
+   "fnd_039"
+  ],
+  "the company's going-concern and bankruptcy statements": [
+   "fnd_026",
+   "fnd_035",
+   "fnd_037",
+   "fnd_040",
+   "fnd_036"
+  ],
+  "the company's statements on its liquidity": [
+   "fnd_025",
+   "fnd_051",
+   "fnd_027",
+   "fnd_028",
+   "fnd_029",
+   "fnd_030",
+   "fnd_055"
+  ],
+  "the company's statements on the trial": [
+   "fnd_032",
+   "fnd_052",
+   "fnd_053",
+   "fnd_026",
+   "fnd_037",
+   "fnd_040"
+  ],
+  "the company's stated plans for its liquidity": [
+   "fnd_036",
+   "fnd_028",
+   "fnd_029",
+   "fnd_055",
+   "fnd_037"
+  ]
+ },
+ "financing_at_floor": {
+  "the company's shelf registration, at-the-market program and prior underwritten offerings": [
+   "fnd_065",
+   "fnd_064",
+   "fnd_029",
+   "fnd_057",
+   "fnd_058"
+  ],
+  "the notes' judgment-default terms": [
+   "fnd_044",
+   "fnd_046",
+   "fnd_043",
+   "fnd_045"
+  ],
+  "the listing deficiency notices": [
+   "fnd_038",
+   "fnd_039"
+  ],
+  "the company's going-concern and bankruptcy statements": [
+   "fnd_026",
+   "fnd_035",
+   "fnd_037",
+   "fnd_040",
+   "fnd_036"
+  ],
+  "the company's statements on its liquidity": [
+   "fnd_025",
+   "fnd_051",
+   "fnd_027",
+   "fnd_028",
+   "fnd_029",
+   "fnd_030",
+   "fnd_055"
+  ],
+  "the company's statements on the trial": [
+   "fnd_032",
+   "fnd_052",
+   "fnd_053",
+   "fnd_026",
+   "fnd_037",
+   "fnd_040"
+  ],
+  "the company's stated plans for its liquidity": [
+   "fnd_036",
+   "fnd_028",
+   "fnd_029",
+   "fnd_055",
+   "fnd_037"
+  ]
+ },
+ "verdict_theory": {
+  "the claimant's itemised damages claim": [],
+  "the defense's statement of intended proof on damages": [],
+  "the court's rulings admitting or limiting the damages evidence": [
+   "fnd_018",
+   "fnd_019",
+   "fnd_024",
+   "fnd_091",
+   "fnd_011",
+   "fnd_014",
+   "fnd_079"
+  ],
+  "the final verdict form": [
+   "fnd_087",
+   "fnd_088",
+   "fnd_089"
+  ],
+  "the summary-judgment and validity rulings": [],
+  "the defendant's public statements on the trial and its likely damages": [],
+  "the challenges to the damages method": [
+   "fnd_020",
+   "fnd_093",
+   "fnd_094",
+   "fnd_091",
+   "fnd_009",
+   "fnd_013",
+   "fnd_076"
+  ]
+ },
+ "judgment_response": {
+  "the company's shelf registration, at-the-market program and prior underwritten offerings": [
+   "fnd_065",
+   "fnd_064",
+   "fnd_029",
+   "fnd_057",
+   "fnd_058"
+  ],
+  "the notes' judgment-default terms": [
+   "fnd_044",
+   "fnd_046",
+   "fnd_043",
+   "fnd_045"
+  ],
+  "the listing deficiency notices": [
+   "fnd_038",
+   "fnd_039"
+  ],
+  "the company's going-concern and bankruptcy statements": [
+   "fnd_026",
+   "fnd_035",
+   "fnd_037",
+   "fnd_040",
+   "fnd_036"
+  ],
+  "the company's statements on its liquidity": [
+   "fnd_025",
+   "fnd_051",
+   "fnd_027",
+   "fnd_028",
+   "fnd_029",
+   "fnd_030",
+   "fnd_055"
+  ],
+  "the company's statements on the trial": [
+   "fnd_032",
+   "fnd_052",
+   "fnd_053",
+   "fnd_026",
+   "fnd_037",
+   "fnd_040"
+  ]
+ },
+ "post_trial_motions": {
+  "the motions for judgment as a matter of law made at trial": [
+   "fnd_011",
+   "fnd_014",
+   "fnd_078",
+   "fnd_009",
+   "fnd_013"
+  ],
+  "the court's rulings on the Rule 50(a) motions": [
+   "fnd_011",
+   "fnd_014",
+   "fnd_009",
+   "fnd_010",
+   "fnd_013"
+  ],
+  "the notes' judgment-default terms": [
+   "fnd_044",
+   "fnd_046",
+   "fnd_043",
+   "fnd_045"
+  ],
+  "the company's statements on contesting the claims": [
+   "fnd_052",
+   "fnd_053",
+   "fnd_084",
+   "fnd_085",
+   "fnd_086",
+   "fnd_076"
+  ]
+ },
+ "post_trial_ruling": {
+  "the motions for judgment as a matter of law made at trial": [
+   "fnd_011",
+   "fnd_014",
+   "fnd_078",
+   "fnd_009",
+   "fnd_013"
+  ],
+  "the court's rulings on the Rule 50(a) motions": [
+   "fnd_011",
+   "fnd_014",
+   "fnd_009",
+   "fnd_010",
+   "fnd_013"
+  ],
+  "the rulings that narrow the issues for trial": [
+   "fnd_022",
+   "fnd_016",
+   "fnd_024",
+   "fnd_018",
+   "fnd_019",
+   "fnd_014",
+   "fnd_033"
+  ],
+  "the court's rulings admitting or limiting the damages evidence": [
+   "fnd_018",
+   "fnd_019",
+   "fnd_024",
+   "fnd_091",
+   "fnd_011",
+   "fnd_014",
+   "fnd_079"
+  ],
+  "the claimant's damages method and figures": [
+   "fnd_002",
+   "fnd_001",
+   "fnd_003",
+   "fnd_004",
+   "fnd_005",
+   "fnd_013",
+   "fnd_093",
+   "fnd_094"
+  ],
+  "the challenges to the damages method": [
+   "fnd_020",
+   "fnd_093",
+   "fnd_094",
+   "fnd_091",
+   "fnd_009",
+   "fnd_013",
+   "fnd_076"
+  ]
+ },
+ "verdict_finding": {
+  "the final verdict form": [
+   "fnd_087",
+   "fnd_088",
+   "fnd_089"
+  ],
+  "the preliminary jury instructions": [
+   "fnd_069",
+   "fnd_070"
+  ],
+  "the parties' proposed final jury instructions on each claim's elements and burdens": [
+   "fnd_071",
+   "fnd_072",
+   "fnd_074",
+   "fnd_075",
+   "fnd_076",
+   "fnd_077"
+  ],
+  "the rulings that narrow the issues for trial": [
+   "fnd_022",
+   "fnd_016",
+   "fnd_024",
+   "fnd_018",
+   "fnd_019",
+   "fnd_014",
+   "fnd_033"
+  ],
+  "the limiting instructions": [
+   "fnd_079"
+  ],
+  "each side's statement of intended proof": [
+   "fnd_001",
+   "fnd_002",
+   "fnd_003",
+   "fnd_004",
+   "fnd_005",
+   "fnd_006",
+   "fnd_084",
+   "fnd_085",
+   "fnd_086"
+  ],
+  "the witness and exhibit lists": [
+   "fnd_083",
+   "fnd_082"
+  ],
+  "the trial docket": [
+   "fnd_090",
+   "fnd_087",
+   "fnd_019",
+   "fnd_082"
+  ],
+  "the motions for judgment as a matter of law made at trial": [
+   "fnd_011",
+   "fnd_014",
+   "fnd_078",
+   "fnd_009",
+   "fnd_013"
+  ],
+  "the company's statements on the trial": [
+   "fnd_032",
+   "fnd_052",
+   "fnd_053",
+   "fnd_026",
+   "fnd_037",
+   "fnd_040"
+  ]
+ },
+ "verdict_measure": {
+  "the claimant's itemised damages claim": [],
+  "the defense's statement of intended proof on damages": [],
+  "the court's rulings admitting or limiting the damages evidence": [
+   "fnd_018",
+   "fnd_019",
+   "fnd_024",
+   "fnd_091",
+   "fnd_011",
+   "fnd_014",
+   "fnd_079"
+  ],
+  "the final verdict form": [
+   "fnd_087",
+   "fnd_088",
+   "fnd_089"
+  ],
+  "the summary-judgment and validity rulings": [],
+  "the defendant's public statements on the trial and its likely damages": [],
+  "the challenges to the damages method": [
+   "fnd_020",
+   "fnd_093",
+   "fnd_094",
+   "fnd_091",
+   "fnd_009",
+   "fnd_013",
+   "fnd_076"
+  ]
+ },
+ "verdict_amount": {
+  "the claimant's damages method and figures": [
+   "fnd_002",
+   "fnd_001",
+   "fnd_003",
+   "fnd_004",
+   "fnd_005",
+   "fnd_013",
+   "fnd_093",
+   "fnd_094"
+  ],
+  "the ruling admitting the claimant's damages evidence": [
+   "fnd_018",
+   "fnd_019",
+   "fnd_091",
+   "fnd_011"
+  ],
+  "the revenue base left to the jury": [
+   "fnd_091",
+   "fnd_093",
+   "fnd_094",
+   "fnd_020"
+  ],
+  "the defense's damages positions as admitted": [
+   "fnd_021",
+   "fnd_018",
+   "fnd_024",
+   "fnd_084",
+   "fnd_085",
+   "fnd_086",
+   "fnd_076",
+   "fnd_020"
+  ],
+  "the parties' proposed jury instructions on unjust enrichment, actual loss and exemplary damages": [
+   "fnd_071",
+   "fnd_072",
+   "fnd_075",
+   "fnd_074"
+  ],
+  "the limiting instructions": [
+   "fnd_079"
+  ],
+  "the rulings that narrow the issues for trial": [
+   "fnd_022",
+   "fnd_016",
+   "fnd_024",
+   "fnd_018",
+   "fnd_019",
+   "fnd_014",
+   "fnd_033"
+  ],
+  "the final verdict form": [
+   "fnd_087",
+   "fnd_088",
+   "fnd_089"
+  ],
+  "the record on actual loss": [
+   "fnd_009",
+   "fnd_014",
+   "fnd_004",
+   "fnd_003",
+   "fnd_075",
+   "fnd_074"
+  ],
+  "the company's statements on the likely award": [
+   "fnd_053",
+   "fnd_040",
+   "fnd_032"
+  ]
+ },
+ "remittitur_elected": {
+  "the trial's length and scope": [
+   "fnd_090",
+   "fnd_052",
+   "fnd_022",
+   "fnd_087",
+   "fnd_088",
+   "fnd_089"
+  ],
+  "the company's going-concern and debt disclosures": [
+   "fnd_026",
+   "fnd_027",
+   "fnd_036",
+   "fnd_050",
+   "fnd_068",
+   "fnd_041"
+  ],
+  "the relief the claimant seeks, including a permanent injunction": [
+   "fnd_006",
+   "fnd_003",
+   "fnd_031",
+   "fnd_001",
+   "fnd_032"
+  ]
+ },
+ "bid_compliance": {
+  "the listing deficiency notices": [
+   "fnd_038",
+   "fnd_039"
+  ],
+  "the closing bid prices": [
+   "fnd_059",
+   "fnd_039"
+  ],
+  "the company's stated options to regain compliance": [
+   "fnd_039",
+   "fnd_038"
+  ],
+  "the latest stockholder vote on a charter amendment": [
+   "fnd_061",
+   "fnd_062"
+  ],
+  "the authorized and outstanding shares": [
+   "fnd_063",
+   "fnd_061",
+   "fnd_049"
+  ]
+ },
+ "hearing_request": {
+  "the listing deficiency notices": [
+   "fnd_038",
+   "fnd_039"
+  ],
+  "the company's statements on its listing": [
+   "fnd_038",
+   "fnd_039",
+   "fnd_036"
+  ]
+ },
+ "offering_closes": {
+  "the company's prior underwritten offering: its terms, discount to the prior close and underwriter": [
+   "fnd_057",
+   "fnd_058",
+   "fnd_060"
+  ],
+  "the daily price and trading volume": [
+   "fnd_059",
+   "fnd_060"
+  ],
+  "the company's shelf registration and share capacity": [
+   "fnd_065",
+   "fnd_063",
+   "fnd_064",
+   "fnd_029",
+   "fnd_048"
+  ],
+  "the at-the-market program and its re-activation": [
+   "fnd_064",
+   "fnd_029",
+   "fnd_036"
+  ],
+  "the company's statements on its liquidity and going concern": [
+   "fnd_025",
+   "fnd_026",
+   "fnd_051",
+   "fnd_028",
+   "fnd_030",
+   "fnd_037"
+  ],
+  "counsel's statement on the ability to raise money": [
+   "fnd_053"
+  ]
+ }
+}

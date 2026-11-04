@@ -16,6 +16,13 @@ MISSION_KEYS = {"akoustis_qorvo_2024": "lead_mission", "synergy_chc_2024": "defa
 SNAPSHOT_MISSION_KEYS = {"akoustis_20240514": "akoustis_20240514_mission"}
 
 
+def host_mission(snapshot_id: str | None) -> dict[str, Any]:
+    """A snapshot's own mission, unprojected: host-only settings (its system prompt, its submission contract).
+    Never returned to the agent; get_mission projects through the whitelist."""
+    key = SNAPSHOT_MISSION_KEYS.get(snapshot_id or "")
+    return agent_config()[key] if key else {}
+
+
 def project_mission(case_id: str, run_inputs: dict[str, Any] | None = None,
                     snapshot_id: str | None = None) -> dict[str, Any]:
     cfg = agent_config()

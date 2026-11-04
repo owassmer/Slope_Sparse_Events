@@ -18,6 +18,17 @@ NEED_DAYS = 30  # the cash floor's central setting (spec §16.3): days of operat
 # borrower keeps its next `need_days` of operating need back, so Slope collects min(owed, max(0, available - need))
 # (the sensitivity; the previous §2.2 rule, and the default so earlier recorded setups read unchanged).
 COLLECTION_MODES = ("debit", "protect_need")
+# How a day's cash is processed (engine.run_many). "net": the day's flows post as one net amount and the balance may
+# go negative (every setup recorded before the 14 May design). "daily": the processor of the question spec
+# (QUESTIONS_20240514 §2.2): receipts post, a levy attaches the balance, scheduled obligations clear in the order
+# incurred (each in full or not at all), operating outflows are paid up to the balance, the rest is carried as arrears;
+# available cash never goes below zero.
+CASH_PROCESSING = ("net", "daily")
+# The daily processor's same-day order (a convention, §2.2): scheduled obligations before operating outflows (base),
+# or operating outflows first (measured once, never the base).
+SAME_DAY_ORDERS = ("scheduled_first", "operating_first")
+# Setup fields written to JSON only when they differ from these defaults (recorded setups read unchanged)
+QUIET_DEFAULTS = {"cash_processing": "net", "same_day_order": "scheduled_first"}
 
 
 @dataclass(frozen=True)
@@ -114,10 +125,16 @@ class Setup:
     # A line opened before the review date (its state on that date; spec §16.2): installments in flight fall due and
     # are collected under §2.2, stayed on a petition under §2.3, and their principal counts against the limit.
     exposure: Exposure = Exposure()
+    cash_processing: str = "net"
+    same_day_order: str = "scheduled_first"
 
     def __post_init__(self) -> None:
         if self.collection not in COLLECTION_MODES:
             raise ValueError(f"collection mode {self.collection!r}; expected one of {COLLECTION_MODES}")
+        if self.cash_processing not in CASH_PROCESSING:
+            raise ValueError(f"cash processing {self.cash_processing!r}; expected one of {CASH_PROCESSING}")
+        if self.same_day_order not in SAME_DAY_ORDERS:
+            raise ValueError(f"same-day order {self.same_day_order!r}; expected one of {SAME_DAY_ORDERS}")
 
     @property
     def share_bps(self) -> int:
@@ -173,11 +190,13 @@ def controls_json(setup: Setup) -> dict:
                            "service": [{"date": d.isoformat(), "amount_cents": c} for d, c in f.service]}
                           for f in setup.financing],
             "cost_plan": None if setup.cost_plan is None else {"start": setup.cost_plan.start.isoformat(),
-                                                               "share_bps": setup.cost_plan.share_bps}}
+                                                               "share_bps": setup.cost_plan.share_bps},
+            **{k: getattr(setup, k) for k, v in QUIET_DEFAULTS.items() if getattr(setup, k) != v}}
 
 
 def controls_from_json(d: dict) -> dict:
-    """Setup fields from a case's scenario settings (any subset of need_days, collection, financing, cost_plan)."""
+    """Setup fields from a case's scenario settings (any subset of need_days, collection, financing, cost_plan,
+    cash_processing, same_day_order)."""
     out: dict = {}
     if "need_days" in d:
         out["need_days"] = int(d["need_days"])
@@ -187,6 +206,9 @@ def controls_from_json(d: dict) -> dict:
         out["financing"] = financing_from_json(d["financing"] or [])
     if "cost_plan" in d:
         out["cost_plan"] = cost_plan_from_json(d["cost_plan"])
+    for k in QUIET_DEFAULTS:
+        if k in d:
+            out[k] = str(d[k])
     return out
 
 

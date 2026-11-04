@@ -167,9 +167,12 @@ assert acc == ITC_LOW * 180 // 365 == 138_082_191, acc
 
 common_model = {
     "note": ("Settings every path shares (spec §16.3). Central: the feed's historical continuation, no financing, a "
-             "30-day cash floor, and Slope's automatic debit (collected in full when cash covers the installment). "
-             "Each scenario changes one setting and states its basis."),
-    "central": {"need_days": 30, "collection": "debit", "financing": [], "cost_plan": None},
+             "30-day cash floor, Slope's automatic debit (collected in full when cash covers the installment), "
+             "and daily cash processing (question spec §2.2: receipts first, then a levy, scheduled obligations in "
+             "the order incurred, operating outflows up to the balance; the rest carried as arrears; cash never "
+             "negative). Each scenario changes one setting and states its basis."),
+    "central": {"need_days": 30, "collection": "debit", "cash_processing": "daily", "financing": [],
+                "cost_plan": None},
     "scenarios": {
         "equity_injection": {
             "financing": [{"date": "2024-06-14", "amount_cents": 500_000_000, "kind": "equity", "service": []}],

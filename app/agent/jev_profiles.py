@@ -13,6 +13,7 @@ dispute_model (host, when the agent instantiates a live dispute; see DisputeProf
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from collections.abc import Callable
 
@@ -54,6 +55,62 @@ def excerpt(text: str, anchor: str | None = None, limit: int = PASSAGE_CHARS) ->
     return ("… " if start else "") + text[start:start + limit] + (" …" if start + limit < len(text) else "")
 
 
+TABLE_NEIGHBOUR_ROWS = 5
+
+
+def excerpt_around(text: str, anchors: list[str], limit: int = PASSAGE_CHARS) -> str:
+    """Keep a long section within the state budget around every cited quote: one window when the quotes fit in it,
+    otherwise one window per quote (the budget shared between them), joined with '…'."""
+    at = sorted((i, i + len(a)) for a in dict.fromkeys(anchors) if (i := text.find(a)) >= 0)
+    if len(text) <= limit or len(at) <= 1:
+        return excerpt(text, at and text[at[0][0]:at[0][1]] or (anchors[0] if anchors else None), limit)
+    if at[-1][1] - at[0][0] <= limit:
+        start = max(0, min(len(text) - limit, at[0][0] - (limit - (at[-1][1] - at[0][0])) // 3))
+        return ("… " if start else "") + text[start:start + limit] + (" …" if start + limit < len(text) else "")
+    width = max(limit // len(at), 600)
+    windows: list[list[int]] = []
+    for lo, hi in at:
+        pad = max(0, width - (hi - lo)) // 2
+        lo, hi = max(0, lo - pad), min(len(text), hi + pad)
+        if windows and lo <= windows[-1][1]:
+            windows[-1][1] = max(windows[-1][1], hi)
+        else:
+            windows.append([lo, hi])
+    out = " … ".join(text[lo:hi] for lo, hi in windows)
+    return ("… " if windows[0][0] else "") + out + (" …" if windows[-1][1] < len(text) else "")
+
+
+def table_excerpt(rendered: str, anchors: list[str], header_rows: int = 1, limit: int = PASSAGE_CHARS) -> str:
+    """A table over the budget keeps its header rows and each cited row with its neighbouring rows."""
+    lines = rendered.split("\n")
+    if len(rendered) <= limit or not anchors:
+        return rendered
+    starts, pos = [], 0
+    for line in lines:
+        starts.append(pos)
+        pos += len(line) + 1
+    cited = set()
+    for a in anchors:
+        i = rendered.find(a)
+        if i < 0:
+            continue
+        cited.update(k for k, st in enumerate(starts) if st < i + len(a) and st + len(lines[k]) >= i)
+    if not cited:
+        return excerpt(rendered, None, limit)
+    keep = set(range(min(header_rows, len(lines))))
+    for k in cited:
+        keep.update(range(max(0, k - TABLE_NEIGHBOUR_ROWS), min(len(lines), k + TABLE_NEIGHBOUR_ROWS + 1)))
+    out, last = [], -1
+    for k in sorted(keep):
+        if k != last + 1:
+            out.append("| … |")
+        out.append(lines[k])
+        last = k
+    if last != len(lines) - 1:
+        out.append("| … |")
+    return "\n".join(out)
+
+
 def route(signals: dict[str, float]) -> str:
     """Order-only routing. A missing signal is unscreened, never silently context-only."""
     if any(signals.get(q) is None for q in ("gap_relevance", "usable_evidence", "premise_conflict")):
@@ -91,12 +148,16 @@ class Semantics:
         return {"source_id": s["source_id"], "title": s["title"], "publisher": s["publisher"],
                 "document_kind": s["document_kind"], "available_at": s["available_at"]}
 
-    def _passage(self, item_id: str, anchor: str | None = None) -> tuple[dict, str]:
+    def _passage(self, item_id: str, anchor: str | None = None, anchors: list[str] | None = None) -> tuple[dict, str]:
+        """An item's text for a state. With cited quotes (`anchors`), a long item is cut to windows around every quote
+        and a long table to its header and the cited rows with their neighbours."""
         item = self.evidence.read(item_id)
+        quotes = anchors if anchors is not None else ([anchor] if anchor else [])
         if "#t" in item_id:
-            text = "\n".join(filter(None, [item["context_before"], item["rendered"], item["context_after"]]))
+            table = table_excerpt(item["rendered"], quotes, int(item.get("header_rows") or 1))
+            text = "\n".join(filter(None, [item["context_before"], table, item["context_after"]]))
         else:
-            text = excerpt(item["text"], anchor)
+            text = excerpt_around(item["text"], quotes)
         passage = {"heading_path": " > ".join(item["heading_path"]), "text": text}
         return passage, item["source"]["sha256"]
 
@@ -158,10 +219,15 @@ class Semantics:
 
     async def check_finding(self, finding: AtomicFinding) -> list[SemanticObservation]:
         """finding_check on the finding's cited spans (the passages it claims to rest on)."""
-        passages, hashes = [], []
+        # One passage per cited item, carrying all of its cited quotes: a passage repeated per span multiplied the
+        # state (three rows of one price table sent the table three times, past Jev's input limit).
+        quotes: dict[str, list[str]] = {}
         for span in finding.spans:
-            p, sha = self._passage(span.item_id, anchor=span.quote)
-            passages.append({**p, "cited_quote": span.quote})
+            quotes.setdefault(span.item_id, []).append(span.quote)
+        passages, hashes = [], []
+        for item_id, qs in quotes.items():
+            p, sha = self._passage(item_id, anchors=qs)
+            passages.append({**p, **({"cited_quote": qs[0]} if len(qs) == 1 else {"cited_quotes": qs})})
             hashes.append(sha)
         source = self._source(finding.spans[0].source_id)
         proposed = finding.proposition + (" (the agent presents this as an inference from the cited passages)"
@@ -216,14 +282,16 @@ class DisputeProfile:
     conditional forecasts (one request per forecast node and parent context). Calls and observations go to `record`:
     the run store during an investigation, the analysis sidecar afterwards."""
 
-    def __init__(self, jev: JevAdapter, record: Callable[[str, object], None], source_hashes: tuple[str, ...] = ()) -> None:
-        self.jev, self.record, self.hashes = jev, record, source_hashes
+    def __init__(self, jev: JevAdapter, record: Callable[[str, object], None], source_hashes: tuple[str, ...] = (),
+                 parties: list[dict] | None = None) -> None:
+        """parties: the case's parties by role (`app/agent/roles.py`): a forecast names them only by their roles."""
+        self.jev, self.record, self.hashes, self.parties = jev, record, source_hashes, parties
 
     async def _ask(self, profile: str, qids: list[str], state: dict, subject_ids: tuple[str, ...],
-                   criteria: dict | None = None) -> list[SemanticObservation]:
+                   criteria: dict | None = None, fill=None, asked: dict | None = None) -> list[SemanticObservation]:
         call, observations = await self.jev.judge(profile=profile, question_ids=qids, state=state,
                                                   subject_ids=subject_ids, source_content_hashes=self.hashes,
-                                                  criteria=criteria)
+                                                  criteria=criteria, fill=fill, asked=asked)
         self.record("jev_call", call)
         for o in observations:
             self.record("observation_recorded", o)
@@ -262,7 +330,33 @@ class DisputeProfile:
         # A bounded number in flight: each request reserves its worst-case cost against the spend cap before
         # dispatch, so ~100 questions sent at once trip the cap on reservations alone.
         if getattr(self, "_forecast_sem", None) is None:
-            self._forecast_sem = asyncio.Semaphore(FORECAST_CONCURRENCY)
+            self._forecast_sem = asyncio.Semaphore(max(1, int(os.environ.get("SLOPE_JEV_CONCURRENCY", str(FORECAST_CONCURRENCY)))))
+        from app.agent import roles
+
+        # the judge reads the record, not what it knows of the parties: every declared name by its role, in the
+        # state and in the question's own text
+        state = roles.apply(state, self.parties)
+        fill = lambda text: roles.fill(text, self.parties)  # noqa: E731
+        asked = None
+        q = state.get("question") or {}
+        if "text" in q:
+            # The question as the host asked it (state14.build: the registry's text and answers with every
+            # placeholder filled from the situation): the judge is asked that, not the template with its blanks.
+            criteria, asked = None, {question_id: (q["text"], self._asked_criteria(entry, q["answers"], branches))}
         async with self._forecast_sem:
-            [o] = await self._ask(entry["profile"], [question_id], state, subject_ids, criteria)
+            [o] = await self._ask(entry["profile"], [question_id], state, subject_ids, criteria, fill, asked)
         return o
+
+    @staticmethod
+    def _asked_criteria(entry: dict, answers: dict, branches: tuple[str, ...] | None) -> dict:
+        """The answers' meanings as asked, in the registry's criteria shape: a predicate's 'true' is the first answer
+        (`forecast.answer_distribution` reads its probability as the first branch's); a choice's are its options in the
+        registry's order (state14 keeps it), so a question's options have one order whatever path asked it, which the
+        cache key (sorted) relies on."""
+        if branches is None or set(answers) != set(branches):
+            raise ValueError(f"the question's answers {list(answers)} are not the walk's {branches}")
+        if entry["primitive"] == "noul":
+            if list(answers) != list(branches) or len(branches) != 2:  # the first is the 'true'
+                raise ValueError(f"a yes-or-no question with answers {list(answers)}, the walk's {branches}")
+            return {"true": answers[branches[0]], "false": answers[branches[1]]}
+        return dict(answers)

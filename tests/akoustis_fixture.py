@@ -18,3 +18,13 @@ def basis(setup: Setup = SETUP) -> tuple[object, Basis]:
     ops = operating.simulate(feed, days + NEED_DAYS, DRAWS, SEED, setup.variability)
     line = prepare(setup, ops)
     return feed, Basis.of(ops, line.need, feed.available_cents)
+
+
+def model() -> dict:
+    """The dispute model with the 20 June case's courts (the fixture's dispute is that case's: a court period needs the
+    court's calendar, app/domain/court_calendar.py)."""
+    from app.disputes.rules import load_model
+
+    m = load_model()
+    m["case_courts"] = load_model("akoustis_20240620")["case_courts"]
+    return m

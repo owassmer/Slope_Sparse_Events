@@ -1,0 +1,16 @@
+{
+  "snapshot_id": "barfresh_20241025",
+  "note": "The parties' names, for the judgment model's role names (app/agent/roles.py). The counterparty is not named in the case's sources.",
+  "parties": [
+    {
+      "as": "the Company",
+      "placeholder": "company",
+      "names": [
+        "Barfresh Food Group Inc.",
+        "Barfresh Food Group",
+        "Barfresh",
+        "BRFH"
+      ]
+    }
+  ]
+}

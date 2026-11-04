@@ -1,0 +1,33 @@
+{
+  "snapshot_id": "synergy_20240813",
+  "note": "The parties' names, for the judgment model's role names (app/agent/roles.py).",
+  "parties": [
+    {
+      "as": "the Company",
+      "placeholder": "company",
+      "names": [
+        "Synergy CHC Corp.",
+        "Synergy CHC",
+        "Synergy",
+        "SNYR"
+      ]
+    },
+    {
+      "as": "the Counterparty",
+      "placeholder": "claimant",
+      "names": [
+        "HVL, LLC d/b/a Atrium Innovations",
+        "HVL, LLC",
+        "HVL",
+        "Atrium Innovations",
+        "Atrium"
+      ]
+    },
+    {
+      "as": "[docket number]",
+      "names": [
+        "2:22-cv-00301"
+      ]
+    }
+  ]
+}

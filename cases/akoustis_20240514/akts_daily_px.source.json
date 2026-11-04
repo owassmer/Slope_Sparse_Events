@@ -1,0 +1,26 @@
+{
+  "file": "akts_daily_px.csv",
+  "sha256": "95b4c094fb090faa1b817f92145a4ec1c5198adaee7405f4a0d3494f3dbcbc91",
+  "rows": 240,
+  "first_date": "2023-06-01",
+  "last_date": "2024-05-14",
+  "columns": {
+    "date": "trading day (America/New_York)",
+    "open": "USD",
+    "high": "USD",
+    "low": "USD",
+    "close": "USD, unadjusted (equal to the adjusted close on every row)",
+    "volume": "shares, consolidated; 7 source values carried float artifacts (e.g. 500472.99999999994) and are rounded to whole shares"
+  },
+  "security": "Akoustis Technologies, Inc. common stock, Nasdaq Capital Market: AKTS",
+  "source": "stockanalysis.com daily price history (API), retrieved 28 Sep 2026; the full history returned was filtered in code to trading days on or before 14 May 2024 before any value was printed or saved. Daily OHLCV for each day was public at that day's close, so every row is public by the cutoff.",
+  "retrieved": "2026-09-28",
+  "cross_checks": [
+    "24 Jan 2024 close 0.7046; 424B5 of 29 Jan 2024: last reported sale price on 24 Jan $0.70",
+    "1 May 2024 close 0.60; 10-Q of 13 May 2024: closing price $0.60 on 1 May 2024",
+    "9 May 2024 open 0.56, high 0.6342, low 0.5415, prior close 0.5704; stockanalysis.com AKTS quote page captured 10 May 2024 (web archive): open 0.560, day's range 0.542-0.634, previous close 0.570, volume 537,303 (intraday capture; the series' final volume is 545,574)"
+  ],
+  "uses": "QUESTIONS_20240514 \u00a72.6: the at-the-market pace (20% of average daily dollar volume, 15 Mar - 14 May 2024) and the offering price (the 14 May close less the January 2024 discount).",
+  "check_adv_15mar_14may_usd": 337069,
+  "check_close_14may": 0.44
+}
