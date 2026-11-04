@@ -2275,11 +2275,12 @@ class Chain:
     def listing_dates(self) -> dict[str, int]:
         """Code timing from the instrument's compliance deadline (Nasdaq Rules 5810, 5815; DGCL §222; Rule 14a-6)."""
         dl = self.fin.listing_deadline
-        effective_by = dl
-        k = 1
-        while k < 10:  # the bid must close at $1 for 10 consecutive business days ending on the deadline
+        # Nasdaq Rule 5810(c)(3)(A): the bid closes at $1 for 10 consecutive business days by the deadline, so the
+        # split takes effect by the tenth exchange session back from it (sessions: `trading_day`)
+        effective_by, k = dl + timedelta(days=1), 0
+        while k < 10:
             effective_by -= timedelta(days=1)
-            k += effective_by.weekday() < 5
+            k += trading_day(effective_by)
         det = dl + timedelta(days=1)
         panel = det + timedelta(days=int(self.p("panel_decision_days")))
         suspension = det + timedelta(days=int(self.p("suspension_after_determination_days")))

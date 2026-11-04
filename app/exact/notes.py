@@ -103,8 +103,9 @@ def default_continuing(S, takes, c, day):
     """Whether a judgment default that became available is still continuing on the day (QUESTIONS §3.1, H1: while
     the judgment above the threshold remains unpaid, undischarged and not effectively stayed)."""
     amount = standing_amount(S, c, day) if c.pending else S[f.ENTERED]
+    owed = core.owed_at(S, takes, c.bps, c.pending, day, False) - core.taken_on(S, takes, day)  # after the day's takes
     return (has_judgment(S, c) and amount - c.insured > c.threshold and S[f.STAYED_FROM] > day
-            and core.live(S, day) and core.owed_at(S, takes, c.bps, c.pending, day, False) > 0)
+            and core.live(S, day) and owed > 0)
 
 
 @njit(cache=True)

@@ -58,9 +58,9 @@ def events(st, k, day, out):
         if S[fw.ENFORCE_DAY] == t:  # enforcement after the ruling; ref 1: an application to register it with it
             cnt = _event(out, cnt, 8, t, 0, 1 if S[fw.REG_POST_DAY] < f.BIG or S[fw.REG_POST_GRANTED] < f.BIG
                          or S[fw.REG_POST_DENIED] < f.BIG else 0)
-        if S[fw.REG_POST_DENIED] == t:
+        if S[fw.REG_POST_DENIED] == t or S[fw.REG_I1_DENIED] == t:
             cnt = _event(out, cnt, 9, t, 0, t)
-        if S[f.MARK_RULED] == t:  # the post-trial ruling and what it left (the reduced band where reduced)
+        if S[f.MARK_RULED] == t and S[f.MOTIONS_FILED] <= t:  # the post-trial ruling (motions filed) and what it left
             if S[f.RETRIAL] or S[f.CLS_AMOUNT] == 0:
                 cnt = _event(out, cnt, 12, t, 0, 0)
             elif S[fw.REDUCED_LO] < f.BIG:
@@ -79,7 +79,8 @@ def events(st, k, day, out):
     pending_i1 = (S[f.MARK_EXECUTING] <= day and S[fw.ANS0 + fw.DEC_REGISTRATION] == fw.OPEN
                   and S[f.EARLY_REGISTRATION] >= f.BIG)
     out[r.REGISTRATION_PENDING] = pending_post or pending_i1
-    out[r.REGISTRATION_DENIED] = S[fw.REG_POST_DENIED] if S[fw.REG_POST_DENIED] <= day else f.BIG
+    denied = min(S[fw.REG_POST_DENIED], S[fw.REG_I1_DENIED])
+    out[r.REGISTRATION_DENIED] = denied if denied <= day else f.BIG
 
 
 @njit(cache=True)

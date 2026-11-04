@@ -69,7 +69,8 @@ ENFORCE_DAY = F0 + 24                 # enforce_after_final: the day the claiman
 REG_POST_DENIED = F0 + 25             # registration_early (post): the day its order was denied (BIG: none)
 REDUCED_LO = F0 + 26                  # the post-trial ruling's reduced band (BIG: none), as booked
 REDUCED_HI = F0 + 27
-assert N_DEC <= 70 and REDUCED_HI < S_WALK + 100
+REG_I1_DENIED = F0 + 28               # registration_early (I1): the day the court denied it (BIG: none)
+assert N_DEC <= 70 and REG_I1_DENIED < S_WALK + 100
 
 CLS_CLAIMED, CLS_BRANCH, CLS_AWARD, CLS_REDUCED, CLS_SET_ASIDE = range(5)
 A4_OPEN, A4_SEEK, A4_CLOSED = range(3)

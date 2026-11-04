@@ -785,10 +785,32 @@ class Situation:
         if reason.startswith("unavailable") and not ("Form S-3" in reason or "short of" in reason):
             return "none: no offering can be made (see the offering's unavailability)"
         t = self._terms()
-        return (f"an underwritten public offering of common stock on the company's shelf: {t['shares']:,} shares at "
-                f"${t['price_cents_x1e4'] / 1e6:,.4f}, gross proceeds {usd(t['gross'])}, issuance costs "
-                f"{usd(t['costs'])}, net proceeds {usd(t['net'])}, closing {t['close_days']} days after it is "
+        group = self._term_group()
+        shares = f"{t['shares']:,} shares"
+        if group["shares"].size and group["shares"].min() != group["shares"].max():
+            shares += f" (across this situation: {int(group['shares'].min()):,} to {int(group['shares'].max()):,})"
+        price = f"${t['price_cents_x1e4'] / 1e6:,.4f}"
+        p = group["price_cents_x1e4"]
+        if p.size and p.min() != p.max():
+            price += f" (across this situation: ${p.min() / 1e6:,.4f} to ${p.max() / 1e6:,.4f})"
+        return (f"an underwritten public offering of common stock on the company's shelf: {shares} at {price}, gross "
+                f"proceeds {money(t['gross'], group['gross'])}, issuance costs {money(t['costs'], group['costs'])}, "
+                f"net proceeds {money(t['net'], group['net'])}, closing {t['close_days']} days after it is "
                 f"initiated" + ("; " + self.offering_lockup() if self._lockup() else ""))
+
+    def _term_group(self) -> dict:
+        """Each offering term over the group's members (QUESTIONS §1 Grouping: the group's range beside each figure)."""
+        g = self._g()
+
+        def term(key):
+            def one(r, x):
+                t = (r.get("sit") or {}).get("offering_terms")
+                if t is None or isinstance(t, Awaiting):
+                    raise Unbuilt("offering terms")
+                v = t[key]
+                return np.broadcast_to(np.asarray(v), (len(r["day"]),))[x] if np.ndim(v) else np.full(len(x), v)
+            return g.rowwise(one).astype(np.int64)
+        return {k: term(k) for k in ("shares", "price_cents_x1e4", "gross", "costs", "net")}
 
     def _lockup(self) -> dict | None:
         lock = self.fc.m["parameters"].get("offering_lockup")

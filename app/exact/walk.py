@@ -119,7 +119,7 @@ def init(S):
     S[w.COMMITTED] = -1
     S[w.N_OFFERINGS] = 0
     S[w.REG_POST_DAY] = S[w.HEARING_DAY] = S[w.REG_POST_GRANTED] = BIG
-    S[w.ENFORCE_DAY] = S[w.REG_POST_DENIED] = S[w.REDUCED_LO] = S[w.REDUCED_HI] = BIG
+    S[w.ENFORCE_DAY] = S[w.REG_POST_DENIED] = S[w.REDUCED_LO] = S[w.REDUCED_HI] = S[w.REG_I1_DENIED] = BIG
     S[w.VERDICT_IX] = -1
     for o in range(4):
         S[w.NOTES_DAY0 + o], S[w.NOTES_STAGE0 + o] = BIG, 0

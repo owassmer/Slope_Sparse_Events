@@ -89,7 +89,7 @@ class Parties:
     def capitalise(self, out: str) -> str:
         for role in set(self.by_name.values()):  # a role that opens a sentence or a quotation
             if role[:1].islower():
-                out = re.sub(rf'(^|[.!?:;]\s+|["“‘(\[]\s*|(?:^|\s)\'|\n\s*)({re.escape(role)})',
+                out = re.sub(rf'(^|[.!?:]\s+|["“‘(\[]\s*|(?:^|\s)\'|\n\s*)({re.escape(role)})',
                              lambda m: m.group(1) + m.group(2)[0].upper() + m.group(2)[1:], out)
         return out
 

@@ -708,6 +708,8 @@ def book(st, k, tk, ws, d, day, ans, asked):
     if d == w.DEC_NONPAYMENT:
         advance(st, k, ws, mk(a.NONPAYMENT, 0, ans), asked)
         return
+    if d == w.DEC_REGISTRATION and asked and ans == a.NO:  # the court refused the early registration (J4)
+        S[w.REG_I1_DENIED] = day
     advance(st, k, ws, mk(walk.dec_node(d)[0], walk.dec_node(d)[1], ans), asked)  # motions, execution, registration,
     #                                                                                 appeal
 
