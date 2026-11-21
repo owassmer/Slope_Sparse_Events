@@ -1,4 +1,4 @@
-"""Three analytical proposal fixtures; not historical or actual Slope quotes."""
+"""Three analytical proposal fixtures; not historical or the lender's actual quotes."""
 import json
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
@@ -24,11 +24,11 @@ for identifier, advance, months, fee in [
                    "operating_plan_condition": "Changing the advance must change the financed purchase and its receipts where appropriate. These offers are not interchangeable injections into an unchanged operating plan."})
 
 packet = {"schema_version": "0.1.0", "case_id": "synergy_chc_2024", "mission_id": "synergy_20240813",
-          "artifact_status": "analytical_proposals_not_historical_applications_or_slope_quotes",
+          "artifact_status": "analytical_proposals_not_historical_applications_or_lender_quotes",
           "currency": "USD", "timing_basis": "monthly_indices_from_operator_selected_funding_date",
           "actual_existing_loan_id": "synergy_webbank_shopify_2024-05-01",
           "calendar_date_rule": "No funding or payment calendar dates invented. To generate dates, operator must choose funding date, monthly anchoring, end-of-month and business-day conventions; record them as assumptions.",
-          "pricing_rule": "Fixed fees shown are operator sensitivity choices, not actual Slope pricing, APR, or the terms of the existing $370k WebBank loan.",
+          "pricing_rule": "Fixed fees shown are operator sensitivity choices, not the lender's actual pricing, APR, or the terms of the existing $370k WebBank loan.",
           "rounding_rule": "Regular payment rounded to nearest cent, half up; final payment adjusted to conserve exact total repayment.",
           "cross_year_calendar_rule": "When a proposal extends into 2025, include the 2025 settlement obligations and explicit installment timing assumptions. An H2-2024 aggregate cash threshold does not establish full-term affordability.",
           "existing_debt_rule": "Retain the existing $370k merchant contract separately. Its remittances follow account credits, two separate six-month minimum windows, recognized manual payments, and outstanding-total caps.",

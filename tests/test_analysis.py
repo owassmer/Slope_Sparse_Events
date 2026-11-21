@@ -195,7 +195,7 @@ def test_bank_feed_matches_public_anchors_and_stops_at_the_review_date():
     assert not any(t["amount_cents"] >= 800_000_000 and t["category"] != "equity_proceeds" for t in feed.transactions)
 
 
-def test_the_line_limit_applies_slopes_rule_to_the_feed():
+def test_the_line_limit_applies_lenders_rule_to_the_feed():
     # 15% x (mean monthly customer receipts - mean monthly debt service), March to May 2024, rounded down.
     feed, inputs = load_feed(SNAP), json.loads((ROOT / "cases" / SNAP / "run_inputs.json").read_text())
     line = inputs["financing_plan"]["line"]

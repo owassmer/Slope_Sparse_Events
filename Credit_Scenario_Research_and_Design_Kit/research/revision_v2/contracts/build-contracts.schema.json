@@ -415,7 +415,7 @@
             "analytical_candidate"
           ]
         },
-        "slope_relationship": {
+        "lender_relationship": {
           "enum": [
             "documented",
             "not_established"
@@ -494,7 +494,7 @@
         "decision_timezone",
         "decision_type",
         "transaction_basis",
-        "slope_relationship",
+        "lender_relationship",
         "stakeholder_scope",
         "currency",
         "requested_amount",

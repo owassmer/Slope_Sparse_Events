@@ -1,4 +1,4 @@
-"""Slope's reusable line, the collection rule and the petition (Model Extensions Spec §2, tests §12), on the Akoustis
+"""The lender's reusable line, the collection rule and the petition (Model Extensions Spec §2, tests §12), on the Akoustis
 connected-bank feed. Financial correctness only: limit, draw gating, installment arithmetic, the contract identity,
 the preference window, the need rule and the one-time exit of a routed invoice from the borrower's outflows."""
 
@@ -16,7 +16,7 @@ from app.analysis.operating import Operating
 from app.analysis.setup import DRAWS, SEED, setup_from_inputs
 from app.config import ROOT
 from app.finance.bank import load_feed
-from app.finance.slope_products import SlopeOffer
+from app.finance.bill_pay import BillPayOffer
 
 SNAP = "akoustis_20240620"
 REVIEW = date(2024, 6, 20)
@@ -55,7 +55,7 @@ def tiny(invoice_cents: int, rows: int, flows: dict[int, int] | None = None) -> 
     return Operating(total, inv, {"customer_receipts": zeros, "debt_service": zeros, "legal_fees": zeros}, history)
 
 
-def test_the_limit_is_slopes_rule_on_each_trajectorys_trailing_months(akoustis):
+def test_the_limit_is_lenders_rule_on_each_trajectorys_trailing_months(akoustis):
     _, ops, line = akoustis
     assert INPUTS["financing_plan"]["line"]["limit_cents"] == 35_717_237 and (line.limit[:, 0] == 35_717_237).all()
     top = prepare(replace(SETUP, limit_multiplier=33 / 15), ops)
@@ -82,11 +82,11 @@ def test_draws_respect_the_limit_arrears_and_the_petition(akoustis, stressed):
 def test_installments_and_the_contract_identity(stressed):
     tr = stressed
     for a in (1, 2, 99, 30_973_624, 35_717_237, 12_345_679):  # the reference arithmetic, cent for cent
-        offer = SlopeOffer("x", "x", a, SETUP.fee_bps, 90, 3, "x")
+        offer = BillPayOffer("x", "x", a, SETUP.fee_bps, 90, 3, "x")
         assert installment_amounts(np.array([a]), SETUP.fee_bps, 3)[0].tolist() == \
             [p.amount_cents for p in offer.schedule(REVIEW)]
     totals = np.zeros(DRAWS, dtype=np.int64)
-    np.add.at(totals, tr.draw_rows, [SlopeOffer("x", "x", int(a), SETUP.fee_bps, 90, 3, "x").total_cents
+    np.add.at(totals, tr.draw_rows, [BillPayOffer("x", "x", int(a), SETUP.fee_bps, 90, 3, "x").total_cents
                                      for a in tr.draw_amounts])
     assert (totals == tr.contractual).all() and (np.bincount(tr.draw_rows, tr.draw_amounts, DRAWS) == tr.drawn).all()
     per_draw = np.bincount(tr.draw_rows, minlength=DRAWS)  # Σ fundings x 1.037 = Σ installments, to a half cent a draw
@@ -128,7 +128,7 @@ def test_the_stress_petition_at_the_peak_is_read_exactly_from_the_run_without_it
 
 
 def test_the_need_rule_reproduces_the_previous_collections_when_need_is_zero(akoustis):
-    # Opening $1.0M; Slope pays a $900k invoice (no fee); a $950k payment leaves $50k, so the first $300k installment
+    # Opening $1.0M; the lender pays a $900k invoice (no fee); a $950k payment leaves $50k, so the first $300k installment
     # collects $50k and nothing more. A $20k dip 5-40 days after the first due date is need; with it, $30k.
     st = replace(SETUP, fee_bps=0)
     hit = EventCash.zeros(2, DAYS)

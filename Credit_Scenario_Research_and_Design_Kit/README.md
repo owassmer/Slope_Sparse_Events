@@ -1,8 +1,8 @@
-# Slope credit-event scenario research and design kit
+# Credit-event scenario research and design kit
 
-Start with `research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md`.
+Start with `research/revision_v2/deliverables/Credit_Scenario_Build_Specification.md`.
 
-This kit completes the research and implementation design for a Slope-style external-event credit review. It is not a built lending application or a live Jev evaluation. The lead case is Synergy CHC at 13 August 2024; the transfer case is Barfresh at 25 October 2024. Both are real businesses with acquired primary evidence and documented financing.
+This kit completes the research and implementation design for a lender's external-event credit review. It is not a built lending application or a live Jev evaluation. The lead case is Synergy CHC at 13 August 2024; the transfer case is Barfresh at 25 October 2024. Both are real businesses with acquired primary evidence and documented financing.
 
 ## Contents
 
@@ -51,6 +51,6 @@ The Synergy merchant agreement has separate minimum-payment windows. A cumulativ
 
 The $2.6m settlement schedule is measured at June 30, while approximately $2m cash is reported at August 12. Reconcile intervening payments and cash availability; do not automatically claim a $600,000 current funding deficit. Historical liabilities, paid settlements and noncash gains must not be counted twice.
 
-The three proposed fixed-payment fixtures are analytical inputs, not historical Slope applications or actual Slope pricing. Missing borrower cash flows stay explicit; the initial public-data demonstration can show conditional financing thresholds while the completed application accepts real bank and debt data.
+The three proposed fixed-payment fixtures are analytical inputs, not historical applications to the lender or the lender's actual pricing. Missing borrower cash flows stay explicit; the initial public-data demonstration can show conditional financing thresholds while the completed application accepts real bank and debt data.
 
 Later outcomes remain separate until the decision packet is locked. The primary-source catalog's mission membership supersedes any earlier working label that calls a document an “outcome” without a decision date.

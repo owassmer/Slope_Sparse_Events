@@ -1,4 +1,4 @@
-"""Connected-bank data: the baseline Slope underwrites on.
+"""Connected-bank data: the baseline the lender underwrites on.
 
 The feed is counterparty-tagged daily transactions and balances up to the decision date (for the demo cases, a
 synthetic reconstruction labelled once in the feed's `provenance`). This module reads it, derives the risk features

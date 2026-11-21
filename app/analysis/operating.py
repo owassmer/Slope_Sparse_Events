@@ -7,7 +7,7 @@ suppliers and other payments; each transaction keeps its business-day position i
 month's last business day). Every draw starts from the available cash on the review date. The same draws serve the
 bank-only and event-adjusted views.
 
-The engine needs some categories apart: each `supplier_invoice` outflow on its own (Slope's line routes invoices one
+The engine needs some categories apart: each `supplier_invoice` outflow on its own (the lender's line routes invoices one
 by one), customer receipts and debt service (the line's limit rule) and legal fees. `total` holds every operating
 flow, invoices included: `total` = the streams not split out + the split-out categories + the invoices, exactly.
 
@@ -35,7 +35,7 @@ EXCLUDED = frozenset({"equity_proceeds"})
 MAX_BDAYS = 23
 INVOICE = "supplier_invoice"
 SPLIT = ("customer_receipts", "debt_service", "legal_fees")  # kept apart as daily arrays (all also inside `total`)
-LIMIT_CATEGORIES = ("customer_receipts", "debt_service")  # Slope's rule: receipts net of debt service
+LIMIT_CATEGORIES = ("customer_receipts", "debt_service")  # the lender's rule: receipts net of debt service
 UNCUT = ("legal_fees", "debt_service")  # outflows a cost plan leaves alone (dispute spend stops on its own)
 
 

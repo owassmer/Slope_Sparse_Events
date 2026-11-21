@@ -897,10 +897,10 @@
       "rule": "At the cutoff the evidence gives only the notes-payable label \"VitBest\" and its balance-matched link to the March settlement, which is an inference. The full legal entity and confirmation of the link come from 2025 documents and are outcome evidence only."
     },
     {
-      "unknown_id": "synergy_proposed_slope_offer",
+      "unknown_id": "synergy_proposed_offer",
       "required_for": "Candidate advance comparisons.",
       "resolution": "Explicit analyst-selected amount, term, price and policy parameters.",
-      "rule": "This is a modeled offer; no historical Slope application or relationship is established."
+      "rule": "This is a modeled offer; no historical application to the lender or relationship is established."
     }
   ],
   "modeling_rules": [

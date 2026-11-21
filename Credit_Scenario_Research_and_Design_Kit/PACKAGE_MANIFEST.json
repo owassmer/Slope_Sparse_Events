@@ -1,5 +1,5 @@
 {
-  "package": "Slope credit-event scenario research and design kit",
+  "package": "Credit-event scenario research and design kit",
   "revision": "2",
   "status": "Research and design; not a built agent or lending application",
   "primary_catalog_records": 87,
@@ -118,12 +118,12 @@
     {
       "path": "research/barfresh_case/case_facts.json",
       "bytes": 3772,
-      "sha256": "5367bbc5f01536b9b98587a89b73f55422c080bf7938472cf49b67efdd45d1ca"
+      "sha256": "4188fa70765d547b6cbab5bbdff2488c4fb6974c1698321c57775ac482af6f83"
     },
     {
       "path": "research/recent_cases/akoustis/acquire.py",
-      "bytes": 20445,
-      "sha256": "43cdb7e4a1eaf964262ca7fcb4c589b6648ed3bdc37ab9adac5fdb3cc32befc9"
+      "bytes": 20439,
+      "sha256": "d9a0349ea1a8b63ded9b53ab8c3190b3cc80a13895a7b54756cac6d6f8456ad5"
     },
     {
       "path": "research/recent_cases/akoustis/akts_2022_05_02_424b5.html",
@@ -467,8 +467,8 @@
     },
     {
       "path": "research/recent_cases/akoustis/design/DECOMPOSITION_20240514.md",
-      "bytes": 99880,
-      "sha256": "b5740902cc619272c4d12849f3c315d3f9b4fff3d7f1f963ca08dc9c143d8428"
+      "bytes": 99867,
+      "sha256": "5c4b1f3fa565374c552c8e87ba644e8de2c7f0cb7bf677fad71c8659f426dcdf"
     },
     {
       "path": "research/recent_cases/akoustis/design/acquisition_akoustis_20240514.md",
@@ -528,42 +528,42 @@
     {
       "path": "research/revision_v2/README.md",
       "bytes": 5109,
-      "sha256": "e15f995adfb95c216780355a7b4533ac3ba425a1ec1a5bd69b6d2dcdc64e75c9"
+      "sha256": "6a8b95d7e5232e818d8a7da1a3f8e10abdb80d87e54fe8b49f7be929628850e9"
     },
     {
       "path": "research/revision_v2/contracts/README.md",
-      "bytes": 8358,
-      "sha256": "5379154986e23066e3543c45dff33977da2403e07b899c308d51304f64e09394"
+      "bytes": 8372,
+      "sha256": "d05cb3276818d7e38c1f62d9de8e74f869c2e472f63e60c6a92c3bf31d5bb7e0"
     },
     {
       "path": "research/revision_v2/contracts/agent_config.json",
-      "bytes": 41199,
-      "sha256": "94fd357e6416e1389778c54bbe76b8848c35bb21f896c799c2d17981675b8d31"
+      "bytes": 41249,
+      "sha256": "2a4a0c619a5cbb1d7cc640c5ac60032648016bc5a70397b6c8c7ae3066c54a82"
     },
     {
       "path": "research/revision_v2/contracts/barfresh-economic-effects.json",
-      "bytes": 35587,
-      "sha256": "9175bdcef234e7745f4f5066270a970bab6e147bd3c80b570851c0a9c289361e"
+      "bytes": 35596,
+      "sha256": "38b38654d92f21a78212e02e675f420c025120b88fc944b8a29922ee5aa02db3"
     },
     {
       "path": "research/revision_v2/contracts/build-contracts.schema.json",
-      "bytes": 39076,
-      "sha256": "3f494d9f28eb7d0ffb3ca2f8271e3f31959dc8bcb30628654912bfabc5899e43"
+      "bytes": 39078,
+      "sha256": "91c7be64d59c62e5e50d38982603126eb0dc27a409178e6350e714f2df0f871a"
     },
     {
       "path": "research/revision_v2/contracts/build_contracts.py",
-      "bytes": 26898,
-      "sha256": "3f259bcd310005570603f49b9f40db0077371df6283535ea1e675cd8cb8b0652"
+      "bytes": 26908,
+      "sha256": "09a318a82fea71d20f33f4730441ea7b745b03ec24b3ea865b552baf960e89e5"
     },
     {
       "path": "research/revision_v2/contracts/build_proposal_fixtures.py",
-      "bytes": 4792,
-      "sha256": "b5b188f443ca3ed0d1ea34167c2d7535ec01502240c7b5e72a6d19a0e1d56141"
+      "bytes": 4807,
+      "sha256": "44215c122539a6a8c72bf39706908d6659d7a0df454f4bd6b3e0724a698be140"
     },
     {
       "path": "research/revision_v2/contracts/build_synergy_example.py",
-      "bytes": 24782,
-      "sha256": "deb38a1bbdf66ef07341a5738c0c9513257773e272ca7fa3e68c71c5af81ef03"
+      "bytes": 24812,
+      "sha256": "9639228ed93d1820cef41e3688a233deed294444d6bfb23f44252123a1344847"
     },
     {
       "path": "research/revision_v2/contracts/case_eval_private.json",
@@ -577,28 +577,28 @@
     },
     {
       "path": "research/revision_v2/contracts/economic-effects.json",
-      "bytes": 62620,
-      "sha256": "9c390d6447650c8f632a804f5a7d0707c365a66350d048e10ec738efc39e1977"
+      "bytes": 62664,
+      "sha256": "d051e89be41f18e4ceb539589057269fd009d06c9b568f2fc35af74b0db34ed2"
     },
     {
       "path": "research/revision_v2/contracts/proposal-fixtures.json",
-      "bytes": 5099,
-      "sha256": "6c480dd4a8afc384a51a63cd918129db7b3672e265e5daae5830049ad381778f"
+      "bytes": 5107,
+      "sha256": "5b88b0fedb5e9d9e503b87d82a538a74a1e406b5c3afff955cec6b27b8da6ae8"
     },
     {
       "path": "research/revision_v2/contracts/proposal-fixtures.schema.json",
-      "bytes": 3278,
-      "sha256": "e01fe4405553204a8c17a39f849331cd643fa484653920d153e8d02ead068f5c"
+      "bytes": 3279,
+      "sha256": "23dd930ea3103cf87245401bb842cd3d7af35a12741634323048bedb8cce9c05"
     },
     {
       "path": "research/revision_v2/contracts/question_registry.json",
-      "bytes": 123508,
-      "sha256": "bf9418b7d07935e719bdefa5f9cc26a6752af634831ea65132ca5846f886ef50"
+      "bytes": 123502,
+      "sha256": "7824697c98b9b25f2799780eea017a023fb6c64ad4c2e57983d2f081e3922483"
     },
     {
       "path": "research/revision_v2/contracts/synergy-decision-context.json",
-      "bytes": 1913,
-      "sha256": "e5f3f6b084e19cc46e0821f8efba8dac695387cba82145b1446d00706277ffde"
+      "bytes": 1932,
+      "sha256": "cbaceebf9b0917cc46fd3bad468db0433a930e7a33b48da505371604467f3488"
     },
     {
       "path": "research/revision_v2/contracts/validate_contracts.py",
@@ -612,13 +612,13 @@
     },
     {
       "path": "research/revision_v2/data/build_case_index.py",
-      "bytes": 24924,
-      "sha256": "be33ebde72ddde6dba62ea4dfa6c3e385789e179b93a6ac65db58da034d32b0e"
+      "bytes": 24926,
+      "sha256": "2528b70fb341bdfc25b1c581ab03090176cee21d50d3989a7f7b0911ce2f6ca5"
     },
     {
       "path": "research/revision_v2/data/facts_synergy.json",
-      "bytes": 33563,
-      "sha256": "c152830382c740b37861386b3910256792fa8c2ea17cfa5d61ba325fa50bc000"
+      "bytes": 33565,
+      "sha256": "1f7afa6f950a75daacb2cc657055b4a18e5e14ecd1af82917d46b9fb75c7dcb1"
     },
     {
       "path": "research/revision_v2/data/outcome_checks_synergy.json",
@@ -631,14 +631,14 @@
       "sha256": "d9370e9f93f6add9d0c1f7df6457b197e028b76288ffd7ec9448b12e33aface9"
     },
     {
-      "path": "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
-      "bytes": 66242,
-      "sha256": "365d9068bd57f99e8ddf5a400e27d2a78bb3ab3512770fa1725f6b049a5a9d4f"
+      "path": "research/revision_v2/deliverables/Credit_Scenario_Build_Specification.md",
+      "bytes": 66378,
+      "sha256": "c6b4b832533e579b4a389e20243240732fedd22034745d66888a417e53795d3a"
     },
     {
       "path": "research/revision_v2/package_kit.py",
-      "bytes": 2600,
-      "sha256": "d131dd646c92e5defe0865792b502b37d4bb76200702444b079c28d51fd06028"
+      "bytes": 2582,
+      "sha256": "c513f7ce74e86702ad6962d6298ec85a4ff6c1efa9ea7625df8ae76942c9c641"
     },
     {
       "path": "research/revision_v2/reference/README.md",

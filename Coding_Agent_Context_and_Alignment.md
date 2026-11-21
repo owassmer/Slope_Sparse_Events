@@ -10,7 +10,7 @@ The call account below comes from Owen’s description of his conversation with 
 
 ## 1. What Russell described
 
-Owen spoke with Russell at Slope about work involving credit decisions and financial modeling. Three parts of that conversation belong together.
+Owen spoke with Russell, a lender's head of lending, about work involving credit decisions and financial modeling. Three parts of that conversation belong together.
 
 ### Sparse external information in credit decisions
 
@@ -38,7 +38,7 @@ That emphasis determines the primary unit of this build. The borrower’s financ
 
 Russell asked Owen to come back with his thoughts on solutions. Owen wants to respond with a working demonstration that makes the proposed solution tangible and gives Russell something concrete to evaluate.
 
-The intended result is a useful follow-up conversation about how this could fit Slope’s work, supported by a convincing implementation of the reasoning and financial mechanics.
+The intended result is a useful follow-up conversation about how this could fit the lender’s work, supported by a convincing implementation of the reasoning and financial mechanics.
 
 ## 2. The approved synthesis
 
@@ -60,7 +60,7 @@ This connects Russell's credit-research problem to his scenario-modeling and por
 
 ## 3. Where the module stops
 
-The financing terms are inputs: the amount, schedule, fee and funding date. The module does not recommend, size, tier or condition the loan. A lending decision brings in risk appetite, pricing objectives, portfolio constraints and other credit signals that the sparse-event research does not establish; attaching one would make those assumptions look like conclusions of the research. Slope's broader underwriting consumes the analysis and decides.
+The financing terms are inputs: the amount, schedule, fee and funding date. The module does not recommend, size, tier or condition the loan. A lending decision brings in risk appetite, pricing objectives, portfolio constraints and other credit signals that the sparse-event research does not establish; attaching one would make those assumptions look like conclusions of the research. The lender's broader underwriting consumes the analysis and decides.
 
 The use of proceeds matters. An inventory advance can create sales and receipts; a different amount changes the purchase. Controls on the financed amount keep that visible.
 
@@ -104,7 +104,7 @@ Owen wants the demonstration grounded in actual businesses, actual legal events,
 
 ### Akoustis Technologies: lead demonstration
 
-The review date is **14 May 2024**, the day after Akoustis's 10-Q and earnings call. Qorvo's trade-secret and patent claims against it are at jury trial, its $44M convertible notes can come due early if a large judgment goes unpaid, and its Nasdaq listing is at risk. The loan is Slope's reusable line, sized by Slope's published rule on the reconstructed bank data, analysed over 180 days. `Model_Extensions_Spec.md` §16 governs. Charles & Colvard (18 Nov 2024) is the second case.
+The review date is **14 May 2024**, the day after Akoustis's 10-Q and earnings call. Qorvo's trade-secret and patent claims against it are at jury trial, its $44M convertible notes can come due early if a large judgment goes unpaid, and its Nasdaq listing is at risk. The loan is the lender's reusable line, sized by the lender's published rule on the reconstructed bank data, analysed over 180 days. `Model_Extensions_Spec.md` §16 governs. Charles & Colvard (18 Nov 2024) is the second case.
 
 ### Synergy CHC: earlier candidate
 
@@ -203,4 +203,4 @@ Use this brief to guide product judgment; use the specification and kit for deta
 
 This is **builder context**. It includes the intended case mechanisms and demonstration narrative. Keep it separate from the historical investigator’s runtime inputs and the blind reviewer’s evidence bundle. Those components receive the scoped mission and admissible evidence defined by the application, so their performance can be evaluated meaningfully.
 
-When a technical choice requires judgment, prioritize the choice that makes the completed analysis more useful, financially sound and understandable to Russell and Slope.
+When a technical choice requires judgment, prioritize the choice that makes the completed analysis more useful, financially sound and understandable to Russell and the lender.

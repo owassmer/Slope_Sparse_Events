@@ -2,7 +2,7 @@
 
 ## Summary for approval
 
-**What the model does.** It runs Slope's reusable line for Akoustis from 20 Jun to 17 Dec 2024. The limit is about $0.357M, a manual-review line. Cash at 20 Jun is about $17.16M. Five threats can stop or shrink collections:
+**What the model does.** It runs the lender's reusable line for Akoustis from 20 Jun to 17 Dec 2024. The limit is about $0.357M, a manual-review line. Cash at 20 Jun is about $17.16M. Five threats can stop or shrink collections:
 - Qorvo enforcing the $38.6M judgment;
 - the post-trial ruling changing it;
 - noteholders accelerating $44.0M on the judgment default (60 days after the judgment as entered, 19 Aug, or 60 days after the order disposing of the last post-trial motion; which judgment counts is open, L11) or on delisting (after 21 Oct);
@@ -45,7 +45,7 @@ Law and the record fix the structure. Ruling dates come from data: this judge's 
 
 ## Scope and conventions
 
-- **Governs:** `Slope_Model_Extensions_Spec.md` (spec), with §15 applied. This document holds only case-specific content and links to the spec for the rest.
+- **Governs:** `Model_Extensions_Spec.md` (spec), with §15 applied. This document holds only case-specific content and links to the spec for the rest.
 - **Isolation:** case facts dated on or before 20 Jun 2024; general law of any date. Two post-D sources are not applied: the Nasdaq Rule 5815 change (17 Jan 2025) and the *Syntel* fee order. The feed's stated basis is in §6.
 - **Labels:** each step's basis and each parameter's disposition follow spec §0 and §15.2(3). **Bounded** means an open term with a base value and a sensitivity.
 - **Sources:** `D.I. n` for court filings; SEC file names in `sources_akoustis_20240620/` (`notes_2022_ex41` is the indenture); `R2a`–`R8` for `RESEARCH.md`; CASH_CHECK for `CASH_CHECK_20240620.md`.
@@ -95,18 +95,18 @@ $44.0M outstanding (`10q_0513` Note 10); guarantor Akoustis, Inc.
 |---|---|---|---|
 | B1 Judgment default | §7.01(i): final money judgments "undischarged, unpaid or unstayed" for 60 days "during which execution shall not be effectively stayed"; above $10.0M "excluding amounts covered by insurance"; only after notice by the Trustee or 25% | $38.6M; insurance none (R7); ripe 19 Aug on the judgment as entered, or 60 days after the order disposing of the last post-trial motion (L11) | Finality: open, both readings carried (L11); clock: Code timing |
 | B2 Delisting default | §7.01(b): not listed on an Eligible Market; no notice, no grace | Bid-price deadline 21 Oct | Law; date Code timing (L12) |
-| B3 Cross-default | §7.01(h): other debt ≥ $2.5M | GDSI payments Jan 2025; Slope line < $2.5M | Does not reach collections |
+| B3 Cross-default | §7.01(h): other debt ≥ $2.5M | GDSI payments Jan 2025; the line < $2.5M | Does not reach collections |
 | B4 Interest default | §7.01(c): 30 days late | No earlier than 15 Jan 2025 | After horizon |
 | B5 Acceleration | §7.02: Trustee or 25% may declare; automatic on bankruptcy | $44.0M plus interest | H1, H2 |
 | B6 Rescission | §7.02: majority, once all defaults are cured or waived | A judgment default is cured only by payment, discharge or a stay | Law |
 | B7 Repurchase | §10.01: 100% plus interest, in cash; notice within 20 business days; repurchase 20–35 business days later; failures are defaults (§7.01(d), (f)) | Triggered by delisting | H2; dates Code timing |
 | B8 Interest | §16.02: shares unless cash is elected; at most 11,403,332 shares without a vote (§9.02(k)) | $1.32M due 15 Dec, paid 16 Dec | Bounded (§2) |
-| B9 Debt covenant | §5.09(viii): $25.0M unsecured basket | Slope line fits | Law |
+| B9 Debt covenant | §5.09(viii): $25.0M unsecured basket | the line fits | Law |
 
-### 1.3 T-C. Bankruptcy effects on Slope
+### 1.3 T-C. Bankruptcy effects on the lender
 
 As spec §2.3, plus:
-- **Preference (§547).** Report exposure gross and also net of Slope's later draws (new value, §547(c)(4)). The ordinary-course defence (§547(c)(2)) is not computed (L13).
+- **Preference (§547).** Report exposure gross and also net of the lender's later draws (new value, §547(c)(4)). The ordinary-course defence (§547(c)(2)) is not computed (L13).
 - **Involuntary petition (§303(b)).** Qorvo cannot file alone (L13). Noteholders can (H3).
 
 ### 1.4 Legal slots
@@ -312,7 +312,7 @@ The feasibility bound is available cash minus 30-day need, capped at the path am
 
 ---
 
-## 6. Bank feed and Slope's line
+## 6. Bank feed and the lender's line
 
 **DECIDED (Owen, 25 Sep 2026): Decision D1 amended to option (c) for Akoustis** (CASH_CHECK §2).
 - Dated flows sit on their own dates: offering +$9.208M on 24 May; coupon cash −$0.442M on 17 Jun.
@@ -322,7 +322,7 @@ The feasibility bound is available cash minus 30-day need, capped at the path am
 - Stated basis: the April–June figures come from the FY2024 10-K and are used only for pre-D flows.
 - Rejected alternative: option (b), strictly pre-D figures ($16.54M).
 
-**Line limit: about $0.357M** = 15% × ($2.381M mean monthly receipts, March–May − $0 debt service). It exceeds Slope's $250k automatic approval, so it is a manual-review line.
+**Line limit: about $0.357M** = 15% × ($2.381M mean monthly receipts, March–May − $0 debt service). It exceeds the lender's $250k automatic approval, so it is a manual-review line.
 
 **Supplier-invoice outflows** depend on the pre-D payroll basis of about $1.92M a month (Stage 3) and are labelled as estimates.
 

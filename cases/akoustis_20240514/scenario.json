@@ -236,13 +236,13 @@
         "id": "collection_protect_need",
         "label": "Collection: only from cash above 30 days of operating need, instead of each installment in full when cash covers it",
         "common_model": "protect_need",
-        "note": "Changes how Slope collects. Central: Slope's automatic debit takes each installment in full on its due date when the company's cash covers it. Alternative: the company holds back its next 30 days of operating need, and Slope collects only from cash above that."
+        "note": "Changes how the lender collects. Central: the lender's automatic debit takes each installment in full on its due date when the company's cash covers it. Alternative: the company holds back its next 30 days of operating need, and the lender collects only from cash above that."
       },
       {
         "id": "cash_floor_60_days",
         "label": "Cash floor: 60 days of operating outflows, instead of 30",
         "common_model": "cash_floor_60_days",
-        "note": "Changes the cash level at which the company decides whether to raise equity, keep going or file, and the cash it counts as available for a settlement or security. Slope's debit does not read it, so collections change only through those decisions."
+        "note": "Changes the cash level at which the company decides whether to raise equity, keep going or file, and the cash it counts as available for a settlement or security. The lender's debit does not read it, so collections change only through those decisions."
       },
       {
         "id": "lower_award_high",
@@ -261,6 +261,6 @@
         "note": "Changes how the company pays the $1.32M notes coupon due 15 Jun 2024. Central: in shares, which the notes allow unless the company elects cash, and which its registered shares cover. Alternative: all in cash."
       }
     ],
-    "central_note": "Settings every outcome shares: the bank feed's recent flows continue, no financing is booked, the cash floor is 30 days of operating outflows, and Slope collects each installment by automatic debit."
+    "central_note": "Settings every outcome shares: the bank feed's recent flows continue, no financing is booked, the cash floor is 30 days of operating outflows, and the lender collects each installment by automatic debit."
   }
 }

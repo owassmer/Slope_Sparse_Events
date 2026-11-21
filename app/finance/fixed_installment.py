@@ -1,4 +1,4 @@
-"""Proposed Slope-style fixed-installment working-capital draw (an analytical offer, not a quote).
+"""Proposed fixed-installment working-capital draw (an analytical offer, not a quote).
 
 Pricing convention (declared, from the kit's proposal fixtures): a fixed total fee equal to a
 stated fraction of the advance, repaid in equal monthly payments rounded half up to the cent,

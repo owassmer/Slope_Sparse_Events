@@ -5,17 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 
+from app.finance.bill_pay import BillPayOffer
 from app.finance.calendar import next_business_day
-from app.finance.slope_products import SlopeOffer
 
 HORIZON_DAYS = 180
 DRAWS = 512
 SEED = 20240819
 MAX_LIMIT_MULTIPLIER = 33 / 15
 NEED_DAYS = 30  # the cash floor's central setting (spec §16.3): days of operating need
-# How Slope collects (spec §16.3 Collection). "debit": each installment is debited in full, in due-date order, when
+# How the lender collects (spec §16.3 Collection). "debit": each installment is debited in full, in due-date order, when
 # available cash covers it; a failed debit stays overdue and is retried (the central case). "protect_need": the
-# borrower keeps its next `need_days` of operating need back, so Slope collects min(owed, max(0, available - need))
+# borrower keeps its next `need_days` of operating need back, so the lender collects min(owed, max(0, available - need))
 # (the sensitivity; the previous §2.2 rule, and the default so earlier recorded setups read unchanged).
 COLLECTION_MODES = ("debit", "protect_need")
 
@@ -47,7 +47,7 @@ class Exposure:
     """The line's state on the review date when it was opened earlier: what every forecast trajectory starts from.
     Installments still to fall due (due date after the review date, whole cents), the amount already past due, the
     outstanding principal, and the net cash the line's history moved into the borrower's account (funded - collected;
-    the connected feed shows the supplier payments Slope made and none of its collections). Empty: a new line."""
+    the connected feed shows the supplier payments the lender made and none of its collections). Empty: a new line."""
     installments: tuple[tuple[date, int], ...] = ()
     principal_cents: int = 0
     past_due_cents: int = 0
@@ -76,7 +76,7 @@ def exposure_from_json(d: dict | None) -> Exposure:
                     cash_cents=int(d.get("cash_cents", 0)))
 
 
-def is_slope_case(inputs: dict) -> bool:
+def is_supplied_terms_case(inputs: dict) -> bool:
     return "supplied_terms" in (inputs.get("financing_plan") or {})
 
 
@@ -96,16 +96,16 @@ class Setup:
     exposure_scale: float = 1.0  # multiplies the payer-side exposure of disputes where the borrower pays
     collateral_share: tuple[float, float] | None = None  # override of the model's 50%-100% surety collateral range
     variability: float = 1.0  # scales operating deviations around the simulated mean
-    # Slope's reusable line (spec §2.1): limit = limit_share x mean monthly (customer receipts - debt service) over the
+    # The lender's reusable line (spec §2.1): limit = limit_share x mean monthly (customer receipts - debt service) over the
     # trailing three complete months, reassessed at every draw. The single-draw fields above stay as the reference
     # draw that `sparse-events finance check` and the agent's loan-terms tool read.
     limit_share_bps: int = 1500
-    limit_multiplier: float = 1.0  # 1.0 to 33/15: the low to the high end of Slope's published 15-33% range
-    line_usage: float = 1.0  # share of eligible supplier invoices the borrower routes through Slope
+    limit_multiplier: float = 1.0  # 1.0 to 33/15: the low to the high end of the lender's published 15-33% range
+    line_usage: float = 1.0  # share of eligible supplier invoices the borrower routes through the lender
     facility_cents: int = 0  # other committed facilities (backup liquidity); Akoustis has none
     # The common financial model's scenario controls (spec §16.3), shared by every path. `need_days` sets the cash
     # floor (next `need_days` days of operating need): the company's cash-floor decision, Jev's cash facts, and
-    # settlement and stay capacity read it. `collection` says how Slope collects; `need_days` limits collections
+    # settlement and stay capacity read it. `collection` says how the lender collects; `need_days` limits collections
     # only under "protect_need".
     need_days: int = NEED_DAYS
     collection: str = "protect_need"
@@ -125,8 +125,8 @@ class Setup:
         return int(round(self.limit_share_bps * self.limit_multiplier))
 
     @property
-    def offer(self) -> SlopeOffer:
-        return SlopeOffer(offer_id="supplied", term_id="supplied", amount_cents=self.amount_cents, fee_bps=self.fee_bps,
+    def offer(self) -> BillPayOffer:
+        return BillPayOffer(offer_id="supplied", term_id="supplied", amount_cents=self.amount_cents, fee_bps=self.fee_bps,
                           days=self.days, installments=self.installments, tier="supplied")
 
     def with_controls(self, controls: dict) -> Setup:

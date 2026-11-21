@@ -2,7 +2,7 @@
 
 Builder-side acquisition, 25 Sep 2026. It collects every public source dated on or before 20 Jun 2024 that bears on an item still unresolved at D. The source texts are in `sources_akoustis_20240620/`. Court PDFs are in `recap/`, named by docket entry number.
 
-**Scope.** The spec's source list (`Slope_Model_Extensions_Spec.md` §1.1) covers court filings and loan terms. This round covers everything that could move a forecast:
+**Scope.** The spec's source list (`Model_Extensions_Spec.md` §1.1) covers court filings and loan terms. This round covers everything that could move a forecast:
 - the counterparty's own statements;
 - the governing contracts;
 - the court documents that were public;

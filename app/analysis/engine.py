@@ -1,21 +1,21 @@
-"""The cash and collections engine for Slope's reusable line, vectorised over operating draws (spec §2).
+"""The cash and collections engine for the lender's reusable line, vectorised over operating draws (spec §2).
 
 Per trajectory (one joint event path x one operating draw), day by day from the day after the review date:
 
 - **Cash.** Available cash = opening available cash + operating flows + event cash - encumbered cash + the invoices
-  Slope pays - Slope's collections. A deficit is reported, never funded by an imaginary source.
+  the lender pays - the lender's collections. A deficit is reported, never funded by an imaginary source.
 - **Limit** (§2.1). On each day, share x mean monthly (customer receipts - debt service) over the trailing three
   complete calendar months of that trajectory (the feed's months, then its own simulated ones), rounded down.
-- **Draws** (§2.1). Each simulated `supplier_invoice` outflow the borrower routes (`line_usage`) is paid by Slope
+- **Draws** (§2.1). Each simulated `supplier_invoice` outflow the borrower routes (`line_usage`) is paid by the lender
   when outstanding principal + the invoice <= the day's limit, nothing is overdue and no petition has been filed. A
   routed invoice leaves the borrower's outflows that day and creates `installments` monthly installments of
-  invoice x (1 + fee), in whole cents, the remainder on the last (the reference arithmetic of `SlopeOffer`).
-- **Collections** (§2.2, §16.3 Collection). Slope attempts collection on each due date, and at each month-end while
+  invoice x (1 + fee), in whole cents, the remainder on the last (the reference arithmetic of `BillPayOffer`).
+- **Collections** (§2.2, §16.3 Collection). The lender attempts collection on each due date, and at each month-end while
   anything is overdue, under the setup's `collection` mode:
-  - `debit` (the central case): Slope debits the installments owed in due-date order (draw order within a date).
+  - `debit` (the central case): the lender debits the installments owed in due-date order (draw order within a date).
     Each is collected in full when available cash covers it at that point; otherwise the debit fails (no partial
     debits) and the installment stays overdue until the next attempt. `need_days` never affects collections.
-  - `protect_need` (a sensitivity: the borrower keeps its operating need back): Slope collects
+  - `protect_need` (a sensitivity: the borrower keeps its operating need back): the lender collects
     min(owed, max(0, available - need)).
   `need` is the lowest point of the trajectory's cumulative operating flows over the next `need_days` days relative
   to today (0 if they never fall below today's level). It is also the cash floor that the company's decisions, Jev's
@@ -55,7 +55,7 @@ TRAILING_MONTHS = 3
 
 def installment_amounts(amount: np.ndarray, fee_bps: int, n: int) -> np.ndarray:
     """[len(amount), n] installments in whole cents: total = amount + fee (half up), n equal parts (half up), the
-    remainder on the last. Identical to `SlopeOffer.schedule`."""
+    remainder on the last. Identical to `BillPayOffer.schedule`."""
     amount = np.asarray(amount, dtype=np.int64)
     total = amount + (2 * amount * fee_bps + 10_000) // 20_000
     base = (2 * total + n) // (2 * n)
@@ -83,8 +83,8 @@ class Line:
 class Trajectories:
     """Results for one joint path across all operating draws. Arrays are [draws, days] or [draws] (cents)."""
     cash: np.ndarray  # available cash at each day's end
-    collections: np.ndarray  # Slope's collections by day
-    fundings: np.ndarray  # invoices Slope paid, by day
+    collections: np.ndarray  # the lender's collections by day
+    fundings: np.ndarray  # invoices the lender paid, by day
     outstanding: np.ndarray  # outstanding principal at each day's end
     due: np.ndarray  # installments falling due by day, inside the horizon (contractual)
     locked: np.ndarray  # cash encumbered at each day's end
@@ -130,7 +130,7 @@ def month_end_mask(setup: Setup, days: int) -> np.ndarray:
 
 
 def limits(setup: Setup, ops: Operating, days: int) -> np.ndarray:
-    """[draws, days] Slope's rule on each trajectory's trailing three complete months (feed history + simulation)."""
+    """[draws, days] the lender's rule on each trajectory's trailing three complete months (feed history + simulation)."""
     first = setup.review + timedelta(days=1)
     dates = [first + timedelta(days=t) for t in range(days)]
     net = ops.by_category["customer_receipts"][:, :days] + ops.by_category["debt_service"][:, :days]
@@ -305,7 +305,7 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Tr
                     book[d].append((rows, parts[:, k]))
             funded[rows] += amt
             contract[rows] += parts.sum(axis=1)
-            avail[rows] += amt  # Slope pays the supplier: the invoice leaves the borrower's outflows today
+            avail[rows] += amt  # the lender pays the supplier: the invoice leaves the borrower's outflows today
             fundings[t][rows] += amt
             d_rows.append(rows)
             d_days.append(np.full(len(rows), t, dtype=np.int64))
@@ -336,7 +336,7 @@ def run_many(line: Line, opening_cents: int, events: list[EventCash]) -> list[Tr
 
 
 def _debit(avail: np.ndarray, pend_r: np.ndarray, pend_a: np.ndarray, attempt: np.ndarray, rn: int) -> tuple:
-    """Slope's automatic debits on the attempting rows: each pending installment in order (oldest first per row) is
+    """The lender's automatic debits on the attempting rows: each pending installment in order (oldest first per row) is
     collected in full when the row's available cash covers it, else it fails. Debits `avail` in place. Returns the
     amount collected per row, the indices into `pend` that were paid, and those that failed."""
     take = np.zeros(rn, dtype=np.int64)

@@ -1,5 +1,5 @@
 """The 14 May 2024 Akoustis case inputs (spec §16.2-16.3): the feed holds nothing after the review date and no
-later-reported figure, and the line's limit is Slope's rule on this feed."""
+later-reported figure, and the line's limit is the lender's rule on this feed."""
 
 import json
 from datetime import date
@@ -35,7 +35,7 @@ def test_the_feed_stops_at_the_review_date_and_imports_no_later_flow():
     assert feed.closing_cents == 1_128_145_455
 
 
-def test_the_limit_is_slopes_rule_on_the_14_may_feed():
+def test_the_limit_is_lenders_rule_on_the_14_may_feed():
     feed = load_feed(SNAP)
     line = INPUTS["financing_plan"]["line"]
     months = ("2024-02", "2024-03", "2024-04")  # the trailing three complete months
@@ -55,7 +55,7 @@ def test_the_line_opens_on_the_first_day_with_three_complete_months_of_feed_hist
     assert first[:7] == "2024-01" and opened["date"] == "2024-04-01"  # January, February, March complete
     receipts = sum(_month(feed, f"2024-0{m}", "customer_receipts") for m in (1, 2, 3))
     assert opened["limit_cents"] == int((Decimal("0.15") * Decimal(receipts) / 3).to_integral_value(ROUND_DOWN))
-    assert opened["limit_cents"] > 25_000_000  # Slope's manual-review band
+    assert opened["limit_cents"] > 25_000_000  # the lender's manual-review band
 
 
 def test_the_lines_history_is_the_engine_on_the_feed_and_reconciles_to_the_opening_exposure():

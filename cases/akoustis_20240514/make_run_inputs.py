@@ -3,7 +3,7 @@
 Run after `uv run sparse-events evidence build akoustis_20240514` and `make_bank_feed.py`:
 `uv run python cases/akoustis_20240514/make_run_inputs.py`.
 
-Slope's line (Model Extensions Spec §2.1): limit = 15% x (mean monthly customer receipts - mean monthly debt service)
+The lender's line (Model Extensions Spec §2.1): limit = 15% x (mean monthly customer receipts - mean monthly debt service)
 over the trailing three complete months of the connected-bank feed, rounded down to the cent; 3.7% fee; each draw
 repaid in 3 equal monthly installments. The reusable-line engine is the next step, so the current engine still receives
 one supplied draw: the largest supplier invoice in the trailing window that fits under the limit. Every baseline
@@ -23,9 +23,9 @@ from app.evidence.snapshot import EVIDENCE_DIR
 from app.finance.bank import load_feed, window
 
 SNAP = "akoustis_20240514"
-LIMIT_SHARE = Decimal("0.15")  # the low end of Slope's published 15-33% range, for a stressed profile
+LIMIT_SHARE = Decimal("0.15")  # the low end of the lender's published 15-33% range, for a stressed profile
 FEE_BPS, INSTALLMENTS, DAYS = 370, 3, 90
-LABEL = "Terms reconstructed by applying Slope's published sizing rule to the connected-bank baseline."
+LABEL = "Terms reconstructed by applying the lender's published sizing rule to the connected-bank baseline."
 
 db = sqlite3.connect(EVIDENCE_DIR / f"{SNAP}.sqlite")
 
@@ -97,7 +97,7 @@ existing = [
      "note": "Existing seller note, secured by assets of the purchaser and GDSI."},
 ]
 
-# Slope's line rule on the connected-bank feed.
+# The lender's line rule on the connected-bank feed.
 feed = load_feed(SNAP)
 start, end = window(feed)
 receipts, debt = defaultdict(int), defaultdict(int)
@@ -120,7 +120,7 @@ draw_txn = next(t for t in feed.transactions if t["category"] == "supplier_invoi
                 and start <= date.fromisoformat(t["date"]) <= end)
 
 # The line was opened before the review (spec §16.2): the trial and the 13 May 10-Q trigger a review of an existing
-# line. Slope sizes a line on three complete months of connected-bank history; the feed reconstructs the account from
+# line. The lender sizes a line on three complete months of connected-bank history; the feed reconstructs the account from
 # 1 Jan 2024, so 1 Apr 2024 (a Monday) is the first day the published rule can be applied to it.
 OPENED = date(2024, 4, 1)
 open_months = ["2024-01", "2024-02", "2024-03"]
@@ -129,15 +129,15 @@ open_receipts = Decimal(sum(t["amount_cents"] for t in feed.transactions if t["c
 open_debt = Decimal(-sum(t["amount_cents"] for t in feed.transactions if t["category"] == "debt_service"
                          and t["date"][:7] in open_months)) / 3
 open_limit = int((LIMIT_SHARE * (open_receipts - open_debt)).to_integral_value(ROUND_DOWN))
-assert open_limit > 25_000_000  # above Slope's USD 250k automatic approval: a manually reviewed line
+assert open_limit > 25_000_000  # above the lender's USD 250k automatic approval: a manually reviewed line
 opened = {
     "date": OPENED.isoformat(),
     "limit_cents": open_limit,
     "basis": ("The earliest date with three complete months of connected-bank history in the feed (January to March "
-              "2024): Slope's rule gives 15% of mean monthly receipts net of debt service, USD "
+              "2024): the lender's rule gives 15% of mean monthly receipts net of debt service, USD "
               f"{open_limit / 100:,.2f}, above the USD 250k automatic approval, so a manually reviewed line. It opens "
               "five weeks before the jury trial began on 6 May (docket as of 14 May); the trial and the 13 May 10-Q "
-              "then trigger this review. Eligibility (Slope's published criteria): in business since May 2014 (FY2023 "
+              "then trigger this review. Eligibility (the lender's published criteria): in business since May 2014 (FY2023 "
               "10-K: 'since its inception in May 2014'), so more than 3 years for a line above USD 100k; banking "
               "history of more than 1 year (the company's own accounts; the feed reconstructs only the months the "
               "rule reads); no bankruptcy in the last 5 years."),
@@ -167,7 +167,7 @@ assert acc == ITC_LOW * 180 // 365 == 138_082_191, acc
 
 common_model = {
     "note": ("Settings every path shares (spec §16.3). Central: the feed's historical continuation, no financing, a "
-             "30-day cash floor, and Slope's automatic debit (collected in full when cash covers the installment). "
+             "30-day cash floor, and the lender's automatic debit (collected in full when cash covers the installment). "
              "Each scenario changes one setting and states its basis."),
     "central": {"need_days": 30, "collection": "debit", "financing": [], "cost_plan": None},
     "scenarios": {
@@ -205,7 +205,7 @@ common_model = {
         "protect_need": {
             "collection": "protect_need",
             "basis": ("A borrower-behaviour sensitivity (spec §16.3 Collection): the borrower keeps its next 30 days of "
-                      "operating need back from Slope, so Slope collects min(owed, max(0, available - need)). Slope's "
+                      "operating need back from the lender, so the lender collects min(owed, max(0, available - need)). The lender's "
                       "mechanism is the automatic debit on each due date (the central case); this is an assumption "
                       "about the borrower, not the product."),
         },
@@ -213,7 +213,7 @@ common_model = {
             "need_days": 60,
             "basis": ("The cash floor at 60 days of operating need instead of 30 (the one alternative setting): the "
                       "company's cash-floor decision, Jev's cash facts and settlement and stay capacity read it. "
-                      "Collections are unchanged (Slope's debit does not read the floor)."),
+                      "Collections are unchanged (the lender's debit does not read the floor)."),
         },
     },
     "ordinary_obligations": {
@@ -266,12 +266,12 @@ inputs = {
     "case_id": "akoustis_qorvo_2024",
     "snapshot_id": SNAP,
     "status": "locked_operator_inputs",
-    "note": ("Operator inputs and ordinary baseline for Slope's 14 May 2024 review of an existing line, reconstructed as "
-             "if Slope opened a reusable line that pays Akoustis's supplier invoices on 1 Apr 2024. " + LABEL + " The "
+    "note": ("Operator inputs and ordinary baseline for the lender's 14 May 2024 review of an existing line, reconstructed as "
+             "if the lender opened a reusable line that pays Akoustis's supplier invoices on 1 Apr 2024. " + LABEL + " The "
              "baseline holds only ordinary underwriting facts; the litigation is for the investigation to establish."),
     "run_inputs": {
         "mission_id": "akoustis_2024_supplier_line",
-        "requested_use": {"value": "Continued draws on the existing Slope reusable line, opened on 1 Apr 2024, to pay "
+        "requested_use": {"value": "Continued draws on the lender's existing reusable line, opened on 1 Apr 2024, to pay "
                                    "supplier invoices (fab materials and contract manufacturing)",
                           "basis": "operator_request"},
         "requested_amount": {"value": draw, "unit": "USD_cents", "basis": "operator_request",
@@ -282,26 +282,26 @@ inputs = {
         "requested_pricing": {"value": "3.7% fee on each amount financed", "basis": "operator_request"},
         "baseline_profile_id": "akoustis_ordinary_baseline_20240514",
         "existing_loan_record_ids": [x["loan_id"] for x in existing],
-        "permitted_offer_set_id": "slope_supplied_terms_v1",
+        "permitted_offer_set_id": "supplied_terms_v1",
         "policy_config_id": "analysis_only",
-        "initial_event_seed": ("As of 14 May 2024, review how external events could affect Slope's existing reusable "
+        "initial_event_seed": ("As of 14 May 2024, review how external events could affect the lender's existing reusable "
                                "line for Akoustis Technologies, Inc., opened on 1 Apr 2024, which pays its supplier "
                                "invoices, each draw repaid in three monthly installments. Akoustis's public filings describe trade-secret and patent "
                                "litigation with Qorvo, Inc., a competitor, in the U.S. District Court for the District "
                                "of Delaware."),
     },
     "financing_plan": {
-        "funding": "next business day after the review date (Slope pays the supplier)",
+        "funding": "next business day after the review date (the lender pays the supplier)",
         "invoice_due_days_after_funding": 30,
         "basis": "operator_request",
-        "note": "Slope pays the supplier up to the financed amount; Akoustis pays any remainder of the invoice itself.",
+        "note": "The lender pays the supplier up to the financed amount; Akoustis pays any remainder of the invoice itself.",
         "supplied_terms": {"invoice_cents": draw, "amount_cents": draw, "installments": INSTALLMENTS, "days": DAYS,
                            "fee_bps": FEE_BPS, "discount_rate_bps": 800,
-                           "product": "Slope reusable line: Slope pays supplier invoices up to the limit; each draw is "
+                           "product": "Reusable line: the lender pays supplier invoices up to the limit; each draw is "
                                       "repaid in monthly installments by ACH"},
         "line": line,
     },
-    "permitted_offers": {"permitted_offer_set_id": "slope_supplied_terms_v1"},
+    "permitted_offers": {"permitted_offer_set_id": "supplied_terms_v1"},
     "policy": {"policy_config_id": "analysis_only"},
     "bank_feed": f"cases/{SNAP}/bank_feed.json",
     "common_model": common_model,

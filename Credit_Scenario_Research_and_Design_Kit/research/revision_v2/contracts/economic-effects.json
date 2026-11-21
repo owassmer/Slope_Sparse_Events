@@ -142,7 +142,7 @@
           "source_fact_ids": [],
           "assumption_id": "A_policy_cash_reserve_cents",
           "derivation": null,
-          "note": "Illustrative $200,000 liquidity reserve, not Slope policy or a reported contractual requirement."
+          "note": "Illustrative $200,000 liquidity reserve, not the lender's policy or a reported contractual requirement."
         }
       }
     },
@@ -175,7 +175,7 @@
     "decision_timezone": "America/New_York",
     "decision_type": "new_draw",
     "transaction_basis": "analytical_candidate",
-    "slope_relationship": "not_established",
+    "lender_relationship": "not_established",
     "stakeholder_scope": "loan_asset_holder",
     "currency": "USD",
     "requested_amount": {
@@ -190,7 +190,7 @@
         "source_fact_ids": [],
         "assumption_id": null,
         "derivation": null,
-        "note": "A proposed incremental financing amount is an operator choice, not a disclosed Slope application."
+        "note": "A proposed incremental financing amount is an operator choice, not a disclosed application to the lender."
       }
     },
     "requested_term_months": null,
@@ -211,7 +211,7 @@
       "Actual May merchant-loan effective funding date",
       "Proposed incremental amount, pricing, term and funded operating plan"
     ],
-    "note": "The example computes useful conditional thresholds from real obligations plus named assumptions. It does not fabricate historical bank transactions, channel receipts, a complete borrower forecast, or a Slope relationship."
+    "note": "The example computes useful conditional thresholds from real obligations plus named assumptions. It does not fabricate historical bank transactions, channel receipts, a complete borrower forecast, or a relationship with the lender."
   },
   "historical_observations": [
     {
@@ -1067,7 +1067,7 @@
               "source_fact_ids": [],
               "assumption_id": "A_policy_cash_reserve_cents",
               "derivation": null,
-              "note": "Illustrative $200,000 liquidity reserve, not Slope policy or a reported contractual requirement."
+              "note": "Illustrative $200,000 liquidity reserve, not the lender's policy or a reported contractual requirement."
             }
           }
         },
@@ -1129,7 +1129,7 @@
       "Actual May merchant-loan effective funding date",
       "Proposed incremental amount, pricing, term and funded operating plan"
     ],
-    "summary": "Useful outputs are $800k conditional remaining-period free-cash requirement under the named assumptions and contract-derived merchant-channel receipt thresholds of $501,720 in each separate six-month window and $1,672,400 over the full term, before manual-payment credits and outstanding-total caps. They do not claim a historical shortfall, a calibrated default probability, or an actual Slope lending decision.",
+    "summary": "Useful outputs are $800k conditional remaining-period free-cash requirement under the named assumptions and contract-derived merchant-channel receipt thresholds of $501,720 in each separate six-month window and $1,672,400 over the full term, before manual-payment credits and outstanding-total caps. They do not claim a historical shortfall, a calibrated default probability, or the lender's actual lending decision.",
     "threshold_results": [
       {
         "threshold_id": "T_H2_incremental_free_cash",
@@ -1232,7 +1232,7 @@
                 "source_fact_ids": [],
                 "assumption_id": "A_policy_cash_reserve_cents",
                 "derivation": null,
-                "note": "Illustrative $200,000 liquidity reserve, not Slope policy or a reported contractual requirement."
+                "note": "Illustrative $200,000 liquidity reserve, not the lender's policy or a reported contractual requirement."
               }
             }
           },

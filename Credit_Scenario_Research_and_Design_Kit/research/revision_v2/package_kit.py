@@ -6,7 +6,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 DESIGN = ROOT / "research/revision_v2"
-OUT = DESIGN / "deliverables/Slope_Credit_Scenario_Research_and_Design_Kit.zip"
+OUT = DESIGN / "deliverables/Credit_Scenario_Research_and_Design_Kit.zip"
 catalog = json.loads((DESIGN / "data/sources.json").read_text())
 files = set()
 
@@ -27,14 +27,14 @@ for dirname in ("contracts", "data", "reference"):
 for relative in (
     "research/revision_v2/README.md",
     "research/revision_v2/package_kit.py",
-    "research/revision_v2/deliverables/Slope_Credit_Scenario_Build_Specification.md",
+    "research/revision_v2/deliverables/Credit_Scenario_Build_Specification.md",
     "research/barfresh_case/acquired_sources.json",
     "research/barfresh_case/case_facts.json",
 ):
     files.add(ROOT / relative)
 
 manifest = {
-    "package": "Slope credit-event scenario research and design kit",
+    "package": "Credit-event scenario research and design kit",
     "revision": "2",
     "status": "Research and design; not a built agent or lending application",
     "primary_catalog_records": len(catalog["sources"]),

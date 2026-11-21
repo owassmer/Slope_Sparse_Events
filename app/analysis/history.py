@@ -1,4 +1,4 @@
-"""The line's realized history: one deterministic run of Slope's line on the connected feed's own flows, from the day
+"""The line's realized history: one deterministic run of the lender's line on the connected feed's own flows, from the day
 it was opened to the review date (spec §2, §16.2). Its state on the review date is the forecast's starting exposure.
 
 The history is the engine itself on one trajectory (no bootstrap): the feed's transactions from the opening date to

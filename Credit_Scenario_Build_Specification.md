@@ -1,6 +1,6 @@
 # sparse-events: credit-event scenario module — definitive build specification
 
-Prepared 24 September 2026. Revision 2 replaced the Trinity/A10 implementation direction. **Revision 3 (25 September 2026):** the lead case is ChromaDex at 19 August 2024, whose disputes are live on the decision date; Synergy becomes the secondary case. A live dispute is compiled onto a generic, host-owned post-judgment dispute model: Jev reads each cited passage atomically, code keeps every cash path the evidence permits, and Slope's product, pricing, policy and the connected-bank baseline are reconstructed as closely as public information allows. **Revision 4 (25 September 2026):** the product ends at probabilistic scenario and sensitivity analysis of the lender's dated cash flows for supplied financing terms; it no longer recommends, sizes, tiers or conditions a loan. Jev reads the evidence (present state) and supplies conditional probabilities for narrowly defined future events; code composes them into path probabilities and simulates them against a bootstrapped operating-cash distribution. Stress is a separate view. Where this revision and earlier text differ, this revision governs. **Revision 5 (26 September 2026):** ChromaDex is removed. The lead case is Akoustis Technologies at 20 June 2024 and the second is Charles & Colvard at 18 November 2024, on Slope's reusable line; `Model_Extensions_Spec.md` governs the cases, the line and the forecast chains, and the ChromaDex sections below are historical.
+Prepared 24 September 2026. Revision 2 replaced the Trinity/A10 implementation direction. **Revision 3 (25 September 2026):** the lead case is ChromaDex at 19 August 2024, whose disputes are live on the decision date; Synergy becomes the secondary case. A live dispute is compiled onto a generic, host-owned post-judgment dispute model: Jev reads each cited passage atomically, code keeps every cash path the evidence permits, and the lender's product, pricing, policy and the connected-bank baseline are reconstructed as closely as public information allows. **Revision 4 (25 September 2026):** the product ends at probabilistic scenario and sensitivity analysis of the lender's dated cash flows for supplied financing terms; it no longer recommends, sizes, tiers or conditions a loan. Jev reads the evidence (present state) and supplies conditional probabilities for narrowly defined future events; code composes them into path probabilities and simulates them against a bootstrapped operating-cash distribution. Stress is a separate view. Where this revision and earlier text differ, this revision governs. **Revision 5 (26 September 2026):** ChromaDex is removed. The lead case is Akoustis Technologies at 20 June 2024 and the second is Charles & Colvard at 18 November 2024, on the lender's reusable line; `Model_Extensions_Spec.md` governs the cases, the line and the forecast chains, and the ChromaDex sections below are historical.
 
 ## 1. The product to build
 
@@ -12,19 +12,19 @@ The product stops at scenario and sensitivity analysis that a lending or capital
 
 This connects Russell's two topics: unusual borrower events create probabilistic scenarios for an individual loan's collections, and those collections feed portfolio liquidity and capital planning.
 
-### Where it fits at Slope
+### Where it fits at the lender
 
-Use **exception review before a new discretionary advance or increase in exposure**. Slope publicly describes higher-risk, larger and unusual applications entering human review, supported by agents and traceable evidence. It also describes a reconstructed cash-flow understanding from bank data. Our module consumes that baseline rather than recreating bank connectivity or ordinary underwriting. [S1–S2]
+Use **exception review before a new discretionary advance or increase in exposure**. The lender publicly describes higher-risk, larger and unusual applications entering human review, supported by agents and traceable evidence. It also describes a reconstructed cash-flow understanding from bank data. Our module consumes that baseline rather than recreating bank connectivity or ordinary underwriting. [S1–S2]
 
-The analysis takes Slope's product terms as inputs: the financed amount, the repayment schedule and the fee. Public product terms vary by program. Slope’s Amazon program describes fixed repayment schedules with 2–12-month draw terms; its invoice Pay Later materials describe different terms. Select one product configuration; never blend them. [S3–S5]
+The analysis takes the lender's product terms as inputs: the financed amount, the repayment schedule and the fee. Public product terms vary by program. The lender’s Amazon program describes fixed repayment schedules with 2–12-month draw terms; its invoice Pay Later materials describe different terms. Select one product configuration; never blend them. [S3–S5]
 
-For this demonstration, **reconstruct Slope's actual product as closely as public information allows**: bill-pay financing, where Slope pays the supplier and the business repays in monthly installments. The lead case supplies $2.0M over three monthly installments at a 3.7% fee. The synthetic connected-bank data is labelled once, at its source, and is otherwise used plainly. The case is reconstructed as if the borrower applied to Slope on the decision date; there is no claim that it did. A borrower's actual existing financing (a bank revolver, a merchant loan) stays a separate existing obligation with its own contract logic.
+For this demonstration, **reconstruct the lender's actual product as closely as public information allows**: bill-pay financing, where the lender pays the supplier and the business repays in monthly installments. The lead case supplies $2.0M over three monthly installments at a 3.7% fee. The synthetic connected-bank data is labelled once, at its source, and is otherwise used plainly. The case is reconstructed as if the borrower applied to the lender on the decision date; there is no claim that it did. A borrower's actual existing financing (a bank revolver, a merchant loan) stays a separate existing obligation with its own contract logic.
 
-The first financial viewpoint is the **loan asset holder**. Lead Bank origination, Slope servicing and external capital support do not mean every borrower payment is Slope corporate revenue. Platform fees, asset ownership and warehouse cash flows require separate accounting scopes. [S4]
+The first financial viewpoint is the **loan asset holder**. partner-bank origination, the lender's servicing and external capital support do not mean every borrower payment is the lender's corporate revenue. Platform fees, asset ownership and warehouse cash flows require separate accounting scopes. [S4]
 
 ## 2. Case selection: ChromaDex first, Synergy second
 
-**Why the lead changed.** A lawsuit carries the most lender-relevant signal while it is unresolved: bank data shows nothing about a pending ruling, an appeal bond or whether a judgment debtor will pay, and those are branching, forward-looking questions. By 13 August 2024 Synergy's dispute had already become ordinary settlement debt, which turns the investigation into document archaeology. The lead case must therefore have a dispute that is live on the decision date, a federal docket with public filings before that date, public financials, a Slope-shaped business and a known later outcome.
+**Why the lead changed.** A lawsuit carries the most lender-relevant signal while it is unresolved: bank data shows nothing about a pending ruling, an appeal bond or whether a judgment debtor will pay, and those are branching, forward-looking questions. By 13 August 2024 Synergy's dispute had already become ordinary settlement debt, which turns the investigation into document archaeology. The lead case must therefore have a dispute that is live on the decision date, a federal docket with public filings before that date, public financials, a business of the kind the lender finances and a known later outcome.
 
 **Lead: ChromaDex Corporation, using information available by the end of 19 August 2024.** A consumer supplement brand (Tru Niagen) that buys finished goods from contract manufacturers and sells online, on Amazon and in retail; about $84 million of 2023 net sales, $27.9 million of cash at 30 June 2024, an undrawn $10.0 million Western Alliance Bank revolver with liquidity covenants. Two disputes with Elysium Health, a former customer, move money in opposite directions on the decision date: in Delaware the court has granted Elysium its attorney fees, against ChromaDex, Inc. (the operating subsidiary) and the Trustees of Dartmouth College, and the amount (about $9.8 million with interest, by ChromaDex's estimate, reported as the Company's contingent liability) awaits a ruling that ChromaDex intends to appeal; in California a 13 August 2024 judgment orders Elysium to pay ChromaDex $2.5 million, with no payment date. Most resolution events (the fee judgment, the appeal bond, Elysium's appeal) fall inside the 180-day horizon over which a 90-day financing is assessed; the December settlement payment lands just after a 90-day term. Evidence: the 10-K, both 2024 10-Qs, the Q2 results release, the revolver amendment and nine federal court filings (CourtListener RECAP copies of PACER documents). The date is 19 August because on 20 August the Delaware court issued an order on the fee-amount dispute; by early September that branch was largely decided.
 
@@ -50,15 +50,15 @@ Synergy is already highly leveraged. That does not disqualify a real financing a
 
 ### Exact lead mission
 
-> As of 19 August 2024, analyse how external events could affect Slope financing of a USD 2.0 million contract-manufacturer invoice for ChromaDex Corporation, repaid in three monthly installments. ChromaDex's public filings describe long-running litigation with Elysium Health, a former customer, in several federal courts.
+> As of 19 August 2024, analyse how external events could affect the lender's financing of a USD 2.0 million contract-manufacturer invoice for ChromaDex Corporation, repaid in three monthly installments. ChromaDex's public filings describe long-running litigation with Elysium Health, a former customer, in several federal courts.
 
-The request is reconstructed (Slope bill-pay financing of a real borrower's supplier invoice). The mission names the borrower and the counterparty but no expected finding.
+The request is reconstructed (the lender's bill-pay financing of a real borrower's supplier invoice). The mission names the borrower and the counterparty but no expected finding.
 
 ### Secondary mission (Synergy)
 
 > As of 13 August 2024, assess a proposed incremental working-capital draw for Synergy CHC. Reconcile existing merchant financing and supplier-settlement obligations. Compare the requested structure with permitted alternatives, identify the binding cash requirements and export conditional loan collections.
 
-There is no claim Synergy applied to Slope. The proposed request is a **scenario input attached to a real borrower**, not a fabricated historical loan. The actual May merchant advance provides real contract mechanics and existing obligations. Its historical funding decision cannot be reconstructed from later August information.
+There is no claim Synergy applied to the lender. The proposed request is a **scenario input attached to a real borrower**, not a fabricated historical loan. The actual May merchant advance provides real contract mechanics and existing obligations. Its historical funding decision cannot be reconstructed from later August information.
 
 ## 3. What the evidence actually establishes
 
@@ -128,7 +128,7 @@ The page lets Russell move naturally from what the research learned, to what mig
 - **Scenario paths and stress:** the leading joint event paths with their probabilities and effects; all feasible paths, including zero-probability ones, under adverse placement as a separate stress view.
 - **Controls:** financed amount (up to the invoice), fee, Delaware exposure, collateral range, operating variability, and a probability override for a selected forecast node with 0%, Jev and 100% actions and reset. Recalculation never calls the agent or Jev.
 
-Slope underwrites on **connected bank data**. The demonstration supplies a synthetic connected-bank feed for the borrower up to the decision date, anchored to the public financial statements and labelled synthetic once, at its source.
+The lender underwrites on **connected bank data**. The demonstration supplies a synthetic connected-bank feed for the borrower up to the decision date, anchored to the public financial statements and labelled synthetic once, at its source.
 
 ## 5. From evidence to a modeled adjustment
 
@@ -174,13 +174,13 @@ Required domain objects: `DecisionContext`, `EvidenceValue`, `BorrowerCashBase`,
 Support two schedule adapters in V1:
 
 - **Actual Synergy merchant contract:** percentage of defined account credits, calendar-month milestones, funding-date anchor, separate six-month minimum-payment windows and catch-up obligations, business-day remittance handling, fixed total repayment. Do not derive interest/principal allocation or lien priority from an undocumented convention.
-- **Proposed fixed-installment draw:** import an explicit schedule or generate from a declared pricing convention. For the demo, a stated fixed total fee can be allocated into equal payments with a last-payment rounding adjustment. That is a declared demonstration offer, not inferred Slope pricing. Contractual APR, nominal interest and fixed-fee percentage are different quantities.
+- **Proposed fixed-installment draw:** import an explicit schedule or generate from a declared pricing convention. For the demo, a stated fixed total fee can be allocated into equal payments with a last-payment rounding adjustment. That is a declared demonstration offer, not the lender's inferred pricing. Contractual APR, nominal interest and fixed-fee percentage are different quantities.
 
 Model relevant existing debts, not just the attractive merchant example. Until current debt-service schedules are supplied, use bounded aggregate service inputs and expose their scope. Current Shopify receipts, remittances, funding dates and settlement installments are material missing public inputs; they are identified parameters, not a reason to fabricate a full history.
 
 ### Cash and collections
 
-Maintain a daily event ledger for known dates, displaying weekly or monthly summaries. Payment dates with only monthly/annual evidence stay interval-valued until a scenario explicitly selects dates. Horizon covers the proposed term and a declared tail; the proposed offer menu is supplied, never taken from another Slope product by accident.
+Maintain a daily event ledger for known dates, displaying weekly or monthly summaries. Payment dates with only monthly/annual evidence stay interval-valued until a scenario explicitly selects dates. Horizon covers the proposed term and a declared tail; the proposed offer menu is supplied, never taken from another of the lender's products by accident.
 
 `cash_before_debt = prior_closing_cash + receipts + available_financing − operating_outflows − event_outflows`
 
@@ -206,7 +206,7 @@ The financing terms are inputs: the financed amount (up to the invoice), funding
 
 ### Concrete proposal fixtures
 
-Include three **analytical offer fixtures**, explicitly labeled as proposed comparison inputs rather than actual applications or Slope prices:
+Include three **analytical offer fixtures**, explicitly labeled as proposed comparison inputs rather than actual applications or the lender's prices:
 
 | Fixture | Advance | Payments | Assumed total fixed fee | Regular monthly payment | Final payment |
 |---|---:|---:|---:|---:|---:|
@@ -214,7 +214,7 @@ Include three **analytical offer fixtures**, explicitly labeled as proposed comp
 | Requested six-month draw | $250,000 | 6 | 6% / $15,000 | $44,166.67 | $44,166.65 |
 | Shorter draw | $250,000 | 3 | 3% / $7,500 | $85,833.33 | $85,833.34 |
 
-These fixtures remain as reference arithmetic for the Synergy case; the lead case uses its supplied terms ($2.0M, three monthly installments, 3.7% fee). Default funding to the next business day after the decision date (Slope pays the supplier at once); the operator can change it. Show each structure's APR equivalent beside its fee, and apply Slope's proration of fees on early repayment. Show the minimum residual payment capacity required for each fixture, then apply the event calendar and action-dependent financed purchase plan. No fixture receives an automatic approval. A six-month offer extending into 2025 must include the relevant 2025 settlement timing uncertainty; stopping the legal cash obligations at December would overstate capacity.
+These fixtures remain as reference arithmetic for the Synergy case; the lead case uses its supplied terms ($2.0M, three monthly installments, 3.7% fee). Default funding to the next business day after the decision date (the lender pays the supplier at once); the operator can change it. Show each structure's APR equivalent beside its fee, and apply the lender's proration of fees on early repayment. Show the minimum residual payment capacity required for each fixture, then apply the event calendar and action-dependent financed purchase plan. No fixture receives an automatic approval. A six-month offer extending into 2025 must include the relevant 2025 settlement timing uncertainty; stopping the legal cash obligations at December would overstate capacity.
 
 ### Loan economics and portfolio output
 
