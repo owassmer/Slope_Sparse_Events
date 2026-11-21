@@ -490,7 +490,7 @@ export default function memory(pi: ExtensionAPI) {
   pi.registerTool({
     name: "frame",
     label: "Frame",
-    description: "Set the frame you work the current piece from, written from the purpose before you open the nearest thing at hand. It says what is: what must be true in the running product when the piece is done, in the terms of the user who sees it (Russell, or a developer running a case); the whole of what bears on it, each existing thing with what it is for; the unit of the work and what it unifies or removes; and what would mean the frame no longer holds. It stays in view as you work. When it no longer holds, or Owen corrects the work, write it again whole from the purpose, saying what is true now. Show Owen each frame as you write it.",
+    description: "Set the frame you work the current piece from, written from the purpose before you open the nearest thing at hand. It says what is: what must be true in the running product when the piece is done, in the terms of the user who sees it (the lender's head of lending, or a developer running a case); the whole of what bears on it, each existing thing with what it is for; the unit of the work and what it unifies or removes; and what would mean the frame no longer holds. It stays in view as you work. When it no longer holds, or Owen corrects the work, write it again whole from the purpose, saying what is true now. Show Owen each frame as you write it.",
     parameters: Type.Object({
       piece: Type.String({ description: "The piece of work, in a few words." }),
       text: Type.String({ description: "The frame." }),

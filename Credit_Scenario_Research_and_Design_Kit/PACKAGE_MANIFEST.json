@@ -632,8 +632,8 @@
     },
     {
       "path": "research/revision_v2/deliverables/Credit_Scenario_Build_Specification.md",
-      "bytes": 66378,
-      "sha256": "c6b4b832533e579b4a389e20243240732fedd22034745d66888a417e53795d3a"
+      "bytes": 66450,
+      "sha256": "b95839c9bd9b09389bf5616e8a7b63bd4d543cf717aeafad66fac0ea848dba21"
     },
     {
       "path": "research/revision_v2/package_kit.py",

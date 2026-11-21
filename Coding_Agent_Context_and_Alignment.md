@@ -2,41 +2,41 @@
 
 ## Purpose of this document
 
-This document gives you the intent behind the build: what Russell described to Owen, why the problem matters, what Owen wants to demonstrate, and how to make implementation choices that serve that purpose.
+This document gives you the intent behind the build: what the head of lending described to Owen, why the problem matters, what Owen wants to demonstrate, and how to make implementation choices that serve that purpose.
 
 Read it alongside `Credit_Scenario_Build_Specification.md` and `Credit_Scenario_Research_and_Design_Kit.zip`. The specification defines the implementation. The kit supplies evidence, schemas, configuration, examples and reference calculations. This document explains the surrounding product and collaboration context.
 
-The call account below comes from Owen’s description of his conversation with Russell. The product framing and design choices are the synthesis Owen approved for the demonstration. Keep that distinction when presenting the work: Russell supplied the problem and priorities; this implementation is Owen’s proposed solution.
+The call account below comes from Owen’s description of his conversation with the head of lending. The product framing and design choices are the synthesis Owen approved for the demonstration. Keep that distinction when presenting the work: the head of lending supplied the problem and priorities; this implementation is Owen’s proposed solution.
 
-## 1. What Russell described
+## 1. What the head of lending described
 
-Owen spoke with Russell, a lender's head of lending, about work involving credit decisions and financial modeling. Three parts of that conversation belong together.
+Owen spoke with a lender's head of lending about work involving credit decisions and financial modeling. Three parts of that conversation belong together.
 
 ### Sparse external information in credit decisions
 
-Russell described an initiative to improve credit decisions using information beyond what can be obtained from banking transactions. His particular interest was information that is sparse: events or circumstances that affect relatively few businesses and therefore do not make sense as ordinary features in a full-population model.
+The head of lending described an initiative to improve credit decisions using information beyond what can be obtained from banking transactions. His particular interest was information that is sparse: events or circumstances that affect relatively few businesses and therefore do not make sense as ordinary features in a full-population model.
 
 A lawsuit affecting a business was his example. The useful information may live in public filings, court documents, company disclosures and surrounding reporting. Understanding it requires research and interpretation: identifying what happened, which entity or activity is affected, whether an obligation exists, when it matters and what economic consequences follow.
 
-Russell described a secondary research flow using agents to locate this qualitative information and categorize or compute it into a form useful for modeling and lending decisions. He specifically mentioned **Jev** and an **agent workflow**. Both are central to what Owen wants to build.
+The head of lending described a secondary research flow using agents to locate this qualitative information and categorize or compute it into a form useful for modeling and lending decisions. He specifically mentioned **Jev** and an **agent workflow**. Both are central to what Owen wants to build.
 
 For the demonstration, the relevant business is the prospective borrower. Its lawsuit matters through its ability to generate, access and allocate cash over the period when the loan must be repaid.
 
 ### Capital-markets scenario modeling
 
-Russell also described capital-markets modeling. He compared it to FP&A while emphasizing more complex scenario modeling. The relevant idea is understanding how financial results change under different events and assumptions.
+The head of lending also described capital-markets modeling. He compared it to FP&A while emphasizing more complex scenario modeling. The relevant idea is understanding how financial results change under different events and assumptions.
 
 Owen sees the external-event initiative as a concrete way to create those scenarios. A researched lawsuit can change a payment calendar, expected customer receipts, access to funds or operating capacity. Those changes can then be propagated into loan cash flows and capital requirements.
 
 ### Assessing a loan portfolio
 
-Russell asked Owen how he would assess a loan portfolio. In that discussion, Russell emphasized the cash flows of the loans themselves as a core component.
+The head of lending asked Owen how he would assess a loan portfolio. In that discussion, the head of lending emphasized the cash flows of the loans themselves as a core component.
 
 That emphasis determines the primary unit of this build. The borrower’s financial position explains repayment capacity. The modeled asset is the loan: money advanced, money collected, the timing of collections, outstanding exposure and the capital tied up along the way.
 
-### What Russell asked Owen to do
+### What the head of lending asked Owen to do
 
-Russell asked Owen to come back with his thoughts on solutions. Owen wants to respond with a working demonstration that makes the proposed solution tangible and gives Russell something concrete to evaluate.
+The head of lending asked Owen to come back with his thoughts on solutions. Owen wants to respond with a working demonstration that makes the proposed solution tangible and gives the head of lending something concrete to evaluate.
 
 The intended result is a useful follow-up conversation about how this could fit the lender’s work, supported by a convincing implementation of the reasoning and financial mechanics.
 
@@ -56,7 +56,7 @@ The complete chain is:
 6. Carry the result into the loan: collections, collection timing, outstanding exposure, discounted cash flows and capital tied up.
 7. Show which uncertainty matters most to those outcomes.
 
-This connects Russell's credit-research problem to his scenario-modeling and portfolio-cash-flow interests. The module ends at the financial analysis, which a lending or capital-markets model can consume.
+This connects the head of lending's credit-research problem to his scenario-modeling and portfolio-cash-flow interests. The module ends at the financial analysis, which a lending or capital-markets model can consume.
 
 ## 3. Where the module stops
 
@@ -64,7 +64,7 @@ The financing terms are inputs: the amount, schedule, fee and funding date. The 
 
 The use of proceeds matters. An inventory advance can create sales and receipts; a different amount changes the purchase. Controls on the financed amount keep that visible.
 
-Use a concrete test when choosing an implementation detail: **Does this help Russell see what the researched evidence does to the loan's cash flows, and which uncertainty matters?** Russell should be able to move naturally from what the research learned, to what might happen and how likely it is, to what that does to cash and to the loan, to which uncertainty matters most. Work that does not strengthen that sequence is deferred.
+Use a concrete test when choosing an implementation detail: **Does this help the head of lending see what the researched evidence does to the loan's cash flows, and which uncertainty matters?** The head of lending should be able to move naturally from what the research learned, to what might happen and how likely it is, to what that does to cash and to the loan, to which uncertainty matters most. Work that does not strengthen that sequence is deferred.
 
 ## 4. What the financial model means in plain language
 
@@ -149,7 +149,7 @@ Domain formalization means learning the actual work well enough to define its ob
 
 This project should demonstrate all three. The domain work is understanding lending and the economic consequences of external events. The operational output is the loan's cash-flow analysis that a financing decision consumes. The evaluation examines whether the agent’s research and judgments lead to supported adjustments and useful financial outputs.
 
-Owen brings financial-mathematics training, financial-sector experience, credit-model and policy tooling, and experience building agentic applications. Relevant prior work includes credit decision workspaces with pricing, limits and scenario comparisons, as well as autonomous credit-policy research. He wants to apply that background to a specific problem Russell recognizes.
+Owen brings financial-mathematics training, financial-sector experience, credit-model and policy tooling, and experience building agentic applications. Relevant prior work includes credit decision workspaces with pricing, limits and scenario comparisons, as well as autonomous credit-policy research. He wants to apply that background to a specific problem the head of lending recognizes.
 
 The broader professional goal is to demonstrate that Owen can understand an ambiguous business problem, acquire the necessary domain knowledge, make sound product choices and build an operationally useful solution. The quality of the demo depends on those connections being visible.
 
@@ -175,7 +175,7 @@ Begin with a local runtime that can complete a real investigation and save a rep
 
 The research and design phase has produced the specification, acquired sources, structured examples, schemas and tested reference arithmetic. The coding phase must implement and exercise the live agent workflow, financial engine and decision interface. Report that progress accurately as each capability becomes operational.
 
-## 11. The demonstration Owen wants to show Russell
+## 11. The demonstration Owen wants to show the head of lending
 
 One analysis page carries the causal chain **evidence → Jev judgment → financial mechanism → financial impact**:
 
@@ -185,11 +185,11 @@ One analysis page carries the causal chain **evidence → Jev judgment → finan
 4. The most consequential judgment, traced from its source passage through Jev's forecast to the loan's cash, at 0%, Jev's value and 100%.
 5. One consequential economic assumption beside it, such as financing completion.
 
-The most compelling moment is when Russell follows a real passage into Jev's probabilistic judgment, sees it move the loan's cash-flow distribution, and changes it himself. There are no approval recommendations, provenance banners or verification displays on the page; the investigation record is a secondary link.
+The most compelling moment is when the head of lending follows a real passage into Jev's probabilistic judgment, sees it move the loan's cash-flow distribution, and changes it himself. There are no approval recommendations, provenance banners or verification displays on the page; the investigation record is a secondary link.
 
 ## 12. What success means
 
-The build succeeds when Russell can answer these questions from the working demonstration:
+The build succeeds when the head of lending can answer these questions from the working demonstration:
 
 - What did the research learn about the borrower's live disputes, and from which passages?
 - Which future developments could move cash, and how likely are they given that evidence?
@@ -203,4 +203,4 @@ Use this brief to guide product judgment; use the specification and kit for deta
 
 This is **builder context**. It includes the intended case mechanisms and demonstration narrative. Keep it separate from the historical investigator’s runtime inputs and the blind reviewer’s evidence bundle. Those components receive the scoped mission and admissible evidence defined by the application, so their performance can be evaluated meaningfully.
 
-When a technical choice requires judgment, prioritize the choice that makes the completed analysis more useful, financially sound and understandable to Russell and the lender.
+When a technical choice requires judgment, prioritize the choice that makes the completed analysis more useful, financially sound and understandable to the head of lending.

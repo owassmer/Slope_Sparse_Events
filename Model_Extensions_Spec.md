@@ -257,7 +257,7 @@ Each Jev question names:
 
 ### 3.6 What the page shows
 
-Every forecast node has a **"why this probability"** chain: each step with its basis label and source link, then the anchor, then the case adjustment. Russell sees exactly where the record, the law and arithmetic end and where judgment begins.
+Every forecast node has a **"why this probability"** chain: each step with its basis label and source link, then the anchor, then the case adjustment. The head of lending sees exactly where the record, the law and arithmetic end and where judgment begins.
 
 ---
 
@@ -781,4 +781,4 @@ Caps are settings, not limits on the work. Raise a cap to fit the run, report th
 
    Fix demonstrated defects, verify the walkthrough, and record.
 
-**Completion test:** Russell can follow a researched finding into a focused probabilistic judgment, see its effect on the loan's dated cash flows, and tell that effect apart from the assumptions underneath it. The result may concern timing, downside exposure or capital recycling; it does not need a dramatic reversal.
+**Completion test:** The head of lending can follow a researched finding into a focused probabilistic judgment, see its effect on the loan's dated cash flows, and tell that effect apart from the assumptions underneath it. The result may concern timing, downside exposure or capital recycling; it does not need a dramatic reversal.

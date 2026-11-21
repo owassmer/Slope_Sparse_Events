@@ -10,7 +10,7 @@ The thesis: **domain-informed probabilistic judgments turn unusual qualitative e
 
 The product stops at scenario and sensitivity analysis that a lending or capital-markets model can consume. It does not recommend, size, tier or condition a loan: those choices bring in risk appetite, pricing objectives, portfolio constraints and other credit signals that the sparse-event research does not establish. A litigation summary is not the deliverable either.
 
-This connects Russell's two topics: unusual borrower events create probabilistic scenarios for an individual loan's collections, and those collections feed portfolio liquidity and capital planning.
+This connects the head of lending's two topics: unusual borrower events create probabilistic scenarios for an individual loan's collections, and those collections feed portfolio liquidity and capital planning.
 
 ### Where it fits at the lender
 
@@ -118,7 +118,7 @@ The later facility payoff coincided with an equity raise. Do not attribute it so
 
 The operator opens **one analysis page** for the run. It carries the causal chain **evidence → Jev judgment → financial mechanism → financial impact** and nothing else. The investigation record stays behind a secondary link; inventories, coverage gates, statuses, reviewer checklists and execution diagnostics never enter the analysis page. There are no approval recommendations, provenance banners or hedging captions.
 
-The page lets Russell move naturally from what the research learned, to what might happen and how likely it is, to what that does to the borrower's cash and to the loan, to which uncertainty matters most:
+The page lets the head of lending move naturally from what the research learned, to what might happen and how likely it is, to what that does to the borrower's cash and to the loan, to which uncertainty matters most:
 
 - **Lender impact:** bank-only versus event-adjusted expected discounted lender cash flows, principal dollar-days (capital tied up), probability of full collection by maturity and uncollected balance, for the supplied terms.
 - **Collections timeline:** the contractual schedule, expected cumulative collections and P5–P95 bands, both views.
@@ -370,11 +370,11 @@ evals/                # gold premises, contradictions, isolation tests
 | 4b. Investigation | Scoped MCP tools, adaptive runner, recorded Synergy run, thin read-only investigation viewer | From only the admissible dated snapshot and locked baseline, the agent identifies decision-relevant gaps; Jev systematically screens retrieved evidence and checks narrow semantic claims; every accepted finding is atomic and traceable to source spans and semantic observations; every proposed economic effect names its mechanism, target, parameter requirements and baseline treatment; dates and arithmetic remain deterministic; pivotal unresolved facts remain typed unknowns; the full investigation is observable; and no answer-bearing document order or evaluator information reaches the run |
 | 4c. Jev at scale | Snapshot sweep reading list of atomic units, cited-paragraph gate, category-error guard on effects, statement-support checks, automatic relation checks, screen reliance attribution | No packet can be submitted with a cited paragraph or table row whose payment, obligation, restriction, covenant, default term or earnings items its findings do not state, an unsupported consequence or conclusion, an effect whose supporting findings fail its category rule, or an open reconciliation, unless each exception is resolved or escalated; an escalated cash-moving effect leaves the run INCOMPLETE_REVIEW, and coverage escalations and flagged units no finding cites go to the independent reviewer's checklist; the coverage prompt rule is removed; a recorded Synergy run shows these checks at work |
 | 5a. Lead case evidence | ChromaDex sources registered (mission `chromadex_20240819`), dated snapshot with federal court filings and SEC filings, locked run inputs, lead mission, reframed spec and builder context | Outcome sources and post-decision facts are absent from the snapshot; every baseline observation cites verbatim admissible text |
-| 5b. Probabilistic financial analysis | Synthetic connected-bank baseline (labelled once); supplied financing terms; dispute model with hydrated present-state interpretation and conditional Jev forecasts; path probabilities composed by code, the later same-counterparty dispute conditioned on the earlier; monthly block-bootstrap operating cash (512 draws, fixed seed, identical across views); event dates and amounts drawn in code-owned windows; dated lender cash flows (collections, timing, outstanding exposure, discounted cash flows, principal dollar-days) with bands; 0%/Jev/100% judgment sensitivity ranked by lender effect; separate stress view; one analysis page with evidence-to-impact drill-down and controls; `sparse-events analyze`; recorded ChromaDex run | Russell can follow a real passage into Jev's probabilistic judgment, see that judgment enter the distribution of the loan's dated cash flows, and see which uncertainty matters most; bank-only and event-adjusted views share identical operating draws; no feasible path is deleted for low probability |
+| 5b. Probabilistic financial analysis | Synthetic connected-bank baseline (labelled once); supplied financing terms; dispute model with hydrated present-state interpretation and conditional Jev forecasts; path probabilities composed by code, the later same-counterparty dispute conditioned on the earlier; monthly block-bootstrap operating cash (512 draws, fixed seed, identical across views); event dates and amounts drawn in code-owned windows; dated lender cash flows (collections, timing, outstanding exposure, discounted cash flows, principal dollar-days) with bands; 0%/Jev/100% judgment sensitivity ranked by lender effect; separate stress view; one analysis page with evidence-to-impact drill-down and controls; `sparse-events analyze`; recorded ChromaDex run | The head of lending can follow a real passage into Jev's probabilistic judgment, see that judgment enter the distribution of the loan's dated cash flows, and see which uncertainty matters most; bank-only and event-adjusted views share identical operating draws; no feasible path is deleted for low probability |
 | 6. Outcome reveal | After the analysis is locked, what actually happened, shown against the path probabilities in a separate panel | The reveal cannot contaminate the run; it illustrates the analysis and is not a calibration claim |
 | 7. Transfer/evaluation | Same engine on Synergy (secondary); agent-with-Jev vs agent-alone runs measured on critical semantic errors, finding and effect quality, pivotal-gap discovery, research efficiency, the Jev contribution ledger, agent/Jev disagreement, cost and decision consistency | Differences reported honestly, including failures and cases where Jev adds no value |
 
-The first demonstrable milestone was the Synergy financial core plus an agent-produced evidence adjustment; the lead demonstration is ChromaDex. Do not spend the first build phase on a polished legal dashboard or a warehouse model. Conversely, do not substitute a canned report for the adaptive investigation Russell explicitly mentioned.
+The first demonstrable milestone was the Synergy financial core plus an agent-produced evidence adjustment; the lead demonstration is ChromaDex. Do not spend the first build phase on a polished legal dashboard or a warehouse model. Conversely, do not substitute a canned report for the adaptive investigation the head of lending explicitly mentioned.
 
 ## 10. Acceptance criteria and evaluation
 
@@ -406,11 +406,11 @@ Critical errors—wrong entity, future leakage, fabricated payment date, demande
 
 The included schema checks and reference calculations validate design contracts and selected arithmetic only. They are not evidence of a built agent, a tested underwriting engine or a calibrated default model.
 
-## 11. What would make this compelling to Russell
+## 11. What would make this compelling to the head of lending
 
 The central demonstration is a traceable chain: **a real passage becomes Jev's conditional probability of a future event; code carries that probability into the distribution of the borrower's cash and the loan's dated collections; the sensitivity shows which judgment matters most to the lender.**
 
-ChromaDex shows two live disputes with the same counterparty whose outcomes move cash both ways inside the loan's life. Synergy's existing financial tests remain the arithmetic foundation. The output is an instrument Russell could recognize in a credit or capital-markets workflow: the lender's dated cash flows, with their uncertainty and its sources.
+ChromaDex shows two live disputes with the same counterparty whose outcomes move cash both ways inside the loan's life. Synergy's existing financial tests remain the arithmetic foundation. The output is an instrument the head of lending could recognize in a credit or capital-markets workflow: the lender's dated cash flows, with their uncertainty and its sources.
 
 ## Sources
 
