@@ -105,7 +105,7 @@
     "Do not backfill Q3 facility terms into August replay.",
     "Do not treat fiscal snapshot cash as fresh decision-date cash.",
     "Do not attribute Q1 facility paydown to litigation or operations alone; equity was raised.",
-    "Proposed Slope-style offer is a scenario, not a historical Slope application."
+    "The proposed offer is a scenario, not a historical application to the lender."
   ],
   "data_reconciliation_notes": [
     "Reported H1 plus Q3 revenue exceeds reported nine-month revenue by USD 1000; retain reported values.",

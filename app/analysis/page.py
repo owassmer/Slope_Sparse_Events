@@ -460,16 +460,16 @@ def docket_url(ref: str, links: dict[str, str]) -> str:
 
 
 def loan_rule(setup) -> str:
-    """How the company's cash reaches Slope's line, from the setup's collection mode and cash floor (Setup.collection,
+    """How the company's cash reaches the lender's line, from the setup's collection mode and cash floor (Setup.collection,
     Setup.need_days): the sentence the page shows for every decision that moves the company's cash."""
     if setup.collection == "debit":
-        how = ("Slope debits each installment in full on its due date when the company's available cash covers it; a "
+        how = ("The lender debits each installment in full on its due date when the company's available cash covers it; a "
                "debit that fails stays past due and is retried on the next due date or month-end")
     elif setup.collection == "protect_need":
-        how = f"Slope collects each installment only from cash above the {setup.need_days}-day operating need"
+        how = f"The lender collects each installment only from cash above the {setup.need_days}-day operating need"
     else:
         raise ValueError(f"No collection rule {setup.collection!r}")
-    return (f"On the loan: through the company's cash. {how}. Slope funds a draw only while nothing is overdue and "
+    return (f"On the loan: through the company's cash. {how}. The lender funds a draw only while nothing is overdue and "
             "there is no bankruptcy filing")
 
 
@@ -496,7 +496,7 @@ def mechanism(node: str, spec: dict, model: dict, setup) -> list[str]:
     if files:
         eff = model["templates"].get("bankruptcy_effects", {}).get("effects", {})
         out += [f"A filing: {plain(eff['petition'])}"] if "petition" in eff else []
-        out.append("On the loan: from the petition Slope collects nothing and funds no draw; the balance owed is "
+        out.append("On the loan: from the petition the lender collects nothing and funds no draw; the balance owed is "
                    "frozen, and collections in the 90 days before it are clawback exposure")
     else:
         out.append(loan_rule(setup))
@@ -707,7 +707,7 @@ def path_scalars(r) -> dict[str, np.ndarray]:
 
 
 def bridge(bank: dict[str, float], research: dict[str, float]) -> dict[str, float]:
-    """What research adds to collections, in two parts (page.js bridgeLine): the change in payments due (Slope funds
+    """What research adds to collections, in two parts (page.js bridgeLine): the change in payments due (the lender funds
     more or less, so more or fewer installments fall due) and the change in due and unpaid, sign reversed. Collected
     = payments due - due and unpaid in each view, so the parts sum to the collected difference."""
     return {"collected": research["collected"] - bank["collected"], "due": research["due"] - bank["due"],
@@ -890,7 +890,7 @@ def line_block(setup, inputs: dict) -> dict:
     return {"opened": opened.get("date"), "opened_limit_cents": opened.get("limit_cents"),
             "principal_cents": e.principal_cents, "past_due_cents": e.past_due_cents,
             "installments": [[d.isoformat(), c] for d, c in e.installments],
-            "draw_rule": "Slope funds a draw only while nothing is overdue and there is no bankruptcy filing"}
+            "draw_rule": "The lender funds a draw only while nothing is overdue and there is no bankruptcy filing"}
 
 
 def common_block(setup) -> list[list[str]]:

@@ -1,6 +1,6 @@
 """Build the analysis of a recorded investigation, and recompute it for the page's controls.
 
-`build` asks Jev for the conditional forecasts (cached; `refresh` re-asks), simulates Slope's reusable line, and
+`build` asks Jev for the conditional forecasts (cached; `refresh` re-asks), simulates the lender's reusable line, and
 writes the sidecar artifacts beside the recorded run: analysis.json (views, lead-time series, the three-step
 attribution, judgment sensitivity, stress), collections.csv and cashflows.csv. `recompute` reuses the stored
 judgments: a probability override reweights the existing trajectories, a financial control (fee, line usage, limit

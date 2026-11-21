@@ -3,7 +3,7 @@
   "case_id": "synergy_chc_2024",
   "snapshot_id": "synergy_20240813",
   "status": "locked_operator_inputs",
-  "note": "Operator request and ordinary baseline for the 13 Aug 2024 review. Offers are analytical fixtures, not Slope pricing or a historical application. The baseline holds only ordinary underwriting facts; event mechanisms are for the investigation to establish.",
+  "note": "Operator request and ordinary baseline for the 13 Aug 2024 review. Offers are analytical fixtures, not the lender's pricing or a historical application. The baseline holds only ordinary underwriting facts; event mechanisms are for the investigation to establish.",
   "run_inputs": {
     "mission_id": "synergy_chc_2024_working_capital_advance",
     "requested_use": {
@@ -23,7 +23,7 @@
     "requested_pricing": {
       "value": "fixed total fee of 6% of the advance, equal monthly payments",
       "basis": "operator_assumption",
-      "note": "Analytical fixture; not an APR and not Slope pricing."
+      "note": "Analytical fixture; not an APR and not the lender's pricing."
     },
     "baseline_profile_id": "synergy_ordinary_baseline_v1",
     "existing_loan_record_ids": [
@@ -188,7 +188,7 @@
       "value": 20000000,
       "unit": "USD_cents",
       "basis": "operator_assumption",
-      "note": "Illustrative $200,000 liquidity reserve; not Slope policy."
+      "note": "Illustrative $200,000 liquidity reserve; not the lender's policy."
     }
   }
 }

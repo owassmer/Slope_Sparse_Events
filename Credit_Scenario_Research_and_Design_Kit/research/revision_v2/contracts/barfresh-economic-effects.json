@@ -61,7 +61,7 @@
     "decision_timezone": "America/New_York",
     "decision_type": "new_draw",
     "transaction_basis": "analytical_candidate",
-    "slope_relationship": "not_established",
+    "lender_relationship": "not_established",
     "stakeholder_scope": "loan_asset_holder",
     "currency": "USD",
     "requested_amount": {
@@ -80,7 +80,7 @@
       }
     },
     "requested_term_months": null,
-    "use_of_proceeds": "Analyze funding inventory and receivables conversion while replacement manufacturing capacity ramps. The actual receivables facility is the financing anchor; this is not a documented Slope application.",
+    "use_of_proceeds": "Analyze funding inventory and receivables conversion while replacement manufacturing capacity ramps. The actual receivables facility is the financing anchor; this is not a documented application to the lender.",
     "baseline_id": null,
     "baseline_status": "historical_observations_only",
     "available_actions": [

@@ -29,7 +29,7 @@
       "type": "string"
     },
     "artifact_status": {
-      "const": "analytical_proposals_not_historical_applications_or_slope_quotes"
+      "const": "analytical_proposals_not_historical_applications_or_lender_quotes"
     },
     "currency": {
       "const": "USD"

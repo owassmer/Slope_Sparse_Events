@@ -166,9 +166,9 @@ def _review_date(ctx: RunContext) -> date:
 
 
 async def read_baseline_profile(ctx: RunContext, _args: dict) -> dict:
-    from app.analysis.setup import is_slope_case
+    from app.analysis.setup import is_supplied_terms_case
 
-    if is_slope_case(ctx.inputs):
+    if is_supplied_terms_case(ctx.inputs):
         from app.finance.bank import load_feed, summary
 
         return {"baseline_profile": ctx.inputs["baseline_profile"], "financing_plan": ctx.inputs["financing_plan"],
@@ -177,16 +177,16 @@ async def read_baseline_profile(ctx: RunContext, _args: dict) -> dict:
 
 
 async def read_loan_terms(ctx: RunContext, _args: dict) -> dict:
-    from app.analysis.setup import is_slope_case, setup_from_inputs
+    from app.analysis.setup import is_supplied_terms_case, setup_from_inputs
 
-    if is_slope_case(ctx.inputs):
+    if is_supplied_terms_case(ctx.inputs):
         st = setup_from_inputs(ctx.inputs, _review_date(ctx))
         o = st.offer
         return {"product": ctx.inputs["financing_plan"]["supplied_terms"]["product"],
                 "supplied_terms": {"amount_cents": o.amount_cents, "installments": o.installments, "days": o.days,
                                    "fee_bps": o.fee_bps, "fee_cents": o.fee_cents,
                                    "apr_equivalent_bps": o.apr_equivalent_bps(st.funding)},
-                "funding_date": st.funding.isoformat(), "invoice_due_without_slope": st.invoice_due.isoformat(),
+                "funding_date": st.funding.isoformat(), "invoice_due_without_financing": st.invoice_due.isoformat(),
                 "schedule": [{"due": p.due.isoformat(), "amount_cents": p.amount_cents} for p in o.schedule(st.funding)],
                 "existing_loans": ctx.inputs["baseline_profile"]["existing_loans"],
                 "note": "The terms are supplied inputs; the host analyses the loan's cash flows after the run."}
@@ -481,10 +481,10 @@ async def propose_effect(ctx: RunContext, args: dict) -> dict:
 
 async def run_sensitivity(ctx: RunContext, args: dict) -> dict:
     """Remaining-period required net cash across explicit paid-since-measurement scenarios."""
-    from app.analysis.setup import is_slope_case
+    from app.analysis.setup import is_supplied_terms_case
 
-    if is_slope_case(ctx.inputs):
-        raise ToolError("run_sensitivity applies to fixed-installment cases; on Slope's terms the host builds the analysis after the run")
+    if is_supplied_terms_case(ctx.inputs):
+        raise ToolError("run_sensitivity applies to fixed-installment cases; on the lender's terms the host builds the analysis after the run")
     opening = _baseline_item(ctx, "opening_cash_observation_id")
     if opening is None:
         raise ToolError("This case's baseline names no opening-cash observation")

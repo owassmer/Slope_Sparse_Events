@@ -7,7 +7,7 @@
   "decision_timezone": "America/New_York",
   "decision_type": "new_draw",
   "transaction_basis": "analytical_candidate",
-  "slope_relationship": "not_established",
+  "lender_relationship": "not_established",
   "stakeholder_scope": "loan_asset_holder",
   "currency": "USD",
   "requested_amount": {
@@ -22,7 +22,7 @@
       "source_fact_ids": [],
       "assumption_id": null,
       "derivation": null,
-      "note": "A proposed incremental financing amount is an operator choice, not a disclosed Slope application."
+      "note": "A proposed incremental financing amount is an operator choice, not a disclosed application to the lender."
     }
   },
   "requested_term_months": null,
@@ -43,5 +43,5 @@
     "Actual May merchant-loan effective funding date",
     "Proposed incremental amount, pricing, term and funded operating plan"
   ],
-  "note": "The example computes useful conditional thresholds from real obligations plus named assumptions. It does not fabricate historical bank transactions, channel receipts, a complete borrower forecast, or a Slope relationship."
+  "note": "The example computes useful conditional thresholds from real obligations plus named assumptions. It does not fabricate historical bank transactions, channel receipts, a complete borrower forecast, or a relationship with the lender."
 }

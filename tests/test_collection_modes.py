@@ -1,4 +1,4 @@
-"""Collection and the cash floor are separate settings (spec §16.3). `debit`: Slope's automatic debit collects each
+"""Collection and the cash floor are separate settings (spec §16.3). `debit`: the lender's automatic debit collects each
 installment in full when available cash covers it, else it fails and is retried; `protect_need`: the borrower keeps
 its operating need back (the previous rule). `need_days` sets the cash floor and limits collections only under
 `protect_need`."""

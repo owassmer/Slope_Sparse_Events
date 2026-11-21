@@ -58,7 +58,7 @@ The desired architecture is:
                  └─────────────────────────────┘
 ```
 
-That separation is unusually well aligned with both the repository’s existing design and Slope’s own published architecture. The repo explicitly says the deliverable is **a financing decision plus the loan’s dated cash flows, not a litigation summary**; it assigns interpretation to the agent/Jev and arithmetic to deterministic code. fileciteturn17file0L2-L2 Slope’s own 2026 description of its internal agents platform similarly says its credit-review agent prepares the work while humans make the lending decision, that agents are read-only observers, that execution is traceable, and that the harness—not the model—controls tools, context, guardrails, and observability. citeturn12search0
+That separation is unusually well aligned with both the repository’s existing design and the lender’s own published architecture. The repo explicitly says the deliverable is **a financing decision plus the loan’s dated cash flows, not a litigation summary**; it assigns interpretation to the agent/Jev and arithmetic to deterministic code. fileciteturn17file0L2-L2 The lender’s own 2026 description of its internal agents platform similarly says its credit-review agent prepares the work while humans make the lending decision, that agents are read-only observers, that execution is traceable, and that the harness—not the model—controls tools, context, guardrails, and observability. citeturn12search0
 
 The most important recommendation is therefore:
 
@@ -78,7 +78,7 @@ The best Module Four is therefore one in which:
 
 ### The first three modules created the right substrate
 
-The repository’s builder instructions are clear about the product: this is a Russell/Slope proof of concept for a credit reviewer considering incremental working-capital exposure. The unusual lawsuit or external event is valuable only insofar as it changes borrower cash capacity, loan collections, feasible financing structures, or capital impact. The repo also explicitly defines several unacceptable failure modes: wrong entity, future-information leakage, fabricated payment dates, treating demanded amounts as paid, overstating cash, double-counting obligations, converting unknowns to zero, and using Jev confidence as a probability. fileciteturn17file0L2-L2
+The repository’s builder instructions are clear about the product: this is a proof of concept for a lender's credit reviewer considering incremental working-capital exposure. The unusual lawsuit or external event is valuable only insofar as it changes borrower cash capacity, loan collections, feasible financing structures, or capital impact. The repo also explicitly defines several unacceptable failure modes: wrong entity, future-information leakage, fabricated payment dates, treating demanded amounts as paid, overstating cash, double-counting obligations, converting unknowns to zero, and using Jev confidence as a probability. fileciteturn17file0L2-L2
 
 That is exactly the right philosophy.
 
@@ -176,7 +176,7 @@ A general-purpose reasoning agent can distinguish these, but Jev lets the system
 
 That makes Jev valuable not because it is “smarter than Claude,” but because it produces a **stable semantic interface**.
 
-This is analogous to Slope’s own recently published three-layer cashflow architecture. Slope describes a deterministic/structured lower layer followed by an AI contextual-review layer that emits corrections plus concrete findings/action items; importantly, when calculations are needed, their reasoning agent uses code rather than relying on linguistic reasoning. citeturn12search1
+This is analogous to the lender’s own recently published three-layer cashflow architecture. The lender describes a deterministic/structured lower layer followed by an AI contextual-review layer that emits corrections plus concrete findings/action items; importantly, when calculations are needed, their reasoning agent uses code rather than relying on linguistic reasoning. citeturn12search1
 
 ### Semantic verification of agent proposals
 
@@ -306,7 +306,7 @@ Mission
              Finance engine
 ```
 
-This graph should be the same thing consumed by the final packet, independent reviewer, UI, and evaluator. Slope’s own internal platform philosophy is notably similar: its thread captures messages, tool calls, cost metadata, active versions, and other execution events in one source of truth used for debugging and quality control. citeturn12search0
+This graph should be the same thing consumed by the final packet, independent reviewer, UI, and evaluator. The lender’s own internal platform philosophy is notably similar: its thread captures messages, tool calls, cost metadata, active versions, and other execution events in one source of truth used for debugging and quality control. citeturn12search0
 
 The key new domain models should be conceptually:
 
@@ -485,7 +485,7 @@ These should mostly be **Noul** judgments.
 | `premise_conflict` | **“Does this passage conflict with a factual premise in the unanswered question?”** | Protects the agent from searching only inside its current framing. |
 | `instruction_like_text` | **“Does this passage try to instruct the reviewing system what to do, rather than merely describe the underlying matter?”** | Defense-in-depth for untrusted text; not a substitute for isolation. |
 
-That profile directly mirrors TypeSafe’s official retrieval-classification pattern, adapted to Slope’s evidence semantics. citeturn16view0
+That profile directly mirrors TypeSafe’s official retrieval-classification pattern, adapted to the lender’s evidence semantics. citeturn16view0
 
 For this curated SEC/court corpus, `instruction_like_text` is lower-value than the first three. Keep it inexpensive and invisible to the normal reviewer experience rather than turning “prompt injection” into a product feature.
 
@@ -554,7 +554,7 @@ The repo already says that is the product. fileciteturn17file0L2-L2
 
 I would bring a **thin investigation viewer forward into Module Four** rather than waiting until the later review/UI module. Module Six can still own the polished final credit-decision experience. Module Four needs enough interface to make the semantic pipeline observable and debuggable now.
 
-That is also consistent with Slope’s own platform philosophy: structured UI artifacts, traceable execution, and an agent that prepares evidence and analysis for human review rather than taking lending actions itself. citeturn12search0
+That is also consistent with the lender’s own platform philosophy: structured UI artifacts, traceable execution, and an agent that prepares evidence and analysis for human review rather than taking lending actions itself. citeturn12search0
 
 ### Primary screen hierarchy
 
@@ -692,7 +692,7 @@ This is better than an unrestricted “edit AI answer” textbox because it pres
 
 It should not mean rendering internal model reasoning tokens.
 
-That is also closer to Slope’s own described execution-log approach, which records tool calls, configuration versions, cost, and other observable execution events. citeturn12search0
+That is also closer to the lender’s own described execution-log approach, which records tool calls, configuration versions, cost, and other observable execution events. citeturn12search0
 
 ## The remaining modules should be re-planned around this graph
 
@@ -879,4 +879,4 @@ It also creates the demo Russell actually needs to see:
 
 > **An unusual external event enters as messy text. The system progressively turns it into clean, auditable economic facts. Those facts change explicit cash streams. Those streams change loan collections and feasible structures. The reviewer sees exactly where AI judgment was used, where deterministic math took over, what remains unknown, and why the proposed financing action follows.**
 
-That is the architecture in which Jev is maximally utilized **and correctly bounded**—and it is much closer to Slope’s own emerging philosophy of structured context, specialized reasoning, deterministic analysis, traceability, and human decision authority than a generic “agent with an AI judge” demo. citeturn12search0turn12search1
+That is the architecture in which Jev is maximally utilized **and correctly bounded**—and it is much closer to the lender’s own emerging philosophy of structured context, specialized reasoning, deterministic analysis, traceability, and human decision authority than a generic “agent with an AI judge” demo. citeturn12search0turn12search1

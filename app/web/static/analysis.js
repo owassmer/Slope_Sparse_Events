@@ -31,7 +31,7 @@
   function header() {
     const s = D.setup;
     $("hdr-title").textContent = `${D.borrower}: how its disputes move the loan's cash flows`;
-    $("hdr-sub").textContent = `As of ${fdate(s.review)} · ${money(s.amount_cents)} of a ${money(s.invoice_cents)} supplier invoice financed by Slope, `
+    $("hdr-sub").textContent = `As of ${fdate(s.review)} · ${money(s.amount_cents)} of a ${money(s.invoice_cents)} supplier invoice financed by the lender, `
       + `funded ${fdate(s.funding)}, ${s.installments} monthly installments, ${(s.fee_bps / 100).toFixed(2)}% fee · analysed to ${fdate(s.horizon)} `
       + `across ${s.draws} operating draws and ${D.scenarios.length} event paths`;
   }

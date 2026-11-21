@@ -11,7 +11,7 @@
   "line": {
     "title": "The line",
     "limit": "Limit",
-    "limit_note": "Slope's published sizing rule on the connected bank data",
+    "limit_note": "The lender's published sizing rule on the connected bank data",
     "fee": "Fee",
     "fee_value": "{fee} of each draw",
     "repaid": "Repaid in",
@@ -47,7 +47,7 @@
     "due": "Installments falling due by {horizon}, including the line's installments outstanding on the review date.",
     "rate": "Collected ÷ due by {horizon}.",
     "past_due": "Due by {horizon}, not collected and not frozen by a filing.",
-    "stayed": "Owed to Slope on the day of a bankruptcy filing, on outcomes with a filing by {horizon}; collection stops. It includes installments not yet due at the filing. Weighted over all outcomes (zero where no filing): {weighted}.",
+    "stayed": "Owed to the lender on the day of a bankruptcy filing, on outcomes with a filing by {horizon}; collection stops. It includes installments not yet due at the filing. Weighted over all outcomes (zero where no filing): {weighted}.",
     "not_yet_due": "Installments falling due after {horizon}, on outcomes with no filing.",
     "filing": "Share of outcomes in which {company} files, or is put into, bankruptcy by {horizon}.",
     "preference": "Collections in the 90 days before a filing, which a trustee can seek to recover, on outcomes with a filing by {horizon}. Weighted over all outcomes (zero where no filing): {weighted}.",

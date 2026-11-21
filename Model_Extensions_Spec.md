@@ -14,13 +14,13 @@
 - D falls just after the filing that brings the public record up to date. It is justified by that filing, never by when the known outcome lands.
 - The dispute is live, with its next steps inside the 180-day horizon.
 - The borrower looks stressed but fundable on bank data alone.
-- The event's cash can reach Slope's exposure while that exposure is outstanding.
+- The event's cash can reach the lender's exposure while that exposure is outstanding.
 
 **Why Akoustis at 20 June:**
 - The verdict is in. Every post-trial motion, the injunction, fees, interest and trebling are pending.
 - Bank data looks fundable after the May share sale.
 - The research's warning comes about six months before the 16 Dec 2024 petition, which falls inside the horizon (it ends 17 Dec).
-- A single 90-day draw would be repaid by September, so the loan is Slope's reusable line (§2.1).
+- A single 90-day draw would be repaid by September, so the loan is the lender's reusable line (§2.1).
 
 ---
 
@@ -144,18 +144,18 @@ ChromaDex and everything specific to it leave the repository, in one reviewable 
 
 ---
 
-## 2. The loan: Slope's reusable line
+## 2. The loan: the lender's reusable line
 
 ### 2.1 Terms and draws
 
-**Terms at D.** The run inputs, written by `cases/<case>/make_run_inputs.py`, apply Slope's published rule to the bank feed:
-- **Limit:** 15% × (mean monthly customer receipts − mean monthly `debt_service`), over the trailing three complete months. 15% is the low end of Slope's 15–33% range, used for a stressed profile.
+**Terms at D.** The run inputs, written by `cases/<case>/make_run_inputs.py`, apply the lender's published rule to the bank feed:
+- **Limit:** 15% × (mean monthly customer receipts − mean monthly `debt_service`), over the trailing three complete months. 15% is the low end of the lender's 15–33% range, used for a stressed profile.
 - **Fee and schedule:** 3.7%, in 3 equal monthly installments.
-- **Label, once:** "Terms reconstructed by applying Slope's published sizing rule to the connected-bank baseline."
+- **Label, once:** "Terms reconstructed by applying the lender's published sizing rule to the connected-bank baseline."
 
-**Reassessment.** Slope reassesses the limit with the same rule at every draw date, on each trajectory's simulated trailing receipts. This is Slope's own bank-data response. The rule reads receipts net of debt service, which dispute cash does not change, so the reassessed limit is effectively blind to the dispute. That is measured in §2.4, not assumed.
+**Reassessment.** The lender reassesses the limit with the same rule at every draw date, on each trajectory's simulated trailing receipts. This is the lender's own bank-data response. The rule reads receipts net of debt service, which dispute cash does not change, so the reassessed limit is effectively blind to the dispute. That is measured in §2.4, not assumed.
 
-**Draws.** Each simulated `supplier_invoice` outflow is routed through Slope when all of these hold:
+**Draws.** Each simulated `supplier_invoice` outflow is routed through the lender when all of these hold:
 - outstanding + the invoice ≤ the day's limit;
 - no installment is overdue (a labelled model rule);
 - no petition has been filed.
@@ -166,7 +166,7 @@ ChromaDex and everything specific to it leave the repository, in one reviewable 
 
 ### 2.2 Collections
 
-On each due date, and at each month-end while anything is overdue, Slope collects `min(owed, max(0, available − need))`:
+On each due date, and at each month-end while anything is overdue, the lender collects `min(owed, max(0, available − need))`:
 - `need` is the lowest point of that trajectory's own operating flows over the next 30 days.
 - Rationale, stated once: a borrower near its operating floor protects payroll and suppliers, and an ACH debit fails when the funds have been moved.
 - With zero need, the rule reproduces the previous one exactly.
@@ -191,13 +191,13 @@ From the petition date `p`:
 
 This section replaces the node-by-node holistic forecasts of revision 1.
 
-### 3.1 Start from what decides Slope's collections
+### 3.1 Start from what decides the lender's collections
 
-Slope's collections stop, or fall short, in only two ways (§2.2–2.3):
+The lender's collections stop, or fall short, in only two ways (§2.2–2.3):
 - **a petition** (Law: 11 U.S.C. §362);
 - **cash above operating need** too low on a due date (Arithmetic: the collection rule).
 
-So the question behind every forecast is: **what could cause a petition, or drain the borrower's cash, while Slope's draws are outstanding?** Each case begins with that list, each item sourced (§4.0, §5.0). Only chains that lead to one of those items are walked.
+So the question behind every forecast is: **what could cause a petition, or drain the borrower's cash, while the lender's draws are outstanding?** Each case begins with that list, each item sourced (§4.0, §5.0). Only chains that lead to one of those items are walked.
 
 ### 3.2 Walk each chain by asking how the actor decides
 
@@ -392,7 +392,7 @@ About 20–30 residual questions, each one actor's decision with its facts, depe
 
 Code only, as in §4.4.
 
-**Wolfspeed's 2014 security interest** ranks ahead of Slope only in an insolvency. No petition is in the record inside this horizon, so it is noted and not modelled.
+**Wolfspeed's 2014 security interest** ranks ahead of the lender only in an insolvency. No petition is in the record inside this horizon, so it is noted and not modelled.
 
 ---
 
@@ -483,7 +483,7 @@ Step 4 minus step 3 is the qualitative signal from this record, measured in the 
 
 In order: evidence → Jev judgment → mechanism → impact.
 
-1. **The business and its Slope line:** how Slope's rule sized it, the invoices it finances, the synthetic-bank label once.
+1. **The business and its line:** how the lender's rule sized it, the invoices it finances, the synthetic-bank label once.
 2. **What the research learned:** disputes, components with amounts and their basis, financing terms, deadlines.
 3. **What might happen:** the tree. Each node shows its probability and its **"why" chain** (basis labels, sources, anchor then adjustment).
 4. **What it does to cash:** bands, backup liquidity, the petition probability over time.
@@ -605,11 +605,11 @@ Jev never sets amounts, so code needs a rule.
 - (ii) Declared scenarios: a lump sum at the payer's feasibility bound; or staged payments within the horizon up to that bound, with the remainder beyond it. Both labelled; neither weighted as if known.
 - (iii) The old ranges: rejected.
 
-**Recommendation:** (i) if found. Otherwise (ii), with the feasibility bound computed per path, and the page showing whether the choice between the two scenarios moves Slope's collections. The realised Charles & Colvard settlement structure is an outcome and must not inform the scenarios.
+**Recommendation:** (i) if found. Otherwise (ii), with the feasibility bound computed per path, and the page showing whether the choice between the two scenarios moves the lender's collections. The realised Charles & Colvard settlement structure is an outcome and must not inform the scenarios.
 
-### D6: how much of each eligible invoice the borrower routes through Slope (`line_usage`)
+### D6: how much of each eligible invoice the borrower routes through the lender (`line_usage`)
 
-**What it is.** The borrower decides which supplier invoices to finance through Slope. The default is 100%.
+**What it is.** The borrower decides which supplier invoices to finance through the lender. The default is 100%.
 
 **Basis:**
 - **Record:** no cheaper credit at D (Akoustis: ATM suspended, 45-day lock-up, authorized-share limit, equity at $0.20; Charles & Colvard: late filings block the shelf, and the JPMorgan line is short-dated). Both stress cash conservation (Akoustis: "continued focus on cash conservation"; the burn-cut plan).
@@ -620,7 +620,7 @@ Jev never sets amounts, so code needs a rule.
 - each draw repays over 90 days, so the line refills only as installments are paid (roughly a third of the limit a month);
 - so any usage above roughly 10–30% keeps the line full, and exposure is set by **the limit, not the usage**.
 
-**The decision that actually carries weight is Slope's limit:** 15% of receipts after debt service, against up to 33%. That is the limit-multiplier control.
+**The decision that actually carries weight is the lender's limit:** 15% of receipts after debt service, against up to 33%. That is the limit-multiplier control.
 
 **Recommendation:** 100%. State once that exposure is limit-bound above the threshold, and show the usage sensitivity, which confirms it.
 
@@ -652,7 +652,7 @@ Owen's decisions, 25 Sep 2026.
 4. **Legal meaning is not a Jev question.** Where research can settle a legal question (§24-5(b) and unjust enrichment; trebling after the jury's "No"), it is Law. Jev forecasts a court's resolution only where the design document records, with a citation, that the question is open. `financing_interpretation` does not decide what a contract means; the agent quotes the terms and code checks them.
 5. **Exclusions use only three grounds:** the decision belongs to someone else, the fact cannot be obtained, or its window has closed. That an event has not happened yet is never a ground. So: Akoustis models a petition driven by operating cash (threat T5); Charles & Colvard has a petition threat and Wolfspeed's 2014 security interest (¶6(c)); the injunction's revenue effect gets one bounded research attempt before it is left out of cash.
 6. **Indenture conditions restored:** §7.01(i) excludes amounts covered by insurance; §7.01(h) cross-default at $2.5M; §7.02 acceleration and rescission.
-7. **Anchored at the decision date.** The case for 20 June and for the reusable line rests on the filing record and Slope's published product, never on where the petition falls. Before the Akoustis feed is built, check whether proration by business days moves post-D cash before D (the 31 Mar balance plus the May proceeds is about the reported 30 Jun balance, implying almost no April–June burn).
+7. **Anchored at the decision date.** The case for 20 June and for the reusable line rests on the filing record and the lender's published product, never on where the petition falls. Before the Akoustis feed is built, check whether proration by business days moves post-D cash before D (the 31 Mar balance plus the May proceeds is about the reported 30 Jun balance, implying almost no April–June burn).
 8. **The round 2 acquisition notes are evidence only.** Their kit copies carry no direction marks and no outcome check.
 
 ---
@@ -677,9 +677,9 @@ Owen's decisions, 27 Sep 2026. This section governs where it differs from §1–
 
 - **Case and date.** Akoustis Technologies, reviewed on **14 May 2024**, the day after its 10-Q and earnings call.
   - Qorvo's trade-secret and patent claims are at jury trial; liability and damages are undecided.
-  - The line is a manual-review line (limit above Slope's $250k automatic approval), so a reviewer on that date would see the trial.
+  - The line is a manual-review line (limit above the lender's $250k automatic approval), so a reviewer on that date would see the trial.
 - **Horizon.** 180 days, to **10 Nov 2024**.
-- **Line terms.** Slope's reusable line under §2: three monthly installments per invoice, and the limit from Slope's published rule, recomputed on the 14 May feed.
+- **Line terms.** The lender's reusable line under §2: three monthly installments per invoice, and the limit from the lender's published rule, recomputed on the 14 May feed.
 - **Cutoff.** Nothing made public after 14 May enters the snapshot, the feed, the model or any question. Excluded in particular:
   - the verdict and the judgment;
   - the post-trial motions and their briefing dates;
@@ -698,7 +698,7 @@ Every path shares these. They decide much of the result, so each is stated.
 | **Opening cash and history** | Reconstruct through 14 May from anchors public by then (31 Mar balance sheet, 10-Q cash flows, the 13 May call). Do not truncate the 20 Jun feed: its April–June calibration uses later quarterly totals. |
 | **Operating outlook** | Central case: historical continuation. Scenario: the cost cut management announced on 13 May, where its cash effect can be specified. Never tune burn toward a result. |
 | **Financing** | An explicit amount-and-date scenario, shared by every path. Proceeds are booked on the completion date. "Seeks financing" alone books no cash. The central case adds no financing the record does not fix. The equity sensitivity is a plain cash injection; a debt alternative also books its service. The actual later raise is never imported. |
-| **Collection** | Slope debits each installment automatically on its due date, and the debit succeeds when available cash covers it (central). Sensitivity: the borrower protects its next 30 days of operating need before paying Slope. That is an assumption about the borrower, not Slope's mechanism. |
+| **Collection** | The lender debits each installment automatically on its due date, and the debit succeeds when available cash covers it (central). Sensitivity: the borrower protects its next 30 days of operating need before paying the lender. That is an assumption about the borrower, not the lender's mechanism. |
 | **Cash floor** | The point where the company must act: available cash below its next 30 days of operating need, with one alternative setting. It triggers the company's cash-floor decision (raise equity, file, continue) and sets the facts given to Jev. It is not an automatic filing and does not limit collections. |
 | **Settlement and security** | Explicit amounts and calendars. Available cash above the reserve bounds what can be paid; it is not the amount every negotiation produces. |
 | **Legal spend** | Only spend attributable to this dispute stops when the dispute ends. The professional-fee proxy is labeled as a proxy. |
@@ -723,7 +723,7 @@ Every path shares these. They decide much of the result, so each is stated.
 - **Jev answers one actor's decision per question.**
   - Material factors are established first; aggregation receives the factor results and the structured facts, not the whole record again.
   - A reading of the evidence is never a forecast's probability.
-  - Each question's cash facts must match the engine's state on its decision date. Where Slope's own funding and collections move that state across a material threshold, the loan calculation is run up to the decision date. There is no general feedback solver.
+  - Each question's cash facts must match the engine's state on its decision date. Where the lender's own funding and collections move that state across a material threshold, the loan calculation is run up to the decision date. There is no general feedback solver.
 - **Settlement is its own decision** on specified terms. An acceptance probability is never reused for a different offer.
 
 ### 16.5 The reusable boundary

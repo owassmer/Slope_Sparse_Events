@@ -1,6 +1,6 @@
 """Generate Akoustis's connected-bank feed (synthetic reconstruction) from 1 Jan to 14 May 2024.
 
-Slope underwrites on connected bank data. Akoustis's is not public, so this feed reconstructs it from what was public
+The lender underwrites on connected bank data. Akoustis's is not public, so this feed reconstructs it from what was public
 on the review date, 14 May 2024 (Model Extensions Spec §16.2-16.3): daily, counterparty-tagged transactions whose
 totals match the company's filed cash-flow figures.
 

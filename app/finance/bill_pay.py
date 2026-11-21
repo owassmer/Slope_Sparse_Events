@@ -1,6 +1,6 @@
-"""Slope bill-pay financing: the loan's payment schedule, proration and APR equivalent for supplied terms.
+"""Bill-pay financing: the loan's payment schedule, proration and APR equivalent for supplied terms.
 
-Slope pays the supplier directly; the business repays on net terms (one payment) or in monthly installments, by ACH.
+The lender pays the supplier directly; the business repays on net terms (one payment) or in monthly installments, by ACH.
 The fee is a share of the amount financed and is prorated if the business repays early. Money is integer cents; rates
 are Decimal basis points; payment dates follow the business-day calendar.
 """
@@ -19,7 +19,7 @@ BPS = Decimal(10_000)
 
 
 @dataclass(frozen=True)
-class SlopeOffer:
+class BillPayOffer:
     offer_id: str
     term_id: str
     amount_cents: int

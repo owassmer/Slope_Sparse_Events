@@ -3,7 +3,7 @@
 Run after `uv run sparse-events evidence build akoustis_20240620` and `make_bank_feed.py`:
 `uv run python cases/akoustis_20240620/make_run_inputs.py`.
 
-Slope's line (Model Extensions Spec §2.1): limit = 15% x (mean monthly customer receipts - mean monthly debt service)
+The lender's line (Model Extensions Spec §2.1): limit = 15% x (mean monthly customer receipts - mean monthly debt service)
 over the trailing three complete months of the connected-bank feed, rounded down to the cent; 3.7% fee; each draw
 repaid in 3 equal monthly installments. The reusable-line engine is the next step, so the current engine still receives
 one supplied draw: the largest supplier invoice in the trailing window that fits under the limit. Every baseline
@@ -21,9 +21,9 @@ from app.evidence.snapshot import EVIDENCE_DIR
 from app.finance.bank import load_feed, window
 
 SNAP = "akoustis_20240620"
-LIMIT_SHARE = Decimal("0.15")  # the low end of Slope's published 15-33% range, for a stressed profile
+LIMIT_SHARE = Decimal("0.15")  # the low end of the lender's published 15-33% range, for a stressed profile
 FEE_BPS, INSTALLMENTS, DAYS = 370, 3, 90
-LABEL = "Terms reconstructed by applying Slope's published sizing rule to the connected-bank baseline."
+LABEL = "Terms reconstructed by applying the lender's published sizing rule to the connected-bank baseline."
 
 db = sqlite3.connect(EVIDENCE_DIR / f"{SNAP}.sqlite")
 
@@ -97,7 +97,7 @@ existing = [
      "note": "Existing seller note, secured by assets of the purchaser and GDSI."},
 ]
 
-# Slope's line rule on the connected-bank feed.
+# The lender's line rule on the connected-bank feed.
 feed = load_feed(SNAP)
 start, end = window(feed)
 receipts, debt = defaultdict(int), defaultdict(int)
@@ -145,11 +145,11 @@ inputs = {
     "snapshot_id": SNAP,
     "status": "locked_operator_inputs",
     "note": ("Operator request and ordinary baseline for the 20 June 2024 review, reconstructed as if Akoustis applied "
-             "to Slope for a reusable line that pays supplier invoices. " + LABEL + " The baseline holds only ordinary "
+             "to the lender for a reusable line that pays supplier invoices. " + LABEL + " The baseline holds only ordinary "
              "underwriting facts; the litigation is for the investigation to establish."),
     "run_inputs": {
         "mission_id": "akoustis_2024_supplier_line",
-        "requested_use": {"value": "Draws on a Slope reusable line to pay supplier invoices (fab materials and contract "
+        "requested_use": {"value": "Draws on a reusable line from the lender to pay supplier invoices (fab materials and contract "
                                    "manufacturing)", "basis": "operator_request"},
         "requested_amount": {"value": draw, "unit": "USD_cents", "basis": "operator_request"},
         "requested_term": {"value": "Reusable line; each draw repaid in three monthly installments",
@@ -157,26 +157,26 @@ inputs = {
         "requested_pricing": {"value": "3.7% fee on each amount financed", "basis": "operator_request"},
         "baseline_profile_id": "akoustis_ordinary_baseline_v1",
         "existing_loan_record_ids": [x["loan_id"] for x in existing],
-        "permitted_offer_set_id": "slope_supplied_terms_v1",
+        "permitted_offer_set_id": "supplied_terms_v1",
         "policy_config_id": "analysis_only",
-        "initial_event_seed": ("As of 20 June 2024, analyse how external events could affect a Slope reusable line "
+        "initial_event_seed": ("As of 20 June 2024, analyse how external events could affect a reusable line from the lender "
                                "that pays supplier invoices for Akoustis Technologies, Inc., each draw repaid in three "
                                "monthly installments. Akoustis's public filings describe trade-secret and patent "
                                "litigation with Qorvo, Inc., a competitor, in the U.S. District Court for the District "
                                "of Delaware."),
     },
     "financing_plan": {
-        "funding": "next business day after the review date (Slope pays the supplier)",
+        "funding": "next business day after the review date (the lender pays the supplier)",
         "invoice_due_days_after_funding": 30,
         "basis": "operator_request",
-        "note": "Slope pays the supplier up to the financed amount; Akoustis pays any remainder of the invoice itself.",
+        "note": "The lender pays the supplier up to the financed amount; Akoustis pays any remainder of the invoice itself.",
         "supplied_terms": {"invoice_cents": draw, "amount_cents": draw, "installments": INSTALLMENTS, "days": DAYS,
                            "fee_bps": FEE_BPS, "discount_rate_bps": 800,
-                           "product": "Slope reusable line: Slope pays supplier invoices up to the limit; each draw is "
+                           "product": "Reusable line: the lender pays supplier invoices up to the limit; each draw is "
                                       "repaid in monthly installments by ACH"},
         "line": line,
     },
-    "permitted_offers": {"permitted_offer_set_id": "slope_supplied_terms_v1"},
+    "permitted_offers": {"permitted_offer_set_id": "supplied_terms_v1"},
     "policy": {"policy_config_id": "analysis_only"},
     "bank_feed": f"cases/{SNAP}/bank_feed.json",
     "baseline_profile": {

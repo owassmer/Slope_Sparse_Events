@@ -75,20 +75,20 @@ def derived(unit, amount, facts, formula, note):
 operator = [
     assumption("A_post_june_hvl_paid_cents", "USD_cents", 0, "Worked sensitivity only: assume no HVL payment between July 1 and August 13. Actual payments in that interval are unknown. Replace with ledger evidence."),
     assumption("A_post_june_supplier_paid_cents", "USD_cents", 0, "Worked sensitivity only: assume no payment on the March supplier settlement after June 30 through decision date. Actual payments are unknown."),
-    assumption("A_policy_cash_reserve_cents", "USD_cents", 20000000, "Illustrative $200,000 liquidity reserve, not Slope policy or a reported contractual requirement."),
+    assumption("A_policy_cash_reserve_cents", "USD_cents", 20000000, "Illustrative $200,000 liquidity reserve, not the lender's policy or a reported contractual requirement."),
     assumption("A_opening_cash_for_threshold_cents", "USD_cents", 200000000, "Use management's approximately $2 million August 12 cash as a rounded sensitivity input. Not verified unrestricted bank cash at August 13; vary it or supply bank evidence."),
 ]
 context = {
     "decision_id": DID, "mission_id": "synergy_20240813", "borrower_id": BID, "borrower_name": "Synergy CHC Corp.", "as_of": ASOF,
     "decision_timezone": "America/New_York", "decision_type": "new_draw", "transaction_basis": "analytical_candidate",
-    "slope_relationship": "not_established", "stakeholder_scope": "loan_asset_holder", "currency": "USD",
-    "requested_amount": value("USD_cents", note="A proposed incremental financing amount is an operator choice, not a disclosed Slope application."),
+    "lender_relationship": "not_established", "stakeholder_scope": "loan_asset_holder", "currency": "USD",
+    "requested_amount": value("USD_cents", note="A proposed incremental financing amount is an operator choice, not a disclosed application to the lender."),
     "requested_term_months": None,
     "use_of_proceeds": "Evaluate incremental inventory or working-capital financing alongside an actual merchant loan and dated supplier-settlement obligations.",
     "baseline_id": BASELINE, "baseline_status": "explicit_assumption_model",
     "available_actions": ["requested_offer", "smaller_feasible_purchase", "alternative_term", "conditional_offer", "decline_new_exposure"],
     "missing_inputs": ["Settlement payments actually made July 1 through August 13", "Updated unrestricted cash and other debt-service calendar", "Daily credits and remittances for the specific Shopify account", "Actual May merchant-loan effective funding date", "Proposed incremental amount, pricing, term and funded operating plan"],
-    "note": "The example computes useful conditional thresholds from real obligations plus named assumptions. It does not fabricate historical bank transactions, channel receipts, a complete borrower forecast, or a Slope relationship.",
+    "note": "The example computes useful conditional thresholds from real obligations plus named assumptions. It does not fabricate historical bank transactions, channel receipts, a complete borrower forecast, or a relationship with the lender.",
 }
 
 obs = []
@@ -223,7 +223,7 @@ packet = {"schema_version": "0.1.0", "case_id": "synergy_chc_2024", "artifact_st
                               "action_results": [], "policy_basis": "operator_demo_policy", "policy_id": "conditional_reserve_threshold_example",
                               "required_conditions": ["Compare supported remaining-period free cash with the threshold; choose actual or explicit scenario payment dates to test interim liquidity.", "Add a proposed new loan's net cash schedule and changed purchase plan before recommending an amount or term."],
                               "decisive_missing_inputs": context["missing_inputs"],
-                              "summary": "Useful outputs are $800k conditional remaining-period free-cash requirement under the named assumptions and contract-derived merchant-channel receipt thresholds of $501,720 in each separate six-month window and $1,672,400 over the full term, before manual-payment credits and outstanding-total caps. They do not claim a historical shortfall, a calibrated default probability, or an actual Slope lending decision.",
+                              "summary": "Useful outputs are $800k conditional remaining-period free-cash requirement under the named assumptions and contract-derived merchant-channel receipt thresholds of $501,720 in each separate six-month window and $1,672,400 over the full term, before manual-payment credits and outstanding-total caps. They do not claim a historical shortfall, a calibrated default probability, or the lender's actual lending decision.",
                               "threshold_results": thresholds},
           "loan_cashflow_export": {"export_id": "synergy_dated_export_awaiting_scenario_ledger", "loan_id": LID, "borrower_id": BID, "decision_id": DID, "as_of": ASOF, "currency": "USD",
                                    "cashflow_type": "conditional", "status": "not_computable", "scenario_id": scenario["scenario_id"], "baseline_id": BASELINE, "scenario_weights": [], "rows": [],

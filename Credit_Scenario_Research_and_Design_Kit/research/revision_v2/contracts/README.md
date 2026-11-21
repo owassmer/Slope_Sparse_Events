@@ -1,12 +1,12 @@
 # Prototype financial contracts and examples
 
-These files define the implementation contracts and provide useful conditional calculations. They are not a running agent application, a calibrated credit model, or actual Slope offers.
+These files define the implementation contracts and provide useful conditional calculations. They are not a running agent application, a calibrated credit model, or the lender's actual offers.
 
 ## Main example and secondary case
 
 - `economic-effects.json`: **Synergy CHC**, case `synergy_chc_2024`, mission `synergy_20240813`, decision cutoff August 13, 2024. Contains real settlement and merchant-loan facts, named operator assumptions, four economic-effect mappings, and calculated decision thresholds.
 - `synergy-decision-context.json`: standalone decision context for the same mission.
-- `proposal-fixtures.json`: three explicitly analytical incremental financing options: $100k/6 months/6% fixed total fee, $250k/6 months/6%, and $250k/3 months/3%. Monthly payment indices avoid inventing actual funding or due dates. These are not Slope pricing, historical applications, or modifications of the existing $370k WebBank loan.
+- `proposal-fixtures.json`: three explicitly analytical incremental financing options: $100k/6 months/6% fixed total fee, $250k/6 months/6%, and $250k/3 months/3%. Monthly payment indices avoid inventing actual funding or due dates. These are not the lender's pricing, historical applications, or modifications of the existing $370k WebBank loan.
 - `barfresh-economic-effects.json`: separately named secondary case `barfresh_schreiber_2024`, mission `barfresh_20241025`. Historical observations and research effects only; it is not the lead model.
 - `build-contracts.schema.json`: JSON Schema Draft 2020-12 reusable contracts including evidence values, decision context, loan terms, merchant repayment rules, economic effects, scenarios, threshold results, decisions, and cash-flow exports.
 - `proposal-fixtures.schema.json`: schema for the analytical proposals.

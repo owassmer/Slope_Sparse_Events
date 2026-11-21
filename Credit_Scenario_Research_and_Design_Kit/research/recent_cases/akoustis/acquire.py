@@ -1,6 +1,6 @@
 """Acquire the Akoustis / Qorvo case sources and register them in the kit catalog.
 
-Run from the repository root: `uv run python Slope_Credit_Scenario_Research_and_Design_Kit/research/recent_cases/akoustis/acquire.py`.
+Run from the repository root: `uv run python Credit_Scenario_Research_and_Design_Kit/research/recent_cases/akoustis/acquire.py`.
 SEC filings come from EDGAR (acceptance time from the submissions JSON); court documents are the free RECAP copies on
 CourtListener for Qorvo v. Akoustis, D. Del. 1:21-cv-01417 (availability = the docket entry's filing date, day
 precision, end of day in New York). The docket report is rebuilt from CourtListener's docket page, keeping only
