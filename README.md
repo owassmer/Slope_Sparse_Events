@@ -1,4 +1,4 @@
-# Slope Sparse Events
+# sparse-events
 
 A proof of concept for sparse-event credit analysis. An agent researches a rare external event affecting a borrower, such as a lawsuit. Jev, a forecasting model, answers focused conditional questions about what each party does next. Deterministic code composes those probabilities into event paths, simulates the borrower's cash, and carries the result into the dated cash flows of a supplied Slope line. The output is scenario and sensitivity analysis of the loan's cash flows; it does not make the lending decision.
 
@@ -7,8 +7,8 @@ A proof of concept for sparse-event credit analysis. An agent researches a rare 
 
 ```sh
 uv sync
-uv run slope --help
-uv run slope analyze --run <run_id>     # the analysis and its page for a recorded run
-uv run slope viewer                     # read-only viewer at http://127.0.0.1:8000
+uv run sparse-events --help
+uv run sparse-events analyze --run <run_id>     # the analysis and its page for a recorded run
+uv run sparse-events viewer                     # read-only viewer at http://127.0.0.1:8000
 uv run pytest
 ```

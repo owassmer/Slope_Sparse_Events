@@ -6,7 +6,7 @@
 - **Akoustis Technologies**, decision date (D) 20 Jun 2024, lead case (Owen's choice);
 - **Charles & Colvard**, D 18 Nov 2024, second case.
 
-**Governing documents:** where this spec differs from `Slope_Credit_Scenario_Build_Specification.md`, this spec governs these changes. The alignment document governs intent.
+**Governing documents:** where this spec differs from `Credit_Scenario_Build_Specification.md`, this spec governs these changes. The alignment document governs intent.
 
 **Evidence base:** the round 2 acquisition notes, `acquisition_akoustis_20240620.md` and `acquisition_cthr_20241118.md`, with their source folders. They move into the kit in delivery step 2 (§13).
 
@@ -449,7 +449,7 @@ Jev's present-state readings (`financing_interpretation`) confirm the agent's ci
   Draw keys are `(instance, node, purpose)`, so probabilities never move dates.
 - **Path facts:** a pre-pass simulates each path's state at each node's decision date (P5 / P50 cash, amount owed, collateral required) for the Jev questions.
 - **`operating.py`:** per-category arrays for `supplier_invoice`, `legal_fees`, receipts and `need`.
-- **`engine.py`:** the reusable line (§2.1), the collection rule (§2.2), the petition (§2.3), the outputs (§2.4). The single-draw reference arithmetic stays in `slope finance check`.
+- **`engine.py`:** the reusable line (§2.1), the collection rule (§2.2), the petition (§2.3), the outputs (§2.4). The single-draw reference arithmetic stays in `sparse-events finance check`.
 - **`core.py`:** attribution (§9); `parameter_sensitivity` is dropped.
 
 ## 9. Attribution

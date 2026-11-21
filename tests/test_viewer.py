@@ -205,7 +205,7 @@ def _run_page(tmp_path, monkeypatch, state, snapshot_id):
     (tmp_path / run).mkdir()
     payload = {**state["payload"], "meta": {**state["payload"]["meta"], "snapshot_id": snapshot_id}, "settings": []}
     (tmp_path / run / "page.json").write_text(json.dumps(payload))
-    monkeypatch.setenv("SLOPE_RUNS_ROOT", str(tmp_path))
+    monkeypatch.setenv("SPARSE_EVENTS_RUNS_ROOT", str(tmp_path))
     monkeypatch.setitem(web._RUN_STATES, run, state)
     return run, TestClient(app)
 

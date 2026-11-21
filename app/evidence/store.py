@@ -25,7 +25,7 @@ class EvidenceStore:
     def __init__(self, snapshot_id: str, path: Path | None = None) -> None:
         path = path or db_path(snapshot_id)
         if not path.is_file():
-            raise EvidenceAccessError(f"Snapshot {snapshot_id!r} has not been built (uv run slope evidence build)")
+            raise EvidenceAccessError(f"Snapshot {snapshot_id!r} has not been built (uv run sparse-events evidence build)")
         self.con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
         self.con.row_factory = sqlite3.Row
         self.meta = {r["key"]: r["value"] for r in self.con.execute("SELECT key, value FROM meta")}

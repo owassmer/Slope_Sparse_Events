@@ -1,5 +1,5 @@
 [project]
-name = "slope-sparse-events"
+name = "sparse-events"
 version = "0.1.0"
 description = "External-event credit scenario module: agent + Jev research into loan cash flows and financing decisions"
 readme = "README.md"
@@ -40,12 +40,12 @@ build-backend = "hatchling.build"
 packages = ["app"]
 
 [project.scripts]
-slope = "app.cli:main"
+sparse-events = "app.cli:main"
 
 [tool.ruff]
 line-length = 110
 target-version = "py312"
-extend-exclude = ["Slope_Credit_Scenario_Research_and_Design_Kit"]
+extend-exclude = ["Credit_Scenario_Research_and_Design_Kit"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

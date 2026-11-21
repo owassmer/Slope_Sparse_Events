@@ -3,7 +3,7 @@ name: verify
 description: Run the real product and use it as a user would, and write what you found. The verifier's procedure.
 ---
 The product is running for you, and `drive` is how you use it: the analysis page over each recorded run, and the
-`slope` command line. Act as a user with `drive open`, `drive click`, `drive type` and `drive press`; look with
+`sparse-events` command line. Act as a user with `drive open`, `drive click`, `drive type` and `drive press`; look with
 `drive see` (`--all` for the whole page). Use the command line with `drive run -- <arguments>` and the product's HTTP
 routes with `drive send`. `drive --help` lists the actions, which are the same for every feature.
 

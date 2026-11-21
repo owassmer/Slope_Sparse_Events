@@ -380,7 +380,7 @@ def write_exchanges(path: Path, exchanges: list[dict]) -> None:
 
 
 def read_analysis(run_dir: Path) -> dict | None:
-    """The run's analysis: analysis.json where `slope analyze` ran here, else the committed analysis.json.gz."""
+    """The run's analysis: analysis.json where `sparse-events analyze` ran here, else the committed analysis.json.gz."""
     if (run_dir / "analysis.json").exists():
         return json.loads((run_dir / "analysis.json").read_text())
     if (run_dir / "analysis.json.gz").exists():
@@ -389,7 +389,7 @@ def read_analysis(run_dir: Path) -> dict | None:
 
 
 def load_page_state(run_dir: Path) -> dict:
-    """The run page's reweight state: from var/ if `slope analyze` ran here, else rebuilt once from the run's
+    """The run page's reweight state: from var/ if `sparse-events analyze` ran here, else rebuilt once from the run's
     analysis.json and page.json (the same judgments, seeds and trajectories; no agent or Jev call)."""
     import pickle
 

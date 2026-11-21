@@ -1,10 +1,10 @@
-# Slope project: context and alignment for the coding agent
+# sparse-events: context and alignment for the coding agent
 
 ## Purpose of this document
 
 This document gives you the intent behind the build: what Russell described to Owen, why the problem matters, what Owen wants to demonstrate, and how to make implementation choices that serve that purpose.
 
-Read it alongside `Slope_Credit_Scenario_Build_Specification.md` and `Slope_Credit_Scenario_Research_and_Design_Kit.zip`. The specification defines the implementation. The kit supplies evidence, schemas, configuration, examples and reference calculations. This document explains the surrounding product and collaboration context.
+Read it alongside `Credit_Scenario_Build_Specification.md` and `Credit_Scenario_Research_and_Design_Kit.zip`. The specification defines the implementation. The kit supplies evidence, schemas, configuration, examples and reference calculations. This document explains the surrounding product and collaboration context.
 
 The call account below comes from Owen’s description of his conversation with Russell. The product framing and design choices are the synthesis Owen approved for the demonstration. Keep that distinction when presenting the work: Russell supplied the problem and priorities; this implementation is Owen’s proposed solution.
 
@@ -104,7 +104,7 @@ Owen wants the demonstration grounded in actual businesses, actual legal events,
 
 ### Akoustis Technologies: lead demonstration
 
-The review date is **14 May 2024**, the day after Akoustis's 10-Q and earnings call. Qorvo's trade-secret and patent claims against it are at jury trial, its $44M convertible notes can come due early if a large judgment goes unpaid, and its Nasdaq listing is at risk. The loan is Slope's reusable line, sized by Slope's published rule on the reconstructed bank data, analysed over 180 days. `Slope_Model_Extensions_Spec.md` §16 governs. Charles & Colvard (18 Nov 2024) is the second case.
+The review date is **14 May 2024**, the day after Akoustis's 10-Q and earnings call. Qorvo's trade-secret and patent claims against it are at jury trial, its $44M convertible notes can come due early if a large judgment goes unpaid, and its Nasdaq listing is at risk. The loan is Slope's reusable line, sized by Slope's published rule on the reconstructed bank data, analysed over 180 days. `Model_Extensions_Spec.md` §16 governs. Charles & Colvard (18 Nov 2024) is the second case.
 
 ### Synergy CHC: earlier candidate
 

@@ -1,5 +1,5 @@
 {
-  "name": "slope-roles",
+  "name": "sparse-events-roles",
   "private": true,
   "type": "module",
   "description": "The sandbox every worker and verifier runs in. See sandbox.ts.",

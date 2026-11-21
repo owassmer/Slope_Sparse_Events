@@ -18,7 +18,7 @@ root="$(git rev-parse --show-toplevel)"; cd "$root"
 main="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd -P)"
 cfg="$main/var/aws-walk.json"; mkdir -p var .runs "$main/var"
 get() { python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$cfg" "$1"; }
-REPO=https://github.com/owassmer/Slope_Sparse_Events.git
+REPO=https://github.com/owassmer/sparse-events.git
 
 case "${1:-}" in
 setup)
@@ -57,9 +57,9 @@ export DEBIAN_FRONTEND=noninteractive HOME=/root
 apt-get update -qq && apt-get install -y -qq git curl unzip
 curl -LsSf https://astral.sh/uv/install.sh | sh
 curl -sSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/aws.zip && unzip -q /tmp/aws.zip -d /tmp && /tmp/aws/install
-git clone --quiet '"$REPO"' /opt/slope
-cd /opt/slope && /root/.local/bin/uv sync --locked -q
-touch /opt/slope-ready'
+git clone --quiet '"$REPO"' /opt/sparse-events
+cd /opt/sparse-events && /root/.local/bin/uv sync --locked -q
+touch /opt/sparse-events-ready'
   ids="$(aws ec2 run-instances --image-id "$(get ami)" --instance-type "$type" --count "$n" \
     --iam-instance-profile "Name=$(get role)" --security-group-ids "$(get sg)" --associate-public-ip-address \
     ${market[@]+"${market[@]}"} \
@@ -104,15 +104,15 @@ run)
       id="${hosts[$i]%%:*}"; type="${hosts[$i]#*:}"
       cores="$(aws ec2 describe-instance-types --instance-types "$type" --query 'InstanceTypes[0].VCpuInfo.DefaultVCpus' --output text)"
       script="set -uo pipefail
-while [ ! -f /opt/slope-ready ]; do sleep 10; done
-export HOME=/root PATH=/root/.local/bin:/usr/local/bin:\$PATH OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 SLOPE_JEV_CACHE_ONLY=1
-cd /opt/slope && git fetch -q origin aws/$name && git checkout -q -f FETCH_HEAD && uv sync --locked -q
-uv run slope evidence build akoustis_20240514 > /tmp/evidence-$name.log 2>&1
+while [ ! -f /opt/sparse-events-ready ]; do sleep 10; done
+export HOME=/root PATH=/root/.local/bin:/usr/local/bin:\$PATH OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 SPARSE_EVENTS_JEV_CACHE_ONLY=1
+cd /opt/sparse-events && git fetch -q origin aws/$name && git checkout -q -f FETCH_HEAD && uv sync --locked -q
+uv run sparse-events evidence build akoustis_20240514 > /tmp/evidence-$name.log 2>&1
 xargs -P $(( cores / 4 )) -d '\n' -n 1 bash -c 'timeout --signal=TERM --kill-after=60 20m bash -c \"\$1\" > /dev/null 2>&1; true' _ < aws-lines-$i.txt
 aws s3 sync var/walk-population/ s3://$bucket/walk/ --only-show-errors --exclude '*' --include '$name-*'
 echo lines-done"
       cid="$(aws ssm send-command --instance-ids "$id" --document-name AWS-RunShellScript --timeout-seconds 600 \
-        --parameters "$(python3 -I -c 'import json,sys; print(json.dumps({"commands":["bash -s <<\x27SLOPE_WAVE\x27\n" + sys.argv[1] + "\nSLOPE_WAVE"],"executionTimeout":["7200"]}))' "$script")" \
+        --parameters "$(python3 -I -c 'import json,sys; print(json.dumps({"commands":["bash -s <<\x27SPARSE_EVENTS_WAVE\x27\n" + sys.argv[1] + "\nSPARSE_EVENTS_WAVE"],"executionTimeout":["7200"]}))' "$script")" \
         --query Command.CommandId --output text)"
       echo "host $id ($type, $cores cores): command $cid, $(wc -l < <(git show "$sha:aws-lines-$i.txt")) lines"; cmds+=("$id:$cid")
     done

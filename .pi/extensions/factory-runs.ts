@@ -458,7 +458,7 @@ export default function (pi: ExtensionAPI) {
           lines.push(`The verifier's list ${seen}: ${works} WORKS, ${broken} BROKEN.`);
         }
       }
-      // A worker's report and the whole of what was applied, so judging the work needs no fragments: what Slope's models read
+      // A worker's report and the whole of what was applied, so judging the work needs no fragments: what the product's models read
       // first, then everything else the commit changed, tests included (Owen, October 8: the rest was being fetched in
       // pieces, which leaves the reading to habit).
       const report = /^=== report\n([\s\S]*?)^=== end of report/m.exec(text)?.[1]?.trim();
@@ -480,9 +480,9 @@ export default function (pi: ExtensionAPI) {
         const defs = listed("tools/roles/definitions");
         const defDiff = defs.length ? git(root, "show", "--format=", applied, "--", ...defs) : "";
         if (defs.length) lines.push(defDiff ? `The definitions changed (${applied}), in full:\n${defDiff}` : `No definition changed in ${applied}.`);
-        const reads = listed("tools/roles/slope-reads");
+        const reads = listed("tools/roles/sparse-events-reads");
         const diff = reads.length ? git(root, "show", "--format=", applied, "--", ...reads, ...defs.map((r) => `:(exclude)${r}`)) : "";
-        lines.push(diff ? `What Slope's models read changed (${applied}), in full:\n${diff}` : `Nothing Slope's models read changed in ${applied}.`);
+        lines.push(diff ? `What the product's models read changed (${applied}), in full:\n${diff}` : `Nothing the product's models read changed in ${applied}.`);
         const rest = git(root, "show", "--format=", applied, "--", ".", ...[...defs, ...reads].map((r) => `:(exclude)${r}`));
         lines.push(rest ? `Everything else the commit changed (${applied}), in full:\n${rest}` : `Nothing else changed in ${applied}.`);
       }

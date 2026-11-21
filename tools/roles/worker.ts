@@ -68,7 +68,7 @@ export default function worker(pi: ExtensionAPI) {
     } catch { return ""; }
   };
   // The search provider's key is configured on Owen's "handoff-judgments" gateway (same Cloudflare account); a gateway
-  // of Slope's own needs that key added in the dashboard, then FACTORY_SEARCH_GATEWAY names it.
+  // of the product's own needs that key added in the dashboard, then FACTORY_SEARCH_GATEWAY names it.
   const fetched = new Map<string, string>();
   const text = (s: string) => ({ content: [{ type: "text" as const, text: s }], details: {} });
 
@@ -96,7 +96,7 @@ export default function worker(pi: ExtensionAPI) {
     description: "Read a public page as text. To rely on something it says, keep that passage with source_keep.",
     parameters: Type.Object({ url: Type.String() }),
     async execute(_id, params, signal) {
-      const res = await fetch(params.url, { signal: signal ?? AbortSignal.timeout(30_000), headers: { "user-agent": "SlopeResearch/1.0 (sources for a lending analysis; respects robots.txt)" } }).catch((e) => e as Error);
+      const res = await fetch(params.url, { signal: signal ?? AbortSignal.timeout(30_000), headers: { "user-agent": "SparseEventsResearch/1.0 (sources for a lending analysis; respects robots.txt)" } }).catch((e) => e as Error);
       if (res instanceof Error) return text(`Could not read ${params.url}: ${res.message}`);
       const type = res.headers.get("content-type") ?? "";
       let page: string;

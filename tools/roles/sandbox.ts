@@ -154,8 +154,8 @@ export default function (pi: ExtensionAPI) {
         filesystem: {
           denyRead: ["/Users", realpathSync(tmpdir()), "/private/tmp", "/tmp"],
           // The machine's lock folder (lock files only): one full gates run at a time across all roles.
-          allowRead: [workspace, scratch!, "/private/tmp/slope-locks", ...extraReads],
-          allowWrite: [...writable, scratch!, "/private/tmp/slope-locks"],
+          allowRead: [workspace, scratch!, "/private/tmp/sparse-events-locks", ...extraReads],
+          allowWrite: [...writable, scratch!, "/private/tmp/sparse-events-locks"],
           denyWrite: [],
         },
       });

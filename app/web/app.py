@@ -21,12 +21,12 @@ from app.web import viewmodel
 
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
-app = FastAPI(title="Slope Sparse Events")
+app = FastAPI(title="sparse-events")
 app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
 
 def runs_root() -> Path:
-    return Path(os.environ.get("SLOPE_RUNS_ROOT", str(RECORDED)))
+    return Path(os.environ.get("SPARSE_EVENTS_RUNS_ROOT", str(RECORDED)))
 
 
 def _run_dir(run_id: str) -> Path:
@@ -44,7 +44,7 @@ def index(request: Request) -> HTMLResponse:
 @app.get("/runs/{run_id}", response_class=HTMLResponse)
 def run_page(request: Request, run_id: str) -> HTMLResponse:
     d = _run_dir(run_id)
-    if (d / "page.json").exists():  # the one-screen page (slope analyze writes it beside the run)
+    if (d / "page.json").exists():  # the one-screen page (sparse-events analyze writes it beside the run)
         data = json.loads((d / "page.json").read_text())
         return templates.TemplateResponse(request, "page.html", {
             "data": data, "api": f"/runs/{run_id}", "dev": False, "has_record": (d / "events.jsonl").exists(),
@@ -75,7 +75,7 @@ def get_analysis(run_id: str) -> JSONResponse:
 
     data = read_analysis(_run_dir(run_id))
     if data is None:
-        raise HTTPException(404, "This run has no analysis; run `slope analyze --run <id>`")
+        raise HTTPException(404, "This run has no analysis; run `sparse-events analyze --run <id>`")
     data.pop("model", None)
     return JSONResponse(data)
 
@@ -100,7 +100,7 @@ def _outcome_path(payload: dict) -> Path | None:
 def _run_payload(run_id: str) -> dict:
     path = _run_dir(run_id) / "page.json"
     if not path.exists():
-        raise HTTPException(404, "This run has no page; run `slope analyze --run <id>`")
+        raise HTTPException(404, "This run has no page; run `sparse-events analyze --run <id>`")
     return json.loads(path.read_text())
 
 
@@ -169,7 +169,7 @@ def _dev():
     if _DEV is None:
         _DEV = DevPage()
     if _DEV.state is None and _DEV.load() is None:
-        raise HTTPException(404, "No development page yet: run `slope viewer --dev`")
+        raise HTTPException(404, "No development page yet: run `sparse-events viewer --dev`")
     return _DEV
 
 

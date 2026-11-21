@@ -98,7 +98,7 @@ class Setup:
     variability: float = 1.0  # scales operating deviations around the simulated mean
     # Slope's reusable line (spec §2.1): limit = limit_share x mean monthly (customer receipts - debt service) over the
     # trailing three complete months, reassessed at every draw. The single-draw fields above stay as the reference
-    # draw that `slope finance check` and the agent's loan-terms tool read.
+    # draw that `sparse-events finance check` and the agent's loan-terms tool read.
     limit_share_bps: int = 1500
     limit_multiplier: float = 1.0  # 1.0 to 33/15: the low to the high end of Slope's published 15-33% range
     line_usage: float = 1.0  # share of eligible supplier invoices the borrower routes through Slope
