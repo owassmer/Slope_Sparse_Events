@@ -415,7 +415,7 @@ unused
 
 This creates what I would call a **Jev contribution ledger**.
 
-By Module Seven, you can answer Russell’s implicit question—“what did Jev actually add?”—with evidence:
+By Module Seven, you can answer the head of lending’s implicit question—“what did Jev actually add?”—with evidence:
 
 - prevented an allegation from becoming a liability;
 - filtered irrelevant passages;
@@ -663,7 +663,7 @@ Likewise:
 > “$2.235986m is a noncash settlement gain.”  
 > **Model consequence:** May alter normalized historical operating metrics; never enters cash ledger.
 
-This makes the semantic layer legible to Russell.
+This makes the semantic layer legible to the head of lending.
 
 ### Operator correction should be first-class
 
@@ -875,7 +875,7 @@ I would revise the practical Module Four exit condition to:
 
 That is a substantially stronger milestone than “Jev is callable.”
 
-It also creates the demo Russell actually needs to see:
+It also creates the demo the head of lending actually needs to see:
 
 > **An unusual external event enters as messy text. The system progressively turns it into clean, auditable economic facts. Those facts change explicit cash streams. Those streams change loan collections and feasible structures. The reviewer sees exactly where AI judgment was used, where deterministic math took over, what remains unknown, and why the proposed financing action follows.**
 
