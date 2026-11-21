@@ -1,4 +1,4 @@
-# Jev Should Become Slope Sparse Events’ Semantic Judgment Plane, Not a Sidecar
+# Jev Should Become sparse-events’ Semantic Judgment Plane, Not a Sidecar
 
 ## Executive judgment
 
@@ -227,7 +227,7 @@ That distinction is important because TypeSafe warns that Jev 1.13 should not be
 
 Choice outputs include their full option distribution and a derived confidence value; TypeSafe describes a flatter distribution as a sign that no option is clearly dominant and recommends calibrating any behavior thresholds on the application’s own data. citeturn15view1
 
-For Slope Sparse Events, this uncertainty signal is useful—but in a very specific way.
+For sparse-events, this uncertainty signal is useful—but in a very specific way.
 
 It should mean:
 

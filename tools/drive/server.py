@@ -9,7 +9,7 @@ workspace's code on a free port, opens a headless Chrome on it, and answers driv
 127.0.0.1, so a role's drive (which has no dependencies and runs inside the role's sandbox) reaches only its own product.
 
 Everything it starts runs with no route to a paid call: judgment-model requests are answered only from saved responses
-(SLOPE_JEV_CACHE_ONLY=1), and the AWS, Claude and GitHub credentials are hidden. The workspace sits outside the main
+(SPARSE_EVENTS_JEV_CACHE_ONLY=1), and the AWS, Claude and GitHub credentials are hidden. The workspace sits outside the main
 checkout, so the product finds no .env either.
 
 The state (control port, product url, pids) goes to the state file drive passes (DRIVE_STATE). A server whose workspace
@@ -73,7 +73,7 @@ class Product:
     # --- the product -------------------------------------------------------------------------------------------
     def env(self) -> dict[str, str]:
         env = {k: v for k, v in os.environ.items() if k not in HIDDEN_ENV}
-        env.update({"SLOPE_JEV_CACHE_ONLY": "1", "AWS_CONFIG_FILE": os.devnull,
+        env.update({"SPARSE_EVENTS_JEV_CACHE_ONLY": "1", "AWS_CONFIG_FILE": os.devnull,
                     "AWS_SHARED_CREDENTIALS_FILE": os.devnull, "AWS_EC2_METADATA_DISABLED": "true",
                     "CLAUDE_CONFIG_DIR": str(self.home / "no-claude"), "GH_CONFIG_DIR": str(self.home / "no-gh"),
                     "UV_OFFLINE": "1"})
@@ -82,7 +82,7 @@ class Product:
     def start_viewer(self, wait: int = 180) -> None:
         port = free_port()
         log = (self.home / "product.log").open("a")
-        self.viewer = subprocess.Popen(["uv", "run", "--frozen", "slope", "viewer", "--port", str(port), "--host", "127.0.0.1"],
+        self.viewer = subprocess.Popen(["uv", "run", "--frozen", "sparse-events", "viewer", "--port", str(port), "--host", "127.0.0.1"],
                                        cwd=self.ws, env=self.env(), stdout=log, stderr=subprocess.STDOUT,
                                        start_new_session=True)
         self.url = f"http://127.0.0.1:{port}"
@@ -194,7 +194,7 @@ class Product:
         timeout = int(opts.get("timeout", 300))
         t = time.time()
         try:
-            out = subprocess.run(["uv", "run", "--frozen", "slope", *args], cwd=self.ws, env=self.env(),
+            out = subprocess.run(["uv", "run", "--frozen", "sparse-events", *args], cwd=self.ws, env=self.env(),
                                  capture_output=True, text=True, timeout=timeout)
             code, text = out.returncode, out.stdout + out.stderr
         except subprocess.TimeoutExpired as e:
@@ -203,7 +203,7 @@ class Product:
             text += f"\n(drive stopped it after {timeout} s; pass --timeout to allow longer)"
         if limit and len(text) > limit:
             text = text[:limit] + f"\n... ({len(text) - limit} more characters; use --all)"
-        return {"command": "slope " + " ".join(args), "exit": code, "seconds": round(time.time() - t, 1), "text": text}
+        return {"command": "sparse-events " + " ".join(args), "exit": code, "seconds": round(time.time() - t, 1), "text": text}
 
     def close(self) -> None:
         self.stop_viewer()

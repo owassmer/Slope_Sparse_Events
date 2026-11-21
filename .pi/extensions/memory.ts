@@ -31,7 +31,7 @@
  *   again after the current calls, as a message in the transcript (never edited in before a request, which would
  *   discard the provider's cache).
  *
- * Ported from Handoff's factory (October 8, again October 28). Nothing in it is specific to Slope except the reading of
+ * Ported from Handoff's factory (October 8, again October 28). Nothing in it is specific to sparse-events except the reading of
  * its factory records (factoryStanding) and where its Cloudflare credentials are kept (secret).
  */
 import { execFile, execFileSync } from "node:child_process";
@@ -268,7 +268,7 @@ export function parseEdits(text: string): Edit[] {
 
 // ---------------------------------------------------------------- the independent check (Clef)
 
-/** A Cloudflare credential: from the environment, else the main checkout's .env (where Slope's own Clef calls read it). */
+/** A Cloudflare credential: from the environment, else the main checkout's .env (where the product's own Clef calls read it). */
 async function secret(name: string): Promise<string | null> {
   if (process.env[name]) return process.env[name]!;
   try {
@@ -379,7 +379,7 @@ export async function factoryStanding(cwd: string): Promise<string> {
     }
   }
   lines.push(going.length ? "Runs going:" : "Runs going: none.", ...going);
-  const locks = "/private/tmp/slope-locks";
+  const locks = "/private/tmp/sparse-events-locks";
   if (existsSync(locks)) lines.push(`Machine slots held: ${readdirSync(locks).join(", ") || "none"}.`);
   const list = (args: string[], label: string) => {
     const out = run("gh", [...args, "--json", "number,title", "--jq", '.[] | "- #\\(.number) \\(.title)"'], main);

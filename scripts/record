@@ -57,7 +57,7 @@ PY
 else
   for f in "$@"; do
     rel="${f#./}"
-    case "$rel" in app/*|tests/*|cases/*|tools/*.py|Slope_Credit_Scenario_Research_and_Design_Kit/*|runs/recorded/*|research/sources/*) echo "record: $rel is product, which reaches main with its outcome" >&2; exit 2;; esac
+    case "$rel" in app/*|tests/*|cases/*|tools/*.py|Credit_Scenario_Research_and_Design_Kit/*|runs/recorded/*|research/sources/*) echo "record: $rel is product, which reaches main with its outcome" >&2; exit 2;; esac
     [ -e "$here/$rel" ] || { echo "record: no $rel in $here" >&2; exit 2; }
     mkdir -p "$dir/$(dirname "$rel")" && cp -p "$here/$rel" "$dir/$rel" && git -C "$dir" add "$rel"
   done

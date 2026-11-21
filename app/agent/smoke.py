@@ -91,7 +91,7 @@ async def run_claude_smoke() -> dict[str, Any]:
         return {"content": [{"type": "text", "text": json.dumps(mission)}]}
 
     server = create_sdk_mcp_server("credit", version="0.1.0", tools=[get_mission])
-    cwd = Path(tempfile.mkdtemp(prefix="slope-smoke-"))  # empty: no corpus, outputs or answers
+    cwd = Path(tempfile.mkdtemp(prefix="sparse-events-smoke-"))  # empty: no corpus, outputs or answers
     options = ClaudeAgentOptions(
         model=settings["model"],
         effort=settings["effort"],

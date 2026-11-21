@@ -17,7 +17,7 @@
 {
 set -euo pipefail
 MODEL="${REVIEW_MODEL:-openai-codex/gpt-6-astra:high}"   # the other family from the coordinator
-KIT=Slope_Credit_Scenario_Research_and_Design_Kit
+KIT=Credit_Scenario_Research_and_Design_Kit
 if [ "${1:-}" = --definition ] || [ "${1:-}" = --check ]; then
   root="$(git rev-parse --show-toplevel)"; cd "$root"
   DEF=()
@@ -96,7 +96,7 @@ if [ -z "${FACTORY_RUN:-}" ]; then
   echo "run: .runs/$run.log"; exit 0
 fi
 log="$root/.runs/$run.log"
-ws="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/slope-review.XXXXXX")" && pwd -P)"
+ws="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/sparse-events-review.XXXXXX")" && pwd -P)"
 echo "=== review $(basename "$brief") ($MODEL) in $ws" > "$log"; echo "=== dispatched by session ${PI_SESSION_ID:-none}" >> "$log"
 echo "=== steerable (pid $$): scripts/steer $run \"<message>\" (or --stop)" >> "$log"
 on_err() { echo "=== finished exit $1 (${0##*/} stopped at line $2)" >> "$log"; }

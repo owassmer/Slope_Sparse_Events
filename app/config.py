@@ -14,7 +14,7 @@ from functools import cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-KIT = ROOT / "Slope_Credit_Scenario_Research_and_Design_Kit"
+KIT = ROOT / "Credit_Scenario_Research_and_Design_Kit"
 CONTRACTS = KIT / "research/revision_v2/contracts"
 VAR = ROOT / "var"
 RECORDED = ROOT / "runs/recorded"

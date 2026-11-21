@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """drive: use the product as a user would.
 
-The product is the analysis page served over recorded runs, and the `slope` command line. You open pages, click,
+The product is the analysis page served over recorded runs, and the `sparse-events` command line. You open pages, click,
 type values into fields and sliders, press keys, and read what the page shows; you send the product's HTTP routes as an
 API client would, and run its command line. The actions are the same for every feature.
 
@@ -11,7 +11,7 @@ API client would, and run its command line. The actions are the same for every f
   drive type <number|text> <value>   Text into a field, an option into a list, a value onto a slider.
   drive press <key> [number|text]    Press a key (Enter, ArrowRight, ...), on a control if given.
   drive send <METHOD> <path> [json]  An HTTP request to the product, as an API client would.
-  drive run [--timeout s] -- <args>  The product's command line: `slope <args>`.
+  drive run [--timeout s] -- <args>  The product's command line: `sparse-events <args>`.
   drive status                       Where the product is running, and from which code.
   drive restart                      Reopen the product from the current code (after you change it).
 {starter}

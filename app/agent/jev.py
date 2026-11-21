@@ -44,13 +44,13 @@ MAX_RETRIES = 2
 NOUL_THRESHOLD = 0.5  # code-owned; also used for screen routing (checked against evals/)
 CACHE_DIR = VAR / "jev_cache"
 # While a caller holds a list here, every exchange is appended to it: the request as the SDK receives it (model,
-# built questions, state) and Jev's raw response. `slope analyze` writes the run's exchanges beside the run.
+# built questions, state) and Jev's raw response. `sparse-events analyze` writes the run's exchanges beside the run.
 EXCHANGE_LOG: list[dict] | None = None
 
 
 def cache_only() -> bool:
-    """SLOPE_JEV_CACHE_ONLY=1: answer only from saved responses; a request not already answered is refused."""
-    return os.environ.get("SLOPE_JEV_CACHE_ONLY") == "1"
+    """SPARSE_EVENTS_JEV_CACHE_ONLY=1: answer only from saved responses; a request not already answered is refused."""
+    return os.environ.get("SPARSE_EVENTS_JEV_CACHE_ONLY") == "1"
 
 
 class JevBudgetExceeded(RuntimeError):
@@ -152,7 +152,7 @@ class JevAdapter:
             self.cache_hits += 1
         else:
             if cache_only():
-                raise ConfigurationError(f"No saved Jev response for {profile} {question_ids} (SLOPE_JEV_CACHE_ONLY)")
+                raise ConfigurationError(f"No saved Jev response for {profile} {question_ids} (SPARSE_EVENTS_JEV_CACHE_ONLY)")
             reserved, estimate = self._reserve(
                 len(json.dumps(state)) + sum(len(q.model_dump_json()) for q in questions.values()))
             before = self.physical_attempts

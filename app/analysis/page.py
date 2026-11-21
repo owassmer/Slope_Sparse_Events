@@ -510,7 +510,7 @@ def source_links(snapshot_id: str) -> dict[str, str]:
 
     from app.config import CASES_DIR, ROOT
 
-    cat = ROOT / "Slope_Credit_Scenario_Research_and_Design_Kit/research/revision_v2/data/sources.json"
+    cat = ROOT / "Credit_Scenario_Research_and_Design_Kit/research/revision_v2/data/sources.json"
     snap = CASES_DIR / snapshot_id / "snapshot.json"
     if not cat.exists() or not snap.exists():
         return {}

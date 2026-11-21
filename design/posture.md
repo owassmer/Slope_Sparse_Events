@@ -1,4 +1,4 @@
-# How Slope Sparse Events is built: the posture
+# How sparse-events is built: the posture
 
 This is the reasoning the product is built from, put together from its history (the notebook, what Owen has decided
 and corrected, what the walks, checks and reviews have shown). It is not a rulebook: each point says what it is for.

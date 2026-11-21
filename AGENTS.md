@@ -1,15 +1,15 @@
-# Slope Sparse Events
+# sparse-events
 
 ## Purpose
-Slope Sparse Events is a work sample for Russell, Slope's Head of Lending. He asked how rare events that bank data can't see, like a lawsuit, could help with lending. An agent researches the event using only what was public on the review date. A judgment model then answers one clear question at a time about what happens next, given the facts at that point. The engine turns those answers into the loan's dated cash flows. The code, not the model, sets every amount and date, and nothing recommends a loan. Russell opens one page, follows a real filing to a judgment, changes that judgment himself, and sees how the loan's collections, timing and exposure move, compared with the business's ordinary ups and downs. Nothing goes out with a critical error, and any other work has to help get that correct page to Russell sooner.
+sparse-events is a work sample for Russell, Slope's Head of Lending. He asked how rare events that bank data can't see, like a lawsuit, could help with lending. An agent researches the event using only what was public on the review date. A judgment model then answers one clear question at a time about what happens next, given the facts at that point. The engine turns those answers into the loan's dated cash flows. The code, not the model, sets every amount and date, and nothing recommends a loan. Russell opens one page, follows a real filing to a judgment, changes that judgment himself, and sees how the loan's collections, timing and exposure move, compared with the business's ordinary ups and downs. Nothing goes out with a critical error, and any other work has to help get that correct page to Russell sooner.
 
 ## Map
 - `app/evidence` dated snapshots built from the kit (the isolation boundary); `app/agent` the investigation runner, its scoped tools and the judgment-model adapter; `app/disputes` the event model and the forecast walk; `app/finance` the line and ledger; `app/analysis` the engine, the page builder and reweighting; `app/web` the viewer: `/runs/<run>` is the analysis page, `/runs/<run>/investigation` the record behind it.
 - `cases/<case>/` case inputs; `runs/recorded/<run>/` recorded runs with `page.json` and the CSVs; `var/` generated and gitignored.
 - Lead case: Akoustis reviewed 14 May 2024, run `akoustis_20240514-agent_plus_jev-20260928T052641Z`.
 - `outcomes/<case>.json` what actually happened, read by the viewer only. The factory: `outcomes/<NNN>.md` an outcome in Owen's words and `<NNN>.seen.md` its verifier's list, `tasks/`, `notebook.md`, `feature-map.md`, `scripts/`, `tools/{drive,roles,feed,gates}/`, `.pi/` (the coordinator's instructions and run notifications). The top-level `tools/*.py` are the product's own.
-- `Slope_Credit_Scenario_Research_and_Design_Kit/` evidence, contracts and reference arithmetic. Never move or rename a file inside it.
-- Reference, not instructions: `Slope_Model_Extensions_Spec.md` (§16 governs the 14 May model, then the rest of it), then `Slope_Credit_Scenario_Build_Specification.md`; `Slope_Coding_Agent_Context_and_Alignment.md` (intent); `Jev_Pivot.md` (early rationale). On branch `step-9-memo`: `QUESTIONS_20240514.md` in the kit's Akoustis design folder (the question standard) and `PLAN.md` (its operations log).
+- `Credit_Scenario_Research_and_Design_Kit/` evidence, contracts and reference arithmetic. Never move or rename a file inside it.
+- Reference, not instructions: `Model_Extensions_Spec.md` (§16 governs the 14 May model, then the rest of it), then `Credit_Scenario_Build_Specification.md`; `Coding_Agent_Context_and_Alignment.md` (intent); `Jev_Pivot.md` (early rationale). On branch `step-9-memo`: `QUESTIONS_20240514.md` in the kit's Akoustis design folder (the question standard) and `PLAN.md` (its operations log).
 - There is no single way to add a case or a page feature yet; see `notebook.md`.
 
 ## Commands

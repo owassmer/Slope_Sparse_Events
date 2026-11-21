@@ -194,7 +194,7 @@ def investigate(snapshot_id: str = "synergy_20240813", arm: str = "agent_plus_je
         model=settings["model"], effort=settings["effort"], tools=[], allowed_tools=allowed,
         mcp_servers={"credit": build_server(ctx, allowed)}, strict_mcp_config=True, setting_sources=[],
         permission_mode=settings["native_sdk_options"]["permission_mode"], max_turns=max_turns,
-        cwd=tempfile.mkdtemp(prefix="slope-run-"), env=AGENT_PROCESS_ENV, system_prompt=system_prompt(arm, max_turns),
+        cwd=tempfile.mkdtemp(prefix="sparse-events-run-"), env=AGENT_PROCESS_ENV, system_prompt=system_prompt(arm, max_turns),
         output_format={"type": "json_schema", "schema": InvestigationOutcome.model_json_schema()})
 
     stats: dict[str, Any] = {"models": set(), "tool_calls": {}, "turn_ids": set(), "turn_limit_hit": False}

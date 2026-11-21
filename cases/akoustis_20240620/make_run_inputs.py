@@ -1,6 +1,6 @@
 """Generate the locked run inputs for the Akoustis lead case from the built snapshot and the bank feed.
 
-Run after `uv run slope evidence build akoustis_20240620` and `make_bank_feed.py`:
+Run after `uv run sparse-events evidence build akoustis_20240620` and `make_bank_feed.py`:
 `uv run python cases/akoustis_20240620/make_run_inputs.py`.
 
 Slope's line (Model Extensions Spec §2.1): limit = 15% x (mean monthly customer receipts - mean monthly debt service)

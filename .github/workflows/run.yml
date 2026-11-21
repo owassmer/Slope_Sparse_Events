@@ -28,7 +28,7 @@ jobs:
     env:
       CMD: ${{ matrix.cmd }}
       GH_TOKEN: ${{ github.token }}
-      SLOPE_JEV_CACHE_ONLY: '1'
+      SPARSE_EVENTS_JEV_CACHE_ONLY: '1'
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
     steps:
@@ -37,7 +37,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked
-      - run: uv run slope evidence build akoustis_20240514
+      - run: uv run sparse-events evidence build akoustis_20240514
       - name: Run the line
         run: |
           mkdir -p out
